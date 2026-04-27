@@ -26,18 +26,41 @@
   padding: 0.2em;
 }
 
+#StatusBar #volumeAnchor
+{
+  display: inline-block;
+  flow: horizontal;
+  vertical-align: middle;
+}
+
 #StatusBar #volume,
-#StatusBar #renderer
+#StatusBar #renderer,
+#StatusBar #volumePopupBtn
 {
   border: 1px solid transparent;
   padding: 0.2em;
   display: inline-block;
+  vertical-align: middle;
 }
 
 #StatusBar #volume:hover,
-#StatusBar #renderer:hover
+#StatusBar #renderer:hover,
+#StatusBar #volumePopupBtn:hover
 {
   border: 1px solid var(--color-statusbar-hover-border);
+}
+
+#StatusBar #volumePopupBtn svg
+{
+  width: 1.2em;
+  height: 1.2em;
+  fill: var(--color-ui-text-primary);
+  vertical-align: middle;
+}
+
+#StatusBar #volumePopupBtn.open svg
+{
+  transform: rotate(180deg);
 }
 
 #VolumePopup

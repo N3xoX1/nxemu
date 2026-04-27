@@ -88,7 +88,6 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_window(nullptr),
     m_renderWindow(nullptr),
     m_windowTitle(windowTitle),
-    m_volumePopup(false),
     m_emulationRunning(false),
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>())
 {
@@ -99,6 +98,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXCoreSetting::GameName, SciterMainWindow::GameNameChanged, this);
     settings.RegisterCallback(NXCoreSetting::DisplayedFrames, SciterMainWindow::DisplayedFramesChanged, this);
     settings.RegisterCallback(NXCoreSetting::DiskCacheLoadTick, SciterMainWindow::DiskCacheLoadChanged, this);
+    settings.RegisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
@@ -237,10 +237,15 @@ bool SciterMainWindow::Show()
     m_modules.Setup(*this);
     UpdateStatusbar();
 
-    m_sciterUI.AttachHandler(m_rootElement, IID_IMOUSEUPDOWNSINK, (IMouseUpDownSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("renderer"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volume"), IID_ICLICKSINK, (IClickSink *)this);
+    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volumePopupBtn"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("audioVolume"), IID_ISTATECHANGESINK, (IStateChangeSink *)this);
+    SciterElement volumePopup(m_rootElement.GetElementByID("VolumePopup"));
+    if (volumePopup.IsValid())
+    {
+        m_sciterUI.AttachHandler(volumePopup, IID_EVENTSINK, (IEventSink *)this);
+    }
 
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
     m_rootElement.SetTimer(25, (uint32_t *)TIMER_UPDATE_INPUT);
@@ -295,29 +300,10 @@ void SciterMainWindow::UpdateStatusbar()
     SciterElement volume(m_rootElement.GetElementByID("volume"));
     if (volume.IsValid())
     {
-        stdstr_f text("VOLUME: %d %%", settings.GetInt(NXOsSetting::AudioVolume));
+        bool muted = settings.GetBool(NXOsSetting::AudioMuted);
+        stdstr_f text(muted ? "Vol: Mute" : "Vol: %d %%", settings.GetInt(NXOsSetting::AudioVolume));
         volume.SetHTML((const uint8_t *)text.c_str(), text.size());
     }
-}
-
-void SciterMainWindow::DismissvolumePopup(SCITER_ELEMENT source, int32_t x, int32_t y)
-{
-    if (!m_volumePopup)
-    {
-        return;
-    }
-    if (source == m_rootElement.GetElementByID("volume"))
-    {
-        return;
-    }
-    SciterElement volumePopup(m_rootElement.GetElementByID("VolumePopup"));
-    SciterElement::RECT rc = volumePopup.GetLocation(SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX);
-    if (x >= rc.left && y >= rc.top && x <= rc.right && y <= rc.bottom)
-    {
-        return;
-    }
-    m_sciterUI.PopupHide(m_rootElement.GetElementByID("VolumePopup"));
-    m_volumePopup = false;
 }
 
 void SciterMainWindow::UpdateInputDrivers()
@@ -613,53 +599,49 @@ void SciterMainWindow::UpdateStatusBar()
     }
     IOperatingSystem & operatingSystem = m_modules.Modules().OperatingSystem();
     IVideo & video = m_modules.Modules().Video();
-    std::string status;
+    std::vector<std::string> parts;
 
     if (operatingSystem.IsEmulationPaused())
     {
-        status += "Paused";
+        parts.push_back("Paused");
     }
 
     const int shaders_building = video.ShadersBuilding();
 
     if (shaders_building > 0)
     {
-        if (!status.empty())
-        {
-            status += " | ";
-        }
-        status += stdstr_f("Building: %d shader(s)", shaders_building);
+        parts.push_back(stdstr_f("Building: %d shader(s)", shaders_building));
     }
 
     PerfStatsResults results = operatingSystem.GetAndResetPerfStats();
 
-    if (!status.empty())
+    if (m_resolutionUpFactor != 1.0)
     {
-        status += " | ";
+        parts.push_back(stdstr_f("Scale: %.0fx", m_resolutionUpFactor));
     }
-    status += stdstr_f("Scale: %.0fx", m_resolutionUpFactor);
     if (!m_useMultiCore)
     {
-        status += " | ";
         if (m_useSpeedLimit)
         {
             if (results.emulation_speed > 0.999 && results.emulation_speed < 1.01)
             {
                 results.emulation_speed = 100.0;
             }
-            status += stdstr_f("Speed: %.0f / %d", results.emulation_speed * 100.0, m_speedLimit);
+            parts.push_back(stdstr_f("Speed: %.0f / %d", results.emulation_speed * 100.0, m_speedLimit));
         }
         else
         {
-            status += stdstr_f("Speed: %f", results.emulation_speed * 100.0);
+            parts.push_back(stdstr_f("Speed: %f", results.emulation_speed * 100.0));
         }
     }
-    if (!status.empty())
+    parts.push_back(stdstr_f("%.0f FPS (%.2f ms)%s", std::round(results.average_game_fps), std::isnan(results.frametime) ? 0.0 : (results.frametime * 1000.0), m_useSpeedLimit ? "" : " Unlocked"));
+    
+    std::string status;
+    for (size_t i = 0; i < parts.size(); i++)
     {
-        status += " | ";
+        if (i > 0) status += " | ";
+        status += parts[i];
     }
-    status += stdstr_f("Game: %.0f FPS%s", std::round(results.average_game_fps), m_useSpeedLimit ? "" : " (Unlocked)");
-    status += stdstr_f(" | Frame: %.2f ms", std::isnan(results.frametime) ? 0.0 : (results.frametime * 1000.0));
     statusTextEl.SetText(status.c_str());
 }
 
@@ -1075,10 +1057,10 @@ void SciterMainWindow::ResetWindowSize(uint32_t nominal_width, uint32_t nominal_
     LayoutRenderWindow();
 }
 
-bool SciterMainWindow::OnClick(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t /*reason*/)
+bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t /*reason*/)
 {
     SciterElement rootElement(m_window->GetRootElement());
-    if (source == rootElement.GetElementByID("renderer"))
+    if (element == rootElement.GetElementByID("renderer"))
     {
         SettingsStore & settings = SettingsStore::GetInstance();
         Settings::RendererBackend graphicsAPI = (Settings::RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI);
@@ -1100,22 +1082,28 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source
     }
     else if (source == rootElement.GetElementByID("volume"))
     {
-        m_sciterUI.PopupShow(rootElement.GetElementByID("VolumePopup"), rootElement.GetElementByID("volume"), 8);
-        m_volumePopup = true;
+        SettingsStore & settings = SettingsStore::GetInstance();
+        settings.SetBool(NXOsSetting::AudioMuted, !settings.GetBool(NXOsSetting::AudioMuted));
+    }
+    else if (element == rootElement.GetElementByID("volumePopupBtn"))
+    {
+        SciterElement volumePopup(rootElement.GetElementByID("VolumePopup"));
+        if (volumePopup.IsValid())
+        {
+            const bool popupOpen = (volumePopup.GetState() & SciterElement::STATE_POPUP) != 0;
+            if (!popupOpen)
+            {
+                m_sciterUI.PopupShow(rootElement.GetElementByID("VolumePopup"), rootElement.GetElementByID("volumeAnchor"), 8);
+                SciterElement(rootElement.GetElementByID("volumePopupBtn")).AddClassName("open");
+            }
+            else
+            {
+                m_sciterUI.PopupHide(m_rootElement.GetElementByID("VolumePopup"));
+                SciterElement(rootElement.GetElementByID("volumePopupBtn")).RemoveClassName("open");
+            }        
+        }
     }
     return true;
-}
-
-bool SciterMainWindow::OnMouseUp(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t x, uint32_t y)
-{
-    DismissvolumePopup(source, x, y);
-    return false;
-}
-
-bool SciterMainWindow::OnMouseDown(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t x, uint32_t y)
-{
-    DismissvolumePopup(source, x, y);
-    return false;
 }
 
 bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason*/, void * /*data*/)
@@ -1127,6 +1115,7 @@ bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason
         if (value.isInt())
         {
             SettingsStore & settings = SettingsStore::GetInstance();
+            settings.SetBool(NXOsSetting::AudioMuted, false);
             settings.SetInt(NXOsSetting::AudioVolume, value.GetValueInt());
             if (m_modules.IsValid())
             {
@@ -1140,7 +1129,7 @@ bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason
 void SciterMainWindow::SettingChanged(const char * setting, void * userData)
 {
     SciterMainWindow * impl = (SciterMainWindow *)userData;
-    if (strcmp(setting, NXOsSetting::AudioVolume) == 0)
+    if (strcmp(setting, NXOsSetting::AudioMuted) == 0 || strcmp(setting, NXOsSetting::AudioVolume) == 0)
     {
         impl->UpdateStatusbar();
     }
@@ -1185,8 +1174,29 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     return true;
 }
 
-bool SciterMainWindow::OnEvent(SCITER_ELEMENT /*element*/, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t /*reason*/)
+bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t /*reason*/)
 {
+    if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::PopupDismissed) && m_window != nullptr)
+    {
+        SciterElement rootElement(m_window->GetRootElement());
+        const SciterElement volumePopupRoot = rootElement.GetElementByID("VolumePopup");
+        if (rootElement.IsValid() && volumePopupRoot.IsValid())
+        {
+            for (SciterElement walk(element); walk.IsValid(); walk = walk.GetParent())
+            {
+                if (walk == volumePopupRoot)
+                {
+                    SciterElement btn(rootElement.GetElementByID("volumePopupBtn"));
+                    if (btn.IsValid())
+                    {
+                        btn.RemoveClassName("open");
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
+    }
     if (event_code == EVENT_EMULATION_LOADING)
     {
         ApplyEmulationLoadingUi();
