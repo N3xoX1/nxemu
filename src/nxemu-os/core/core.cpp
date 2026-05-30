@@ -31,11 +31,14 @@
 #include "yuzu_input_common/main.h"
 #include "network/network.h"
 #include <nxemu-module-spec/system_loader.h>
+#include <nxemu-video/video_settings_identifiers.h>
 
 MICROPROFILE_DEFINE(ARM_CPU0, "ARM", "CPU 0", MP_RGB(255, 64, 64));
 MICROPROFILE_DEFINE(ARM_CPU1, "ARM", "CPU 1", MP_RGB(255, 64, 64));
 MICROPROFILE_DEFINE(ARM_CPU2, "ARM", "CPU 2", MP_RGB(255, 64, 64));
 MICROPROFILE_DEFINE(ARM_CPU3, "ARM", "CPU 3", MP_RGB(255, 64, 64));
+
+extern IModuleSettings * g_settings;
 
 namespace Core {
 
@@ -70,7 +73,7 @@ struct System::Impl {
         // Create default implementations of applets if one is not provided.
         frontend_applets.SetDefaultAppletsIfMissing();
 
-        is_async_gpu = false; // Settings::values.use_asynchronous_gpu_emulation.GetValue();
+        is_async_gpu = g_settings->GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
 
         kernel.SetMulticore(is_multicore);
         cpu_manager.SetMulticore(is_multicore);
