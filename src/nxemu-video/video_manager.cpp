@@ -308,13 +308,9 @@ void VideoManager::PushCommandBuffer(int32_t bindId, const uint32_t * commandLis
 void VideoManager::ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, uint32_t * scratchBuffer, size_t scratchBufferSize, DeviceMemoryOperation operation, void * userData)
 {
     Common::ScratchBuffer<u32> tempBuffer;
-    tempBuffer.resize(scratchBufferSize);
-    std::memcpy(tempBuffer.data(), scratchBuffer, scratchBufferSize * sizeof(uint32_t));
-
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, tempBuffer, [operation, userData](DAddr address) {
         operation(address, userData);
     });
-    std::memcpy(scratchBuffer, tempBuffer.data(), tempBuffer.size() * sizeof(uint32_t));
 }
 
 RasterizerDownloadArea VideoManager::OnCPURead(uint64_t addr, uint64_t size)
