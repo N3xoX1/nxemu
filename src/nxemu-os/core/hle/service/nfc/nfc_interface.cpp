@@ -80,7 +80,13 @@ void NfcInterface::GetNpadId(HLERequestContext& ctx) {
 }
 
 void NfcInterface::AttachAvailabilityChangeEvent(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    LOG_INFO(Service_NFC, "called");
+
+    auto manager = GetManager();
+
+    IPC::ResponseBuilder rb{ctx, 2, 1};
+    rb.Push(ResultSuccess);
+    rb.PushCopyObjects(manager->AttachAvailabilityChangeEvent());
 }
 
 void NfcInterface::StartDetection(HLERequestContext& ctx) {
