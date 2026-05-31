@@ -11,6 +11,7 @@
 #include "core/file_sys/submission_package.h"
 #include "core/file_sys/system_archive/system_archive.h"
 #include "core/file_sys/vfs/vfs.h"
+#include "core/file_sys/vfs/vfs_ivirtualfile.h"
 #include "core/file_sys/vfs/vfs_real.h"
 #include "core/file_sys/vfs/vfs_types.h"
 #include "core/file_sys/vfs/vfs_vector.h"
@@ -586,7 +587,7 @@ bool Systemloader::LoadRom(const char * fileName)
         {
             for (const auto & entry : title.second)
             {
-                FileSys::VirtualFile file = entry.second->GetBaseFile();
+                FileSys::VirtualFile file = entry.second->BaseFile();
                 impl->m_manualContentProvider->AddEntry(entry.first.first, entry.first.second, title.first, std::make_unique<VirtualFileImpl>(file).release());
             }
         }
@@ -656,18 +657,40 @@ IRomInfo * Systemloader::RomInfo(const char * fileName, uint64_t programId, uint
         return nullptr;
     }
 
-    std::shared_ptr<Loader::AppLoader> loader = Loader::GetLoader(*this, file, programId, programIndex);
-    if (!loader)
+    std::shared_ptr<Loader::AppLoader> app_loader = Loader::GetLoader(*this, file, programId, programIndex);
+    if (!app_loader)
     {
         return nullptr;
     }
-    std::unique_ptr<::RomInfo> info = std::make_unique<::RomInfo>(file, std::move(loader));
-    return info.release();
+    return std::make_unique<::RomInfo>(*this, file, std::move(app_loader)).release();
+}
+
+IRomInfo * Systemloader::FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex)
+{
+    if (file == nullptr)
+    {
+        return nullptr;
+    }
+
+    IVirtualFile * const owned_file = file->Duplicate();
+    if (owned_file == nullptr)
+    {
+        return nullptr;
+    }
+
+    const FileSys::VirtualFile vfile = std::make_shared<VfsVirtualFile>(owned_file);
+    std::shared_ptr<Loader::AppLoader> app_loader = Loader::GetLoader(*this, vfile, programId, programIndex);
+    if (!app_loader)
+    {
+        return nullptr;
+    }
+
+    return std::make_unique<::RomInfo>(*this, vfile, std::move(app_loader)).release();
 }
 
 IRomInfo * Systemloader::LoadedRomInfo()
 {
-    std::unique_ptr<::RomInfo> info = std::make_unique<::RomInfo>(impl->m_file, impl->m_appLoader);
+    std::unique_ptr<::RomInfo> info = std::make_unique<::RomInfo>(*this, impl->m_file, impl->m_appLoader);
     return info.release();
 }
 

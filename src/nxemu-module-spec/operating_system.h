@@ -284,22 +284,6 @@ nxinterface IWebBrowserFrontendApplet
     virtual void OpenExternalWebPage(const char * external_url_utf8, void * user_data, OpenWebPageFn callback) const = 0;
 };
 
-enum class ProgramAddressSpaceType : uint8_t
-{
-    Is32Bit = 0,
-    Is36Bit = 1,
-    Is32BitNoMap = 2,
-    Is39Bit = 3,
-};
-
-enum class PoolPartition : uint32_t
-{
-    Application = 0,
-    Applet = 1,
-    System = 2,
-    SystemNonSecure = 3,
-};
-
 enum class StorageId : uint8_t 
 {
     None = 0,
@@ -510,37 +494,6 @@ struct PerfStatsResults
     double frametime;
     /// Ratio of walltime / emulated time elapsed
     double emulation_speed;
-};
-
-nxinterface IProgramMetadata
-{
-    virtual bool Is64BitProgram() const = 0;
-    virtual ProgramAddressSpaceType GetAddressSpaceType() const = 0;
-    virtual uint8_t GetMainThreadPriority() const = 0;
-    virtual uint8_t GetMainThreadCore() const = 0;
-    virtual uint32_t GetMainThreadStackSize() const = 0;
-    virtual uint64_t GetTitleID() const = 0;
-    virtual uint64_t GetFilesystemPermissions() const = 0;
-    virtual uint32_t GetSystemResourceSize() const = 0;
-    virtual PoolPartition GetPoolPartition() const = 0;
-    virtual const uint32_t * GetKernelCapabilities() const = 0;
-    virtual uint32_t GetKernelCapabilitiesSize() const = 0;
-    virtual const char * GetName() const = 0;
-};
-
-nxinterface IModuleInfo
-{
-    virtual const uint8_t * Data(void) const = 0;
-    virtual uint32_t DataSize(void) const = 0;
-    virtual uint64_t CodeSegmentAddr(void) const = 0;
-    virtual uint64_t CodeSegmentOffset(void) const = 0;
-    virtual uint64_t CodeSegmentSize(void) const = 0;
-    virtual uint64_t RODataSegmentAddr(void) const = 0;
-    virtual uint64_t RODataSegmentOffset(void) const = 0;
-    virtual uint64_t RODataSegmentSize(void) const = 0;
-    virtual uint64_t DataSegmentAddr(void) const = 0;
-    virtual uint64_t DataSegmentOffset(void) const = 0;
-    virtual uint64_t DataSegmentSize(void) const = 0;
 };
 
 nxinterface IDeviceMemory

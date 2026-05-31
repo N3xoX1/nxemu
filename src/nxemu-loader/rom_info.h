@@ -2,15 +2,15 @@
 #include "core/file_sys/vfs/vfs_types.h"
 #include <memory>
 #include <nxemu-loader/core/loader/loader.h>
-#include <nxemu-module-spec/base.h>
 
+class Systemloader;
 nxinterface IManualContentProvider;
 
 class RomInfo :
     public IRomInfo
 {
 public:
-    explicit RomInfo(FileSys::VirtualFile file, std::shared_ptr<Loader::AppLoader> loader);
+    explicit RomInfo(Systemloader & systemloader, FileSys::VirtualFile file, std::shared_ptr<Loader::AppLoader> loader);
     ~RomInfo();
 
     // IRomInfo
@@ -30,6 +30,7 @@ private:
     RomInfo(const RomInfo &) = delete;
     RomInfo & operator=(const RomInfo &) = delete;
 
+    Systemloader & m_systemloader;
     FileSys::VirtualFile m_file;
     std::shared_ptr<Loader::AppLoader> m_loader;
 };

@@ -74,6 +74,12 @@ InterfaceType ** InterfacePtr<InterfaceType>::GetAddressForSet()
 }
 
 template<typename InterfaceType>
+InterfaceType * InterfacePtr<InterfaceType>::Get() const
+{
+    return m_ptr;
+}
+
+template<typename InterfaceType>
 InterfaceType * InterfacePtr<InterfaceType>::operator->() const
 {
     return m_ptr;

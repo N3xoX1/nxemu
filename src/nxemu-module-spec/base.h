@@ -26,10 +26,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x0121,
+    MODULE_LOADER_SPECS_VERSION = 0x0122,
     MODULE_VIDEO_SPECS_VERSION = 0x0118,
     MODULE_CPU_SPECS_VERSION = 0x010F,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0115,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0116,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -234,6 +234,61 @@ nxinterface IOperatingSystem;
 nxinterface IVideo;
 nxinterface ICpu;
 nxinterface ISystemloader;
+
+enum class ProgramAddressSpaceType : uint8_t
+{
+    Is32Bit = 0,
+    Is36Bit = 1,
+    Is32BitNoMap = 2,
+    Is39Bit = 3,
+};
+
+enum class PoolPartition : uint32_t
+{
+    Application = 0,
+    Applet = 1,
+    System = 2,
+    SystemNonSecure = 3,
+};
+
+nxinterface IProgramMetadata
+{
+    virtual bool Is64BitProgram() const = 0;
+    virtual ProgramAddressSpaceType GetAddressSpaceType() const = 0;
+    virtual uint8_t GetMainThreadPriority() const = 0;
+    virtual uint8_t GetMainThreadCore() const = 0;
+    virtual uint32_t GetMainThreadStackSize() const = 0;
+    virtual uint64_t GetTitleID() const = 0;
+    virtual uint64_t GetFilesystemPermissions() const = 0;
+    virtual uint32_t GetSystemResourceSize() const = 0;
+    virtual PoolPartition GetPoolPartition() const = 0;
+    virtual const uint32_t * GetKernelCapabilities() const = 0;
+    virtual uint32_t GetKernelCapabilitiesSize() const = 0;
+    virtual const char * GetName() const = 0;
+};
+
+nxinterface IModuleInfo
+{
+    virtual const uint8_t * Data(void) const = 0;
+    virtual uint32_t DataSize(void) const = 0;
+    virtual uint64_t CodeSegmentAddr(void) const = 0;
+    virtual uint64_t CodeSegmentOffset(void) const = 0;
+    virtual uint64_t CodeSegmentSize(void) const = 0;
+    virtual uint64_t RODataSegmentAddr(void) const = 0;
+    virtual uint64_t RODataSegmentOffset(void) const = 0;
+    virtual uint64_t RODataSegmentSize(void) const = 0;
+    virtual uint64_t DataSegmentAddr(void) const = 0;
+    virtual uint64_t DataSegmentOffset(void) const = 0;
+    virtual uint64_t DataSegmentSize(void) const = 0;
+};
+
+nxinterface IProcess
+{
+    virtual bool LoadFromMetadata(const IProgramMetadata & metadata, uint64_t code_size, bool is_hbl) = 0;
+    virtual bool LoadModule(const IModuleInfo & module, uint64_t base_address) = 0;
+    virtual uint64_t GetEntryPoint() const = 0;
+    virtual uint64_t GetProcessId() const = 0;
+};
 
 nxinterface ISystemModules
 {
