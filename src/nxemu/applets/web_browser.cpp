@@ -1,29 +1,12 @@
 #include "web_browser.h"
 
+#include <common/shell_open_url.h>
+
 #include <string>
 #include <string_view>
 
-#include <windows.h>
-#include <shellapi.h>
-
 namespace
 {
-
-std::wstring Utf8ToWide(std::string_view utf8)
-{
-    if (utf8.empty())
-    {
-        return {};
-    }
-    const int n = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), nullptr, 0);
-    if (n <= 0)
-    {
-        return {};
-    }
-    std::wstring wide(static_cast<std::size_t>(n), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), wide.data(), n);
-    return wide;
-}
 
 std::string FileUriFromLocalPath(std::string_view local_url_utf8)
 {
@@ -50,17 +33,6 @@ void InvokeOpenResult(OpenWebPageFn callback, void * user_data, bool success, co
         return;
     }
     callback(user_data, static_cast<uint32_t>(success ? WebExitReasonHost::EndButtonPressed : WebExitReasonHost::WindowClosed), last_url_utf8 != nullptr ? last_url_utf8 : "");
-}
-
-bool ShellOpen(HWND owner, const std::string & url_utf8)
-{
-    const std::wstring wide_url = Utf8ToWide(url_utf8);
-    if (wide_url.empty())
-    {
-        return false;
-    }
-    const HINSTANCE result = ShellExecuteW(owner, L"open", wide_url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-    return reinterpret_cast<INT_PTR>(result) > 32;
 }
 
 } // namespace
@@ -99,7 +71,7 @@ void WebBrowserApplet::OpenLocalWebPage(const char * local_url_utf8, void * extr
     }
 
     const std::string file_uri = FileUriFromLocalPath(local_path);
-    const bool success = ShellOpen(static_cast<HWND>(m_hwnd), file_uri);
+    const bool success = ShellOpenUrl(file_uri.c_str(), m_hwnd);
     InvokeOpenResult(open_callback, open_user_data, success, success ? file_uri.c_str() : "");
 }
 
@@ -112,6 +84,6 @@ void WebBrowserApplet::OpenExternalWebPage(const char * external_url_utf8, void 
         return;
     }
 
-    const bool success = ShellOpen(static_cast<HWND>(m_hwnd), external_url);
+    const bool success = ShellOpenUrl(external_url.c_str(), m_hwnd);
     InvokeOpenResult(callback, user_data, success, success ? external_url.c_str() : "");
 }

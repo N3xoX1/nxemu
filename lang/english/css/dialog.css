@@ -1,0 +1,30 @@
+:root {
+  --color-dialog-background: #181818;
+}
+
+html {
+  background: var(--color-dialog-background);
+}
+
+button {
+  color: #eff0f1;
+  background: #232728;
+  border: 1px solid #55575a;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  padding: 0.2rem;
+  min-width: 5rem;
+}
+
+button:hover {
+  border: 1px solid #3cafe9;
+}
+
+button:active {
+  background: #3cafe9;
+}
+
+.footer {
+  padding: 0.5rem 0 0;
+  text-align: right;
+}

@@ -44,6 +44,7 @@
     <ClCompile Include="user_interface\game_list_worker.cpp" />
     <ClCompile Include="user_interface\hotkey_map.cpp" />
     <ClCompile Include="user_interface\key_mappings.cpp" />
+    <ClCompile Include="user_interface\about_dialog.cpp" />
     <ClCompile Include="user_interface\notification.cpp" />
     <ClCompile Include="user_interface\sciter_main_window.cpp" />
     <ClCompile Include="user_interface\settings\config_setting .cpp" />
@@ -65,10 +66,10 @@
     <ClInclude Include="settings\ui_settings.h" />
     <ClInclude Include="settings\ui_settings_identifiers.h" />
     <ClInclude Include="startup_checks.h" />
-    <ClInclude Include="user_interface\dpi_scaling.h" />
     <ClInclude Include="user_interface\game_list_worker.h" />
     <ClInclude Include="user_interface\hotkey_map.h" />
     <ClInclude Include="user_interface\key_mappings.h" />
+    <ClInclude Include="user_interface\about_dialog.h" />
     <ClInclude Include="user_interface\notification.h" />
     <ClInclude Include="user_interface\resource.h" />
     <ClInclude Include="user_interface\sciter_main_window.h" />

@@ -7,6 +7,7 @@ add_library(common STATIC
     path.cpp
     path_finder.cpp
     platform.cpp
+    shell_open_url.cpp
     std_string.cpp
 )
 

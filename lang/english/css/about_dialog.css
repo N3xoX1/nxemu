@@ -1,0 +1,157 @@
+html
+{
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: max-content;
+}
+
+body
+{
+  flow: vertical;
+  width: 100%%;
+  height: max-content;
+}
+
+.about-body
+{
+  flow: vertical;
+  width: 100%%;
+  padding: 1em 1.25em 0.25em 1.25em;
+}
+
+body>.footer
+{
+  padding: 0.35em 1.25em 0.5em 1.25em;
+}
+
+.about-row-top
+{
+  flow: horizontal;
+  vertical-align: middle;
+  width: 100%%;
+  margin-bottom: 0.85em;
+}
+
+.about-logo-wrap
+{
+  width: 40%%;
+  margin-right: 1em;
+  horizontal-align: center;
+}
+
+.about-logo
+{
+  display: block;
+  width: 100%%;
+  height: width(100%%);
+  margin: 0 auto;
+  image-rendering: auto;
+}
+
+.about-product
+{
+  width: *;
+  flow: vertical;
+  text-align: center;
+  horizontal-align: center;
+  vertical-align: middle;
+}
+
+.about-name
+{
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: *;
+  margin-bottom: 0.2em;
+  color: var(--color-ui-text-primary);
+}
+
+.about-version,
+.about-copyright
+{
+  color: var(--color-ui-text-muted);
+}
+
+.about-version
+{
+  margin-bottom: 0.15em;
+}
+
+.about-copyright
+{
+  font-size: 0.85rem;
+  margin-bottom: *;
+}
+
+.about-row-content
+{
+  width: 100%%;
+}
+
+.about-description
+{
+  line-height: 1.45;
+  margin-bottom: 0.85em;
+  color: var(--color-ui-text-primary);
+}
+
+.about-description p
+{
+  margin: 0 0 0.65em 0;
+}
+
+.about-disclaimer
+{
+  color: var(--color-ui-text-muted);
+  font-size: 0.9rem;
+}
+
+.about-credits
+{
+  margin-bottom: 0.85em;
+  line-height: 1.45;
+}
+
+.about-credits-title
+{
+  color: var(--color-ui-text-primary);
+  font-weight: 600;
+  margin-bottom: 0.25em;
+}
+
+.about-credits-list
+{
+  color: var(--color-ui-text-muted);
+  font-size: 0.9rem;
+}
+
+.about-links
+{
+  margin-bottom: 0.75em;
+  line-height: 1.5;
+}
+
+.about-link-sep
+{
+  color: var(--color-ui-text-muted);
+}
+
+a.about-link
+{
+  color: #3cafe9;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+a.about-link:hover
+{
+  color: #7ec8f7;
+}
+
+.about-trademark
+{
+  color: var(--color-ui-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}

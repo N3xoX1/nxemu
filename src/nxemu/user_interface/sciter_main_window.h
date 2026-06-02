@@ -20,6 +20,7 @@ struct Win32FullscreenState;
 
 class SystemConfig;
 class InputConfig;
+class AboutDialog;
 
 class SciterMainWindow :
     public IWindowDestroySink,
@@ -50,6 +51,8 @@ class SciterMainWindow :
         ResetWindowSize720p,
         ResetWindowSize900p,
         ResetWindowSize1080p,
+        OpenAboutDialog,
+        OpenDiscord,
         RecentFileMenuFirst,
         RecentFileMenuLast = RecentFileMenuFirst + 20,
     };
@@ -119,6 +122,8 @@ private:
     void OnRecetGame(uint32_t fileIndex);
     void OnToggleDockedMode();
     void OnToggleStartGamesInFullscreen();
+    void OnAbout();
+    void OnOpenDiscord();
     void UpdateEmulationStatusText();
     const MenuBarAccelerator * HotkeyAccelerator(const char * name);
     const char * IsMenuBarAccelerator(uint32_t keyCode, uint32_t keyboardState);
@@ -182,6 +187,7 @@ private:
     std::string m_windowTitle;
     std::unique_ptr<SystemConfig> m_systemConfig;
     std::unique_ptr<InputConfig> m_inputConfig;
+    std::unique_ptr<AboutDialog> m_aboutDialog;
     WebBrowserApplet m_WebBrowser;
     float m_resolutionUpFactor;
     bool m_useMultiCore;

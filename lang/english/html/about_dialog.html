@@ -1,0 +1,53 @@
+<html window-frame="solid-with-shadow" window-icon="window-icon.png">
+  <head>
+    <link href="base.css" rel="stylesheet" type="text/css" />
+    <link href="dialog.css" rel="stylesheet" type="text/css" />
+    <link href="about_dialog.css" rel="stylesheet" type="text/css" />
+    <title>About NXEmu</title>
+  </head>
+  <header>
+    <window-caption role="window-caption"><img src="window-icon-32.png" /><span>About NXEmu</span></window-caption>
+    <window-buttons>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <body>
+    <div class="about-body">
+      <div class="about-row-top">
+        <div class="about-logo-wrap">
+          <img class="about-logo" src="nxemu-logo.png" />
+        </div>
+        <div class="about-product">
+          <div class="about-name">NXEmu</div>
+          <div id="AboutVersion" class="about-version"></div>
+          <div id="AboutCopyright" class="about-copyright"></div>
+        </div>
+      </div>
+      <div class="about-row-content">
+        <div class="about-description">
+          <p>NXEmu is an experimental open-source Nintendo Switch emulator.</p>
+          <p class="about-disclaimer">You are responsible for ensuring your use of this software complies with the laws in your jurisdiction.</p>
+        </div>
+        <div class="about-credits">
+          <div class="about-credits-title">With thanks to</div>
+          <div class="about-credits-list">
+            the yuzu project, Stardust, and NullVector
+          </div>
+        </div>
+        <div class="about-links">
+          <a id="AboutLinkWebsite" class="about-link" href="https://www.nxemu.com/">Website</a>
+          <span class="about-link-sep"> | </span>
+          <a id="AboutLinkSource" class="about-link" href="https://github.com/N3xoX1/nxemu">Source Code</a>
+          <span class="about-link-sep"> | </span>
+          <a id="AboutLinkDiscord" class="about-link" href="https://discord.gg/hEa4hNyFWU">Discord</a>
+        </div>
+        <div class="about-trademark">
+          &quot;Nintendo Switch&quot; is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way.
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <button role="window-ok">OK</button>
+    </div>
+  </body>
+</html>

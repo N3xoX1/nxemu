@@ -51,6 +51,9 @@
     <ClCompile Include="settings\ui_settings.cpp">
       <Filter>Source Files\settings</Filter>
     </ClCompile>
+    <ClCompile Include="user_interface\about_dialog.cpp">
+      <Filter>Source Files\user_interface</Filter>
+    </ClCompile>
     <ClCompile Include="user_interface\notification.cpp">
       <Filter>Source Files\user_interface</Filter>
     </ClCompile>
@@ -116,6 +119,9 @@
     <ClInclude Include="settings\ui_settings.h">
       <Filter>Header Files\settings</Filter>
     </ClInclude>
+    <ClInclude Include="user_interface\about_dialog.h">
+      <Filter>Header Files\user_interface</Filter>
+    </ClInclude>
     <ClInclude Include="user_interface\notification.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
@@ -159,9 +165,6 @@
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\game_list_worker.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\dpi_scaling.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\widgets\rom_browser.h">

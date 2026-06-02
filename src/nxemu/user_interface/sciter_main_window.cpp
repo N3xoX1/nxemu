@@ -1,11 +1,12 @@
 #include "sciter_main_window.h"
+#include "user_interface/about_dialog.h"
 #include "user_interface/notification.h"
 #include "settings/input_config.h"
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
-#include "user_interface/dpi_scaling.h"
 #include "user_interface/key_mappings.h"
 #include <common/base64.h>
+#include <common/shell_open_url.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/identifiers.h>
@@ -29,6 +30,13 @@
 #include <cmath>
 #include <string>
 #include <vector>
+
+namespace
+{
+
+constexpr const char * kNxEmuDiscordUrl = "https://discord.gg/hEa4hNyFWU";
+
+} // namespace
 
 struct Win32FullscreenState
 {
@@ -272,6 +280,10 @@ const char * SciterMainWindow::MenuIconResource(GuiAction action) const
     case GuiAction::ResetWindowSize900p:
     case GuiAction::ResetWindowSize1080p:
         return "resize.svg";
+    case GuiAction::OpenAboutDialog:
+        return "about.svg";
+    case GuiAction::OpenDiscord:
+        return "discord.svg";
     default:
         return nullptr;
     }
@@ -431,6 +443,12 @@ void SciterMainWindow::ResetMenu()
     }
     mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&Options", &optionsMenu));
 
+    MenuBarItemList helpMenu;
+    helpMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenDiscord), "&Discord", nullptr, nullptr, MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::OpenDiscord)));
+    helpMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
+    helpMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenAboutDialog), "&About NXEmu...", nullptr, nullptr, MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::OpenAboutDialog)));
+    mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&Help", &helpMenu));
+
     m_menuBar->AddSink(this);
     m_menuBar->SetMenuContent(mainTitleMenu);
 }
@@ -443,10 +461,7 @@ bool SciterMainWindow::Show()
         WINDOW_WIDTH = 760,
     };
 
-    int width = WINDOW_WIDTH;
-    int height = WINDOW_HEIGHT;
-    ScaleWindowSizeForDpi(nullptr, width, height);
-    if (!m_sciterUI.WindowCreate(nullptr, "main_window.html", 0, 0, width, height, SUIW_MAIN | SUIW_HIDDEN, m_window))
+    if (!m_sciterUI.WindowCreate(nullptr, "main_window.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_MAIN | SUIW_HIDDEN, m_window))
     {
         return false;
     }
@@ -1101,6 +1116,17 @@ void SciterMainWindow::OnInputConfig()
     m_inputConfig->Display((void *)m_window->GetHandle());
 }
 
+void SciterMainWindow::OnAbout()
+{
+    m_aboutDialog.reset(new AboutDialog(m_sciterUI));
+    m_aboutDialog->Display((void *)m_window->GetHandle());
+}
+
+void SciterMainWindow::OnOpenDiscord()
+{
+    ShellOpenUrl(kNxEmuDiscordUrl);
+}
+
 void SciterMainWindow::UpdateEmulationStatusText()
 {
     SciterElement statusTextEl(m_rootElement.GetElementByID("StatusText"));
@@ -1310,6 +1336,12 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         break;
     case GuiAction::OpenSystemConfiguration:
         OnSystemConfig();
+        break;
+    case GuiAction::OpenAboutDialog:
+        OnAbout();
+        break;
+    case GuiAction::OpenDiscord:
+        OnOpenDiscord();
         break;
     case GuiAction::ToggleFullscreen:
         ToggleFullscreen();

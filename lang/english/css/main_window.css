@@ -358,3 +358,268 @@ rombrowser .games-grid[data-size="4"] .rom-card
 {
   display: none !important;
 }
+
+ul#menu-bar
+{
+  margin: 0;
+  padding: 0 0.5em 0.3em 0.5em;
+  background: var(--color-menubar-background);
+  color: var(--color-ui-text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.9em;
+  font-weight: 100;
+  behavior:menu-bar;
+  flow: horizontal;
+}
+
+ul#menu-bar > li
+{
+  padding: 0.28em 0.55em;
+  margin: 0;
+  white-space: nowrap;
+  width: max-content;
+  display: block;
+  flow: horizontal;
+  border-radius: 5px;
+}
+
+ul#menu-bar > li:hover
+{
+  background: var(--color-menubar-background-hover);
+}
+
+ul#menu-bar:focus > li:current,
+ul#menu-bar > li:owns-popup {
+  background-color: var(--color-menubar-background-active);
+  border-radius: 5px 5px 0;
+}
+
+ul#menu-bar caption u,
+menu li .menu-item-label u
+{
+  text-decoration: none;
+}
+
+[data-menu-mnemonics="1"] ul#menu-bar caption u,
+[data-menu-mnemonics="1"] menu li .menu-item-label u,
+ul#menu-bar > li:owns-popup caption u,
+menu[window-state="shown"] li .menu-item-label u,
+menu[window-state="shown"] caption u
+{
+  text-decoration: underline;
+}
+
+menu
+{
+  behavior:menu;
+  flow: vertical;
+  display:none;
+  margin:0;
+  padding: 0.35em 0;
+  min-width: 14em;
+  max-width:max-content;
+  background: var(--color-menu-popup-background);
+  color: #f0f0f0;
+  border: 1px solid var(--color-menu-popup-border);
+  border-top: none;
+  box-shadow: 0 0.25em 0.75em var(--color-menu-popup-shadow);
+}
+
+@media (menu-animation-supported) {
+   menu {
+     popup-animation: popup-animation(type:blend,duration:100ms);
+   }
+}
+
+menu menu
+{
+  max-width: max-content;
+}
+
+menu li
+{
+  width:*;
+  display:block;
+  flow:horizontal;
+  vertical-align:middle;
+  foreground-repeat: no-repeat;
+  foreground-position: left 2px top 50%;
+  padding: 0.4em 1.75em 0.4em 1.1em;
+  margin: 0;
+}
+
+menu li .menu-item-label
+{
+  width: *;
+  text-align: left;
+}
+
+menu li:has-child-of-type(menu) caption
+{
+  width: *;
+  text-align: left;
+}
+
+menu li:current caption,
+menu li:hover:owns-popup caption
+{
+  color: #f0f0f0;
+}
+
+menu li .menu-item-glyph
+{
+  width: 1.15em;
+  min-width: 1.15em;
+  max-width: 1.15em;
+  min-height: 1.15em;
+  max-height: 1.15em;
+  margin: 0 0.55em 0 0;
+  box-sizing: border-box;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  foreground-image: none;
+}
+
+menu li .menu-item-glyph.menu-item-glyph-spacer
+{
+  border: 1.5px solid transparent;
+  border-radius: 3px;
+  position: relative;
+}
+
+menu li .menu-item-glyph.menu-item-checkbox
+{
+  border: 1.5px solid var(--color-ui-text-muted, #8c8c8c);
+  border-radius: 3px;
+  position: relative;
+  foreground-image: none;
+}
+
+menu li .menu-item-glyph.menu-item-checkbox.checked
+{
+  border-color: var(--color-ui-text-primary, #f0f0f0);
+}
+
+menu li .menu-item-glyph.menu-item-icon-svg
+{
+  border: none;
+  width: 1.15em;
+  height: 1.15em;
+  min-width: 1.15em;
+  max-width: 1.15em;
+  padding: 0;
+}
+
+menu li .menu-item-glyph.menu-item-icon-svg svg
+{
+  width: 1.05em;
+  height: 1.05em;
+  display: block;
+  vertical-align: middle;
+}
+
+menu li .menu-item-glyph.menu-item-icon-svg path,
+menu li .menu-item-glyph.menu-item-icon-svg circle
+{
+  fill: currentColor;
+}
+
+menu li .menu-item-glyph.menu-item-icon-svg path[fill="none"],
+menu li .menu-item-glyph.menu-item-icon-svg circle[fill="none"]
+{
+  fill: none;
+  stroke: currentColor;
+}
+
+menu li .menu-item-glyph .menu-item-checkmark
+{
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: *;
+  height: *;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.72em;
+  line-height: 1.15em;
+  color: var(--color-ui-text-primary, #f0f0f0);
+}
+
+menu li:current .menu-item-glyph.menu-item-checkbox,
+menu li:hover:owns-popup .menu-item-glyph.menu-item-checkbox
+{
+  border-color: #f0f0f0;
+}
+
+menu li:current .menu-item-glyph .menu-item-checkmark,
+menu li:hover:owns-popup .menu-item-glyph .menu-item-checkmark
+{
+  color: #f0f0f0;
+}
+
+menu li .menu-accelerator
+{
+  width: max-content;
+  margin-left: 2.5em;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--color-menu-shortcut-text);
+}
+
+menu li .menu-accelerator:empty
+{
+  display: none;
+  margin: 0;
+  width: 0;
+}
+
+menu li:hover
+{
+  background: var(--color-menuitem-background-hover);
+  border-radius: 2px;
+}
+
+menu li:current,
+menu li:hover:owns-popup
+{
+  background-color: #094771;
+  border-radius: 2px;
+}
+
+menu li:current .menu-item-label,
+menu li:current .menu-accelerator,
+menu li:hover:owns-popup .menu-item-label,
+menu li:hover:owns-popup .menu-accelerator
+{
+  color: #f0f0f0;
+}
+
+menu li:disabled 
+{ 
+  color:graytext; 
+  foreground-image: none; 
+}
+
+menu li:has-child-of-type(menu)
+{
+  foreground-image:url(stock:arrow-right);
+  foreground-repeat: no-repeat;
+  foreground-position: top 50% right 2px;
+}
+
+menu li:has-child-of-type(menu):rtl
+{
+  foreground-image:url(stock:arrow-left);
+  foreground-repeat: no-repeat;
+  foreground-position: top 50% left 2px;
+}
+
+menu hr
+{
+  display: block;
+  height: 1px;
+  margin: 0.4em 0.65em;
+  border: none;
+  background: var(--color-menu-separator);
+}
