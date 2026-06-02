@@ -99,7 +99,8 @@ namespace
         {nullptr, "PerformVulkanCheck", &uiSettings.performVulkanCheck, true},
         {nullptr, nullptr, &uiSettings.hasBrokenVulkan, false},
         {nullptr, nullptr, &uiSettings.enableAllControllers, false},
-        {nullptr, "View\\StartGamesInFullscreen", &uiSettings.startGamesInFullscreen, false},
+        {nullptr, "StartGamesInFullscreen", &uiSettings.startGamesInFullscreen, false},
+        {NXUISetting::ConfirmBeforeStopping, "ConfirmBeforeStopping", &uiSettings.confirmBeforeStopping, true},
         {NXUISetting::Hotkeys, "Hotkeys", &uiSettings.hotkeys, &g_defaultHotkeys},
     };
 

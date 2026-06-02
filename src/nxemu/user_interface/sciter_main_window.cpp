@@ -468,6 +468,7 @@ bool SciterMainWindow::Show()
     m_rootElement = m_window->GetRootElement();
     m_sciterUI.AttachHandler(m_rootElement, IID_IKEYSINK, (IKeySink *)this);
     m_sciterUI.AttachHandler(m_rootElement, IID_EVENTSINK, (IEventSink *)this);
+    m_window->OnCloseSinkAdd(this);
     m_window->OnDestroySinkAdd(this);
     m_window->CenterWindow();
     SetCaption(m_windowTitle);
@@ -1069,8 +1070,29 @@ void SciterMainWindow::FirmwareInstallTotalChanged(const char * /*setting*/, voi
     }
 }
 
+bool SciterMainWindow::ConfirmCloseEmulator()
+{
+    if (!m_emulationRunning || !uiSettings.confirmBeforeStopping)
+    {
+        return true;
+    }
+
+    const char * msg = "Are you sure you want to exit the emulator?\n\nAny unsaved progress will be lost.";
+    bool exitLocked = m_modules.IsValid() && m_modules.Modules().OperatingSystem().GetExitLocked();
+    if (exitLocked)
+    {
+        msg = "The currently running application has requested NxEmu to not exit.\n\nWould you like to bypass this and close the emulator anyway?";
+    }
+
+    return g_notify->Query(msg, "NxEmu - Exit Emulator?") == NotificationResponse::Yes;
+}
+
 void SciterMainWindow::OnFileExit()
 {
+    if (!ConfirmCloseEmulator())
+    {
+        return;
+    }
     m_sciterUI.Stop();
 }
 
@@ -1079,6 +1101,20 @@ void SciterMainWindow::OnStopGame()
     if (!m_emulationRunning)
     {
         return;
+    }
+    if (uiSettings.confirmBeforeStopping)
+    {
+        const char * msg = "Are you sure you want to stop the emulation?\n\nAny unsaved progress will be lost.";
+        bool exitLocked = m_modules.IsValid() && m_modules.Modules().OperatingSystem().GetExitLocked();
+        if (exitLocked)
+        {
+            msg = "The currently running application has requested NxEmu to not exit.\n\nWould you like to bypass this and stop emulation anyway?";
+        }
+
+        if (g_notify->Query(msg, "NxEmu - Stop Emulation") == NotificationResponse::No)
+        {
+            return;
+        }
     }
     AllowOSSleep();
     SettingsStore & settings = SettingsStore::GetInstance();
@@ -1296,6 +1332,11 @@ void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
     m_WebBrowser.DetachWindow();
     m_sciterUI.Stop();
+}
+
+bool SciterMainWindow::OnWindowCloseRequest(HWINDOW hWnd)
+{
+    return ConfirmCloseEmulator();
 }
 
 void SciterMainWindow::OnMenuItem(int32_t id, SCITER_ELEMENT /*item*/)

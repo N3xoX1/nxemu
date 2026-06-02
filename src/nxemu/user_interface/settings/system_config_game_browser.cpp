@@ -11,6 +11,7 @@ namespace
 {
 static ConfigSetting gameBrowserSettings[] = {
     ConfigSetting(ConfigSetting::Slider, "myGamesIconSize", true, NXUISetting::MyGameIconSize),
+    ConfigSetting(ConfigSetting::CheckBox, "ConfirmBeforeStopping", true, NXUISetting::ConfirmBeforeStopping),
     ConfigSetting(ConfigSetting::ListBox, "gameDirectoryList", true, NXUISetting::GameDirectories),
 };
 }

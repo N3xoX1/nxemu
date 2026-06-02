@@ -81,12 +81,13 @@ public:
     VirtualFile RomFS() const;
     VirtualDir GetExeFS() const;
 
-    VirtualFile GetBaseFile() const;
+    VirtualFile BaseFile() const;
 
     VirtualDir GetLogoPartition() const;
 
     //IFileSysNCA
     LoaderResultStatus GetStatus() const override;
+    IVirtualFile * GetBaseFile() override;
     IVirtualFile * GetRomFS() override;
     void Release() override;
 

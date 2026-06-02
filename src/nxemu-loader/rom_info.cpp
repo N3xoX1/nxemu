@@ -1,4 +1,5 @@
 #include "rom_info.h"
+#include "system_loader.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/card_image.h"
 #include "core/file_sys/submission_package.h"
@@ -6,7 +7,8 @@
 
 #include "core/loader/loader.h"
 
-RomInfo::RomInfo(FileSys::VirtualFile file, std::shared_ptr<Loader::AppLoader> loader) :
+RomInfo::RomInfo(Systemloader & systemloader, FileSys::VirtualFile file, std::shared_ptr<Loader::AppLoader> loader) :
+    m_systemloader(systemloader),
     m_file(file),
     m_loader(std::move(loader))
 {
@@ -135,7 +137,7 @@ void RomInfo::AddToManualContentProvider(IManualContentProvider & provider)
         {
             for (const auto & entry : title.second)
             {
-                FileSys::VirtualFile file = entry.second->GetBaseFile();
+                FileSys::VirtualFile file = entry.second->BaseFile();
                 provider.AddEntry(entry.first.first, entry.first.second, title.first, std::make_unique<VirtualFileImpl>(file).release());
             }
         }

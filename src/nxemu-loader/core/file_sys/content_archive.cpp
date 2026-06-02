@@ -184,9 +184,14 @@ VirtualDir NCA::GetExeFS() const
     return exefs;
 }
 
-VirtualFile NCA::GetBaseFile() const
+VirtualFile NCA::BaseFile() const
 {
     return file;
+}
+
+IVirtualFile * NCA::GetBaseFile()
+{
+    return std::make_unique<VirtualFileImpl>(file).release();
 }
 
 VirtualDir NCA::GetLogoPartition() const

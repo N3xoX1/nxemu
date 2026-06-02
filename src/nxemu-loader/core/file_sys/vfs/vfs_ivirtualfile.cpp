@@ -18,14 +18,18 @@ VfsVirtualFile::~VfsVirtualFile()
 
 std::string VfsVirtualFile::GetName() const
 {
-    UNIMPLEMENTED();
-    return "";
+    if (m_file == nullptr)
+    {
+        return {};
+    }
+
+    const char * const name = m_file->GetName();
+    return name != nullptr ? name : std::string{};
 }
 
 std::string VfsVirtualFile::GetExtension() const
 {
-    UNIMPLEMENTED();
-    return "";
+    return VfsFile::GetExtension();
 }
 
 std::size_t VfsVirtualFile::GetSize() const
@@ -57,8 +61,7 @@ bool VfsVirtualFile::IsWritable() const
 
 bool VfsVirtualFile::IsReadable() const
 {
-    UNIMPLEMENTED();
-    return false;
+    return m_file != nullptr;
 }
 
 std::size_t VfsVirtualFile::Read(u8 * data, std::size_t length, std::size_t offset) const

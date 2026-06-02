@@ -18,16 +18,18 @@
   </Page>
   <Page label="System" Name="System">
     <div class="input-group">
-      <div class="group-title">Docked Mode</div>
       <div class="form-row">
         <div class="left"><label for="DockedMode">Docked Mode:</label></div>
         <div class="right"><ComboBox id="DockedMode" tooltip="Selects if the console is in Docked or Handheld mode. Games will change resolution and performance settings. Setting to Handheld can help improve performance on low-end systems." /></div>
       </div>
-    </div>
-    <div class="input-group">
       <div class="group-title">Firmware</div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="CheckForUpdatedFirmware"><label for="CheckForUpdatedFirmware">Check for updated firmware</label></div>
+        <div class="left"><label for="CheckForUpdatedFirmware">Check for updated firmware</label></div>
+        <div class="right"><input type="checkbox" id="CheckForUpdatedFirmware"></div>
+      </div>
+      <div class="form-row checkbox-row">
+        <div class="left"><label for="ConfirmBeforeStopping">Confirm before stopping</label></div>
+        <div class="right"><input type="checkbox" id="ConfirmBeforeStopping" tooltip="When to ask before stopping emulation or closing the emulator while a game is running."></div>
       </div>
     </div>
   </Page>
@@ -51,7 +53,8 @@
         <div class="right"><input type="text" id="LogFilter" name="LogFilter" /></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="ShowLogConsole"><label for="ShowLogConsole">Show Log Console</label></div>
+        <div class="left"><label for="ShowLogConsole">Show Log Console</label></div>
+        <div class="right"><input type="checkbox" id="ShowLogConsole"></div>
       </div>
     </div>
   </Page>

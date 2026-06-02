@@ -143,13 +143,13 @@ LoaderResultStatus AppLoader_NSP::VerifyIntegrity(std::function<bool(size_t, siz
     // Loop over NCAs, collecting the total size to verify.
     for (const auto& nca : ncas)
     {
-        total_size += nca->GetBaseFile()->GetSize();
+        total_size += nca->BaseFile()->GetSize();
     }
 
     // Loop over NCAs again, verifying each.
     for (const auto& nca : ncas)
     {
-        AppLoader_NCA loader_nca(nca->GetBaseFile());
+        AppLoader_NCA loader_nca(nca->BaseFile());
 
         const auto NcaProgressCallback = [&](size_t nca_processed_size, size_t nca_total_size)
         {
@@ -162,7 +162,7 @@ LoaderResultStatus AppLoader_NSP::VerifyIntegrity(std::function<bool(size_t, siz
             return verification_result;
         }
 
-        processed_size += nca->GetBaseFile()->GetSize();
+        processed_size += nca->BaseFile()->GetSize();
     }
 
     return LoaderResultStatus::Success;

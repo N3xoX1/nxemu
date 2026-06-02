@@ -250,6 +250,7 @@ nxinterface IFileSysNACP
 nxinterface IFileSysNCA
 {
     virtual LoaderResultStatus GetStatus() const = 0;
+    virtual IVirtualFile * GetBaseFile() = 0;
     virtual IVirtualFile * GetRomFS() = 0;
     virtual void Release() = 0;
 };
@@ -287,6 +288,12 @@ nxinterface IManualContentProvider
     virtual void ClearAllEntries() = 0;
 };
 
+struct GuestProcessLoadParameters
+{
+    int32_t main_thread_priority;
+    int64_t main_thread_stack_size;
+};
+
 nxinterface IRomInfo
 {
     virtual LoaderFileType GetFileType() const = 0;
@@ -307,6 +314,7 @@ nxinterface ISystemloader
     virtual bool SelectAndLoad(void * parentWindow) = 0;
     virtual bool LoadRom(const char * fileName) = 0;
     virtual IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) = 0;
+    virtual IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * LoadedRomInfo() = 0;
 
     virtual IContentProvider & ContentProvider() = 0;

@@ -11,11 +11,9 @@
 
 namespace Service::FileSystem {
 
-class SaveDataController;
-
 class ISaveDataInfoReader final : public ServiceFramework<ISaveDataInfoReader> {
 public:
-    explicit ISaveDataInfoReader(Core::System& system_, std::shared_ptr<SaveDataController> save_data_controller_, SaveDataSpaceId space);
+    explicit ISaveDataInfoReader(Core::System& system_);
     ~ISaveDataInfoReader() override;
 
     struct SaveDataInfo {
@@ -37,9 +35,6 @@ public:
                             OutArray<SaveDataInfo, BufferAttr_HipcMapAlias> out_entries);
 
 private:
-    void FindAllSaves(SaveDataSpaceId space);
-
-    std::shared_ptr<SaveDataController> save_data_controller;
     std::vector<SaveDataInfo> info;
     u64 next_entry_index = 0;
 };

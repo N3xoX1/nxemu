@@ -248,10 +248,15 @@ Result FSP_SRV::OpenSaveDataFileSystem(OutInterface<IFileSystem> out_interface, 
     case SaveDataSpaceId::System:
         id = StorageId::NandSystem;
         break;
+    // Temporary/ProperSystem/SafeMode aren't backed by separate storage yet;
+    // pick the closest underlying StorageId so SizeGetter::FromStorageId returns sane values.
     case SaveDataSpaceId::Temporary:
+        id = StorageId::NandUser;
+        break;
     case SaveDataSpaceId::ProperSystem:
     case SaveDataSpaceId::SafeMode:
-        ASSERT(false);
+        id = StorageId::NandSystem;
+        break;
     }
 
     *out_interface = std::make_shared<IFileSystem>(system, std::move(dir), SizeGetter::FromStorageId(fsc, id));
@@ -272,15 +277,17 @@ Result FSP_SRV::OpenReadOnlySaveDataFileSystem(OutInterface<IFileSystem> out_int
 
 Result FSP_SRV::OpenSaveDataInfoReaderBySaveDataSpaceId(OutInterface<ISaveDataInfoReader> out_interface, SaveDataSpaceId space)
 {
-    LOG_INFO(Service_FS, "called, space={}", space);
-    UNIMPLEMENTED();
+    LOG_WARNING(Service_FS, "(STUBBED) called, space={}", space);
+
+    *out_interface = std::make_shared<ISaveDataInfoReader>(system);
     R_SUCCEED();
 }
 
 Result FSP_SRV::OpenSaveDataInfoReaderOnlyCacheStorage(OutInterface<ISaveDataInfoReader> out_interface)
 {
     LOG_WARNING(Service_FS, "(STUBBED) called");
-    UNIMPLEMENTED();
+
+    *out_interface = std::make_shared<ISaveDataInfoReader>(system);
     R_SUCCEED();
 }
 

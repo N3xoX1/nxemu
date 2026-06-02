@@ -686,7 +686,7 @@ InstallResult RegisteredCache::InstallEntry(const NCA & nca, LoaderTitleType typ
     };
     const OptionalHeader opt_header{0, 0};
     ContentRecord c_rec{{}, {}, {}, GetCRTypeFromNCAType(nca.GetType()), {}};
-    const auto & data = nca.GetBaseFile()->ReadBytes(0x100000);
+    const auto & data = nca.BaseFile()->ReadBytes(0x100000);
     UNIMPLEMENTED();
     std::memcpy(&c_rec.nca_id, &c_rec.hash, 16);
     const CNMT new_cnmt(header, opt_header, {c_rec}, {});
@@ -795,7 +795,7 @@ bool RegisteredCache::RemoveExistingEntry(uint64_t title_id) const
 
 InstallResult RegisteredCache::RawInstallNCA(const NCA & nca, const VfsCopyFunction & copy, bool overwrite_if_exists, std::optional<NcaID> override_id)
 {
-    const auto in = nca.GetBaseFile();
+    const auto in = nca.BaseFile();
     UNIMPLEMENTED();
 
     // Calculate NcaID

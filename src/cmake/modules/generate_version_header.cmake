@@ -93,7 +93,14 @@ endif()
 
 message(STATUS "NxEmu version: ${VERSION_PREFIX}${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION}.${VERSION_BUILD}-${GIT_VERSION}")
 
+string(TIMESTAMP VERSION_BUILD_YEAR "%Y" UTC)
+
 # Replace the lines in the template
+string(REGEX REPLACE
+    "#define VERSION_BUILD_YEAR[ \t]+[0-9]+"
+    "#define VERSION_BUILD_YEAR          ${VERSION_BUILD_YEAR}"
+    VERSION_CONTENT "${VERSION_CONTENT}")
+
 string(REGEX REPLACE
     "#define VERSION_BUILD[ \t]+[0-9]+"
     "#define VERSION_BUILD               ${VERSION_BUILD}"

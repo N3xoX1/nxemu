@@ -46,8 +46,7 @@ namespace FileSys {
 namespace Service::AOC {
 
 static bool CheckAOCTitleIDMatchesBase(u64 title_id, u64 base) {
-    UNIMPLEMENTED();
-    return false;
+    return FileSys::GetBaseTitleID(title_id) == base;
 }
 
 static std::vector<u64> AccumulateAOCTitleIDs(Core::System & system) {
@@ -164,7 +163,11 @@ Result IAddOnContentManager::ListAddOnContent(Out<u32> out_count,
 
 Result IAddOnContentManager::GetAddOnContentBaseId(Out<u64> out_title_id,
                                                    ClientProcessId process_id) {
-    UNIMPLEMENTED();
+    LOG_DEBUG(Service_AOC, "called, process_id={}", process_id.pid);
+
+    const u64 application_id = system.GetApplicationProcessProgramID();
+    *out_title_id = FileSys::GetBaseTitleID(application_id) | 0x1000;
+
     R_SUCCEED();
 }
 

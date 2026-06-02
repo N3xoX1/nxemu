@@ -18,10 +18,12 @@
     <div class="input-group">
       <div class="group-title">Graphics Settings</div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="UseDiskPipelineCache" tooltip="Allows saving shaders to storage for faster loading on following game boots.\nDisabling it is only intended for debugging."><label for="UseDiskPipelineCache">Use disk pipeline cache</label></div>
+        <div class="left"><label for="UseDiskPipelineCache">Use disk pipeline cache</label></div>
+        <div class="right"><input type="checkbox" id="UseDiskPipelineCache" tooltip="Allows saving shaders to storage for faster loading on following game boots.\nDisabling it is only intended for debugging."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="UseAsynchronousGPUEmulation" tooltip="Uses an extra CPU thread for rendering.\nThis option should always remain enabled."><label for="UseAsynchronousGPUEmulation">Use asynchronous GPU emulation</label></div>
+        <div class="left"><label for="UseAsynchronousGPUEmulation">Use asynchronous GPU emulation</label></div>
+        <div class="right"><input type="checkbox" id="UseAsynchronousGPUEmulation" tooltip="Uses an extra CPU thread for rendering.\nThis option should always remain enabled."></div>
       </div>
       <div class="form-row">
         <div class="left"><label for="AstcDecodeMode">ASTC Decoding Method:</label></div>
@@ -77,28 +79,36 @@
         <div class="right"><ComboBox id="VRAMUsageMode" tooltip="Selects whether the emulator should prefer to conserve memory or make maximum usage of available video memory for performance. Has no effect on integrated graphics. Aggressive mode may severely impact the performance of other applications such as recording software."/></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="EnableAsynchronousPresentation" tooltip="Slightly improves performance by moving presentation to a separate CPU thread."><label for="EnableAsynchronousPresentation">Enable asynchronous presentation (Vulkan only)</label></div>
+        <div class="left"><label for="EnableAsynchronousPresentation">Enable asynchronous presentation (Vulkan only)</label></div>
+        <div class="right"><input type="checkbox" id="EnableAsynchronousPresentation" tooltip="Slightly improves performance by moving presentation to a separate CPU thread."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="ForceMaximumClocks" tooltip="Runs work in the background while waiting for graphics commands to keep the GPU from lowering its clock speed."><label for="ForceMaximumClocks">Force maximum clocks (Vulkan only)</label></div>
+        <div class="left"><label for="ForceMaximumClocks">Force maximum clocks (Vulkan only)</label></div>
+        <div class="right"><input type="checkbox" id="ForceMaximumClocks" tooltip="Runs work in the background while waiting for graphics commands to keep the GPU from lowering its clock speed."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="EnableReactiveFlushing"><label for="EnableReactiveFlushing" tooltip="Uses reactive flushing instead of predictive flushing, allowing more accurate memory syncing.">Enable Reactive Flushing</label></div>
+        <div class="left"><label for="EnableReactiveFlushing">Enable Reactive Flushing</label></div>
+        <div class="right"><input type="checkbox" id="EnableReactiveFlushing" tooltip="Uses reactive flushing instead of predictive flushing, allowing more accurate memory syncing."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="UseAsynchronousShaderBuilding"><label for="UseAsynchronousShaderBuilding" tooltip="Enables asynchronous shader compilation, which may reduce shader stutter.\nThis feature is experimental.">Use asynchronous shader building (Hack)</label></div>
+        <div class="left"><label for="UseAsynchronousShaderBuilding">Use asynchronous shader building (Hack)</label></div>
+        <div class="right"><input type="checkbox" id="UseAsynchronousShaderBuilding" tooltip="Enables asynchronous shader compilation, which may reduce shader stutter.\nThis feature is experimental."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="FastGPUTime" tooltip="Enables Fast GPU Time. This option will force most games to run at their highest native resolution."><label for="FastGPUTime">Fast GPU Time (Hack)</label></div>
+        <div class="left"><label for="FastGPUTime">Fast GPU Time (Hack)</label></div>
+        <div class="right"><input type="checkbox" id="FastGPUTime" tooltip="Enables Fast GPU Time. This option will force most games to run at their highest native resolution."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="UseVulkanPipelineCache" tooltip="Enables GPU vendor-specific pipeline cache.\nThis option can improve shader loading time significantly in cases where the Vulkan driver does not store pipeline cache files internally."><label for="UseVulkanPipelineCache">Use Vulkan pipeline cache</label></div>
+        <div class="left"><label for="UseVulkanPipelineCache">Use Vulkan pipeline cache</label></div>
+        <div class="right"><input type="checkbox" id="UseVulkanPipelineCache" tooltip="Enables GPU vendor-specific pipeline cache.\nThis option can improve shader loading time significantly in cases where the Vulkan driver does not store pipeline cache files internally."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="SyncToFramerateOfVideoPlayback" tooltip="Run the game at normal speed during video playback, even when the framerate is unlocked."><label for="SyncToFramerateOfVideoPlayback">Sync to framerate of video playback</label></div>
+        <div class="left"><label for="SyncToFramerateOfVideoPlayback">Sync to framerate of video playback</label></div>
+        <div class="right"><input type="checkbox" id="SyncToFramerateOfVideoPlayback" tooltip="Run the game at normal speed during video playback, even when the framerate is unlocked."></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="checkbox"><input type="checkbox" id="BarrierFeedbackLoops" tooltip="Improves rendering of transparency effects in specific games."><label for="BarrierFeedbackLoops">Barrier feedback loops</label></div>
+        <div class="left"><label for="BarrierFeedbackLoops">Barrier feedback loops</label></div>
+        <div class="right"><input type="checkbox" id="BarrierFeedbackLoops" tooltip="Improves rendering of transparency effects in specific games."></div>
       </div>
     </div>
   </page>

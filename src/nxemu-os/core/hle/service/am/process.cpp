@@ -34,17 +34,38 @@ bool Process::Initialize(u64 program_id)
     ISystemloader & loader = m_system.GetSystemloader();
     IFileSystemController & fsc = loader.FileSystemController();
 
-    IFileSysRegisteredCache & nand = fsc.GetSystemNANDContents();
-    nand.GetEntry(program_id, LoaderContentRecordType::Program);
-    FileSysNCAPtr nca(nand.GetEntry(program_id, LoaderContentRecordType::Program));
-
+    IFileSysRegisteredCache & bis_system = fsc.GetSystemNANDContents();
+    FileSysNCAPtr nca(bis_system.GetEntry(program_id, LoaderContentRecordType::Program));
     if (!nca)
     {
         return false;
     }
+    IVirtualFilePtr baseFile(nca->GetBaseFile());
+    if (!baseFile)
+    {
+        return false;
+    }
+
+    IRomInfoPtr app_loader(loader.FileRomInfo(baseFile.Get(), program_id, 0));
+    if (!app_loader)
+    {
+        return false;
+    }
+
+    Kernel::KProcess * const process = Kernel::KProcess::Create(m_system.Kernel());
+    if (process == nullptr)
+    {
+        return false;
+    }
+    Kernel::KProcess::Register(m_system.Kernel(), process);
+
+    SCOPE_EXIT
+    {
+        process->Close();
+    };
 
     UNIMPLEMENTED();
-    return true;
+    return false;
 }
 
 void Process::Finalize()

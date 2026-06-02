@@ -31,6 +31,7 @@ public:
     bool SelectAndLoad(void * parentWindow) override;
     bool LoadRom(const char * fileName) override;
     IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) override;
+    IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * LoadedRomInfo() override;
 
     IFileSystemController & FileSystemController() override;
