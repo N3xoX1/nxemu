@@ -48,7 +48,7 @@
     <ClInclude Include="path_finder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="shell_open_url.h">
+    <ClInclude Include="shell_open.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -83,7 +83,7 @@
     <ClCompile Include="path_finder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="shell_open_url.cpp">
+    <ClCompile Include="shell_open.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

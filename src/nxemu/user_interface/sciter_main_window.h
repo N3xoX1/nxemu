@@ -54,6 +54,8 @@ class SciterMainWindow :
         ResetWindowSize1080p,
         OpenAboutDialog,
         OpenDiscord,
+        OpenAppDirectory,
+        OpenLogDirectory,
         RecentFileMenuFirst,
         RecentFileMenuLast = RecentFileMenuFirst + 20,
     };
@@ -126,6 +128,8 @@ private:
     void OnToggleStartGamesInFullscreen();
     void OnAbout();
     void OnOpenDiscord();
+    void OnOpenAppDirectory();
+    void OnOpenLogDirectory();
     void UpdateEmulationStatusText();
     const MenuBarAccelerator * HotkeyAccelerator(const char * name);
     const char * IsMenuBarAccelerator(uint32_t keyCode, uint32_t keyboardState);

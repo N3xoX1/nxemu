@@ -1,6 +1,6 @@
 #include "web_browser.h"
 
-#include <common/shell_open_url.h>
+#include <common/shell_open.h>
 
 #include <string>
 #include <string_view>
@@ -71,7 +71,7 @@ void WebBrowserApplet::OpenLocalWebPage(const char * local_url_utf8, void * extr
     }
 
     const std::string file_uri = FileUriFromLocalPath(local_path);
-    const bool success = ShellOpenUrl(file_uri.c_str(), m_hwnd);
+    const bool success = ShellOpen(file_uri.c_str(), m_hwnd);
     InvokeOpenResult(open_callback, open_user_data, success, success ? file_uri.c_str() : "");
 }
 
@@ -84,6 +84,6 @@ void WebBrowserApplet::OpenExternalWebPage(const char * external_url_utf8, void 
         return;
     }
 
-    const bool success = ShellOpenUrl(external_url.c_str(), m_hwnd);
+    const bool success = ShellOpen(external_url.c_str(), m_hwnd);
     InvokeOpenResult(callback, user_data, success, success ? external_url.c_str() : "");
 }

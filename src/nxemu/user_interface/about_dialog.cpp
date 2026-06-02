@@ -1,6 +1,6 @@
 #include "about_dialog.h"
 
-#include <common/shell_open_url.h>
+#include <common/shell_open.h>
 #include <nxemu-core/version.h>
 #include <sciter_element.h>
 #include <sciter_handler.h>
@@ -94,7 +94,7 @@ bool AboutDialog::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uin
     if (!href.empty() && (href.compare(0, 7, "http://") == 0 || href.compare(0, 8, "https://") == 0))
     {
         const void * owner = m_window != nullptr ? m_window->GetHandle() : nullptr;
-        ShellOpenUrl(href.c_str(), owner);
+        ShellOpen(href.c_str(), owner);
         return true;
     }
 

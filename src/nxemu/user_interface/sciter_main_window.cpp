@@ -6,7 +6,7 @@
 #include "settings/ui_settings.h"
 #include "user_interface/key_mappings.h"
 #include <common/base64.h>
-#include <common/shell_open_url.h>
+#include <common/shell_open.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/identifiers.h>
@@ -22,6 +22,7 @@
 #include <sciter_element.h>
 #include <widgets/menubar.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
+#include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/settings.h>
 #include <yuzu_common/settings_input.h>
 
@@ -390,6 +391,11 @@ void SciterMainWindow::ResetMenu()
         fileMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&Recent File", &RecentFileMenu, nullptr, MenuBarItem::CheckState::None, MenuIconSvgForResource("recent.svg")));
     }
 
+    fileMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
+    MenuBarItemList openFoldersMenu;
+    openFoldersMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenAppDirectory), "&App Directory", nullptr, nullptr, MenuBarItem::CheckState::None, nullptr));
+    openFoldersMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenLogDirectory), "&Log Folder", nullptr, nullptr, MenuBarItem::CheckState::None, nullptr));
+    fileMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "Open &NXEmu Folders", &openFoldersMenu));
     fileMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
     fileMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ExitApplication), "E&xit", nullptr, HotkeyAccelerator(Hotkey::Exit), MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::ExitApplication)));
     mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&File", &fileMenu));
@@ -1160,7 +1166,25 @@ void SciterMainWindow::OnAbout()
 
 void SciterMainWindow::OnOpenDiscord()
 {
-    ShellOpenUrl(kNxEmuDiscordUrl);
+    ShellOpen(kNxEmuDiscordUrl);
+}
+
+void SciterMainWindow::OnOpenAppDirectory()
+{
+    const std::string path = Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir);
+    if (!path.empty())
+    {
+        ShellOpen(path.c_str(), m_window != nullptr ? (void *)m_window->GetHandle() : nullptr);
+    }
+}
+
+void SciterMainWindow::OnOpenLogDirectory()
+{
+    const std::string path = Common::FS::GetYuzuPathString(Common::FS::YuzuPath::LogDir);
+    if (!path.empty())
+    {
+        ShellOpen(path.c_str(), m_window != nullptr ? (void *)m_window->GetHandle() : nullptr);
+    }
 }
 
 void SciterMainWindow::UpdateEmulationStatusText()
@@ -1383,6 +1407,12 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         break;
     case GuiAction::OpenDiscord:
         OnOpenDiscord();
+        break;
+    case GuiAction::OpenAppDirectory:
+        OnOpenAppDirectory();
+        break;
+    case GuiAction::OpenLogDirectory:
+        OnOpenLogDirectory();
         break;
     case GuiAction::ToggleFullscreen:
         ToggleFullscreen();
