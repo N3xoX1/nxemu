@@ -132,10 +132,15 @@ if (WIN32)
 endif()
 
 if(ANDROID)
-    target_sources(yuzu_common
-        PUBLIC
-            android/id_cache.cpp
-            android/id_cache.h
+    target_sources(yuzu_common PRIVATE
+        android/android_common.cpp
+        android/android_common.h
+        android/id_cache.cpp
+        android/id_cache.h
+        android/jni_android.cpp
+        android/jni_android.h
+        fs/fs_android.cpp
+        fs/fs_android.h
     )
 endif()
 
