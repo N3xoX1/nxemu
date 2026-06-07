@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 add_subdirectory(host_shaders)
-add_subdirectory(frontend)
 
 if(LIBVA_FOUND)
     set_source_files_properties(host1x/ffmpeg/ffmpeg.cpp
