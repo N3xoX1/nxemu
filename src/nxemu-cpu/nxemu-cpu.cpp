@@ -124,6 +124,7 @@ void CALL DestroyCpu(ICpu * Cpu)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return;
     }
+    g_cpuInterface = nullptr;
 }
 
 #ifdef _WIN32
