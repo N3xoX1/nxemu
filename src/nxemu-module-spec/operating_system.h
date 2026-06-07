@@ -670,6 +670,8 @@ nxinterface IOperatingSystem
     virtual void SetEmulationPaused(bool paused) = 0;
     virtual bool IsEmulationPaused() const = 0;
     virtual void SetFrontendApplets(ICabinetFrontendApplet * cabinet, IControllerFrontendApplet * controller, IErrorFrontendApplet * error, IMiiEditFrontendApplet * mii_edit, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select, ISoftwareKeyboardFrontendApplet * software_keyboard, IWebBrowserFrontendApplet * web_browser) = 0;
+    virtual void SetPlayerButtonState(uint32_t player_index, uint32_t button_ordinal, bool pressed) = 0;
+    virtual void SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index, float x, float y) = 0;
 };
 
 EXPORT IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules);

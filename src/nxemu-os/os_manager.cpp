@@ -13,6 +13,7 @@
 #include "yuzu_hid_core/frontend/emulated_controller.h"
 #include "yuzu_hid_core/hid_core.h"
 #include "yuzu_input_common/drivers/keyboard.h"
+#include "yuzu_input_common/drivers/virtual_gamepad.h"
 #include "yuzu_input_common/main.h"
 #include <nxemu-core/settings/identifiers.h>
 
@@ -394,4 +395,24 @@ void OSManager::SetFrontendApplets(ICabinetFrontendApplet * cabinet, IController
     applets.software_keyboard = software_keyboard;
     applets.web_browser = web_browser;
     m_coreSystem.SetFrontendAppletSet(std::move(applets));
+}
+
+void OSManager::SetPlayerButtonState(uint32_t player_index, uint32_t button_ordinal, bool pressed)
+{
+    InputCommon::VirtualGamepad* const virtual_gamepad = m_coreSystem.InputSubsystem()->GetVirtualGamepad();
+    if (virtual_gamepad == nullptr)
+    {
+        return;
+    }
+    virtual_gamepad->SetButtonState(player_index, static_cast<int>(button_ordinal), pressed);
+}
+
+void OSManager::SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index, float x, float y)
+{
+    InputCommon::VirtualGamepad* const virtual_gamepad = m_coreSystem.InputSubsystem()->GetVirtualGamepad();
+    if (virtual_gamepad == nullptr)
+    {
+        return;
+    }
+    virtual_gamepad->SetStickPosition(player_index, static_cast<int>(stick_index), x, y);
 }
