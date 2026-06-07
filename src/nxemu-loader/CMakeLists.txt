@@ -33,6 +33,7 @@ target_link_libraries(nxemu-loader PRIVATE
     yuzu_common
     fmt::fmt
     lz4
+    minizip::minizip
 )
 
 if(WIN32)
