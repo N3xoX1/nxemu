@@ -56,6 +56,11 @@ if(NOT TARGET stb::headers)
     target_include_directories(stb_headers INTERFACE "${CMAKE_SOURCE_DIR}/src/3rd_party/stb")
 endif()
 
+if(NOT TARGET stb_dxt)
+    add_library(stb_dxt STATIC "${CMAKE_SOURCE_DIR}/src/3rd_party/stb/stb_dxt.cpp")
+    target_include_directories(stb_dxt PUBLIC "${CMAKE_SOURCE_DIR}/src/3rd_party/stb")
+endif()
+
 # zstd (yuzu_common links zstd::zstd; upstream exports libzstd_static as zstd::libzstd_static)
 if(NOT TARGET libzstd_static)
     set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Build zstd CLI" FORCE)
@@ -65,6 +70,32 @@ if(NOT TARGET libzstd_static)
 endif()
 if(TARGET libzstd_static AND NOT TARGET zstd::zstd)
     add_library(zstd::zstd ALIAS libzstd_static)
+endif()
+
+# zlib + minizip (nxemu-loader firmware zip extraction)
+if(NOT TARGET zlibstatic)
+    add_subdirectory("${CMAKE_SOURCE_DIR}/external/zlib" "${CMAKE_BINARY_DIR}/external/zlib")
+endif()
+if(TARGET zlibstatic AND NOT TARGET ZLIB::ZLIB)
+    add_library(ZLIB::ZLIB ALIAS zlibstatic)
+endif()
+
+set(MINIZIP_DIR "${CMAKE_SOURCE_DIR}/external/zlib/contrib/minizip")
+add_library(minizip STATIC
+    ${MINIZIP_DIR}/ioapi.c
+    ${MINIZIP_DIR}/unzip.c
+)
+if(WIN32)
+    target_sources(minizip PRIVATE ${MINIZIP_DIR}/iowin32.c)
+endif()
+target_include_directories(minizip PUBLIC
+    ${CMAKE_SOURCE_DIR}/external/zlib
+    ${MINIZIP_DIR}
+)
+target_link_libraries(minizip PUBLIC ZLIB::ZLIB)
+set_property(TARGET minizip PROPERTY POSITION_INDEPENDENT_CODE ON)
+if(NOT TARGET minizip::minizip)
+    add_library(minizip::minizip ALIAS minizip)
 endif()
 
 # ENet
