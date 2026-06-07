@@ -19,6 +19,9 @@
 #include <sys/mman.h>
 #include <sys/random.h>
 #include <unistd.h>
+#if defined(__ANDROID__)
+#include <sys/syscall.h>
+#endif
 #include "yuzu_common/scope_exit.h"
 
 #ifndef MAP_NORESERVE
@@ -425,6 +428,11 @@ static void* ChooseVirtualBase(size_t virtual_size) {
 
 #endif
 
+#if defined(__ANDROID__) && __ANDROID_API__ < 30
+static int memfd_create(const char* name, unsigned int flags) {
+    return syscall(__NR_memfd_create, name, flags);
+}
+#endif
 class HostMemory::Impl {
 public:
     explicit Impl(size_t backing_size_, size_t virtual_size_)
