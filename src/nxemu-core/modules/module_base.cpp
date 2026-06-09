@@ -1,7 +1,7 @@
 #include "module_base.h"
 #include <yuzu_common/logging/backend.h>
 #ifdef ANDROID
-#include <yuzu_common/android/id_cache.h>
+#include <yuzu_common/android/java_bridge.h>
 #endif
 
 ModuleBase::ModuleBase() :

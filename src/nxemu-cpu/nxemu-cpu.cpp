@@ -5,7 +5,7 @@
 #include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/logging/backend.h>
 #ifdef ANDROID
-#include <yuzu_common/android/id_cache.h>
+#include <yuzu_common/android/java_bridge.h>
 #endif
 
 std::unique_ptr<CpuInterface> g_cpuInterface;
