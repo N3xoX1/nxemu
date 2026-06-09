@@ -238,6 +238,7 @@ void PresentManager::RecreateFrame(Frame* frame, u32 width, u32 height, VkFormat
         .height = height,
         .layers = 1,
     });
+    frame->watermark_framebuffer = {};
 }
 
 void PresentManager::WaitPresent() {

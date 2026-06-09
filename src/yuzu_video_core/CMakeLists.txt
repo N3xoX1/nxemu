@@ -58,6 +58,11 @@ add_library(video_core STATIC
     engines/puller.h
     framebuffer_config.cpp
     framebuffer_config.h
+    frontend/emu_window.cpp
+    frontend/emu_window.h
+    frontend/framebuffer_layout.cpp
+    frontend/framebuffer_layout.h
+    frontend/graphics_context.h
     fsr.cpp
     fsr.h
     host1x/codecs/codec.cpp
@@ -296,6 +301,8 @@ add_library(video_core STATIC
     transform_feedback.h
     video_core.cpp
     video_core.h
+    watermark.cpp
+    watermark.h
     vulkan_common/vulkan_debug_callback.cpp
     vulkan_common/vulkan_debug_callback.h
     vulkan_common/vulkan_device.cpp
@@ -319,7 +326,7 @@ add_library(video_core STATIC
 
 target_include_directories(video_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(video_core PUBLIC common nxemu_core yuzu_common)
-target_link_libraries(video_core PUBLIC glad shader_recompiler stb::headers bc_decoder)
+target_link_libraries(video_core PUBLIC glad shader_recompiler stb::headers bc_decoder stb_dxt)
 
 if (YUZU_USE_BUNDLED_FFMPEG AND NOT (WIN32 OR ANDROID))
     add_dependencies(video_core ffmpeg-build)
@@ -332,26 +339,31 @@ endif()
 if(ANDROID AND NOT FFmpeg_LIBRARIES)
     # Static link order matters. Expected layout: external/ffmpeg/lib/<abi>/lib*.a
     set(_ffmpeg_android_root "${CMAKE_SOURCE_DIR}/external/ffmpeg/lib/${ANDROID_ABI}")
-    set(_ffmpeg_android_names
-        libavutil libswresample libavcodec libavfilter libswscale)
-    set(_ffmpeg_android_ok TRUE)
-    foreach(_n IN LISTS _ffmpeg_android_names)
-        if(NOT EXISTS "${_ffmpeg_android_root}/${_n}.a")
-            set(_ffmpeg_android_ok FALSE)
-            break()
-        endif()
-    endforeach()
-    if(_ffmpeg_android_ok)
-        set(_ffmpeg_android_libs "")
-        foreach(_n IN LISTS _ffmpeg_android_names)
-            list(APPEND _ffmpeg_android_libs "${_ffmpeg_android_root}/${_n}.a")
-        endforeach()
-        set(FFmpeg_LIBRARIES "${_ffmpeg_android_libs}")
+    if(EXISTS "${_ffmpeg_android_root}/libffmpeg.so")
+        set(FFmpeg_LIBRARIES "${_ffmpeg_android_root}/libffmpeg.so")
     else()
-        message(WARNING
-            "Missing some FFmpeg static libraries in ${_ffmpeg_android_root} "
-            "(need: ${_ffmpeg_android_names}.a). Cross-compile for ${ANDROID_ABI}, install them there, "
-            "or pass -DFFmpeg_LIBRARIES=... at configure time.")
+        set(_ffmpeg_android_names
+            libavutil libswresample libavcodec libavfilter libswscale)
+        set(_ffmpeg_android_ok TRUE)
+        foreach(_n IN LISTS _ffmpeg_android_names)
+            if(NOT EXISTS "${_ffmpeg_android_root}/${_n}.a")
+                set(_ffmpeg_android_ok FALSE)
+                break()
+            endif()
+        endforeach()
+        if(_ffmpeg_android_ok)
+            set(_ffmpeg_android_libs "")
+            foreach(_n IN LISTS _ffmpeg_android_names)
+                list(APPEND _ffmpeg_android_libs "${_ffmpeg_android_root}/${_n}.a")
+            endforeach()
+            set(FFmpeg_LIBRARIES "${_ffmpeg_android_libs}")
+        else()
+            message(WARNING
+                "Missing FFmpeg libraries in ${_ffmpeg_android_root} "
+                "(need libffmpeg.so or static: ${_ffmpeg_android_names}.a). "
+                "Cross-compile for ${ANDROID_ABI}, install them there, "
+                "or pass -DFFmpeg_LIBRARIES=... at configure time.")
+        endif()
     endif()
 endif()
 
@@ -418,6 +430,10 @@ endif()
 
 if (ANDROID AND ARCHITECTURE_arm64)
     target_link_libraries(video_core PRIVATE adrenotools)
+endif()
+
+if(ANDROID)
+    target_link_libraries(video_core PRIVATE log android mediandk z)
 endif()
 
 create_target_directory_groups(video_core)

@@ -30,7 +30,7 @@ target_include_directories(nxemu-video PRIVATE
     ${CMAKE_SOURCE_DIR}/external/boost
 )
 
-target_link_libraries(nxemu-video PRIVATE video_core_frontend common)
+target_link_libraries(nxemu-video PRIVATE yuzu_common)
 
 if(TARGET video_core)
     target_link_libraries(nxemu-video PRIVATE video_core)
