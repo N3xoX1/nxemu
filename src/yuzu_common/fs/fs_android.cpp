@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "yuzu_common/android/android_common.h"
-#include "yuzu_common/android/jni_android.h"
+#include "yuzu_common/android/java_bridge.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/fs/fs_android.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/string_util.h"
 
 #include <filesystem>
