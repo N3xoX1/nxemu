@@ -34,6 +34,12 @@
     <Filter Include="Header Files\x64">
       <UniqueIdentifier>{69486afa-3abc-49da-9f4b-fa67c478505f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\android">
+      <UniqueIdentifier>{753c90f8-6161-4777-8776-9d6917dae2a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\android">
+      <UniqueIdentifier>{0783a878-f07c-448f-8e53-8bedc1c8366a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="logging\backend.h">
@@ -338,6 +344,9 @@
     </ClInclude>
     <ClInclude Include="fs\filesystem_interfaces.h">
       <Filter>Header Files\fs</Filter>
+    </ClInclude>
+    <ClInclude Include="android\java_bridge.h">
+      <Filter>Header Files\android</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

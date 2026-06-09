@@ -28,6 +28,8 @@ add_library(yuzu_common STATIC
     free_region_manager.h
     fs/file.cpp
     fs/file.h
+    fs/filesystem_interfaces.cpp
+    fs/filesystem_interfaces.h
     fs/fs.cpp
     fs/fs.h
     fs/fs_paths.h
@@ -133,12 +135,8 @@ endif()
 
 if(ANDROID)
     target_sources(yuzu_common PRIVATE
-        android/android_common.cpp
-        android/android_common.h
-        android/id_cache.cpp
-        android/id_cache.h
-        android/jni_android.cpp
-        android/jni_android.h
+        android/java_bridge.cpp
+        android/java_bridge.h
         fs/fs_android.cpp
         fs/fs_android.h
     )

@@ -108,5 +108,5 @@ if (ANDROID)
         drivers/android.cpp
         drivers/android.h
     )
-    target_link_libraries(input_common PRIVATE android)
+    target_link_libraries(input_common PRIVATE android yuzu_common)
 endif()

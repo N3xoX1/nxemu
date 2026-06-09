@@ -35,6 +35,7 @@
     <ClInclude Include="address_space.h" />
     <ClInclude Include="algorithm.h" />
     <ClInclude Include="alignment.h" />
+    <ClInclude Include="android\java_bridge.h" />
     <ClInclude Include="announce_multiplayer_room.h" />
     <ClInclude Include="atomic_helpers.h" />
     <ClInclude Include="atomic_ops.h" />
