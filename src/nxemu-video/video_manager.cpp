@@ -30,12 +30,20 @@ struct VideoManager::Impl
     {
         m_host1x = std::make_unique<Tegra::Host1x::Host1x>(m_modules.OperatingSystem().DeviceMemory());
         m_emuWindow = std::make_unique<RenderWindow>(m_window);
-        m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x);
         return true;
     }
     
     void EmulationStarting(void)
     {
+        if (m_init.valid())
+        {
+            m_init.wait();
+        }
+        if (m_gpuCore)
+        {
+            m_gpuCore->NotifyShutdown();
+            m_gpuCore = nullptr;
+        }
         g_settings->SetBool(NXCoreSetting::DisplayedFrames, false);
 
         Layout::FramebufferLayout layout;
@@ -46,7 +54,6 @@ struct VideoManager::Impl
         m_emuWindow = nullptr;
         m_emuWindow = std::make_unique<RenderWindow>(m_window);
         m_emuWindow->UpdateCurrentFramebufferLayout(layout.width, layout.height);
-        m_gpuCore = nullptr;
         m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x);
         if (!m_gpuCore)
         {
