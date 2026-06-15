@@ -449,8 +449,6 @@ float Volume();
 
 std::string GetTimeZoneString(TimeZone time_zone);
 
-void LogSettings();
-
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo& info);
 void UpdateRescalingInfo();
 

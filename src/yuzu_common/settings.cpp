@@ -105,38 +105,6 @@ std::string GetTimeZoneString(TimeZone time_zone) {
     return location_name;
 }
 
-void LogSettings() {
-    const auto log_setting = [](std::string_view name, const auto& value) {
-        LOG_INFO(Config, "{}: {}", name, value);
-    };
-
-    const auto log_path = [](std::string_view name, const std::filesystem::path& path) {
-        LOG_INFO(Config, "{}: {}", name, Common::FS::PathToUTF8String(path));
-    };
-
-    LOG_INFO(Config, "yuzu Configuration:");
-    for (auto& [category, settings] : values.linkage.by_category) {
-        for (const auto& setting : settings) {
-            if (setting->Id() == values.yuzu_token.Id()) {
-                // Hide the token secret, for security reasons.
-                continue;
-            }
-
-            const auto name = fmt::format(
-                "{:c}{:c} {}.{}", setting->ToString() == setting->DefaultToString() ? '-' : 'M',
-                setting->UsingGlobal() ? '-' : 'C', TranslateCategory(category),
-                setting->GetLabel());
-
-            log_setting(name, setting->Canonicalize());
-        }
-    }
-    log_path("DataStorage_CacheDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::CacheDir));
-    log_path("DataStorage_ConfigDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::ConfigDir));
-    log_path("DataStorage_LoadDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::LoadDir));
-    log_path("DataStorage_NANDDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir));
-    log_path("DataStorage_SDMCDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::SDMCDir));
-}
-
 void UpdateGPUAccuracy() {
     values.current_gpu_accuracy = values.gpu_accuracy.GetValue();
 }
