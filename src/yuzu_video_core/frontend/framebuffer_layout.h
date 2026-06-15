@@ -5,6 +5,8 @@
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/math_util.h"
+#include "video_settings.h"
+#include <nxemu-module-spec/video.h>
 
 namespace Layout {
 
@@ -22,14 +24,6 @@ namespace ScreenDocked {
 constexpr u32 Width = 1920;
 constexpr u32 Height = 1080;
 } // namespace ScreenDocked
-
-enum class AspectRatio {
-    Default,
-    R4_3,
-    R21_9,
-    R16_10,
-    StretchToWindow,
-};
 
 /// Describes the layout of the window framebuffer
 struct FramebufferLayout {
@@ -55,7 +49,7 @@ FramebufferLayout FrameLayoutFromResolutionScale(f32 res_scale);
 
 /**
  * Convenience method to determine emulation aspect ratio
- * @param aspect Represents the index of aspect ratio stored in Settings::values.aspect_ratio
+ * @param aspect Represents the index of aspect ratio stored in videoSettings.aspect_ratio
  * @param window_aspect_ratio Current window aspect ratio
  * @return Emulation render window aspect ratio
  */

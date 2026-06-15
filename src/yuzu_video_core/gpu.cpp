@@ -30,6 +30,7 @@
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/renderer_base.h"
 #include "yuzu_video_core/shader_notify.h"
+#include "video_settings.h"
 
 namespace Tegra
 {
@@ -230,7 +231,7 @@ struct GPU::Impl :
     {
         u64 gpu_tick = m_modules.OperatingSystem().GetGPUTicks();
 
-        if (Settings::values.use_fast_gpu_time.GetValue())
+        if (videoSettings.use_fast_gpu_time.GetValue())
         {
             gpu_tick /= 256;
         }

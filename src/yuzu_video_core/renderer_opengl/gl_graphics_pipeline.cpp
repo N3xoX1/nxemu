@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "yuzu_common/settings.h" // for enum class Settings::ShaderBackend
+#include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_common/thread_worker.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_video_core/renderer_opengl/gl_graphics_pipeline.h"
@@ -221,7 +222,7 @@ GraphicsPipeline::GraphicsPipeline(const Device& device, TextureCache& texture_c
     ASSERT(num_images <= MAX_IMAGES);
 
     const auto backend = device.GetShaderBackend();
-    const bool assembly_shaders{backend == Settings::ShaderBackend::Glasm};
+    const bool assembly_shaders{backend == ShaderBackend::Glasm};
     use_storage_buffers =
         !assembly_shaders || num_storage_buffers <= device.GetMaxGLASMStorageBufferBlocks();
     writes_global_memory &= !use_storage_buffers;
@@ -236,18 +237,18 @@ GraphicsPipeline::GraphicsPipeline(const Device& device, TextureCache& texture_c
                force_context_flush](ShaderContext::Context*) mutable {
         for (size_t stage = 0; stage < 5; ++stage) {
             switch (backend) {
-            case Settings::ShaderBackend::Glsl:
+            case ShaderBackend::Glsl:
                 if (!sources_[stage].empty()) {
                     source_programs[stage] = CreateProgram(sources_[stage], Stage(stage));
                 }
                 break;
-            case Settings::ShaderBackend::Glasm:
+            case ShaderBackend::Glasm:
                 if (!sources_[stage].empty()) {
                     assembly_programs[stage] =
                         CompileProgram(sources_[stage], AssemblyStage(stage));
                 }
                 break;
-            case Settings::ShaderBackend::SpirV:
+            case ShaderBackend::SpirV:
                 if (!sources_spirv_[stage].empty()) {
                     source_programs[stage] = CreateProgram(sources_spirv_[stage], Stage(stage));
                 }
@@ -511,7 +512,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             const f32 float_texture_scaling_mask{Common::BitCast<f32>(texture_scaling_mask)};
             const f32 float_image_scaling_mask{Common::BitCast<f32>(image_scaling_mask)};
             const bool is_rescaling{texture_cache.IsRescaling()};
-            const f32 config_down_factor{Settings::values.resolution_info.down_factor};
+            const f32 config_down_factor{videoSettings.resolution_info.down_factor};
             const f32 down_factor{is_rescaling ? config_down_factor : 1.0f};
             if (use_assembly) {
                 glProgramLocalParameter4fARB(AssemblyStage(stage), 0, float_texture_scaling_mask,

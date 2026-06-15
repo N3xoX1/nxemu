@@ -5,6 +5,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_rasterizer.h"
 
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/framebuffer_config.h"
 #include "yuzu_video_core/renderer_vulkan/present/fsr.h"
 #include "yuzu_video_core/renderer_vulkan/present/fxaa.h"
@@ -54,7 +55,7 @@ Layer::Layer(const Device& device_, MemoryAllocator& memory_allocator_, Schedule
       device_memory(device_memory_), filters(filters_), image_count(image_count_) {
     CreateDescriptorPool();
     CreateDescriptorSets(layout);
-    if (filters.get_scaling_filter() == Settings::ScalingFilter::Fsr) {
+    if (filters.get_scaling_filter() == ScalingFilter::Fsr) {
         CreateFSR(output_size);
     }
 }
@@ -181,15 +182,15 @@ void Layer::SetAntiAliasPass() {
     anti_alias_setting = filters.get_anti_aliasing();
 
     const VkExtent2D render_area{
-        .width = Settings::values.resolution_info.ScaleUp(raw_width),
-        .height = Settings::values.resolution_info.ScaleUp(raw_height),
+        .width = videoSettings.resolution_info.ScaleUp(raw_width),
+        .height = videoSettings.resolution_info.ScaleUp(raw_height),
     };
 
     switch (anti_alias_setting) {
-    case Settings::AntiAliasing::Fxaa:
+    case AntiAliasing::Fxaa:
         anti_alias = std::make_unique<FXAA>(device, memory_allocator, image_count, render_area);
         break;
-    case Settings::AntiAliasing::Smaa:
+    case AntiAliasing::Smaa:
         anti_alias = std::make_unique<SMAA>(device, memory_allocator, image_count, render_area);
         break;
     default:

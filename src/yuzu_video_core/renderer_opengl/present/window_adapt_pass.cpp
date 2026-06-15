@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/framebuffer_config.h"
 #include "yuzu_video_core/host_shaders/opengl_present_vert.h"
 #include "yuzu_video_core/renderer_opengl/gl_device.h"
@@ -85,9 +86,9 @@ void WindowAdaptPass::DrawToFramebuffer(ProgramManager& program_manager, std::li
     glBindSampler(0, sampler.handle);
 
     // Update background color before drawing
-    glClearColor(Settings::values.bg_red.GetValue() / 255.0f,
-                 Settings::values.bg_green.GetValue() / 255.0f,
-                 Settings::values.bg_blue.GetValue() / 255.0f, 1.0f);
+    glClearColor(videoSettings.bg_red.GetValue() / 255.0f,
+                 videoSettings.bg_green.GetValue() / 255.0f,
+                 videoSettings.bg_blue.GetValue() / 255.0f, 1.0f);
 
     glClear(GL_COLOR_BUFFER_BIT);
 

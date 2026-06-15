@@ -9,6 +9,7 @@
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/memory_manager.h"
+#include "video_settings.h"
 
 namespace Tegra
 {

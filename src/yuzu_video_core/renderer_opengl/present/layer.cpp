@@ -12,6 +12,7 @@
 #include "yuzu_video_core/renderer_opengl/present/smaa.h"
 #include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/textures/decoders.h"
+#include "video_settings.h"
 
 namespace OpenGL {
 
@@ -42,21 +43,21 @@ GLuint Layer::ConfigureDraw(std::array<GLfloat, 3 * 2>& out_matrix,
     GLuint texture = info.display_texture;
 
     auto anti_aliasing = filters.get_anti_aliasing();
-    if (anti_aliasing != Settings::AntiAliasing::None) {
+    if (anti_aliasing != AntiAliasing::None) {
         glEnablei(GL_SCISSOR_TEST, 0);
-        auto viewport_width = Settings::values.resolution_info.ScaleUp(framebuffer_texture.width);
-        auto viewport_height = Settings::values.resolution_info.ScaleUp(framebuffer_texture.height);
+        auto viewport_width = videoSettings.resolution_info.ScaleUp(framebuffer_texture.width);
+        auto viewport_height = videoSettings.resolution_info.ScaleUp(framebuffer_texture.height);
 
         glScissorIndexed(0, 0, 0, viewport_width, viewport_height);
         glViewportIndexedf(0, 0.0f, 0.0f, static_cast<GLfloat>(viewport_width),
                            static_cast<GLfloat>(viewport_height));
 
         switch (anti_aliasing) {
-        case Settings::AntiAliasing::Fxaa:
+        case AntiAliasing::Fxaa:
             CreateFXAA();
             texture = fxaa->Draw(program_manager, info.display_texture);
             break;
-        case Settings::AntiAliasing::Smaa:
+        case AntiAliasing::Smaa:
         default:
             CreateSMAA();
             texture = smaa->Draw(program_manager, info.display_texture);
@@ -66,7 +67,7 @@ GLuint Layer::ConfigureDraw(std::array<GLfloat, 3 * 2>& out_matrix,
 
     glDisablei(GL_SCISSOR_TEST, 0);
 
-    if (filters.get_scaling_filter() == Settings::ScalingFilter::Fsr) {
+    if (filters.get_scaling_filter() == ScalingFilter::Fsr) {
         if (!fsr || fsr->NeedsRecreation(layout.screen)) {
             fsr = std::make_unique<FSR>(layout.screen.GetWidth(), layout.screen.GetHeight());
         }
@@ -207,8 +208,8 @@ void Layer::CreateFXAA() {
     smaa.reset();
     if (!fxaa) {
         fxaa = std::make_unique<FXAA>(
-            Settings::values.resolution_info.ScaleUp(framebuffer_texture.width),
-            Settings::values.resolution_info.ScaleUp(framebuffer_texture.height));
+            videoSettings.resolution_info.ScaleUp(framebuffer_texture.width),
+            videoSettings.resolution_info.ScaleUp(framebuffer_texture.height));
     }
 }
 
@@ -216,8 +217,8 @@ void Layer::CreateSMAA() {
     fxaa.reset();
     if (!smaa) {
         smaa = std::make_unique<SMAA>(
-            Settings::values.resolution_info.ScaleUp(framebuffer_texture.width),
-            Settings::values.resolution_info.ScaleUp(framebuffer_texture.height));
+            videoSettings.resolution_info.ScaleUp(framebuffer_texture.width),
+            videoSettings.resolution_info.ScaleUp(framebuffer_texture.height));
     }
 }
 

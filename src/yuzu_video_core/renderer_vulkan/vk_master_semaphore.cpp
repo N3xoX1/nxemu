@@ -5,6 +5,7 @@
 
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
@@ -37,7 +38,7 @@ MasterSemaphore::MasterSemaphore(const Device& device_) : device(device_) {
     };
     semaphore = device.GetLogical().CreateSemaphore(semaphore_ci);
 
-    if (!Settings::values.renderer_debug) {
+    if (!videoSettings.renderer_debug) {
         return;
     }
     // Validation layers have a bug where they fail to track resource usage when using timeline

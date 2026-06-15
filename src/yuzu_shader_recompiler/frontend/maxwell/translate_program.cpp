@@ -7,6 +7,7 @@
 #include <queue>
 
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings.h"
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_shader_recompiler/frontend/ir/basic_block.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
@@ -301,11 +302,11 @@ IR::Program TranslateProgram(ObjectPool<IR::Inst>& inst_pool, ObjectPool<IR::Blo
     Optimization::GlobalMemoryToStorageBufferPass(program, host_info);
     Optimization::TexturePass(env, program, host_info);
 
-    if (Settings::values.resolution_info.active) {
+    if (videoSettings.resolution_info.active) {
         Optimization::RescalingPass(program);
     }
     Optimization::DeadCodeEliminationPass(program);
-    if (Settings::values.renderer_debug) {
+    if (videoSettings.renderer_debug) {
         Optimization::VerificationPass(program);
     }
     Optimization::CollectShaderInfoPass(env, program);
@@ -343,7 +344,7 @@ IR::Program MergeDualVertexPrograms(IR::Program& vertex_a, IR::Program& vertex_b
     Optimization::JoinTextureInfo(result.info, vertex_b.info);
     Optimization::JoinStorageInfo(result.info, vertex_b.info);
     Optimization::DeadCodeEliminationPass(result);
-    if (Settings::values.renderer_debug) {
+    if (videoSettings.renderer_debug) {
         Optimization::VerificationPass(result);
     }
     Optimization::CollectShaderInfoPass(env_vertex_b, result);

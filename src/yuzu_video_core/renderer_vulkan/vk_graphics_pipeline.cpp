@@ -21,6 +21,7 @@
 #include "yuzu_video_core/shader_notify.h"
 #include "yuzu_video_core/texture_cache/texture_cache.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
+#include "nxemu-video/video_settings.h"
 
 #if defined(_MSC_VER) && defined(NDEBUG)
 #define LAMBDA_FORCEINLINE [[msvc::forceinline]]
@@ -514,7 +515,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                              RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
                              rescaling_data.data());
         if (update_rescaling) {
-            const f32 config_down_factor{Settings::values.resolution_info.down_factor};
+            const f32 config_down_factor{videoSettings.resolution_info.down_factor};
             const f32 scale_down_factor{is_rescaling ? config_down_factor : 1.0f};
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
                                  RESCALING_LAYOUT_DOWN_FACTOR_OFFSET, sizeof(scale_down_factor),

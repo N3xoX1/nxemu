@@ -17,6 +17,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
+#include "video_settings.h"
 
 namespace Vulkan {
 

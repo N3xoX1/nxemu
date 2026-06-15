@@ -5,31 +5,32 @@
 #include <yuzu_common/settings_enums.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-video/video_settings_identifiers.h>
+#include <nxemu-module-spec/video.h>
 #include <widgets/combo_box.h>
 
 namespace 
 {
     static ConfigSetting graphicsSettings[] = {
-        ConfigSetting(ConfigSetting::ComboBox, "GraphicsAPI", false, Settings::EnumMetadata<Settings::RendererBackend>::Index(), NXVideoSetting::GraphicsAPI),
-        ConfigSetting(ConfigSetting::ComboBox, "ShaderBackend", false, Settings::EnumMetadata<Settings::ShaderBackend>::Index(), NXVideoSetting::ShaderBackend),
-        ConfigSetting(ConfigSetting::ComboBox, "VulkanDevices", false, (uint32_t)SystemConfig::TranslationType::VulkanDevice, NXVideoSetting::VulkanDevice),
+        ConfigSetting(ConfigSetting::ComboBox, "GraphicsAPI", false, (uint32_t)VideoSettingTranslationType::RendererBackend, NXVideoSetting::GraphicsAPI),
+        ConfigSetting(ConfigSetting::ComboBox, "ShaderBackend", false, (uint32_t)VideoSettingTranslationType::ShaderBackend, NXVideoSetting::ShaderBackend),
+        ConfigSetting(ConfigSetting::ComboBox, "VulkanDevices", false, (uint32_t)VideoSettingTranslationType::VulkanDevice, NXVideoSetting::VulkanDevice),
         ConfigSetting(ConfigSetting::CheckBox, "UseDiskPipelineCache", false, NXVideoSetting::UseDiskPipelineCache),
         ConfigSetting(ConfigSetting::CheckBox, "UseAsynchronousGPUEmulation", false, NXVideoSetting::UseAsynchronousGPUEmulation),
-        ConfigSetting(ConfigSetting::ComboBox, "AstcDecodeMode", false, Settings::EnumMetadata<Settings::AstcDecodeMode>::Index(), NXVideoSetting::AstcDecodeMode),
-        ConfigSetting(ConfigSetting::ComboBox, "VSyncMode", true, Settings::EnumMetadata<Settings::VSyncMode>::Index(), NXVideoSetting::VSyncMode),
-        ConfigSetting(ConfigSetting::ComboBox, "NvdecEmulation", false, Settings::EnumMetadata<Settings::NvdecEmulation>::Index(), NXVideoSetting::NvdecEmulation),
-        ConfigSetting(ConfigSetting::ComboBox, "AspectRatio", true, Settings::EnumMetadata<Settings::AspectRatio>::Index(), NXVideoSetting::AspectRatio),
-        ConfigSetting(ConfigSetting::ComboBox, "ResolutionSetup", false, Settings::EnumMetadata<Settings::ResolutionSetup>::Index(), NXVideoSetting::ResolutionSetup),
-        ConfigSetting(ConfigSetting::ComboBox, "ScalingFilter", true, Settings::EnumMetadata<Settings::ScalingFilter>::Index(), NXVideoSetting::ScalingFilter),
-        ConfigSetting(ConfigSetting::ComboBox, "AntiAliasing", true, Settings::EnumMetadata<Settings::AntiAliasing>::Index(), NXVideoSetting::AntiAliasing),
+        ConfigSetting(ConfigSetting::ComboBox, "AstcDecodeMode", false, (uint32_t)VideoSettingTranslationType::AstcDecodeMode, NXVideoSetting::AstcDecodeMode),
+        ConfigSetting(ConfigSetting::ComboBox, "VSyncMode", true, (uint32_t)VideoSettingTranslationType::VSyncMode, NXVideoSetting::VSyncMode),
+        ConfigSetting(ConfigSetting::ComboBox, "NvdecEmulation", false, (uint32_t)VideoSettingTranslationType::NvdecEmulation, NXVideoSetting::NvdecEmulation),
+        ConfigSetting(ConfigSetting::ComboBox, "AspectRatio", true, (uint32_t)VideoSettingTranslationType::AspectRatio, NXVideoSetting::AspectRatio),
+        ConfigSetting(ConfigSetting::ComboBox, "ResolutionSetup", false, (uint32_t)VideoSettingTranslationType::ResolutionSetup, NXVideoSetting::ResolutionSetup),
+        ConfigSetting(ConfigSetting::ComboBox, "ScalingFilter", true, (uint32_t)VideoSettingTranslationType::ScalingFilter, NXVideoSetting::ScalingFilter),
+        ConfigSetting(ConfigSetting::ComboBox, "AntiAliasing", true, (uint32_t)VideoSettingTranslationType::AntiAliasing, NXVideoSetting::AntiAliasing),
         ConfigSetting(ConfigSetting::Slider, "FSPSharpness", true, NXVideoSetting::FSPSharpness),
     };
 
     static ConfigSetting advancedSettings[] = {
-        ConfigSetting(ConfigSetting::ComboBox, "AccuracyLevel", true, Settings::EnumMetadata<Settings::GpuAccuracy>::Index(), NXVideoSetting::AccuracyLevel),
-        ConfigSetting(ConfigSetting::ComboBox, "AnisotropicFiltering", false, Settings::EnumMetadata<Settings::AnisotropyMode>::Index(), NXVideoSetting::AnisotropicFiltering),
-        ConfigSetting(ConfigSetting::ComboBox, "ASTCRecompressionMethod", false, Settings::EnumMetadata<Settings::AstcRecompression>::Index(), NXVideoSetting::ASTCRecompressionMethod),
-        ConfigSetting(ConfigSetting::ComboBox, "VRAMUsageMode", false, Settings::EnumMetadata<Settings::VramUsageMode>::Index(), NXVideoSetting::VRAMUsageMode),
+        ConfigSetting(ConfigSetting::ComboBox, "AccuracyLevel", true, (uint32_t)VideoSettingTranslationType::GpuAccuracy, NXVideoSetting::AccuracyLevel),
+        ConfigSetting(ConfigSetting::ComboBox, "AnisotropicFiltering", false, (uint32_t)VideoSettingTranslationType::AnisotropyMode, NXVideoSetting::AnisotropicFiltering),
+        ConfigSetting(ConfigSetting::ComboBox, "ASTCRecompressionMethod", false, (uint32_t)VideoSettingTranslationType::AstcRecompression, NXVideoSetting::ASTCRecompressionMethod),
+        ConfigSetting(ConfigSetting::ComboBox, "VRAMUsageMode", false, (uint32_t)VideoSettingTranslationType::VramUsageMode, NXVideoSetting::VRAMUsageMode),
         ConfigSetting(ConfigSetting::CheckBox, "EnableAsynchronousPresentation", false, NXVideoSetting::EnableAsynchronousPresentation),
         ConfigSetting(ConfigSetting::CheckBox, "ForceMaximumClocks", false, NXVideoSetting::ForceMaximumClocks),
         ConfigSetting(ConfigSetting::CheckBox, "EnableReactiveFlushing", false, NXVideoSetting::EnableReactiveFlushing),
@@ -40,25 +41,25 @@ namespace
         ConfigSetting(ConfigSetting::CheckBox, "BarrierFeedbackLoops", false, NXVideoSetting::BarrierFeedbackLoops),
     };
 
-    Settings::RendererBackend RendererModeSelcted(ISciterUI & sciterUI, SciterElement & graphicsPage)
+    RendererBackend RendererModeSelcted(ISciterUI & sciterUI, SciterElement & graphicsPage)
     {
         std::shared_ptr<void> interfacePtr = graphicsPage ? sciterUI.GetElementInterface(graphicsPage.GetElementByID("GraphicsAPI"), IID_ICOMBOBOX) : nullptr;
         if (!interfacePtr)
         {
-            return Settings::RendererBackend::Null;
+            return RendererBackend::Null;
         }
         std::shared_ptr<IComboBox> comboBox = std::static_pointer_cast<IComboBox>(interfacePtr);
         SciterElement element = comboBox->GetSelectedItem();
         if (!element)
         {
-            return Settings::RendererBackend::Null;
+            return RendererBackend::Null;
         }
         std::string value = element.GetAttribute("value");
         if (value.empty())
         {
-            return Settings::RendererBackend::Null;
+            return RendererBackend::Null;
         }
-        Settings::RendererBackend backend = (Settings::RendererBackend)std::stoi(value.c_str());
+        RendererBackend backend = (RendererBackend)std::stoi(value.c_str());
         return backend;
     }
 
@@ -154,19 +155,19 @@ void SystemConfigGraphics::UpdateGraphicsAPI()
 {
     SciterElement ShaderBackend = m_graphicsPage.GetElementByID("ShaderBackendRow");
     SciterElement VulkanDevices = m_graphicsPage.GetElementByID("VulkanDevicesRow");
-    Settings::RendererBackend backend = RendererModeSelcted(m_sciterUI, m_graphicsPage);
+    RendererBackend backend = RendererModeSelcted(m_sciterUI, m_graphicsPage);
 
     switch (backend)
     {
-    case Settings::RendererBackend::OpenGL:
+    case RendererBackend::OpenGL:
         ShaderBackend.SetStyleAttribute("display", "block");
         VulkanDevices.SetStyleAttribute("display", "none");
         break;
-    case Settings::RendererBackend::Vulkan:
+    case RendererBackend::Vulkan:
         ShaderBackend.SetStyleAttribute("display", "none");
         VulkanDevices.SetStyleAttribute("display", "block");
         break;
-    case Settings::RendererBackend::Null:
+    case RendererBackend::Null:
         ShaderBackend.SetStyleAttribute("display", "none");
         VulkanDevices.SetStyleAttribute("display", "none");
         break;
@@ -195,7 +196,7 @@ void SystemConfigGraphics::UpdateFSPSharpnessDisplay()
 
 void SystemConfigGraphics::UpdateVSyncMode()
 {
-    Settings::RendererBackend backend = RendererModeSelcted(m_sciterUI, m_graphicsPage);
+    RendererBackend backend = RendererModeSelcted(m_sciterUI, m_graphicsPage);
     SciterElement vsyncMode = m_graphicsPage.GetElementByID("VSyncMode");
     std::shared_ptr<void> interfacePtr = m_graphicsPage ? m_sciterUI.GetElementInterface(vsyncMode, IID_ICOMBOBOX) : nullptr;
     if (!interfacePtr)
@@ -226,17 +227,17 @@ void SystemConfigGraphics::UpdateVSyncMode()
 
     switch (backend)
     {
-    case Settings::RendererBackend::OpenGL:
-        vsyncOptions.push_back({(int)Settings::VSyncMode::Immediate, "Off"});
-        vsyncOptions.push_back({(int)Settings::VSyncMode::Fifo, "On"});
+    case RendererBackend::OpenGL:
+        vsyncOptions.push_back({(int)VSyncMode::Immediate, "Off"});
+        vsyncOptions.push_back({(int)VSyncMode::Fifo, "On"});
         break;
-    case Settings::RendererBackend::Vulkan:
-        vsyncOptions.push_back({ (int)Settings::VSyncMode::Immediate, "Immediate (VSync Off)" });
-        vsyncOptions.push_back({ (int)Settings::VSyncMode::Mailbox, "Mailbox (Recommended)" });
-        vsyncOptions.push_back({ (int)Settings::VSyncMode::Fifo, "FIFO (VSync On)" });
-        vsyncOptions.push_back({ (int)Settings::VSyncMode::FifoRelaxed, "FIFO Relaxed" });
+    case RendererBackend::Vulkan:
+        vsyncOptions.push_back({ (int)VSyncMode::Immediate, "Immediate (VSync Off)" });
+        vsyncOptions.push_back({ (int)VSyncMode::Mailbox, "Mailbox (Recommended)" });
+        vsyncOptions.push_back({ (int)VSyncMode::Fifo, "FIFO (VSync On)" });
+        vsyncOptions.push_back({ (int)VSyncMode::FifoRelaxed, "FIFO Relaxed" });
         break;
-    case Settings::RendererBackend::Null:
+    case RendererBackend::Null:
         break;
     }
     comboBox->ClearContents();

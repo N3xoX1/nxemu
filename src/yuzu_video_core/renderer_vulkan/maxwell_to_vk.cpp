@@ -7,6 +7,7 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/surface.h"
@@ -243,8 +244,8 @@ FormatInfo SurfaceFormat(const Device& device, FormatType format_type, bool with
     if (!device.IsOptimalAstcSupported() && VideoCore::Surface::IsPixelFormatASTC(pixel_format)) {
         const bool is_srgb = with_srgb && VideoCore::Surface::IsPixelFormatSRGB(pixel_format);
 
-        switch (Settings::values.astc_recompression.GetValue()) {
-        case Settings::AstcRecompression::Uncompressed:
+        switch (videoSettings.astc_recompression.GetValue()) {
+        case AstcRecompression::Uncompressed:
             if (is_srgb) {
                 tuple.format = VK_FORMAT_A8B8G8R8_SRGB_PACK32;
             } else {
@@ -252,10 +253,10 @@ FormatInfo SurfaceFormat(const Device& device, FormatType format_type, bool with
                 tuple.usage |= Storage;
             }
             break;
-        case Settings::AstcRecompression::Bc1:
+        case AstcRecompression::Bc1:
             tuple.format = is_srgb ? VK_FORMAT_BC1_RGBA_SRGB_BLOCK : VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
             break;
-        case Settings::AstcRecompression::Bc3:
+        case AstcRecompression::Bc3:
             tuple.format = is_srgb ? VK_FORMAT_BC3_SRGB_BLOCK : VK_FORMAT_BC3_UNORM_BLOCK;
             break;
         }

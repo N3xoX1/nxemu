@@ -16,6 +16,7 @@
 #include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -371,7 +372,7 @@ void RasterizerOpenGL::DrawTexture() {
     const auto& texture = texture_cache.GetImageView(draw_texture_state.src_texture);
 
     const auto Scale = [&](auto dim) -> s32 {
-        return Settings::values.resolution_info.ScaleUp(static_cast<s32>(dim));
+        return videoSettings.resolution_info.ScaleUp(static_cast<s32>(dim));
     };
 
     Region2D dst_region = {
@@ -762,7 +763,7 @@ std::optional<FramebufferTextureInfo> RasterizerOpenGL::AccelerateDisplay(
         return {};
     }
 
-    const auto& resolution = Settings::values.resolution_info;
+    const auto& resolution = videoSettings.resolution_info;
 
     FramebufferTextureInfo info{};
     info.display_texture = image_view->Handle(Shader::TextureType::Color2D);
@@ -846,7 +847,7 @@ void RasterizerOpenGL::SyncViewport() {
         state_tracker.SetYNegate(lower_left);
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
-    const float scale = is_rescaling ? Settings::values.resolution_info.up_factor : 1.0f;
+    const float scale = is_rescaling ? videoSettings.resolution_info.up_factor : 1.0f;
     const auto conv = [scale](float value) -> GLfloat {
         float new_value = value * scale;
         if (scale < 1.0f) {
@@ -1225,7 +1226,7 @@ void RasterizerOpenGL::SyncScissorTest() {
 
     const auto& regs = maxwell3d->regs;
 
-    const auto& resolution = Settings::values.resolution_info;
+    const auto& resolution = videoSettings.resolution_info;
     const bool is_rescaling{texture_cache.IsRescaling()};
     const u32 up_scale = is_rescaling ? resolution.up_scale : 1U;
     const u32 down_shift = is_rescaling ? resolution.down_shift : 0U;
@@ -1268,7 +1269,7 @@ void RasterizerOpenGL::SyncPointState() {
     oglEnable(GL_POINT_SPRITE, maxwell3d->regs.point_sprite_enable);
     oglEnable(GL_PROGRAM_POINT_SIZE, maxwell3d->regs.point_size_attribute.enabled);
     const bool is_rescaling{texture_cache.IsRescaling()};
-    const float scale = is_rescaling ? Settings::values.resolution_info.up_factor : 1.0f;
+    const float scale = is_rescaling ? videoSettings.resolution_info.up_factor : 1.0f;
     glPointSize(std::max(1.0f, maxwell3d->regs.point_size * scale));
 }
 

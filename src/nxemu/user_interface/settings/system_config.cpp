@@ -14,6 +14,7 @@
 #include <sciter_handler.h>
 #include <widgets/page_nav.h>
 #include <widgets/list_box.h>
+#include <nxemu-module-spec/video.h>
 #include <yuzu_common/settings_enums.h>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-core/settings/core_settings.h>
@@ -368,96 +369,96 @@ void SystemConfig::InitializeTranslations()
         return;
     }
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::RendererBackend>::Index(), {
-        {(uint32_t)Settings::RendererBackend::OpenGL, "OpenGL"},
-        {(uint32_t)Settings::RendererBackend::Vulkan, "Vulkan"},
-        {(uint32_t)Settings::RendererBackend::Null, "Null"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::RendererBackend, {
+        {(uint32_t)RendererBackend::OpenGL, "OpenGL"},
+        {(uint32_t)RendererBackend::Vulkan, "Vulkan"},
+        {(uint32_t)RendererBackend::Null, "Null"},
     }});
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::ShaderBackend>::Index(), {
-        {(uint32_t)Settings::ShaderBackend::Glsl, "GLSL"},
-        {(uint32_t)Settings::ShaderBackend::Glasm, "GLASM (Assembly Shaders, NVIDIA Only)"},
-        {(uint32_t)Settings::ShaderBackend::SpirV, "SPIR-V (Experimental, AMD/Mesa Only)"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::ShaderBackend, {
+        {(uint32_t)ShaderBackend::Glsl, "GLSL"},
+        {(uint32_t)ShaderBackend::Glasm, "GLASM (Assembly Shaders, NVIDIA Only)"},
+        {(uint32_t)ShaderBackend::SpirV, "SPIR-V (Experimental, AMD/Mesa Only)"},
     }});
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AstcDecodeMode>::Index(), {
-        {(uint32_t)Settings::AstcDecodeMode::Cpu, "CPU"},
-        {(uint32_t)Settings::AstcDecodeMode::Gpu, "GPU"},
-        {(uint32_t)Settings::AstcDecodeMode::CpuAsynchronous, "CPU Asynchronous"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AstcDecodeMode, {
+        {(uint32_t)AstcDecodeMode::Cpu, "CPU"},
+        {(uint32_t)AstcDecodeMode::Gpu, "GPU"},
+        {(uint32_t)AstcDecodeMode::CpuAsynchronous, "CPU Asynchronous"},
     }});
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::NvdecEmulation>::Index(), {
-        {(uint32_t)Settings::NvdecEmulation::Off, "No Video Output"},
-        {(uint32_t)Settings::NvdecEmulation::Cpu, "CPU Video Decoding"},
-        {(uint32_t)Settings::NvdecEmulation::Gpu, "GPU Video Decoding (Default)"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::NvdecEmulation, {
+        {(uint32_t)NvdecEmulation::Off, "No Video Output"},
+        {(uint32_t)NvdecEmulation::Cpu, "CPU Video Decoding"},
+        {(uint32_t)NvdecEmulation::Gpu, "GPU Video Decoding (Default)"},
     }});
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::FullscreenMode>::Index(), {
-        {(uint32_t)Settings::FullscreenMode::Borderless, "Borderless Windowed"},
-        {(uint32_t)Settings::FullscreenMode::Exclusive, "Exclusive Fullscreen"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::FullscreenMode, {
+        {(uint32_t)FullscreenMode::Borderless, "Borderless Windowed"},
+        {(uint32_t)FullscreenMode::Exclusive, "Exclusive Fullscreen"},
     }});
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AspectRatio>::Index(), {
-        {(uint32_t)Settings::AspectRatio::R16_9, "Default (16:9)"},
-        {(uint32_t)Settings::AspectRatio::R4_3, "Force 4:3"},
-        {(uint32_t)Settings::AspectRatio::R21_9, "Force 21:9"},
-        {(uint32_t)Settings::AspectRatio::R16_10, "Force 16:10"},
-        {(uint32_t)Settings::AspectRatio::Stretch, "Stretch to Window"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AspectRatio, {
+        {(uint32_t)AspectRatio::R16_9, "Default (16:9)"},
+        {(uint32_t)AspectRatio::R4_3, "Force 4:3"},
+        {(uint32_t)AspectRatio::R21_9, "Force 21:9"},
+        {(uint32_t)AspectRatio::R16_10, "Force 16:10"},
+        {(uint32_t)AspectRatio::Stretch, "Stretch to Window"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::ResolutionSetup>::Index(), {
-        {(uint32_t)Settings::ResolutionSetup::Res1_2X, "0.5X (360p/540p) [EXPERIMENTAL]"},
-        {(uint32_t)Settings::ResolutionSetup::Res3_4X, "0.75X (540p/810p) [EXPERIMENTAL]"},
-        {(uint32_t)Settings::ResolutionSetup::Res1X, "1X (720p/1080p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res3_2X, "1.5X (1080p/1620p) [EXPERIMENTAL]"},
-        {(uint32_t)Settings::ResolutionSetup::Res2X, "2X (1440p/2160p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res3X, "3X (2160p/3240p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res4X, "4X (2880p/4320p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res5X, "5X (3600p/5400p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res6X, "6X (4320p/6480p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res7X, "7X (5040p/7560p)"},
-        {(uint32_t)Settings::ResolutionSetup::Res8X, "8X (5760p/8640p)"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::ResolutionSetup, {
+        {(uint32_t)ResolutionSetup::Res1_2X, "0.5X (360p/540p) [EXPERIMENTAL]"},
+        {(uint32_t)ResolutionSetup::Res3_4X, "0.75X (540p/810p) [EXPERIMENTAL]"},
+        {(uint32_t)ResolutionSetup::Res1X, "1X (720p/1080p)"},
+        {(uint32_t)ResolutionSetup::Res3_2X, "1.5X (1080p/1620p) [EXPERIMENTAL]"},
+        {(uint32_t)ResolutionSetup::Res2X, "2X (1440p/2160p)"},
+        {(uint32_t)ResolutionSetup::Res3X, "3X (2160p/3240p)"},
+        {(uint32_t)ResolutionSetup::Res4X, "4X (2880p/4320p)"},
+        {(uint32_t)ResolutionSetup::Res5X, "5X (3600p/5400p)"},
+        {(uint32_t)ResolutionSetup::Res6X, "6X (4320p/6480p)"},
+        {(uint32_t)ResolutionSetup::Res7X, "7X (5040p/7560p)"},
+        {(uint32_t)ResolutionSetup::Res8X, "8X (5760p/8640p)"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::ScalingFilter>::Index(), {
-        {(uint32_t)Settings::ScalingFilter::NearestNeighbor, "Nearest Neighbor"},
-        {(uint32_t)Settings::ScalingFilter::Bilinear, "Bilinear"},
-        {(uint32_t)Settings::ScalingFilter::Bicubic, "Bicubic"},
-        {(uint32_t)Settings::ScalingFilter::Gaussian, "Gaussian"},
-        {(uint32_t)Settings::ScalingFilter::ScaleForce, "ScaleForce"},
-        {(uint32_t)Settings::ScalingFilter::Fsr, "AMD FidelityFX Super Resolution"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::ScalingFilter, {
+        {(uint32_t)ScalingFilter::NearestNeighbor, "Nearest Neighbor"},
+        {(uint32_t)ScalingFilter::Bilinear, "Bilinear"},
+        {(uint32_t)ScalingFilter::Bicubic, "Bicubic"},
+        {(uint32_t)ScalingFilter::Gaussian, "Gaussian"},
+        {(uint32_t)ScalingFilter::ScaleForce, "ScaleForce"},
+        {(uint32_t)ScalingFilter::Fsr, "AMD FidelityFX Super Resolution"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AntiAliasing>::Index(), {
-        {(uint32_t)Settings::AntiAliasing::None, "None"},
-        {(uint32_t)Settings::AntiAliasing::Fxaa, "FXAA"},
-        {(uint32_t)Settings::AntiAliasing::Smaa, "SMAA"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AntiAliasing, {
+        {(uint32_t)AntiAliasing::None, "None"},
+        {(uint32_t)AntiAliasing::Fxaa, "FXAA"},
+        {(uint32_t)AntiAliasing::Smaa, "SMAA"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::GpuAccuracy>::Index(), {
-        {(uint32_t)Settings::GpuAccuracy::Normal, "Normal"},
-        {(uint32_t)Settings::GpuAccuracy::High, "High"},
-        {(uint32_t)Settings::GpuAccuracy::Extreme, "Extreme"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::GpuAccuracy, {
+        {(uint32_t)GpuAccuracy::Normal, "Normal"},
+        {(uint32_t)GpuAccuracy::High, "High"},
+        {(uint32_t)GpuAccuracy::Extreme, "Extreme"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AnisotropyMode>::Index(), {
-        {(uint32_t)Settings::AnisotropyMode::Automatic, "Automatic"},
-        {(uint32_t)Settings::AnisotropyMode::Default, "Default"},
-        {(uint32_t)Settings::AnisotropyMode::X2, "2x"},
-        {(uint32_t)Settings::AnisotropyMode::X4, "4x"},
-        {(uint32_t)Settings::AnisotropyMode::X8, "8x"},
-        {(uint32_t)Settings::AnisotropyMode::X16, "16x"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AnisotropyMode, {
+        {(uint32_t)AnisotropyMode::Automatic, "Automatic"},
+        {(uint32_t)AnisotropyMode::Default, "Default"},
+        {(uint32_t)AnisotropyMode::X2, "2x"},
+        {(uint32_t)AnisotropyMode::X4, "4x"},
+        {(uint32_t)AnisotropyMode::X8, "8x"},
+        {(uint32_t)AnisotropyMode::X16, "16x"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AstcRecompression>::Index(), {
-        {(uint32_t)Settings::AstcRecompression::Uncompressed, "Uncompressed (Best quality)"},
-        {(uint32_t)Settings::AstcRecompression::Bc1, "BC1 (Low quality)"},
-        {(uint32_t)Settings::AstcRecompression::Bc3, "BC3 (Medium quality)"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AstcRecompression, {
+        {(uint32_t)AstcRecompression::Uncompressed, "Uncompressed (Best quality)"},
+        {(uint32_t)AstcRecompression::Bc1, "BC1 (Low quality)"},
+        {(uint32_t)AstcRecompression::Bc3, "BC3 (Medium quality)"},
     }});
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::VramUsageMode>::Index(), {
-        {(uint32_t)Settings::VramUsageMode::Conservative, "Conservative"},
-        {(uint32_t)Settings::VramUsageMode::Aggressive, "Aggressive"},
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::VramUsageMode, {
+        {(uint32_t)VramUsageMode::Conservative, "Conservative"},
+        {(uint32_t)VramUsageMode::Aggressive, "Aggressive"},
     }});
     SettingTranslationList vulkanDeviceTranslations;
     for (size_t i = 0; i < m_vkDeviceRecords.size(); ++i)
     {
         vulkanDeviceTranslations.push_back({ (int32_t)i, m_vkDeviceRecords[i].name });
     }
-    m_settingTranslations.insert({ (uint32_t)SystemConfig::TranslationType::VulkanDevice, vulkanDeviceTranslations });
+    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::VulkanDevice, vulkanDeviceTranslations });
 
     m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AudioMode>::Index(), {
         {(uint32_t)Settings::AudioMode::Mono, "Mono"},

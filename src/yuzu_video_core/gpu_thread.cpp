@@ -12,6 +12,7 @@
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/gpu_thread.h"
 #include "yuzu_video_core/renderer_base.h"
+#include "video_settings.h"
 
 namespace VideoCommon::GPUThread {
 

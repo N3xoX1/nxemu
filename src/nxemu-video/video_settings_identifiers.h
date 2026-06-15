@@ -28,5 +28,6 @@ namespace NXVideoSetting
     constexpr const char * AnisotropicFiltering = "nxvideo:AnisotropicFiltering";
     constexpr const char * ASTCRecompressionMethod = "nxvideo:ASTCRecompressionMethod";
     constexpr const char * VRAMUsageMode = "nxvideo:VRAMUsageMode";
+    constexpr const char * ResolutionUpFactor = "nxvideo:ResolutionUpFactor";
 
 } // namespace NXVideoSetting

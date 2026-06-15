@@ -7,6 +7,7 @@
 
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/renderer_opengl/gl_shader_util.h"
 
 namespace OpenGL {
@@ -18,7 +19,7 @@ static OGLProgram LinkSeparableProgram(GLuint shader) {
     glAttachShader(program.handle, shader);
     glLinkProgram(program.handle);
     glDetachShader(program.handle, shader);
-    if (!Settings::values.renderer_debug) {
+    if (!videoSettings.renderer_debug) {
         return program;
     }
     GLint link_status{};
@@ -70,7 +71,7 @@ OGLProgram CreateProgram(std::string_view code, GLenum stage) {
     const GLchar* const code_ptr = code.data();
     glShaderSource(shader.handle, 1, &code_ptr, &length);
     glCompileShader(shader.handle);
-    if (Settings::values.renderer_debug) {
+    if (videoSettings.renderer_debug) {
         LogShader(shader.handle, code);
     }
     return LinkSeparableProgram(shader.handle);
@@ -83,7 +84,7 @@ OGLProgram CreateProgram(std::span<const u32> code, GLenum stage) {
     glShaderBinary(1, &shader.handle, GL_SHADER_BINARY_FORMAT_SPIR_V_ARB, code.data(),
                    static_cast<GLsizei>(code.size_bytes()));
     glSpecializeShader(shader.handle, "main", 0, nullptr, nullptr);
-    if (Settings::values.renderer_debug) {
+    if (videoSettings.renderer_debug) {
         LogShader(shader.handle);
     }
     return LinkSeparableProgram(shader.handle);
@@ -94,7 +95,7 @@ OGLAssemblyProgram CompileProgram(std::string_view code, GLenum target) {
     glGenProgramsARB(1, &program.handle);
     glNamedProgramStringEXT(program.handle, target, GL_PROGRAM_FORMAT_ASCII_ARB,
                             static_cast<GLsizei>(code.size()), code.data());
-    if (Settings::values.renderer_debug) {
+    if (videoSettings.renderer_debug) {
         const auto err = reinterpret_cast<const char*>(glGetString(GL_PROGRAM_ERROR_STRING_NV));
         if (err && *err) {
             if (std::strstr(err, "error")) {

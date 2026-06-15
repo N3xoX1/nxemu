@@ -12,6 +12,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/microprofile.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_common/stb.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/capture.h"
@@ -104,7 +105,7 @@ RendererOpenGL::RendererOpenGL(Core::Frontend::EmuWindow & emu_window_, Tegra::M
     watermark_texture(0), watermark_vao(0), watermark_vbo(0), watermark_shader(0), watermark_width(0), watermark_height(0),
     watermark_timer_started(false), watermark_show(true)
 {
-    if (Settings::values.renderer_debug && GLAD_GL_KHR_debug)
+    if (videoSettings.renderer_debug && GLAD_GL_KHR_debug)
     {
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);

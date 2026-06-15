@@ -15,6 +15,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"

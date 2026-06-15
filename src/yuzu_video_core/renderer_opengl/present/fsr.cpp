@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/fsr.h"
 #include "yuzu_video_core/host_shaders/ffx_a_h.h"
 #include "yuzu_video_core/host_shaders/ffx_fsr1_h.h"
@@ -67,7 +68,7 @@ GLuint FSR::Draw(ProgramManager& program_manager, GLuint texture, u32 input_imag
                      input_height, output_width, output_height, viewport_x, viewport_y);
 
     const float sharpening =
-        static_cast<float>(Settings::values.fsr_sharpening_slider.GetValue()) / 100.0f;
+        static_cast<float>(videoSettings.fsr_sharpening_slider.GetValue()) / 100.0f;
 
     FsrRcasCon(rcas_con.data(), sharpening);
 

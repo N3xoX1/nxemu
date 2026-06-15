@@ -12,6 +12,7 @@
 #include "yuzu_video_core/renderer_opengl/renderer_opengl.h"
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
 #include "yuzu_video_core/video_core.h"
+#include "video_settings.h"
 
 namespace {
 
@@ -19,11 +20,11 @@ std::unique_ptr<VideoCore::RendererBase> CreateRenderer(Tegra::Host1x::Host1x & 
 {
     auto & device_memory = host1x.MemoryManager();
 
-    switch (Settings::values.renderer_backend.GetValue())
+    switch (videoSettings.renderer_backend.GetValue())
     {
-    case Settings::RendererBackend::OpenGL: return std::make_unique<OpenGL::RendererOpenGL>(emu_window, device_memory, gpu, std::move(context));
-    case Settings::RendererBackend::Vulkan: return std::make_unique<Vulkan::RendererVulkan>(emu_window, device_memory, gpu, std::move(context));
-    case Settings::RendererBackend::Null: return std::make_unique<Null::RendererNull>(emu_window, gpu, std::move(context));
+    case RendererBackend::OpenGL: return std::make_unique<OpenGL::RendererOpenGL>(emu_window, device_memory, gpu, std::move(context));
+    case RendererBackend::Vulkan: return std::make_unique<Vulkan::RendererVulkan>(emu_window, device_memory, gpu, std::move(context));
+    case RendererBackend::Null: return std::make_unique<Null::RendererNull>(emu_window, gpu, std::move(context));
     }
     return nullptr;
 }
@@ -36,9 +37,9 @@ std::unique_ptr<Tegra::GPU> CreateGPU(ISystemModules & modules, Core::Frontend::
 {
     Settings::UpdateRescalingInfo();
 
-    const auto nvdec_value = Settings::values.nvdec_emulation.GetValue();
-    const bool use_nvdec = nvdec_value != Settings::NvdecEmulation::Off;
-    const bool use_async = Settings::values.use_asynchronous_gpu_emulation.GetValue();
+    const auto nvdec_value = videoSettings.nvdec_emulation.GetValue();
+    const bool use_nvdec = nvdec_value != NvdecEmulation::Off;
+    const bool use_async = videoSettings.use_asynchronous_gpu_emulation.GetValue();
     auto gpu = std::make_unique<Tegra::GPU>(modules, host1x, use_async, use_nvdec);
     auto context = emu_window.CreateSharedContext();
     auto scope = context->Acquire();

@@ -466,7 +466,6 @@ namespace
         {NXOsSetting::AudioMode, "audio\\mode", &osSettings.sound_index},
         {NXOsSetting::AudioVolume, "audio\\volume", &osSettings.volume},
         {NXOsSetting::AudioMuted, "audio\\muted", &osSettings.audio_muted},
-        {NXOsSetting::ResolutionUpFactor, "resolution\\up_factor", &Settings::values.resolution_info.up_factor, 1.0f},
         {NXOsSetting::SpeedLimit, "system\\speed_limit", &Settings::values.speed_limit},
         {NXOsSetting::UseMultiCore, "system\\use_multi_core", &Settings::values.use_multi_core},
         {NXOsSetting::UseSpeedLimit, "system\\use_speed_limit", &Settings::values.use_speed_limit},

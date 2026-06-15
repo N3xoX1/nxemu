@@ -5,6 +5,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
 
 extern "C"
@@ -416,7 +417,7 @@ bool DecodeApi::Initialize(Tegra::Host1x::NvdecCommon::VideoCodec codec)
     m_decoder_context.emplace(*m_decoder);
 
     // Enable GPU decoding if requested.
-    if (Settings::values.nvdec_emulation.GetValue() == Settings::NvdecEmulation::Gpu)
+    if (videoSettings.nvdec_emulation.GetValue() == NvdecEmulation::Gpu)
     {
         m_hardware_context.emplace();
         m_hardware_context->InitializeForDecoder(*m_decoder_context, *m_decoder);

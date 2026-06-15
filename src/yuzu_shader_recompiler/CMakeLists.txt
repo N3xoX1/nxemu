@@ -244,6 +244,7 @@ add_library(shader_recompiler STATIC
 
 target_include_directories(shader_recompiler PRIVATE
     "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-video"
 )
 
 target_link_libraries(shader_recompiler PUBLIC common fmt::fmt sirit boost_headers)

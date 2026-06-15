@@ -47,10 +47,12 @@
     <ClCompile Include="nxemu-video.cpp" />
     <ClCompile Include="render_window.cpp" />
     <ClCompile Include="video_manager.cpp" />
+    <ClCompile Include="video_enum_strings.cpp" />
     <ClCompile Include="video_settings.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="render_window.h" />
+    <ClInclude Include="video_enum_strings.h" />
     <ClInclude Include="video_manager.h" />
     <ClInclude Include="video_settings.h" />
     <ClInclude Include="video_settings_identifiers.h" />

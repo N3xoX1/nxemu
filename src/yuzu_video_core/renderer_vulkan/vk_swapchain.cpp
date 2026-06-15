@@ -15,6 +15,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 #include "vulkan/vulkan_core.h"
+#include "video_settings.h"
 
 namespace Vulkan {
 
@@ -38,39 +39,39 @@ static VkPresentModeKHR ChooseSwapPresentMode(bool has_imm, bool has_mailbox,
                                               bool has_fifo_relaxed) {
     // Mailbox doesn't lock the application like FIFO (vsync)
     // FIFO present mode locks the framerate to the monitor's refresh rate
-    Settings::VSyncMode setting = [has_imm, has_mailbox]() {
+    VSyncMode setting = [has_imm, has_mailbox]() {
         // Choose Mailbox or Immediate if unlocked and those modes are supported
-        const auto mode = Settings::values.vsync_mode.GetValue();
+        const auto mode = videoSettings.vsync_mode.GetValue();
         if (Settings::values.use_speed_limit.GetValue()) {
             return mode;
         }
         switch (mode) {
-        case Settings::VSyncMode::Fifo:
-        case Settings::VSyncMode::FifoRelaxed:
+        case VSyncMode::Fifo:
+        case VSyncMode::FifoRelaxed:
             if (has_mailbox) {
-                return Settings::VSyncMode::Mailbox;
+                return VSyncMode::Mailbox;
             } else if (has_imm) {
-                return Settings::VSyncMode::Immediate;
+                return VSyncMode::Immediate;
             }
             [[fallthrough]];
         default:
             return mode;
         }
     }();
-    if ((setting == Settings::VSyncMode::Mailbox && !has_mailbox) ||
-        (setting == Settings::VSyncMode::Immediate && !has_imm) ||
-        (setting == Settings::VSyncMode::FifoRelaxed && !has_fifo_relaxed)) {
-        setting = Settings::VSyncMode::Fifo;
+    if ((setting == VSyncMode::Mailbox && !has_mailbox) ||
+        (setting == VSyncMode::Immediate && !has_imm) ||
+        (setting == VSyncMode::FifoRelaxed && !has_fifo_relaxed)) {
+        setting = VSyncMode::Fifo;
     }
 
     switch (setting) {
-    case Settings::VSyncMode::Immediate:
+    case VSyncMode::Immediate:
         return VK_PRESENT_MODE_IMMEDIATE_KHR;
-    case Settings::VSyncMode::Mailbox:
+    case VSyncMode::Mailbox:
         return VK_PRESENT_MODE_MAILBOX_KHR;
-    case Settings::VSyncMode::Fifo:
+    case VSyncMode::Fifo:
         return VK_PRESENT_MODE_FIFO_KHR;
-    case Settings::VSyncMode::FifoRelaxed:
+    case VSyncMode::FifoRelaxed:
         return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
     default:
         return VK_PRESENT_MODE_FIFO_KHR;

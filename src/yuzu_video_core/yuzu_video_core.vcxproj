@@ -24,7 +24,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\ffmpeg\include;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\xbyak;$(SolutionDir)src\3rd_party\bc_decoder;$(SolutionDir)src\3rd_party\glad\include;$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\ffmpeg\include;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\xbyak;$(SolutionDir)src\3rd_party\bc_decoder;$(SolutionDir)src\3rd_party\glad\include;$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)src\nxemu-video;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <WarningLevel>Level3</WarningLevel>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>

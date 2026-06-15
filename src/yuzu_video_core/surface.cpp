@@ -4,6 +4,7 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/math_util.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/surface.h"
 
 namespace VideoCore::Surface {
@@ -407,10 +408,10 @@ u64 TranscodedAstcSize(u64 base_size, PixelFormat format) {
                                 static_cast<u64>(DefaultBlockHeight(format)) * RGBA8_PIXEL_SIZE;
     const u64 uncompressed_size = (base_size * base_block_size) / BytesPerBlock(format);
 
-    switch (Settings::values.astc_recompression.GetValue()) {
-    case Settings::AstcRecompression::Bc1:
+    switch (videoSettings.astc_recompression.GetValue()) {
+    case AstcRecompression::Bc1:
         return uncompressed_size / 8;
-    case Settings::AstcRecompression::Bc3:
+    case AstcRecompression::Bc3:
         return uncompressed_size / 4;
     default:
         return uncompressed_size;
