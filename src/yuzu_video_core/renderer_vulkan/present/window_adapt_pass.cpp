@@ -12,6 +12,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_shader_util.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
+#include "video_settings.h"
 
 namespace Vulkan {
 
@@ -66,9 +67,9 @@ void WindowAdaptPass::Draw(RasterizerVulkan& rasterizer, Scheduler& scheduler, s
     }
 
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
-        const f32 bg_red = Settings::values.bg_red.GetValue() / 255.0f;
-        const f32 bg_green = Settings::values.bg_green.GetValue() / 255.0f;
-        const f32 bg_blue = Settings::values.bg_blue.GetValue() / 255.0f;
+        const f32 bg_red = videoSettings.bg_red.GetValue() / 255.0f;
+        const f32 bg_green = videoSettings.bg_green.GetValue() / 255.0f;
+        const f32 bg_blue = videoSettings.bg_blue.GetValue() / 255.0f;
         const VkClearAttachment clear_attachment{
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .colorAttachment = 0,

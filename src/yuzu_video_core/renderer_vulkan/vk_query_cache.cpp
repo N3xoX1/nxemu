@@ -27,6 +27,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
+#include "video_settings.h"
 
 namespace Vulkan {
 

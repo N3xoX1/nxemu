@@ -2,6 +2,141 @@
 #include "base.h"
 #include <stdint.h>
 
+enum class AnisotropyMode : uint32_t
+{
+    Automatic = 0,
+    Default,
+    X2,
+    X4,
+    X8,
+    X16,
+};
+
+enum class AstcDecodeMode : uint32_t
+{
+    Cpu = 0,
+    Gpu,
+    CpuAsynchronous,
+};
+
+enum class AstcRecompression : uint32_t
+{
+    Uncompressed = 0,
+    Bc1,
+    Bc3,
+};
+
+enum class VSyncMode : uint32_t
+{
+    Immediate = 0,
+    Mailbox,
+    Fifo,
+    FifoRelaxed,
+};
+
+enum class VramUsageMode : uint32_t
+{
+    Conservative = 0,
+    Aggressive,
+};
+
+enum class RendererBackend : uint32_t
+{
+    OpenGL = 0,
+    Vulkan,
+    Null,
+};
+
+enum class ShaderBackend : uint32_t
+{
+    Glsl = 0,
+    Glasm,
+    SpirV,
+};
+
+enum class GpuAccuracy : uint32_t
+{
+    Normal = 0,
+    High,
+    Extreme,
+};
+
+enum class FullscreenMode : uint32_t
+{
+    Borderless = 0,
+    Exclusive,
+};
+
+enum class NvdecEmulation : uint32_t
+{
+    Off = 0,
+    Cpu,
+    Gpu,
+};
+
+enum class ResolutionSetup : uint32_t
+{
+    Res1_2X = 0,
+    Res3_4X,
+    Res1X,
+    Res3_2X,
+    Res2X,
+    Res3X,
+    Res4X,
+    Res5X,
+    Res6X,
+    Res7X,
+    Res8X,
+};
+
+enum class ScalingFilter : uint32_t
+{
+    NearestNeighbor = 0,
+    Bilinear,
+    Bicubic,
+    Gaussian,
+    ScaleForce,
+    Fsr,
+    MaxEnum,
+};
+
+enum class AntiAliasing : uint32_t
+{
+    None = 0,
+    Fxaa,
+    Smaa,
+    MaxEnum,
+};
+
+enum class AspectRatio : uint32_t
+{
+    R16_9 = 0,
+    R4_3,
+    R21_9,
+    R16_10,
+    Stretch,
+};
+
+enum class VideoSettingTranslationType : uint32_t
+{
+    RendererBackend = 0,
+    ShaderBackend,
+    AstcDecodeMode,
+    VSyncMode,
+    NvdecEmulation,
+    FullscreenMode,
+    AspectRatio,
+    ResolutionSetup,
+    ScalingFilter,
+    AntiAliasing,
+    GpuAccuracy,
+    AnisotropyMode,
+    AstcRecompression,
+    VramUsageMode,
+
+    VulkanDevice = 10000,
+};
+
 nxinterface IMemory;
 
 struct VideoFramebufferConfig 

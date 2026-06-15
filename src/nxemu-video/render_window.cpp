@@ -1,6 +1,7 @@
 #include "render_window.h"
 #include "yuzu_video_core/frontend/graphics_context.h"
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings.h"
 #if defined(_WIN32)
 #include <Windows.h>
 #include <glad/glad.h>
@@ -253,7 +254,7 @@ void RenderWindow::OnFrameDisplayed()
 std::unique_ptr<Core::Frontend::GraphicsContext> RenderWindow::CreateSharedContext() const
 {
 #if defined(_WIN32)
-    if (Settings::values.renderer_backend.GetValue() == Settings::RendererBackend::OpenGL)
+    if (videoSettings.renderer_backend.GetValue() == RendererBackend::OpenGL)
     {
         return std::make_unique<OpenGLSharedContext>(m_renderWindow);
     }

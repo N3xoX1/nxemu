@@ -14,6 +14,8 @@ set(NXEMU_VIDEO_SOURCES
     render_window.cpp
     video_manager.cpp
     video_manager.h
+    video_enum_strings.cpp
+    video_enum_strings.h
     video_settings.cpp
     video_settings.h
     video_settings_identifiers.h

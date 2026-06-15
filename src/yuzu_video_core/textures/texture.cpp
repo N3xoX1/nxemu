@@ -6,6 +6,7 @@
 #include "yuzu_common/cityhash.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_video_core/textures/texture.h"
+#include "video_settings.h"
 
 using Tegra::Texture::TICEntry;
 using Tegra::Texture::TSCEntry;
@@ -70,14 +71,14 @@ float TSCEntry::MaxAnisotropy() const noexcept {
                                 !is_bilinear_filter || depth_compare_enabled)) {
         return 1.0f;
     }
-    const auto anisotropic_settings = Settings::values.max_anisotropy.GetValue();
+    const auto anisotropic_settings = videoSettings.max_anisotropy.GetValue();
     s32 added_anisotropic{};
-    if (anisotropic_settings == Settings::AnisotropyMode::Automatic) {
-        added_anisotropic = Settings::values.resolution_info.up_scale >>
-                            Settings::values.resolution_info.down_shift;
+    if (anisotropic_settings == AnisotropyMode::Automatic) {
+        added_anisotropic = videoSettings.resolution_info.up_scale >>
+                            videoSettings.resolution_info.down_shift;
         added_anisotropic = std::max(added_anisotropic - 1, 0);
     } else {
-        added_anisotropic = static_cast<u32>(Settings::values.max_anisotropy.GetValue()) - 1U;
+        added_anisotropic = static_cast<u32>(videoSettings.max_anisotropy.GetValue()) - 1U;
     }
     return static_cast<float>(1U << (max_anisotropy + added_anisotropic));
 }

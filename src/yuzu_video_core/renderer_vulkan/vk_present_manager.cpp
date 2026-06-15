@@ -3,6 +3,7 @@
 
 #include "yuzu_common/microprofile.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_common/thread.h"
 #include "frontend/emu_window.h"
 #include "yuzu_video_core/renderer_vulkan/vk_present_manager.h"
@@ -102,7 +103,7 @@ PresentManager::PresentManager(const vk::Instance& instance_,
       memory_allocator{memory_allocator_}, scheduler{scheduler_}, swapchain{swapchain_},
       surface{surface_}, blit_supported{CanBlitToSwapchain(device.GetPhysical(),
                                                            swapchain.GetImageViewFormat())},
-      use_present_thread{Settings::values.async_presentation.GetValue()} {
+      use_present_thread{videoSettings.async_presentation.GetValue()} {
     SetImageCount();
 
     auto& dld = device.GetLogical();

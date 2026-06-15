@@ -24,11 +24,6 @@ class SystemConfig :
     public IClickSink
 {
 public:
-    enum class TranslationType
-    {
-        VulkanDevice = 10000
-    };
-
     SystemConfig(ISciterUI & SciterUI, SystemModules & modules, std::vector<VkDeviceRecord> & vkDeviceRecords);
     ~SystemConfig();
 

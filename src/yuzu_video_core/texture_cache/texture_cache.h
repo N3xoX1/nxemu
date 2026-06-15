@@ -17,6 +17,7 @@
 #include "yuzu_video_core/texture_cache/samples_helper.h"
 #include "yuzu_video_core/texture_cache/texture_cache_base.h"
 #include "yuzu_video_core/texture_cache/util.h"
+#include "video_settings.h"
 
 namespace VideoCommon {
 
@@ -204,7 +205,7 @@ void TextureCache<P>::FillComputeImageViews(std::span<ImageViewInOut> views) {
 
 template <class P>
 void TextureCache<P>::CheckFeedbackLoop(std::span<const ImageViewInOut> views) {
-    if (!Settings::values.barrier_feedback_loops.GetValue()) {
+    if (!videoSettings.barrier_feedback_loops.GetValue()) {
         return;
     }
 
@@ -452,8 +453,8 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear) {
     u32 up_scale = 1;
     u32 down_shift = 0;
     if (is_rescaling) {
-        up_scale = Settings::values.resolution_info.up_scale;
-        down_shift = Settings::values.resolution_info.down_shift;
+        up_scale = videoSettings.resolution_info.up_scale;
+        down_shift = videoSettings.resolution_info.down_shift;
     }
     render_targets.size = Extent2D{
         (maxwell3d->regs.surface_clip.width * up_scale) >> down_shift,
@@ -675,7 +676,7 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
         is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
         is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
     }
-    const auto& resolution = Settings::values.resolution_info;
+    const auto& resolution = videoSettings.resolution_info;
     const auto scale_region = [&](Region2D& region) {
         region.start.x = resolution.ScaleUp(region.start.x);
         region.start.y = resolution.ScaleUp(region.start.y);
@@ -1202,7 +1203,7 @@ bool TextureCache<P>::ImageCanRescale(ImageBase& image) {
     if (!image.info.rescaleable) {
         return false;
     }
-    if (Settings::values.resolution_info.downscale && !image.info.downscaleable) {
+    if (videoSettings.resolution_info.downscale && !image.info.downscaleable) {
         return false;
     }
     if (True(image.flags & (ImageFlagBits::Rescaled | ImageFlagBits::CheckingRescalable))) {
@@ -1264,10 +1265,10 @@ void TextureCache<P>::InvalidateScale(Image& image) {
 
 template <class P>
 u64 TextureCache<P>::GetScaledImageSizeBytes(const ImageBase& image) {
-    const u64 scale_up = static_cast<u64>(Settings::values.resolution_info.up_scale *
-                                          Settings::values.resolution_info.up_scale);
-    const u64 down_shift = static_cast<u64>(Settings::values.resolution_info.down_shift +
-                                            Settings::values.resolution_info.down_shift);
+    const u64 scale_up = static_cast<u64>(videoSettings.resolution_info.up_scale *
+                                          videoSettings.resolution_info.up_scale);
+    const u64 down_shift = static_cast<u64>(videoSettings.resolution_info.down_shift +
+                                            videoSettings.resolution_info.down_shift);
     const u64 image_size_bytes =
         static_cast<u64>(std::max(image.guest_size_bytes, image.unswizzled_size_bytes));
     const u64 tentative_size = (image_size_bytes * scale_up) >> down_shift;
@@ -1565,7 +1566,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         }
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
             new_image.flags |= ImageFlagBits::GpuModified;
-            const auto& resolution = Settings::values.resolution_info;
+            const auto& resolution = videoSettings.resolution_info;
             const SubresourceBase base = new_image.TryFindBase(overlap.gpu_addr).value();
             const u32 up_scale = can_rescale ? resolution.up_scale : 1;
             const u32 down_shift = can_rescale ? resolution.down_shift : 0;
@@ -2323,7 +2324,7 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id) {
         const ImageBase& rhs_image = slot_images[rhs->id];
         return lhs_image.modification_tick < rhs_image.modification_tick;
     });
-    const auto& resolution = Settings::values.resolution_info;
+    const auto& resolution = videoSettings.resolution_info;
     for (const AliasedImage* const aliased : aliased_images) {
         if (!resolution.active || !any_rescaled) {
             CopyImage(image_id, aliased->id, aliased->copies);
@@ -2379,7 +2380,7 @@ void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<Imag
     if (is_rescaled) {
         ASSERT(True(dst.flags & ImageFlagBits::Rescaled));
         const bool both_2d{src.info.type == ImageType::e2D && dst.info.type == ImageType::e2D};
-        const auto& resolution = Settings::values.resolution_info;
+        const auto& resolution = videoSettings.resolution_info;
         for (auto& copy : copies) {
             copy.src_offset.x = resolution.ScaleUp(copy.src_offset.x);
             copy.dst_offset.x = resolution.ScaleUp(copy.dst_offset.x);
@@ -2446,7 +2447,7 @@ void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<Imag
             if (!is_rescaled) {
                 return expected_size;
             }
-            const auto& resolution = Settings::values.resolution_info;
+            const auto& resolution = videoSettings.resolution_info;
             return Extent3D{
                 .width = resolution.ScaleUp(expected_size.width),
                 .height = resolution.ScaleUp(expected_size.height),
@@ -2485,7 +2486,7 @@ std::pair<FramebufferId, ImageViewId> TextureCache<P>::RenderTargetFromImage(
     const ImageViewId depth_view_id = is_color ? ImageViewId{} : view_id;
     Extent3D extent = MipSize(image.info.size, view_info.range.base.level);
     if (is_rescaled) {
-        const auto& resolution = Settings::values.resolution_info;
+        const auto& resolution = videoSettings.resolution_info;
         extent.width = resolution.ScaleUp(extent.width);
         if (image.info.type == ImageType::e2D) {
             extent.height = resolution.ScaleUp(extent.height);

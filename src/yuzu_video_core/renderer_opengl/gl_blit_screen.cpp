@@ -74,20 +74,20 @@ void BlitScreen::CreateWindowAdapt() {
 
     current_window_adapt = filters.get_scaling_filter();
     switch (current_window_adapt) {
-    case Settings::ScalingFilter::NearestNeighbor:
+    case ScalingFilter::NearestNeighbor:
         window_adapt = MakeNearestNeighbor(device);
         break;
-    case Settings::ScalingFilter::Bicubic:
+    case ScalingFilter::Bicubic:
         window_adapt = MakeBicubic(device);
         break;
-    case Settings::ScalingFilter::Gaussian:
+    case ScalingFilter::Gaussian:
         window_adapt = MakeGaussian(device);
         break;
-    case Settings::ScalingFilter::ScaleForce:
+    case ScalingFilter::ScaleForce:
         window_adapt = MakeScaleForce(device);
         break;
-    case Settings::ScalingFilter::Fsr:
-    case Settings::ScalingFilter::Bilinear:
+    case ScalingFilter::Fsr:
+    case ScalingFilter::Bilinear:
     default:
         window_adapt = MakeBilinear(device);
         break;

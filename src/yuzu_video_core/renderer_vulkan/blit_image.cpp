@@ -6,6 +6,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/host_shaders/blit_color_float_frag_spv.h"
 #include "yuzu_video_core/host_shaders/convert_abgr8_to_d24s8_frag_spv.h"
 #include "yuzu_video_core/host_shaders/convert_abgr8_to_d32f_frag_spv.h"
@@ -350,7 +351,7 @@ void BindBlitState(vk::CommandBuffer cmdbuf, VkPipelineLayout layout, const Regi
 }
 
 VkExtent2D GetConversionExtent(const ImageView& src_image_view) {
-    const auto& resolution = Settings::values.resolution_info;
+    const auto& resolution = videoSettings.resolution_info;
     const bool is_rescaled = src_image_view.IsRescaled();
     u32 width = src_image_view.size.width;
     u32 height = src_image_view.size.height;

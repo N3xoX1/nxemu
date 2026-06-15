@@ -13,6 +13,7 @@
 #include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/buffer_cache/buffer_cache.h"
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/engines/draw_manager.h"
@@ -327,12 +328,12 @@ void RasterizerVulkan::DrawTexture() {
 
     const auto ScaleSrc = [&](auto dim_f) -> s32 {
         auto dim = static_cast<s32>(dim_f);
-        return src_rescaling ? Settings::values.resolution_info.ScaleUp(dim) : dim;
+        return src_rescaling ? videoSettings.resolution_info.ScaleUp(dim) : dim;
     };
 
     const auto ScaleDst = [&](auto dim_f) -> s32 {
         auto dim = static_cast<s32>(dim_f);
-        return dst_rescaling ? Settings::values.resolution_info.ScaleUp(dim) : dim;
+        return dst_rescaling ? videoSettings.resolution_info.ScaleUp(dim) : dim;
     };
 
     Region2D dst_region = {Offset2D{.x = ScaleDst(draw_texture_state.dst_x0),
@@ -377,8 +378,8 @@ void RasterizerVulkan::Clear(u32 layer_count) {
     u32 up_scale = 1;
     u32 down_shift = 0;
     if (texture_cache.IsRescaling()) {
-        up_scale = Settings::values.resolution_info.up_scale;
-        down_shift = Settings::values.resolution_info.down_shift;
+        up_scale = videoSettings.resolution_info.up_scale;
+        down_shift = videoSettings.resolution_info.down_shift;
     }
     UpdateViewportsState(regs);
 
@@ -827,7 +828,7 @@ std::optional<FramebufferTextureInfo> RasterizerVulkan::AccelerateDisplay(
     }
     query_cache.NotifySegment(false);
 
-    const auto& resolution = Settings::values.resolution_info;
+    const auto& resolution = videoSettings.resolution_info;
 
     FramebufferTextureInfo info{};
     info.image = image_view->ImageHandle();
@@ -1007,7 +1008,7 @@ void RasterizerVulkan::UpdateViewportsState(Tegra::Engines::Maxwell3D::Regs& reg
         return;
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
-    const float scale = is_rescaling ? Settings::values.resolution_info.up_factor : 1.0f;
+    const float scale = is_rescaling ? videoSettings.resolution_info.up_factor : 1.0f;
     const std::array viewport_list{
         GetViewportState(device, regs, 0, scale),  GetViewportState(device, regs, 1, scale),
         GetViewportState(device, regs, 2, scale),  GetViewportState(device, regs, 3, scale),
@@ -1045,8 +1046,8 @@ void RasterizerVulkan::UpdateScissorsState(Tegra::Engines::Maxwell3D::Regs& regs
     u32 up_scale = 1;
     u32 down_shift = 0;
     if (texture_cache.IsRescaling()) {
-        up_scale = Settings::values.resolution_info.up_scale;
-        down_shift = Settings::values.resolution_info.down_shift;
+        up_scale = videoSettings.resolution_info.up_scale;
+        down_shift = videoSettings.resolution_info.down_shift;
     }
     const std::array scissor_list{
         GetScissorState(regs, 0, up_scale, down_shift),

@@ -1,18 +1,18 @@
 #include "sciter_main_window.h"
-#include "user_interface/about_dialog.h"
-#include "user_interface/notification.h"
 #include "settings/input_config.h"
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
+#include "user_interface/about_dialog.h"
 #include "user_interface/key_mappings.h"
+#include "user_interface/notification.h"
 #include <common/base64.h>
 #include <common/shell_open.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/identifiers.h>
-#include <nxemu-loader/loader_settings_identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-loader/loader_settings_identifiers.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-module-spec/video.h>
@@ -36,6 +36,17 @@ namespace
 {
 
 constexpr const char * kNxEmuDiscordUrl = "https://discord.gg/hEa4hNyFWU";
+
+const char * RendererBackendLabel(RendererBackend backend)
+{
+    switch (backend)
+    {
+    case RendererBackend::OpenGL: return "OpenGL";
+    case RendererBackend::Vulkan: return "Vulkan";
+    case RendererBackend::Null: return "Null";
+    }
+    return "OpenGL";
+}
 
 } // namespace
 
@@ -80,27 +91,6 @@ bool AcceleratorMatchesKey(const MenuBarAccelerator & accel, uint32_t keyCode, u
     bool alt = (keyboardState & kKeyboardStateAlt) != 0;
     bool shift = (keyboardState & kKeyboardStateShift) != 0;
     return ctrl == accel.ctrl && alt == accel.alt && shift == accel.shift;
-}
-
-static float EmulationAspectRatioForWindowReset(float window_aspect_ratio)
-{
-    using Settings::AspectRatio;
-    const auto aspect = static_cast<AspectRatio>(Settings::values.aspect_ratio.GetValue());
-    switch (aspect)
-    {
-    case AspectRatio::R16_9:
-        return 720.0f / 1280.0f;
-    case AspectRatio::R4_3:
-        return 3.0f / 4.0f;
-    case AspectRatio::R21_9:
-        return 9.0f / 21.0f;
-    case AspectRatio::R16_10:
-        return 10.0f / 16.0f;
-    case AspectRatio::Stretch:
-        return window_aspect_ratio;
-    default:
-        return 720.0f / 1280.0f;
-    }
 }
 
 void LoadImageToElement(SciterElement elem, const std::vector<uint8_t> & data)
@@ -241,17 +231,17 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXLoaderSetting::FirmwareInstallTotal, SciterMainWindow::FirmwareInstallTotalChanged, this);
     settings.RegisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
-    settings.RegisterCallback(NXOsSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::UseMultiCore, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::UseSpeedLimit, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
+    settings.RegisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
 
     m_useMultiCore = settings.GetBool(NXOsSetting::UseMultiCore);
     m_useSpeedLimit = settings.GetBool(NXOsSetting::UseSpeedLimit);
     m_speedLimit = settings.GetBool(NXOsSetting::SpeedLimit);
-
+    m_resolutionUpFactor = settings.GetFloat(NXVideoSetting::ResolutionUpFactor);
 }
 
 const char * SciterMainWindow::MenuIconResource(GuiAction action) const
@@ -332,12 +322,12 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXLoaderSetting::FirmwareInstallTotal, SciterMainWindow::FirmwareInstallTotalChanged, this);
     settings.UnregisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
-    settings.UnregisterCallback(NXOsSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::UseMultiCore, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::UseSpeedLimit, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
+    settings.UnregisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
 
     m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
     if (m_firmwareInstallThread.joinable())
@@ -565,7 +555,7 @@ void SciterMainWindow::UpdateStatusWidgets()
     SciterElement renderer(m_rootElement.GetElementByID("renderer"));
     if (renderer.IsValid())
     {
-        stdstr_f text("%s", Settings::CanonicalizeEnum((Settings::RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI)).c_str());
+        stdstr_f text("%s", RendererBackendLabel((RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI)));
         renderer.SetHTML((const uint8_t *)text.c_str(), text.size());
     }
 
@@ -718,7 +708,7 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
         impl->ResetMenu();
         if (impl->m_shownFirstFrame)
         {
-            impl->ShowPanel(Panel::Renderer);        
+            impl->ShowPanel(Panel::Renderer);
         }
     }
     else if (state == EmulationState::Paused)
@@ -958,7 +948,7 @@ void SciterMainWindow::RefreshFirmwareInstallLoading()
 
     if (status.IsValid())
     {
-        const std::string text = stdstr_f("<span class=\"loading-verb\">Installing firmware</span> <span class=\"loading-game-name\">%s</span>",HtmlEscapeForHtmlContent(detail).c_str());
+        const std::string text = stdstr_f("<span class=\"loading-verb\">Installing firmware</span> <span class=\"loading-game-name\">%s</span>", HtmlEscapeForHtmlContent(detail).c_str());
         status.SetHTML(reinterpret_cast<const uint8_t *>(text.c_str()), text.size());
     }
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
@@ -1261,7 +1251,7 @@ void SciterMainWindow::UpdateEmulationStatusText()
     }
     else
     {
-        m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_STATUS);    
+        m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_STATUS);
     }
     const std::string firmware_version = GetInstalledFirmwareDisplayVersion(loader);
     if (!firmware_version.empty())
@@ -1487,7 +1477,7 @@ float SciterMainWindow::PixelRatio() const
         hwnd = (HWND)m_window->GetHandle();
     }
 
-    typedef UINT (WINAPI * PFN_GetDpiForWindow)(HWND);
+    typedef UINT(WINAPI * PFN_GetDpiForWindow)(HWND);
     static PFN_GetDpiForWindow pGetDpiForWindow = reinterpret_cast<PFN_GetDpiForWindow>(
         ::GetProcAddress(::GetModuleHandleW(L"user32.dll"), "GetDpiForWindow"));
 
@@ -1821,12 +1811,30 @@ void SciterMainWindow::ResetWindowSize(uint32_t nominal_width, uint32_t nominal_
         return;
     }
 
-    const float window_aspect_ratio =
-        static_cast<float>(nominal_height) / static_cast<float>(nominal_width);
-    const float emulation_aspect_ratio = EmulationAspectRatioForWindowReset(window_aspect_ratio);
+    const float window_aspect_ratio = (float)nominal_height / (float)nominal_width;
+    float emulation_aspect_ratio = 720.0f / 1280.0f;
+    switch ((AspectRatio)SettingsStore::GetInstance().GetInt(NXVideoSetting::AspectRatio))
+    {
+    case AspectRatio::R16_9:
+        emulation_aspect_ratio = 720.0f / 1280.0f;
+        break;
+    case AspectRatio::R4_3:
+        emulation_aspect_ratio = 3.0f / 4.0f;
+        break;
+    case AspectRatio::R21_9:
+        emulation_aspect_ratio = 9.0f / 21.0f;
+        break;
+    case AspectRatio::R16_10:
+        emulation_aspect_ratio = 10.0f / 16.0f;
+        break;
+    case AspectRatio::Stretch:
+        emulation_aspect_ratio = window_aspect_ratio;
+        break;
+    default:
+        break;
+    }
     const uint32_t targetH = nominal_height;
-    const uint32_t targetW =
-        static_cast<uint32_t>(std::lround(static_cast<double>(nominal_height) / static_cast<double>(emulation_aspect_ratio)));
+    const uint32_t targetW = (uint32_t)(std::lround((double)nominal_height / (double)emulation_aspect_ratio));
 
     RECT wr{};
     if (!GetWindowRect(hwnd, &wr))
@@ -1858,17 +1866,17 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
     else if (element == rootElement.GetElementByID("renderer"))
     {
         SettingsStore & settings = SettingsStore::GetInstance();
-        Settings::RendererBackend graphicsAPI = (Settings::RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI);
-        if (graphicsAPI == Settings::RendererBackend::Vulkan)
+        RendererBackend graphicsAPI = (RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI);
+        if (graphicsAPI == RendererBackend::Vulkan)
         {
-            graphicsAPI = Settings::RendererBackend::OpenGL;
+            graphicsAPI = RendererBackend::OpenGL;
         }
-        else if (graphicsAPI == Settings::RendererBackend::OpenGL)
+        else if (graphicsAPI == RendererBackend::OpenGL)
         {
-            graphicsAPI = Settings::RendererBackend::Vulkan;
+            graphicsAPI = RendererBackend::Vulkan;
         }
         settings.SetInt(NXVideoSetting::GraphicsAPI, (int32_t)graphicsAPI);
-        stdstr_f text("%s", Settings::CanonicalizeEnum((Settings::RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI)).c_str());
+        stdstr_f text("%s", RendererBackendLabel((RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI)));
         SciterElement(source).SetHTML((const uint8_t *)text.c_str(), text.size());
         if (m_modules.IsValid())
         {
@@ -1895,7 +1903,7 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
             {
                 m_sciterUI.PopupHide(m_rootElement.GetElementByID("VolumePopup"));
                 SciterElement(rootElement.GetElementByID("volumePopupBtn")).RemoveClassName("open");
-            }        
+            }
         }
     }
     return true;
@@ -1928,9 +1936,9 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
     {
         impl->UpdateStatusWidgets();
     }
-    else if (strcmp(setting, NXOsSetting::ResolutionUpFactor) == 0)
+    else if (strcmp(setting, NXVideoSetting::ResolutionUpFactor) == 0)
     {
-        impl->m_resolutionUpFactor = SettingsStore::GetInstance().GetFloat(NXOsSetting::ResolutionUpFactor);
+        impl->m_resolutionUpFactor = SettingsStore::GetInstance().GetFloat(NXVideoSetting::ResolutionUpFactor);
     }
     else if (strcmp(setting, NXOsSetting::UseMultiCore) == 0)
     {

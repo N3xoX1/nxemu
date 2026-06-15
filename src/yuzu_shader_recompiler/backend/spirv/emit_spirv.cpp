@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "yuzu_shader_recompiler/backend/spirv/spirv_emit_context.h"
@@ -162,7 +163,7 @@ void Traverse(EmitContext& ctx, IR::Program& program) {
             break;
         case IR::AbstractSyntaxNode::Type::Repeat: {
             Id cond{ctx.Def(node.data.repeat.cond)};
-            if (!Settings::values.disable_shader_loop_safety_checks) {
+            if (!videoSettings.disable_shader_loop_safety_checks) {
                 const Id pointer_type{ctx.TypePointer(spv::StorageClass::Private, ctx.U32[1])};
                 const Id safety_counter{ctx.AddGlobalVariable(
                     pointer_type, spv::StorageClass::Private, ctx.Const(0x2000u))};

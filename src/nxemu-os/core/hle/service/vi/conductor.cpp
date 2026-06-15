@@ -1,25 +1,32 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "yuzu_common/settings.h"
+#include "core/hle/service/vi/conductor.h"
 #include "core/core.h"
 #include "core/core_timing.h"
-#include "core/hle/service/vi/conductor.h"
 #include "core/hle/service/vi/container.h"
 #include "core/hle/service/vi/display_list.h"
 #include "core/hle/service/vi/vsync_manager.h"
+#include "yuzu_common/settings.h"
+#include <nxemu-module-spec/system_loader.h>
+#include <nxemu-video/video_settings_identifiers.h>
 
 constexpr auto FrameNs = std::chrono::nanoseconds{1000000000 / 60};
 
-namespace Service::VI {
+extern IModuleSettings * g_settings;
 
-Conductor::Conductor(Core::System& system, Container& container, DisplayList& displays)
-    : m_system(system), m_container(container) {
-    displays.ForEachDisplay([&](Display& display) {
+namespace Service::VI
+{
+
+Conductor::Conductor(Core::System & system, Container & container, DisplayList & displays) :
+    m_system(system), m_container(container)
+{
+    displays.ForEachDisplay([&](Display & display) {
         m_vsync_managers.insert({display.GetId(), VsyncManager{}});
     });
 
-    if (system.IsMulticore()) {
+    if (system.IsMulticore())
+    {
         m_event = Core::Timing::CreateEvent(
             "ScreenComposition",
             [this](s64 time,
@@ -30,7 +37,9 @@ Conductor::Conductor(Core::System& system, Container& container, DisplayList& di
 
         system.CoreTiming().ScheduleLoopingEvent(FrameNs, FrameNs, m_event);
         m_thread = std::jthread([this](std::stop_token token) { this->VsyncThread(token); });
-    } else {
+    }
+    else
+    {
         m_event = Core::Timing::CreateEvent(
             "ScreenComposition",
             [this](s64 time,
@@ -43,41 +52,52 @@ Conductor::Conductor(Core::System& system, Container& container, DisplayList& di
     }
 }
 
-Conductor::~Conductor() {
+Conductor::~Conductor()
+{
     m_system.CoreTiming().UnscheduleEvent(m_event);
 
-    if (m_system.IsMulticore()) {
+    if (m_system.IsMulticore())
+    {
         m_thread.request_stop();
         m_signal.Set();
     }
 }
 
-void Conductor::LinkVsyncEvent(u64 display_id, Event* event) {
-    if (auto it = m_vsync_managers.find(display_id); it != m_vsync_managers.end()) {
+void Conductor::LinkVsyncEvent(u64 display_id, Event * event)
+{
+    if (auto it = m_vsync_managers.find(display_id); it != m_vsync_managers.end())
+    {
         it->second.LinkVsyncEvent(event);
     }
 }
 
-void Conductor::UnlinkVsyncEvent(u64 display_id, Event* event) {
-    if (auto it = m_vsync_managers.find(display_id); it != m_vsync_managers.end()) {
+void Conductor::UnlinkVsyncEvent(u64 display_id, Event * event)
+{
+    if (auto it = m_vsync_managers.find(display_id); it != m_vsync_managers.end())
+    {
         it->second.UnlinkVsyncEvent(event);
     }
 }
 
-void Conductor::ProcessVsync() {
-    for (auto& [display_id, manager] : m_vsync_managers) {
+void Conductor::ProcessVsync()
+{
+    for (auto & [display_id, manager] : m_vsync_managers)
+    {
         m_container.ComposeOnDisplay(&m_swap_interval, &m_compose_speed_scale, display_id);
         manager.SignalVsync();
     }
 }
 
-void Conductor::VsyncThread(std::stop_token token) {
+void Conductor::VsyncThread(std::stop_token token)
+{
     Common::SetCurrentThreadName("VSyncThread");
 
-    while (!token.stop_requested()) {
+    while (!token.stop_requested())
+    {
         m_signal.Wait();
 
-        if (m_system.IsShuttingDown()) {
+        if (m_system.IsShuttingDown())
+        {
             return;
         }
 
@@ -85,15 +105,20 @@ void Conductor::VsyncThread(std::stop_token token) {
     }
 }
 
-s64 Conductor::GetNextTicks() const {
-    const auto& settings = Settings::values;
+s64 Conductor::GetNextTicks() const
+{
+    const auto & settings = Settings::values;
     auto speed_scale = 1.f;
-    if (settings.use_multi_core.GetValue()) {
-        if (settings.use_speed_limit.GetValue()) {
+    if (settings.use_multi_core.GetValue())
+    {
+        if (settings.use_speed_limit.GetValue())
+        {
             // Scales the speed based on speed_limit setting on MC. SC is handled by
             // SpeedLimiter::DoSpeedLimiting.
             speed_scale = 100.f / settings.speed_limit.GetValue();
-        } else {
+        }
+        else
+        {
             // Run at unlocked framerate.
             speed_scale = 0.01f;
         }
@@ -102,7 +127,8 @@ s64 Conductor::GetNextTicks() const {
     // Adjust by speed limit determined during composition.
     speed_scale /= m_compose_speed_scale;
 
-    if (m_system.GetNVDECActive() && settings.use_video_framerate.GetValue()) {
+    if (m_system.GetNVDECActive() && g_settings->GetBool(NXVideoSetting::SyncToFramerateOfVideoPlayback))
+    {
         // Run at intended presentation rate during video playback.
         speed_scale = 1.f;
     }

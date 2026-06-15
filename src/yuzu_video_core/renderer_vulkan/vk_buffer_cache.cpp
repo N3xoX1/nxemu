@@ -16,6 +16,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
+#include "video_settings.h"
 
 namespace Vulkan {
 namespace {
@@ -380,7 +381,7 @@ void BufferCacheRuntime::Finish() {
 
 bool BufferCacheRuntime::CanReorderUpload(const Buffer& buffer,
                                           std::span<const VideoCommon::BufferCopy> copies) {
-    if (Settings::values.disable_buffer_reorder) {
+    if (videoSettings.disable_buffer_reorder) {
         return false;
     }
     const bool can_use_upload_cmdbuf =

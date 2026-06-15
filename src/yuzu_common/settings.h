@@ -22,29 +22,6 @@ namespace Settings {
 
 const char* TranslateCategory(Settings::Category category);
 
-struct ResolutionScalingInfo {
-    u32 up_scale{1};
-    u32 down_shift{0};
-    f32 up_factor{1.0f};
-    f32 down_factor{1.0f};
-    bool active{};
-    bool downscale{};
-
-    s32 ScaleUp(s32 value) const {
-        if (value == 0) {
-            return 0;
-        }
-        return std::max((value * static_cast<s32>(up_scale)) >> static_cast<s32>(down_shift), 1);
-    }
-
-    u32 ScaleUp(u32 value) const {
-        if (value == 0U) {
-            return 0U;
-        }
-        return std::max((value * up_scale) >> down_shift, 1U);
-    }
-};
-
 #ifndef CANNOT_EXPLICITLY_INSTANTIATE
 // Instantiate the classes elsewhere (settings.cpp) to reduce compiler/linker work
 #define SETTING(TYPE, RANGED) extern template class Setting<TYPE, RANGED>
@@ -57,25 +34,13 @@ SETTING(s32, false);
 SETTING(std::string, false);
 SETTING(std::string, false);
 SETTING(u16, false);
-SWITCHABLE(AnisotropyMode, true);
-SWITCHABLE(AntiAliasing, false);
-SWITCHABLE(AspectRatio, true);
-SWITCHABLE(AstcDecodeMode, true);
-SWITCHABLE(AstcRecompression, true);
 SWITCHABLE(AudioMode, true);
 SWITCHABLE(CpuBackend, true);
 SWITCHABLE(CpuAccuracy, true);
-SWITCHABLE(FullscreenMode, true);
-SWITCHABLE(GpuAccuracy, true);
 SWITCHABLE(Language, true);
 SWITCHABLE(MemoryLayout, true);
-SWITCHABLE(NvdecEmulation, false);
 SWITCHABLE(Region, true);
-SWITCHABLE(RendererBackend, true);
-SWITCHABLE(ScalingFilter, false);
-SWITCHABLE(ShaderBackend, true);
 SWITCHABLE(TimeZone, true);
-SETTING(VSyncMode, true);
 SWITCHABLE(bool, false);
 SWITCHABLE(int, false);
 SWITCHABLE(int, true);
@@ -207,181 +172,6 @@ struct Values {
     SwitchableSetting<bool> cpuopt_unsafe_ignore_global_monitor{
         linkage, true, "cpuopt_unsafe_ignore_global_monitor", Category::CpuUnsafe};
 
-    // Renderer
-    SwitchableSetting<RendererBackend, true> renderer_backend{
-        linkage,   RendererBackend::Vulkan, RendererBackend::OpenGL, RendererBackend::Null,
-        "backend", Category::Renderer};
-    SwitchableSetting<ShaderBackend, true> shader_backend{
-        linkage,          ShaderBackend::Glsl, ShaderBackend::Glsl,        ShaderBackend::SpirV,
-        "shader_backend", Category::Renderer,  Specialization::RuntimeList};
-    SwitchableSetting<int> vulkan_device{linkage, 0, "vulkan_device", Category::Renderer,
-                                         Specialization::RuntimeList};
-
-    SwitchableSetting<bool> use_disk_shader_cache{linkage, true, "use_disk_shader_cache",
-                                                  Category::Renderer};
-    SwitchableSetting<bool> use_asynchronous_gpu_emulation{
-        linkage, true, "use_asynchronous_gpu_emulation", Category::Renderer};
-    SwitchableSetting<AstcDecodeMode, true> accelerate_astc{linkage,
-#ifdef ANDROID
-                                                            AstcDecodeMode::Cpu,
-#else
-                                                            AstcDecodeMode::Gpu,
-#endif
-                                                            AstcDecodeMode::Cpu,
-                                                            AstcDecodeMode::CpuAsynchronous,
-                                                            "accelerate_astc",
-                                                            Category::Renderer};
-    SwitchableSetting<VSyncMode, true> vsync_mode{
-        linkage,     VSyncMode::Fifo,    VSyncMode::Immediate,        VSyncMode::FifoRelaxed,
-        "use_vsync", Category::Renderer, Specialization::RuntimeList, true,
-        true};
-    SwitchableSetting<NvdecEmulation> nvdec_emulation{linkage, NvdecEmulation::Gpu,
-                                                      "nvdec_emulation", Category::Renderer};
-    // *nix platforms may have issues with the borderless windowed fullscreen mode.
-    // Default to exclusive fullscreen on these platforms for now.
-    SwitchableSetting<FullscreenMode, true> fullscreen_mode{linkage,
-#ifdef _WIN32
-                                                            FullscreenMode::Borderless,
-#else
-                                                            FullscreenMode::Exclusive,
-#endif
-                                                            FullscreenMode::Borderless,
-                                                            FullscreenMode::Exclusive,
-                                                            "fullscreen_mode",
-                                                            Category::Renderer,
-                                                            Specialization::Default,
-                                                            true,
-                                                            true};
-    SwitchableSetting<AspectRatio, true> aspect_ratio{linkage,
-                                                      AspectRatio::R16_9,
-                                                      AspectRatio::R16_9,
-                                                      AspectRatio::Stretch,
-                                                      "aspect_ratio",
-                                                      Category::Renderer,
-                                                      Specialization::Default,
-                                                      true,
-                                                      true};
-
-    ResolutionScalingInfo resolution_info{};
-    SwitchableSetting<ResolutionSetup> resolution_setup{linkage, ResolutionSetup::Res1X,
-                                                        "resolution_setup", Category::Renderer};
-    SwitchableSetting<ScalingFilter> scaling_filter{linkage,
-                                                    ScalingFilter::Bilinear,
-                                                    "scaling_filter",
-                                                    Category::Renderer,
-                                                    Specialization::Default,
-                                                    true,
-                                                    true};
-    SwitchableSetting<AntiAliasing> anti_aliasing{linkage,
-                                                  AntiAliasing::None,
-                                                  "anti_aliasing",
-                                                  Category::Renderer,
-                                                  Specialization::Default,
-                                                  true,
-                                                  true};
-    SwitchableSetting<int, true> fsr_sharpening_slider{linkage,
-                                                       25,
-                                                       0,
-                                                       200,
-                                                       "fsr_sharpening_slider",
-                                                       Category::Renderer,
-                                                       Specialization::Scalar |
-                                                           Specialization::Percentage,
-                                                       true,
-                                                       true};
-
-    SwitchableSetting<u8, false> bg_red{
-        linkage, 0, "bg_red", Category::Renderer, Specialization::Default, true, true};
-    SwitchableSetting<u8, false> bg_green{
-        linkage, 0, "bg_green", Category::Renderer, Specialization::Default, true, true};
-    SwitchableSetting<u8, false> bg_blue{
-        linkage, 0, "bg_blue", Category::Renderer, Specialization::Default, true, true};
-
-    SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
-#ifdef ANDROID
-                                                      GpuAccuracy::Normal,
-#else
-                                                      GpuAccuracy::High,
-#endif
-                                                      GpuAccuracy::Normal,
-                                                      GpuAccuracy::Extreme,
-                                                      "gpu_accuracy",
-                                                      Category::RendererAdvanced,
-                                                      Specialization::Default,
-                                                      true,
-                                                      true};
-    GpuAccuracy current_gpu_accuracy{GpuAccuracy::High};
-    SwitchableSetting<AnisotropyMode, true> max_anisotropy{linkage,
-#ifdef ANDROID
-                                                           AnisotropyMode::Default,
-#else
-                                                           AnisotropyMode::Automatic,
-#endif
-                                                           AnisotropyMode::Automatic,
-                                                           AnisotropyMode::X16,
-                                                           "max_anisotropy",
-                                                           Category::RendererAdvanced};
-    SwitchableSetting<AstcRecompression, true> astc_recompression{linkage,
-                                                                  AstcRecompression::Uncompressed,
-                                                                  AstcRecompression::Uncompressed,
-                                                                  AstcRecompression::Bc3,
-                                                                  "astc_recompression",
-                                                                  Category::RendererAdvanced};
-    SwitchableSetting<VramUsageMode, true> vram_usage_mode{linkage,
-                                                           VramUsageMode::Conservative,
-                                                           VramUsageMode::Conservative,
-                                                           VramUsageMode::Aggressive,
-                                                           "vram_usage_mode",
-                                                           Category::RendererAdvanced};
-    SwitchableSetting<bool> async_presentation{linkage,
-#ifdef ANDROID
-                                               true,
-#else
-                                               false,
-#endif
-                                               "async_presentation", Category::RendererAdvanced};
-    SwitchableSetting<bool> renderer_force_max_clock{linkage, false, "force_max_clock",
-                                                     Category::RendererAdvanced};
-    SwitchableSetting<bool> use_reactive_flushing{linkage,
-#ifdef ANDROID
-                                                  false,
-#else
-                                                  true,
-#endif
-                                                  "use_reactive_flushing",
-                                                  Category::RendererAdvanced};
-    SwitchableSetting<bool> use_asynchronous_shaders{linkage, false, "use_asynchronous_shaders",
-                                                     Category::RendererAdvanced};
-    SwitchableSetting<bool> use_fast_gpu_time{
-        linkage, true, "use_fast_gpu_time", Category::RendererAdvanced, Specialization::Default,
-        true,    true};
-    SwitchableSetting<bool> use_vulkan_driver_pipeline_cache{linkage,
-                                                             true,
-                                                             "use_vulkan_driver_pipeline_cache",
-                                                             Category::RendererAdvanced,
-                                                             Specialization::Default,
-                                                             true,
-                                                             true};
-    SwitchableSetting<bool> enable_compute_pipelines{linkage, false, "enable_compute_pipelines",
-                                                     Category::RendererAdvanced};
-    SwitchableSetting<bool> use_video_framerate{linkage, false, "use_video_framerate",
-                                                Category::RendererAdvanced};
-    SwitchableSetting<bool> barrier_feedback_loops{linkage, true, "barrier_feedback_loops",
-                                                   Category::RendererAdvanced};
-
-    Setting<bool> renderer_debug{linkage, false, "debug", Category::RendererDebug};
-    Setting<bool> renderer_shader_feedback{linkage, false, "shader_feedback",
-                                           Category::RendererDebug};
-    Setting<bool> enable_nsight_aftermath{linkage, false, "nsight_aftermath",
-                                          Category::RendererDebug};
-    Setting<bool> disable_shader_loop_safety_checks{
-        linkage, false, "disable_shader_loop_safety_checks", Category::RendererDebug};
-    Setting<bool> enable_renderdoc_hotkey{linkage, false, "renderdoc_hotkey",
-                                          Category::RendererDebug};
-    Setting<bool> disable_buffer_reorder{linkage, false, "disable_buffer_reorder",
-                                         Category::RendererDebug};
-
-
     // Data Storage
     Setting<bool> use_virtual_sd{linkage, true, "use_virtual_sd", Category::DataStorage};
     Setting<bool> gamecard_inserted{linkage, false, "gamecard_inserted", Category::DataStorage};
@@ -437,10 +227,6 @@ struct Values {
 
 extern Values values;
 
-void UpdateGPUAccuracy();
-bool IsGPULevelExtreme();
-bool IsGPULevelHigh();
-
 bool IsFastmemEnabled();
 void SetNceEnabled(bool is_64bit);
 bool IsNceEnabled();
@@ -450,9 +236,6 @@ float Volume();
 std::string GetTimeZoneString(TimeZone time_zone);
 
 void LogSettings();
-
-void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo& info);
-void UpdateRescalingInfo();
 
 // Restore the global state of all applicable settings in the Values struct
 void RestoreGlobalState(bool is_powered_on);

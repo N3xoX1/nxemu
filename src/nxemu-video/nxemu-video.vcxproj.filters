@@ -29,6 +29,9 @@
     <ClCompile Include="render_window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="video_enum_strings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="video_settings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -41,6 +44,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="video_settings_identifiers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="video_enum_strings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="video_settings.h">

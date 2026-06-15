@@ -6,6 +6,7 @@
 #include "frontend/framebuffer_layout.h"
 #include "nxemu-os/os_settings_identifiers.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
 #include <nxemu-module-spec/base.h>
 
@@ -36,7 +37,7 @@ FramebufferLayout DefaultFrameLayout(u32 width, u32 height)
     };
 
     const float window_aspect_ratio = static_cast<float>(height) / static_cast<float>(width);
-    const float emulation_aspect_ratio = EmulationAspectRatio(static_cast<AspectRatio>(Settings::values.aspect_ratio.GetValue()), window_aspect_ratio);
+    const float emulation_aspect_ratio = EmulationAspectRatio(static_cast<AspectRatio>(videoSettings.aspect_ratio.GetValue()), window_aspect_ratio);
 
     const Common::Rectangle<u32> screen_window_area{0, 0, width, height};
     Common::Rectangle<u32> screen = MaxRectangle(screen_window_area, emulation_aspect_ratio);
@@ -70,7 +71,7 @@ float EmulationAspectRatio(AspectRatio aspect, float window_aspect_ratio)
 {
     switch (aspect)
     {
-    case AspectRatio::Default:
+    case AspectRatio::R16_9:
         return static_cast<float>(ScreenUndocked::Height) / ScreenUndocked::Width;
     case AspectRatio::R4_3:
         return 3.0f / 4.0f;
@@ -78,7 +79,7 @@ float EmulationAspectRatio(AspectRatio aspect, float window_aspect_ratio)
         return 9.0f / 21.0f;
     case AspectRatio::R16_10:
         return 10.0f / 16.0f;
-    case AspectRatio::StretchToWindow:
+    case AspectRatio::Stretch:
         return window_aspect_ratio;
     default:
         return static_cast<float>(ScreenUndocked::Height) / ScreenUndocked::Width;

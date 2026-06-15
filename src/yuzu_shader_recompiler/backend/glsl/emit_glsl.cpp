@@ -8,6 +8,7 @@
 
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings.h"
 #include "yuzu_shader_recompiler/backend/glsl/emit_glsl.h"
 #include "yuzu_shader_recompiler/backend/glsl/emit_glsl_instructions.h"
 #include "yuzu_shader_recompiler/backend/glsl/glsl_emit_context.h"
@@ -161,7 +162,7 @@ void EmitCode(EmitContext& ctx, const IR::Program& program) {
             ctx.Add("for(;;){{");
             break;
         case IR::AbstractSyntaxNode::Type::Repeat:
-            if (Settings::values.disable_shader_loop_safety_checks) {
+            if (videoSettings.disable_shader_loop_safety_checks) {
                 ctx.Add("if(!{}){{break;}}}}", ctx.var_alloc.Consume(node.data.repeat.cond));
             } else {
                 ctx.Add("if(--loop{}<0 || !{}){{break;}}}}", ctx.num_safety_loop_vars++,

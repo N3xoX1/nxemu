@@ -10,6 +10,7 @@
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 
@@ -843,8 +844,8 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
                                          ComputePassDescriptorQueue& compute_pass_descriptor_queue)
     : device{device_}, scheduler{scheduler_}, memory_allocator{memory_allocator_},
       staging_buffer_pool{staging_buffer_pool_}, blit_image_helper{blit_image_helper_},
-      render_pass_cache{render_pass_cache_}, resolution{Settings::values.resolution_info} {
-    if (Settings::values.accelerate_astc.GetValue() == Settings::AstcDecodeMode::Gpu) {
+      render_pass_cache{render_pass_cache_}, resolution{videoSettings.resolution_info} {
+    if (videoSettings.accelerate_astc.GetValue() == AstcDecodeMode::Gpu) {
         astc_decoder_pass.emplace(device, scheduler, descriptor_pool, staging_buffer_pool,
                                   compute_pass_descriptor_queue, memory_allocator);
     }
@@ -1372,15 +1373,15 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
                                                    runtime->ViewFormats(info.format))),
       aspect_mask(ImageAspectMask(info.format)) {
     if (IsPixelFormatASTC(info.format) && !runtime->device.IsOptimalAstcSupported()) {
-        switch (Settings::values.accelerate_astc.GetValue()) {
-        case Settings::AstcDecodeMode::Gpu:
-            if (Settings::values.astc_recompression.GetValue() ==
-                    Settings::AstcRecompression::Uncompressed &&
+        switch (videoSettings.accelerate_astc.GetValue()) {
+        case AstcDecodeMode::Gpu:
+            if (videoSettings.astc_recompression.GetValue() ==
+                    AstcRecompression::Uncompressed &&
                 info.size.depth == 1) {
                 flags |= VideoCommon::ImageFlagBits::AcceleratedUpload;
             }
             break;
-        case Settings::AstcDecodeMode::CpuAsynchronous:
+        case AstcDecodeMode::CpuAsynchronous:
             flags |= VideoCommon::ImageFlagBits::AsynchronousDecode;
             break;
         default:
@@ -1399,8 +1400,7 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
     current_image = *original_image;
     storage_image_views.resize(info.resources.levels);
     if (IsPixelFormatASTC(info.format) && !runtime->device.IsOptimalAstcSupported() &&
-        Settings::values.astc_recompression.GetValue() ==
-            Settings::AstcRecompression::Uncompressed) {
+        videoSettings.astc_recompression.GetValue() == AstcRecompression::Uncompressed) {
         const auto& device = runtime->device.GetLogical();
         for (s32 level = 0; level < info.resources.levels; ++level) {
             storage_image_views[level] =

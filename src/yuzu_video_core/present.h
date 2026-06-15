@@ -4,26 +4,27 @@
 #pragma once
 
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 
-static inline Settings::ScalingFilter GetScalingFilter() {
-    return Settings::values.scaling_filter.GetValue();
+static inline ScalingFilter GetScalingFilter() {
+    return videoSettings.scaling_filter.GetValue();
 }
 
-static inline Settings::AntiAliasing GetAntiAliasing() {
-    return Settings::values.anti_aliasing.GetValue();
+static inline AntiAliasing GetAntiAliasing() {
+    return videoSettings.anti_aliasing.GetValue();
 }
 
-static inline Settings::ScalingFilter GetScalingFilterForAppletCapture() {
-    return Settings::ScalingFilter::Bilinear;
+static inline ScalingFilter GetScalingFilterForAppletCapture() {
+    return ScalingFilter::Bilinear;
 }
 
-static inline Settings::AntiAliasing GetAntiAliasingForAppletCapture() {
-    return Settings::AntiAliasing::None;
+static inline AntiAliasing GetAntiAliasingForAppletCapture() {
+    return AntiAliasing::None;
 }
 
 struct PresentFilters {
-    Settings::ScalingFilter (*get_scaling_filter)();
-    Settings::AntiAliasing (*get_anti_aliasing)();
+    ScalingFilter (*get_scaling_filter)();
+    AntiAliasing (*get_anti_aliasing)();
 };
 
 constexpr PresentFilters PresentFiltersForDisplay{

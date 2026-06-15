@@ -114,21 +114,6 @@ ENUM(TimeZone, Auto, Default, Cet, Cst6Cdt, Cuba, Eet, Egypt, Eire, Est, Est5Edt
      Japan, Kwajalein, Libya, Met, Mst, Mst7Mdt, Navajo, Nz, NzChat, Poland, Portugal, Prc, Pst8Pdt,
      Roc, Rok, Singapore, Turkey, Uct, Universal, Utc, WSu, Wet, Zulu);
 
-ENUM(AnisotropyMode, Automatic, Default, X2, X4, X8, X16);
-
-ENUM(AstcDecodeMode, Cpu, Gpu, CpuAsynchronous);
-
-ENUM(AstcRecompression, Uncompressed, Bc1, Bc3);
-
-ENUM(VSyncMode, Immediate, Mailbox, Fifo, FifoRelaxed);
-
-ENUM(VramUsageMode, Conservative, Aggressive);
-
-ENUM(RendererBackend, OpenGL, Vulkan, Null);
-
-ENUM(ShaderBackend, Glsl, Glasm, SpirV);
-
-ENUM(GpuAccuracy, Normal, High, Extreme);
 
 ENUM(CpuBackend, Dynarmic, Nce);
 
@@ -137,19 +122,6 @@ ENUM(CpuAccuracy, Auto, Accurate, Unsafe, Paranoid);
 ENUM(MemoryLayout, Memory_4Gb, Memory_6Gb, Memory_8Gb);
 
 ENUM(ConfirmStop, Ask_Always, Ask_Based_On_Game, Ask_Never);
-
-ENUM(FullscreenMode, Borderless, Exclusive);
-
-ENUM(NvdecEmulation, Off, Cpu, Gpu);
-
-ENUM(ResolutionSetup, Res1_2X, Res3_4X, Res1X, Res3_2X, Res2X, Res3X, Res4X, Res5X, Res6X, Res7X,
-     Res8X);
-
-ENUM(ScalingFilter, NearestNeighbor, Bilinear, Bicubic, Gaussian, ScaleForce, Fsr, MaxEnum);
-
-ENUM(AntiAliasing, None, Fxaa, Smaa, MaxEnum);
-
-ENUM(AspectRatio, R16_9, R4_3, R21_9, R16_10, Stretch);
 
 ENUM(DockedMode, Handheld, Docked);
 

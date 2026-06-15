@@ -16,6 +16,7 @@
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_common/stb.h"
 #include "yuzu_video_core/capture.h"
 #include "yuzu_video_core/gpu.h"
@@ -99,7 +100,7 @@ Device CreateDevice(const vk::Instance & instance, const vk::InstanceDispatch & 
                     VkSurfaceKHR surface)
 {
     const std::vector<VkPhysicalDevice> devices = instance.EnumeratePhysicalDevices();
-    const s32 device_index = Settings::values.vulkan_device.GetValue();
+    const s32 device_index = videoSettings.vulkan_device.GetValue();
     if (device_index < 0 || device_index >= static_cast<s32>(devices.size()))
     {
         LOG_ERROR(Render_Vulkan, "Invalid device index {}!", device_index);
@@ -116,8 +117,8 @@ try :
     RendererBase(emu_window, std::move(context_)),
     device_memory(device_memory_), gpu(gpu_), library(OpenLibrary(context.get())),
     instance(CreateInstance(*library, dld, VK_API_VERSION_1_1, render_window.GetWindowInfo().type,
-                            Settings::values.renderer_debug.GetValue())),
-    debug_messenger(Settings::values.renderer_debug ? CreateDebugUtilsCallback(instance)
+                            videoSettings.renderer_debug.GetValue())),
+    debug_messenger(videoSettings.renderer_debug ? CreateDebugUtilsCallback(instance)
                                                     : vk::DebugUtilsMessenger{}),
     surface(CreateSurface(instance, render_window.GetWindowInfo())),
     device(CreateDevice(instance, dld, *surface)), memory_allocator(device), state_tracker(),
@@ -137,7 +138,7 @@ try :
     applet_frame(),
     wm{}
 {
-    if (Settings::values.renderer_force_max_clock.GetValue() && device.ShouldBoostClocks())
+    if (videoSettings.renderer_force_max_clock.GetValue() && device.ShouldBoostClocks())
     {
         turbo_mode.emplace(instance, dld);
         scheduler.RegisterOnSubmit([this] { turbo_mode->QueueSubmitted(); });

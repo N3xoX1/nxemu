@@ -4,6 +4,7 @@
 #pragma once
 
 #include "yuzu_common/math_util.h"
+#include "yuzu_common/settings_enums.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -19,10 +20,6 @@ struct FramebufferConfig;
 
 namespace Service::android {
 enum class PixelFormat : u32;
-}
-
-namespace Settings {
-enum class AntiAliasing : u32;
 }
 
 namespace Vulkan {
@@ -86,7 +83,7 @@ private:
     u32 raw_height{};
     Service::android::PixelFormat pixel_format{};
 
-    Settings::AntiAliasing anti_alias_setting{};
+    AntiAliasing anti_alias_setting{};
     std::unique_ptr<AntiAliasPass> anti_alias{};
 
     std::unique_ptr<FSR> fsr{};

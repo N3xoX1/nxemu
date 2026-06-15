@@ -12,6 +12,7 @@
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/texture_cache/util.h"
 #include "yuzu_video_core/textures/texture.h"
+#include "video_settings.h"
 
 namespace VideoCommon {
 
@@ -26,7 +27,7 @@ constexpr u32 RescaleHeightThreshold = 288;
 constexpr u32 DownscaleHeightThreshold = 512;
 
 ImageInfo::ImageInfo(const TICEntry& config) noexcept {
-    forced_flushed = config.IsPitchLinear() && !Settings::values.use_reactive_flushing.GetValue();
+    forced_flushed = config.IsPitchLinear() && !videoSettings.use_reactive_flushing.GetValue();
     dma_downloaded = forced_flushed;
     format = PixelFormatFromTextureInfo(config.format, config.r_type, config.g_type, config.b_type,
                                         config.a_type, config.srgb_conversion);
@@ -126,7 +127,7 @@ ImageInfo::ImageInfo(const TICEntry& config) noexcept {
 ImageInfo::ImageInfo(const Maxwell3D::Regs::RenderTargetConfig& ct,
                      Tegra::Texture::MsaaMode msaa_mode) noexcept {
     forced_flushed =
-        ct.tile_mode.is_pitch_linear && !Settings::values.use_reactive_flushing.GetValue();
+        ct.tile_mode.is_pitch_linear && !videoSettings.use_reactive_flushing.GetValue();
     dma_downloaded = forced_flushed;
     format = VideoCore::Surface::PixelFormatFromRenderTargetFormat(ct.format);
     rescaleable = false;
@@ -167,7 +168,7 @@ ImageInfo::ImageInfo(const Maxwell3D::Regs::RenderTargetConfig& ct,
 ImageInfo::ImageInfo(const Maxwell3D::Regs::Zeta& zt, const Maxwell3D::Regs::ZetaSize& zt_size,
                      Tegra::Texture::MsaaMode msaa_mode) noexcept {
     forced_flushed =
-        zt.tile_mode.is_pitch_linear && !Settings::values.use_reactive_flushing.GetValue();
+        zt.tile_mode.is_pitch_linear && !videoSettings.use_reactive_flushing.GetValue();
     dma_downloaded = forced_flushed;
     format = VideoCore::Surface::PixelFormatFromDepthFormat(zt.format);
     size.width = zt_size.width;
@@ -210,7 +211,7 @@ ImageInfo::ImageInfo(const Maxwell3D::Regs::Zeta& zt, const Maxwell3D::Regs::Zet
 ImageInfo::ImageInfo(const Fermi2D::Surface& config) noexcept {
     UNIMPLEMENTED_IF_MSG(config.layer != 0, "Surface layer is not zero");
     forced_flushed = config.linear == Fermi2D::MemoryLayout::Pitch &&
-                     !Settings::values.use_reactive_flushing.GetValue();
+                     !videoSettings.use_reactive_flushing.GetValue();
     dma_downloaded = forced_flushed;
     format = VideoCore::Surface::PixelFormatFromRenderTargetFormat(config.format);
     rescaleable = false;

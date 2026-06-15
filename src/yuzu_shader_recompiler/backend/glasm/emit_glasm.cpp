@@ -7,6 +7,7 @@
 
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings.h"
 #include "yuzu_shader_recompiler/backend/bindings.h"
 #include "yuzu_shader_recompiler/backend/glasm/emit_glasm.h"
 #include "yuzu_shader_recompiler/backend/glasm/emit_glasm_instructions.h"
@@ -226,7 +227,7 @@ void EmitCode(EmitContext& ctx, const IR::Program& program) {
             ctx.Add("REP;");
             break;
         case IR::AbstractSyntaxNode::Type::Repeat:
-            if (!Settings::values.disable_shader_loop_safety_checks) {
+            if (!videoSettings.disable_shader_loop_safety_checks) {
                 const u32 loop_index{ctx.num_safety_loop_vars++};
                 const u32 vector_index{loop_index / 4};
                 const char component{"xyzw"[loop_index % 4]};

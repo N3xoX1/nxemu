@@ -36,25 +36,13 @@ SETTING(bool, false);
 SETTING(int, false);
 SETTING(std::string, false);
 SETTING(u16, false);
-SWITCHABLE(AnisotropyMode, true);
-SWITCHABLE(AntiAliasing, false);
-SWITCHABLE(AspectRatio, true);
-SWITCHABLE(AstcDecodeMode, true);
-SWITCHABLE(AstcRecompression, true);
 SWITCHABLE(AudioMode, true);
 SWITCHABLE(CpuBackend, true);
 SWITCHABLE(CpuAccuracy, true);
-SWITCHABLE(FullscreenMode, true);
-SWITCHABLE(GpuAccuracy, true);
 SWITCHABLE(Language, true);
 SWITCHABLE(MemoryLayout, true);
-SWITCHABLE(NvdecEmulation, false);
 SWITCHABLE(Region, true);
-SWITCHABLE(RendererBackend, true);
-SWITCHABLE(ScalingFilter, false);
-SWITCHABLE(ShaderBackend, true);
 SWITCHABLE(TimeZone, true);
-SETTING(VSyncMode, true);
 SWITCHABLE(bool, false);
 SWITCHABLE(int, false);
 SWITCHABLE(int, true);
@@ -135,19 +123,6 @@ void LogSettings() {
     log_path("DataStorage_LoadDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::LoadDir));
     log_path("DataStorage_NANDDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir));
     log_path("DataStorage_SDMCDir", Common::FS::GetYuzuPath(Common::FS::YuzuPath::SDMCDir));
-}
-
-void UpdateGPUAccuracy() {
-    values.current_gpu_accuracy = values.gpu_accuracy.GetValue();
-}
-
-bool IsGPULevelExtreme() {
-    return values.current_gpu_accuracy == GpuAccuracy::Extreme;
-}
-
-bool IsGPULevelHigh() {
-    return values.current_gpu_accuracy == GpuAccuracy::Extreme ||
-           values.current_gpu_accuracy == GpuAccuracy::High;
 }
 
 bool IsFastmemEnabled() {
@@ -242,72 +217,6 @@ const char* TranslateCategory(Category category) {
         break;
     }
     return "Miscellaneous";
-}
-
-void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo& info) {
-    info.downscale = false;
-    switch (setup) {
-    case ResolutionSetup::Res1_2X:
-        info.up_scale = 1;
-        info.down_shift = 1;
-        info.downscale = true;
-        break;
-    case ResolutionSetup::Res3_4X:
-        info.up_scale = 3;
-        info.down_shift = 2;
-        info.downscale = true;
-        break;
-    case ResolutionSetup::Res1X:
-        info.up_scale = 1;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res3_2X:
-        info.up_scale = 3;
-        info.down_shift = 1;
-        break;
-    case ResolutionSetup::Res2X:
-        info.up_scale = 2;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res3X:
-        info.up_scale = 3;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res4X:
-        info.up_scale = 4;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res5X:
-        info.up_scale = 5;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res6X:
-        info.up_scale = 6;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res7X:
-        info.up_scale = 7;
-        info.down_shift = 0;
-        break;
-    case ResolutionSetup::Res8X:
-        info.up_scale = 8;
-        info.down_shift = 0;
-        break;
-    default:
-        ASSERT(false);
-        info.up_scale = 1;
-        info.down_shift = 0;
-        break;
-    }
-    info.up_factor = static_cast<f32>(info.up_scale) / (1U << info.down_shift);
-    info.down_factor = static_cast<f32>(1U << info.down_shift) / info.up_scale;
-    info.active = info.up_scale != 1 || info.down_shift != 0;
-}
-
-void UpdateRescalingInfo() {
-    const auto setup = values.resolution_setup.GetValue();
-    auto& info = values.resolution_info;
-    TranslateResolutionInfo(setup, info);
 }
 
 void RestoreGlobalState(bool is_powered_on) {

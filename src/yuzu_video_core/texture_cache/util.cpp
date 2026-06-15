@@ -33,6 +33,7 @@
 #include "yuzu_video_core/textures/astc.h"
 #include "yuzu_video_core/textures/bcn.h"
 #include "yuzu_video_core/textures/decoders.h"
+#include "video_settings.h"
 
 namespace VideoCommon {
 
@@ -598,10 +599,10 @@ u32 CalculateConvertedSizeBytes(const ImageInfo& info) noexcept {
         return info.size.width * BytesPerBlock(info.format);
     }
     static constexpr Extent2D TILE_SIZE{1, 1};
-    if (IsPixelFormatASTC(info.format) && Settings::values.astc_recompression.GetValue() !=
-                                              Settings::AstcRecompression::Uncompressed) {
+    if (IsPixelFormatASTC(info.format) && videoSettings.astc_recompression.GetValue() !=
+                                              AstcRecompression::Uncompressed) {
         const u32 bpp_div =
-            Settings::values.astc_recompression.GetValue() == Settings::AstcRecompression::Bc1 ? 2
+            videoSettings.astc_recompression.GetValue() == AstcRecompression::Bc1 ? 2
                                                                                                : 1;
         // NumBlocksPerLayer doesn't account for this correctly, so we have to do it manually.
         u32 output_size = 0;
@@ -927,10 +928,10 @@ void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8
         const auto input_offset = input.subspan(copy.buffer_offset);
         copy.buffer_offset = output_offset;
 
-        const auto recompression_setting = Settings::values.astc_recompression.GetValue();
+        const auto recompression_setting = videoSettings.astc_recompression.GetValue();
         const bool astc = IsPixelFormatASTC(info.format);
 
-        if (astc && recompression_setting == Settings::AstcRecompression::Uncompressed) {
+        if (astc && recompression_setting == AstcRecompression::Uncompressed) {
             Tegra::Texture::ASTC::Decompress(
                 input_offset, copy.image_extent.width, copy.image_extent.height,
                 copy.image_subresource.num_layers * copy.image_extent.depth, tile_size.width,
@@ -942,10 +943,10 @@ void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8
         } else if (astc) {
             // BC1 uses 0.5 bytes per texel
             // BC3 uses 1 byte per texel
-            const auto compress = recompression_setting == Settings::AstcRecompression::Bc1
+            const auto compress = recompression_setting == AstcRecompression::Bc1
                                       ? Tegra::Texture::BCN::CompressBC1
                                       : Tegra::Texture::BCN::CompressBC3;
-            const auto bpp_div = recompression_setting == Settings::AstcRecompression::Bc1 ? 2 : 1;
+            const auto bpp_div = recompression_setting == AstcRecompression::Bc1 ? 2 : 1;
 
             const u32 plane_dim = copy.image_extent.width * copy.image_extent.height;
             const u32 level_size = plane_dim * copy.image_extent.depth *

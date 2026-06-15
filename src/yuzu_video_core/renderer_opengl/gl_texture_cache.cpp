@@ -11,6 +11,7 @@
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_video_core/renderer_opengl/gl_device.h"
 #include "yuzu_video_core/renderer_opengl/gl_shader_manager.h"
 #include "yuzu_video_core/renderer_opengl/gl_state_tracker.h"
@@ -232,9 +233,9 @@ void ApplySwizzle(GLuint handle, PixelFormat format, std::array<SwizzleSource, 4
 [[nodiscard]] bool CanBeAccelerated(const TextureCacheRuntime& runtime,
                                     const VideoCommon::ImageInfo& info) {
     if (IsPixelFormatASTC(info.format) && info.size.depth == 1 && !runtime.HasNativeASTC()) {
-        return Settings::values.accelerate_astc.GetValue() == Settings::AstcDecodeMode::Gpu &&
-               Settings::values.astc_recompression.GetValue() ==
-                   Settings::AstcRecompression::Uncompressed;
+        return videoSettings.accelerate_astc.GetValue() == AstcDecodeMode::Gpu &&
+               videoSettings.astc_recompression.GetValue() ==
+                   AstcRecompression::Uncompressed;
     }
     // Disable other accelerated uploads for now as they don't implement swizzled uploads
     return false;
@@ -266,8 +267,7 @@ void ApplySwizzle(GLuint handle, PixelFormat format, std::array<SwizzleSource, 4
 [[nodiscard]] bool CanBeDecodedAsync(const TextureCacheRuntime& runtime,
                                      const VideoCommon::ImageInfo& info) {
     if (IsPixelFormatASTC(info.format) && !runtime.HasNativeASTC()) {
-        return Settings::values.accelerate_astc.GetValue() ==
-               Settings::AstcDecodeMode::CpuAsynchronous;
+        return videoSettings.accelerate_astc.GetValue() == AstcDecodeMode::CpuAsynchronous;
     }
     return false;
 }
@@ -440,16 +440,16 @@ OGLTexture MakeImage(const VideoCommon::ImageInfo& info, GLenum gl_internal_form
 }
 
 [[nodiscard]] bool IsAstcRecompressionEnabled() {
-    return Settings::values.astc_recompression.GetValue() !=
-           Settings::AstcRecompression::Uncompressed;
+    return videoSettings.astc_recompression.GetValue() !=
+           AstcRecompression::Uncompressed;
 }
 
 [[nodiscard]] GLenum SelectAstcFormat(PixelFormat format, bool is_srgb) {
-    switch (Settings::values.astc_recompression.GetValue()) {
-    case Settings::AstcRecompression::Bc1:
+    switch (videoSettings.astc_recompression.GetValue()) {
+    case AstcRecompression::Bc1:
         return is_srgb ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT : GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
         break;
-    case Settings::AstcRecompression::Bc3:
+    case AstcRecompression::Bc3:
         return is_srgb ? GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
         break;
     default:
@@ -463,7 +463,7 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, ProgramManager& 
                                          StagingBufferPool& staging_buffer_pool_)
     : device{device_}, state_tracker{state_tracker_}, staging_buffer_pool{staging_buffer_pool_},
       util_shaders(program_manager), format_conversion_pass{util_shaders},
-      resolution{Settings::values.resolution_info} {
+      resolution{videoSettings.resolution_info} {
     static constexpr std::array TARGETS{GL_TEXTURE_1D_ARRAY, GL_TEXTURE_2D_ARRAY, GL_TEXTURE_3D};
     for (size_t i = 0; i < TARGETS.size(); ++i) {
         const GLenum target = TARGETS[i];

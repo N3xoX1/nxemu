@@ -16,6 +16,7 @@
 #include "yuzu_common/page_table.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings_identifiers.h"
 #include "yuzu_common/swap.h"
 #include "core/core.h"
 #include "core/device_memory.h"
@@ -25,6 +26,8 @@
 #include "core/hle/kernel/k_process.h"
 #include "core/memory.h"
 #include <nxemu-module-spec/video.h>
+
+extern IModuleSettings* g_settings;
 
 namespace Core::Memory {
 
@@ -589,7 +592,7 @@ struct Memory::Impl {
         if (current_page_table->fastmem_arena)
         {
             Common::MemoryPermission perm{};
-            if (!Settings::values.use_reactive_flushing.GetValue() || !cached)
+            if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing) || !cached)
             {
                 perm |= Common::MemoryPermission::Read;
             }

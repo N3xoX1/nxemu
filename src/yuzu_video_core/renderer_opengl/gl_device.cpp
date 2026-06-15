@@ -16,6 +16,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 #include "yuzu_shader_recompiler/stage.h"
 #include "yuzu_video_core/renderer_opengl/gl_device.h"
 #include "yuzu_video_core/renderer_opengl/gl_resource_manager.h"
@@ -146,7 +147,7 @@ static bool HasSlowSoftwareAstc(std::string_view vendor_name, std::string_view r
 [[nodiscard]] bool IsDebugToolAttached(std::span<const std::string_view> extensions) {
     const bool nsight = std::getenv("NVTX_INJECTION64_PATH") || std::getenv("NSIGHT_LAUNCHED");
     return nsight || HasExtension(extensions, "GL_EXT_debug_tool") ||
-           Settings::values.renderer_debug.GetValue();
+           videoSettings.renderer_debug.GetValue();
 }
 } // Anonymous namespace
 
@@ -217,16 +218,16 @@ Device::Device(Core::Frontend::EmuWindow& emu_window) {
     // uniform buffers as "push constants"
     has_fast_buffer_sub_data = is_nvidia && !disable_fast_buffer_sub_data;
 
-    shader_backend = Settings::values.shader_backend.GetValue();
-    use_assembly_shaders = shader_backend == Settings::ShaderBackend::Glasm &&
+    shader_backend = videoSettings.shader_backend.GetValue();
+    use_assembly_shaders = shader_backend == ShaderBackend::Glasm &&
                            GLAD_GL_NV_gpu_program5 && GLAD_GL_NV_compute_program5 &&
                            GLAD_GL_NV_transform_feedback && GLAD_GL_NV_transform_feedback2;
-    if (shader_backend == Settings::ShaderBackend::Glasm && !use_assembly_shaders) {
+    if (shader_backend == ShaderBackend::Glasm && !use_assembly_shaders) {
         LOG_ERROR(Render_OpenGL, "Assembly shaders enabled but not supported");
-        shader_backend = Settings::ShaderBackend::Glsl;
+        shader_backend = ShaderBackend::Glsl;
     }
 
-    if (shader_backend == Settings::ShaderBackend::Glsl && is_nvidia) {
+    if (shader_backend == ShaderBackend::Glsl && is_nvidia) {
         const std::string_view driver_version = version.substr(13);
         const int version_major =
             std::atoi(driver_version.substr(0, driver_version.find(".")).data());
@@ -242,7 +243,7 @@ Device::Device(Core::Frontend::EmuWindow& emu_window) {
     // Blocks EGL on Wayland from using asynchronous shader compilation.
     const bool blacklist_async_shaders = (is_intel && !is_linux) || strict_context_required;
     use_asynchronous_shaders =
-        Settings::values.use_asynchronous_shaders.GetValue() && !blacklist_async_shaders;
+        videoSettings.use_asynchronous_shaders.GetValue() && !blacklist_async_shaders;
     use_driver_cache = is_nvidia;
     supports_conditional_barriers = !is_intel;
 
@@ -251,7 +252,7 @@ Device::Device(Core::Frontend::EmuWindow& emu_window) {
     LOG_INFO(Render_OpenGL, "Renderer_PreciseBug: {}", has_precise_bug);
     LOG_INFO(Render_OpenGL, "Renderer_BrokenTextureViewFormats: {}",
              has_broken_texture_view_formats);
-    if (Settings::values.use_asynchronous_shaders.GetValue() && !use_asynchronous_shaders) {
+    if (videoSettings.use_asynchronous_shaders.GetValue() && !use_asynchronous_shaders) {
         LOG_WARNING(Render_OpenGL, "Asynchronous shader compilation enabled but not supported");
     }
 }

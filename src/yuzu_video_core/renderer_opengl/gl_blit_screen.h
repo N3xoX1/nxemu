@@ -8,6 +8,7 @@
 #include <span>
 
 #include "yuzu_common/nvdata.h"
+#include "yuzu_common/settings_enums.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/renderer_opengl/gl_resource_manager.h"
 
@@ -19,10 +20,6 @@ struct PresentFilters;
 
 namespace Tegra {
 struct FramebufferConfig;
-}
-
-namespace Settings {
-enum class ScalingFilter : u32;
 }
 
 namespace OpenGL {
@@ -65,7 +62,7 @@ private:
     Device& device;
     const PresentFilters& filters;
 
-    Settings::ScalingFilter current_window_adapt{};
+    ScalingFilter current_window_adapt{};
     std::unique_ptr<WindowAdaptPass> window_adapt;
 
     std::list<Layer> layers;

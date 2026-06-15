@@ -4,6 +4,7 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/settings.h"
+#include "video_settings.h"
 
 #include "yuzu_video_core/fsr.h"
 #include "yuzu_video_core/host_shaders/vulkan_fidelityfx_fsr_easu_fp16_frag_spv.h"
@@ -189,7 +190,7 @@ VkImageView FSR::Draw(Scheduler& scheduler, size_t image_index, VkImage source_i
                      viewport_y);
 
     const float sharpening =
-        static_cast<float>(Settings::values.fsr_sharpening_slider.GetValue()) / 100.0f;
+        static_cast<float>(videoSettings.fsr_sharpening_slider.GetValue()) / 100.0f;
     FsrRcasCon(rcas_con.data(), sharpening);
 
     UploadImages(scheduler);

@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "frontend/framebuffer_layout.h"
+#include "yuzu_common/settings_enums.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/renderer_vulkan/present/layer.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
@@ -21,10 +22,6 @@ struct PresentFilters;
 namespace Tegra {
 struct FramebufferConfig;
 }
-
-namespace Settings {
-enum class ScalingFilter : u32;
-} // namespace Settings
 
 namespace Vulkan {
 
@@ -77,7 +74,7 @@ private:
     std::size_t image_index{};
     VkFormat swapchain_view_format{};
 
-    Settings::ScalingFilter scaling_filter{};
+    ScalingFilter scaling_filter{};
     std::unique_ptr<WindowAdaptPass> window_adapt{};
     std::list<Layer> layers{};
 };

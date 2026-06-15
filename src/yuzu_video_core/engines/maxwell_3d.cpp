@@ -7,6 +7,7 @@
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "nxemu-video/video_settings.h"
 #include "yuzu_video_core/dirty_flags.h"
 #include "yuzu_video_core/engines/draw_manager.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
