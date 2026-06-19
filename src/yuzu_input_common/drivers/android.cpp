@@ -35,6 +35,24 @@ Android::Android(std::string input_engine_) :
 
 Android::~Android() = default;
 
+#ifdef ANDROID
+void Android::RegisterController(jobject j_input_device)
+{
+    JNIEnv * env = GetEnvForThread();
+    const std::string guid = GetJString(env, static_cast<jstring>(env->CallObjectMethod(j_input_device, GetInputDeviceGetGUID())));
+    const size_t port = static_cast<size_t>(env->CallIntMethod(j_input_device, GetInputDeviceGetPort()));
+    const PadIdentifier identifier = GetIdentifier(guid, port);
+
+    std::unordered_map<PadIdentifier, jobject>::iterator existing = input_devices.find(identifier);
+    if (existing != input_devices.end() && existing->second != nullptr)
+    {
+        env->DeleteGlobalRef(existing->second);
+    }
+
+    input_devices[identifier] = env->NewGlobalRef(j_input_device);
+}
+#endif
+
 void Android::SetButtonState(std::string guid, size_t port, int button_id, bool value)
 {
     const auto identifier = GetIdentifier(guid, port);
@@ -333,6 +351,63 @@ ButtonNames Android::GetUIName([[maybe_unused]] const IParamPackage & params) co
     return ButtonNames::Value;
 }
 
+#ifdef ANDROID
+std::set<s32> Android::GetDeviceAxes(JNIEnv * env, jobject & j_device) const
+{
+    std::set<s32> axes;
+    jobjectArray j_axes = static_cast<jobjectArray>(env->CallObjectMethod(j_device, GetInputDeviceGetAxes()));
+    if (j_axes == nullptr)
+    {
+        return axes;
+    }
+
+    const jsize length = env->GetArrayLength(j_axes);
+    for (jsize i = 0; i < length; ++i)
+    {
+        jobject j_axis = env->GetObjectArrayElement(j_axes, i);
+        if (j_axis == nullptr)
+        {
+            continue;
+        }
+        axes.insert(GetJInteger(env, j_axis));
+        env->DeleteLocalRef(j_axis);
+    }
+    env->DeleteLocalRef(j_axes);
+    return axes;
+}
+#endif
+
+std::vector<Common::ParamPackage> Android::GetInputDevices() const
+{
+#ifdef ANDROID
+    return RunJNIOnFiber<std::vector<Common::ParamPackage>>([this](JNIEnv * env) {
+        std::vector<Common::ParamPackage> devices;
+        devices.reserve(input_devices.size());
+        for (std::unordered_map<PadIdentifier, jobject>::const_iterator it = input_devices.begin();
+             it != input_devices.end(); ++it)
+        {
+            const PadIdentifier & identifier = it->first;
+            jobject j_device = it->second;
+            if (j_device == nullptr)
+            {
+                continue;
+            }
+            const std::string name = GetJString(
+                env, static_cast<jstring>(env->CallObjectMethod(j_device, GetInputDeviceGetName())));
+            devices.emplace_back(Common::ParamPackage{
+                {"engine", GetEngineName()},
+                {"display", name},
+                {"guid", identifier.guid.RawString()},
+                {"port", std::to_string(identifier.port)},
+            });
+        }
+        return devices;
+    });
+#else
+    return {};
+#endif
+}
+
 PadIdentifier Android::GetIdentifier(const std::string & guid, size_t port) const
 {
     return {
@@ -350,7 +425,7 @@ void Android::SendVibrations(JNIEnv * env, std::stop_token token)
     if (device != input_devices.end())
     {
         float average_intensity = static_cast<float>((request.vibration.high_amplitude + request.vibration.low_amplitude) / 2.0);
-        env->CallVoidMethod(device->second, Common::Android::GetYuzuDeviceVibrate(),average_intensity);
+        env->CallVoidMethod(device->second, GetInputDeviceVibrate(),average_intensity);
     }
 }
 #endif

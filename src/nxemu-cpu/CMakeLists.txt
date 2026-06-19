@@ -433,6 +433,7 @@ target_include_directories(nxemu-cpu PRIVATE
 )
 
 target_link_libraries(nxemu-cpu PRIVATE
+    common
     fmt
     merry::mcl
     yuzu_common
