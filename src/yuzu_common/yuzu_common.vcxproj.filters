@@ -452,5 +452,8 @@
     <ClCompile Include="fs\filesystem_interfaces.cpp">
       <Filter>Source Files\fs</Filter>
     </ClCompile>
+    <ClCompile Include="fs\fs_android.cpp">
+      <Filter>Source Files\fs</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

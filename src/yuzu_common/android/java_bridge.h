@@ -14,13 +14,13 @@
 #include <jni.h>
 #include "yuzu_common/common_types.h"
 
-// Per-module Java bridge: the host sets the VM in JNI_OnLoad; each plugin receives it via
-// ModuleInterfaces.java_vm in ModuleInitialize (static yuzu_common state is per .so).
-// SetJavaVM attaches the current thread and resolves cached JNI class/method/field IDs.
-
 void SetJavaVM(JavaVM* vm);
 JavaVM* GetJavaVM();
 JNIEnv* GetEnvForThread();
+
+void SetNativeLibraryGlobalRef(jobject clazz);
+jobject GetNativeLibraryGlobalRef();
+void ClearNativeLibraryGlobalRef(JNIEnv* env);
 
 template <typename T = void>
 T RunJNIOnFiber(const std::function<T(JNIEnv*)>& work) {

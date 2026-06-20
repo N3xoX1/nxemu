@@ -9,6 +9,7 @@
 #include "yuzu_common/string_util.h"
 
 static JavaVM * s_java_vm = nullptr;
+static jobject s_native_library_global = nullptr;
 static constexpr jint k_jni_version = JNI_VERSION_1_6;
 
 namespace
@@ -99,16 +100,12 @@ void InitInputDeviceCache(JNIEnv * env)
         return;
     }
 
-    g_input_device_get_name =
-        env->GetMethodID(input_device_class, "getName", "()Ljava/lang/String;");
-    g_input_device_get_guid =
-        env->GetMethodID(input_device_class, "getGUID", "()Ljava/lang/String;");
+    g_input_device_get_name = env->GetMethodID(input_device_class, "getName", "()Ljava/lang/String;");
+    g_input_device_get_guid = env->GetMethodID(input_device_class, "getGUID", "()Ljava/lang/String;");
     g_input_device_get_port = env->GetMethodID(input_device_class, "getPort", "()I");
-    g_input_device_get_supports_vibration =
-        env->GetMethodID(input_device_class, "getSupportsVibration", "()Z");
+    g_input_device_get_supports_vibration = env->GetMethodID(input_device_class, "getSupportsVibration", "()Z");
     g_input_device_vibrate = env->GetMethodID(input_device_class, "vibrate", "(F)V");
-    g_input_device_get_axes =
-        env->GetMethodID(input_device_class, "getAxes", "()[Ljava/lang/Integer;");
+    g_input_device_get_axes = env->GetMethodID(input_device_class, "getAxes", "()[Ljava/lang/Integer;");
     g_input_device_has_keys = env->GetMethodID(input_device_class, "hasKeys", "([I)[Z");
     env->DeleteLocalRef(input_device_class);
 
@@ -136,6 +133,25 @@ void InitJniCaches(JNIEnv * env)
 JavaVM * GetJavaVM()
 {
     return s_java_vm;
+}
+
+void SetNativeLibraryGlobalRef(jobject clazz)
+{
+    s_native_library_global = clazz;
+}
+
+jobject GetNativeLibraryGlobalRef()
+{
+    return s_native_library_global;
+}
+
+void ClearNativeLibraryGlobalRef(JNIEnv* env)
+{
+    if (env != nullptr && s_native_library_global != nullptr)
+    {
+        env->DeleteGlobalRef(s_native_library_global);
+    }
+    s_native_library_global = nullptr;
 }
 
 JNIEnv * GetEnvForThread()

@@ -70,8 +70,10 @@ bool ModuleBase::Load(const char * fileName, IModuleNotification * notification,
     interfaces.logger = Common::Log::ModuleLogger();
 #ifdef ANDROID
     interfaces.java_vm = GetJavaVM();
+    interfaces.native_library_class = GetNativeLibraryGlobalRef();
 #else
     interfaces.java_vm = nullptr;
+    interfaces.native_library_class = nullptr;
 #endif
     if (ModuleInitialize(interfaces) != 0)
     {

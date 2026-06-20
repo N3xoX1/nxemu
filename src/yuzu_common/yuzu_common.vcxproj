@@ -142,6 +142,7 @@
     <ClCompile Include="fs\file.cpp" />
     <ClCompile Include="fs\filesystem_interfaces.cpp" />
     <ClCompile Include="fs\fs.cpp" />
+    <ClCompile Include="fs\fs_android.cpp" />
     <ClCompile Include="fs\fs_util.cpp" />
     <ClCompile Include="fs\path_util.cpp" />
     <ClCompile Include="heap_tracker.cpp" />

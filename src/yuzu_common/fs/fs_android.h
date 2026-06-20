@@ -3,6 +3,8 @@
 
 #pragma once
 
+#ifdef ANDROID
+
 #include <string>
 #include <vector>
 #include <jni.h>
@@ -32,6 +34,8 @@ enum class OpenMode {
 
 void RegisterCallbacks(JNIEnv* env, jclass clazz);
 
+void RegisterModuleFsCallbacks(JavaVM* vm, void* native_library_class);
+
 void UnRegisterCallbacks(JNIEnv* env);
 
 bool IsContentUri(const std::string& path);
@@ -44,3 +48,5 @@ std::string GetParentDirectory(const std::string& filepath);
 std::string GetFilename(const std::string& filepath);
 
 } // namespace Common::FS::Android
+
+#endif

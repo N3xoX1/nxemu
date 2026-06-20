@@ -26,10 +26,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x0122,
-    MODULE_VIDEO_SPECS_VERSION = 0x0119,
-    MODULE_CPU_SPECS_VERSION = 0x010F,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0117,
+    MODULE_LOADER_SPECS_VERSION = 0x0123,
+    MODULE_VIDEO_SPECS_VERSION = 0x011A,
+    MODULE_CPU_SPECS_VERSION = 0x0110,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0118,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -215,6 +215,7 @@ typedef struct
     IModuleSettings * settings;
     IModuleLogger * logger;
     void * java_vm;
+    void * native_library_class;
 } ModuleInterfaces;
 
 typedef struct

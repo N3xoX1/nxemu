@@ -8,6 +8,7 @@
 #include <yuzu_common/logging/backend.h>
 #ifdef ANDROID
 #include <yuzu_common/android/java_bridge.h>
+#include <yuzu_common/fs/fs_android.h>
 #endif
 
 std::unique_ptr<Systemloader> g_loaderManager;
@@ -59,7 +60,8 @@ int CALL ModuleInitialize(ModuleInterfaces & interfaces)
     g_settings->RegisterCallback(NXCoreSetting::LogFilter, LoggingSettingChanged, nullptr);
     SetupLoaderSetting();
 #ifdef ANDROID
-    SetJavaVM(static_cast<JavaVM*>(interfaces.java_vm));
+    SetJavaVM((JavaVM*)interfaces.java_vm);
+    Common::FS::Android::RegisterModuleFsCallbacks((JavaVM*)interfaces.java_vm, interfaces.native_library_class);
 #endif
     return 0;
 }
