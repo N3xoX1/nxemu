@@ -25,7 +25,7 @@ constexpr std::array<KAddressSpaceInfo, 13> AddressSpaceInfos{{
    { .bit_width = 36, .address = 2_GiB       , .size = 64_GiB  - 2_GiB  , .type = KAddressSpaceInfo::Type::MapLarge, },
    { .bit_width = 36, .address = Size_Invalid, .size = 8_GiB            , .type = KAddressSpaceInfo::Type::Heap,     },
    { .bit_width = 36, .address = Size_Invalid, .size = 6_GiB            , .type = KAddressSpaceInfo::Type::Alias,    },
-#ifdef HAS_NCE
+#if defined(ARCHITECTURE_arm64) || defined(__aarch64__)
    // With NCE, we use a 38-bit address space due to memory limitations. This should (safely) truncate ASLR region.
    { .bit_width = 39, .address = 128_MiB     , .size = 256_GiB - 128_MiB, .type = KAddressSpaceInfo::Type::Map39Bit, },
 #else
