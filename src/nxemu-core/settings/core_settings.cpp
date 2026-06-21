@@ -80,6 +80,10 @@ namespace
         { NXCoreSetting::DiskCacheLoadCurrent, 0 },
         { NXCoreSetting::DiskCacheLoadTotal, 0 },
         { NXCoreSetting::DiskCacheLoadTick, 0 },
+        { NXCoreSetting::GpuHookLibDir, "", nullptr, &coreSettings.gpuHookLibDir, "" },
+        { NXCoreSetting::GpuCustomDriverDir, "", nullptr, &coreSettings.gpuCustomDriverDir, "" },
+        { NXCoreSetting::GpuCustomDriverName, "", nullptr, &coreSettings.gpuCustomDriverName, "" },
+        { NXCoreSetting::GpuFileRedirectDir, "", nullptr, &coreSettings.gpuFileRedirectDir, "" },
     };
 
     void CoreSettingChanged(const char* setting, void* /*userData*/);

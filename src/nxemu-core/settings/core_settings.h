@@ -15,6 +15,10 @@ struct CoreSettings
     std::string moduleCpu;
     std::string moduleVideo;
     std::string moduleOs;
+    std::string gpuHookLibDir;
+    std::string gpuCustomDriverDir;
+    std::string gpuCustomDriverName;
+    std::string gpuFileRedirectDir;
 };
 
 extern CoreSettings coreSettings;

@@ -34,5 +34,9 @@ constexpr const char * DiskCacheLoadStage = "nxcore:DiskCacheLoadStage";
 constexpr const char * DiskCacheLoadCurrent = "nxcore:DiskCacheLoadCurrent";
 constexpr const char * DiskCacheLoadTotal = "nxcore:DiskCacheLoadTotal";
 constexpr const char * DiskCacheLoadTick = "nxcore:DiskCacheLoadTick";
+constexpr const char * GpuHookLibDir = "nxcore:GpuHookLibDir";
+constexpr const char * GpuCustomDriverDir = "nxcore:GpuCustomDriverDir";
+constexpr const char * GpuCustomDriverName = "nxcore:GpuCustomDriverName";
+constexpr const char * GpuFileRedirectDir = "nxcore:GpuFileRedirectDir";
 
 } // namespace NXCoreSetting

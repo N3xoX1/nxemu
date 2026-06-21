@@ -38,6 +38,10 @@ if(TARGET video_core)
     target_link_libraries(nxemu-video PRIVATE video_core)
 endif()
 
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    target_link_libraries(nxemu-video PRIVATE adrenotools)
+endif()
+
 if(ANDROID)
     target_link_libraries(nxemu-video PRIVATE log android)
     target_link_options(nxemu-video PRIVATE "LINKER:-Bsymbolic")
