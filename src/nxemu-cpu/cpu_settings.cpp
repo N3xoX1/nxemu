@@ -120,17 +120,14 @@ bool IsFastmemEnabled()
 void UpdateNceEnabled()
 {
     const bool has_39bit = g_settings->GetBool(NXLoaderSetting::Has39BitAddressSpace);
-    const bool is_nce =
-        g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
+    const bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
     if (is_nce && !IsFastmemEnabled())
     {
-        LOG_WARNING(Common, "Fastmem is required to natively execute code in a performant manner, "
-                            "falling back to Dynarmic");
+        LOG_WARNING(Common, "Fastmem is required to natively execute code in a performant manner, falling back to Dynarmic");
     }
     if (is_nce && !has_39bit)
     {
-        LOG_WARNING(Common,
-                    "Program does not utilize 39-bit address space, unable to natively execute code");
+        LOG_WARNING(Common, "Program does not utilize 39-bit address space, unable to natively execute code");
     }
     g_settings->SetBool(NXCpuSetting::NceEnabled, IsFastmemEnabled() && is_nce && has_39bit);
 }
