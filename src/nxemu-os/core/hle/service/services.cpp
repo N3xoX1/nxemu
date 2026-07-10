@@ -24,6 +24,7 @@
 #include "core/hle/service/hid/hid.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/lbl/lbl.h"
+#include "core/hle/service/ldn/ldn.h"
 #include "core/hle/service/ldr/ldr.h"
 #include "core/hle/service/lm/lm.h"
 #include "core/hle/service/mig/mig.h"
@@ -67,6 +68,7 @@ Services::Services(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system
     // clang-format off
     kernel.RunOnHostCoreProcess("audio",      [&] { Audio::LoopProcess(system); }).detach();
     kernel.RunOnHostCoreProcess("FS",         [&] { FileSystem::LoopProcess(system); }).detach();
+    kernel.RunOnHostCoreProcess("ldn",        [&] { LDN::LoopProcess(system); }).detach();
     kernel.RunOnHostCoreProcess("Loader",     [&] { LDR::LoopProcess(system); }).detach();
     kernel.RunOnHostCoreProcess("nvservices", [&] { Nvidia::LoopProcess(system); }).detach();
     kernel.RunOnHostCoreProcess("bsdsocket",  [&] { Sockets::LoopProcess(system); }).detach();
