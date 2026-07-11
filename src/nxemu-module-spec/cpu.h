@@ -148,6 +148,18 @@ struct CpuThreadContext
 };
 static_assert(sizeof(CpuThreadContext) == 0x320);
 
+nxinterface IPatchCollection
+{
+    virtual void PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size) = 0;
+    virtual void Relocate(int32_t patch_index, uint64_t load_base, uint8_t * program_image, uint32_t * image_size, uint32_t code_offset, uint32_t code_size, uint64_t * segment_addr, uint32_t * segment_size) = 0;
+    virtual uint32_t GetTotalPatchSize() const = 0;
+    virtual uint32_t GetPreTextSize(int32_t patch_index) const = 0;
+    virtual int32_t GetLastIndex() const = 0;
+    virtual void SaveIndex(uint32_t module_index) = 0;
+    virtual int32_t GetIndex(uint32_t module_index) const = 0;
+    virtual void Release() = 0;
+};
+
 nxinterface ICpuCore
 {
     virtual void Initialize() = 0;
@@ -176,6 +188,7 @@ nxinterface ICpu
     virtual bool Initialize(void) = 0;
 
     virtual IExclusiveMonitor * CreateExclusiveMonitor(IMemory & memory) = 0;
+    virtual IPatchCollection * CreatePatchCollection(bool is_application) = 0;
     virtual ICpuCore * CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex) = 0;
 };
 

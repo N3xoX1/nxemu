@@ -169,6 +169,7 @@
     <ClInclude Include="ir\terminal.h" />
     <ClInclude Include="ir\type.h" />
     <ClInclude Include="ir\value.h" />
+    <ClInclude Include="patch\patch_collection.h" />
     <ClInclude Include="version.h" />
   </ItemGroup>
   <ItemGroup>
@@ -367,6 +368,7 @@
     <ClCompile Include="dynarmic_cp15.cpp" />
     <ClCompile Include="exclusive_monitor_interface.cpp" />
     <ClCompile Include="nxemu-cpu.cpp" />
+    <ClCompile Include="patch\patch_collection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dynarmic\backend\x64\emit_x64_memory.cpp.inc" />

@@ -1,81 +1,28 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <cstring>
-#include "system_loader.h"
-#include "yuzu_common/logging/log.h"
-#include "loader_settings_identifiers.h"
-#include <nxemu-cpu/cpu_settings_identifiers.h>
-#include "yuzu_common/settings.h"
+#include "core/loader/deconstructed_rom_directory.h"
 #include "core/core.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/romfs_factory.h"
-#include "core/loader/deconstructed_rom_directory.h"
 #include "core/loader/nso.h"
+#include "loader_settings_identifiers.h"
+#include "system_loader.h"
+#include "yuzu_common/interface_pointer.h"
+#include "yuzu_common/interface_pointer_def.h"
+#include "yuzu_common/logging/log.h"
+#include "yuzu_common/settings.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
+#include <nxemu-module-spec/cpu.h>
 
-#ifdef HAS_NCE
-#include "core/arm/nce/patcher.h"
-#endif
-
-#ifndef HAS_NCE
-namespace Core::NCE {
-class Patcher {};
-} // namespace Core::NCE
-#endif
+using IPatchCollectionPtr = InterfacePtr<IPatchCollection>;
+template class InterfacePtr<IPatchCollection>;
 
 extern IModuleSettings * g_settings;
 
 namespace Loader {
-
-struct PatchCollection {
-    explicit PatchCollection(bool is_application_) :
-        is_application{is_application_}
-    {
-        module_patcher_indices.fill(-1);
-        patchers.emplace_back();
-    }
-
-    std::vector<Core::NCE::Patcher>* GetPatchers()
-    {
-        if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
-        {
-            return &patchers;
-        }
-        return nullptr;
-    }
-
-    size_t GetTotalPatchSize() const
-    {
-        size_t total_size{};
-#ifdef HAS_NCE
-        for (auto& patcher : patchers) {
-            total_size += patcher.GetSectionSize();
-        }
-#endif
-        return total_size;
-    }
-
-    void SaveIndex(size_t module)
-    {
-        module_patcher_indices[module] = static_cast<s32>(patchers.size() - 1);
-    }
-
-    s32 GetIndex(size_t module) const
-    {
-        return module_patcher_indices[module];
-    }
-
-    s32 GetLastIndex() const
-    {
-        return static_cast<s32>(patchers.size()) - 1;
-    }
-
-    bool is_application;
-    std::vector<Core::NCE::Patcher> patchers;
-    std::array<s32, 13> module_patcher_indices{};
-};
 
 AppLoader_DeconstructedRomDirectory::AppLoader_DeconstructedRomDirectory(FileSys::VirtualFile file_, bool override_update_) : 
     AppLoader(std::move(file_)), 
@@ -211,11 +158,9 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     const bool is_application = metadata.GetPoolPartition() == PoolPartition::Application;
     g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, is_39bit);
 
+    IPatchCollectionPtr patch_ctx(systemModules.Cpu().CreatePatchCollection(is_application));
     const std::array static_modules = {"rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};
     std::size_t code_size{};
-
-    // Define an nce patch context for each potential module.
-    PatchCollection patch_ctx{is_application};
 
     // Use the NSO module loader to figure out the code layout
     for (size_t i = 0; i < static_modules.size(); i++)
@@ -228,13 +173,17 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
         }
 
         const bool should_pass_arguments = std::strcmp(module, "rtld") == 0;
-        const auto tentative_next_load_addr = AppLoader_NSO::LoadModule(loader, systemModules, *module_file, code_size, should_pass_arguments, false, {}, patch_ctx.GetPatchers(), patch_ctx.GetLastIndex());
+        const int32_t patch_index = patch_ctx ? patch_ctx->GetLastIndex() : -1;
+        const std::optional<VAddr> tentative_next_load_addr = AppLoader_NSO::LoadModule(loader, systemModules, *module_file, code_size, should_pass_arguments, false, {}, patch_ctx.Get(), patch_index);
         if (!tentative_next_load_addr)
         {
             return {LoaderResultStatus::ErrorLoadingNSO, {}};
         }
 
-        patch_ctx.SaveIndex(i);
+        if (patch_ctx)
+        {
+            patch_ctx->SaveIndex((uint32_t)i);
+        }
         code_size = *tentative_next_load_addr;
     }
 
@@ -250,7 +199,7 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     }();
 
     // Add patch size to the total module size
-    code_size += patch_ctx.GetTotalPatchSize();
+    code_size += patch_ctx ? patch_ctx->GetTotalPatchSize() : 0;
 
     // Setup the process code layout
     IOperatingSystem & operatingSystem = systemModules.OperatingSystem();
@@ -278,7 +227,8 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
 
         const VAddr load_addr{next_load_addr};
         const bool should_pass_arguments = std::strcmp(module, "rtld") == 0;
-        const auto tentative_next_load_addr = AppLoader_NSO::LoadModule(loader, systemModules, *module_file, load_addr, should_pass_arguments, true, pm, patch_ctx.GetPatchers(), patch_ctx.GetIndex(i));
+        const int32_t patch_index = patch_ctx ? patch_ctx->GetIndex((uint32_t)i) : -1;
+        const auto tentative_next_load_addr = AppLoader_NSO::LoadModule(loader, systemModules, *module_file, load_addr, should_pass_arguments, true, pm, patch_ctx.Get(), patch_index);
         if (!tentative_next_load_addr)
         {
             return {LoaderResultStatus::ErrorLoadingNSO, {}};

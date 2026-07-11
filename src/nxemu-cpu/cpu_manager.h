@@ -12,6 +12,7 @@ public:
     //ICpu
     bool Initialize() override;
     IExclusiveMonitor * CreateExclusiveMonitor(IMemory & memory) override;
+    IPatchCollection * CreatePatchCollection(bool is_application) override;
     ICpuCore * CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex) override;
 
 private:

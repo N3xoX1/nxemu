@@ -4,6 +4,7 @@
 #include <nxemu-module-spec/base.h>
 #include "arm_dynarmic_64.h"
 #include "arm_dynarmic_32.h"
+#include "patch/patch_collection.h"
 #if defined(ARCHITECTURE_x86_64) || defined(ARCHITECTURE_arm64)
 #include "exclusive_monitor_interface.h"
 #endif
@@ -33,6 +34,11 @@ IExclusiveMonitor * CpuInterface::CreateExclusiveMonitor(IMemory & memory)
     // TODO(merry): Passthrough exclusive monitor
     return nullptr;
 #endif
+}
+
+IPatchCollection * CpuInterface::CreatePatchCollection(bool is_application)
+{
+    return new PatchCollection(m_modules, is_application);
 }
 
 ICpuCore * CpuInterface::CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex)

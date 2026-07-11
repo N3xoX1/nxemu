@@ -123,7 +123,6 @@ struct CodeSet :
         return segments[2];
     }
 
-#ifdef HAS_NCE
     Segment& PatchSegment() {
         return patch_segment;
     }
@@ -131,7 +130,6 @@ struct CodeSet :
     const Segment& PatchSegment() const {
         return patch_segment;
     }
-#endif
 
     /// The overall data that backs this code set.
     Kernel::PhysicalMemory memory;
@@ -139,9 +137,7 @@ struct CodeSet :
     /// The segments that comprise this code set.
     std::array<Segment, 3> segments;
 
-#ifdef HAS_NCE
     Segment patch_segment;
-#endif
 
     /// The entry point address for this code set.
     KProcessAddress entrypoint = 0;

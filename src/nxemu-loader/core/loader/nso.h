@@ -10,18 +10,7 @@
 #include "yuzu_common/swap.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/loader/loader.h"
-
-namespace Core {
-class System;
-}
-
-namespace Core::NCE {
-class Patcher;
-}
-
-namespace Kernel {
-class KProcess;
-}
+#include <nxemu-module-spec/cpu.h>
 
 namespace Loader {
 
@@ -90,15 +79,8 @@ public:
         return IdentifyType(file);
     }
 
-    static std::optional<VAddr> LoadModule(Systemloader & loader, ISystemModules& systemModules,
-                                           const FileSys::VfsFile& nso_file, VAddr load_base,
-                                           bool should_pass_arguments, bool load_into_process,
-                                           std::optional<FileSys::PatchManager> pm = {},
-                                           std::vector<Core::NCE::Patcher>* patches = nullptr,
-                                           s32 patch_index = -1);
-
+    static std::optional<VAddr> LoadModule(Systemloader & loader, ISystemModules& systemModules, const FileSys::VfsFile& nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm = {}, IPatchCollection * patch_collection = nullptr, int32_t patch_index = -1);
     LoadResult Load(Systemloader & loader, ISystemModules & systemModules) override;
-
     LoaderResultStatus ReadNSOModules(Modules& out_modules) override;
 
 private:

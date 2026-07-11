@@ -124,6 +124,12 @@
     <Filter Include="ir\opt">
       <UniqueIdentifier>{6398325c-1e07-4096-9bad-96f8ff57185d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\patch">
+      <UniqueIdentifier>{e6cc1998-1afe-46e4-832c-fc39c6f5b1c9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\patch">
+      <UniqueIdentifier>{4bad9da8-645f-4d85-8f79-d6f66d2dc171}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nxemu-plugin-spec\Base.h">
@@ -518,6 +524,9 @@
     </ClInclude>
     <ClInclude Include="dynarmic_cp15.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="patch\patch_collection.h">
+      <Filter>Header Files\patch</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1105,6 +1114,9 @@
     </ClCompile>
     <ClCompile Include="dynarmic_cp15.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="patch\patch_collection.cpp">
+      <Filter>Source Files\patch</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
