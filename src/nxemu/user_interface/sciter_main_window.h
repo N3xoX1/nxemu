@@ -151,6 +151,8 @@ private:
     void ResetWindowSize(uint32_t nominal_width, uint32_t nominal_height);
 #endif
     void LayoutRenderWindow();
+    void UpdateMouseCursorHiding();
+    void ResetMouseCursorHiding();
     void UpdateLoadingScreenDetails();
     void ShowPanel(Panel panel);
     void RefreshDiskCacheLoadingText();
@@ -216,4 +218,8 @@ private:
     bool m_firmwareInstallInProgress;
     bool m_firmwareInstallUiActive;
     std::thread m_firmwareInstallThread;
+    bool m_mouseCursorHidden;
+    uint64_t m_lastMouseActivityTick;
+    int32_t m_lastTrackedMouseX;
+    int32_t m_lastTrackedMouseY;
 };

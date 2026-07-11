@@ -7,5 +7,6 @@ constexpr const char * GameDirectories = "nxui:GameDirectories";
 constexpr const char * MyGameIconSize = "nxui:MyGameIconSize";
 constexpr const char * Hotkeys = "nxui:Hotkeys";
 constexpr const char * ConfirmBeforeStopping = "nxui:ConfirmBeforeStopping";
+constexpr const char * HideMouseOnInactivity = "nxui:HideMouseOnInactivity";
 
 } // namespace NXUISetting

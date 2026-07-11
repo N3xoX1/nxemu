@@ -102,6 +102,7 @@ namespace
         {nullptr, "StartGamesInFullscreen", &uiSettings.startGamesInFullscreen, false},
         {nullptr, "StartGamesWithUiHidden", &uiSettings.startGamesWithUiHidden, false},
         {NXUISetting::ConfirmBeforeStopping, "ConfirmBeforeStopping", &uiSettings.confirmBeforeStopping, true},
+        {NXUISetting::HideMouseOnInactivity, "HideInactiveMouse", &uiSettings.hideMouseOnInactivity, true},
         {NXUISetting::Hotkeys, "Hotkeys", &uiSettings.hotkeys, &g_defaultHotkeys},
     };
 
