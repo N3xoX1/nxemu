@@ -35,6 +35,7 @@ namespace
 {
 
 constexpr const char * kNxEmuDiscordUrl = "https://discord.gg/hEa4hNyFWU";
+constexpr int kDefaultMouseHideTimeoutMs = 2500;
 
 const char * RendererBackendLabel(RendererBackend backend)
 {
@@ -228,7 +229,11 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_shownFirstFrame(false),
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>()),
     m_firmwareInstallInProgress(false),
-    m_firmwareInstallUiActive(false)
+    m_firmwareInstallUiActive(false),
+    m_mouseCursorHidden(false),
+    m_lastMouseActivityTick(0),
+    m_lastTrackedMouseX(0),
+    m_lastTrackedMouseY(0)
 {
     SettingsStore & settings = SettingsStore::GetInstance();
     settings.RegisterCallback(NXCoreSetting::EmulationRunning, SciterMainWindow::EmulationRunning, this);
@@ -246,6 +251,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
     settings.RegisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
+    settings.RegisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
 
     m_useMultiCore = settings.GetBool(NXOsSetting::UseMultiCore);
     m_useSpeedLimit = settings.GetBool(NXOsSetting::UseSpeedLimit);
@@ -337,6 +343,7 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
     settings.UnregisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
+    settings.UnregisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
 
     m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
     if (m_firmwareInstallThread.joinable())
@@ -584,6 +591,7 @@ void SciterMainWindow::UpdateInputDrivers()
         IOperatingSystem & operatingSystem = m_modules.Modules().OperatingSystem();
         operatingSystem.PumpInputEvents();
     }
+    UpdateMouseCursorHiding();
 }
 
 void SciterMainWindow::CreateRenderWindow()
@@ -600,6 +608,79 @@ void SciterMainWindow::CreateRenderWindow()
     {
         IVideo & video = m_modules.Modules().Video();
         video.UpdateFramebufferLayout(rect.right - rect.left, rect.bottom - rect.top);
+    }
+}
+
+void SciterMainWindow::ResetMouseCursorHiding()
+{
+    m_mouseCursorHidden = false;
+    m_lastMouseActivityTick = 0;
+    SetCursor(LoadCursor(nullptr, IDC_ARROW));
+}
+
+void SciterMainWindow::UpdateMouseCursorHiding()
+{
+    if (!m_emulationRunning || !uiSettings.hideMouseOnInactivity)
+    {
+        if (m_mouseCursorHidden || m_lastMouseActivityTick != 0)
+        {
+            ResetMouseCursorHiding();
+        }
+        return;
+    }
+
+    HWND hwnd = (HWND)m_renderWindow;
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    POINT cursor_pos{};
+    if (!GetCursorPos(&cursor_pos))
+    {
+        return;
+    }
+
+    RECT window_rect{};
+    if (!GetWindowRect(hwnd, &window_rect))
+    {
+        return;
+    }
+
+    const bool over_render_window = PtInRect(&window_rect, cursor_pos) != 0;
+    const uint64_t now = GetTickCount64();
+
+    if (!over_render_window)
+    {
+        if (m_mouseCursorHidden)
+        {
+            ResetMouseCursorHiding();
+        }
+        return;
+    }
+
+    if (m_lastMouseActivityTick == 0 || cursor_pos.x != m_lastTrackedMouseX ||
+        cursor_pos.y != m_lastTrackedMouseY)
+    {
+        m_lastTrackedMouseX = cursor_pos.x;
+        m_lastTrackedMouseY = cursor_pos.y;
+        m_lastMouseActivityTick = now;
+        if (m_mouseCursorHidden)
+        {
+            m_mouseCursorHidden = false;
+            SetCursor(LoadCursor(nullptr, IDC_ARROW));
+        }
+        return;
+    }
+
+    if (!m_mouseCursorHidden && now - m_lastMouseActivityTick >= static_cast<uint64_t>(kDefaultMouseHideTimeoutMs))
+    {
+        m_mouseCursorHidden = true;
+    }
+
+    if (m_mouseCursorHidden)
+    {
+        SetCursor(nullptr);
     }
 }
 
@@ -627,6 +708,7 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     if (!impl->m_emulationRunning)
     {
         impl->m_hideUi = false;
+        impl->ResetMouseCursorHiding();
     }
     if (settings.GetBool(NXCoreSetting::ShuttingDown))
     {
@@ -640,6 +722,7 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
             impl->m_renderWindow = nullptr;
         }
         impl->CreateRenderWindow();
+        impl->m_lastMouseActivityTick = 0;
     }
     SciterElement renderer(impl->m_rootElement.GetElementByID("renderer"));
     if (renderer)
@@ -715,6 +798,7 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
         }
         impl->m_rootElement.PostEvent(EVENT_EMULATION_RUNNING);
         impl->ResetMenu();
+        impl->m_lastMouseActivityTick = 0;
         if (impl->m_shownFirstFrame)
         {
             impl->ShowPanel(Panel::Renderer);
@@ -1966,6 +2050,17 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
         impl->UpdateStatusWidgets();
         impl->LayoutRenderWindow();
     }
+    else if (strcmp(setting, NXUISetting::HideMouseOnInactivity) == 0)
+    {
+        if (!uiSettings.hideMouseOnInactivity)
+        {
+            impl->ResetMouseCursorHiding();
+        }
+        else
+        {
+            impl->m_lastMouseActivityTick = 0;
+        }
+    }
 }
 
 bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
@@ -2033,6 +2128,7 @@ bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/
     else if (event_code == EVENT_EMULATION_STOPPED)
     {
         m_shownFirstFrame = false;
+        ResetMouseCursorHiding();
         ShowPanel(Panel::RomBrowser);
     }
     else if (event_code == EVENT_EMULATION_FIRST_FRAME)

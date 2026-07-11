@@ -11,6 +11,7 @@ static ConfigSetting systemSettings[] = {
     ConfigSetting(ConfigSetting::ComboBox, "DockedMode", true, SystemConfig::TranslationType::DockedMode, NXOsSetting::DockedMode),
     ConfigSetting(ConfigSetting::CheckBox, "CheckForUpdatedFirmware", true, NXLoaderSetting::CheckForUpdatedFirmware),
     ConfigSetting(ConfigSetting::CheckBox, "ConfirmBeforeStopping", true, NXUISetting::ConfirmBeforeStopping),
+    ConfigSetting(ConfigSetting::CheckBox, "HideMouseOnInactivity", true, NXUISetting::HideMouseOnInactivity),
 };
 }
 

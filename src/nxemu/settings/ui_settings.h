@@ -22,6 +22,7 @@ struct UISettings
     bool startGamesInFullscreen;
     bool startGamesWithUiHidden;
     bool confirmBeforeStopping;
+    bool hideMouseOnInactivity;
     HotkeyMap hotkeys;
 };
 
