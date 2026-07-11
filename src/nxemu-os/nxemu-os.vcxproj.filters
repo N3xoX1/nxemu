@@ -520,6 +520,12 @@
     <Filter Include="Header Files\applets">
       <UniqueIdentifier>{cdc1998a-c8ce-494d-bd46-31d4803ba1c3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\core\hle\service\ldn">
+      <UniqueIdentifier>{9f33384e-cf5e-4242-93cb-a3574389a830}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service\ldn">
+      <UniqueIdentifier>{eed3ffaf-5b3a-46bd-b733-def3c30f915c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="nxemu-os.h">
@@ -2001,6 +2007,42 @@
     <ClInclude Include="core\hle\service\am\frontend\applet_web_browser.h">
       <Filter>Header Files\core\hle\service\am\frontend</Filter>
     </ClInclude>
+    <ClInclude Include="os_time_zone.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\ldn.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\monitor_service.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\ldn_types.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\sf_monitor_service.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\sf_service_monitor.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\sf_service.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\system_local_communication_service.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\user_local_communication_service.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\lan_discovery.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ldn\ldn_results.h">
+      <Filter>Header Files\core\hle\service\ldn</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in">
@@ -3339,6 +3381,33 @@
     </ClCompile>
     <ClCompile Include="core\hle\service\am\frontend\applet_software_keyboard.cpp">
       <Filter>Source Files\core\hle\service\am\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="os_time_zone.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\ldn.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\lan_discovery.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\monitor_service.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\sf_monitor_service.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\sf_service.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\sf_service_monitor.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\system_local_communication_service.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ldn\user_local_communication_service.cpp">
+      <Filter>Source Files\core\hle\service\ldn</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
