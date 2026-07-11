@@ -51,6 +51,7 @@ static const HotkeyLabelEntry kHotkeyLabels[] = {
     {Hotkey::HideUi, "Hide UI"},
     {Hotkey::PauseContinue, "Pause / Continue"},
     {Hotkey::ToggleDockedMode, "Change Docked Mode"},
+    {Hotkey::ToggleSpeedLimit, "Toggle Speed Limit"},
     {Hotkey::StopEmulation, "Stop Emulation"},
     {Hotkey::Controllers, "Controllers..."},
     {Hotkey::Configure, "Configure..."},

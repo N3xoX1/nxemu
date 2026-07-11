@@ -22,6 +22,11 @@
         <div class="left"><label for="DockedMode">Docked Mode:</label></div>
         <div class="right"><ComboBox id="DockedMode" tooltip="Selects if the console is in Docked or Handheld mode. Games will change resolution and performance settings. Setting to Handheld can help improve performance on low-end systems." /></div>
       </div>
+      <div class="group-title">Emulation Speed</div>
+      <div class="form-row slider-row">
+        <div class="left"><label for="SpeedLimit">Speed Limit:</label></div>
+        <div class="right"><input type="hslider" min="1" max="400" value="100" id="SpeedLimit" style="width: 19em" tooltip="Emulation speed as a percentage of native speed when Limit Speed is enabled. 100% is normal game speed. Unlocking FPS for the current session is done from System → Limit Speed or its hotkey." /><span id="SpeedLimitDisplay">100%</span></div>
+      </div>
       <div class="group-title">Firmware</div>
       <div class="form-row checkbox-row">
         <div class="left"><label for="CheckForUpdatedFirmware">Check for updated firmware</label></div>

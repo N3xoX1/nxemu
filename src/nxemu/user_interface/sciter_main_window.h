@@ -50,6 +50,7 @@ class SciterMainWindow :
         ToggleStartGamesWithUiHidden,
         ToggleHideUi,
         ToggleDockedMode,
+        ToggleSpeedLimit,
         ResetWindowSize720p,
         ResetWindowSize900p,
         ResetWindowSize1080p,
@@ -126,6 +127,7 @@ private:
     void FinishFirmwareInstall();
     void OnRecetGame(uint32_t fileIndex);
     void OnToggleDockedMode();
+    void OnToggleSpeedLimit();
     void OnToggleStartGamesInFullscreen();
     void OnToggleStartGamesWithUiHidden();
     void OnAbout();

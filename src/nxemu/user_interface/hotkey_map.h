@@ -14,6 +14,7 @@ constexpr const char ExitFullscreen[] = "ExitFullscreen";
 constexpr const char HideUi[] = "HideUi";
 constexpr const char PauseContinue[] = "PauseContinue";
 constexpr const char ToggleDockedMode[] = "ToggleDockedMode";
+constexpr const char ToggleSpeedLimit[] = "ToggleSpeedLimit";
 constexpr const char StopEmulation[] = "StopEmulation";
 constexpr const char Configure[] = "Configure";
 constexpr const char Controllers[] = "Controllers";

@@ -255,7 +255,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
 
     m_useMultiCore = settings.GetBool(NXOsSetting::UseMultiCore);
     m_useSpeedLimit = settings.GetBool(NXOsSetting::UseSpeedLimit);
-    m_speedLimit = settings.GetBool(NXOsSetting::SpeedLimit);
+    m_speedLimit = settings.GetInt(NXOsSetting::SpeedLimit);
     m_resolutionUpFactor = settings.GetFloat(NXVideoSetting::ResolutionUpFactor);
 }
 
@@ -416,6 +416,8 @@ void SciterMainWindow::ResetMenu()
         }
         systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::PauseOrContinueEmulation), paused ? "Continue" : "Pause", nullptr, HotkeyAccelerator(Hotkey::PauseContinue), MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::PauseOrContinueEmulation)));
         systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::StopEmulation), "&Stop", nullptr, HotkeyAccelerator(Hotkey::StopEmulation), MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::StopEmulation)));
+        systemMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
+        systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ToggleSpeedLimit), "Limit &Speed", nullptr, HotkeyAccelerator(Hotkey::ToggleSpeedLimit), m_useSpeedLimit ? MenuBarItem::CheckState::Checked : MenuBarItem::CheckState::Unchecked));
         mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&System", &systemMenu));
     }
 
@@ -1404,6 +1406,10 @@ SciterMainWindow::GuiAction SciterMainWindow::HotkeyToGuiAction(const char * hot
     {
         return GuiAction::ToggleDockedMode;
     }
+    if (strcmp(hotkeyId, Hotkey::ToggleSpeedLimit) == 0)
+    {
+        return GuiAction::ToggleSpeedLimit;
+    }
     if (strcmp(hotkeyId, Hotkey::StopEmulation) == 0)
     {
         return GuiAction::StopEmulation;
@@ -1428,6 +1434,12 @@ void SciterMainWindow::OnToggleDockedMode()
     SettingsStore & store = SettingsStore::GetInstance();
     const bool docked = store.GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     store.SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(docked ? DockedMode::Handheld : DockedMode::Docked));
+}
+
+void SciterMainWindow::OnToggleSpeedLimit()
+{
+    SettingsStore & store = SettingsStore::GetInstance();
+    store.SetBool(NXOsSetting::UseSpeedLimit, !store.GetBool(NXOsSetting::UseSpeedLimit));
 }
 
 void SciterMainWindow::OnToggleStartGamesInFullscreen()
@@ -1537,6 +1549,9 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         break;
     case GuiAction::ToggleDockedMode:
         OnToggleDockedMode();
+        break;
+    case GuiAction::ToggleSpeedLimit:
+        OnToggleSpeedLimit();
         break;
     case GuiAction::ResetWindowSize720p:
         ResetWindowSize(1280U, 720U);
@@ -2040,6 +2055,10 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
     else if (strcmp(setting, NXOsSetting::UseSpeedLimit) == 0)
     {
         impl->m_useSpeedLimit = SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit);
+        if (impl->m_emulationRunning)
+        {
+            impl->ResetMenu();
+        }
     }
     else if (strcmp(setting, NXOsSetting::SpeedLimit) == 0)
     {

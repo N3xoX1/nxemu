@@ -7,6 +7,7 @@
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/perf_stats.h"
 #include "os_settings.h"
+#include "os_settings_identifiers.h"
 #include "yuzu_audio_core/sink/sink_details.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_hid_core/frontend/emulated_controller.h"
@@ -109,14 +110,15 @@ OSManager::~OSManager()
 
 void OSManager::EmulationStarting()
 {
+    g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
+
     m_emuThread = std::make_unique<EmuThread>(m_coreSystem, m_process);
     m_emuThread->Start();
 }
 
 void OSManager::EmulationStopping(bool wait)
 {
-    // Disable unlimited frame rate
-    osSettings.use_speed_limit = true;
+    g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
 
     if (m_emuThread)
     {
