@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "applets/controller.h"
 #include "core/core.h"
 #include "core/hle/result.h"
 #include "core/hle/service/am/am.h"
@@ -12,6 +13,8 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/string_util.h"
 #include "yuzu_common/yuzu_assert.h"
+#include "yuzu_hid_core/hid_core.h"
+#include "yuzu_hid_core/hid_types.h"
 
 namespace Service::AM::Frontend
 {
@@ -19,6 +22,43 @@ namespace Service::AM::Frontend
 [[maybe_unused]] constexpr Result ResultControllerSupportCanceled{ErrorModule::HID, 3101};
 [[maybe_unused]] constexpr Result ResultControllerSupportNotSupportedNpadStyle{ErrorModule::HID,
                                                                                3102};
+
+static ControllerHostParameters ConvertToFrontendParameters(
+    ControllerSupportArgPrivate private_arg, ControllerSupportArgHeader header, bool enable_text,
+    std::vector<IdentificationColor> identification_colors, std::vector<ExplainText> text)
+{
+    Core::HID::NpadStyleTag npad_style_set;
+    npad_style_set.raw = private_arg.style_set;
+
+    ControllerHostParameters params{};
+    params.min_players = std::max(s8{1}, header.player_count_min);
+    params.max_players = header.player_count_max;
+    params.keep_controllers_connected = header.enable_take_over_connection;
+    params.enable_single_mode = header.enable_single_mode;
+    params.enable_border_color = header.enable_identification_color;
+    params.enable_explain_text = enable_text;
+    params.allow_pro_controller = npad_style_set.fullkey == 1;
+    params.allow_handheld = npad_style_set.handheld == 1;
+    params.allow_dual_joycons = npad_style_set.joycon_dual == 1;
+    params.allow_left_joycon = npad_style_set.joycon_left == 1;
+    params.allow_right_joycon = npad_style_set.joycon_right == 1;
+    params.allow_gamecube_controller = false;
+    params.border_color_count = (uint32_t)(std::min(identification_colors.size(), std::size(params.border_colors)));
+    for (uint32_t i = 0; i < params.border_color_count; i++)
+    {
+        params.border_colors[i][0] = identification_colors[i][0];
+        params.border_colors[i][1] = identification_colors[i][1];
+        params.border_colors[i][2] = identification_colors[i][2];
+        params.border_colors[i][3] = identification_colors[i][3];
+    }
+
+    params.explain_text_count = (uint32_t)(std::min(text.size(), std::size(params.explain_text)));
+    for (uint32_t i = 0; i < params.explain_text_count; i++)
+    {
+        std::memcpy(params.explain_text[i], text[i].data(), std::min(sizeof(params.explain_text[i]), text[i].size()));
+    }
+    return params;
+}
 
 Controller::Controller(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IControllerFrontendApplet & frontend_) :
     FrontendApplet{system_, applet_, applet_mode_},
@@ -157,17 +197,104 @@ void Controller::ExecuteInteractive()
 
 void Controller::Execute()
 {
-    if (complete)
+    switch (controller_private_arg.mode)
     {
-        return;
+    case ControllerSupportMode::ShowControllerSupport:
+    {
+        const ControllerHostParameters parameters = [this] {
+            switch (controller_applet_version)
+            {
+            case ControllerAppletVersion::Version3:
+            case ControllerAppletVersion::Version4:
+            case ControllerAppletVersion::Version5:
+                return ConvertToFrontendParameters(
+                    controller_private_arg, controller_user_arg_old.header,
+                    controller_user_arg_old.enable_explain_text,
+                    std::vector<IdentificationColor>(
+                        controller_user_arg_old.identification_colors.begin(),
+                        controller_user_arg_old.identification_colors.end()),
+                    std::vector<ExplainText>(controller_user_arg_old.explain_text.begin(),
+                                             controller_user_arg_old.explain_text.end()));
+            case ControllerAppletVersion::Version7:
+            case ControllerAppletVersion::Version8:
+            default:
+                return ConvertToFrontendParameters(
+                    controller_private_arg, controller_user_arg_new.header,
+                    controller_user_arg_new.enable_explain_text,
+                    std::vector<IdentificationColor>(
+                        controller_user_arg_new.identification_colors.begin(),
+                        controller_user_arg_new.identification_colors.end()),
+                    std::vector<ExplainText>(controller_user_arg_new.explain_text.begin(),
+                                             controller_user_arg_new.explain_text.end()));
+            }
+        }();
+
+        is_single_mode = parameters.enable_single_mode;
+
+        LOG_DEBUG(Service_HID,
+                  "Controller Parameters: min_players={}, max_players={}, "
+                  "keep_controllers_connected={}, enable_single_mode={}, enable_border_color={}, "
+                  "enable_explain_text={}, allow_pro_controller={}, allow_handheld={}, "
+                  "allow_dual_joycons={}, allow_left_joycon={}, allow_right_joycon={}",
+                  parameters.min_players, parameters.max_players,
+                  parameters.keep_controllers_connected, parameters.enable_single_mode,
+                  parameters.enable_border_color, parameters.enable_explain_text,
+                  parameters.allow_pro_controller, parameters.allow_handheld,
+                  parameters.allow_dual_joycons, parameters.allow_left_joycon,
+                  parameters.allow_right_joycon);
+
+        frontend.ReconfigureControllers(this, OnConfigurationComplete, &parameters);
+        break;
     }
-    UNIMPLEMENTED();
+    case ControllerSupportMode::ShowControllerStrapGuide:
+    case ControllerSupportMode::ShowControllerFirmwareUpdate:
+    case ControllerSupportMode::ShowControllerKeyRemappingForSystem:
+        UNIMPLEMENTED_MSG("ControllerSupportMode={} is not implemented",
+                          controller_private_arg.mode);
+        ConfigurationComplete(true);
+        break;
+    default:
+    {
+        ConfigurationComplete(true);
+        break;
+    }
+    }
+}
+
+void Controller::ConfigurationComplete(bool is_success)
+{
+    ControllerSupportResultInfo result_info{};
+
+    // If enable_single_mode is enabled, player_count is 1 regardless of any other parameters.
+    // Otherwise, only count connected players from P1-P8.
+    result_info.player_count = is_single_mode ? 1 : system.HIDCore().GetPlayerCount();
+
+    result_info.selected_id = static_cast<u32>(system.HIDCore().GetFirstNpadId());
+
+    result_info.result =
+        is_success ? ControllerSupportResult::Success : ControllerSupportResult::Cancel;
+
+    LOG_DEBUG(Service_HID, "Result Info: player_count={}, selected_id={}, result={}",
+              result_info.player_count, result_info.selected_id, result_info.result);
+
+    complete = true;
+    out_data = std::vector<u8>(sizeof(ControllerSupportResultInfo));
+    std::memcpy(out_data.data(), &result_info, out_data.size());
+
+    PushOutData(std::make_shared<IStorage>(system, std::move(out_data)));
+    Exit();
 }
 
 Result Controller::RequestExit()
 {
     UNIMPLEMENTED();
     R_SUCCEED();
+}
+
+void Controller::OnConfigurationComplete(void * user_data, bool is_success)
+{
+    Controller * _this = (Controller *)user_data;
+    _this->ConfigurationComplete(is_success);
 }
 
 } // namespace Service::AM::Frontend

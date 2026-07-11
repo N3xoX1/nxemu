@@ -15,10 +15,6 @@ namespace Core {
 class System;
 }
 
-namespace Core::HID {
-enum class NpadStyleSet : u32;
-}
-
 namespace Service::AM::Frontend {
 
 using IdentificationColor = std::array<u8, 4>;
@@ -135,7 +131,11 @@ public:
     void Execute() override;
     Result RequestExit() override;
 
+    void ConfigurationComplete(bool is_success);
+
 private:
+    static void OnConfigurationComplete(void * user_data, bool is_success);
+
     [[maybe_unused]] IControllerFrontendApplet & frontend;
     ControllerAppletVersion controller_applet_version;
     ControllerSupportArgPrivate controller_private_arg;
