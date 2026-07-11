@@ -19,6 +19,7 @@ namespace
         {Hotkey::HideUi, {.key = (uint32_t)SCITER_KEY_F4}},
         {Hotkey::PauseContinue, {.key = (uint32_t)SCITER_KEY_F2}},
         {Hotkey::ToggleDockedMode, {.key = (uint32_t)SCITER_KEY_F10}},
+        {Hotkey::ToggleSpeedLimit, {.key = (uint32_t)SCITER_KEY_U, .ctrl = true}},
         {Hotkey::StopEmulation, {.key = (uint32_t)SCITER_KEY_F5}},
         {Hotkey::Controllers, {.key = (uint32_t)SCITER_KEY_C, .ctrl = true}},
         {Hotkey::Configure, {.key = (uint32_t)SCITER_KEY_T, .ctrl = true}},

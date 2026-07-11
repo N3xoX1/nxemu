@@ -480,7 +480,7 @@ static OsSetting settings[] = {
         {NXOsSetting::AudioMuted, "audio\\muted", &osSettings.audio_muted, false},
         {NXOsSetting::SpeedLimit, "system\\speed_limit", &osSettings.speed_limit, 100, 0, 9999},
         {NXOsSetting::UseMultiCore, "system\\use_multi_core", &osSettings.use_multi_core, true},
-        {NXOsSetting::UseSpeedLimit, "system\\use_speed_limit", &osSettings.use_speed_limit, true},
+        {NXOsSetting::UseSpeedLimit, nullptr, &osSettings.use_speed_limit, true},
         {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
         {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Language::EnglishAmerican},
         {NXOsSetting::CurrentUser, "system\\current_user", &osSettings.current_user, 0},
@@ -701,6 +701,10 @@ void SetupOsSetting(void)
     {
         for (const OsSetting & osSetting : settings)
         {
+            if (osSetting.json_path == nullptr)
+            {
+                continue;
+            }
             JsonValue value = JsonGetNestedValue(root, osSetting.json_path);
             switch (osSetting.settingType)
             {
@@ -882,6 +886,10 @@ void SaveOsSettings(void)
 
     for (const OsSetting & osSetting : settings)
     {
+        if (osSetting.json_path == nullptr)
+        {
+            continue;
+        }
         switch (osSetting.settingType)
         {
         case SettingType::Boolean:
