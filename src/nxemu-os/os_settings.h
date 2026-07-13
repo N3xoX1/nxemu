@@ -104,4 +104,5 @@ struct OSSettings
 extern OSSettings osSettings;
 
 void SetupOsSetting(void);
+void CleanupOsSetting(void);
 void SaveOsSettings(void);

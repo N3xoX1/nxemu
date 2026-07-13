@@ -94,4 +94,5 @@ struct VideoSettings
 extern VideoSettings videoSettings;
 
 void SetupVideoSetting(void);
+void CleanupVideoSetting(void);
 void SaveVideoSettings(void);

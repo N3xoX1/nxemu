@@ -74,6 +74,13 @@ Output: None
 */
 void CALL ModuleCleanup()
 {
+    if (g_settings != nullptr)
+    {
+        g_settings->UnregisterCallback(NXCoreSetting::LogFilter, LoggingSettingChanged, nullptr);
+        CleanupLoaderSetting();
+    }
+    g_settings = nullptr;
+    g_notify = nullptr;
 }
 
 /*

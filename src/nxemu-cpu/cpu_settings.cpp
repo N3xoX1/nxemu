@@ -267,6 +267,15 @@ void SetupCpuSetting(void)
     UpdateNceEnabled();
 }
 
+void CleanupCpuSetting(void)
+{
+    for (const CpuSetting & cpuSetting : settings)
+    {
+        g_settings->UnregisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
+    }
+    g_settings->UnregisterCallback(NXLoaderSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
+}
+
 void SaveCpuSettings(void)
 {
     typedef std::map<std::string, JsonValue> SectionMap;
