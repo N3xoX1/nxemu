@@ -880,6 +880,18 @@ void SetupOsSetting(void)
     }
 }
 
+void CleanupOsSetting(void)
+{
+    for (const OsSetting & osSetting : settings)
+    {
+        if (osSetting.identifier == nullptr)
+        {
+            continue;
+        }
+        g_settings->UnregisterCallback(osSetting.identifier, OsSettingChanged, nullptr);
+    }
+}
+
 void SaveOsSettings(void)
 {
     JsonValue root;

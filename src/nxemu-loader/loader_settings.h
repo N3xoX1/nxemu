@@ -8,4 +8,5 @@ struct LoaderSettings
 extern LoaderSettings loaderSettings;
 
 void SetupLoaderSetting(void);
+void CleanupLoaderSetting(void);
 void SaveLoaderSettings(void);
