@@ -203,7 +203,45 @@ void nvhost_as_gpu::FreeMappingLocked(u64 offset)
 
 NvResult nvhost_as_gpu::FreeSpace(IoctlFreeSpace& params)
 {
-    UNIMPLEMENTED();
+    LOG_DEBUG(Service_NVDRV, "called, offset={:X}, pages={:X}, page_size={:X}", params.offset, params.pages, params.page_size);
+
+    std::scoped_lock lock(mutex);
+
+    if (!vm.initialised)
+    {
+        return NvResult::BadValue;
+    }
+
+    try
+    {
+        auto allocation{allocation_map[params.offset]};
+
+        if (allocation.page_size != params.page_size || allocation.size != (static_cast<u64>(params.pages) * params.page_size))
+        {
+            return NvResult::BadValue;
+        }
+
+        for (const auto & mapping : allocation.mappings)
+        {
+            FreeMappingLocked(mapping->offset);
+        }
+
+        // Unset sparse flag if required
+        if (allocation.sparse)
+        {
+            system.GetVideo().Unmap(gmmu, params.offset, allocation.size);
+        }
+
+        auto & allocator{params.page_size == VM::YUZU_PAGESIZE ? *vm.small_page_allocator : *vm.big_page_allocator};
+        u32 page_size_bits{params.page_size == VM::YUZU_PAGESIZE ? VM::PAGE_SIZE_BITS : vm.big_page_size_bits};
+
+        allocator.Free(static_cast<u32>(params.offset >> page_size_bits), static_cast<u32>(allocation.size >> page_size_bits));
+        allocation_map.erase(params.offset);
+    }
+    catch (const std::out_of_range &)
+    {
+        return NvResult::BadValue;
+    }
     return NvResult::Success;
 }
 
