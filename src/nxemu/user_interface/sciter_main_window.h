@@ -1,6 +1,7 @@
 #pragma once
 #include "applets/web_browser.h"
 #include "startup_checks.h"
+#include "user_interface/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
 #include <map>
 #include <memory>
@@ -155,6 +156,7 @@ private:
     void LayoutRenderWindow();
     void UpdateMouseCursorHiding();
     void ResetMouseCursorHiding();
+    void UpdateDiscordPresence();
     void UpdateLoadingScreenDetails();
     void ShowPanel(Panel panel);
     void RefreshDiskCacheLoadingText();
@@ -224,4 +226,5 @@ private:
     uint64_t m_lastMouseActivityTick;
     int32_t m_lastTrackedMouseX;
     int32_t m_lastTrackedMouseY;
+    DiscordPresence m_discordPresence;
 };

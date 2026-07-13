@@ -14,6 +14,7 @@ static ConfigSetting systemSettings[] = {
     ConfigSetting(ConfigSetting::CheckBox, "CheckForUpdatedFirmware", true, NXLoaderSetting::CheckForUpdatedFirmware),
     ConfigSetting(ConfigSetting::CheckBox, "ConfirmBeforeStopping", true, NXUISetting::ConfirmBeforeStopping),
     ConfigSetting(ConfigSetting::CheckBox, "HideMouseOnInactivity", true, NXUISetting::HideMouseOnInactivity),
+    ConfigSetting(ConfigSetting::CheckBox, "EnableDiscordPresence", true, NXUISetting::EnableDiscordPresence),
 };
 }
 
