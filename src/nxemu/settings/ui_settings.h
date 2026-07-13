@@ -23,6 +23,7 @@ struct UISettings
     bool startGamesWithUiHidden;
     bool confirmBeforeStopping;
     bool hideMouseOnInactivity;
+    bool enableDiscordPresence;
     HotkeyMap hotkeys;
 };
 
