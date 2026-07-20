@@ -8,6 +8,7 @@ Dynarmic::HaltReason TranslateDynarmicHaltReason(CpuHaltReason hr)
     switch (hr)
     {
     case CpuHaltReason::StepThread: return Dynarmic::HaltReason::Step;
+    case CpuHaltReason::CacheInvalidation: return Dynarmic::HaltReason::CacheInvalidation;
     case CpuHaltReason::DataAbort: return Dynarmic::HaltReason::MemoryAbort;
     case CpuHaltReason::BreakLoop: return Dynarmic::HaltReason::UserDefined2;
     case CpuHaltReason::SupervisorCall: return Dynarmic::HaltReason::UserDefined3;
@@ -25,6 +26,7 @@ CpuHaltReason TranslateHaltReason(Dynarmic::HaltReason hr)
     switch (hr)
     {
     case Dynarmic::HaltReason::Step: return CpuHaltReason::StepThread;
+    case Dynarmic::HaltReason::CacheInvalidation: return CpuHaltReason::CacheInvalidation;
     case Dynarmic::HaltReason::MemoryAbort: return CpuHaltReason::DataAbort;
     case Dynarmic::HaltReason::UserDefined2: return CpuHaltReason::BreakLoop;
     case Dynarmic::HaltReason::UserDefined3: return CpuHaltReason::SupervisorCall;

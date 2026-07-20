@@ -136,9 +136,28 @@ public:
         g_notify->BreakPoint(__FILE__, __LINE__);
     }
 
-    void InstructionCacheOperationRaised(Dynarmic::A64::InstructionCacheOperation /*op*/, uint64_t /*value*/) override
+    void InstructionCacheOperationRaised(Dynarmic::A64::InstructionCacheOperation op, uint64_t value) override
     {
-        g_notify->BreakPoint(__FILE__, __LINE__);
+        switch (op)
+        {
+        case Dynarmic::A64::InstructionCacheOperation::InvalidateByVAToPoU:
+        {
+            static constexpr u64 ICACHE_LINE_SIZE = 64;
+
+            const u64 cache_line_start = value & ~(ICACHE_LINE_SIZE - 1);
+            m_parent.InvalidateCacheRange(cache_line_start, ICACHE_LINE_SIZE);
+            break;
+        }
+        case Dynarmic::A64::InstructionCacheOperation::InvalidateAllToPoU:
+            m_parent.ClearInstructionCache();
+            break;
+        case Dynarmic::A64::InstructionCacheOperation::InvalidateAllToPoUInnerSharable:
+        default:
+            LOG_DEBUG(Core_ARM, "Unprocesseed instruction cache operation: {}", op);
+            break;
+        }
+
+        m_parent.m_jit->HaltExecution(Dynarmic::HaltReason::CacheInvalidation);
     }
 
     void ExceptionRaised(uint64_t pc, Dynarmic::A64::Exception exception) override
@@ -513,6 +532,11 @@ void ArmDynarmic64::SetWatchpointArray(const CpuDebugWatchpoint * watchpoints, u
 void ArmDynarmic64::SignalInterrupt(IKernelThread * /*thread*/)
 {
     m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::BreakLoop));
+}
+
+void ArmDynarmic64::ClearInstructionCache()
+{
+    m_jit->ClearCache();
 }
 
 void ArmDynarmic64::InvalidateCacheRange(uint64_t addr, uint64_t size)
