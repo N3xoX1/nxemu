@@ -25,7 +25,7 @@ std::pair<Id, Id> AtomicArgs(EmitContext& ctx) {
 
 Id ImageAtomicU32(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords, Id value,
                   Id (Sirit::Module::*atomic_func)(Id, Id, Id, Id, Id)) {
-    if (!index.IsImmediate() || index.U32() != 0) {
+    if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
         // TODO: handle layers
         throw NotImplementedException("Image indexing");
     }

@@ -144,7 +144,28 @@ void SetupLoaderSetting(void)
         default:
             UNIMPLEMENTED();
         }
+    }
+
+    CleanupLoaderSetting();
+    for (const LoaderSetting & loaderSetting : settings)
+    {
+        if (loaderSetting.identifier == nullptr)
+        {
+            continue;
+        }
         g_settings->RegisterCallback(loaderSetting.identifier, LoaderSettingChanged, nullptr);
+    }
+}
+
+void CleanupLoaderSetting(void)
+{
+    for (const LoaderSetting & loaderSetting : settings)
+    {
+        if (loaderSetting.identifier == nullptr)
+        {
+            continue;
+        }
+        g_settings->UnregisterCallback(loaderSetting.identifier, LoaderSettingChanged, nullptr);
     }
 }
 

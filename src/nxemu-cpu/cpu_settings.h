@@ -34,4 +34,5 @@ extern CpuSettings cpuSettings;
 bool IsFastmemEnabled(void);
 
 void SetupCpuSetting(void);
+void CleanupCpuSetting(void);
 void SaveCpuSettings(void);

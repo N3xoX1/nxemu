@@ -76,6 +76,13 @@ void CALL ModuleCleanup()
     {
         g_osManager->ShutdownMainProcess();
     }
+    if (g_settings != nullptr)
+    {
+        g_settings->UnregisterCallback(NXCoreSetting::LogFilter, LoggingSettingChanged, nullptr);
+        CleanupOsSetting();
+    }
+    g_settings = nullptr;
+    g_notify = nullptr;
 }
 
 /*
@@ -129,6 +136,7 @@ void CALL DestroyOperatingSystem(IOperatingSystem * operatingSystem)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return;
     }
+    CleanupOsSetting();
     g_osManager = nullptr;
 }
 

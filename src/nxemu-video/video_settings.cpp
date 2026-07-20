@@ -579,6 +579,14 @@ void SetupVideoSetting(void)
     Settings::UpdateGPUAccuracy();
 }
 
+void CleanupVideoSetting(void)
+{
+    for (const VideoSetting & videoSetting : settings)
+    {
+        g_settings->UnregisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
+    }
+}
+
 void SaveVideoSettings(void)
 {
     typedef std::map<std::string, JsonValue> SectionMap;

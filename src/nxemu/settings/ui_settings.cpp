@@ -104,6 +104,7 @@ namespace
         {nullptr, "StartGamesWithUiHidden", &uiSettings.startGamesWithUiHidden, false},
         {NXUISetting::ConfirmBeforeStopping, "ConfirmBeforeStopping", &uiSettings.confirmBeforeStopping, true},
         {NXUISetting::HideMouseOnInactivity, "HideInactiveMouse", &uiSettings.hideMouseOnInactivity, true},
+        {NXUISetting::EnableDiscordPresence, "EnableDiscordPresence", &uiSettings.enableDiscordPresence, true},
         {NXUISetting::Hotkeys, "Hotkeys", &uiSettings.hotkeys, &g_defaultHotkeys},
     };
 

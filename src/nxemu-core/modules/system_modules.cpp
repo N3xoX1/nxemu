@@ -208,10 +208,6 @@ void SystemModules::ShutDown()
         return;
     }
     impl->StopEmulation(true);
-    for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
-    {
-        (*itr)->ModuleCleanup();
-    }
     impl->baseModules.clear();
     if (impl->cpu != nullptr && impl->cpuModule.get() != nullptr)
     {
@@ -232,6 +228,10 @@ void SystemModules::ShutDown()
     {
         impl->loaderModule->DestroySystemLoader(impl->systemLoader);
         impl->systemLoader = nullptr;
+    }
+    for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
+    {
+        (*itr)->ModuleCleanup();
     }
     impl = nullptr;
 }

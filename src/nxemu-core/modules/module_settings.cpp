@@ -84,18 +84,12 @@ void ModuleSettings::SetSectionSettings(const char * section, const std::string 
     settings.Save();
 }
 
-void ModuleSettings::RegisterCallback(const char* setting, SettingChangeCallback callback, void * userData)
+void ModuleSettings::RegisterCallback(const char * setting, SettingChangeCallback callback, void * userData)
 {
     SettingsStore::GetInstance().RegisterCallback(setting, callback, userData);
 }
 
-void ModuleSettings::UnregisterCallback(const char* setting, SettingChangeCallback callback, void* userData)
+void ModuleSettings::UnregisterCallback(const char * setting, SettingChangeCallback callback, void * userData)
 {
-#ifdef _WIN32
-    __debugbreak();
-#else
-    (void)setting;
-    (void)callback;
-    (void)userData;
-#endif
+    SettingsStore::GetInstance().UnregisterCallback(setting, callback, userData);
 }

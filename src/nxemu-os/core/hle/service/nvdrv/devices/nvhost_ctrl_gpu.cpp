@@ -71,6 +71,9 @@ NvResult nvhost_ctrl_gpu::Ioctl3(DeviceFD fd, Ioctl command, std::span<const u8>
         case 0x6:
             return WrapFixedInlOut(this, &nvhost_ctrl_gpu::GetTPCMasks3, input, output,
                                    inline_output);
+        case 0x13:
+            LOG_DEBUG(Service_NVDRV, "(STUBBED) called.");
+            return NvResult::NotImplemented;
         default:
             break;
         }

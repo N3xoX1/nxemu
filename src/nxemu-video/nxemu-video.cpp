@@ -72,6 +72,13 @@ Output: None
 */
 void CALL ModuleCleanup()
 {
+    if (g_settings != nullptr)
+    {
+        g_settings->UnregisterCallback(NXCoreSetting::LogFilter, LoggingSettingChanged, nullptr);
+        CleanupVideoSetting();
+    }
+    g_settings = nullptr;
+    g_notify = nullptr;
 }
 
 /*
@@ -131,6 +138,7 @@ void CALL DestroyVideo(IVideo * video)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return;
     }
+    CleanupVideoSetting();
     g_videoManager = nullptr;
 }
 

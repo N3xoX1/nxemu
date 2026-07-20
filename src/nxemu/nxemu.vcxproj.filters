@@ -126,6 +126,9 @@
     <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
+    <ClCompile Include="user_interface\discord_presence.cpp">
+      <Filter>Source Files\user_interface</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="user_interface\resource.h">
@@ -217,6 +220,9 @@
     </ClInclude>
     <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h">
       <Filter>Header Files\user_interface\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\discord_presence.h">
+      <Filter>Header Files\user_interface</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

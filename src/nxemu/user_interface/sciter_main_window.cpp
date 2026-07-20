@@ -214,6 +214,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
     settings.RegisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
+    settings.RegisterCallback(NXUISetting::EnableDiscordPresence, SciterMainWindow::SettingChanged, this);
 
     m_useMultiCore = settings.GetBool(NXOsSetting::UseMultiCore);
     m_useSpeedLimit = settings.GetBool(NXOsSetting::UseSpeedLimit);
@@ -306,6 +307,7 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
     settings.UnregisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
+    settings.UnregisterCallback(NXUISetting::EnableDiscordPresence, SciterMainWindow::SettingChanged, this);
 
     m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
     if (m_firmwareInstallThread.joinable())
@@ -472,6 +474,8 @@ bool SciterMainWindow::Show()
     ResetMenu();
     UpdateStatusWidgets();
     UpdateEmulationStatusText();
+    m_discordPresence.SetEnabled(uiSettings.enableDiscordPresence);
+    UpdateDiscordPresence();
 
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("dockedMode"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("renderer"), IID_ICLICKSINK, (IClickSink *)this);
@@ -580,6 +584,12 @@ void SciterMainWindow::ResetMouseCursorHiding()
     m_mouseCursorHidden = false;
     m_lastMouseActivityTick = 0;
     SetCursor(LoadCursor(nullptr, IDC_ARROW));
+}
+
+void SciterMainWindow::UpdateDiscordPresence()
+{
+    const std::string gameName = SettingsStore::GetInstance().GetString(NXCoreSetting::GameName);
+    m_discordPresence.Update(m_emulationRunning, gameName);
 }
 
 void SciterMainWindow::UpdateMouseCursorHiding()
@@ -695,6 +705,7 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     }
     impl->ResetMenu();
     impl->UpdateUIVisibility();
+    impl->UpdateDiscordPresence();
 }
 
 void SciterMainWindow::ShowPanel(Panel panel)
@@ -822,6 +833,7 @@ void SciterMainWindow::GameNameChanged(const char * /*setting*/, void * userData
         caption += impl->m_windowTitle;
         impl->SetCaption(caption);
     }
+    impl->UpdateDiscordPresence();
 }
 
 void SciterMainWindow::DisplayedFramesChanged(const char * /*setting*/, void * userData)
@@ -2040,6 +2052,15 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
         else
         {
             impl->m_lastMouseActivityTick = 0;
+        }
+    }
+    else if (strcmp(setting, NXUISetting::EnableDiscordPresence) == 0)
+    {
+        const bool enabled = SettingsStore::GetInstance().GetBool(NXUISetting::EnableDiscordPresence);
+        impl->m_discordPresence.SetEnabled(enabled);
+        if (enabled)
+        {
+            impl->UpdateDiscordPresence();
         }
     }
 }

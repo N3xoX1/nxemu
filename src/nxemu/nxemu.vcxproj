@@ -24,7 +24,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\sciterui\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -46,6 +46,7 @@
     <ClCompile Include="user_interface\html_utils.cpp" />
     <ClCompile Include="user_interface\key_mappings.cpp" />
     <ClCompile Include="user_interface\about_dialog.cpp" />
+    <ClCompile Include="user_interface\discord_presence.cpp" />
     <ClCompile Include="user_interface\notification.cpp" />
     <ClCompile Include="user_interface\sciter_main_window.cpp" />
     <ClCompile Include="user_interface\settings\config_setting .cpp" />
@@ -76,6 +77,7 @@
     <ClInclude Include="user_interface\html_utils.h" />
     <ClInclude Include="user_interface\key_mappings.h" />
     <ClInclude Include="user_interface\about_dialog.h" />
+    <ClInclude Include="user_interface\discord_presence.h" />
     <ClInclude Include="user_interface\notification.h" />
     <ClInclude Include="user_interface\resource.h" />
     <ClInclude Include="user_interface\sciter_main_window.h" />
@@ -106,6 +108,9 @@
     </ProjectReference>
     <ProjectReference Include="..\nxemu-core\nxemu-core.vcxproj">
       <Project>{cf365edd-c903-47b1-aaae-a483d3c0d274}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\3rd_party\discord-rpc\discord-rpc.vcxproj">
+      <Project>{7e4c9f2a-1b83-4d6e-9a05-c8f3d2e1b4a7}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
