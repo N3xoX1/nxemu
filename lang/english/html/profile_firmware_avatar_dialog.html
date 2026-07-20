@@ -1,0 +1,42 @@
+<html window-frame="solid-with-shadow" window-icon="window-icon.png">
+  <head>
+    <link href="base.css" rel="stylesheet" type="text/css" />
+    <link href="dialog.css" rel="stylesheet" type="text/css" />
+    <link href="profile_firmware_avatar_dialog.css" rel="stylesheet" type="text/css" />
+    <title>Select Firmware Avatar</title>
+  </head>
+  <header>
+    <window-caption role="window-caption"><img src="window-icon-32.png" /><span>Select Firmware Avatar</span></window-caption>
+    <window-buttons>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <body>
+    <div class="firmware-avatar-body">
+      <div id="FirmwareAvatarGrid" class="firmware-avatar-grid"></div>
+      <div id="FirmwareAvatarEmpty" class="firmware-avatar-empty" style="display:none">
+        No firmware avatars were found. Ensure a complete system firmware install that includes AvatarImage (010000000000080A).
+      </div>
+    </div>
+    <div class="footer firmware-avatar-footer">
+      <button id="firmwareAvatarBack" role="window-close">Back</button>
+      <div class="firmware-avatar-actions">
+        <div id="FirmwareAvatarColors" class="firmware-avatar-colors" title="Background color">
+          <div class="firmware-avatar-swatch selected" role="firmware-color" data-color="#FFFFFF" style="background:#FFFFFF"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#000000" style="background:#000000"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#E60012" style="background:#E60012"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#F4A60A" style="background:#F4A60A"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#F5E53F" style="background:#F5E53F"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#00A651" style="background:#00A651"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#00A0E9" style="background:#00A0E9"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#1D2088" style="background:#1D2088"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#920783" style="background:#920783"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#E4007F" style="background:#E4007F"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#8C8C8C" style="background:#8C8C8C"></div>
+          <div class="firmware-avatar-swatch" role="firmware-color" data-color="#C9A26B" style="background:#C9A26B"></div>
+        </div>
+        <button id="firmwareAvatarChoose">Choose</button>
+      </div>
+    </div>
+  </body>
+</html>

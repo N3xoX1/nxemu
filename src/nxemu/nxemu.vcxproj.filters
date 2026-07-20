@@ -111,6 +111,21 @@
     <ClCompile Include="applets\web_browser.cpp">
       <Filter>Source Files\applets</Filter>
     </ClCompile>
+    <ClCompile Include="user_interface\settings\system_config_profiles.cpp">
+      <Filter>Source Files\user_interface\settings</Filter>
+    </ClCompile>
+    <ClCompile Include="user_interface\html_utils.cpp">
+      <Filter>Source Files\user_interface</Filter>
+    </ClCompile>
+    <ClCompile Include="user_interface\settings\profile_editor_dialog.cpp">
+      <Filter>Source Files\user_interface\settings</Filter>
+    </ClCompile>
+    <ClCompile Include="user_interface\settings\profile_image_selector_dialog.cpp">
+      <Filter>Source Files\user_interface\settings</Filter>
+    </ClCompile>
+    <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp">
+      <Filter>Source Files\user_interface\settings</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="user_interface\resource.h">
@@ -187,6 +202,21 @@
     </ClInclude>
     <ClInclude Include="applets\web_browser.h">
       <Filter>Header Files\applets</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\settings\system_config_profiles.h">
+      <Filter>Header Files\user_interface\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\html_utils.h">
+      <Filter>Header Files\user_interface</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\settings\profile_editor_dialog.h">
+      <Filter>Header Files\user_interface\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\settings\profile_image_selector_dialog.h">
+      <Filter>Header Files\user_interface\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h">
+      <Filter>Header Files\user_interface\settings</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

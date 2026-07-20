@@ -1,0 +1,119 @@
+html
+{
+  overflow: hidden;
+}
+
+body
+{
+  flow: vertical;
+}
+
+.firmware-avatar-body
+{
+  padding: 0.5rem 0.25rem;
+  min-width: 32rem;
+  height: 21rem;
+  color: #eff0f1;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+.firmware-avatar-grid
+{
+  flow: horizontal-wrap;
+  overflow-y: auto;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.25rem;
+  border: 1px solid #55575a;
+  background: #121212;
+  horizontal-align: center;
+}
+
+.firmware-avatar-tile
+{
+  width: 72px;
+  height: 72px;
+  margin: 5px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: #ffffff;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.firmware-avatar-tile:hover
+{
+  border-color: #3cafe9;
+}
+
+.firmware-avatar-tile.selected
+{
+  border-color: #3cafe9;
+}
+
+.firmware-avatar-tile img
+{
+  width: 72px;
+  height: 72px;
+  display: block;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  foreground-size: contain;
+}
+
+.firmware-avatar-empty
+{
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #b0b3b5;
+}
+
+.firmware-avatar-footer
+{
+  flow: horizontal;
+  vertical-align: middle;
+}
+
+.firmware-avatar-footer > #firmwareAvatarBack
+{
+  margin-right: *;
+}
+
+.firmware-avatar-actions
+{
+  flow: horizontal;
+  vertical-align: middle;
+}
+
+.firmware-avatar-actions > *
+{
+  margin-left: 0.4rem;
+}
+
+.firmware-avatar-colors
+{
+  flow: horizontal;
+  vertical-align: middle;
+}
+
+.firmware-avatar-swatch
+{
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-right: 0.25rem;
+  border: 2px solid #55575a;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.firmware-avatar-swatch:hover
+{
+  border-color: #3cafe9;
+}
+
+.firmware-avatar-swatch.selected
+{
+  border-color: #3cafe9;
+}

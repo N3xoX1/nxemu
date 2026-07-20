@@ -13,6 +13,7 @@ class SciterElement;
 class SystemConfigAudio;
 class SystemConfigGraphics;
 class SystemConfigGeneral;
+class SystemConfigProfiles;
 class SystemConfigSystem;
 class ConfigSetting;
 class SystemModules;
@@ -86,4 +87,5 @@ private:
     std::unique_ptr<SystemConfigGraphics> m_systemConfigGraphics;
     std::unique_ptr<SystemConfigAudio> m_systemConfigAudio;
     std::unique_ptr<SystemConfigGeneral> m_systemConfigGeneral;
+    std::unique_ptr<SystemConfigProfiles> m_systemConfigProfiles;
 };
