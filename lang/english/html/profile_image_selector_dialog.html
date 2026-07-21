@@ -1,0 +1,26 @@
+<html window-frame="solid-with-shadow" window-icon="window-icon.png">
+  <head>
+    <link href="base.css" rel="stylesheet" type="text/css" />
+    <link href="dialog.css" rel="stylesheet" type="text/css" />
+    <link href="profile_image_selector_dialog.css" rel="stylesheet" type="text/css" />
+    <title>Profile Image Selection</title>
+  </head>
+  <header>
+    <window-caption role="window-caption"><img src="window-icon-32.png" /><span>Choose a profile Image</span></window-caption>
+    <window-buttons>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <body>
+    <div class="profile-image-selector-body">
+      <p id="ProfileImageSelectionNote">You may import a custom profile image, or select an avatar from system firmware</p>
+    </div>
+    <div class="footer profile-image-selector-footer">
+      <button id="profileImageBack" role="window-close">Back</button>
+      <div class="profile-image-selector-actions">
+        <button id="profileImageImport">Import Image File</button>
+        <button id="profileImageFirmware">Select Firmware Avatar</button>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,8 +1,8 @@
 #include "rom_browser.h"
+#include "user_interface/html_utils.h"
 #include "user_interface/sciter_main_window.h"
 #include "settings/ui_settings.h"
 #include <map>
-#include <common/base64.h>
 #include <common/path.h>
 #include <common/std_string.h>  
 #include <nxemu-module-spec/system_loader.h>
@@ -213,7 +213,7 @@ bool WidgetRomBrowser::RenderUI()
                 SciterElement iconElement;
                 iconElement.Create("img", "");
                 iconElement.SetAttribute("class", "rom-icon");
-                iconElement.SetAttribute("src", stdstr_f("data:image/jpeg;base64,%s", base64_encode(romEntry.icon.data(), romEntry.icon.size()).c_str()).c_str());
+                iconElement.SetAttribute("src", ImageDataUri(romEntry.icon.data(), romEntry.icon.size()).c_str());
                 romCardContents.Insert(iconElement, romCardContents.GetChildCount());
                 romEntry.icon.clear();
             }

@@ -24,7 +24,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -43,6 +43,7 @@
     <ClCompile Include="startup_checks.cpp" />
     <ClCompile Include="user_interface\game_list_worker.cpp" />
     <ClCompile Include="user_interface\hotkey_map.cpp" />
+    <ClCompile Include="user_interface\html_utils.cpp" />
     <ClCompile Include="user_interface\key_mappings.cpp" />
     <ClCompile Include="user_interface\about_dialog.cpp" />
     <ClCompile Include="user_interface\discord_presence.cpp" />
@@ -50,12 +51,16 @@
     <ClCompile Include="user_interface\sciter_main_window.cpp" />
     <ClCompile Include="user_interface\settings\config_setting .cpp" />
     <ClCompile Include="user_interface\settings\input_config_player.cpp" />
+    <ClCompile Include="user_interface\settings\profile_editor_dialog.cpp" />
+    <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp" />
+    <ClCompile Include="user_interface\settings\profile_image_selector_dialog.cpp" />
     <ClCompile Include="user_interface\settings\system_config.cpp" />
     <ClCompile Include="user_interface\settings\input_config.cpp" />
     <ClCompile Include="user_interface\settings\system_config_audio.cpp" />
     <ClCompile Include="user_interface\settings\system_config_game_browser.cpp" />
     <ClCompile Include="user_interface\settings\system_config_general.cpp" />
     <ClCompile Include="user_interface\settings\system_config_graphics.cpp" />
+    <ClCompile Include="user_interface\settings\system_config_profiles.cpp" />
     <ClCompile Include="user_interface\settings\system_config_system.cpp" />
     <ClCompile Include="user_interface\settings\system_config_hotkeys.cpp" />
     <ClCompile Include="user_interface\settings\system_config_logging.cpp" />
@@ -69,6 +74,7 @@
     <ClInclude Include="startup_checks.h" />
     <ClInclude Include="user_interface\game_list_worker.h" />
     <ClInclude Include="user_interface\hotkey_map.h" />
+    <ClInclude Include="user_interface\html_utils.h" />
     <ClInclude Include="user_interface\key_mappings.h" />
     <ClInclude Include="user_interface\about_dialog.h" />
     <ClInclude Include="user_interface\discord_presence.h" />
@@ -77,6 +83,9 @@
     <ClInclude Include="user_interface\sciter_main_window.h" />
     <ClInclude Include="user_interface\settings\config_setting.h" />
     <ClInclude Include="user_interface\settings\input_config_player.h" />
+    <ClInclude Include="user_interface\settings\profile_editor_dialog.h" />
+    <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h" />
+    <ClInclude Include="user_interface\settings\profile_image_selector_dialog.h" />
     <ClInclude Include="user_interface\settings\system_config.h" />
     <ClInclude Include="user_interface\settings\input_config.h" />
     <ClInclude Include="user_interface\settings\system_config_audio.h" />
@@ -84,6 +93,7 @@
     <ClInclude Include="user_interface\settings\system_config_game_browser.h" />
     <ClInclude Include="user_interface\settings\system_config_general.h" />
     <ClInclude Include="user_interface\settings\system_config_graphics.h" />
+    <ClInclude Include="user_interface\settings\system_config_profiles.h" />
     <ClInclude Include="user_interface\settings\system_config_system.h" />
     <ClInclude Include="user_interface\settings\system_config_hotkeys.h" />
     <ClInclude Include="user_interface\settings\system_config_logging.h" />

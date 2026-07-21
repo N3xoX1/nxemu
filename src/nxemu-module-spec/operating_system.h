@@ -646,6 +646,19 @@ nxinterface IButtonMappingList
     virtual void Release() = 0;
 };
 
+enum
+{
+    HOST_PROFILE_UUID_SIZE = 16,
+    HOST_PROFILE_USERNAME_SIZE = 32,
+    HOST_PROFILE_MAX_USERS = 8,
+};
+
+typedef struct HostProfileInfo
+{
+    uint8_t uuid[HOST_PROFILE_UUID_SIZE];
+    char username[HOST_PROFILE_USERNAME_SIZE + 1];
+} HostProfileInfo;
+
 nxinterface IOperatingSystem
 {
     virtual bool Initialize() = 0;
@@ -685,6 +698,13 @@ nxinterface IOperatingSystem
     virtual void SetFrontendApplets(ICabinetFrontendApplet * cabinet, IControllerFrontendApplet * controller, IErrorFrontendApplet * error, IMiiEditFrontendApplet * mii_edit, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select, ISoftwareKeyboardFrontendApplet * software_keyboard, IWebBrowserFrontendApplet * web_browser) = 0;
     virtual void SetPlayerButtonState(uint32_t player_index, uint32_t button_ordinal, bool pressed) = 0;
     virtual void SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index, float x, float y) = 0;
+    virtual uint32_t GetProfileCount() const = 0;
+    virtual bool GetProfile(uint32_t index, HostProfileInfo * profile) const = 0;
+    virtual bool CreateProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const char * username_utf8, HostProfileInfo * out_profile) = 0;
+    virtual bool RenameProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const char * username_utf8) = 0;
+    virtual bool RemoveProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE]) = 0;
+    virtual bool SetProfileImage(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const uint8_t * image_data, uint32_t image_size) = 0;
+    virtual bool GetProfileImagePath(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], char * out_path, uint32_t out_path_size) const = 0;
 };
 
 EXPORT IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules);

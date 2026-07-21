@@ -1,0 +1,41 @@
+.profile-image-selector-body
+{
+  padding: 0.75rem 0.25rem 0.25rem;
+  min-width: 28rem;
+  color: #eff0f1;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+.profile-image-selector-body p
+{
+  margin: 0;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.profile-image-selector-footer
+{
+  flow: horizontal;
+  vertical-align: middle;
+}
+
+.profile-image-selector-footer > #profileImageBack
+{
+  margin-right: *;
+}
+
+.profile-image-selector-actions
+{
+  flow: horizontal;
+}
+
+.profile-image-selector-actions > button
+{
+  margin-left: 0.4rem;
+}
+
+#profileImageFirmware:disabled
+{
+  opacity: 0.45;
+}

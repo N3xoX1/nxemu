@@ -3,9 +3,9 @@
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
 #include "user_interface/about_dialog.h"
+#include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"
-#include <common/base64.h>
 #include <common/shell_open.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
@@ -111,17 +111,7 @@ void LoadImageToElement(SciterElement elem, const std::vector<uint8_t> & data)
     }
     if (!data.empty())
     {
-        const char * mime = "image/png";
-        if (data.size() >= 2 && data[0] == 0xff && data[1] == 0xd8)
-        {
-            mime = "image/jpeg";
-        }
-        else if (data.size() >= 4 && data[0] == 'G' && data[1] == 'I' && data[2] == 'F')
-        {
-            mime = "image/gif";
-        }
-        const std::string uri = stdstr_f("data:%s;base64,%s", mime, base64_encode(data.data(), data.size()).c_str());
-        elem.SetAttribute("src", uri.c_str());
+        elem.SetAttribute("src", ImageDataUri(data.data(), data.size()).c_str());
     }
     elem.SetStyleAttribute("display", data.empty() ? "none" : "block");
 }
@@ -165,34 +155,6 @@ void UpdateLoadingProgressBar(SciterElement & fillEl, bool indeterminate, int wi
     }
 }
 
-std::string HtmlEscapeForHtmlContent(const std::string & s)
-{
-    std::string out;
-    out.reserve(s.size());
-    for (const char c : s)
-    {
-        switch (c)
-        {
-        case '&':
-            out += "&amp;";
-            break;
-        case '<':
-            out += "&lt;";
-            break;
-        case '>':
-            out += "&gt;";
-            break;
-        case '"':
-            out += "&quot;";
-            break;
-        default:
-            out += c;
-            break;
-        }
-    }
-    return out;
-}
-
 std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
 {
     IRomInfoPtr info(loader.LoadedRomInfo());
@@ -210,7 +172,7 @@ std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
     {
         return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">...</span>", verb);
     }
-    const std::string titleEsc = HtmlEscapeForHtmlContent(std::string(buf.data()));
+    const std::string titleEsc = HtmlEscape(std::string(buf.data()));
     return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">%s</span>", verb, titleEsc.c_str());
 }
 
@@ -1055,7 +1017,7 @@ void SciterMainWindow::RefreshFirmwareInstallLoading()
 
     if (status.IsValid())
     {
-        const std::string text = stdstr_f("<span class=\"loading-verb\">Installing firmware</span> <span class=\"loading-game-name\">%s</span>", HtmlEscapeForHtmlContent(detail).c_str());
+        const std::string text = stdstr_f("<span class=\"loading-verb\">Installing firmware</span> <span class=\"loading-game-name\">%s</span>", HtmlEscape(detail).c_str());
         status.SetHTML(reinterpret_cast<const uint8_t *>(text.c_str()), text.size());
     }
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));

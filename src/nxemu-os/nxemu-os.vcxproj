@@ -482,6 +482,7 @@
     <ClCompile Include="os_time_zone.cpp" />
     <ClCompile Include="os_manager.cpp" />
     <ClCompile Include="os_settings.cpp" />
+    <ClCompile Include="profile_image_writer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in" />
@@ -992,6 +993,7 @@
     <ClInclude Include="os_settings.h" />
     <ClInclude Include="player_input.h" />
     <ClInclude Include="os_settings_identifiers.h" />
+    <ClInclude Include="profile_image_writer.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\external\cubeb.vcxproj">
