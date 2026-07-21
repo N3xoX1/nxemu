@@ -41,6 +41,7 @@ enum class ProcessorArchitecture
 enum class CpuHaltReason
 {
     StepThread,
+    CacheInvalidation,
     DataAbort,
     BreakLoop,
     SupervisorCall,
@@ -174,6 +175,7 @@ nxinterface ICpuCore
     virtual CpuHaltReason StepThread(IKernelThread * thread) = 0;
     virtual void LockThread(IKernelThread * thread) = 0;
     virtual void UnlockThread(IKernelThread * thread) = 0;
+    virtual void ClearInstructionCache() = 0;
     virtual void InvalidateCacheRange(uint64_t addr, uint64_t size) = 0;
     virtual const CpuDebugWatchpoint * HaltedWatchpoint() const = 0;
     virtual void RewindBreakpointInstruction() = 0;
