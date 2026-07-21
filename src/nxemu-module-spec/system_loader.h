@@ -244,6 +244,7 @@ nxinterface IFileSysNACP
     virtual bool GetUserAccountSwitchLock() const = 0;
     virtual bool GetRatingAge(uint8_t * buffer, uint32_t bufferSize) const = 0;
     virtual const char * GetVersionString() const = 0;
+    virtual const char * GetDeveloperName() const = 0;
     virtual void Release() = 0;
 };
 
@@ -330,6 +331,7 @@ nxinterface ISystemloader
     virtual IManualContentProvider & ManualContentProvider() = 0;
     virtual uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const = 0;
     virtual bool InstallFirmwarePackage(const char * utf8_path) = 0;
+    virtual bool IsAddonDisabled(uint64_t program_id, const char * name) const = 0;
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);

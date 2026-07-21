@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <array>
-#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -122,9 +121,6 @@ struct Values {
     Setting<std::string> yuzu_username{linkage, std::string(), "yuzu_username",
                                        Category::WebService};
     Setting<std::string> yuzu_token{linkage, std::string(), "yuzu_token", Category::WebService};
-
-    // Add-Ons
-    std::map<u64, std::vector<std::string>> disabled_addons;
 };
 
 extern Values values;

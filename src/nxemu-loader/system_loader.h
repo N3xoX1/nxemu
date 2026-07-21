@@ -47,6 +47,7 @@ public:
     IManualContentProvider & ManualContentProvider() override;
     uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const override;
     bool InstallFirmwarePackage(const char * utf8_path) override;
+    bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
 
 private:
     Systemloader() = delete;
