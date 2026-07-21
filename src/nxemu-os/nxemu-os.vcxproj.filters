@@ -2043,6 +2043,9 @@
     <ClInclude Include="core\hle\service\ldn\ldn_results.h">
       <Filter>Header Files\core\hle\service\ldn</Filter>
     </ClInclude>
+    <ClInclude Include="profile_image_writer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in">
@@ -3408,6 +3411,9 @@
     </ClCompile>
     <ClCompile Include="core\hle\service\ldn\user_local_communication_service.cpp">
       <Filter>Source Files\core\hle\service\ldn</Filter>
+    </ClCompile>
+    <ClCompile Include="profile_image_writer.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 #include "about_dialog.h"
+#include "user_interface/html_utils.h"
 
 #include <common/shell_open.h>
 #include <nxemu-core/version.h>
@@ -7,19 +8,6 @@
 #include <sciter_ui.h>
 
 #include <string>
-
-namespace
-{
-
-void AttachClickHandler(ISciterUI & sciterUI, const SciterElement & element, IClickSink * sink)
-{
-    if (element.IsValid())
-    {
-        sciterUI.AttachHandler(element, IID_ICLICKSINK, sink);
-    }
-}
-
-} // namespace
 
 AboutDialog::AboutDialog(ISciterUI & sciterUI) :
     m_sciterUI(sciterUI),

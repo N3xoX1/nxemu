@@ -4,6 +4,7 @@
 #include "system_config_audio.h"
 #include "system_config_general.h"
 #include "system_config_graphics.h"
+#include "system_config_profiles.h"
 #include "system_config_system.h"
 #include <common/std_string.h>
 #include <nxemu-core/settings/identifiers.h>
@@ -330,6 +331,10 @@ void SystemConfig::PageNavCreatedPage(const std::string & pageName, SCITER_ELEME
     {
         m_systemConfigGeneral.reset(new SystemConfigGeneral(m_sciterUI, *this, *m_window, page));
     }
+    else if (pageName == "Profiles")
+    {
+        m_systemConfigProfiles.reset(new SystemConfigProfiles(m_sciterUI, *this, m_modules, *m_window, page));
+    }
 }
 
 void SystemConfig::PageNavPageChanged(const std::string & /*pageName*/, SCITER_ELEMENT /*pageNav*/)
@@ -352,6 +357,10 @@ bool SystemConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, ui
         if (m_systemConfigGeneral)
         {
             m_systemConfigGeneral->SaveSetting();
+        }
+        if (m_systemConfigProfiles)
+        {
+            m_systemConfigProfiles->SaveSetting();
         }
         if (m_modules.IsValid())
         {

@@ -1,0 +1,40 @@
+<html window-frame="solid-with-shadow" window-icon="window-icon.png">
+  <head>
+    <link href="base.css" rel="stylesheet" type="text/css" />
+    <link href="dialog.css" rel="stylesheet" type="text/css" />
+    <link href="profile_editor_dialog.css" rel="stylesheet" type="text/css" />
+    <title>Edit Profile</title>
+  </head>
+  <header>
+    <window-caption role="window-caption"><img src="window-icon-32.png" /><span id="ProfileEditorTitle">Edit Profile</span></window-caption>
+    <window-buttons>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <body>
+    <div class="profile-editor-body">
+      <div class="profile-detail-layout">
+        <div class="profile-detail-fields">
+          <div class="profile-field">
+            <label for="ProfileUsername">Name:</label>
+            <input type="text" id="ProfileUsername" maxlength="32" placeholder="Choose a nickname" />
+          </div>
+          <div class="profile-field">
+            <label for="ProfileUserId">User ID:</label>
+            <input type="text" id="ProfileUserId" readonly />
+          </div>
+        </div>
+        <div class="profile-detail-image">
+          <div class="profile-detail-avatar">
+            <img id="ProfileDetailImage" />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer profile-editor-footer">
+      <button id="profileRemove">Delete</button>
+      <button id="profileSetImage">Set Image</button>
+      <button id="profileSave" role="window-ok">Save</button>
+    </div>
+  </body>
+</html>

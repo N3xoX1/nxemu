@@ -1,0 +1,126 @@
+.profile-editor-body
+{
+  padding: 0.75rem 0.5rem 0.25rem;
+  min-width: 32rem;
+  color: #eff0f1;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+.profile-detail-layout
+{
+  flow: horizontal;
+  width: 100%;
+}
+
+.profile-detail-fields
+{
+  width: *;
+  min-width: 22rem;
+  flow: vertical;
+}
+
+.profile-field
+{
+  flow: vertical;
+  width: *;
+  margin: 0 0 0.85rem 0;
+}
+
+.profile-field > label
+{
+  margin: 0 0 0.35rem 0;
+  color: #eff0f1;
+}
+
+.profile-field > input
+{
+  display: block;
+  width: *;
+  height: 2rem;
+  min-height: 2rem;
+  max-height: 2rem;
+  box-sizing: border-box;
+  color: #ffffff;
+  background: #2f2f31;
+  border: 1px solid #6a6e73;
+  border-radius: 0.35rem;
+  padding: 0 0.6rem;
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 0.875rem;
+  line-height: 2rem;
+  vertical-align: middle;
+  font-rendering-mode: snap-pixel;
+  text-selection-caret-color: #ffffff;
+  text-selection-color: #ffffff;
+  text-selection-background-color: #3daee9;
+}
+
+.profile-field > input:focus,
+.profile-field > input:active
+{
+  border-color: #3daee9;
+  background: #3c3c3c;
+  text-selection-caret-color: #ffffff;
+}
+
+.profile-field > input:hover
+{
+  background: #3c3c3c;
+}
+
+.profile-field > input:disabled,
+.profile-field > input[readonly]
+{
+  background: #2a2a2c;
+  color: #d0d0d0;
+  border-color: #55575a;
+  text-selection-caret-color: transparent;
+}
+
+.profile-field > input:disabled:hover,
+.profile-field > input[readonly]:hover
+{
+  background: #2a2a2c;
+}
+
+.profile-detail-image
+{
+  margin-left: 1rem;
+}
+
+.profile-detail-avatar
+{
+  width: 96px;
+  height: 96px;
+  border: 1px solid #55575a;
+  border-radius: 4px;
+  background: #111111;
+  overflow: hidden;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  foreground-size: 100% 100%;
+}
+
+.profile-detail-avatar img
+{
+  display: block;
+  width: 96px;
+  height: 96px;
+  background: transparent;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  foreground-size: 100% 100%;
+}
+
+.profile-editor-footer
+{
+  flow: horizontal;
+  horizontal-align: right;
+}
+
+.profile-editor-footer > button
+{
+  margin-left: 0.4rem;
+}

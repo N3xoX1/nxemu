@@ -250,6 +250,185 @@ label:disabled {
   margin-bottom: 0.75rem;
 }
 
+.page_content.profiles-page
+{
+  flow: vertical;
+  width: 100%%;
+  height: 100%%;
+  padding: 1em;
+}
+
+.active-profile-label
+{
+  margin: 0 0 0.65rem 0;
+  color: #eff0f1;
+  font-size: 0.9rem;
+}
+
+.profile-grid
+{
+  flow: horizontal-wrap;
+  border: 1px solid #55575a;
+  border-radius: 5px;
+  background: #1e1e1e;
+  padding: 0.5rem;
+  width: 100%%;
+  height: *;
+  overflow-y: auto;
+  vertical-align: top;
+}
+
+.profile-tile
+{
+  position: relative;
+  width: 96px;
+  margin: 0.35rem;
+  padding: 0.25rem;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  flow: vertical;
+  horizontal-align: center;
+  cursor: pointer;
+  behavior: clickable;
+}
+
+.profile-tile:hover
+{
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.profile-tile.current
+{
+  background: rgba(61, 174, 233, 0.22);
+  border: 2px solid #3daee9;
+}
+
+.profile-tile.current > .profile-tile-name
+{
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.profile-tile-avatar
+{
+  width: 96px;
+  height: 96px;
+  border-radius: 4px;
+  background: #111111;
+  overflow: hidden;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  foreground-size: 100% 100%;
+}
+
+.profile-tile-avatar img
+{
+  display: block;
+  width: 96px;
+  height: 96px;
+  background: transparent;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  foreground-size: 100% 100%;
+}
+
+.profile-tile-name
+{
+  width: 90px;
+  margin-top: 0.35rem;
+  text-align: center;
+  color: #eff0f1;
+  font-size: 0.85rem;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-tile-edit
+{
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: #2b2f32;
+  border: none;
+  color: #ffffff;
+  padding: 0;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  behavior: clickable;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.profile-tile-edit svg
+{
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  width: 14px;
+  height: 14px;
+}
+
+.profile-tile-edit path
+{
+  fill: none;
+  stroke: currentColor;
+}
+
+.profile-tile:hover > .profile-tile-edit
+{
+  opacity: 1;
+  visibility: visible;
+}
+
+.profile-tile-edit:hover
+{
+  background: #3a4045;
+}
+
+.profile-tile-add
+{
+  position: relative;
+  width: 96px;
+  height: 118px;
+  margin: 0.35rem;
+  border-radius: 5px;
+  background: #2b2f32;
+  cursor: pointer;
+  behavior: clickable;
+}
+
+.profile-tile-add-button
+{
+  position: absolute;
+  left: 27px;
+  top: 38px;
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  background: #2b2f32;
+  border: 1px solid #55575a;
+  color: #eff0f1;
+  font-size: 1.6rem;
+  font-family: var(--font-ui);
+  line-height: 40px;
+  text-align: center;
+  padding: 0;
+  overflow: hidden;
+  behavior: clickable;
+  cursor: pointer;
+}
+
+.profile-tile-add-button:hover
+{
+  background: #3a4045;
+  border: 1px solid #3cafe9;
+}
+
 .hotkeys-table
 {
   width: 100%%;

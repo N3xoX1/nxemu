@@ -51,6 +51,13 @@ public:
     void SetFrontendApplets(ICabinetFrontendApplet * cabinet, IControllerFrontendApplet * controller, IErrorFrontendApplet * error, IMiiEditFrontendApplet * mii_edit, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select, ISoftwareKeyboardFrontendApplet * software_keyboard, IWebBrowserFrontendApplet * web_browser) override;
     void SetPlayerButtonState(uint32_t player_index, uint32_t button_ordinal, bool pressed) override;
     void SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index, float x, float y) override;
+    uint32_t GetProfileCount() const override;
+    bool GetProfile(uint32_t index, HostProfileInfo * out_profile) const override;
+    bool CreateProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const char * username_utf8, HostProfileInfo * out_profile) override;
+    bool RenameProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const char * username_utf8) override;
+    bool RemoveProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE]) override;
+    bool SetProfileImage(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const uint8_t * image_data, uint32_t image_size) override;
+    bool GetProfileImagePath(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], char * out_path, uint32_t out_path_size) const override;
 
 private:
     OSManager() = delete;

@@ -1,7 +1,9 @@
 #include "os_manager.h"
+#include "profile_image_writer.h"
 #include "core/core_timing.h"
 #include "core/cpu_manager.h"
 #include "core/hle/kernel/k_process.h"
+#include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/filesystem/filesystem.h"
@@ -9,16 +11,21 @@
 #include "os_settings.h"
 #include "os_settings_identifiers.h"
 #include "yuzu_audio_core/sink/sink_details.h"
+#include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/string_util.h"
 #include "yuzu_hid_core/frontend/emulated_controller.h"
 #include "yuzu_hid_core/hid_core.h"
 #include "yuzu_input_common/drivers/keyboard.h"
 #include "yuzu_input_common/drivers/virtual_gamepad.h"
 #include "yuzu_input_common/main.h"
 #include <nxemu-core/settings/identifiers.h>
+#include <filesystem>
 
 namespace
 {
+    constexpr char ACC_SAVE_AVATORS_BASE_PATH[] = "system/save/8000000000000010/su/avators";
+
     class IButtonMappingListImpl : public IButtonMappingList
     {
     public:
@@ -88,6 +95,37 @@ namespace
         std::vector<uint32_t> m_indices;
         std::vector<IParamPackageImpl*> m_params;
     };
+
+    bool FillHostProfileInfo(const Service::Account::ProfileManager & manager, std::size_t index, HostProfileInfo * out_profile)
+    {
+        if (out_profile == nullptr)
+        {
+            return false;
+        }
+
+        const auto uuid = manager.GetUser(index);
+        if (!uuid)
+        {
+            return false;
+        }
+
+        Service::Account::ProfileBase profile{};
+        if (!manager.GetProfileBase(*uuid, profile))
+        {
+            return false;
+        }
+
+        std::memcpy(out_profile->uuid, profile.user_uuid.uuid.data(), HOST_PROFILE_UUID_SIZE);
+        const std::string username = Common::StringFromFixedZeroTerminatedBuffer((const char *)profile.username.data(), profile.username.size());
+        std::memset(out_profile->username, 0, sizeof(out_profile->username));
+        std::strncpy(out_profile->username, username.c_str(), HOST_PROFILE_USERNAME_SIZE);
+        return true;
+    }
+
+    std::filesystem::path ProfileImageFilesystemPath(const Common::UUID & uuid)
+    {
+        return Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir) / ACC_SAVE_AVATORS_BASE_PATH / (uuid.FormattedString() + ".jpg");
+    }
 }
 
 extern IModuleSettings * g_settings;
@@ -416,4 +454,159 @@ void OSManager::SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index
         return;
     }
     virtual_gamepad->SetStickPosition(player_index, static_cast<int>(stick_index), x, y);
+}
+
+uint32_t OSManager::GetProfileCount() const
+{
+    Service::Account::ProfileManager manager;
+    return (uint32_t)manager.GetUserCount();
+}
+
+bool OSManager::GetProfile(uint32_t index, HostProfileInfo * out_profile) const
+{
+    Service::Account::ProfileManager manager;
+    return FillHostProfileInfo(manager, index, out_profile);
+}
+
+bool OSManager::CreateProfile(const uint8_t uuid_bytes[HOST_PROFILE_UUID_SIZE], const char * username_utf8, HostProfileInfo * out_profile)
+{
+    if (uuid_bytes == nullptr || username_utf8 == nullptr || username_utf8[0] == '\0')
+    {
+        return false;
+    }
+
+    Service::Account::ProfileManager manager;
+    if (manager.GetUserCount() >= Service::Account::MAX_USERS)
+    {
+        return false;
+    }
+
+    std::array<uint8_t, HOST_PROFILE_UUID_SIZE> uuid_array{};
+    std::memcpy(uuid_array.data(), uuid_bytes, HOST_PROFILE_UUID_SIZE);
+    const Common::UUID uuid{uuid_array};
+    if (uuid.IsInvalid() || manager.UserExists(uuid))
+    {
+        return false;
+    }
+
+    if (manager.CreateNewUser(uuid, std::string(username_utf8)).IsError())
+    {
+        return false;
+    }
+
+    manager.WriteUserSaveFile();
+    if (out_profile == nullptr)
+    {
+        return true;
+    }
+
+    const auto index = manager.GetUserIndex(uuid);
+    return index && FillHostProfileInfo(manager, *index, out_profile);
+}
+
+bool OSManager::RenameProfile(const uint8_t uuid_bytes[HOST_PROFILE_UUID_SIZE], const char * username_utf8)
+{
+    if (uuid_bytes == nullptr || username_utf8 == nullptr || username_utf8[0] == '\0')
+    {
+        return false;
+    }
+
+    std::array<uint8_t, HOST_PROFILE_UUID_SIZE> uuid_array{};
+    std::memcpy(uuid_array.data(), uuid_bytes, HOST_PROFILE_UUID_SIZE);
+    const Common::UUID uuid{uuid_array};
+
+    Service::Account::ProfileManager manager;
+    Service::Account::ProfileBase profile{};
+    if (!manager.GetProfileBase(uuid, profile))
+    {
+        return false;
+    }
+
+    const std::string username(username_utf8);
+    profile.username.fill(0);
+    std::copy_n(username.begin(), std::min(username.size(), profile.username.size()), profile.username.begin());
+
+    if (!manager.SetProfileBase(uuid, profile))
+    {
+        return false;
+    }
+
+    manager.WriteUserSaveFile();
+    return true;
+}
+
+bool OSManager::RemoveProfile(const uint8_t uuid_bytes[HOST_PROFILE_UUID_SIZE])
+{
+    if (uuid_bytes == nullptr)
+    {
+        return false;
+    }
+
+    std::array<uint8_t, HOST_PROFILE_UUID_SIZE> uuid_array{};
+    std::memcpy(uuid_array.data(), uuid_bytes, HOST_PROFILE_UUID_SIZE);
+    const Common::UUID uuid{uuid_array};
+
+    Service::Account::ProfileManager manager;
+    if (manager.GetUserCount() < 2 || !manager.RemoveUser(uuid))
+    {
+        return false;
+    }
+
+    manager.WriteUserSaveFile();
+    return true;
+}
+
+bool OSManager::SetProfileImage(const uint8_t uuid_bytes[HOST_PROFILE_UUID_SIZE], const uint8_t * image_data, uint32_t image_size)
+{
+    if (uuid_bytes == nullptr || image_data == nullptr || image_size == 0)
+    {
+        return false;
+    }
+
+    std::array<uint8_t, HOST_PROFILE_UUID_SIZE> uuid_array{};
+    std::memcpy(uuid_array.data(), uuid_bytes, HOST_PROFILE_UUID_SIZE);
+    const Common::UUID uuid{uuid_array};
+
+    Service::Account::ProfileManager manager;
+    if (!manager.UserExists(uuid))
+    {
+        return false;
+    }
+
+    return WriteProfileJpegFromMemory(image_data, image_size, ProfileImageFilesystemPath(uuid));
+}
+
+bool OSManager::GetProfileImagePath(const uint8_t uuid_bytes[HOST_PROFILE_UUID_SIZE], char * out_path, uint32_t out_path_size) const
+{
+    if (uuid_bytes == nullptr || out_path == nullptr || out_path_size == 0)
+    {
+        return false;
+    }
+
+    std::array<uint8_t, HOST_PROFILE_UUID_SIZE> uuid_array{};
+    std::memcpy(uuid_array.data(), uuid_bytes, HOST_PROFILE_UUID_SIZE);
+    const Common::UUID uuid{uuid_array};
+
+    Service::Account::ProfileManager manager;
+    if (!manager.UserExists(uuid))
+    {
+        return false;
+    }
+
+    const std::filesystem::path imagePath = ProfileImageFilesystemPath(uuid);
+    std::error_code ec;
+    if (!std::filesystem::exists(imagePath, ec) || ec)
+    {
+        out_path[0] = '\0';
+        return true;
+    }
+
+    const std::string path = Common::FS::PathToUTF8String(imagePath);
+    if (path.size() + 1 > out_path_size)
+    {
+        return false;
+    }
+
+    std::memcpy(out_path, path.c_str(), path.size() + 1);
+    return true;
 }
