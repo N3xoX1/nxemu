@@ -15,7 +15,6 @@
 #include <nxemu-module-spec/system_loader.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/logging/log.h>
-#include <yuzu_common/settings.h>
 
 namespace FileSys {
 
@@ -117,8 +116,7 @@ Result IAddOnContentManager::CountAddOnContent(Out<u32> out_count, ClientProcess
 
     const auto current = system.GetApplicationProcessProgramID();
 
-    const auto& disabled = Settings::values.disabled_addons[current];
-    if (std::find(disabled.begin(), disabled.end(), "DLC") != disabled.end()) {
+    if (system.GetSystemloader().IsAddonDisabled(current, "DLC")) {
         *out_count = 0;
         R_SUCCEED();
     }
@@ -139,8 +137,7 @@ Result IAddOnContentManager::ListAddOnContent(Out<u32> out_count,
     const auto current = FileSys::GetBaseTitleID(system.GetApplicationProcessProgramID());
 
     std::vector<u32> out;
-    const auto& disabled = Settings::values.disabled_addons[current];
-    if (std::find(disabled.begin(), disabled.end(), "DLC") == disabled.end()) {
+    if (!system.GetSystemloader().IsAddonDisabled(current, "DLC")) {
         for (u64 content_id : add_on_content) {
             if (FileSys::GetBaseTitleID(content_id) != current) {
                 continue;

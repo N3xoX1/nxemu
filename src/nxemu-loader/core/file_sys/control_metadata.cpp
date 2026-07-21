@@ -79,6 +79,7 @@ NACP & NACP::operator=(const NACP & other)
     {
         raw = other.raw;
         version = other.version;
+        developer = other.developer;
     }
     return *this;
 }
@@ -109,9 +110,13 @@ std::string NACP::GetApplicationName() const
     return GetLanguageEntry().GetApplicationName();
 }
 
-std::string NACP::GetDeveloperName() const
+const char * NACP::GetDeveloperName() const
 {
-    return GetLanguageEntry().GetDeveloperName();
+    if (developer.empty())
+    {
+        developer = GetLanguageEntry().GetDeveloperName();
+    }
+    return developer.c_str();
 }
 
 uint64_t NACP::GetTitleId() const

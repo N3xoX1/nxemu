@@ -108,7 +108,6 @@ public:
 
     const LanguageEntry& GetLanguageEntry() const;
     std::string GetApplicationName() const;
-    std::string GetDeveloperName() const;
     uint64_t GetTitleId() const;
     uint64_t GetDLCBaseTitleId() const;
     uint64_t GetDefaultNormalSaveSize() const;
@@ -122,10 +121,12 @@ public:
     bool GetUserAccountSwitchLock() const override;
     bool GetRatingAge(uint8_t* buffer, uint32_t bufferSize) const override;
     const char * GetVersionString() const override;
+    const char * GetDeveloperName() const override;
     void Release() override;
 
 private:
     std::string version;
+    mutable std::string developer;
     RawNACP raw{};
 };
 

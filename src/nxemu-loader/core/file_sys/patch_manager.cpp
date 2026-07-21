@@ -29,6 +29,7 @@
 #include "core/hle/service/ns/language.h"
 #include "core/hle/service/set/settings_server.h"
 #include "core/loader/loader.h"
+#include "loader_settings.h"
 
 extern IModuleSettings * g_settings;
 
@@ -142,8 +143,8 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
         return exefs;    
     }
 
-    const auto & disabled = Settings::values.disabled_addons[title_id];
-    const auto update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+    const auto & disabled = loaderSettings.disabled_addons[title_id];
+    const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
 
     // Game Updates
     const auto update_tid = GetUpdateTitleID(title_id);
@@ -209,7 +210,7 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
 
 std::vector<VirtualFile> PatchManager::CollectPatches(const std::vector<VirtualDir> & patch_dirs, const std::string & build_id) const
 {
-    const auto & disabled = Settings::values.disabled_addons[title_id];
+    const auto & disabled = loaderSettings.disabled_addons[title_id];
     const auto nso_build_id = fmt::format("{:0<64}", build_id);
 
     std::vector<VirtualFile> out;
@@ -294,7 +295,7 @@ static void ApplyLayeredFS(VirtualFile & romfs, uint64_t title_id, LoaderContent
         return;
     }
 
-    const auto & disabled = Settings::values.disabled_addons[title_id];
+    const auto & disabled = loaderSettings.disabled_addons[title_id];
     std::vector<VirtualDir> patch_dirs = load_dir->GetSubdirectories();
     if (std::find(disabled.cbegin(), disabled.cend(), "SDMC") == disabled.cend())
     {
@@ -386,7 +387,7 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
     const uint64_t update_tid = GetUpdateTitleID(title_id);
     const VirtualFile update_raw = content_provider.GetEntryRaw(update_tid, type);
 
-    const std::vector<std::string> & disabled = Settings::values.disabled_addons[title_id];
+    const auto & disabled = loaderSettings.disabled_addons[title_id];
     const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
 
     if (!update_disabled && update_raw != nullptr && base_nca != nullptr)

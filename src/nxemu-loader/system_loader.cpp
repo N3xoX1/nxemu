@@ -833,6 +833,21 @@ IManualContentProvider & Systemloader::ManualContentProvider()
     return *(impl->m_manualContentProvider.get());
 }
 
+bool Systemloader::IsAddonDisabled(uint64_t program_id, const char * name) const
+{
+    if (name == nullptr || name[0] == '\0')
+    {
+        return false;
+    }
+
+    const TitleIdStringListMap::const_iterator itr = loaderSettings.disabled_addons.find(program_id);
+    if (itr == loaderSettings.disabled_addons.end())
+    {
+        return false;
+    }
+    return std::find(itr->second.begin(), itr->second.end(), name) != itr->second.end();
+}
+
 bool Systemloader::Impl::InstallFirmwareFromFolder(const char * utf8_folder_path)
 {
     if (utf8_folder_path == nullptr || utf8_folder_path[0] == '\0')

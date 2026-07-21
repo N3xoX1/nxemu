@@ -1,8 +1,18 @@
 #pragma once
 
+#include <stdint.h>
+#include <map>
+#include <string>
+#include <vector>
+
+using TitleIdStringListMap = std::map<uint64_t, std::vector<std::string>>;
+
 struct LoaderSettings
 {
     bool checkForUpdatedFirmware;
+
+    // Add-Ons
+    TitleIdStringListMap disabled_addons;
 };
 
 extern LoaderSettings loaderSettings;
