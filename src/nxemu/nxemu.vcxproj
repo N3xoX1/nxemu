@@ -50,6 +50,8 @@
     <ClCompile Include="user_interface\notification.cpp" />
     <ClCompile Include="user_interface\sciter_main_window.cpp" />
     <ClCompile Include="user_interface\settings\config_setting .cpp" />
+    <ClCompile Include="user_interface\settings\game_config.cpp" />
+    <ClCompile Include="user_interface\settings\game_config_addons.cpp" />
     <ClCompile Include="user_interface\settings\input_config_player.cpp" />
     <ClCompile Include="user_interface\settings\profile_editor_dialog.cpp" />
     <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp" />
@@ -82,6 +84,8 @@
     <ClInclude Include="user_interface\resource.h" />
     <ClInclude Include="user_interface\sciter_main_window.h" />
     <ClInclude Include="user_interface\settings\config_setting.h" />
+    <ClInclude Include="user_interface\settings\game_config.h" />
+    <ClInclude Include="user_interface\settings\game_config_addons.h" />
     <ClInclude Include="user_interface\settings\input_config_player.h" />
     <ClInclude Include="user_interface\settings\profile_editor_dialog.h" />
     <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h" />

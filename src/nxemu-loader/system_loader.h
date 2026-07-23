@@ -47,6 +47,8 @@ public:
     IManualContentProvider & ManualContentProvider() override;
     uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const override;
     bool InstallFirmwarePackage(const char * utf8_path) override;
+    uint32_t GetGamePatches(uint64_t program_id, GamePatchInfo * patches, uint32_t maxCount) override;
+    void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) override;
     bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
 
 private:

@@ -207,6 +207,7 @@ rombrowser .rom-card
   cursor: pointer;
   border-radius: 8px;
   border: 3px solid transparent;
+  context-menu: selector(menu#RomCardContextMenu);
 }
 
 rombrowser .rom-card:visited
@@ -622,4 +623,107 @@ menu hr
   margin: 0.4em 0.65em;
   border: none;
   background: var(--color-menu-separator);
+}
+
+menu.context,
+#RomCardContextMenu
+{
+  padding: 0.35em 0.25em;
+  min-width: 16.5em;
+  max-width: 24em;
+  background: var(--color-context-menu-background);
+  color: var(--color-context-menu-text);
+  border: 1px solid var(--color-context-menu-border);
+  border-radius: 0.45em;
+  box-shadow: 0 0.4em 1.1em var(--color-context-menu-shadow);
+  font-family: var(--font-ui);
+  font-size: 0.86em;
+  font-weight: 400;
+}
+
+menu.context > li,
+#RomCardContextMenu > li
+{
+  flow: horizontal;
+  vertical-align: middle;
+  padding: 0.42em 0.85em 0.42em 0.55em;
+  margin: 0 0.15em;
+  border-radius: 0.28em;
+  color: var(--color-context-menu-text);
+}
+
+menu.context > li:hover,
+menu.context > li:current,
+#RomCardContextMenu > li:hover,
+#RomCardContextMenu > li:current
+{
+  background: var(--color-context-menu-hover);
+  color: #ffffff;
+}
+
+menu.context > li:disabled,
+menu.context > li.disabled,
+#RomCardContextMenu > li:disabled,
+#RomCardContextMenu > li.disabled
+{
+  color: var(--color-context-menu-muted);
+  background: transparent;
+  opacity: 0.55;
+}
+
+menu.context > li .menu-item-glyph,
+#RomCardContextMenu > li .menu-item-glyph
+{
+  width: 1.25em;
+  height: 1.25em;
+  min-width: 1.25em;
+  max-width: 1.25em;
+  min-height: 1.25em;
+  max-height: 1.25em;
+  margin: 0 0.65em 0 0.1em;
+  padding: 0;
+  color: var(--color-context-menu-text);
+  vertical-align: middle;
+  flow: horizontal;
+  horizontal-align: center;
+  vertical-align: middle;
+}
+
+menu.context > li .menu-item-glyph.menu-item-icon-svg svg,
+#RomCardContextMenu > li .menu-item-glyph.menu-item-icon-svg svg
+{
+  width: 1.1em;
+  height: 1.1em;
+  display: block;
+  margin: *;
+}
+
+menu.context > li .menu-item-label,
+#RomCardContextMenu > li .menu-item-label
+{
+  width: *;
+  height: *;
+  text-align: left;
+  vertical-align: middle;
+  padding: 0;
+  margin: 0;
+  line-height: 1.25em;
+}
+
+menu.context > hr,
+#RomCardContextMenu > hr
+{
+  margin: 0.3em 0.7em;
+  background: var(--color-context-menu-separator);
+}
+
+menu.context > li:has-child-of-type(menu),
+#RomCardContextMenu > li:has-child-of-type(menu)
+{
+  foreground-image: url(path: M 0 0 L 4 3 L 0 6);
+  foreground-repeat: no-repeat;
+  foreground-position: right 0.7em top 50%;
+  foreground-size: 0.4em 0.55em;
+  foreground-image-transformation: colorize(var(--color-context-menu-muted));
+  padding-right: 1.6em;
 }

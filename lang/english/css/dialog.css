@@ -7,7 +7,7 @@ html {
 }
 
 button {
-  color: #eff0f1;
+  color: var(--color-ui-text-primary);
   background: #232728;
   border: 1px solid #55575a;
   font-family: var(--font-ui);

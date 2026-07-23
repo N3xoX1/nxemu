@@ -299,6 +299,19 @@ void SaveLoaderSettings(void)
     g_settings->SetSectionSettings("nxemu-loader", root.isNull() ? "" : JsonStyledWriter().write(root));
 }
 
+void SetLoaderDisabledAddons(uint64_t program_id, std::vector<std::string> names)
+{
+    if (names.empty())
+    {
+        loaderSettings.disabled_addons.erase(program_id);
+    }
+    else
+    {
+        loaderSettings.disabled_addons[program_id] = std::move(names);
+    }
+    SaveLoaderSettings();
+}
+
 LoaderSetting::LoaderSetting(const char * id, const char * path, bool * val, bool defaultValue_) :
     identifier(id),
     json_path(path),

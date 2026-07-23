@@ -1,4 +1,5 @@
 #include "sciter_main_window.h"
+#include "settings/game_config.h"
 #include "settings/input_config.h"
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
@@ -487,6 +488,12 @@ bool SciterMainWindow::Show()
     {
         m_sciterUI.AttachHandler(volumePopup, IID_EVENTSINK, (IEventSink *)this);
     }
+    SciterElement romContextMenu(m_rootElement.GetElementByID("RomCardContextMenu"));
+    if (romContextMenu.IsValid())
+    {
+        m_sciterUI.AttachHandler(romContextMenu, IID_ICLICKSINK, (IClickSink *)this);
+        m_sciterUI.AttachHandler(romContextMenu, IID_EVENTSINK, (IEventSink *)this);
+    }
 
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
     m_rootElement.SetTimer(25, (uint32_t *)TIMER_UPDATE_INPUT);
@@ -515,6 +522,17 @@ void SciterMainWindow::ShowConfig(const char * startPage)
 {
     m_systemConfig.reset(new SystemConfig(m_sciterUI, m_modules, m_vkDeviceRecords));
     m_systemConfig->Display((void *)m_window->GetHandle(), startPage);
+}
+
+void SciterMainWindow::ShowGameConfig(const char * gamePath)
+{
+    if (gamePath == nullptr || gamePath[0] == '\0' || !m_rootElement.IsValid())
+    {
+        return;
+    }
+
+    m_pendingGameConfigPath = gamePath;
+    m_rootElement.SetTimer(1, (uint32_t *)TIMER_OPEN_GAME_CONFIG);
 }
 
 void SciterMainWindow::LoadGame(const char * path)
@@ -1941,6 +1959,7 @@ void SciterMainWindow::ResetWindowSize(uint32_t nominal_width, uint32_t nominal_
 bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t /*reason*/)
 {
     SciterElement rootElement(m_window->GetRootElement());
+
     if (source == rootElement.GetElementByID("dockedMode"))
     {
         OnToggleDockedMode();
@@ -2091,6 +2110,17 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
         {
             RefreshFirmwareInstallLoading();
         }
+    }
+    else if (timerId == (uint32_t *)TIMER_OPEN_GAME_CONFIG)
+    {
+        const std::string path = m_pendingGameConfigPath;
+        m_pendingGameConfigPath.clear();
+        if (!path.empty())
+        {
+            m_gameConfig.reset(new GameConfig(m_sciterUI, m_modules));
+            m_gameConfig->Display((void *)m_window->GetHandle(), path.c_str());
+        }
+        return false;
     }
     return true;
 }

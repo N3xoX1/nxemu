@@ -20,6 +20,7 @@ struct Win32FullscreenState;
 #endif
 
 class SystemConfig;
+class GameConfig;
 class InputConfig;
 class AboutDialog;
 
@@ -77,6 +78,7 @@ class SciterMainWindow :
         TIMER_UPDATE_INPUT,
         TIMER_UPDATE_STATUS,
         TIMER_UPDATE_INSTALL_FIRMWARE,
+        TIMER_OPEN_GAME_CONFIG,
     };
 
 public:
@@ -86,6 +88,7 @@ public:
     void ResetMenu();
     bool Show();
     void ShowConfig(const char * startPage);
+    void ShowGameConfig(const char * gamePath);
     void LoadGame(const char * path);
 
     // IRenderWindow
@@ -203,6 +206,8 @@ private:
     void * m_renderWindow;
     std::string m_windowTitle;
     std::unique_ptr<SystemConfig> m_systemConfig;
+    std::unique_ptr<GameConfig> m_gameConfig;
+    std::string m_pendingGameConfigPath;
     std::unique_ptr<InputConfig> m_inputConfig;
     std::unique_ptr<AboutDialog> m_aboutDialog;
     WebBrowserApplet m_WebBrowser;

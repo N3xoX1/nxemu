@@ -120,18 +120,21 @@ div.center-buttons-grid
 }
 
 #bottomLeft,
-#bottomLeftSpacer,
-#bottomRight,
-#bottomRightSpacer
+#bottomRight
 {
   width: 13rem;
+}
+
+#bottomLeftSpacer,
+#bottomRightSpacer
+{
+  width: *;
 }
 
 .bottomMiddle
 {
   width: *;
   min-width: 36rem;
-  min-height: 38rem;
 }
 
 #ControllerTypeGroup
@@ -224,7 +227,7 @@ input[type=hslider] > button.slider
 
 #InputContents
 {
-  width: 65em;
+  width: max-content;
 }
 
 @keyframes flash {

@@ -27,8 +27,8 @@ body {
     0 2px 8px rgba(0, 0, 0, 1),
     0 12px 12px rgba(0, 0, 0, 0.55);
   overflow: hidden;
-  color: #eff0f1;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  color: var(--color-ui-text-primary);
+  font-family: var(--font-ui);
   font-size: 0.9rem;
 }
 
@@ -124,10 +124,10 @@ html[data-active="false"] .notification-panel > header > window-buttons > window
 }
 
 .notification-panel button {
-  color: #eff0f1;
+  color: var(--color-ui-text-primary);
   background: #232728;
   border: 1px solid #55575a;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
 }
 

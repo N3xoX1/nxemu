@@ -1,0 +1,65 @@
+<html window-frame="solid-with-shadow" window-icon="window-icon.png">
+  <head>
+    <link href="base.css" rel="stylesheet" type="text/css" />
+    <link href="dialog.css" rel="stylesheet" type="text/css" />
+    <link href="config.css" rel="stylesheet" type="text/css" />
+    <link href="game_config.css" rel="stylesheet" type="text/css" />
+    <title>Configure Game</title>
+  </head>
+  <header>
+    <window-caption role=window-caption><img src="window-icon-32.png" /><span>Configure Game</span></window-caption>
+    <window-buttons>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <body>
+    <div class="GameConfigPage">
+      <div class="game-config-body">
+        <div class="info-panel">
+          <div class="info-title">Info</div>
+          <img id="GameIcon" class="game-icon" />
+          <div class="info-fields">
+            <div class="info-row">
+              <label>Name</label>
+              <input type="text" id="display_name" readonly />
+            </div>
+            <div class="info-row">
+              <label>Developer</label>
+              <input type="text" id="display_developer" readonly />
+            </div>
+            <div class="info-row">
+              <label>Version</label>
+              <input type="text" id="display_version" readonly />
+            </div>
+            <div class="info-row">
+              <label>Title ID</label>
+              <input type="text" id="display_title_id" readonly />
+            </div>
+            <div class="info-row">
+              <label>Format</label>
+              <input type="text" id="display_format" readonly />
+            </div>
+            <div class="info-row">
+              <label>Size</label>
+              <input type="text" id="display_size" readonly />
+            </div>
+            <div class="info-row">
+              <label>Filename</label>
+              <input type="text" id="display_filename" readonly />
+            </div>
+          </div>
+        </div>
+        <div class="settings-panel">
+          <PageNav target="GameConfigContents" id="GameConfigTabNav" class="page_tabs">
+            <Page label="Add-Ons" Name="AddOns" contents="game_config_addons.html" />
+          </PageNav>
+          <div id="GameConfigContents" class="page_content" />
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <button role="window-ok">OK</button>
+      <button role="window-close">Cancel</button>
+    </div>
+  </body>
+</html>

@@ -153,6 +153,13 @@ struct ContentProviderEntry
     LoaderContentRecordType type;
 };
 
+struct GamePatchInfo
+{
+    bool enabled;
+    char name[128];
+    char version[128];
+};
+
 struct SaveDataAttribute 
 {
     uint64_t program_id;
@@ -331,6 +338,8 @@ nxinterface ISystemloader
     virtual IManualContentProvider & ManualContentProvider() = 0;
     virtual uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const = 0;
     virtual bool InstallFirmwarePackage(const char * utf8_path) = 0;
+    virtual uint32_t GetGamePatches(uint64_t program_id, GamePatchInfo * patches, uint32_t maxCount) = 0;
+    virtual void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) = 0;
     virtual bool IsAddonDisabled(uint64_t program_id, const char * name) const = 0;
 };
 

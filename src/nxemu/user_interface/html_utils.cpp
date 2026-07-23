@@ -106,3 +106,12 @@ void SetElementVisible(const SciterElement & root, const char * id, bool visible
     }
     el.SetStyleAttribute("display", visible ? "" : "none");
 }
+
+void SetInputValue(const SciterElement & root, const char * id, const std::string & value)
+{
+    SciterElement el(root.GetElementByID(id));
+    if (el.IsValid())
+    {
+        el.SetValue(SciterValue(value));
+    }
+}
