@@ -182,6 +182,8 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
             m_pageNav = std::static_pointer_cast<IPageNav>(interfacePtr);
             m_pageNav->AddSink(this);
         }
+
+        AttachClickHandler(m_sciterUI, root.FindFirst("button[role=\"window-ok\"]"), this);
     }
 
     m_window->FixMinSize();
@@ -231,4 +233,22 @@ void GameConfig::PageNavCreatedPage(const std::string & pageName, SCITER_ELEMENT
 
 void GameConfig::PageNavPageChanged(const std::string & /*pageName*/, SCITER_ELEMENT /*pageNav*/)
 {
+}
+
+bool GameConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t /*reason*/)
+{
+    SciterElement clickElem(element);
+    if (clickElem.GetAttribute("role") == "window-ok")
+    {
+        if (m_gameConfigAddons)
+        {
+            m_gameConfigAddons->SaveSetting();
+        }
+        if (m_window != nullptr)
+        {
+            m_window->Destroy();
+            m_window = nullptr;
+        }
+    }
+    return true;
 }

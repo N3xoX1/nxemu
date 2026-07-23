@@ -62,3 +62,55 @@ void GameConfigAddons::PopulateAddons(void)
 
     list.SetHTML(reinterpret_cast<const uint8_t *>(html.c_str()), html.size());
 }
+
+void GameConfigAddons::SaveSetting(void)
+{
+    const uint64_t programId = m_config.ProgramId();
+    if (!m_page.IsValid() || programId == 0)
+    {
+        return;
+    }
+
+    SciterElement list = m_page.GetElementByID("AddonsList");
+    if (!list.IsValid())
+    {
+        return;
+    }
+
+    std::vector<std::string> disabledNames;
+    std::vector<const char *> disabledPtrs;
+    const uint32_t childCount = list.GetChildCount();
+    for (uint32_t i = 0; i < childCount; ++i)
+    {
+        SciterElement row = list.GetChild(i);
+        if (!row.IsValid())
+        {
+            continue;
+        }
+        SciterElement checkbox = row.FindFirst("input.addon-enabled");
+        if (!checkbox.IsValid())
+        {
+            continue;
+        }
+        const bool checked = (checkbox.GetState() & SciterElement::STATE_CHECKED) != 0;
+        if (checked)
+        {
+            continue;
+        }
+        const std::string name = checkbox.GetAttribute("data-name");
+        if (!name.empty())
+        {
+            disabledNames.push_back(name);
+        }
+    }
+
+    disabledPtrs.reserve(disabledNames.size());
+    for (const std::string & name : disabledNames)
+    {
+        disabledPtrs.push_back(name.c_str());
+    }
+
+    m_modules.Modules().Systemloader().SetDisabledAddons(
+        programId, disabledPtrs.empty() ? nullptr : disabledPtrs.data(),
+        static_cast<uint32_t>(disabledPtrs.size()));
+}

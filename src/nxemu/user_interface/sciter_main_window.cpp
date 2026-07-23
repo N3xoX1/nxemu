@@ -2144,6 +2144,7 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
             m_gameConfig.reset(new GameConfig(m_sciterUI, m_modules));
             m_gameConfig->Display((void *)m_window->GetHandle(), path.c_str());
         }
+    }
     else if (timerId == (uint32_t *)TIMER_DEFERRED_STOP_GAME)
     {
         DoStopGame();
