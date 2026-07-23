@@ -79,6 +79,8 @@ class SciterMainWindow :
         TIMER_UPDATE_STATUS,
         TIMER_UPDATE_INSTALL_FIRMWARE,
         TIMER_OPEN_GAME_CONFIG,
+        TIMER_DEFERRED_STOP_GAME,
+        TIMER_DEFERRED_FILE_EXIT,
     };
 
 public:
@@ -117,8 +119,10 @@ private:
 
     void OnOpenFile();
     void OnFileExit();
+    void DoFileExit();
     bool ConfirmCloseEmulator();
     void OnStopGame();
+    void DoStopGame();
     void OnPauseContinueGame();
     void OnSystemConfig();
     void OnInputConfig();

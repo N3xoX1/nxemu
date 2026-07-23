@@ -1187,6 +1187,16 @@ bool SciterMainWindow::ConfirmCloseEmulator()
 
 void SciterMainWindow::OnFileExit()
 {
+    if (!m_rootElement.IsValid())
+    {
+        DoFileExit();
+        return;
+    }
+    m_rootElement.SetTimer(1, (uint32_t *)TIMER_DEFERRED_FILE_EXIT);
+}
+
+void SciterMainWindow::DoFileExit()
+{
     if (!ConfirmCloseEmulator())
     {
         return;
@@ -1195,6 +1205,20 @@ void SciterMainWindow::OnFileExit()
 }
 
 void SciterMainWindow::OnStopGame()
+{
+    if (!m_emulationRunning)
+    {
+        return;
+    }
+    if (!m_rootElement.IsValid())
+    {
+        DoStopGame();
+        return;
+    }
+    m_rootElement.SetTimer(1, (uint32_t *)TIMER_DEFERRED_STOP_GAME);
+}
+
+void SciterMainWindow::DoStopGame()
 {
     if (!m_emulationRunning)
     {
@@ -2120,6 +2144,14 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
             m_gameConfig.reset(new GameConfig(m_sciterUI, m_modules));
             m_gameConfig->Display((void *)m_window->GetHandle(), path.c_str());
         }
+    else if (timerId == (uint32_t *)TIMER_DEFERRED_STOP_GAME)
+    {
+        DoStopGame();
+        return false;
+    }
+    else if (timerId == (uint32_t *)TIMER_DEFERRED_FILE_EXIT)
+    {
+        DoFileExit();
         return false;
     }
     return true;
