@@ -20,3 +20,5 @@ extern LoaderSettings loaderSettings;
 void SetupLoaderSetting(void);
 void CleanupLoaderSetting(void);
 void SaveLoaderSettings(void);
+
+void SetLoaderDisabledAddons(uint64_t program_id, std::vector<std::string> names);

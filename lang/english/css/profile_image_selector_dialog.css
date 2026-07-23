@@ -2,8 +2,8 @@
 {
   padding: 0.75rem 0.25rem 0.25rem;
   min-width: 28rem;
-  color: #eff0f1;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  color: var(--color-ui-text-primary);
+  font-family: var(--font-ui);
   font-size: 0.9rem;
 }
 

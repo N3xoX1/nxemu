@@ -423,8 +423,186 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
 
 std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
 {
-    UNIMPLEMENTED();
-    return {};
+    if (title_id == 0)
+    {
+        return {};
+    }
+
+    std::vector<Patch> out;
+
+    // Game Updates
+    const auto update_tid = GetUpdateTitleID(title_id);
+    PatchManager update{update_tid, fs_controller, content_provider};
+    const auto metadata = update.GetControlMetadata();
+    const auto & nacp = metadata.first;
+
+    const auto & disabled = loaderSettings.disabled_addons[title_id];
+    const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+    Patch update_patch = {.enabled = !update_disabled,
+                          .name = "Update",
+                          .version = "",
+                          .type = PatchType::Update,
+                          .program_id = title_id,
+                          .title_id = title_id};
+
+    if (nacp != nullptr)
+    {
+        update_patch.version = nacp->GetVersionString();
+        out.push_back(update_patch);
+    }
+    else if (content_provider.HasEntry(update_tid, LoaderContentRecordType::Program))
+    {
+        const auto meta_ver = content_provider.GetEntryVersion(update_tid);
+        if (meta_ver.value_or(0) == 0)
+        {
+            out.push_back(update_patch);
+        }
+        else
+        {
+            update_patch.version = FormatTitleVersion(*meta_ver);
+            out.push_back(update_patch);
+        }
+    }
+    else if (update_raw != nullptr)
+    {
+        update_patch.version = "PACKED";
+        out.push_back(update_patch);
+    }
+
+    // General Mods (LayeredFS and IPS)
+    const auto mod_dir = fs_controller.GetModificationLoadRoot(title_id);
+    if (mod_dir != nullptr)
+    {
+        for (const auto & mod : mod_dir->GetSubdirectories())
+        {
+            std::string types;
+
+            const auto exefs_dir = FindSubdirectoryCaseless(mod, "exefs");
+            if (IsDirValidAndNonEmpty(exefs_dir))
+            {
+                bool ips = false;
+                bool ipswitch = false;
+                bool layeredfs = false;
+
+                for (const auto & file : exefs_dir->GetFiles())
+                {
+                    if (file->GetExtension() == "ips")
+                    {
+                        ips = true;
+                    }
+                    else if (file->GetExtension() == "pchtxt")
+                    {
+                        ipswitch = true;
+                    }
+                    else if (std::find(EXEFS_FILE_NAMES.begin(), EXEFS_FILE_NAMES.end(),
+                                       file->GetName()) != EXEFS_FILE_NAMES.end())
+                    {
+                        layeredfs = true;
+                    }
+                }
+
+                if (ips)
+                {
+                    AppendCommaIfNotEmpty(types, "IPS");
+                }
+                if (ipswitch)
+                {
+                    AppendCommaIfNotEmpty(types, "IPSwitch");
+                }
+                if (layeredfs)
+                {
+                    AppendCommaIfNotEmpty(types, "LayeredExeFS");
+                }
+            }
+            if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod, "romfs")))
+            {
+                AppendCommaIfNotEmpty(types, "LayeredFS");
+            }
+            if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod, "cheats")))
+            {
+                AppendCommaIfNotEmpty(types, "Cheats");
+            }
+
+            if (types.empty())
+            {
+                continue;
+            }
+
+            const bool mod_disabled =
+                std::find(disabled.begin(), disabled.end(), mod->GetName()) != disabled.end();
+            out.push_back({.enabled = !mod_disabled,
+                           .name = mod->GetName(),
+                           .version = std::move(types),
+                           .type = PatchType::Mod,
+                           .program_id = title_id,
+                           .title_id = title_id});
+        }
+    }
+
+    // SDMC mod directory (RomFS LayeredFS)
+    const auto sdmc_mod_dir = fs_controller.GetSDMCModificationLoadRoot(title_id);
+    if (sdmc_mod_dir != nullptr)
+    {
+        std::string types;
+        if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(sdmc_mod_dir, "exefs")))
+        {
+            AppendCommaIfNotEmpty(types, "LayeredExeFS");
+        }
+        if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(sdmc_mod_dir, "romfs")))
+        {
+            AppendCommaIfNotEmpty(types, "LayeredFS");
+        }
+
+        if (!types.empty())
+        {
+            const bool mod_disabled =
+                std::find(disabled.begin(), disabled.end(), "SDMC") != disabled.end();
+            out.push_back({.enabled = !mod_disabled,
+                           .name = "SDMC",
+                           .version = std::move(types),
+                           .type = PatchType::Mod,
+                           .program_id = title_id,
+                           .title_id = title_id});
+        }
+    }
+
+    // DLC
+    const auto dlc_entries =
+        content_provider.ListEntriesFilter(LoaderTitleType::AOC, LoaderContentRecordType::Data);
+    std::vector<ContentProviderEntry> dlc_match;
+    dlc_match.reserve(dlc_entries.size());
+    std::copy_if(dlc_entries.begin(), dlc_entries.end(), std::back_inserter(dlc_match),
+                 [this](const ContentProviderEntry & entry) {
+                     const auto nca = content_provider.GetEntryNCA(entry);
+                     return GetBaseTitleID(entry.titleID) == title_id && nca != nullptr &&
+                            nca->GetStatus() == LoaderResultStatus::Success;
+                 });
+    if (!dlc_match.empty())
+    {
+        std::sort(dlc_match.begin(), dlc_match.end(),
+                  [](const ContentProviderEntry & lhs, const ContentProviderEntry & rhs) {
+                      return (lhs.titleID < rhs.titleID) ||
+                             (lhs.titleID == rhs.titleID && lhs.type < rhs.type);
+                  });
+
+        std::string list;
+        for (size_t i = 0; i < dlc_match.size() - 1; ++i)
+        {
+            list += fmt::format("{}, ", dlc_match[i].titleID & 0x7FF);
+        }
+        list += fmt::format("{}", dlc_match.back().titleID & 0x7FF);
+
+        const bool dlc_disabled =
+            std::find(disabled.begin(), disabled.end(), "DLC") != disabled.end();
+        out.push_back({.enabled = !dlc_disabled,
+                       .name = "DLC",
+                       .version = std::move(list),
+                       .type = PatchType::DLC,
+                       .program_id = title_id,
+                       .title_id = dlc_match.back().titleID});
+    }
+
+    return out;
 }
 
 std::optional<u32> PatchManager::GetGameVersion() const

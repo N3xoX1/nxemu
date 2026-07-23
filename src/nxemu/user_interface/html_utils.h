@@ -12,3 +12,4 @@ std::string ImageDataUriFromFile(const char * path);
 void AttachClickHandler(ISciterUI & sciterUI, const SciterElement & element, IClickSink * sink);
 void SetElementEnabled(const SciterElement & root, const char * id, bool enabled);
 void SetElementVisible(const SciterElement & root, const char * id, bool visible);
+void SetInputValue(const SciterElement & root, const char * id, const std::string & value);

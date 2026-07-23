@@ -129,6 +129,12 @@
     <ClCompile Include="user_interface\discord_presence.cpp">
       <Filter>Source Files\user_interface</Filter>
     </ClCompile>
+    <ClCompile Include="user_interface\settings\game_config.cpp">
+      <Filter>Source Files\user_interface\settings</Filter>
+    </ClCompile>
+    <ClCompile Include="user_interface\settings\game_config_addons.cpp">
+      <Filter>Source Files\user_interface\settings</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="user_interface\resource.h">
@@ -223,6 +229,12 @@
     </ClInclude>
     <ClInclude Include="user_interface\discord_presence.h">
       <Filter>Header Files\user_interface</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\settings\game_config.h">
+      <Filter>Header Files\user_interface\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\settings\game_config_addons.h">
+      <Filter>Header Files\user_interface\settings</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

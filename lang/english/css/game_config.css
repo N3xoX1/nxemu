@@ -1,0 +1,241 @@
+.GameConfigPage
+{
+  background: var(--color-dialog-background);
+  height: *;
+  padding: 0.6em;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: var(--color-ui-text-primary);
+}
+
+.game-config-body
+{
+  flow: horizontal;
+  height: *;
+  border-spacing: 0.6em;
+}
+
+.info-panel
+{
+  width: 18.5em;
+  min-width: 18.5em;
+  max-width: 18.5em;
+  background: var(--color-config-page);
+  border: 1px solid var(--color-config-page-border);
+  border-radius: 0.35em;
+  padding: 0.7em;
+  flow: vertical;
+}
+
+.info-title
+{
+  font-weight: 600;
+  margin: 0 0 0.6em;
+  text-align: center;
+}
+
+.game-icon
+{
+  width: 16em;
+  height: 16em;
+  margin: 0 * 0.8em *;
+  border-radius: 0.25em;
+  foreground-size: contain;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  background: #1a1a1a;
+  border: 1px solid #404040;
+}
+
+.info-fields
+{
+  flow: vertical;
+  border-spacing: 0.35em;
+}
+
+.info-row
+{
+  flow: horizontal;
+  vertical-align: middle;
+  border-spacing: 0.4em;
+}
+
+.info-row > label
+{
+  width: 5.2em;
+  min-width: 5.2em;
+  color: #c8c8c8;
+  font-size: 0.85em;
+}
+
+.info-row > input
+{
+  width: *;
+  background: #1e1e1e;
+  border: 1px solid #404040;
+  border-radius: 0.2em;
+  color: var(--color-ui-text-primary);
+  padding: 0.2em 0.35em;
+  font-size: 0.82em;
+}
+
+.settings-panel
+{
+  width: *;
+  height: *;
+  flow: vertical;
+}
+
+#GameConfigTabNav
+{
+  flow: horizontal;
+  margin: 0;
+  padding: 0;
+  width: *;
+}
+
+#GameConfigTabNav > page
+{
+  background: #2b2f32;
+  border: 1px solid #55575a;
+  border-bottom: 1px solid var(--color-config-page-border);
+  border-radius: 2px 2px 0 0;
+  color: var(--color-ui-text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  padding: 0.25rem 1.1rem;
+  margin: 0 0 -1px 0;
+  position: relative;
+  z-index: 2;
+  width: max-content;
+  display: inline-block;
+}
+
+#GameConfigTabNav > page:hover
+{
+  border: 1px solid #55575a;
+  border-bottom: 1px solid var(--color-config-page-border);
+}
+
+#GameConfigTabNav > page:visited,
+#GameConfigTabNav > page:current,
+#GameConfigTabNav > page.active
+{
+  background: var(--color-config-page);
+  border-color: var(--color-config-page-border);
+  border-bottom: 1px solid var(--color-config-page);
+}
+
+#GameConfigContents
+{
+  width: *;
+  height: *;
+  flow: vertical;
+  background: var(--color-config-page);
+  border: 1px solid var(--color-config-page-border);
+  padding: 0.6em;
+  overflow-y: auto;
+}
+
+.addons-page
+{
+  flow: vertical;
+  height: *;
+  border-spacing: 0.6em;
+}
+
+.addons-list
+{
+  height: *;
+  border: 1px solid #404040;
+  background: #1e1e1e;
+  flow: vertical;
+}
+
+.addons-header
+{
+  flow: horizontal;
+  background: #2a2a2a;
+  border-bottom: 1px solid #404040;
+  padding: 0.35em 0.5em;
+  font-weight: 600;
+  font-size: 0.85em;
+  vertical-align: middle;
+}
+
+.addons-header .col-check,
+.addons-row .col-check
+{
+  width: 1.8em;
+  min-width: 1.8em;
+}
+
+.addons-header .col-name,
+.addons-row .col-name
+{
+  width: *;
+}
+
+.addons-header .col-version,
+.addons-row .col-version
+{
+  width: 7em;
+  min-width: 7em;
+  text-align: left;
+}
+
+.addons-rows
+{
+  height: *;
+  overflow-y: auto;
+}
+
+.addons-row
+{
+  flow: horizontal;
+  padding: 0.35em 0.5em;
+  border-bottom: 1px solid #333;
+  vertical-align: middle;
+}
+
+.addons-row:nth-child(even)
+{
+  background: #232323;
+}
+
+.addons-row > .col-check > input
+{
+  margin: 0;
+}
+
+.addons-actions
+{
+  flow: horizontal;
+  border-spacing: 0.5em;
+}
+
+.addons-actions > button
+{
+  width: *;
+}
+
+.game-config-footer
+{
+  flow: horizontal;
+  vertical-align: middle;
+  padding: 0.5rem 0 0;
+}
+
+.game-config-hint
+{
+  width: *;
+  color: #b8b8b8;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.footer-buttons
+{
+  flow: horizontal;
+  border-spacing: 0.4em;
+}

@@ -23,6 +23,13 @@
   --color-menu-popup-shadow: rgba(0, 0, 0, 0.45);
   --color-menu-shortcut-text: #b8b8b8;
   --color-menu-separator: #3d3d3d;
+  --color-context-menu-background: #2b2b2b;
+  --color-context-menu-border: #3c3c3c;
+  --color-context-menu-hover: #3a3a3a;
+  --color-context-menu-text: #f3f3f3;
+  --color-context-menu-muted: #a8a8a8;
+  --color-context-menu-separator: #404040;
+  --color-context-menu-shadow: rgba(0, 0, 0, 0.55);
   --color-window-border: #353535;
 }
 

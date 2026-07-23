@@ -833,6 +833,42 @@ IManualContentProvider & Systemloader::ManualContentProvider()
     return *(impl->m_manualContentProvider.get());
 }
 
+uint32_t Systemloader::GetGamePatches(uint64_t program_id, GamePatchInfo * patches, uint32_t maxCount)
+{
+    const FileSys::PatchManager pm(program_id, GetFileSystemController(), GetContentProvider());
+    const std::vector<FileSys::Patch> list = pm.GetPatches();
+    if (patches == nullptr || maxCount == 0)
+    {
+        return static_cast<uint32_t>(list.size());
+    }
+
+    const uint32_t count = std::min(maxCount, static_cast<uint32_t>(list.size()));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        patches[i].enabled = list[i].enabled;
+        std::snprintf(patches[i].name, sizeof(patches[i].name), "%s", list[i].name.c_str());
+        std::snprintf(patches[i].version, sizeof(patches[i].version), "%s", list[i].version.c_str());
+    }
+    return count;
+}
+
+void Systemloader::SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count)
+{
+    std::vector<std::string> disabled;
+    if (names != nullptr)
+    {
+        disabled.reserve(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (names[i] != nullptr && names[i][0] != '\0')
+            {
+                disabled.emplace_back(names[i]);
+            }
+        }
+    }
+    SetLoaderDisabledAddons(program_id, std::move(disabled));
+}
+
 bool Systemloader::IsAddonDisabled(uint64_t program_id, const char * name) const
 {
     if (name == nullptr || name[0] == '\0')
