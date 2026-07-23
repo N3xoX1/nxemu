@@ -36,7 +36,8 @@ struct SystemModules::Impl :
         video(nullptr),
         cpu(nullptr),
         operatingsystem(nullptr),
-        valid(false)
+        valid(false),
+        stopping(false)
     {
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.RegisterCallback(NXCoreSetting::EmulationRunning, EmulationRunningChanged, this);
@@ -76,6 +77,12 @@ struct SystemModules::Impl :
 
     void StopEmulation(bool wait) override
     {
+        if (stopping)
+        {
+            return;
+        }
+        stopping = true;
+
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopping);
 
@@ -83,6 +90,12 @@ struct SystemModules::Impl :
         {
             (*itr)->EmulationStopping(wait);
         }
+        if (settings.GetBool(NXCoreSetting::EmulationRunning))
+        {
+            settings.SetBool(NXCoreSetting::EmulationRunning, false);
+        }
+
+        stopping = false;
     }
 
     ISystemloader & Systemloader() override
@@ -122,6 +135,7 @@ struct SystemModules::Impl :
     ICpu * cpu;
     IOperatingSystem * operatingsystem;
     bool valid;
+    bool stopping;
 };
 
 SystemModules::SystemModules()
