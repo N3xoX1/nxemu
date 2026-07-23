@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sciter_handler.h>
 #include <widgets/page_nav.h>
 #include <string>
 
@@ -9,6 +10,7 @@ class SystemModules;
 class GameConfigAddons;
 
 class GameConfig :
+    public IClickSink,
     public IPagesSink
 {
 public:
@@ -17,6 +19,9 @@ public:
 
     void Display(void * parentWindow, const char * gamePath);
     uint64_t ProgramId() const { return m_programId; }
+
+    // IClickSink
+    bool OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t reason) override;
 
     // IPagesSink
     bool PageNavChangeFrom(const std::string & pageName, SCITER_ELEMENT pageNav) override;
