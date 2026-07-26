@@ -6,4 +6,5 @@ constexpr const char * CheckForUpdatedFirmware = "nxloader:CheckForUpdatedFirmwa
 constexpr const char * FirmwareInstallCurrent = "nxloader:FirmwareInstallCurrent";
 constexpr const char * FirmwareInstallTotal = "nxloader:FirmwareInstallTotal";
 constexpr const char * Has39BitAddressSpace = "nxloader:Has39BitAddressSpace";
+constexpr const char * AddOnDirectories = "nxloader:AddOnDirectories";
 } // namespace NXLoaderSetting

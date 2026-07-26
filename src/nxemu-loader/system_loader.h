@@ -50,6 +50,7 @@ public:
     uint32_t GetGamePatches(uint64_t program_id, GamePatchInfo * patches, uint32_t maxCount) override;
     void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) override;
     bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
+    void RegisterConfiguredAddOnDirectories(uint64_t program_id);
 
 private:
     Systemloader() = delete;

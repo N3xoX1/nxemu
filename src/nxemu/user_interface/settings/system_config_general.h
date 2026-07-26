@@ -4,7 +4,6 @@
 #include <widgets/page_nav.h>
 
 class SystemConfig;
-class SystemConfigGameBrowser;
 class SystemConfigHotkeys;
 class SystemConfigLogging;
 class SystemConfigSystem;
@@ -36,7 +35,6 @@ private:
     SciterElement m_page;
     std::shared_ptr<IPageNav> m_pageNav;
     std::unique_ptr<SystemConfigLogging> m_systemConfigLogging;
-    std::unique_ptr<SystemConfigGameBrowser> m_systemConfigGameBrowser;
     std::unique_ptr<SystemConfigHotkeys> m_systemConfigHotkeys;
     std::unique_ptr<SystemConfigSystem> m_systemConfigSystem;
 };
