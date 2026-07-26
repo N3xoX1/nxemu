@@ -1,4 +1,3 @@
-#include "system_config_game_browser.h"
 #include "system_config_general.h"
 #include "system_config_hotkeys.h"
 #include "system_config_logging.h"
@@ -34,10 +33,6 @@ void SystemConfigGeneral::SetInitialPage(const char * path)
 
 void SystemConfigGeneral::SaveSetting(void)
 {
-    if (m_systemConfigGameBrowser)
-    {
-        m_systemConfigGameBrowser->SaveSetting();
-    }
     if (m_systemConfigLogging)
     {
         m_systemConfigLogging->SaveSetting();
@@ -64,11 +59,7 @@ bool SystemConfigGeneral::PageNavChangeTo(const std::string & /*pageName*/, SCIT
 
 void SystemConfigGeneral::PageNavCreatedPage(const std::string & pageName, SCITER_ELEMENT page)
 {
-    if (pageName == "GameBrowser")
-    {
-        m_systemConfigGameBrowser.reset(new SystemConfigGameBrowser(m_sciterUI, m_config, m_window, page));
-    }
-    else if (pageName == "Logging")
+    if (pageName == "Logging")
     {
         m_systemConfigLogging.reset(new SystemConfigLogging(m_sciterUI, m_config, m_window, page));
     }

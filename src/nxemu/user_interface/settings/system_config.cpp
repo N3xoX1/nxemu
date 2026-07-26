@@ -2,6 +2,7 @@
 #include "settings/ui_settings.h"
 #include "system_config.h"
 #include "system_config_audio.h"
+#include "system_config_game_browser.h"
 #include "system_config_general.h"
 #include "system_config_graphics.h"
 #include "system_config_profiles.h"
@@ -72,6 +73,10 @@ void SystemConfig::Display(void * parentWindow, const char * startPage)
                     if (initialPage == "General" && m_systemConfigGeneral)
                     {
                         m_systemConfigGeneral->SetInitialPage(subPage.c_str());
+                    }
+                    else if (initialPage == "GameBrowser" && m_systemConfigGameBrowser)
+                    {
+                        m_systemConfigGameBrowser->SetInitialPage(subPage.c_str());
                     }
                 }
             }
@@ -331,6 +336,10 @@ void SystemConfig::PageNavCreatedPage(const std::string & pageName, SCITER_ELEME
     {
         m_systemConfigGeneral.reset(new SystemConfigGeneral(m_sciterUI, *this, *m_window, page));
     }
+    else if (pageName == "GameBrowser")
+    {
+        m_systemConfigGameBrowser.reset(new SystemConfigGameBrowser(m_sciterUI, *this, *m_window, page));
+    }
     else if (pageName == "Profiles")
     {
         m_systemConfigProfiles.reset(new SystemConfigProfiles(m_sciterUI, *this, m_modules, *m_window, page));
@@ -357,6 +366,10 @@ bool SystemConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, ui
         if (m_systemConfigGeneral)
         {
             m_systemConfigGeneral->SaveSetting();
+        }
+        if (m_systemConfigGameBrowser)
+        {
+            m_systemConfigGameBrowser->SaveSetting();
         }
         if (m_systemConfigProfiles)
         {

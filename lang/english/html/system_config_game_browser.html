@@ -1,0 +1,30 @@
+<PageNav target="GameBrowserContents" id="GameBrowserTabNav" class="page_tabs">
+  <Page label="Games" Name="Games">
+    <div class="input-group">
+      <div class="group-title">Game Directories</div>
+      <ListBox id="gameDirectoryList" />
+      <div class="buttons-container">
+        <button id="gameDirectoryAdd">Add</button>
+        <button id="gameDirectoryRemove">Remove</button>
+      </div>
+    </div>
+    <div class="input-group">
+      <div class="group-title">Display</div>
+      <div class="form-row slider-row">
+        <div class="left"><label for="myGamesIconSize">My Games Icon Size:</label></div>
+        <div class="right"><input type="hslider" min="1" max="4" value="2" id="myGamesIconSize" style="width: 19em" /></div>
+      </div>
+    </div>
+  </Page>
+  <Page label="Add-Ons" Name="AddOns">
+    <div class="input-group">
+      <div class="group-title" tooltip="Folders of updates and DLC that load automatically when playing a game. Individual add-ons can be disabled in Configure Game.">Add-On Directories</div>
+      <ListBox id="addOnDirectoryList" />
+      <div class="buttons-container">
+        <button id="addOnDirectoryAdd">Add</button>
+        <button id="addOnDirectoryRemove">Remove</button>
+      </div>
+    </div>
+  </Page>
+</PageNav>
+<div id="GameBrowserContents" class="page_content" />

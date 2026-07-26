@@ -66,6 +66,7 @@ LoaderFileType GuessFromFilename(const std::string & name)
     {
         return LoaderFileType::NSP;
     }
+    UNIMPLEMENTED();
     return LoaderFileType::Unknown;
 }
 
@@ -80,6 +81,7 @@ std::string GetFileTypeString(LoaderFileType type)
     case LoaderFileType::Unknown:
         break;
     }
+    UNIMPLEMENTED();
     return "unknown";
 }
 
@@ -107,6 +109,7 @@ static std::shared_ptr<AppLoader> GetFileLoader(Systemloader & loader, FileSys::
     case LoaderFileType::NSP:
         return std::make_shared<AppLoader_NSP>(std::move(file), loader.GetFileSystemController(), loader.GetContentProvider(), program_id, program_index);
     }
+    UNIMPLEMENTED();
     return nullptr;
 }
 

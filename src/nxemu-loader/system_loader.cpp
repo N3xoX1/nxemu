@@ -1,6 +1,7 @@
 #include "system_loader.h"
 #include "core/core.h"
 #include "core/file_sys/card_image.h"
+#include "core/file_sys/common_funcs.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/filesystem.h"
 #include "core/file_sys/control_metadata.h"
@@ -30,6 +31,7 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <random>
 #include <yuzu_common/fs/fs.h>
+#include <yuzu_common/fs/filesystem_interfaces.h>
 
 extern IModuleSettings * g_settings;
 extern IModuleNotification * g_notify;
@@ -78,7 +80,7 @@ std::string GetRegisteredNcaFilename(const std::string & source_name)
     if (dot != std::string::npos)
     {
         ext = ext.substr(dot);
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
     }
     else
     {
@@ -98,8 +100,7 @@ std::string GetRegisteredNcaFilename(const std::string & source_name)
 
 std::string ToLowerAscii(std::string value)
 {
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
     return value;
 }
 
@@ -386,7 +387,7 @@ bool InstallFirmwareFilesToRegistered(::FileSystemController & fs_controller, co
     }
 
     int32_t copied = 0;
-    g_settings->SetInt(NXLoaderSetting::FirmwareInstallTotal, static_cast<int32_t>(sources.size()));
+    g_settings->SetInt(NXLoaderSetting::FirmwareInstallTotal, (int32_t)sources.size());
     g_settings->SetInt(NXLoaderSetting::FirmwareInstallCurrent, 0);
 
     for (const FirmwareInstallSource & source : sources)
@@ -432,6 +433,57 @@ bool HasSupportedFileExtension(const char * fileName)
         }
     }
     return false;
+}
+
+bool IsAddOnContentExtension(const char * fileName)
+{
+    static const char * supported_extensions[] = {
+        "nca",
+        "dxci",
+        "dnsp",
+    };
+
+    std::string ext = Path(fileName).GetExtension();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    for (const char * supported : supported_extensions)
+    {
+        if (ext == supported)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void RegisterMatchingAddOnEntriesFromNsp(const FileSys::NSP & nsp, uint64_t base_program_id, IManualContentProvider & provider)
+{
+    if (nsp.GetStatus() != LoaderResultStatus::Success)
+    {
+        return;
+    }
+
+    for (const auto & title : nsp.GetNCAs())
+    {
+        if (FileSys::GetBaseTitleID(title.first) != base_program_id)
+        {
+            continue;
+        }
+
+        for (const auto & entry : title.second)
+        {
+            if (entry.first.first != LoaderTitleType::Update && entry.first.first != LoaderTitleType::AOC)
+            {
+                continue;
+            }
+
+            FileSys::VirtualFile file = entry.second->BaseFile();
+            if (!file)
+            {
+                continue;
+            }
+            provider.AddEntry(entry.first.first, entry.first.second, title.first, std::make_unique<VirtualFileImpl>(file).release());
+        }
+    }
 }
 
 } // Anonymous namespace
@@ -576,6 +628,7 @@ bool Systemloader::LoadRom(const char * fileName)
     }
     uint64_t program_id = 0;
     const LoaderResultStatus res = app_loader->ReadProgramId(program_id);
+    RegisterConfiguredAddOnDirectories(res == LoaderResultStatus::Success ? program_id : 0);
     if (res == LoaderResultStatus::Success && file_type == LoaderFileType::NCA)
     {
         UNIMPLEMENTED();
@@ -583,10 +636,22 @@ bool Systemloader::LoadRom(const char * fileName)
     else if (res == LoaderResultStatus::Success && (file_type == LoaderFileType::XCI || file_type == LoaderFileType::NSP))
     {
         const auto nsp = file_type == LoaderFileType::NSP ? std::make_shared<FileSys::NSP>(impl->m_file) : FileSys::XCI{impl->m_file}.GetSecurePartitionNSP();
+        FileSys::ManualContentProvider & manual = impl->m_manualContentProvider->Provider();
         for (const auto & title : nsp->GetNCAs())
         {
             for (const auto & entry : title.second)
             {
+                if (entry.first.first == LoaderTitleType::Update &&
+                    manual.HasEntry(title.first, LoaderContentRecordType::Program))
+                {
+                    continue;
+                }
+                if (entry.first.first == LoaderTitleType::AOC &&
+                    manual.HasEntry(title.first, entry.first.second))
+                {
+                    continue;
+                }
+
                 FileSys::VirtualFile file = entry.second->BaseFile();
                 impl->m_manualContentProvider->AddEntry(entry.first.first, entry.first.second, title.first, std::make_unique<VirtualFileImpl>(file).release());
             }
@@ -833,16 +898,96 @@ IManualContentProvider & Systemloader::ManualContentProvider()
     return *(impl->m_manualContentProvider.get());
 }
 
+void Systemloader::RegisterConfiguredAddOnDirectories(uint64_t program_id)
+{
+    IManualContentProvider & provider = ManualContentProvider();
+    provider.ClearAllEntries();
+
+    if (program_id == 0 || loaderSettings.addOnDirectories.empty())
+    {
+        return;
+    }
+
+    const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
+    FileSys::VirtualFilesystem & vfs = impl->m_virtualFilesystem;
+
+    for (const std::string & dir : loaderSettings.addOnDirectories)
+    {
+        if (dir.empty())
+        {
+            continue;
+        }
+
+        const auto callback = [&](const std::filesystem::directory_entry & entry) -> bool {
+            const std::filesystem::path & path = entry.path();
+            if (!Common::FS::IsFile(path))
+            {
+                return true;
+            }
+            const std::string physical_name = Common::FS::PathToUTF8String(path);
+            if (!IsAddOnContentExtension(physical_name.c_str()))
+            {
+                return true;
+            }
+
+            FileSys::VirtualFile file = vfs->OpenFile(physical_name, VirtualFileOpenMode::Read);
+            if (!file)
+            {
+                return true;
+            }
+
+            const std::string ext = ToLowerAscii(std::string(Path(physical_name).GetExtension()));
+            if (ext == "dnsp")
+            {
+                RegisterMatchingAddOnEntriesFromNsp(FileSys::NSP(file), base_program_id, provider);
+            }
+            else if (ext == "dxci")
+            {
+                const FileSys::XCI xci(file);
+                if (xci.GetStatus() == LoaderResultStatus::Success)
+                {
+                    const std::shared_ptr<FileSys::NSP> nsp = xci.GetSecurePartitionNSP();
+                    if (nsp)
+                    {
+                        RegisterMatchingAddOnEntriesFromNsp(*nsp, base_program_id, provider);
+                    }
+                }
+            }
+            else if (ext == "nca")
+            {
+                const FileSys::NCA nca(file);
+                if (nca.GetStatus() != LoaderResultStatus::Success)
+                {
+                    return true;
+                }
+
+                const uint64_t title_id = nca.GetTitleId();
+                if (FileSys::GetBaseTitleID(title_id) != base_program_id || title_id == base_program_id)
+                {
+                    return true;
+                }
+
+                const LoaderTitleType title_type = (title_id & 0x800) != 0 ? LoaderTitleType::Update : LoaderTitleType::AOC;
+                provider.AddEntry(title_type, FileSys::GetCRTypeFromNCAType(nca.GetType()), title_id, std::make_unique<VirtualFileImpl>(file).release());
+            }
+            return true;
+        };
+
+        Common::FS::IterateDirEntriesRecursively(dir, callback, Common::FS::DirEntryFilter::File);
+    }
+}
+
 uint32_t Systemloader::GetGamePatches(uint64_t program_id, GamePatchInfo * patches, uint32_t maxCount)
 {
+    RegisterConfiguredAddOnDirectories(program_id);
     const FileSys::PatchManager pm(program_id, GetFileSystemController(), GetContentProvider());
     const std::vector<FileSys::Patch> list = pm.GetPatches();
     if (patches == nullptr || maxCount == 0)
     {
-        return static_cast<uint32_t>(list.size());
+        return (uint32_t)list.size();
     }
 
-    const uint32_t count = std::min(maxCount, static_cast<uint32_t>(list.size()));
+    const uint32_t count = std::min(maxCount, (uint32_t)list.size());
     for (uint32_t i = 0; i < count; ++i)
     {
         patches[i].enabled = list[i].enabled;
@@ -907,7 +1052,7 @@ bool Systemloader::Impl::InstallFirmwareFromFolder(const char * utf8_folder_path
             continue;
         }
         std::string ext = entry.path().extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
         if (ext == ".dnca")
         {
             nca_paths.push_back(entry.path());
@@ -1115,7 +1260,7 @@ bool Systemloader::Impl::QueryFirmwarePackage(const char * utf8_path, FirmwareVe
                     continue;
                 }
                 std::string ext = entry.path().extension().string();
-                std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
                 if (ext == ".dnca")
                 {
                     nca_paths.push_back(entry.path());
@@ -1240,7 +1385,7 @@ uint32_t Systemloader::GetInstalledFirmwareDisplayVersion(char * buffer, uint32_
         return 0;
     }
 
-    const uint32_t copy_len = static_cast<uint32_t>(std::min(version.size(), static_cast<size_t>(buffer_size - 1)));
+    const uint32_t copy_len = (uint32_t)(std::min(version.size(), (size_t)(buffer_size - 1)));
     std::memcpy(buffer, version.data(), copy_len);
     buffer[copy_len] = '\0';
     return copy_len;
