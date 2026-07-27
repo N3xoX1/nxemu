@@ -31,7 +31,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\SoftFloat-3e\source\include;$(SolutionDir)external\boost;$(SolutionDir)external\mcl\include;$(SolutionDir)external\fmt\include;$(SolutionDir)external\robin-map\include;$(SolutionDir)external\xbyak;$(SolutionDir)external\zydis\include;$(SolutionDir)external\oaknut\include;$(SolutionDir)external\zycore\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
-      <PreprocessorDefinitions>NOMINMAX;DYNARMIC_ENABLE_CPU_FEATURE_DETECTION=1;MCL_IGNORE_ASSERTS=1;FMT_STATIC_LINK;FMT_USE_WINDOWS_H=0;FMT_USE_USER_DEFINED_LITERALS=1;ARCHITECTURE_x86_64=1;BOOST_ASIO_DISABLE_CONCEPTS;_HAS_DEPRECATED_RESULT_OF;_WIN32_WINNT=0x0A00;WINVER=0x0A00;BOOST_ALL_NO_LIB;ZYDIS_STATIC_BUILD;ZYCORE_STATIC_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;DYNARMIC_ENABLE_CPU_FEATURE_DETECTION=1;MCL_IGNORE_ASSERTS=1;FMT_STATIC_LINK;FMT_USE_WINDOWS_H=0;FMT_USE_USER_DEFINED_LITERALS=1;BOOST_ASIO_DISABLE_CONCEPTS;_HAS_DEPRECATED_RESULT_OF;_WIN32_WINNT=0x0A00;WINVER=0x0A00;BOOST_ALL_NO_LIB;ZYDIS_STATIC_BUILD;ZYCORE_STATIC_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions> /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <PreBuildEvent>

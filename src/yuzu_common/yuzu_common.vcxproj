@@ -122,12 +122,17 @@
     <ClInclude Include="tiny_mt.h" />
     <ClInclude Include="tree.h" />
     <ClInclude Include="typed_address.h" />
+    <ClInclude Include="uint128.h" />
     <ClInclude Include="unique_function.h" />
     <ClInclude Include="uuid.h" />
     <ClInclude Include="vector_math.h" />
     <ClInclude Include="virtual_buffer.h" />
     <ClInclude Include="wall_clock.h" />
     <ClInclude Include="windows\timer_resolution.h" />
+    <ClInclude Include="x64\cpu_detect.h" />
+    <ClInclude Include="x64\cpu_wait.h" />
+    <ClInclude Include="x64\native_clock.h" />
+    <ClInclude Include="x64\rdtsc.h" />
     <ClInclude Include="x64\xbyak_abi.h" />
     <ClInclude Include="x64\xbyak_util.h" />
     <ClInclude Include="yuzu_assert.h" />
@@ -169,6 +174,10 @@
     <ClCompile Include="virtual_buffer.cpp" />
     <ClCompile Include="wall_clock.cpp" />
     <ClCompile Include="windows\timer_resolution.cpp" />
+    <ClCompile Include="x64\cpu_detect.cpp" />
+    <ClCompile Include="x64\cpu_wait.cpp" />
+    <ClCompile Include="x64\native_clock.cpp" />
+    <ClCompile Include="x64\rdtsc.cpp" />
     <ClCompile Include="yuzu_assert.cpp" />
     <ClCompile Include="zstd_compression.cpp" />
   </ItemGroup>

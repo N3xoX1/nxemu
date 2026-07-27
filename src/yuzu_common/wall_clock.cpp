@@ -4,7 +4,7 @@
 #include "yuzu_common/steady_clock.h"
 #include "yuzu_common/wall_clock.h"
 
-#ifdef ARCHITECTURE_x86_64
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
 #include "yuzu_common/x64/cpu_detect.h"
 #include "yuzu_common/x64/native_clock.h"
 #include "yuzu_common/x64/rdtsc.h"
@@ -55,7 +55,7 @@ public:
 };
 
 std::unique_ptr<WallClock> CreateOptimalClock() {
-#if defined(ARCHITECTURE_x86_64)
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
     const auto& caps = GetCPUCaps();
 
     if (caps.invariant_tsc && caps.tsc_frequency >= std::nano::den) {
