@@ -6,7 +6,7 @@
 #include <array>
 #include <iterator>
 
-#if !defined(ARCHITECTURE_x86_64)
+#if !(defined(_M_X64) || defined(ARCHITECTURE_x86_64))
 #include <cstdlib> // for exit
 #endif
 #include "yuzu_common/common_types.h"
@@ -31,7 +31,7 @@
 
 #ifndef _MSC_VER
 
-#if defined(ARCHITECTURE_x86_64)
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
 #define Crash() __asm__ __volatile__("int $3")
 #elif defined(ARCHITECTURE_arm64)
 #define Crash() __asm__ __volatile__("brk #0")

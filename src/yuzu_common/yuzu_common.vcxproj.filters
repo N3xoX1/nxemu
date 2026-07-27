@@ -40,6 +40,9 @@
     <Filter Include="Source Files\android">
       <UniqueIdentifier>{0783a878-f07c-448f-8e53-8bedc1c8366a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\x64">
+      <UniqueIdentifier>{0074faf6-5e28-4a23-8bdf-a7ea6d8f25a6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="logging\backend.h">
@@ -342,6 +345,21 @@
     <ClInclude Include="android\java_bridge.h">
       <Filter>Header Files\android</Filter>
     </ClInclude>
+    <ClInclude Include="x64\cpu_detect.h">
+      <Filter>Header Files\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="x64\native_clock.h">
+      <Filter>Header Files\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="x64\rdtsc.h">
+      <Filter>Header Files\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="x64\cpu_wait.h">
+      <Filter>Header Files\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="uint128.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="logging\backend.cpp">
@@ -454,6 +472,18 @@
     </ClCompile>
     <ClCompile Include="fs\fs_android.cpp">
       <Filter>Source Files\fs</Filter>
+    </ClCompile>
+    <ClCompile Include="x64\cpu_detect.cpp">
+      <Filter>Source Files\x64</Filter>
+    </ClCompile>
+    <ClCompile Include="x64\native_clock.cpp">
+      <Filter>Source Files\x64</Filter>
+    </ClCompile>
+    <ClCompile Include="x64\rdtsc.cpp">
+      <Filter>Source Files\x64</Filter>
+    </ClCompile>
+    <ClCompile Include="x64\cpu_wait.cpp">
+      <Filter>Source Files\x64</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

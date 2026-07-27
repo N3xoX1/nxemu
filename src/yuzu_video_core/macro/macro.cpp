@@ -19,7 +19,7 @@
 #include "yuzu_video_core/macro/macro_hle.h"
 #include "yuzu_video_core/macro/macro_interpreter.h"
 
-#ifdef ARCHITECTURE_x86_64
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
 #include "yuzu_video_core/macro/macro_jit_x64.h"
 #endif
 
@@ -132,7 +132,7 @@ std::unique_ptr<MacroEngine> GetMacroEngine(Engines::Maxwell3D& maxwell3d) {
     if (Settings::values.disable_macro_jit) {
         return std::make_unique<MacroInterpreter>(maxwell3d);
     }
-#ifdef ARCHITECTURE_x86_64
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
     return std::make_unique<MacroJITx64>(maxwell3d);
 #else
     return std::make_unique<MacroInterpreter>(maxwell3d);

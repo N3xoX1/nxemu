@@ -10,7 +10,7 @@
 #include "yuzu_common/windows/timer_resolution.h"
 #endif
 
-#ifdef ARCHITECTURE_x86_64
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
 #include "yuzu_common/x64/cpu_wait.h"
 #endif
 
@@ -272,7 +272,7 @@ void CoreTiming::ThreadLoop() {
                         if (wait_time >= timer_resolution_ns) {
                             Common::Windows::SleepForOneTick();
                         } else {
-#ifdef ARCHITECTURE_x86_64
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
                             Common::X64::MicroSleep();
 #else
                             std::this_thread::yield();
