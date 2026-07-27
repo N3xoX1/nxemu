@@ -70,10 +70,13 @@ bool VfsVirtualDirectory::DeleteSubdirectory(std::string_view)
     return false;
 }
 
-bool VfsVirtualDirectory::DeleteFile(std::string_view)
+bool VfsVirtualDirectory::DeleteFile(std::string_view name)
 {
-    UNIMPLEMENTED();
-    return false;
+    if (m_directory == nullptr)
+    {
+        return false;
+    }
+    return m_directory->DeleteFile(std::string(name).c_str());
 }
 
 bool VfsVirtualDirectory::Rename(std::string_view)

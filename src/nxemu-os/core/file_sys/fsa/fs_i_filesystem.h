@@ -151,8 +151,7 @@ private:
 
     Result DoDeleteFile(const Path& path)
     {
-        UNIMPLEMENTED();
-        R_SUCCEED();
+        R_RETURN(backend.DeleteFile(path.GetString()));
     }
 
     Result DoCreateDirectory(const Path & path)
@@ -174,8 +173,7 @@ private:
 
     Result DoRenameFile(const Path& old_path, const Path & new_path)
     {
-        UNIMPLEMENTED();
-        R_SUCCEED();
+        R_RETURN(backend.RenameFile(old_path.GetString(), new_path.GetString()));
     }
 
     Result DoRenameDirectory(const Path& old_path, const Path & new_path)

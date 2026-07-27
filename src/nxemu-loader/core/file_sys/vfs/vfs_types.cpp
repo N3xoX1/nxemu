@@ -159,6 +159,15 @@ IVirtualFile * VirtualDirectoryImpl::OpenFile(const char * path, VirtualFileOpen
     return nullptr;
 }
 
+bool VirtualDirectoryImpl::DeleteFile(const char * name) const
+{
+    if (m_directory.get() == nullptr)
+    {
+        return false;
+    }
+    return m_directory->DeleteFile(name);
+}
+
 const char * VirtualDirectoryImpl::GetName() const
 {
     m_cachedName = m_directory->GetName();
@@ -219,6 +228,17 @@ const char * VirtualFileImpl::GetName() const
     return m_cachedName.c_str();
 }
 
+const char * VirtualFileImpl::GetFullPath() const
+{
+    if (!m_file)
+    {
+        m_cachedFullPath.clear();
+        return m_cachedFullPath.c_str();
+    }
+    m_cachedFullPath = m_file->GetFullPath();
+    return m_cachedFullPath.c_str();
+}
+
 bool VirtualFileImpl::Resize(uint64_t size)
 {
     if (m_file)
@@ -273,6 +293,15 @@ IVirtualDirectory * VirtualFileImpl::GetContainingDirectory() const
 IVirtualFile * VirtualFileImpl::Duplicate()
 {
     return std::make_unique<VirtualFileImpl>(m_file).release();
+}
+
+bool VirtualFileImpl::Rename(const char * name)
+{
+    if (!m_file || name == nullptr)
+    {
+        return false;
+    }
+    return m_file->Rename(name);
 }
 
 void VirtualFileImpl::Release()

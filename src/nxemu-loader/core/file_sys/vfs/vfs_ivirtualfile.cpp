@@ -77,6 +77,9 @@ std::size_t VfsVirtualFile::Write(const u8 * data, std::size_t length, std::size
 
 bool VfsVirtualFile::Rename(std::string_view name)
 {
-    UNIMPLEMENTED();
-    return false;
+    if (m_file == nullptr)
+    {
+        return false;
+    }
+    return m_file->Rename(std::string(name).c_str());
 }
