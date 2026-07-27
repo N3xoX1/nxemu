@@ -135,6 +135,9 @@
     <ClCompile Include="user_interface\settings\game_config_addons.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
+    <ClCompile Include="applets\profile_select.cpp">
+      <Filter>Source Files\applets</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="user_interface\resource.h">
@@ -235,6 +238,9 @@
     </ClInclude>
     <ClInclude Include="user_interface\settings\game_config_addons.h">
       <Filter>Header Files\user_interface\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="applets\profile_select.h">
+      <Filter>Header Files\applets</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

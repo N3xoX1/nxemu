@@ -3,7 +3,7 @@
 #include <nxemu-module-spec/operating_system.h>
 
 class WebBrowserApplet final : 
-    public IWebBrowserFrontendApplet
+    public IWebBrowserApplet
 {
 public:
     WebBrowserApplet();

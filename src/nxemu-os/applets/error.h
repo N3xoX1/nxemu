@@ -22,7 +22,7 @@ public:
 };
 
 class DefaultErrorApplet final :
-    public IErrorFrontendApplet
+    public IErrorApplet
 {
 public:
     void Close() override;

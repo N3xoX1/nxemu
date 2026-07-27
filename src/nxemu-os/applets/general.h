@@ -7,7 +7,7 @@
 #include <nxemu-module-spec/operating_system.h>
 
 class DefaultParentalControlsApplet final : 
-    public IParentalControlsFrontendApplet
+    public IParentalControlsApplet
 {
 public:
     void Close() override;
@@ -18,7 +18,7 @@ public:
 };
 
 class DefaultPhotoViewerApplet final : 
-    public IPhotoViewerFrontendApplet
+    public IPhotoViewerApplet
 {
 public:
     void Close() override;

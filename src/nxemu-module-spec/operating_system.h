@@ -24,7 +24,7 @@ typedef struct CabinetParameters
 
 typedef void (CALL *CabinetFinishedFn)(void * user_data, bool success, const char * amiibo_name_utf8);
 
-nxinterface ICabinetFrontendApplet
+nxinterface ICabinetApplet
 {
     virtual void Close() = 0;
     virtual void ShowCabinetApplet(void * user_data, CabinetFinishedFn on_finished, const CabinetParameters * parameters) = 0;
@@ -52,7 +52,7 @@ typedef struct ControllerHostParameters
 
 typedef void (CALL *ControllerReconfigureFn)(void * user_data, bool ok);
 
-nxinterface IControllerFrontendApplet
+nxinterface IControllerApplet
 {
     virtual void Close() = 0;
     virtual void ReconfigureControllers(void * user_data, ControllerReconfigureFn on_complete, const ControllerHostParameters * parameters) = 0;
@@ -60,7 +60,7 @@ nxinterface IControllerFrontendApplet
 
 typedef void (CALL *SimpleFinishedFn)(void * user_data);
 
-nxinterface IErrorFrontendApplet
+nxinterface IErrorApplet
 {
     virtual void Close() = 0;
     virtual void ShowError(uint32_t result_raw, void * user_data, SimpleFinishedFn finished) const = 0;
@@ -68,7 +68,7 @@ nxinterface IErrorFrontendApplet
     virtual void ShowCustomErrorText(uint32_t result_raw, const char * dialog_text_utf8, const char * fullscreen_text_utf8, void * user_data, SimpleFinishedFn finished) const = 0;
 };
 
-nxinterface IMiiEditFrontendApplet
+nxinterface IMiiEditApplet
 {
     virtual void Close() = 0;
     virtual void ShowMiiEdit(void * user_data, SimpleFinishedFn finished) const = 0;
@@ -76,7 +76,7 @@ nxinterface IMiiEditFrontendApplet
 
 typedef void (CALL *BoolFinishedFn)(void * user_data, bool ok);
 
-nxinterface IParentalControlsFrontendApplet
+nxinterface IParentalControlsApplet
 {
     virtual void Close() = 0;
     virtual void VerifyPIN(void * user_data, BoolFinishedFn finished, bool suspend_future_verification_temporarily) = 0;
@@ -85,7 +85,7 @@ nxinterface IParentalControlsFrontendApplet
     virtual void ChangePIN(void * user_data, SimpleFinishedFn finished) = 0;
 };
 
-nxinterface IPhotoViewerFrontendApplet
+nxinterface IPhotoViewerApplet
 {
     virtual void Close() = 0;
     virtual void ShowPhotosForApplication(uint64_t title_id, void * user_data, SimpleFinishedFn finished) const = 0;
@@ -146,7 +146,7 @@ typedef struct ProfileSelectHostParameters
 
 typedef void (CALL *ProfileSelectFinishedFn)(void * user_data, bool has_uuid, const uint8_t uuid_bytes[16]);
 
-nxinterface IProfileSelectFrontendApplet
+nxinterface IProfileSelectApplet
 {
     virtual void Close() = 0;
     virtual void SelectProfile(void * user_data, ProfileSelectFinishedFn finished, const ProfileSelectHostParameters * parameters) const = 0;
@@ -265,7 +265,7 @@ typedef struct InlineTextHostParameters
 typedef void (CALL *SwkbdSubmitNormalFn)(void * user_data, uint32_t result_raw, const uint16_t * text_utf16, uint32_t text_utf16_unit_count, bool confirmed);
 typedef void (CALL *SwkbdSubmitInlineFn)(void * user_data, uint32_t reply_raw, const uint16_t * text_utf16, uint32_t text_utf16_unit_count, int32_t cursor);
 
-nxinterface ISoftwareKeyboardFrontendApplet
+nxinterface ISoftwareKeyboardApplet
 {
     virtual void Close() = 0;
     virtual void InitializeKeyboard(bool is_inline, const KeyboardInitializeParameters * initialize_parameters, void * user_data_normal, SwkbdSubmitNormalFn submit_normal, void * user_data_inline, SwkbdSubmitInlineFn submit_inline) = 0;
@@ -290,7 +290,7 @@ enum class WebExitReasonHost : uint32_t
 typedef void (CALL *ExtractRomFsFn)(void * user_data);
 typedef void (CALL *OpenWebPageFn)(void * user_data, uint32_t exit_reason_raw, const char * last_url_utf8);
 
-nxinterface IWebBrowserFrontendApplet
+nxinterface IWebBrowserApplet
 {
     virtual void Close() = 0;
     virtual void OpenLocalWebPage(const char * local_url_utf8, void * extract_user_data, ExtractRomFsFn extract_romfs, void * open_user_data, OpenWebPageFn open_callback) const = 0;
@@ -695,7 +695,7 @@ nxinterface IOperatingSystem
     virtual PerfStatsResults GetAndResetPerfStats() = 0;
     virtual void SetEmulationPaused(bool paused) = 0;
     virtual bool IsEmulationPaused() const = 0;
-    virtual void SetFrontendApplets(ICabinetFrontendApplet * cabinet, IControllerFrontendApplet * controller, IErrorFrontendApplet * error, IMiiEditFrontendApplet * mii_edit, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select, ISoftwareKeyboardFrontendApplet * software_keyboard, IWebBrowserFrontendApplet * web_browser) = 0;
+    virtual void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) = 0;
     virtual void SetPlayerButtonState(uint32_t player_index, uint32_t button_ordinal, bool pressed) = 0;
     virtual void SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index, float x, float y) = 0;
     virtual uint32_t GetProfileCount() const = 0;

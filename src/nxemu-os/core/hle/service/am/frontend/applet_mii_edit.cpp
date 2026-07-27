@@ -15,7 +15,7 @@
 namespace Service::AM::Frontend
 {
 
-MiiEdit::MiiEdit(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IMiiEditFrontendApplet & frontend_) :
+MiiEdit::MiiEdit(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IMiiEditApplet & frontend_) :
     FrontendApplet{system_, applet_, applet_mode_},
     frontend{frontend_}
 {

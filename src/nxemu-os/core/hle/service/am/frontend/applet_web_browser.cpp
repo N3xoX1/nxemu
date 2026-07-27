@@ -345,7 +345,7 @@ void ExtractSharedFonts(Core::System & system)
 
 } // namespace
 
-WebBrowser::WebBrowser(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IWebBrowserFrontendApplet & frontend_) :
+WebBrowser::WebBrowser(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IWebBrowserApplet & frontend_) :
     FrontendApplet{system_, applet_, applet_mode_},
     frontend(frontend_)
 {

@@ -78,7 +78,7 @@ protected:
 struct FrontendAppletSet
 {
     FrontendAppletSet();
-    FrontendAppletSet(ICabinetFrontendApplet * cabinet_, IControllerFrontendApplet * controller_, IErrorFrontendApplet * error_, IMiiEditFrontendApplet * mii_edit_, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select_, ISoftwareKeyboardFrontendApplet * software_keyboard_, IWebBrowserFrontendApplet * web_browser_);
+    FrontendAppletSet(ICabinetApplet * cabinet_, IControllerApplet * controller_, IErrorApplet * error_, IMiiEditApplet * mii_edit_, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select_, ISoftwareKeyboardApplet * software_keyboard_, IWebBrowserApplet * web_browser_);
     ~FrontendAppletSet();
 
     FrontendAppletSet(const FrontendAppletSet &) = delete;
@@ -87,15 +87,15 @@ struct FrontendAppletSet
     FrontendAppletSet(FrontendAppletSet &&) noexcept;
     FrontendAppletSet & operator=(FrontendAppletSet &&) noexcept;
 
-    ICabinetFrontendApplet * cabinet;    
-    IControllerFrontendApplet * controller;
-    IErrorFrontendApplet * error;
-    IMiiEditFrontendApplet * mii_edit;    
-    IParentalControlsFrontendApplet * parental_controls;
-    IPhotoViewerFrontendApplet * photo_viewer;
-    IProfileSelectFrontendApplet * profile_select;
-    ISoftwareKeyboardFrontendApplet * software_keyboard;
-    IWebBrowserFrontendApplet * web_browser;
+    ICabinetApplet * cabinet;    
+    IControllerApplet * controller;
+    IErrorApplet * error;
+    IMiiEditApplet * mii_edit;    
+    IParentalControlsApplet * parental_controls;
+    IPhotoViewerApplet * photo_viewer;
+    IProfileSelectApplet * profile_select;
+    ISoftwareKeyboardApplet * software_keyboard;
+    IWebBrowserApplet * web_browser;
 };
 
 class FrontendAppletHolder

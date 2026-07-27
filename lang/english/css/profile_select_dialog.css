@@ -1,0 +1,86 @@
+.profile-select-body
+{
+  padding: 0.75rem 0.5rem 0.25rem;
+  min-width: 30rem;
+  min-height: 18rem;
+  color: var(--color-ui-text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  flow: vertical;
+  height: *;
+}
+
+.profile-select-instruction
+{
+  margin: 0 0 0.65rem 0;
+  color: var(--color-ui-text-primary);
+  font-size: 0.95rem;
+}
+
+.profile-grid
+{
+  flow: horizontal-wrap;
+  border: 1px solid #55575a;
+  border-radius: 5px;
+  background: #1e1e1e;
+  padding: 0.5rem;
+  width: 100%;
+  height: *;
+  overflow-y: auto;
+  vertical-align: top;
+}
+
+.profile-tile
+{
+  position: relative;
+  width: 96px;
+  margin: 0.35rem;
+  padding: 0.25rem;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  flow: vertical;
+  horizontal-align: center;
+  cursor: pointer;
+  behavior: clickable;
+}
+
+.profile-tile:hover
+{
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.profile-tile.current
+{
+  background: rgba(61, 174, 233, 0.22);
+  border: 2px solid #3daee9;
+}
+
+.profile-tile.current > .profile-tile-name
+{
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.profile-tile-avatar
+{
+  width: 96px;
+  height: 96px;
+  border-radius: 4px;
+  background: #111111;
+  overflow: hidden;
+  foreground-repeat: no-repeat;
+  foreground-position: 50% 50%;
+  foreground-size: 100% 100%;
+}
+
+.profile-tile-name
+{
+  width: 90px;
+  margin-top: 0.35rem;
+  text-align: center;
+  color: var(--color-ui-text-primary);
+  font-size: 0.85rem;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

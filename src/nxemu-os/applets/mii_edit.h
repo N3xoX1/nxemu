@@ -5,7 +5,7 @@
 #include <nxemu-module-spec/operating_system.h>
 
 class DefaultMiiEditApplet final :
-    public IMiiEditFrontendApplet
+    public IMiiEditApplet
 {
 public:
     void Close() override;
