@@ -63,6 +63,35 @@ Result VfsDirectoryServiceWrapper::CreateFile(const std::string& path_, u64 size
     return ResultSuccess;
 }
 
+Result VfsDirectoryServiceWrapper::DeleteFile(const std::string & path_) const
+{
+    std::string path(Common::FS::SanitizePath(path_));
+    if (path.empty())
+    {
+        // TODO(DarkLordZach): Why do games call this and what should it do? Works as is but...
+        return ResultSuccess;
+    }
+
+    IVirtualDirectoryPtr dir = GetDirectoryRelativeWrapped(backing, Common::FS::GetParentPath(path));
+    if (!dir)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+    const std::string filename(Common::FS::GetFilename(path));
+    IVirtualFilePtr file(dir->GetFile(filename.c_str()));
+    if (!file)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+    if (!dir->DeleteFile(filename.c_str()))
+    {
+        // TODO(DarkLordZach): Find a better error code for this
+        return ResultUnknown;
+    }
+
+    return ResultSuccess;
+}
+
 Result VfsDirectoryServiceWrapper::CreateDirectory(const std::string& path_) const
 {
     std::string path(Common::FS::SanitizePath(path_));
@@ -82,6 +111,58 @@ Result VfsDirectoryServiceWrapper::CreateDirectory(const std::string& path_) con
             // TODO(DarkLordZach): Find a better error code for this
             return ResultUnknown;
         }
+    }
+    return ResultSuccess;
+}
+
+Result VfsDirectoryServiceWrapper::RenameFile(const std::string & src_path_, const std::string & dest_path_) const
+{
+    std::string src_path(Common::FS::SanitizePath(src_path_));
+    std::string dest_path(Common::FS::SanitizePath(dest_path_));
+    IVirtualFilePtr src(backing->GetFileRelative(src_path.c_str()));
+    IVirtualFilePtr dst(backing->GetFileRelative(dest_path.c_str()));
+    if (Common::FS::GetParentPath(src_path) == Common::FS::GetParentPath(dest_path))
+    {
+        // Use more-optimized vfs implementation rename.
+        if (!src)
+        {
+            return FileSys::ResultPathNotFound;
+        }
+
+        if (dst && Common::FS::Exists(std::string(dst->GetFullPath())))
+        {
+            LOG_ERROR(Service_FS, "File at new_path={} already exists", dst->GetFullPath());
+            return FileSys::ResultPathAlreadyExists;
+        }
+
+        const std::string dest_filename(Common::FS::GetFilename(dest_path));
+        if (!src->Rename(dest_filename.c_str()))
+        {
+            // TODO(DarkLordZach): Find a better error code for this
+            return ResultUnknown;
+        }
+        return ResultSuccess;
+    }
+
+    // Move by hand -- TODO(DarkLordZach): Optimize
+    Result c_res = CreateFile(dest_path, src->GetSize());
+    if (c_res != ResultSuccess)
+    {
+        return c_res;
+    }
+
+    IVirtualFilePtr dest(backing->GetFileRelative(dest_path.c_str()));
+    ASSERT_MSG(dest, "Newly created file with success cannot be found.");
+
+    std::vector<uint8_t> data = src.ReadAllBytes();
+    ASSERT_MSG(dest->WriteBytes(data.data(), data.size(), 0) == src->GetSize(), "Could not write all of the bytes but everything else has succeeded.");
+
+    IVirtualDirectoryPtr src_dir(src->GetContainingDirectory());
+    const std::string src_filename(Common::FS::GetFilename(src_path));
+    if (!src_dir || !src_dir->DeleteFile(src_filename.c_str()))
+    {
+        // TODO(DarkLordZach): Find a better error code for this
+        return ResultUnknown;
     }
     return ResultSuccess;
 }

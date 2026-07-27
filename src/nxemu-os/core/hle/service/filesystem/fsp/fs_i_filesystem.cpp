@@ -48,8 +48,7 @@ Result IFileSystem::DeleteFile(const InLargeData<FileSys::Sf::Path, BufferAttr_H
 {
     LOG_DEBUG(Service_FS, "called. file={}", path->str);
 
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    R_RETURN(backend->DeleteFile(FileSys::Path(path->str)));
 }
 
 Result IFileSystem::CreateDirectory(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
@@ -87,8 +86,7 @@ Result IFileSystem::RenameFile(const InLargeData<FileSys::Sf::Path, BufferAttr_H
 {
     LOG_DEBUG(Service_FS, "called. file '{}' to file '{}'", old_path->str, new_path->str);
 
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    R_RETURN(backend->RenameFile(FileSys::Path(old_path->str), FileSys::Path(new_path->str)));
 }
 
 Result IFileSystem::OpenFile(OutInterface<IFile> out_interface, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path, u32 mode)

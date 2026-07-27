@@ -77,6 +77,7 @@ public:
     IVirtualFile * GetFile(const char * name) const override;
     IVirtualFile * GetFileRelative(const char * relative_path) const override;
     IVirtualFile * OpenFile(const char * path, VirtualFileOpenMode perms) override;
+    bool DeleteFile(const char * name) const override;
     const char * GetName() const override;
     void Release() override;
 
@@ -127,12 +128,14 @@ public:
     // IVirtualFile
     uint64_t GetSize() const override;
     const char * GetName() const override;
+    const char * GetFullPath() const override;
     bool Resize(uint64_t size) override;
     uint64_t ReadBytes(uint8_t * data, uint64_t datalen, uint64_t offset) override;
     uint64_t WriteBytes(const uint8_t * data, uint64_t datalen, uint64_t offset) override;
     IVirtualDirectory * ExtractRomFS() override;
     IVirtualDirectory * GetContainingDirectory() const override;
     IVirtualFile * Duplicate() override;
+    bool Rename(const char * name) override;
     void Release() override;
 
 private:
@@ -141,4 +144,5 @@ private:
 
     FileSys::VirtualFile m_file;
     mutable std::string m_cachedName;
+    mutable std::string m_cachedFullPath;
 };

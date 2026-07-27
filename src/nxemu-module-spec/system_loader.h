@@ -194,6 +194,7 @@ nxinterface IVirtualDirectory
     virtual IVirtualFile * GetFile(const char * name) const = 0;
     virtual IVirtualFile * GetFileRelative(const char * relative_path) const = 0;
     virtual IVirtualFile * OpenFile(const char * path, VirtualFileOpenMode perms) = 0;
+    virtual bool DeleteFile(const char * name) const = 0;
     virtual const char * GetName() const = 0;
     virtual void Release() = 0;
 };
@@ -209,12 +210,14 @@ nxinterface IVirtualFile
 {
     virtual uint64_t GetSize() const = 0;
     virtual const char * GetName() const = 0;
+    virtual const char * GetFullPath() const = 0;
     virtual bool Resize(uint64_t size) = 0;
     virtual uint64_t ReadBytes(uint8_t * data, uint64_t datalen, uint64_t offset) = 0;
     virtual uint64_t WriteBytes(const uint8_t * data, uint64_t datalen, uint64_t offset) = 0;
     virtual IVirtualDirectory * ExtractRomFS() = 0;
     virtual IVirtualDirectory * GetContainingDirectory() const = 0;
     virtual IVirtualFile * Duplicate() = 0;
+    virtual bool Rename(const char * name) = 0;
     virtual void Release() = 0;
 };
 
