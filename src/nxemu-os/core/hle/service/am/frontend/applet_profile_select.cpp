@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "core/core.h"
+#include "applets/profile_select.h"
 #include "core/hle/service/acc/errors.h"
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/am/frontend/applet_profile_select.h"
@@ -11,11 +12,39 @@
 #include "yuzu_common/string_util.h"
 #include "yuzu_common/yuzu_assert.h"
 
+namespace
+{
+
+ProfileSelectHostParameters CreateHostParameters(Service::AM::Frontend::UiMode mode, const std::array<Common::UUID, 8> & invalid_uid_list, const Service::AM::Frontend::UiSettingsDisplayOptions & display_options, Service::AM::Frontend::UserSelectionPurpose purpose)
+{
+    ProfileSelectHostParameters parameters{};
+    parameters.mode = (ProfileUiMode)mode;
+    for (size_t i = 0; i < invalid_uid_list.size(); ++i)
+    {
+        std::memcpy(parameters.invalid_uid_list[i], invalid_uid_list[i].uuid.data(), sizeof(parameters.invalid_uid_list[i]));
+    }
+    parameters.display_options = {
+        .is_network_service_account_required = display_options.is_network_service_account_required,
+        .is_skip_enabled = display_options.is_skip_enabled,
+        .is_system_or_launcher = display_options.is_system_or_launcher,
+        .is_registration_permitted = display_options.is_registration_permitted,
+        .show_skip_button = display_options.show_skip_button,
+        .additional_select = display_options.additional_select,
+        .show_user_selector = display_options.show_user_selector,
+        .is_unqualified_user_selectable = display_options.is_unqualified_user_selectable,
+    };
+    parameters.purpose = (UserSelectionPurposeHost)purpose;
+    return parameters;
+}
+
+} // namespace
+
 namespace Service::AM::Frontend
 {
 
-ProfileSelect::ProfileSelect(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_) :
-    FrontendApplet{system_, applet_, applet_mode_}
+ProfileSelect::ProfileSelect(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IProfileSelectApplet & frontend_) :
+    FrontendApplet{system_, applet_, applet_mode_},
+    frontend{frontend_}
 {
 }
 
@@ -65,7 +94,30 @@ void ProfileSelect::ExecuteInteractive()
 
 void ProfileSelect::Execute()
 {
-    UNIMPLEMENTED();
+    if (complete)
+    {
+        PushOutData(std::make_shared<IStorage>(system, std::move(final_data)));
+        Exit();
+        return;
+    }
+
+    ProfileSelectHostParameters parameters{};
+
+    switch (profile_select_version)
+    {
+    case ProfileSelectAppletVersion::Version1:
+        parameters = CreateHostParameters(config_old.mode, config_old.invalid_uid_list, config_old.display_options, UserSelectionPurpose::General);
+        break;
+    case ProfileSelectAppletVersion::Version2:
+    case ProfileSelectAppletVersion::Version3:
+        parameters = CreateHostParameters(config.mode, config.invalid_uid_list, config.display_options, config.purpose);
+        break;
+    default:
+        UNIMPLEMENTED_MSG("Unknown profile_select_version = {}", profile_select_version);
+        break;
+    }
+
+    frontend.SelectProfile(this, OnProfileSelected, &parameters);
 }
 
 void ProfileSelect::SelectionComplete(std::optional<Common::UUID> uuid)
@@ -93,8 +145,23 @@ void ProfileSelect::SelectionComplete(std::optional<Common::UUID> uuid)
 
 Result ProfileSelect::RequestExit()
 {
-    UNIMPLEMENTED();
+    frontend.Close();
     R_SUCCEED();
+}
+
+void CALL ProfileSelect::OnProfileSelected(void * user_data, bool has_uuid, const uint8_t uuid_bytes[16])
+{
+    ProfileSelect * const self = (ProfileSelect *)user_data;
+    if (has_uuid)
+    {
+        std::array<u8, 16> uuid{};
+        std::memcpy(uuid.data(), uuid_bytes, uuid.size());
+        self->SelectionComplete(Common::UUID{uuid});
+    }
+    else
+    {
+        self->SelectionComplete(std::nullopt);
+    }
 }
 
 } // namespace Service::AM::Frontend

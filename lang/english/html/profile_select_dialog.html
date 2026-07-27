@@ -1,0 +1,24 @@
+<html window-frame="solid-with-shadow" window-icon="window-icon.png">
+  <head>
+    <link href="base.css" rel="stylesheet" type="text/css" />
+    <link href="dialog.css" rel="stylesheet" type="text/css" />
+    <link href="profile_select_dialog.css" rel="stylesheet" type="text/css" />
+    <title>Profile Selector</title>
+  </head>
+  <header>
+    <window-caption role="window-caption"><img src="window-icon-32.png" /><span id="ProfileSelectTitle">Profile Selector</span></window-caption>
+    <window-buttons>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <body>
+    <div class="profile-select-body">
+      <div id="ProfileSelectInstruction" class="profile-select-instruction">Select a user:</div>
+      <div id="profileSelectGrid" class="profile-grid"></div>
+    </div>
+    <div class="footer">
+      <button id="profileSelectCancel" role="window-close">Cancel</button>
+      <button id="profileSelectOk" role="window-ok">OK</button>
+    </div>
+  </body>
+</html>

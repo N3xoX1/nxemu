@@ -76,7 +76,7 @@ void SetReplyBase(std::vector<u8> & reply, SwkbdState state, SwkbdReplyType repl
 
 } // Anonymous namespace
 
-SoftwareKeyboard::SoftwareKeyboard(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, ISoftwareKeyboardFrontendApplet & frontend_) :
+SoftwareKeyboard::SoftwareKeyboard(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, ISoftwareKeyboardApplet & frontend_) :
     FrontendApplet{system_, applet_, applet_mode_},
     frontend{frontend_}
 {

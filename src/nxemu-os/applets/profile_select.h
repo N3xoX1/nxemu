@@ -19,7 +19,7 @@ struct ProfileSelectParameters
 };
 
 class DefaultProfileSelectApplet final : 
-    public IProfileSelectFrontendApplet
+    public IProfileSelectApplet
 {
 public:
     void Close() override;

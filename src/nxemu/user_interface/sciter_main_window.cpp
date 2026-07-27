@@ -289,6 +289,7 @@ const std::string * SciterMainWindow::MenuIconSvg(GuiAction action)
 SciterMainWindow::~SciterMainWindow()
 {
     Notification::GetInstance().ClearSciterContext();
+    m_ProfileSelect.Detach();
     m_WebBrowser.DetachWindow();
 
     SettingsStore & settings = SettingsStore::GetInstance();
@@ -333,8 +334,9 @@ void SciterMainWindow::RegisterApplets()
         return;
     }
     IOperatingSystem & os = m_modules.Modules().OperatingSystem();
+    m_ProfileSelect.Attach(m_sciterUI, m_modules, m_rootElement, (void *)m_window->GetHandle());
     m_WebBrowser.AttachToWindow(m_window->GetHandle());
-    os.SetFrontendApplets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &m_WebBrowser);
+    os.SetFrontendApplets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &m_ProfileSelect, nullptr, &m_WebBrowser);
 }
 
 void SciterMainWindow::ResetMenu()
@@ -1491,6 +1493,7 @@ void SciterMainWindow::OnRecetGame(uint32_t fileIndex)
 
 void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
+    m_ProfileSelect.Detach();
     m_WebBrowser.DetachWindow();
     m_sciterUI.Stop();
 }

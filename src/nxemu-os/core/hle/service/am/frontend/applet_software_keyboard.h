@@ -21,7 +21,7 @@ class SoftwareKeyboard final :
     public FrontendApplet
 {
 public:
-    explicit SoftwareKeyboard(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, ISoftwareKeyboardFrontendApplet & frontend_);
+    explicit SoftwareKeyboard(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, ISoftwareKeyboardApplet & frontend_);
     ~SoftwareKeyboard() override;
 
     void Initialize() override;
@@ -150,7 +150,7 @@ private:
     void ReplyChangedStringUtf8V2();
     void ReplyMovedCursorUtf8V2();
 
-    ISoftwareKeyboardFrontendApplet & frontend;
+    ISoftwareKeyboardApplet & frontend;
 
     SwkbdAppletVersion swkbd_applet_version;
 

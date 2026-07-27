@@ -29,7 +29,7 @@ namespace Service::AM::Frontend
 class WebBrowser final : public FrontendApplet
 {
 public:
-    WebBrowser(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IWebBrowserFrontendApplet & frontend_);
+    WebBrowser(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IWebBrowserApplet & frontend_);
     ~WebBrowser() override;
 
     void Initialize() override;
@@ -68,7 +68,7 @@ private:
     void ExecuteWifi();
     void ExecuteLobby();
 
-    IWebBrowserFrontendApplet & frontend;
+    IWebBrowserApplet & frontend;
 
     bool complete{false};
     Result status{ResultSuccess};

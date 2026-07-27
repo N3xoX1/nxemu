@@ -60,7 +60,7 @@ static ControllerHostParameters ConvertToFrontendParameters(
     return params;
 }
 
-Controller::Controller(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IControllerFrontendApplet & frontend_) :
+Controller::Controller(Core::System & system_, std::shared_ptr<Applet> applet_, LibraryAppletMode applet_mode_, IControllerApplet & frontend_) :
     FrontendApplet{system_, applet_, applet_mode_},
     frontend{frontend_}
 {

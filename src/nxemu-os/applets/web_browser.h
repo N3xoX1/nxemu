@@ -5,7 +5,7 @@
 #include <nxemu-module-spec/operating_system.h>
 
 class DefaultWebBrowserApplet final :
-    public IWebBrowserFrontendApplet
+    public IWebBrowserApplet
 {
 public:
     void Close() override;

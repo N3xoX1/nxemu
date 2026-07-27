@@ -48,7 +48,7 @@ public:
     PerfStatsResults GetAndResetPerfStats() override;
     void SetEmulationPaused(bool paused) override;
     bool IsEmulationPaused() const override;
-    void SetFrontendApplets(ICabinetFrontendApplet * cabinet, IControllerFrontendApplet * controller, IErrorFrontendApplet * error, IMiiEditFrontendApplet * mii_edit, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select, ISoftwareKeyboardFrontendApplet * software_keyboard, IWebBrowserFrontendApplet * web_browser) override;
+    void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) override;
     void SetPlayerButtonState(uint32_t player_index, uint32_t button_ordinal, bool pressed) override;
     void SetPlayerAnalogState(uint32_t player_index, uint32_t stick_index, float x, float y) override;
     uint32_t GetProfileCount() const override;

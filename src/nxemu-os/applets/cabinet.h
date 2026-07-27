@@ -6,7 +6,7 @@
 #include <nxemu-module-spec/operating_system.h>
 
 class DefaultCabinetApplet final : 
-    public ICabinetFrontendApplet
+    public ICabinetApplet
 {
 public:
     void Close() override;

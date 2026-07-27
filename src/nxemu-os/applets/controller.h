@@ -11,7 +11,7 @@ class HIDCore;
 }
 
 class DefaultControllerApplet final : 
-    public IControllerFrontendApplet
+    public IControllerApplet
 {
 public:
     explicit DefaultControllerApplet(Core::HID::HIDCore & hid_core_);

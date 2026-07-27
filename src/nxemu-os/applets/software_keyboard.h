@@ -14,7 +14,7 @@ struct InlineTextParameters
 };
 
 class DefaultSoftwareKeyboardApplet final :
-    public ISoftwareKeyboardFrontendApplet
+    public ISoftwareKeyboardApplet
 {
 public:
     void Close() override;

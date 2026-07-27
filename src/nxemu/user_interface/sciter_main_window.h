@@ -1,4 +1,5 @@
 #pragma once
+#include "applets/profile_select.h"
 #include "applets/web_browser.h"
 #include "startup_checks.h"
 #include "user_interface/discord_presence.h"
@@ -214,6 +215,7 @@ private:
     std::string m_pendingGameConfigPath;
     std::unique_ptr<InputConfig> m_inputConfig;
     std::unique_ptr<AboutDialog> m_aboutDialog;
+    ProfileSelectApplet m_ProfileSelect;
     WebBrowserApplet m_WebBrowser;
     float m_resolutionUpFactor;
     bool m_useMultiCore;

@@ -108,7 +108,7 @@ FrontendAppletSet::FrontendAppletSet() :
 {
 }
 
-FrontendAppletSet::FrontendAppletSet(ICabinetFrontendApplet * cabinet_, IControllerFrontendApplet * controller_, IErrorFrontendApplet * error_, IMiiEditFrontendApplet * mii_edit_, IParentalControlsFrontendApplet * parental_controls, IPhotoViewerFrontendApplet * photo_viewer, IProfileSelectFrontendApplet * profile_select_, ISoftwareKeyboardFrontendApplet * software_keyboard_, IWebBrowserFrontendApplet * web_browser_) :
+FrontendAppletSet::FrontendAppletSet(ICabinetApplet * cabinet_, IControllerApplet * controller_, IErrorApplet * error_, IMiiEditApplet * mii_edit_, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select_, ISoftwareKeyboardApplet * software_keyboard_, IWebBrowserApplet * web_browser_) :
     cabinet(cabinet_),
     controller(controller_),
     error(error_),
@@ -232,7 +232,7 @@ std::shared_ptr<FrontendApplet> FrontendAppletHolder::GetApplet(std::shared_ptr<
     case AppletId::Error:
         return std::make_shared<Error>(system, applet, mode);
     case AppletId::ProfileSelect:
-        return std::make_shared<ProfileSelect>(system, applet, mode);
+        return std::make_shared<ProfileSelect>(system, applet, mode, *frontend.profile_select);
     case AppletId::SoftwareKeyboard:
         return std::make_shared<SoftwareKeyboard>(system, applet, mode, *frontend.software_keyboard);
     case AppletId::MiiEdit:

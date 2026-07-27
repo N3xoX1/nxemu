@@ -37,6 +37,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="applets\profile_select.cpp" />
     <ClCompile Include="applets\web_browser.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="settings\ui_settings.cpp" />
@@ -69,6 +70,7 @@
     <ClCompile Include="user_interface\widgets\rom_browser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="applets\profile_select.h" />
     <ClInclude Include="applets\web_browser.h" />
     <ClInclude Include="settings\ui_identifiers.h" />
     <ClInclude Include="settings\ui_settings.h" />
