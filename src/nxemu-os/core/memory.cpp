@@ -903,7 +903,7 @@ struct Memory::Impl {
         context.core = system.GetCurrentHostThreadID();
         context.current_area = &rasterizer_read_areas[context.core];
         context.size = size;
-        system.GetVideo().ApplyOpOnDeviceMemoryPointer(p, scratch_buffers[context.core].data(), scratch_buffers[context.core].size(), HandleRasterizerDownloadCallback, &context);
+        system.GetVideo().ApplyOpOnDeviceMemoryPointer(p, HandleRasterizerDownloadCallback, &context);
     }
 
     struct RasterizerWriteContext
@@ -957,7 +957,7 @@ struct Memory::Impl {
             }
         };
 
-        system.GetVideo().ApplyOpOnDeviceMemoryPointer(p, scratch_buffers[core].data(), scratch_buffers[core].size(), HandleRasterizerWriteCallback, &context);
+        system.GetVideo().ApplyOpOnDeviceMemoryPointer(p, HandleRasterizerWriteCallback, &context);
     }
 
     struct GPUDirtyState
@@ -974,7 +974,6 @@ struct Memory::Impl {
     Common::PageTable* current_page_table = nullptr;
     std::array<RasterizerDownloadArea, Hardware::NUM_CPU_CORES> rasterizer_read_areas{};
     std::array<GPUDirtyState, Hardware::NUM_CPU_CORES> rasterizer_write_areas{};
-    std::array<Common::ScratchBuffer<u32>, Hardware::NUM_CPU_CORES> scratch_buffers{};
     std::span<Core::GPUDirtyMemoryManager> gpu_dirty_managers;
     std::mutex sys_core_guard;
 

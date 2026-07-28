@@ -313,9 +313,9 @@ void VideoManager::PushCommandBuffer(int32_t bindId, const uint32_t * commandLis
     impl->m_gpuCore->PushCommandBuffer(bindId, cmdlist);
 }
 
-void VideoManager::ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, uint32_t * scratchBuffer, size_t scratchBufferSize, DeviceMemoryOperation operation, void * userData)
+void VideoManager::ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, DeviceMemoryOperation operation, void * userData)
 {
-    Common::ScratchBuffer<u32> tempBuffer;
+    thread_local Common::ScratchBuffer<u32> tempBuffer;
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, tempBuffer, [operation, userData](DAddr address) {
         operation(address, userData);
     });
