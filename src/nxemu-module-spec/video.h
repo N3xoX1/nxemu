@@ -183,7 +183,7 @@ nxinterface IVideo
     virtual IChannelState * AllocateChannel() = 0;
     virtual void PushGPUEntries(int32_t bindId, const uint64_t * commandList, uint32_t commandListSize, const uint32_t * prefetchCommandlist, uint32_t prefetchCommandlistSize) = 0;
     virtual void PushCommandBuffer(int32_t bindId, const uint32_t * commandList, uint32_t commandListSize) = 0;
-    virtual void ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, uint32_t * scratchBuffer, size_t scratchBufferSize, DeviceMemoryOperation operation, void * userData) = 0;
+    virtual void ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, DeviceMemoryOperation operation, void * userData) = 0;
     virtual RasterizerDownloadArea OnCPURead(uint64_t addr, uint64_t size) = 0;
     virtual bool OnCPUWrite(uint64_t addr, uint64_t size) = 0;
     virtual void Host1xUnregisterProcess(uint64_t asid) = 0;
