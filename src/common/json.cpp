@@ -130,6 +130,19 @@ JsonValue::JsonValue(const std::string & value)
     m_value.String = DuplicateAndPrefixStringValue(value.data(), static_cast<unsigned>(value.length()));
 }
 
+JsonValue::JsonValue(const char * value)
+{
+    InitBasic(JsonValueType::String, true);
+    if (value == nullptr)
+    {
+        m_value.String = DuplicateAndPrefixStringValue("", 0);
+    }
+    else
+    {
+        m_value.String = DuplicateAndPrefixStringValue(value, static_cast<unsigned>(strlen(value)));
+    }
+}
+
 JsonValue::JsonValue(const char * begin, const char * end)
 {
     InitBasic(JsonValueType::String, true);

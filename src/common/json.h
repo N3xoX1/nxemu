@@ -113,6 +113,7 @@ public:
     JsonValue(double value);
     JsonValue(const JsonStaticString & value);
     JsonValue(const std::string & value);
+    JsonValue(const char * value);
     JsonValue(const char * begin, const char * end);
     JsonValue(const JsonValue & other);
     JsonValue(JsonValue && other) noexcept;
