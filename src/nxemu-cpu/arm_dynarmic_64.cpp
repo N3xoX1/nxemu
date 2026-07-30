@@ -291,7 +291,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     config.enable_cycle_counting = !m_uses_wall_clock;
 
     // Code cache size
-#ifdef ARCHITECTURE_arm64
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     config.code_cache_size = 128_MiB;
 #else
     config.code_cache_size = 512_MiB;

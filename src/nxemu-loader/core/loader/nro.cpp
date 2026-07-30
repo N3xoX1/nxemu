@@ -26,7 +26,7 @@
 #include "core/loader/nso.h"
 #include "core/memory.h"
 
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
 #include "core/arm/nce/patcher.h"
 #endif
 
@@ -223,7 +223,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     program_image.resize(static_cast<u32>(program_image.size()) + bss_size);
     size_t image_size = program_image.size();
 
-#ifdef HAS_NCE
+#ifdef defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     const auto& code = codeset.CodeSegment();
 
     // NROs always have a 39-bit address space.
@@ -268,7 +268,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
 
     // Relocate code patch and copy to the program_image if running under NCE.
     // This needs to be after LoadFromMetadata so we can use the process entry point.
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
         patch.RelocateAndCopy(process.GetEntryPoint(), code, program_image,
                               &process.GetPostHandlers());

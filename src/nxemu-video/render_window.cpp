@@ -12,7 +12,7 @@
 #include <dlfcn.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/dynamic_library.h>
-#ifdef ARCHITECTURE_arm64
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
 #include <adrenotools/driver.h>
 #endif
 #endif
@@ -266,7 +266,7 @@ std::shared_ptr<Common::DynamicLibrary> LoadAndroidVulkanDriverFromSettings()
     const std::string custom_driver_name = g_settings->GetString(NXCoreSetting::GpuCustomDriverName);
     const std::string file_redirect_dir = g_settings->GetString(NXCoreSetting::GpuFileRedirectDir);
 
-#ifdef ARCHITECTURE_arm64
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     void * handle{};
     const char * file_redirect_dir_ptr{};
     int feature_flags{};

@@ -61,7 +61,7 @@ CallbackOrAccessOneWord DynarmicCP15::CompileSendOneWord(bool two, unsigned opc1
                     _mm_lfence();
 #elif defined(_M_X64) || defined(ARCHITECTURE_x86_64)
                     asm volatile("mfence\n\tlfence\n\t" : : : "memory");
-#elif defined(ARCHITECTURE_arm64)
+#elif defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
                     asm volatile("dsb sy\n\t" : : : "memory");
 #else
 #error Unsupported architecture
@@ -78,7 +78,7 @@ CallbackOrAccessOneWord DynarmicCP15::CompileSendOneWord(bool two, unsigned opc1
                     _mm_mfence();
 #elif defined(_M_X64) || defined(ARCHITECTURE_x86_64)
                     asm volatile("mfence\n\t" : : : "memory");
-#elif defined(ARCHITECTURE_arm64)
+#elif defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
                     asm volatile("dmb sy\n\t" : : : "memory");
 #else
 #error Unsupported architecture

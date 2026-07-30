@@ -369,7 +369,7 @@ private:
 
 #elif defined(__linux__) || defined(__FreeBSD__) // ^^^ Windows ^^^ vvv Linux vvv
 
-#ifdef ARCHITECTURE_arm64
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
 
 static void* ChooseVirtualBase(size_t virtual_size) {
     constexpr uintptr_t Map39BitSize = (1ULL << 39);
@@ -510,7 +510,7 @@ public:
         if (True(perms & MemoryPermission::Write)) {
             flags |= PROT_WRITE;
         }
-#ifdef ARCHITECTURE_arm64
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
         if (True(perms & MemoryPermission::Execute)) {
             flags |= PROT_EXEC;
         }
@@ -548,7 +548,7 @@ public:
         if (write) {
             flags |= PROT_WRITE;
         }
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
         if (execute) {
             flags |= PROT_EXEC;
         }

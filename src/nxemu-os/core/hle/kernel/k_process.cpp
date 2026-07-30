@@ -1400,7 +1400,7 @@ void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
     m_page_table.SetProcessMemoryPermission((KProcessAddress)(module.RODataSegmentAddr()) + base_addr, module.RODataSegmentSize(), Svc::MemoryPermission::Read);
     m_page_table.SetProcessMemoryPermission((KProcessAddress)(module.DataSegmentAddr()) + base_addr, module.DataSegmentSize(), Svc::MemoryPermission::ReadWrite);
 
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     const auto & patch = code_set.PatchSegment();
     if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled) && patch.size != 0)
     {
