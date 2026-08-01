@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#if defined(ANDROID) && defined(ARCHITECTURE_arm64)
+#if defined(ANDROID) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
 #include <adrenotools/driver.h>
 #endif
 
@@ -152,7 +152,7 @@ void TurboMode::Run(std::stop_token stop_token) {
 
     while (!stop_token.stop_requested()) {
 #ifdef ANDROID
-#ifdef ARCHITECTURE_arm64
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
         adrenotools_set_turbo(true);
 #endif
 #else
@@ -229,7 +229,7 @@ void TurboMode::Run(std::stop_token stop_token) {
                    std::chrono::milliseconds{100};
         });
     }
-#if defined(ANDROID) && defined(ARCHITECTURE_arm64)
+#if defined(ANDROID) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
     adrenotools_set_turbo(false);
 #endif
 }

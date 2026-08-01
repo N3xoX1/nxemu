@@ -20,7 +20,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
-#if defined(ANDROID) && defined(ARCHITECTURE_arm64)
+#if defined(ANDROID) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
 #include <adrenotools/bcenabler.h>
 #endif
 
@@ -289,7 +289,7 @@ std::unordered_map<VkFormat, VkFormatProperties> GetFormatProperties(vk::Physica
     return format_properties;
 }
 
-#if defined(ANDROID) && defined(ARCHITECTURE_arm64)
+#if defined(ANDROID) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
 void OverrideBcnFormats(std::unordered_map<VkFormat, VkFormatProperties> & format_properties)
 {
     // These properties are extracted from Adreno driver 512.687.0
@@ -535,7 +535,7 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
                     "Qualcomm drivers have a slow VK_KHR_push_descriptor implementation");
         RemoveExtension(extensions.push_descriptor, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
 
-#if defined(ANDROID) && defined(ARCHITECTURE_arm64)
+#if defined(ANDROID) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
         // Patch the driver to enable BCn textures.
         const auto major = (properties.properties.driverVersion >> 24) << 2;
         const auto minor = (properties.properties.driverVersion >> 12) & 0xFFFU;

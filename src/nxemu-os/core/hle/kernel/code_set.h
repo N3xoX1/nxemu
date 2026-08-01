@@ -75,7 +75,7 @@ struct CodeSet final {
         return segments[2];
     }
 
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     Segment& PatchSegment() {
         return patch_segment;
     }
@@ -91,7 +91,7 @@ struct CodeSet final {
     /// The segments that comprise this code set.
     std::array<Segment, 3> segments;
 
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     Segment patch_segment;
 #endif
 

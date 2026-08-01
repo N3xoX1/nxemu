@@ -136,7 +136,7 @@ private:
     std::atomic<s64> m_num_ipc_messages{};
     std::atomic<s64> m_num_ipc_replies{};
     std::atomic<s64> m_num_ipc_receives{};
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     std::unordered_map<u64, u64> m_post_handlers{};
 #endif
     ExclusiveMonitorPtr m_exclusive_monitor;
@@ -558,7 +558,7 @@ public:
 
     static void Switch(KProcess* cur_process, KProcess* next_process);
 
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     std::unordered_map<u64, u64>& GetPostHandlers() noexcept {
         return m_post_handlers;
     }

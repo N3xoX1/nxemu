@@ -6,7 +6,7 @@
 
 namespace Core {
 
-#if defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
 constexpr size_t VirtualReserveSize = 1ULL << 38;
 #else
 constexpr size_t VirtualReserveSize = 1ULL << 39;

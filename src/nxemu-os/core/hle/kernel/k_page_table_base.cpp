@@ -125,7 +125,7 @@ constexpr Common::MemoryPermission ConvertToMemoryPermission(KMemoryPermission p
     {
         perms |= Common::MemoryPermission::Write;
     }
-#ifdef HAS_NCE
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     if (True(perm & KMemoryPermission::UserExecute))
     {
         perms |= Common::MemoryPermission::Execute;
