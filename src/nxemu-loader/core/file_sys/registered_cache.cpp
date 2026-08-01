@@ -124,6 +124,11 @@ LoaderContentRecordType GetCRTypeFromNCAType(NCAContentType type)
 
 ContentProvider::~ContentProvider() = default;
 
+const ManualContentProvider * ContentProvider::GetManualContentProvider() const
+{
+    return nullptr;
+}
+
 IFileSysNCA * ContentProvider::GetEntry(uint64_t title_id, LoaderContentRecordType type) const
 {
     return GetEntryNCA(title_id, type).release();
@@ -1038,16 +1043,73 @@ std::optional<ContentProviderUnionSlot> ContentProviderUnion::GetSlotForEntry(ui
     return iter->first;
 }
 
+const ContentProvider * ContentProviderUnion::GetSlotProvider(ContentProviderUnionSlot slot) const
+{
+    const std::map<ContentProviderUnionSlot, ContentProvider *>::const_iterator iter = providers.find(slot);
+    if (iter == providers.end())
+    {
+        return nullptr;
+    }
+    return iter->second;
+}
+
+const ManualContentProvider * ContentProviderUnion::GetManualContentProvider() const
+{
+    return (const ManualContentProvider *)GetSlotProvider(ContentProviderUnionSlot::FrontendManual);
+}
+
 ManualContentProvider::~ManualContentProvider() = default;
 
-void ManualContentProvider::AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, VirtualFile file)
+void ManualContentProvider::AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, uint32_t version, VirtualFile file)
 {
+    if (title_type != LoaderTitleType::Update || (size_t)content_type >= ManualUpdateEntry::FileSlotCount)
+    {
+        entries.insert_or_assign({title_type, content_type, title_id}, file);
+        return;
+    }
+
+    const size_t slot = (size_t)content_type;
+
+    std::vector<ManualUpdateEntry>::iterator it =
+        std::find_if(multi_version_entries.begin(), multi_version_entries.end(),
+                     [title_id, version](const ManualUpdateEntry & entry) {
+                         return entry.title_id == title_id && entry.version == version;
+                     });
+
+    if (it != multi_version_entries.end())
+    {
+        it->files[slot] = file;
+    }
+    else
+    {
+        ManualUpdateEntry new_entry;
+        new_entry.title_id = title_id;
+        new_entry.version = version;
+        new_entry.files[slot] = file;
+        multi_version_entries.push_back(std::move(new_entry));
+    }
+
+    ContentMap::iterator existing = entries.find({title_type, content_type, title_id});
+    if (existing == entries.end())
+    {
+        entries.insert_or_assign({title_type, content_type, title_id}, file);
+        return;
+    }
+
+    for (const ManualUpdateEntry & entry : multi_version_entries)
+    {
+        if (entry.title_id == title_id && entry.version > version)
+        {
+            return;
+        }
+    }
     entries.insert_or_assign({title_type, content_type, title_id}, file);
 }
 
 void ManualContentProvider::ClearAllEntries()
 {
     entries.clear();
+    multi_version_entries.clear();
 }
 
 void ManualContentProvider::Refresh()
@@ -1061,7 +1123,19 @@ bool ManualContentProvider::HasEntry(uint64_t title_id, LoaderContentRecordType 
 
 std::optional<u32> ManualContentProvider::GetEntryVersion(uint64_t title_id) const
 {
-    return std::nullopt;
+    std::optional<u32> best;
+    for (const auto & entry : multi_version_entries)
+    {
+        if (entry.title_id != title_id)
+        {
+            continue;
+        }
+        if (!best.has_value() || entry.version > *best)
+        {
+            best = entry.version;
+        }
+    }
+    return best;
 }
 
 VirtualFile ManualContentProvider::GetEntryUnparsed(uint64_t title_id, LoaderContentRecordType type) const
@@ -1111,11 +1185,46 @@ std::vector<ContentProviderEntry> ManualContentProvider::ListEntriesFilter(
     out.erase(std::unique(out.begin(), out.end()), out.end());
     return out;
 }
+
+std::vector<ManualUpdateEntry> ManualContentProvider::ListUpdateVersions(uint64_t title_id) const
+{
+    std::vector<ManualUpdateEntry> out;
+    for (const auto & entry : multi_version_entries)
+    {
+        if (entry.title_id == title_id)
+        {
+            out.push_back(entry);
+        }
+    }
+
+    std::sort(out.begin(), out.end(), [](const ManualUpdateEntry & a, const ManualUpdateEntry & b) {
+        return a.version > b.version;
+    });
+    return out;
+}
+
+VirtualFile ManualContentProvider::GetEntryForVersion(uint64_t title_id, LoaderContentRecordType type, uint32_t version) const
+{
+    const size_t slot = static_cast<size_t>(type);
+    if (slot >= ManualUpdateEntry::FileSlotCount)
+    {
+        return nullptr;
+    }
+
+    for (const auto & entry : multi_version_entries)
+    {
+        if (entry.title_id == title_id && entry.version == version)
+        {
+            return entry.files[slot];
+        }
+    }
+    return nullptr;
+}
 } // namespace FileSys
 
-void ManualContentProviderImpl::AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, IVirtualFile * file)
+void ManualContentProviderImpl::AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, uint32_t version, IVirtualFile * file)
 {
-    provider.AddEntry(title_type, content_type, title_id, std::make_shared<VfsVirtualFile>(file));
+    provider.AddEntry(title_type, content_type, title_id, version, std::make_shared<VfsVirtualFile>(file));
 }
 
 void ManualContentProviderImpl::ClearAllEntries()

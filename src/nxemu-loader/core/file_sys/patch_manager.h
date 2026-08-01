@@ -32,6 +32,7 @@ struct Patch {
     PatchType type;
     uint64_t program_id;
     uint64_t title_id;
+    uint32_t numeric_version = 0;
 };
 
 // A centralized class to manage patches to games.
