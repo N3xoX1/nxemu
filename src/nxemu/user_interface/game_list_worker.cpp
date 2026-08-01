@@ -70,41 +70,8 @@ void GameListWorker::Run()
             break;
         }
 
-#ifdef tofix
-        if (game_dir.path == std::string("SDMC"))
-        {
-            auto * const game_list_dir = new GameListDir(game_dir, GameListItemType::SdmcDir);
-            DirEntryReady(game_list_dir);
-            AddTitlesToGameList(game_list_dir);
-        }
-        else if (game_dir.path == std::string("UserNAND"))
-        {
-            auto * const game_list_dir = new GameListDir(game_dir, GameListItemType::UserNandDir);
-            DirEntryReady(game_list_dir);
-            AddTitlesToGameList(game_list_dir);
-        }
-        else if (game_dir.path == std::string("SysNAND"))
-        {
-            auto * const game_list_dir = new GameListDir(game_dir, GameListItemType::SysNandDir);
-            DirEntryReady(game_list_dir);
-            AddTitlesToGameList(game_list_dir);
-        }
-        else
-        {
-            watch_list.append(QString::fromStdString(game_dir.path));
-            auto * const game_list_dir = new GameListDir(game_dir);
-            DirEntryReady(game_list_dir);
-#endif
-            ScanFileSystem(ScanTarget::FillManualContentProvider, game_dir, false /*game_dir.deep_scan, game_list_dir*/);
-            ScanFileSystem(ScanTarget::PopulateGameList, game_dir, false /*game_dir.deep_scan, game_list_dir*/);
-#ifdef tofix
-        }
-#endif
+        ScanFileSystem(ScanTarget::PopulateGameList, game_dir, false);
     }
-#ifdef tofix
-    RecordEvent([this](GameList * game_list) { game_list->DonePopulating(watch_list); });
-    processing_completed.Set();
-#endif
 }
 
 void GameListWorker::ScanFileSystem(ScanTarget target, const std::string & dir_path, bool deep_scan/*, GameListDir * parent_dir*/)

@@ -9,7 +9,7 @@
 #include <nxemu-module-spec/system_loader.h>
 #include <sciter_element.h>
 #include <sciter_ui.h>
-#include <yuzu_common/fs/filesystem_interfaces.h>
+#include <yuzu_common/interface_pointer_def.h>
 
 namespace
 {
@@ -53,7 +53,8 @@ GameConfig::GameConfig(ISciterUI & sciterUI, SystemModules & modules) :
     m_sciterUI(sciterUI),
     m_modules(modules),
     m_window(nullptr),
-    m_programId(0)
+    m_programId(0),
+    m_revertAddonsOnClose(true)
 {
 }
 
@@ -85,23 +86,23 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
     m_window = nullptr;
     m_pageNav.reset();
     m_gameConfigAddons.reset();
+    m_romInfo = nullptr;
 
     Path pathObj(gamePath);
     m_filename = pathObj.GetNameExtension();
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
-    IRomInfoPtr romInfo(loader.RomInfo(gamePath, 0, 0));
-    if (romInfo)
+    m_romInfo = loader.RomInfo(gamePath, 0, 0);
+    if (m_romInfo)
     {
-        romInfo->ReadProgramId(m_programId);
-        m_format = FileTypeLabel(romInfo->GetFileType());
-        romInfo->AddToManualContentProvider(loader.ManualContentProvider());
+        m_romInfo->ReadProgramId(m_programId);
+        m_format = FileTypeLabel(m_romInfo->GetFileType());
 
         uint32_t size = 0;
-        if (romInfo->ReadTitle(nullptr, &size) == LoaderResultStatus::Success && size > 0)
+        if (m_romInfo->ReadTitle(nullptr, &size) == LoaderResultStatus::Success && size > 0)
         {
             m_title.resize(size);
-            romInfo->ReadTitle(m_title.data(), &size);
+            m_romInfo->ReadTitle(m_title.data(), &size);
             while (!m_title.empty() && m_title.back() == '\0')
             {
                 m_title.pop_back();
@@ -109,11 +110,15 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
         }
 
         size = 0;
-        if (romInfo->ReadIcon(nullptr, &size) == LoaderResultStatus::Success && size > 0)
+        if (m_romInfo->ReadIcon(nullptr, &size) == LoaderResultStatus::Success && size > 0)
         {
             m_icon.resize(size);
-            romInfo->ReadIcon(m_icon.data(), &size);
+            m_romInfo->ReadIcon(m_icon.data(), &size);
         }
+
+        loader.ManualContentProvider().ClearAllEntries();
+        m_romInfo->PrepareManualContent();
+        RefreshControlMetadata();
     }
 
     if (m_title.empty())
@@ -138,30 +143,10 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
     }
 
     std::error_code ec;
-    const std::uintmax_t fileSize = std::filesystem::file_size(
-        std::filesystem::path(std::u8string(m_gamePath.begin(), m_gamePath.end())), ec);
+    const std::uintmax_t fileSize = std::filesystem::file_size(std::filesystem::path(std::u8string(m_gamePath.begin(), m_gamePath.end())), ec);
     if (!ec)
     {
         m_size = ReadableByteSize((uint64_t)fileSize);
-    }
-
-    if (m_programId != 0)
-    {
-        IFileSysNACP * nacp = loader.GetPMControlMetadata(m_programId);
-        if (nacp != nullptr)
-        {
-            const char * version = nacp->GetVersionString();
-            if (version != nullptr && version[0] != '\0')
-            {
-                m_version = version;
-            }
-            const char * developer = nacp->GetDeveloperName();
-            if (developer != nullptr && developer[0] != '\0')
-            {
-                m_developer = developer;
-            }
-            nacp->Release();
-        }
     }
 
     if (!m_sciterUI.WindowCreate(parentWindow, "game_config.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_CHILD, m_window))
@@ -169,6 +154,9 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
         Notification::GetInstance().DisplayError("Unable to create the game configuration dialog.", "Configure Game");
         return;
     }
+
+    m_window->OnDestroySinkAdd(this);
+    m_revertAddonsOnClose = true;
 
     SciterElement root(m_window->GetRootElement());
     if (root.IsValid())
@@ -188,6 +176,38 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
 
     m_window->FixMinSize();
     m_window->CenterWindow();
+}
+
+void GameConfig::RefreshControlMetadata()
+{
+    if (!m_romInfo)
+    {
+        return;
+    }
+
+    m_version = "1.0.0";
+    m_developer.clear();
+
+    IFileSysNACP * nacp = m_romInfo->GetControlMetadata();
+    if (nacp != nullptr)
+    {
+        const char * version = nacp->GetVersionString();
+        if (version != nullptr && version[0] != '\0')
+        {
+            m_version = version;
+        }
+        const char * developer = nacp->GetDeveloperName();
+        if (developer != nullptr && developer[0] != '\0')
+        {
+            m_developer = developer;
+        }
+        nacp->Release();
+    }
+
+    if (m_window != nullptr)
+    {
+        PopulateInfo();
+    }
 }
 
 void GameConfig::PopulateInfo()
@@ -227,7 +247,11 @@ void GameConfig::PageNavCreatedPage(const std::string & pageName, SCITER_ELEMENT
 {
     if (pageName == "AddOns")
     {
-        m_gameConfigAddons.reset(new GameConfigAddons(m_sciterUI, *this, m_modules, page));
+        if (!m_romInfo)
+        {
+            return;
+        }
+        m_gameConfigAddons.reset(new GameConfigAddons(m_sciterUI, *this, m_modules, *m_romInfo, page));
     }
 }
 
@@ -251,4 +275,18 @@ bool GameConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint
         }
     }
     return true;
+}
+
+void GameConfig::OnWindowDestroy(HWINDOW hWnd)
+{
+    if (m_window == nullptr || hWnd != m_window->GetHandle())
+    {
+        return;
+    }
+
+    if (m_revertAddonsOnClose && m_gameConfigAddons)
+    {
+        m_gameConfigAddons->RevertSetting();
+    }
+    m_window = nullptr;
 }

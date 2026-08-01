@@ -80,8 +80,62 @@ std::string FormatTitleVersion(u32 version, TitleVersionFormat format = TitleVer
     return fmt::format("v{}.{}.{}", bytes[3], bytes[2], bytes[1]);
 }
 
-// Returns a directory with name matching name case-insensitive. Returns nullptr if directory
-// doesn't have a directory with name.
+void AppendCommaIfNotEmpty(std::string & to, std::string_view with)
+{
+    if (!to.empty())
+    {
+        to += ", ";
+    }
+    to += with;
+}
+
+bool IsDirValidAndNonEmpty(const VirtualDir & dir)
+{
+    return dir != nullptr && (!dir->GetFiles().empty() || !dir->GetSubdirectories().empty());
+}
+
+bool IsVersionedUpdateDisabled(const std::vector<std::string> & disabled, uint32_t version)
+{
+    const std::string disabled_key = fmt::format("Update@{}", version);
+    return std::find(disabled.cbegin(), disabled.cend(), disabled_key) != disabled.cend() ||
+           std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+}
+
+std::string GetUpdateDisplayVersion(const ManualContentProvider & manual_provider, uint64_t update_tid, uint32_t version)
+{
+    VirtualFile control = manual_provider.GetEntryForVersion(update_tid, LoaderContentRecordType::Control, version);
+    if (control != nullptr)
+    {
+        const NCA nca(control);
+        if (nca.GetStatus() == LoaderResultStatus::Success)
+        {
+            const VirtualFile romfs = nca.RomFS();
+            if (romfs != nullptr)
+            {
+                const VirtualDir extracted = ExtractRomFS(romfs);
+                if (extracted != nullptr)
+                {
+                    VirtualFile nacp_file = extracted->GetFile("control.nacp");
+                    if (nacp_file == nullptr)
+                    {
+                        nacp_file = extracted->GetFile("Control.nacp");
+                    }
+                    if (nacp_file != nullptr)
+                    {
+                        const NACP nacp(nacp_file);
+                        const char * version_string = nacp.GetVersionString();
+                        if (version_string != nullptr && version_string[0] != '\0')
+                        {
+                            return version_string;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return FormatTitleVersion(version);
+}
+
 VirtualDir FindSubdirectoryCaseless(const VirtualDir dir, std::string_view name)
 {
 #ifdef _WIN32
@@ -101,23 +155,6 @@ VirtualDir FindSubdirectoryCaseless(const VirtualDir dir, std::string_view name)
 #endif
 }
 
-void AppendCommaIfNotEmpty(std::string & to, std::string_view with)
-{
-    if (to.empty())
-    {
-        to += with;
-    }
-    else
-    {
-        to += ", ";
-        to += with;
-    }
-}
-
-bool IsDirValidAndNonEmpty(const VirtualDir & dir)
-{
-    return dir != nullptr && (!dir->GetFiles().empty() || !dir->GetSubdirectories().empty());
-}
 } // Anonymous namespace
 
 PatchManager::PatchManager(uint64_t title_id_, const FileSystemController & fs_controller_, const ContentProvider & content_provider_) :
@@ -143,27 +180,68 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
         return exefs;    
     }
 
-    const auto & disabled = loaderSettings.disabled_addons[title_id];
-    const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+    const std::vector<std::string> & disabled = loaderSettings.disabled_addons[title_id];
+    const uint64_t update_tid = GetUpdateTitleID(title_id);
+    const ManualContentProvider * manual_provider = content_provider.GetManualContentProvider();
 
-    // Game Updates
-    const auto update_tid = GetUpdateTitleID(title_id);
-    const auto update = content_provider.GetEntryNCA(update_tid, LoaderContentRecordType::Program);
+    bool update_disabled = true;
+    std::optional<u32> enabled_version;
+    bool checked_manual = false;
+
+    if (manual_provider != nullptr)
+    {
+        const std::vector<ManualUpdateEntry> update_versions = manual_provider->ListUpdateVersions(update_tid);
+        if (!update_versions.empty())
+        {
+            checked_manual = true;
+            for (const ManualUpdateEntry & update_entry : update_versions)
+            {
+                if (!IsVersionedUpdateDisabled(disabled, update_entry.version))
+                {
+                    update_disabled = false;
+                    enabled_version = update_entry.version;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!checked_manual)
+    {
+        update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+    }
+
+    std::unique_ptr<NCA> update;
+    if (enabled_version.has_value() && manual_provider != nullptr)
+    {
+        VirtualFile file = manual_provider->GetEntryForVersion(update_tid, LoaderContentRecordType::Program,
+                                                              *enabled_version);
+        if (file != nullptr)
+        {
+            update = std::make_unique<NCA>(file);
+        }
+    }
+
+    if (update == nullptr && !update_disabled)
+    {
+        update = content_provider.GetEntryNCA(update_tid, LoaderContentRecordType::Program);
+    }
 
     if (!update_disabled && update != nullptr && update->GetExeFS() != nullptr)
     {
-        LOG_INFO(Loader, "    ExeFS: Update ({}) applied successfully", FormatTitleVersion(content_provider.GetEntryVersion(update_tid).value_or(0)));
+        const u32 version = enabled_version.value_or(content_provider.GetEntryVersion(update_tid).value_or(0));
+        LOG_INFO(Loader, "    ExeFS: Update ({}) applied successfully", FormatTitleVersion(version));
         exefs = update->GetExeFS();
     }
 
     // LayeredExeFS
-    const auto load_dir = fs_controller.GetModificationLoadRoot(title_id);
-    const auto sdmc_load_dir = fs_controller.GetSDMCModificationLoadRoot(title_id);
+    const VirtualDir load_dir = fs_controller.GetModificationLoadRoot(title_id);
+    const VirtualDir sdmc_load_dir = fs_controller.GetSDMCModificationLoadRoot(title_id);
 
     std::vector<VirtualDir> patch_dirs = {sdmc_load_dir};
     if (load_dir != nullptr)
     {
-        const auto load_patch_dirs = load_dir->GetSubdirectories();
+        const std::vector<VirtualDir> load_patch_dirs = load_dir->GetSubdirectories();
         patch_dirs.insert(patch_dirs.end(), load_patch_dirs.begin(), load_patch_dirs.end());
     }
 
@@ -172,14 +250,14 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
 
     std::vector<VirtualDir> layers;
     layers.reserve(patch_dirs.size() + 1);
-    for (const auto & subdir : patch_dirs)
+    for (const VirtualDir & subdir : patch_dirs)
     {
         if (std::find(disabled.begin(), disabled.end(), subdir->GetName()) != disabled.end())
         {
             continue;
         }
 
-        auto exefs_dir = FindSubdirectoryCaseless(subdir, "exefs");
+        VirtualDir exefs_dir = FindSubdirectoryCaseless(subdir, "exefs");
         if (exefs_dir != nullptr)
         {
             layers.push_back(std::move(exefs_dir));
@@ -187,7 +265,7 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
     }
     layers.push_back(exefs);
 
-    auto layered = LayeredVfsDirectory::MakeLayeredDirectory(std::move(layers));
+    VirtualDir layered = LayeredVfsDirectory::MakeLayeredDirectory(std::move(layers));
     if (layered != nullptr)
     {
         LOG_INFO(Loader, "    ExeFS: LayeredExeFS patches applied successfully");
@@ -197,10 +275,10 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
     if (Settings::values.dump_exefs)
     {
         LOG_INFO(Loader, "Dumping ExeFS for title_id={:016X}", title_id);
-        const auto dump_dir = fs_controller.GetModificationDumpRoot(title_id);
+        const VirtualDir dump_dir = fs_controller.GetModificationDumpRoot(title_id);
         if (dump_dir != nullptr)
         {
-            const auto exefs_dir = GetOrCreateDirectoryRelative(dump_dir, "/exefs");
+            const VirtualDir exefs_dir = GetOrCreateDirectoryRelative(dump_dir, "/exefs");
             VfsRawCopyD(exefs, exefs_dir);
         }
     }
@@ -385,10 +463,42 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
 
     // Game Updates
     const uint64_t update_tid = GetUpdateTitleID(title_id);
-    const VirtualFile update_raw = content_provider.GetEntryRaw(update_tid, type);
-
     const auto & disabled = loaderSettings.disabled_addons[title_id];
-    const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+    const ManualContentProvider * manual_provider = content_provider.GetManualContentProvider();
+
+    bool update_disabled = true;
+    std::optional<u32> enabled_version;
+    bool checked_manual = false;
+    VirtualFile update_raw;
+
+    if (manual_provider != nullptr)
+    {
+        const auto update_versions = manual_provider->ListUpdateVersions(update_tid);
+        if (!update_versions.empty())
+        {
+            checked_manual = true;
+            for (const auto & update_entry : update_versions)
+            {
+                if (!IsVersionedUpdateDisabled(disabled, update_entry.version))
+                {
+                    update_disabled = false;
+                    enabled_version = update_entry.version;
+                    update_raw = manual_provider->GetEntryForVersion(update_tid, type, update_entry.version);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!checked_manual)
+    {
+        update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+        update_raw = content_provider.GetEntryRaw(update_tid, type);
+    }
+    else if (update_raw == nullptr && !update_disabled)
+    {
+        update_raw = content_provider.GetEntryRaw(update_tid, type);
+    }
 
     if (!update_disabled && update_raw != nullptr && base_nca != nullptr)
     {
@@ -396,9 +506,9 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
         if (new_nca->GetStatus() == LoaderResultStatus::Success &&
             new_nca->RomFS() != nullptr)
         {
-            LOG_INFO(Loader, "    RomFS: Update ({}) applied successfully", FormatTitleVersion(content_provider.GetEntryVersion(update_tid).value_or(0)));
+            const u32 version = enabled_version.value_or(content_provider.GetEntryVersion(update_tid).value_or(0));
+            LOG_INFO(Loader, "    RomFS: Update ({}) applied successfully", FormatTitleVersion(version));
             romfs = new_nca->RomFS();
-            const auto version = FormatTitleVersion(content_provider.GetEntryVersion(update_tid).value_or(0));
         }
     }
     else if (!update_disabled && packed_update_raw != nullptr && base_nca != nullptr)
@@ -432,41 +542,89 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
 
     // Game Updates
     const auto update_tid = GetUpdateTitleID(title_id);
-    PatchManager update{update_tid, fs_controller, content_provider};
-    const auto metadata = update.GetControlMetadata();
-    const auto & nacp = metadata.first;
-
     const auto & disabled = loaderSettings.disabled_addons[title_id];
-    const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
-    Patch update_patch = {.enabled = !update_disabled,
-                          .name = "Update",
-                          .version = "",
-                          .type = PatchType::Update,
-                          .program_id = title_id,
-                          .title_id = title_id};
+    const ManualContentProvider * manual_provider = content_provider.GetManualContentProvider();
 
-    if (nacp != nullptr)
+    std::vector<Patch> update_patches;
+    if (manual_provider != nullptr)
     {
-        update_patch.version = nacp->GetVersionString();
-        out.push_back(update_patch);
-    }
-    else if (content_provider.HasEntry(update_tid, LoaderContentRecordType::Program))
-    {
-        const auto meta_ver = content_provider.GetEntryVersion(update_tid);
-        if (meta_ver.value_or(0) == 0)
+        for (const auto & update_entry : manual_provider->ListUpdateVersions(update_tid))
         {
-            out.push_back(update_patch);
-        }
-        else
-        {
-            update_patch.version = FormatTitleVersion(*meta_ver);
-            out.push_back(update_patch);
+            update_patches.push_back({.enabled = !IsVersionedUpdateDisabled(disabled, update_entry.version),
+                                      .name = "Update",
+                                      .version = GetUpdateDisplayVersion(*manual_provider, update_tid, update_entry.version),
+                                      .type = PatchType::Update,
+                                      .program_id = title_id,
+                                      .title_id = update_tid,
+                                      .numeric_version = update_entry.version});
         }
     }
-    else if (update_raw != nullptr)
+
+    if (update_patches.size() > 1)
     {
-        update_patch.version = "PACKED";
-        out.push_back(update_patch);
+        bool found_enabled = false;
+        for (auto & patch : update_patches)
+        {
+            if (!patch.enabled)
+            {
+                continue;
+            }
+            if (found_enabled)
+            {
+                patch.enabled = false;
+            }
+            else
+            {
+                found_enabled = true;
+            }
+        }
+    }
+
+    if (!update_patches.empty())
+    {
+        for (auto & patch : update_patches)
+        {
+            out.push_back(std::move(patch));
+        }
+    }
+    else
+    {
+        PatchManager update{update_tid, fs_controller, content_provider};
+        const auto metadata = update.GetControlMetadata();
+        const auto & nacp = metadata.first;
+
+        const bool update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+        Patch update_patch = {.enabled = !update_disabled,
+                              .name = "Update",
+                              .version = "",
+                              .type = PatchType::Update,
+                              .program_id = title_id,
+                              .title_id = title_id};
+
+        if (nacp != nullptr)
+        {
+            update_patch.version = nacp->GetVersionString();
+            out.push_back(update_patch);
+        }
+        else if (content_provider.HasEntry(update_tid, LoaderContentRecordType::Program))
+        {
+            const auto meta_ver = content_provider.GetEntryVersion(update_tid);
+            if (meta_ver.value_or(0) == 0)
+            {
+                out.push_back(update_patch);
+            }
+            else
+            {
+                update_patch.version = FormatTitleVersion(*meta_ver);
+                update_patch.numeric_version = *meta_ver;
+                out.push_back(update_patch);
+            }
+        }
+        else if (update_raw != nullptr)
+        {
+            update_patch.version = "PACKED";
+            out.push_back(update_patch);
+        }
     }
 
     // General Mods (LayeredFS and IPS)
@@ -567,8 +725,7 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
     }
 
     // DLC
-    const auto dlc_entries =
-        content_provider.ListEntriesFilter(LoaderTitleType::AOC, LoaderContentRecordType::Data);
+    const auto dlc_entries = content_provider.ListEntriesFilter(LoaderTitleType::AOC, LoaderContentRecordType::Data);
     std::vector<ContentProviderEntry> dlc_match;
     dlc_match.reserve(dlc_entries.size());
     std::copy_if(dlc_entries.begin(), dlc_entries.end(), std::back_inserter(dlc_match),

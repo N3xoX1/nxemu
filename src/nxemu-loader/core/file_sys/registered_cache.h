@@ -8,6 +8,7 @@
 #include <array>
 #include <boost/container/flat_map.hpp>
 #include <functional>
+#include <map>
 #include <memory>
 #include <nxemu-module-spec/system_loader.h>
 #include <string>
@@ -55,6 +56,8 @@ bool operator<(const ContentProviderEntry & lhs, const ContentProviderEntry & rh
 bool operator==(const ContentProviderEntry & lhs, const ContentProviderEntry & rhs);
 bool operator!=(const ContentProviderEntry & lhs, const ContentProviderEntry & rhs);
 
+class ManualContentProvider;
+
 class ContentProvider :
     public IContentProvider
 {
@@ -86,6 +89,8 @@ public:
     virtual std::vector<ContentProviderEntry> ListEntriesFilter(
         std::optional<LoaderTitleType> title_type = {}, std::optional<LoaderContentRecordType> record_type = {},
         std::optional<uint64_t> title_id = {}) const = 0;
+
+    virtual const ManualContentProvider * GetManualContentProvider() const;
 };
 
 class PlaceholderCache
@@ -200,6 +205,15 @@ enum class ContentProviderUnionSlot
     FrontendManual, ///< Frontend-defined game list or similar
 };
 
+struct ManualUpdateEntry
+{
+    static constexpr size_t FileSlotCount = (size_t)LoaderContentRecordType::DeltaFragment + 1;
+
+    uint64_t title_id{};
+    u32 version{};
+    std::array<VirtualFile, FileSlotCount> files;
+};
+
 // Combines multiple ContentProvider(s) (i.e. SysNAND, UserNAND, SDMC) into one interface.
 class ContentProviderUnion : public ContentProvider
 {
@@ -218,6 +232,8 @@ public:
     std::vector<ContentProviderEntry> ListEntriesFilter(std::optional<LoaderTitleType> title_type, std::optional<LoaderContentRecordType> record_type, std::optional<uint64_t> title_id) const override;
     std::vector<std::pair<ContentProviderUnionSlot, ContentProviderEntry>> ListEntriesFilterOrigin(std::optional<ContentProviderUnionSlot> origin = {}, std::optional<LoaderTitleType> title_type = {}, std::optional<LoaderContentRecordType> record_type = {}, std::optional<uint64_t> title_id = {}) const;
     std::optional<ContentProviderUnionSlot> GetSlotForEntry(uint64_t title_id, LoaderContentRecordType type) const;
+    const ContentProvider * GetSlotProvider(ContentProviderUnionSlot slot) const;
+    const ManualContentProvider * GetManualContentProvider() const override;
 
 private:
     std::map<ContentProviderUnionSlot, ContentProvider *> providers;
@@ -228,8 +244,7 @@ class ManualContentProvider : public ContentProvider
 public:
     ~ManualContentProvider() override;
 
-    void AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id,
-                  VirtualFile file);
+    void AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, uint32_t version, VirtualFile file);
     void ClearAllEntries();
 
     void Refresh() override;
@@ -239,9 +254,14 @@ public:
     VirtualFile GetEntryRaw(uint64_t title_id, LoaderContentRecordType type) const override;
     std::unique_ptr<NCA> GetEntryNCA(uint64_t title_id, LoaderContentRecordType type) const override;
     std::vector<ContentProviderEntry> ListEntriesFilter(std::optional<LoaderTitleType> title_type, std::optional<LoaderContentRecordType> record_type, std::optional<uint64_t> title_id) const override;
+    std::vector<ManualUpdateEntry> ListUpdateVersions(uint64_t title_id) const;
+    VirtualFile GetEntryForVersion(uint64_t title_id, LoaderContentRecordType type, u32 version) const;
 
 private:
-    std::map<std::tuple<LoaderTitleType, LoaderContentRecordType, uint64_t>, VirtualFile> entries;
+    using ContentMap = std::map<std::tuple<LoaderTitleType, LoaderContentRecordType, uint64_t>, VirtualFile>;
+
+    ContentMap entries;
+    std::vector<ManualUpdateEntry> multi_version_entries;
 };
 
 } // namespace FileSys
@@ -253,7 +273,7 @@ public:
     FileSys::ManualContentProvider & Provider();
 
     // IManualContentProvider
-    void AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, IVirtualFile * file) override;
+    void AddEntry(LoaderTitleType title_type, LoaderContentRecordType content_type, uint64_t title_id, uint32_t version, IVirtualFile * file) override;
     void ClearAllEntries() override;
 
 private:

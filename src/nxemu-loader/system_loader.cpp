@@ -435,57 +435,6 @@ bool HasSupportedFileExtension(const char * fileName)
     return false;
 }
 
-bool IsAddOnContentExtension(const char * fileName)
-{
-    static const char * supported_extensions[] = {
-        "nca",
-        "dxci",
-        "dnsp",
-    };
-
-    std::string ext = Path(fileName).GetExtension();
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    for (const char * supported : supported_extensions)
-    {
-        if (ext == supported)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-void RegisterMatchingAddOnEntriesFromNsp(const FileSys::NSP & nsp, uint64_t base_program_id, IManualContentProvider & provider)
-{
-    if (nsp.GetStatus() != LoaderResultStatus::Success)
-    {
-        return;
-    }
-
-    for (const auto & title : nsp.GetNCAs())
-    {
-        if (FileSys::GetBaseTitleID(title.first) != base_program_id)
-        {
-            continue;
-        }
-
-        for (const auto & entry : title.second)
-        {
-            if (entry.first.first != LoaderTitleType::Update && entry.first.first != LoaderTitleType::AOC)
-            {
-                continue;
-            }
-
-            FileSys::VirtualFile file = entry.second->BaseFile();
-            if (!file)
-            {
-                continue;
-            }
-            provider.AddEntry(entry.first.first, entry.first.second, title.first, std::make_unique<VirtualFileImpl>(file).release());
-        }
-    }
-}
-
 } // Anonymous namespace
 
 class HostFilesystemImpl final :
@@ -628,36 +577,15 @@ bool Systemloader::LoadRom(const char * fileName)
     }
     uint64_t program_id = 0;
     const LoaderResultStatus res = app_loader->ReadProgramId(program_id);
-    RegisterConfiguredAddOnDirectories(res == LoaderResultStatus::Success ? program_id : 0);
-    if (res == LoaderResultStatus::Success && file_type == LoaderFileType::NCA)
+    if (res == LoaderResultStatus::Success)
     {
-        UNIMPLEMENTED();
-    }
-    else if (res == LoaderResultStatus::Success && (file_type == LoaderFileType::XCI || file_type == LoaderFileType::NSP))
-    {
-        const auto nsp = file_type == LoaderFileType::NSP ? std::make_shared<FileSys::NSP>(impl->m_file) : FileSys::XCI{impl->m_file}.GetSecurePartitionNSP();
-        FileSys::ManualContentProvider & manual = impl->m_manualContentProvider->Provider();
-        for (const auto & title : nsp->GetNCAs())
+        ManualContentProvider().ClearAllEntries();
         {
-            for (const auto & entry : title.second)
-            {
-                if (entry.first.first == LoaderTitleType::Update &&
-                    manual.HasEntry(title.first, LoaderContentRecordType::Program))
-                {
-                    continue;
-                }
-                if (entry.first.first == LoaderTitleType::AOC &&
-                    manual.HasEntry(title.first, entry.first.second))
-                {
-                    continue;
-                }
-
-                FileSys::VirtualFile file = entry.second->BaseFile();
-                impl->m_manualContentProvider->AddEntry(entry.first.first, entry.first.second, title.first, std::make_unique<VirtualFileImpl>(file).release());
-            }
+            ::RomInfo loadedRom(*this, impl->m_file, impl->m_appLoader);
+            loadedRom.PrepareManualContent();
         }
     }
-    else if (res != LoaderResultStatus::Success)
+    else
     {
         LOG_ERROR(Core, "Failed to find title id for ROM!");
     }
@@ -896,105 +824,6 @@ IFileSysNACP * Systemloader::GetPMControlMetadata(uint64_t programID)
 IManualContentProvider & Systemloader::ManualContentProvider()
 {
     return *(impl->m_manualContentProvider.get());
-}
-
-void Systemloader::RegisterConfiguredAddOnDirectories(uint64_t program_id)
-{
-    IManualContentProvider & provider = ManualContentProvider();
-    provider.ClearAllEntries();
-
-    if (program_id == 0 || loaderSettings.addOnDirectories.empty())
-    {
-        return;
-    }
-
-    const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
-    FileSys::VirtualFilesystem & vfs = impl->m_virtualFilesystem;
-
-    for (const std::string & dir : loaderSettings.addOnDirectories)
-    {
-        if (dir.empty())
-        {
-            continue;
-        }
-
-        const auto callback = [&](const std::filesystem::directory_entry & entry) -> bool {
-            const std::filesystem::path & path = entry.path();
-            if (!Common::FS::IsFile(path))
-            {
-                return true;
-            }
-            const std::string physical_name = Common::FS::PathToUTF8String(path);
-            if (!IsAddOnContentExtension(physical_name.c_str()))
-            {
-                return true;
-            }
-
-            FileSys::VirtualFile file = vfs->OpenFile(physical_name, VirtualFileOpenMode::Read);
-            if (!file)
-            {
-                return true;
-            }
-
-            const std::string ext = ToLowerAscii(std::string(Path(physical_name).GetExtension()));
-            if (ext == "dnsp")
-            {
-                RegisterMatchingAddOnEntriesFromNsp(FileSys::NSP(file), base_program_id, provider);
-            }
-            else if (ext == "dxci")
-            {
-                const FileSys::XCI xci(file);
-                if (xci.GetStatus() == LoaderResultStatus::Success)
-                {
-                    const std::shared_ptr<FileSys::NSP> nsp = xci.GetSecurePartitionNSP();
-                    if (nsp)
-                    {
-                        RegisterMatchingAddOnEntriesFromNsp(*nsp, base_program_id, provider);
-                    }
-                }
-            }
-            else if (ext == "nca")
-            {
-                const FileSys::NCA nca(file);
-                if (nca.GetStatus() != LoaderResultStatus::Success)
-                {
-                    return true;
-                }
-
-                const uint64_t title_id = nca.GetTitleId();
-                if (FileSys::GetBaseTitleID(title_id) != base_program_id || title_id == base_program_id)
-                {
-                    return true;
-                }
-
-                const LoaderTitleType title_type = (title_id & 0x800) != 0 ? LoaderTitleType::Update : LoaderTitleType::AOC;
-                provider.AddEntry(title_type, FileSys::GetCRTypeFromNCAType(nca.GetType()), title_id, std::make_unique<VirtualFileImpl>(file).release());
-            }
-            return true;
-        };
-
-        Common::FS::IterateDirEntriesRecursively(dir, callback, Common::FS::DirEntryFilter::File);
-    }
-}
-
-uint32_t Systemloader::GetGamePatches(uint64_t program_id, GamePatchInfo * patches, uint32_t maxCount)
-{
-    RegisterConfiguredAddOnDirectories(program_id);
-    const FileSys::PatchManager pm(program_id, GetFileSystemController(), GetContentProvider());
-    const std::vector<FileSys::Patch> list = pm.GetPatches();
-    if (patches == nullptr || maxCount == 0)
-    {
-        return (uint32_t)list.size();
-    }
-
-    const uint32_t count = std::min(maxCount, (uint32_t)list.size());
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        patches[i].enabled = list[i].enabled;
-        std::snprintf(patches[i].name, sizeof(patches[i].name), "%s", list[i].name.c_str());
-        std::snprintf(patches[i].version, sizeof(patches[i].version), "%s", list[i].version.c_str());
-    }
-    return count;
 }
 
 void Systemloader::SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count)

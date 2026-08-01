@@ -22,6 +22,9 @@ public:
     LoaderResultStatus ReadLogo(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadProgramIds(uint64_t * buffer, uint32_t * count) override;
     void AddToManualContentProvider(IManualContentProvider & provider) override;
+    void PrepareManualContent() override;
+    uint32_t GetGamePatches(GamePatchInfo * patches, uint32_t maxCount) override;
+    IFileSysNACP * GetControlMetadata() override;
     void Release() override;
     IVirtualFile * ReadManualRomFS() override;
 
