@@ -157,8 +157,8 @@ nxinterface IChannelState
     virtual void Release() = 0;
 };
 
-typedef void (*DeviceMemoryOperation)(uint64_t device_address, void* user_data);
 typedef void (*HostActionCallback)(uint32_t slot, void * userData);
+typedef void (*RasterizerDirtyCollect)(uint64_t device_address, uint64_t size, void * user_data);
 
 nxinterface IVideo
 {
@@ -183,9 +183,8 @@ nxinterface IVideo
     virtual IChannelState * AllocateChannel() = 0;
     virtual void PushGPUEntries(int32_t bindId, const uint64_t * commandList, uint32_t commandListSize, const uint32_t * prefetchCommandlist, uint32_t prefetchCommandlistSize) = 0;
     virtual void PushCommandBuffer(int32_t bindId, const uint32_t * commandList, uint32_t commandListSize) = 0;
-    virtual void ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, DeviceMemoryOperation operation, void * userData) = 0;
-    virtual RasterizerDownloadArea OnCPURead(uint64_t addr, uint64_t size) = 0;
-    virtual bool OnCPUWrite(uint64_t addr, uint64_t size) = 0;
+    virtual RasterizerDownloadArea HandleRasterizerDownload(const uint8_t * pointer, uint64_t size, RasterizerDownloadArea current_area) = 0;
+    virtual void HandleRasterizerWrite(const uint8_t * pointer, uint64_t size, uint64_t * last_page, RasterizerDirtyCollect collect, void * user_data) = 0;
     virtual void Host1xUnregisterProcess(uint64_t asid) = 0;
     virtual void DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle) = 0;
     virtual uint32_t HostSyncpointValue(uint32_t id) = 0;

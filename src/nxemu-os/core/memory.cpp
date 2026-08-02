@@ -874,77 +874,32 @@ struct Memory::Impl {
         return true;
     }
 
-    struct RasterizerDownloadContext
+    struct RasterizerWriteCollectContext
     {
         Impl * impl;
-        RasterizerDownloadArea * current_area;
         size_t core;
-        size_t size;
     };
 
-    static void HandleRasterizerDownloadCallback(uint64_t address, void * user_data)
+    static void HandleRasterizerWriteCollect(uint64_t address, uint64_t size, void * user_data)
     {
-        RasterizerDownloadContext & context = *((RasterizerDownloadContext *)user_data);
-        const DAddr end_address = address + context.size;
-        if (context.current_area->startAddress <= address && end_address <= context.current_area->endAddress)
-            [[likely]]
-        {
-            return;
-        }
-        *(context.current_area) = context.impl->system.GetVideo().OnCPURead(address, context.size);
+        auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
+        context.impl->gpu_dirty_managers[context.core].Collect(address, size);
     }
 
     void HandleRasterizerDownload(VAddr v_address, size_t size)
     {
-        const auto * p = GetPointerImpl(
-            v_address, []() {}, []() {});
-        RasterizerDownloadContext context;
-        context.impl = this;
-        context.core = system.GetCurrentHostThreadID();
-        context.current_area = &rasterizer_read_areas[context.core];
-        context.size = size;
-        system.GetVideo().ApplyOpOnDeviceMemoryPointer(p, HandleRasterizerDownloadCallback, &context);
-    }
-
-    struct RasterizerWriteContext
-    {
-        Impl * impl;
-        size_t core;
-        size_t size;
-    };
-
-    static void HandleRasterizerWriteCallback(uint64_t address, void * user_data)
-    {
-        RasterizerWriteContext & context = *((RasterizerWriteContext *)user_data);
-        auto & current_area = context.impl->rasterizer_write_areas[context.core];
-        PAddr subaddress = address >> YUZU_PAGEBITS;
-        bool do_collection = current_area.last_address == subaddress;
-        if (!do_collection) [[unlikely]]
-        {
-            do_collection = context.impl->system.GetVideo().OnCPUWrite(address, context.size);
-            if (!do_collection)
-            {
-                return;
-            }
-            current_area.last_address = subaddress;
-        }
-        context.impl->gpu_dirty_managers[context.core].Collect(address, context.size);
+        const auto * p = GetPointerImpl(v_address, []() {}, []() {});
+        const size_t core = system.GetCurrentHostThreadID();
+        RasterizerDownloadArea & area = rasterizer_read_areas[core];
+        area = system.GetVideo().HandleRasterizerDownload(p, size, area);
     }
 
     void HandleRasterizerWrite(VAddr v_address, size_t size)
     {
-        const auto * p = GetPointerImpl(
-            v_address, []() {}, []() {});
+        const auto * p = GetPointerImpl(v_address, []() {}, []() {});
         constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
-        const size_t core = std::min(system.GetCurrentHostThreadID(),
-                                     sys_core); // any other calls threads go to syscore.
-
-        RasterizerWriteContext context;
-        context.impl = this;
-        context.core = core;
-        context.size = size;
-
-        // Guard on sys_core;
+        const size_t core = std::min(system.GetCurrentHostThreadID(), sys_core); 
+        
         if (core == sys_core) [[unlikely]]
         {
             sys_core_guard.lock();
@@ -957,12 +912,13 @@ struct Memory::Impl {
             }
         };
 
-        system.GetVideo().ApplyOpOnDeviceMemoryPointer(p, HandleRasterizerWriteCallback, &context);
+        RasterizerWriteCollectContext context{this, core};
+        system.GetVideo().HandleRasterizerWrite(p, size, &rasterizer_write_areas[core].last_address, HandleRasterizerWriteCollect, &context);
     }
 
     struct GPUDirtyState
     {
-        PAddr last_address;
+        uint64_t last_address;
     };
 
     void InvalidateGPUMemory(u8 * p, size_t size)

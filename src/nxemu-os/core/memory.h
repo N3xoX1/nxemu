@@ -13,7 +13,6 @@
 #include <nxemu-module-spec/cpu.h>
 
 #include "yuzu_common/guest_memory.h"
-#include "yuzu_common/scratch_buffer.h"
 #include "yuzu_common/typed_address.h"
 #include "core/hle/result.h"
 
