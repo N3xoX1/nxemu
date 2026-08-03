@@ -2,6 +2,9 @@
 #include "std_string.h"
 #include <algorithm>
 #include <assert.h>
+#include <cmath>
+#include <cstring>
+#include <limits>
 #include <sstream>
 
 namespace
@@ -1812,13 +1815,13 @@ std::string JsonStyledWriter::valueToString(double value, bool useSpecialFloats,
     // Print into the buffer. We need not request the alternative representation
     // that always has a decimal point because JSON doesn't distinguish the
     // concepts of reals and integers.
-    if (!isfinite(value))
+    if (!std::isfinite(value))
     {
         static const char * const reps[2][3] = {{"NaN", "-Infinity", "Infinity"},
                                                 {"null", "-1e+9999", "1e+9999"}};
         return reps[useSpecialFloats ? 0 : 1]
-                   [isnan(value) ? 0 : (value < 0) ? 1
-                                                   : 2];
+                   [std::isnan(value) ? 0 : (value < 0) ? 1
+                                                        : 2];
     }
 
     std::string buffer(size_t(36), '\0');

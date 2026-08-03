@@ -197,7 +197,7 @@ private:
     union
     {
         const char * String;
-        const StringValue * StringValue;
+        const StringValue * StrValue;
         bool Bool;
         int64_t Int;
         uint64_t UInt;
