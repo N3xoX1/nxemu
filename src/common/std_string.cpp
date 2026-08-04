@@ -1,6 +1,7 @@
 #include "std_string.h"
 #include "platform.h"
 #include <algorithm>
+#include <cstring>
 #ifdef _WIN32
 #include <Windows.h>
 #endif

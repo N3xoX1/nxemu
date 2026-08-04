@@ -7,6 +7,7 @@
 #include <shlobj_core.h>
 #include <io.h>
 #else
+#include <climits>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -598,6 +599,12 @@ Path & Path::DirectoryNormalize(Path BaseDir)
     if (changed)
     {
         directory.clear();
+#ifndef _WIN32
+        if (BaseDir.m_path.size() > 0 && BaseDir.m_path[0] == DIRECTORY_DELIMITER[0])
+        {
+            directory = DIRECTORY_DELIMITER;
+        }
+#endif
         for (strvector::const_iterator itr = normalizesParts.begin(); itr != normalizesParts.end(); itr++)
         {
             directory += *itr + DIRECTORY_DELIMITER;
