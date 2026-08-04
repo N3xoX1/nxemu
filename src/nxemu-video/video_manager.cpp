@@ -313,22 +313,38 @@ void VideoManager::PushCommandBuffer(int32_t bindId, const uint32_t * commandLis
     impl->m_gpuCore->PushCommandBuffer(bindId, cmdlist);
 }
 
-void VideoManager::ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, DeviceMemoryOperation operation, void * userData)
+RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * pointer, uint64_t size, RasterizerDownloadArea current_area)
 {
-    thread_local Common::ScratchBuffer<u32> tempBuffer;
-    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, tempBuffer, [operation, userData](DAddr address) {
-        operation(address, userData);
+    thread_local Common::ScratchBuffer<u32> scratch;
+    RasterizerDownloadArea area = current_area;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        const DAddr end_address = address + size;
+        if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
+            return;
+        }
+        area = impl->m_gpuCore->OnCPURead(address, size);
     });
+    return area;
 }
 
-RasterizerDownloadArea VideoManager::OnCPURead(uint64_t addr, uint64_t size)
+void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size, uint64_t * last_page, RasterizerDirtyCollect collect, void * user_data)
 {
-    return impl->m_gpuCore->OnCPURead(addr, size);
-}
-
-bool VideoManager::OnCPUWrite(uint64_t addr, uint64_t size)
-{
-    return impl->m_gpuCore->OnCPUWrite(addr, size);
+    constexpr uint64_t page_bits = 12;
+    thread_local Common::ScratchBuffer<u32> scratch;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        const uint64_t subaddress = address >> page_bits;
+        bool do_collection = *last_page == subaddress;
+        if (!do_collection) [[unlikely]]
+        {
+            do_collection = impl->m_gpuCore->OnCPUWrite(address, size);
+            if (!do_collection)
+            {
+                return;
+            }
+            *last_page = subaddress;
+        }
+        collect(address, size, user_data);
+    });
 }
 
 void VideoManager::DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle)

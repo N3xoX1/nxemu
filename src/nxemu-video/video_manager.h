@@ -39,9 +39,8 @@ public:
     IChannelState * AllocateChannel() override;
     void PushGPUEntries(int32_t bindId, const uint64_t * commandList, uint32_t commandListSize, const uint32_t * prefetchCommandlist, uint32_t prefetchCommandlistSize) override;
     void PushCommandBuffer(int32_t bindId, const uint32_t * commandList, uint32_t commandListSize) override;
-    void ApplyOpOnDeviceMemoryPointer(const uint8_t * pointer, DeviceMemoryOperation operation, void * userData) override;
-    RasterizerDownloadArea OnCPURead(uint64_t addr, uint64_t size) override;
-    bool OnCPUWrite(uint64_t addr, uint64_t size) override;
+    RasterizerDownloadArea HandleRasterizerDownload(const uint8_t * pointer, uint64_t size, RasterizerDownloadArea current_area) override;
+    void HandleRasterizerWrite(const uint8_t * pointer, uint64_t size, uint64_t * last_page, RasterizerDirtyCollect collect, void * user_data) override;
     void DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle) override;
     uint32_t HostSyncpointValue(uint32_t id) override;
     uint32_t HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void * userData) override;
