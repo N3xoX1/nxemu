@@ -328,17 +328,34 @@ bool WidgetRomBrowser::HandleContextMenuCommand(const std::string & itemId)
         return false;
     }
 
+    std::string path = m_contextMenuPath;
+    if (path.empty() && m_currentGame.IsValid())
+    {
+        path = m_currentGame.GetAttribute("data-path");
+    }
+    if (path.empty())
+    {
+        return true;
+    }
+
+    if (itemId == "romStartGame")
+    {
+        m_window->LoadGame(path.c_str());
+        return true;
+    }
+    if (itemId == "romOpenSaveData")
+    {
+        m_window->OpenGameSaveDataLocation(path.c_str());
+        return true;
+    }
+    if (itemId == "romOpenModData")
+    {
+        m_window->OpenGameModDataLocation(path.c_str());
+        return true;
+    }
     if (itemId == "romProperties")
     {
-        std::string path = m_contextMenuPath;
-        if (path.empty() && m_currentGame.IsValid())
-        {
-            path = m_currentGame.GetAttribute("data-path");
-        }
-        if (!path.empty())
-        {
-            m_window->ShowGameConfig(path.c_str());
-        }
+        m_window->ShowGameConfig(path.c_str());
         return true;
     }
 
