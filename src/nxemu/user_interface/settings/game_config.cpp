@@ -279,14 +279,14 @@ bool GameConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint
 
 void GameConfig::OnWindowDestroy(HWINDOW hWnd)
 {
-    if (m_window == nullptr || hWnd != m_window->GetHandle())
-    {
-        return;
-    }
-
     if (m_revertAddonsOnClose && m_gameConfigAddons)
     {
         m_gameConfigAddons->RevertSetting();
+    }
+    m_romInfo = nullptr;
+    if (m_window == nullptr || hWnd != m_window->GetHandle())
+    {
+        return;
     }
     m_window = nullptr;
 }

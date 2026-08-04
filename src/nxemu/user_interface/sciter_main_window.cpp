@@ -22,9 +22,11 @@
 #include <nxemu/settings/ui_identifiers.h>
 #include <sciter_element.h>
 #include <widgets/menubar.h>
+#include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/settings.h>
+#include <yuzu_common/uuid.h>
 
 #include <Windows.h>
 #include <array>
@@ -177,6 +179,35 @@ std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
     return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">%s</span>", verb, titleEsc.c_str());
 }
 
+uint64_t ReadProgramIdForGame(SystemModules & modules, const char * gamePath)
+{
+    if (gamePath == nullptr || gamePath[0] == '\0' || !modules.IsValid())
+    {
+        return 0;
+    }
+
+    ISystemloader & loader = modules.Modules().Systemloader();
+    IRomInfoPtr romInfo(loader.RomInfo(gamePath, 0, 0));
+    if (!romInfo)
+    {
+        return 0;
+    }
+
+    uint64_t programId = 0;
+    romInfo->ReadProgramId(programId);
+    return programId;
+}
+
+bool OpenFolderPath(const std::filesystem::path & path, void * ownerWindow)
+{
+    if (!Common::FS::CreateDirs(path))
+    {
+        return false;
+    }
+    const std::string utf8 = Common::FS::PathToUTF8String(path);
+    return !utf8.empty() && ShellOpen(utf8.c_str(), ownerWindow);
+}
+
 } // namespace
 
 SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitle) :
@@ -184,6 +215,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_window(nullptr),
     m_renderWindow(nullptr),
     m_windowTitle(windowTitle),
+    m_pendingSaveDataProgramId(0),
     m_emulationRunning(false),
     m_pendingStartInFullscreen(false),
     m_hideUi(false),
@@ -545,6 +577,85 @@ void SciterMainWindow::LoadGame(const char * path)
     ISystemloader & loader = m_modules.Modules().Systemloader();
     loader.LoadRom(path);
     UpdateEmulationStatusText();
+}
+
+void SciterMainWindow::OpenGameSaveDataLocation(const char * gamePath)
+{
+    const uint64_t programId = ReadProgramIdForGame(m_modules, gamePath);
+    if (programId == 0)
+    {
+        Notification::GetInstance().DisplayError("Unable to determine the title ID for this game.", "Open Save Data Location");
+        return;
+    }
+
+    IOperatingSystem & operatingSystem = m_modules.Modules().OperatingSystem();
+    if (operatingSystem.GetProfileCount() == 0)
+    {
+        Notification::GetInstance().DisplayError("No user profiles are available. Create a profile first.", "Open Save Data Location");
+        return;
+    }
+
+    m_pendingSaveDataProgramId = programId;
+
+    ProfileSelectHostParameters parameters{};
+    parameters.mode = ProfileUiMode::UserSelector;
+    parameters.purpose = UserSelectionPurposeHost::General;
+    parameters.display_options.show_user_selector = true;
+    m_ProfileSelect.SelectProfile(this, &SciterMainWindow::OnSaveDataProfileSelected, &parameters);
+}
+
+void SciterMainWindow::OnSaveDataProfileSelected(void * user_data, bool has_uuid, const uint8_t uuid_bytes[16])
+{
+    SciterMainWindow * window = (SciterMainWindow *)user_data;
+    if (window == nullptr)
+    {
+        return;
+    }
+
+    const uint64_t programId = window->m_pendingSaveDataProgramId;
+    window->m_pendingSaveDataProgramId = 0;
+    if (!has_uuid || uuid_bytes == nullptr || programId == 0)
+    {
+        return;
+    }
+
+    window->OpenSaveDataFolderForUser(programId, uuid_bytes);
+}
+
+void SciterMainWindow::OpenSaveDataFolderForUser(uint64_t programId, const uint8_t uuidBytes[HOST_PROFILE_UUID_SIZE])
+{
+    std::array<uint8_t, HOST_PROFILE_UUID_SIZE> uuidArray{};
+    std::memcpy(uuidArray.data(), uuidBytes, HOST_PROFILE_UUID_SIZE);
+    const Common::UUID uuid{uuidArray};
+    const u128 userId = uuid.AsU128();
+
+    const std::filesystem::path nandDir = Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir);
+    const std::string userFolder = stdstr_f("%016llX%016llX", (unsigned long long)userId[1], (unsigned long long)userId[0]);
+    const std::string titleFolder = stdstr_f("%016llX", (unsigned long long)programId);
+    const std::filesystem::path savePath = nandDir / "user" / "save" / "0000000000000000" / userFolder / titleFolder;
+
+    void * owner = m_window != nullptr ? (void *)m_window->GetHandle() : nullptr;
+    if (!OpenFolderPath(savePath, owner))
+    {
+        Notification::GetInstance().DisplayError("Unable to open the save data location.", "Open Save Data Location");
+    }
+}
+
+void SciterMainWindow::OpenGameModDataLocation(const char * gamePath)
+{
+    const uint64_t programId = ReadProgramIdForGame(m_modules, gamePath);
+    if (programId == 0)
+    {
+        Notification::GetInstance().DisplayError("Unable to determine the title ID for this game.", "Open Mod Data Location");
+        return;
+    }
+
+    const std::filesystem::path modPath = Common::FS::GetYuzuPath(Common::FS::YuzuPath::LoadDir) / std::string(stdstr_f("%016llX", (unsigned long long)programId));
+    void * owner = m_window != nullptr ? (void *)m_window->GetHandle() : nullptr;
+    if (!OpenFolderPath(modPath, owner))
+    {
+        Notification::GetInstance().DisplayError("Unable to open the mod data location.", "Open Mod Data Location");
+    }
 }
 
 void SciterMainWindow::UpdateStatusWidgets()

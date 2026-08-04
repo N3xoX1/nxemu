@@ -93,6 +93,10 @@ public:
     void ShowConfig(const char * startPage);
     void ShowGameConfig(const char * gamePath);
     void LoadGame(const char * path);
+    void OpenGameSaveDataLocation(const char * gamePath);
+    void OpenGameModDataLocation(const char * gamePath);
+    void OpenSaveDataFolderForUser(uint64_t programId, const uint8_t uuidBytes[HOST_PROFILE_UUID_SIZE]);
+    static void OnSaveDataProfileSelected(void * user_data, bool has_uuid, const uint8_t uuid_bytes[16]);
 
     // IRenderWindow
     void * RenderSurface() const override;
@@ -213,6 +217,7 @@ private:
     std::unique_ptr<SystemConfig> m_systemConfig;
     std::unique_ptr<GameConfig> m_gameConfig;
     std::string m_pendingGameConfigPath;
+    uint64_t m_pendingSaveDataProgramId;
     std::unique_ptr<InputConfig> m_inputConfig;
     std::unique_ptr<AboutDialog> m_aboutDialog;
     ProfileSelectApplet m_ProfileSelect;
