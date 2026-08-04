@@ -12,7 +12,7 @@
 #define EXPORT __attribute__((visibility("default")))
 #endif
 
-#ifndef CALL
+#ifdef _WIN32
 #define CALL __cdecl
 #else
 #define CALL
