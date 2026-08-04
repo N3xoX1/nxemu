@@ -59,6 +59,7 @@ class SciterMainWindow :
         ResetWindowSize1080p,
         OpenAboutDialog,
         OpenDiscord,
+        OpenReportIssues,
         OpenAppDirectory,
         OpenLogDirectory,
         RecentFileMenuFirst,
@@ -145,6 +146,7 @@ private:
     void OnToggleStartGamesWithUiHidden();
     void OnAbout();
     void OnOpenDiscord();
+    void OnOpenReportIssues();
     void OnOpenAppDirectory();
     void OnOpenLogDirectory();
     void UpdateEmulationStatusText();
