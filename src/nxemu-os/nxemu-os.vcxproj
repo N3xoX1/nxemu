@@ -114,6 +114,24 @@
     <ClCompile Include="core\hle\service\audio\final_output_recorder_manager_for_applet.cpp" />
     <ClCompile Include="core\hle\service\audio\hardware_opus_decoder.cpp" />
     <ClCompile Include="core\hle\service\audio\hardware_opus_decoder_manager.cpp" />
+    <ClCompile Include="core\hle\service\bcat\backend\backend.cpp" />
+    <ClCompile Include="core\hle\service\bcat\bcat.cpp" />
+    <ClCompile Include="core\hle\service\bcat\bcat_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_directory_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_file_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_progress_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_storage_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\news\newly_arrived_event_holder.cpp" />
+    <ClCompile Include="core\hle\service\bcat\news\news_database_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\news\news_data_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\news\news_service.cpp" />
+    <ClCompile Include="core\hle\service\bcat\news\overwrite_event_holder.cpp" />
+    <ClCompile Include="core\hle\service\bcat\news\service_creator.cpp">
+      <ObjectFileName>$(IntDir)/hle/service/bcat/news/service_creator.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\service_creator.cpp">
+      <ObjectFileName>$(IntDir)/hle/service/bcat/service_creator.cpp.obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="core\hle\service\filesystem\filesystem.cpp" />
     <ClCompile Include="core\hle\service\filesystem\fsp\fsp_ldr.cpp" />
     <ClCompile Include="core\hle\service\filesystem\fsp\fsp_pr.cpp" />
@@ -472,7 +490,9 @@
     </ClCompile>
     <ClCompile Include="core\hle\service\vi\manager_display_service.cpp" />
     <ClCompile Include="core\hle\service\vi\manager_root_service.cpp" />
-    <ClCompile Include="core\hle\service\vi\service_creator.cpp" />
+    <ClCompile Include="core\hle\service\vi\service_creator.cpp">
+      <ObjectFileName>$(IntDir)/hle/service/vi/service_creator.cpp.obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="core\hle\service\vi\shared_buffer_manager.cpp" />
     <ClCompile Include="core\hle\service\vi\system_display_service.cpp" />
     <ClCompile Include="core\hle\service\vi\system_root_service.cpp" />
@@ -630,6 +650,23 @@
     <ClInclude Include="core\hle\service\audio\final_output_recorder_manager_for_applet.h" />
     <ClInclude Include="core\hle\service\audio\hardware_opus_decoder.h" />
     <ClInclude Include="core\hle\service\audio\hardware_opus_decoder_manager.h" />
+    <ClInclude Include="core\hle\service\bcat\backend\backend.h" />
+    <ClInclude Include="core\hle\service\bcat\bcat.h" />
+    <ClInclude Include="core\hle\service\bcat\bcat_result.h" />
+    <ClInclude Include="core\hle\service\bcat\bcat_service.h" />
+    <ClInclude Include="core\hle\service\bcat\bcat_types.h" />
+    <ClInclude Include="core\hle\service\bcat\bcat_util.h" />
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_directory_service.h" />
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_file_service.h" />
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_progress_service.h" />
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_storage_service.h" />
+    <ClInclude Include="core\hle\service\bcat\news\newly_arrived_event_holder.h" />
+    <ClInclude Include="core\hle\service\bcat\news\news_database_service.h" />
+    <ClInclude Include="core\hle\service\bcat\news\news_data_service.h" />
+    <ClInclude Include="core\hle\service\bcat\news\news_service.h" />
+    <ClInclude Include="core\hle\service\bcat\news\overwrite_event_holder.h" />
+    <ClInclude Include="core\hle\service\bcat\news\service_creator.h" />
+    <ClInclude Include="core\hle\service\bcat\service_creator.h" />
     <ClInclude Include="core\hle\service\filesystem\filesystem.h" />
     <ClInclude Include="core\hle\service\filesystem\fsp\fsp_ldr.h" />
     <ClInclude Include="core\hle\service\filesystem\fsp\fsp_pr.h" />

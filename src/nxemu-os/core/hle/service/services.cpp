@@ -8,6 +8,7 @@
 #include "core/hle/service/aoc/addon_content_manager.h"
 #include "core/hle/service/apm/apm.h"
 #include "core/hle/service/audio/audio.h"
+#include "core/hle/service/bcat/bcat.h"
 #include "core/hle/service/bpc/bpc.h"
 #include "core/hle/service/btdrv/btdrv.h"
 #include "core/hle/service/btm/btm.h"
@@ -79,6 +80,7 @@ Services::Services(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system
     kernel.RunOnGuestCoreProcess("am",         [&] { AM::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("aoc",        [&] { AOC::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("apm",        [&] { APM::LoopProcess(system); });
+    kernel.RunOnGuestCoreProcess("bcat",       [&] { BCAT::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("bpc",        [&] { BPC::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("btdrv",      [&] { BtDrv::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("btm",        [&] { BTM::LoopProcess(system); });

@@ -526,6 +526,24 @@
     <Filter Include="Header Files\core\hle\service\ldn">
       <UniqueIdentifier>{eed3ffaf-5b3a-46bd-b733-def3c30f915c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\core\hle\service\bcat">
+      <UniqueIdentifier>{048c2506-9301-4a02-bf09-b4b72efd43fc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle\service\bcat\news">
+      <UniqueIdentifier>{e8ce5faa-9413-4ac7-a3a5-d2ee0df6e45a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle\service\bcat\backend">
+      <UniqueIdentifier>{062a811b-aa4a-4464-a6d0-55051a574c80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service\bcat">
+      <UniqueIdentifier>{130ab010-832f-40ce-be6b-39d067090324}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service\bcat\news">
+      <UniqueIdentifier>{2560fca0-44ee-452f-9a29-7866163e85f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service\bcat\backend">
+      <UniqueIdentifier>{6b899acd-2a9d-4e81-b1df-334f56879c5b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="nxemu-os.h">
@@ -2046,6 +2064,57 @@
     <ClInclude Include="profile_image_writer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\bcat.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\bcat_result.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\bcat_service.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\bcat_types.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\bcat_util.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_directory_service.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_file_service.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_progress_service.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\delivery_cache_storage_service.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\service_creator.h">
+      <Filter>Header Files\core\hle\service\bcat</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\news\newly_arrived_event_holder.h">
+      <Filter>Header Files\core\hle\service\bcat\news</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\news\news_data_service.h">
+      <Filter>Header Files\core\hle\service\bcat\news</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\news\news_database_service.h">
+      <Filter>Header Files\core\hle\service\bcat\news</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\news\news_service.h">
+      <Filter>Header Files\core\hle\service\bcat\news</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\news\overwrite_event_holder.h">
+      <Filter>Header Files\core\hle\service\bcat\news</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\news\service_creator.h">
+      <Filter>Header Files\core\hle\service\bcat\news</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\bcat\backend\backend.h">
+      <Filter>Header Files\core\hle\service\bcat\backend</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in">
@@ -3414,6 +3483,48 @@
     </ClCompile>
     <ClCompile Include="profile_image_writer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\bcat.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\bcat_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_directory_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_file_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_progress_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\delivery_cache_storage_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\service_creator.cpp">
+      <Filter>Source Files\core\hle\service\bcat</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\news\newly_arrived_event_holder.cpp">
+      <Filter>Source Files\core\hle\service\bcat\news</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\news\news_data_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat\news</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\news\news_database_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat\news</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\news\news_service.cpp">
+      <Filter>Source Files\core\hle\service\bcat\news</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\news\overwrite_event_holder.cpp">
+      <Filter>Source Files\core\hle\service\bcat\news</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\news\service_creator.cpp">
+      <Filter>Source Files\core\hle\service\bcat\news</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\bcat\backend\backend.cpp">
+      <Filter>Source Files\core\hle\service\bcat\backend</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
