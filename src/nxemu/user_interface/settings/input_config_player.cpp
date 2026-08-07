@@ -1,6 +1,7 @@
 #include "input_config.h"
 #include "input_config_player.h"
 #include <common/std_string.h>
+#include <sciter_handler.h>
 #include <widgets/combo_box.h>
 #include <unordered_map>
 #include <numbers>
@@ -10,6 +11,8 @@
 #include <yuzu_common/vector_math.h>
 #include "settings/ui_settings.h"
 #include <nxemu-core/modules/system_modules.h>
+#include <nxemu-core/settings/settings.h>
+#include <nxemu-os/os_settings_identifiers.h>
 
 namespace
 {
@@ -584,11 +587,14 @@ InputConfigPlayer::InputConfigPlayer(ISciterUI & sciterUI, InputConfig & config,
     UpdateControllerEnabledButtons();
     UpdateControllerButtonNames();
     UpdateMotionButtons();
+    SettingsStore::GetInstance().RegisterCallback(NXOsSetting::VibrationEnabled, stVibrationSettingChanged, this);
 }
 
 InputConfigPlayer::~InputConfigPlayer()
 {
     m_callbackEnabled = false;
+    SettingsStore::GetInstance().UnregisterCallback(NXOsSetting::VibrationEnabled, stVibrationSettingChanged, this);
+    UnbindControls();
     if (m_emulatedController != nullptr)
     {
         m_emulatedController->SetControllerEventCallback(nullptr, nullptr);
@@ -607,9 +613,10 @@ InputConfigPlayer::~InputConfigPlayer()
 void InputConfigPlayer::SaveSetting()
 {
     m_emulatedController->SaveCurrentConfig();
+    SaveVibrationControls();
 }
 
-bool InputConfigPlayer::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t /*reason*/)
+bool InputConfigPlayer::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t /*reason*/)
 {
     if (element == m_connectedController)
     {
@@ -622,6 +629,36 @@ bool InputConfigPlayer::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*
         {
             m_emulatedController->Disconnect();
         }
+    }
+    else if (element == m_vibrationStrengthPopupBtn || source == m_vibrationStrengthPopupBtn ||
+             element == m_vibrationStrengthLabel || source == m_vibrationStrengthLabel ||
+             element == m_vibrationStrengthAnchor || source == m_vibrationStrengthAnchor)
+    {
+        if (!SettingsStore::GetInstance().GetBool(NXOsSetting::VibrationEnabled))
+        {
+            return true;
+        }
+        if (m_vibrationStrengthPopup.IsValid() && m_vibrationStrengthAnchor.IsValid())
+        {
+            const bool popupOpen = (m_vibrationStrengthPopup.GetState() & SciterElement::STATE_POPUP) != 0;
+            if (!popupOpen)
+            {
+                m_sciterUI.PopupShow(m_vibrationStrengthPopup, m_vibrationStrengthAnchor, 8);
+                if (m_vibrationStrengthPopupBtn.IsValid())
+                {
+                    m_vibrationStrengthPopupBtn.AddClassName("open");
+                }
+            }
+            else
+            {
+                m_sciterUI.PopupHide(m_vibrationStrengthPopup);
+                if (m_vibrationStrengthPopupBtn.IsValid())
+                {
+                    m_vibrationStrengthPopupBtn.RemoveClassName("open");
+                }
+            }
+        }
+        return true;
     }
     else
     {
@@ -647,6 +684,26 @@ bool InputConfigPlayer::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*
     return false;
 }
 
+bool InputConfigPlayer::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t /*reason*/)
+{
+    if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::PopupDismissed) &&
+        m_vibrationStrengthPopup.IsValid())
+    {
+        for (SciterElement walk(element); walk.IsValid(); walk = walk.GetParent())
+        {
+            if (walk == m_vibrationStrengthPopup)
+            {
+                if (m_vibrationStrengthPopupBtn.IsValid())
+                {
+                    m_vibrationStrengthPopupBtn.RemoveClassName("open");
+                }
+                break;
+            }
+        }
+    }
+    return false;
+}
+
 bool InputConfigPlayer::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason*/, void * /*data*/)
 {
     if (m_page.GetElementByID("comboControllerType") == elem)
@@ -664,6 +721,10 @@ bool InputConfigPlayer::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReaso
     else if (m_analogMapDeadzoneSlider[1] == elem)
     {
         DeadzoneSliderChanged(1);
+    }
+    else if (m_vibrationStrength == elem)
+    {
+        UpdateVibrationStrengthDisplay();
     }
     return false;
 }
@@ -858,7 +919,100 @@ void InputConfigPlayer::BindControls()
     {
         m_sciterUI.AttachHandler(ConnectedController, IID_ICLICKSINK, (IClickSink*)this);
     }
+
+    m_vibrationGroup = m_page.FindFirst(".group.vibration");
+    m_vibrationEnabled = m_page.GetElementByID("VibrationEnabled");
+    m_vibrationStrength = m_page.GetElementByID("sliderVibrationStrength");
+    m_vibrationStrengthLabel = m_page.GetElementByID("labelVibrationStrength");
+    m_vibrationStrengthAnchor = m_page.GetElementByID("vibrationStrengthAnchor");
+    m_vibrationStrengthPopupBtn = m_page.GetElementByID("vibrationStrengthPopupBtn");
+    m_vibrationStrengthPopup = m_page.GetElementByID("VibrationStrengthPopup");
+    if (m_vibrationStrength.IsValid())
+    {
+        m_sciterUI.AttachHandler(m_vibrationStrength, IID_ISTATECHANGESINK, (IStateChangeSink*)this);
+    }
+    if (m_vibrationStrengthLabel.IsValid())
+    {
+        m_sciterUI.AttachHandler(m_vibrationStrengthLabel, IID_ICLICKSINK, (IClickSink*)this);
+    }
+    if (m_vibrationStrengthPopupBtn.IsValid())
+    {
+        m_sciterUI.AttachHandler(m_vibrationStrengthPopupBtn, IID_ICLICKSINK, (IClickSink*)this);
+    }
+    if (m_vibrationStrengthPopup.IsValid())
+    {
+        m_sciterUI.AttachHandler(m_vibrationStrengthPopup, IID_EVENTSINK, (IEventSink*)this);
+    }
+
     SetConnectableControllers();
+}
+
+void InputConfigPlayer::UnbindControls()
+{
+    if (m_vibrationStrengthPopup.IsValid())
+    {
+        m_sciterUI.PopupHide(m_vibrationStrengthPopup);
+        m_sciterUI.DetachHandler(m_vibrationStrengthPopup, IID_EVENTSINK, (IEventSink*)this);
+    }
+    if (m_vibrationStrengthPopupBtn.IsValid())
+    {
+        m_sciterUI.DetachHandler(m_vibrationStrengthPopupBtn, IID_ICLICKSINK, (IClickSink*)this);
+    }
+    if (m_vibrationStrengthLabel.IsValid())
+    {
+        m_sciterUI.DetachHandler(m_vibrationStrengthLabel, IID_ICLICKSINK, (IClickSink*)this);
+    }
+    if (m_vibrationStrength.IsValid())
+    {
+        m_sciterUI.DetachHandler(m_vibrationStrength, IID_ISTATECHANGESINK, (IStateChangeSink*)this);
+    }
+
+    SciterElement ConnectedController = m_page.GetElementByID("ConnectedController");
+    if (ConnectedController.IsValid())
+    {
+        m_sciterUI.DetachHandler(ConnectedController, IID_ICLICKSINK, (IClickSink*)this);
+    }
+
+    SciterElement comboDevices = m_page.GetElementByID("comboDevices");
+    if (comboDevices.IsValid())
+    {
+        m_sciterUI.DetachHandler(comboDevices, IID_ISTATECHANGESINK, (IStateChangeSink*)this);
+    }
+
+    SciterElement comboControllerType = m_page.GetElementByID("comboControllerType");
+    if (comboControllerType.IsValid())
+    {
+        m_sciterUI.DetachHandler(comboControllerType, IID_ISTATECHANGESINK, (IStateChangeSink*)this);
+    }
+
+    for (uint32_t i = 0, n = (uint32_t)NativeMotionValues::NumMotions; i < n; i++)
+    {
+        if (m_motionMap[i].IsValid())
+        {
+            m_sciterUI.DetachHandler(m_motionMap[i], IID_ICLICKSINK, (IClickSink*)this);
+        }
+    }
+
+    for (uint32_t i = 0, n = (uint32_t)NativeButtonValues::NumButtons; i < n; i++)
+    {
+        if (m_buttonMap[i].IsValid())
+        {
+            m_sciterUI.DetachHandler(m_buttonMap[i], IID_ICLICKSINK, (IClickSink*)this);
+        }
+    }
+
+    for (uint32_t i = 0; i < (uint32_t)NativeAnalogValues::NumAnalogs; i++)
+    {
+        if (m_analogMapDeadzoneSlider[i].IsValid())
+        {
+            m_sciterUI.DetachHandler(m_analogMapDeadzoneSlider[i], IID_ISTATECHANGESINK, (IStateChangeSink*)this);
+        }
+    }
+
+    if (m_page.IsValid())
+    {
+        m_sciterUI.DetachHandler(m_page, IID_ITIMERSINK, (ITimerSink*)this);
+    }
 }
 
 void InputConfigPlayer::LoadConfiguration()
@@ -866,6 +1020,7 @@ void InputConfigPlayer::LoadConfiguration()
     m_emulatedController->ReloadFromSettings();
     UpdateUI();
     UpdateInputDeviceCombobox();
+    LoadVibrationControls();
 
     if (m_comboControllerType != nullptr)
     {
@@ -2114,6 +2269,118 @@ void InputConfigPlayer::DeadzoneSliderChanged(uint32_t analogId)
     }
 }
 
+const char * InputConfigPlayer::VibrationEnabledSettingId() const
+{
+    static const char * ids[] = {
+        NXOsSetting::Player0VibrationEnabled, NXOsSetting::Player1VibrationEnabled,
+        NXOsSetting::Player2VibrationEnabled, NXOsSetting::Player3VibrationEnabled,
+        NXOsSetting::Player4VibrationEnabled, NXOsSetting::Player5VibrationEnabled,
+        NXOsSetting::Player6VibrationEnabled, NXOsSetting::Player7VibrationEnabled,
+    };
+    const uint32_t index = static_cast<uint32_t>(m_controllerIndex);
+    return index < 8 ? ids[index] : ids[0];
+}
+
+const char * InputConfigPlayer::VibrationStrengthSettingId() const
+{
+    static const char * ids[] = {
+        NXOsSetting::Player0VibrationStrength, NXOsSetting::Player1VibrationStrength,
+        NXOsSetting::Player2VibrationStrength, NXOsSetting::Player3VibrationStrength,
+        NXOsSetting::Player4VibrationStrength, NXOsSetting::Player5VibrationStrength,
+        NXOsSetting::Player6VibrationStrength, NXOsSetting::Player7VibrationStrength,
+    };
+    const uint32_t index = static_cast<uint32_t>(m_controllerIndex);
+    return index < 8 ? ids[index] : ids[0];
+}
+
+void InputConfigPlayer::LoadVibrationControls()
+{
+    SettingsStore & settings = SettingsStore::GetInstance();
+    if (m_vibrationEnabled.IsValid())
+    {
+        const bool enabled = settings.GetBool(VibrationEnabledSettingId());
+        m_vibrationEnabled.SetState(enabled ? SciterElement::STATE_CHECKED : 0,
+                                    enabled ? 0 : SciterElement::STATE_CHECKED, true);
+    }
+    if (m_vibrationStrength.IsValid())
+    {
+        m_vibrationStrength.SetValue(SciterValue(settings.GetInt(VibrationStrengthSettingId())));
+    }
+    UpdateVibrationStrengthDisplay();
+    UpdateVibrationControlsEnabled();
+}
+
+void InputConfigPlayer::SaveVibrationControls()
+{
+    // Keep last-saved per-player values when globally disabled so they restore when re-enabled.
+    if (!SettingsStore::GetInstance().GetBool(NXOsSetting::VibrationEnabled))
+    {
+        return;
+    }
+    SettingsStore & settings = SettingsStore::GetInstance();
+    if (m_vibrationEnabled.IsValid())
+    {
+        settings.SetBool(VibrationEnabledSettingId(),
+                         (m_vibrationEnabled.GetState() & SciterElement::STATE_CHECKED) != 0);
+    }
+    if (m_vibrationStrength.IsValid())
+    {
+        SciterValue value = m_vibrationStrength.GetValue();
+        if (value.isInt())
+        {
+            settings.SetInt(VibrationStrengthSettingId(), value.GetValueInt());
+        }
+    }
+}
+
+void InputConfigPlayer::UpdateVibrationStrengthDisplay()
+{
+    if (!m_vibrationStrengthLabel.IsValid() || !m_vibrationStrength.IsValid())
+    {
+        return;
+    }
+    SciterValue value = m_vibrationStrength.GetValue();
+    if (value.isInt())
+    {
+        m_vibrationStrengthLabel.SetText(stdstr_f("Strength: %d%%", value.GetValueInt()).c_str());
+    }
+}
+
+void InputConfigPlayer::UpdateVibrationControlsEnabled()
+{
+    const bool globallyEnabled = SettingsStore::GetInstance().GetBool(NXOsSetting::VibrationEnabled);
+    if (!globallyEnabled && m_vibrationStrengthPopup.IsValid())
+    {
+        m_sciterUI.PopupHide(m_vibrationStrengthPopup);
+        if (m_vibrationStrengthPopupBtn.IsValid())
+        {
+            m_vibrationStrengthPopupBtn.RemoveClassName("open");
+        }
+    }
+
+    auto setDisabled = [globallyEnabled](SciterElement & el) {
+        if (!el.IsValid())
+        {
+            return;
+        }
+        if (globallyEnabled)
+        {
+            el.SetState(0, SciterElement::STATE_DISABLED, true);
+        }
+        else
+        {
+            el.SetState(SciterElement::STATE_DISABLED, 0, true);
+        }
+    };
+
+    setDisabled(m_vibrationGroup);
+    setDisabled(m_vibrationEnabled);
+    setDisabled(m_vibrationStrength);
+    setDisabled(m_vibrationStrengthLabel);
+    setDisabled(m_vibrationStrengthPopupBtn);
+    setDisabled(m_vibrationStrengthAnchor);
+}
+
 SciterElement InputConfigPlayer::GetControllerSvg()
 {
     NpadStyleIndex layout = GetControllerTypeFromIndex(m_comboControllerType->CurrentIndex());
@@ -2177,4 +2444,13 @@ void InputConfigPlayer::PollingDone()
 void InputConfigPlayer::stControllerEventCallback(ControllerTriggerType type, void * user)
 {
     ((InputConfigPlayer*)user)->ControllerEventCallback(type);
+}
+
+void InputConfigPlayer::stVibrationSettingChanged(const char * /*setting*/, void * userData)
+{
+    InputConfigPlayer * player = static_cast<InputConfigPlayer *>(userData);
+    if (player != nullptr && player->m_callbackEnabled)
+    {
+        player->UpdateVibrationControlsEnabled();
+    }
 }

@@ -10,7 +10,8 @@ class InputConfigPlayer :
     public IClickSink,
     public IStateChangeSink,
     public ITimerSink,
-    public IKeySink
+    public IKeySink,
+    public IEventSink
 {
     enum
     {
@@ -38,12 +39,16 @@ public:
     bool OnKeyUp(SCITER_ELEMENT element, SCITER_ELEMENT item, SciterKeys keyCode, uint32_t keyboardState) override;
     bool OnKeyChar(SCITER_ELEMENT element, SCITER_ELEMENT item, SciterKeys keyCode, uint32_t keyboardState) override;
 
+    // IEventSink
+    bool OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t reason) override;
+
 private:
     InputConfigPlayer() = delete;
     InputConfigPlayer(const InputConfigPlayer&) = delete;
     InputConfigPlayer& operator=(const InputConfigPlayer&) = delete;
 
     void BindControls();
+    void UnbindControls();
     void LoadConfiguration();
     void UpdateInputDeviceCombobox();
     void UpdateInputDevices();
@@ -67,11 +72,18 @@ private:
     void UpdateMotionCube();
     void UpdateStickDisplay(const SciterElement & svg, NativeAnalogValues analog);
     void DeadzoneSliderChanged(uint32_t analogId);
+    void LoadVibrationControls();
+    void SaveVibrationControls();
+    void UpdateVibrationStrengthDisplay();
+    void UpdateVibrationControlsEnabled();
+    const char * VibrationEnabledSettingId() const;
+    const char * VibrationStrengthSettingId() const;
     SciterElement GetControllerSvg();
     bool IsInputAcceptable(const IParamPackage & params) const;
     void PollingDone();
 
     static void stControllerEventCallback(ControllerTriggerType type, void * user);
+    static void stVibrationSettingChanged(const char * setting, void * userData);
 
     IOperatingSystem & m_operatingSystem;
     ISciterUI & m_sciterUI;
@@ -84,6 +96,13 @@ private:
     IEmulatedController & m_emulatedControllerPlayer;
     IEmulatedController & m_emulatedControllerHandheld;
     SciterElement m_connectedController;
+    SciterElement m_vibrationGroup;
+    SciterElement m_vibrationEnabled;
+    SciterElement m_vibrationStrength;
+    SciterElement m_vibrationStrengthLabel;
+    SciterElement m_vibrationStrengthAnchor;
+    SciterElement m_vibrationStrengthPopupBtn;
+    SciterElement m_vibrationStrengthPopup;
     SciterElement m_buttonMap[22];
     SciterElement m_motionMap[2];
     SciterElement m_motionGroup[2];

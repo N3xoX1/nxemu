@@ -82,13 +82,32 @@
           <div class="input-row"><span>SR</span><button id="ButtonSRRight">E</button></div>
         </div>
       </div>
-	  <div id="controllerGraphics" style="width: 100%%; height: 100%%"></div>
-      <div class="center-buttons-motion" id="centerButtonsMotion">
-          <div id="horizontalSpacerMotionLeft" />
-          <div class="input-row" id="buttonMotionLeftGroup"><span>Motion 1</span><button id="buttonMotionLeft">7</button></div>
-          <div class="input-row" id="buttonMotionRightGroup"><span>Motion 2</span><button id="buttonMotionRight">8</button></div>
-          <div id="horizontalSpacerMotionRight" />
+	  <div id="controllerGraphics"></div>
+      <div class="center-bottom-row">
+        <div id="horizontalSpacerMotionLeft" />
+        <div class="group vibration">
+          <div class="group-title">Vibration</div>
+          <div class="vibration-row">
+            <span class="vibration-check">
+              <input type="checkbox" id="VibrationEnabled">
+            </span>
+            <span id="vibrationStrengthAnchor">
+              <span id="labelVibrationStrength">Strength: 100%</span>
+              <span id="vibrationStrengthPopupBtn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path d="M104.704 685.248a64 64 0 0 0 90.496 0l316.8-316.8 316.8 316.8a64 64 0 0 0 90.496-90.496L557.248 232.704a64 64 0 0 0-90.496 0L104.704 594.752a64 64 0 0 0 0 90.496"/></svg></span>
+            </span>
+          </div>
+        </div>
+        <div class="center-buttons-motion" id="centerButtonsMotion">
+            <div class="input-row" id="buttonMotionLeftGroup"><span>Motion 1</span><button id="buttonMotionLeft">7</button></div>
+            <div class="input-row" id="buttonMotionRightGroup"><span>Motion 2</span><button id="buttonMotionRight">8</button></div>
+        </div>
+        <div id="horizontalSpacerMotionRight" />
       </div>
+      <popup id="VibrationStrengthPopup">
+        <div>
+          <input type="hslider" min="0" max="100" value="100" id="sliderVibrationStrength" style="width: 12em" />
+        </div>
+      </popup>
     </div>
     <div id="bottomRightSpacer"></div>
     <div id="bottomRight">

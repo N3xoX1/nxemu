@@ -7,6 +7,7 @@
 #include "system_config_graphics.h"
 #include "system_config_profiles.h"
 #include "system_config_system.h"
+#include "system_config_system_tab.h"
 #include <common/std_string.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
@@ -77,6 +78,10 @@ void SystemConfig::Display(void * parentWindow, const char * startPage)
                     else if (initialPage == "GameBrowser" && m_systemConfigGameBrowser)
                     {
                         m_systemConfigGameBrowser->SetInitialPage(subPage.c_str());
+                    }
+                    else if (initialPage == "System" && m_systemConfigSystemTab)
+                    {
+                        m_systemConfigSystemTab->SetInitialPage(subPage.c_str());
                     }
                 }
             }
@@ -344,6 +349,10 @@ void SystemConfig::PageNavCreatedPage(const std::string & pageName, SCITER_ELEME
     {
         m_systemConfigProfiles.reset(new SystemConfigProfiles(m_sciterUI, *this, m_modules, *m_window, page));
     }
+    else if (pageName == "System")
+    {
+        m_systemConfigSystemTab.reset(new SystemConfigSystemTab(m_sciterUI, *this, page));
+    }
 }
 
 void SystemConfig::PageNavPageChanged(const std::string & /*pageName*/, SCITER_ELEMENT /*pageNav*/)
@@ -374,6 +383,10 @@ bool SystemConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, ui
         if (m_systemConfigProfiles)
         {
             m_systemConfigProfiles->SaveSetting();
+        }
+        if (m_systemConfigSystemTab)
+        {
+            m_systemConfigSystemTab->SaveSetting();
         }
         if (m_modules.IsValid())
         {

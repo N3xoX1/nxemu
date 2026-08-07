@@ -65,6 +65,8 @@
     <ClCompile Include="user_interface\settings\system_config_graphics.cpp" />
     <ClCompile Include="user_interface\settings\system_config_profiles.cpp" />
     <ClCompile Include="user_interface\settings\system_config_system.cpp" />
+    <ClCompile Include="user_interface\settings\system_config_system_tab.cpp" />
+    <ClCompile Include="user_interface\settings\system_config_input.cpp" />
     <ClCompile Include="user_interface\settings\system_config_hotkeys.cpp" />
     <ClCompile Include="user_interface\settings\system_config_logging.cpp" />
     <ClCompile Include="user_interface\widgets\rom_browser.cpp" />
@@ -101,6 +103,8 @@
     <ClInclude Include="user_interface\settings\system_config_graphics.h" />
     <ClInclude Include="user_interface\settings\system_config_profiles.h" />
     <ClInclude Include="user_interface\settings\system_config_system.h" />
+    <ClInclude Include="user_interface\settings\system_config_system_tab.h" />
+    <ClInclude Include="user_interface\settings\system_config_input.h" />
     <ClInclude Include="user_interface\settings\system_config_hotkeys.h" />
     <ClInclude Include="user_interface\settings\system_config_logging.h" />
     <ClInclude Include="user_interface\widgets\rom_browser.h" />
