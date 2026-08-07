@@ -4,11 +4,9 @@
 #pragma once
 
 #include <array>
-#include <functional>
 
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
-#include "nxemu-loader/core/file_sys/vfs/vfs_types.h"
 #include "core/hle/result.h"
 
 namespace Service::BCAT {
@@ -17,7 +15,6 @@ using DirectoryName = std::array<char, 0x20>;
 using FileName = std::array<char, 0x20>;
 using BcatDigest = std::array<u8, 0x10>;
 using Passphrase = std::array<u8, 0x20>;
-using DirectoryGetter = std::function<FileSys::VirtualDir(u64)>;
 
 enum class SyncType {
     Normal,
