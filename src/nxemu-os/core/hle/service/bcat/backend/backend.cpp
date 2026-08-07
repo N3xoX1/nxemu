@@ -85,15 +85,11 @@ void ProgressServiceBackend::SignalUpdate() {
     update_event->Signal();
 }
 
-BcatBackend::BcatBackend(DirectoryGetter getter) : dir_getter(std::move(getter)) {}
+BcatBackend::BcatBackend() = default;
 
 BcatBackend::~BcatBackend() = default;
 
-NullBcatBackend::NullBcatBackend(DirectoryGetter getter) : BcatBackend(std::move(getter)) {}
-
-NullBcatBackend::~NullBcatBackend() = default;
-
-bool NullBcatBackend::Synchronize(TitleIDVersion title, ProgressServiceBackend& progress) {
+bool BcatBackend::Synchronize(TitleIDVersion title, ProgressServiceBackend& progress) {
     LOG_DEBUG(Service_BCAT, "called, title_id={:016X}, build_id={:016X}", title.title_id,
               title.build_id);
 
@@ -101,8 +97,8 @@ bool NullBcatBackend::Synchronize(TitleIDVersion title, ProgressServiceBackend& 
     return true;
 }
 
-bool NullBcatBackend::SynchronizeDirectory(TitleIDVersion title, std::string name,
-                                           ProgressServiceBackend& progress) {
+bool BcatBackend::SynchronizeDirectory(TitleIDVersion title, std::string name,
+                                       ProgressServiceBackend& progress) {
     LOG_DEBUG(Service_BCAT, "called, title_id={:016X}, build_id={:016X}, name={}", title.title_id,
               title.build_id, name);
 
@@ -110,18 +106,18 @@ bool NullBcatBackend::SynchronizeDirectory(TitleIDVersion title, std::string nam
     return true;
 }
 
-bool NullBcatBackend::Clear(u64 title_id) {
+bool BcatBackend::Clear(u64 title_id) {
     LOG_DEBUG(Service_BCAT, "called, title_id={:016X}", title_id);
 
     return true;
 }
 
-void NullBcatBackend::SetPassphrase(u64 title_id, const Passphrase& passphrase) {
+void BcatBackend::SetPassphrase(u64 title_id, const Passphrase& passphrase) {
     LOG_DEBUG(Service_BCAT, "called, title_id={:016X}, passphrase={}", title_id,
               Common::HexToString(passphrase));
 }
 
-std::optional<std::vector<u8>> NullBcatBackend::GetLaunchParameter(TitleIDVersion title) {
+std::optional<std::vector<u8>> BcatBackend::GetLaunchParameter(TitleIDVersion title) {
     LOG_DEBUG(Service_BCAT, "called, title_id={:016X}, build_id={:016X}", title.title_id,
               title.build_id);
     return std::nullopt;

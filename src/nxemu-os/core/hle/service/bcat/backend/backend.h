@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "yuzu_common/common_types.h"
-#include "nxemu-loader/core/file_sys/vfs/vfs_types.h"
 #include "core/hle/result.h"
 #include "core/hle/service/bcat/bcat_types.h"
 #include "core/hle/service/kernel_helpers.h"
@@ -69,52 +68,27 @@ private:
     Kernel::KEvent* update_event;
 };
 
-// A class representing an abstract backend for BCAT functionality.
 class BcatBackend {
 public:
-    explicit BcatBackend(DirectoryGetter getter);
-    virtual ~BcatBackend();
+    BcatBackend();
+    ~BcatBackend();
 
     // Called when the backend is needed to synchronize the data for the game with title ID and
     // version in title. A ProgressServiceBackend object is provided to alert the application of
     // status.
-    virtual bool Synchronize(TitleIDVersion title, ProgressServiceBackend& progress) = 0;
+    bool Synchronize(TitleIDVersion title, ProgressServiceBackend& progress);
     // Very similar to Synchronize, but only for the directory provided. Backends should not alter
     // the data for any other directories.
-    virtual bool SynchronizeDirectory(TitleIDVersion title, std::string name,
-                                      ProgressServiceBackend& progress) = 0;
+    bool SynchronizeDirectory(TitleIDVersion title, std::string name, ProgressServiceBackend& progress);
 
     // Removes all cached data associated with title id provided.
-    virtual bool Clear(u64 title_id) = 0;
+    bool Clear(u64 title_id);
 
     // Sets the BCAT Passphrase to be used with the associated title ID.
-    virtual void SetPassphrase(u64 title_id, const Passphrase& passphrase) = 0;
+    void SetPassphrase(u64 title_id, const Passphrase& passphrase);
 
     // Gets the launch parameter used by AM associated with the title ID and version provided.
-    virtual std::optional<std::vector<u8>> GetLaunchParameter(TitleIDVersion title) = 0;
-
-protected:
-    DirectoryGetter dir_getter;
+    std::optional<std::vector<u8>> GetLaunchParameter(TitleIDVersion title);
 };
-
-// A backend of BCAT that provides no operation.
-class NullBcatBackend : public BcatBackend {
-public:
-    explicit NullBcatBackend(DirectoryGetter getter);
-    ~NullBcatBackend() override;
-
-    bool Synchronize(TitleIDVersion title, ProgressServiceBackend& progress) override;
-    bool SynchronizeDirectory(TitleIDVersion title, std::string name,
-                              ProgressServiceBackend& progress) override;
-
-    bool Clear(u64 title_id) override;
-
-    void SetPassphrase(u64 title_id, const Passphrase& passphrase) override;
-
-    std::optional<std::vector<u8>> GetLaunchParameter(TitleIDVersion title) override;
-};
-
-std::unique_ptr<BcatBackend> CreateBackendFromSettings(Core::System& system,
-                                                       DirectoryGetter getter);
 
 } // namespace Service::BCAT

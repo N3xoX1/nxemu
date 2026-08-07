@@ -8,11 +8,6 @@
 
 namespace Service::BCAT {
 
-std::unique_ptr<BcatBackend> CreateBackendFromSettings([[maybe_unused]] Core::System& system, DirectoryGetter getter)
-{
-    return std::make_unique<NullBcatBackend>(std::move(getter));
-}
-
 IServiceCreator::IServiceCreator(Core::System& system_, const char* name_) :
     ServiceFramework{system_, name_}
 {
@@ -27,6 +22,8 @@ IServiceCreator::IServiceCreator(Core::System& system_, const char* name_) :
     // clang-format on
 
     RegisterHandlers(functions);
+
+    backend = std::make_unique<BcatBackend>();
 }
 
 IServiceCreator::~IServiceCreator() = default;
@@ -34,7 +31,7 @@ IServiceCreator::~IServiceCreator() = default;
 Result IServiceCreator::CreateBcatService(ClientProcessId process_id, OutInterface<IBcatService> out_interface)
 {
     LOG_INFO(Service_BCAT, "called, process_id={}", process_id.pid);
-    UNIMPLEMENTED();
+    *out_interface = std::make_shared<IBcatService>(system, *backend);
     R_SUCCEED();
 }
 
