@@ -37,7 +37,8 @@
 namespace
 {
 
-constexpr const char * kNxEmuDiscordUrl = "https://discord.gg/hEa4hNyFWU";
+constexpr const char * discordUrl = "https://discord.gg/hEa4hNyFWU";
+constexpr const char * reportUrl = "https://report.nxemu.com/";
 constexpr int kDefaultMouseHideTimeoutMs = 2500;
 
 const char * RendererBackendLabel(RendererBackend backend)
@@ -286,6 +287,8 @@ const char * SciterMainWindow::MenuIconResource(GuiAction action) const
         return "about.svg";
     case GuiAction::OpenDiscord:
         return "discord.svg";
+    case GuiAction::OpenReportIssues:
+        return "report.svg";
     default:
         return nullptr;
     }
@@ -459,6 +462,7 @@ void SciterMainWindow::ResetMenu()
 
     MenuBarItemList helpMenu;
     helpMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenDiscord), "&Discord", nullptr, nullptr, MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::OpenDiscord)));
+    helpMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenReportIssues), "&Report Issues", nullptr, nullptr, MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::OpenReportIssues)));
     helpMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
     helpMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenAboutDialog), "&About NXEmu...", nullptr, nullptr, MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::OpenAboutDialog)));
     mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&Help", &helpMenu));
@@ -1395,7 +1399,12 @@ void SciterMainWindow::OnAbout()
 
 void SciterMainWindow::OnOpenDiscord()
 {
-    ShellOpen(kNxEmuDiscordUrl);
+    ShellOpen(discordUrl);
+}
+
+void SciterMainWindow::OnOpenReportIssues()
+{
+    ShellOpen(reportUrl);
 }
 
 void SciterMainWindow::OnOpenAppDirectory()
@@ -1658,6 +1667,9 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         break;
     case GuiAction::OpenDiscord:
         OnOpenDiscord();
+        break;
+    case GuiAction::OpenReportIssues:
+        OnOpenReportIssues();
         break;
     case GuiAction::OpenAppDirectory:
         OnOpenAppDirectory();
