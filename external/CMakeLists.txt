@@ -147,7 +147,7 @@ endif()
 
 # Zydis
 if(ARCHITECTURE_x86_64)
-    if(NOT TARGET zydis AND NOT TARGET Zydis)
+    if(NOT TARGET zydis)
         set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
         set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
         set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -161,3 +161,6 @@ if(NOT TARGET tsl::robin_map)
     add_library(tsl::robin_map ALIAS robin_map)
     target_include_directories(robin_map INTERFACE "${CMAKE_SOURCE_DIR}/external/robin-map/include")
 endif()
+
+# sciter
+add_subdirectory(external/sciterui)
