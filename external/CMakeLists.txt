@@ -163,4 +163,4 @@ if(NOT TARGET tsl::robin_map)
 endif()
 
 # sciter
-add_subdirectory(external/sciterui)
+add_subdirectory(sciterui)
