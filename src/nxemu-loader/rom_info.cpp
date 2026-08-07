@@ -313,6 +313,22 @@ LoaderResultStatus RomInfo::ReadProgramIds(uint64_t * buffer, uint32_t * count)
     return LoaderResultStatus::ErrorNotInitialized;
 }
 
+LoaderResultStatus RomInfo::Load(ISystemModules & modules, GuestProcessLoadParameters * out_parameters)
+{
+    if (!m_loader)
+    {
+        return LoaderResultStatus::ErrorNotInitialized;
+    }
+
+    const auto [status, params] = m_loader->Load(m_systemloader, modules);
+    if (status == LoaderResultStatus::Success && out_parameters && params)
+    {
+        out_parameters->main_thread_priority = params->main_thread_priority;
+        out_parameters->main_thread_stack_size = (int64_t)params->main_thread_stack_size;
+    }
+    return status;
+}
+
 void RomInfo::AddToManualContentProvider(IManualContentProvider & provider)
 {
     const LoaderFileType file_type = GetFileType();
