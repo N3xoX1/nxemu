@@ -25,7 +25,7 @@ EmulatedController::EmulatedController(NpadIdType npad_id_type_) :
     npad_id_type(npad_id_type_),
     m_controller_event_cb(nullptr),
     m_controller_event_user(nullptr),
-    m_controller_event_key(0)
+    m_controller_event_key(-1)
 {
 }
 
@@ -2335,9 +2335,14 @@ void EmulatedController::StatusUpdate()
 
 void EmulatedController::SetControllerEventCallback(ControllerEventCallback cb, void * user)
 {
-    if (m_controller_event_cb != cb || m_controller_event_user != user)
+    if (m_controller_event_cb == cb && m_controller_event_user == user)
+    {
+        return;
+    }
+    if (m_controller_event_cb != nullptr)
     {
         DeleteCallback(m_controller_event_key);
+        m_controller_event_key = -1;
     }
     m_controller_event_cb = cb;
     m_controller_event_user = user;

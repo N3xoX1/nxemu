@@ -102,6 +102,116 @@ div.button-column,
   margin-right: 0.4rem;
 }
 
+div.center-bottom-row
+{
+  flow: horizontal;
+  width: 100%%;
+  margin-top: 0.2rem;
+  vertical-align: bottom;
+}
+
+.controller-config .group.vibration
+{
+  position: relative;
+  background-color: var(--color-config-page);
+  border: 1px solid #55575a;
+  padding: 1.2rem 0.5rem 0.5rem 0.5rem;
+  margin-right: 0.6rem;
+  width: max-content;
+}
+
+.controller-config .group.vibration:disabled,
+.controller-config .group.vibration:disabled *
+{
+  opacity: 0.45;
+  cursor: default;
+}
+
+.controller-config .group.vibration:disabled #labelVibrationStrength:hover,
+.controller-config .group.vibration:disabled #vibrationStrengthPopupBtn:hover
+{
+  border: 1px solid transparent;
+}
+
+.controller-config .group.vibration .vibration-row
+{
+  flow: horizontal;
+  vertical-align: middle;
+  white-space: nowrap;
+  height: 1.5em;
+}
+
+.controller-config .group.vibration .vibration-check
+{
+  display: block;
+  height: 1.5em;
+  flow: horizontal;
+  vertical-align: middle;
+  margin-right: 0.35em;
+}
+
+.controller-config .group.vibration #VibrationEnabled
+{
+  display: block;
+  size: 1em;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.controller-config .group.vibration #vibrationStrengthAnchor
+{
+  flow: horizontal;
+  vertical-align: middle;
+  white-space: nowrap;
+  height: 1.5em;
+}
+
+.controller-config .group.vibration #labelVibrationStrength,
+.controller-config .group.vibration #vibrationStrengthPopupBtn
+{
+  border: 1px solid transparent;
+  padding: 0 0.25em;
+  cursor: pointer;
+  white-space: nowrap;
+  display: block;
+  height: 1.5em;
+  line-height: 1.4em;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.controller-config .group.vibration #labelVibrationStrength
+{
+  width: 8.2em;
+}
+
+.controller-config .group.vibration #labelVibrationStrength:hover,
+.controller-config .group.vibration #vibrationStrengthPopupBtn:hover
+{
+  border: 1px solid #55575a;
+}
+
+.controller-config .group.vibration #vibrationStrengthPopupBtn svg
+{
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
+  display: block;
+  margin-top: 0.15em;
+}
+
+.controller-config .group.vibration #vibrationStrengthPopupBtn.open svg
+{
+  transform: rotate(180deg);
+}
+
+#VibrationStrengthPopup
+{
+  background: var(--color-config-page);
+  border: 1px solid #55575a;
+  padding: 0.8em;
+}
+
 .controller-config  .group.profile
 {
   width: 100%%;
@@ -135,6 +245,15 @@ div.center-buttons-grid
 {
   width: *;
   min-width: 36rem;
+  flow: vertical;
+}
+
+#controllerGraphics
+{
+  width: 100%%;
+  height: auto;
+  margin: 0;
+  padding: 0;
 }
 
 #ControllerTypeGroup
@@ -157,8 +276,8 @@ div.center-buttons-grid
 {
   width: 100%;
   min-width: 400px;
-  min-height: 200px;
   height: auto;
+  display: block;
 }
 
 .input-row
@@ -169,29 +288,33 @@ div.center-buttons-grid
 div.center-buttons-motion
 {
   flow: horizontal;
-  width: 100%%;
-  margin-top: 0.4rem;
-  vertical-align: top;
+  width: max-content;
+  vertical-align: bottom;
 }
 
 #horizontalSpacerMotionLeft,
 #horizontalSpacerMotionRight
 {
-  display: inline-block;
+  display: block;
   width: 100%%;
 }
 
 div.center-buttons-motion .input-row
 {
-  display: inline-block;
+  display: block;
+  position: relative;
   width: min-content;
-  margin: 0;
-  vertical-align: top;
+  margin: 0 0.35rem 0 0;
+  vertical-align: bottom;
+  padding: 0.64rem 0.38rem 0.34rem 0.38rem;
+  border-radius: 2px;
 }
 
 div.center-buttons-motion .input-row button
 {
   min-width: 4.5rem;
+  height: 1.23rem;
+  margin: 0;
 }
 
 button

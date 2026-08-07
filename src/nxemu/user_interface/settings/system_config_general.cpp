@@ -67,7 +67,7 @@ void SystemConfigGeneral::PageNavCreatedPage(const std::string & pageName, SCITE
     {
         m_systemConfigHotkeys.reset(new SystemConfigHotkeys(m_sciterUI, m_window, page));
     }
-    else if (pageName == "System")
+    else if (pageName == "General")
     {
         m_systemConfigSystem.reset(new SystemConfigSystem(m_sciterUI, m_config, page));
     }

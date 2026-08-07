@@ -16,6 +16,7 @@ class SystemConfigGeneral;
 class SystemConfigGameBrowser;
 class SystemConfigProfiles;
 class SystemConfigSystem;
+class SystemConfigSystemTab;
 class ConfigSetting;
 class SystemModules;
 
@@ -90,4 +91,5 @@ private:
     std::unique_ptr<SystemConfigGeneral> m_systemConfigGeneral;
     std::unique_ptr<SystemConfigGameBrowser> m_systemConfigGameBrowser;
     std::unique_ptr<SystemConfigProfiles> m_systemConfigProfiles;
+    std::unique_ptr<SystemConfigSystemTab> m_systemConfigSystemTab;
 };
