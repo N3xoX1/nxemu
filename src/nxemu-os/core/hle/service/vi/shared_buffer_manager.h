@@ -6,6 +6,7 @@
 #include <map>
 
 #include "yuzu_common/math_util.h"
+#include "core/hle/service/nvdrv/core/container.h"
 #include "yuzu_common/nvdata.h"
 
 namespace Kernel {
@@ -76,6 +77,8 @@ private:
 };
 
 struct SharedBufferSession {
+    Nvidia::DeviceFD nvmap_fd = {};
+    Nvidia::NvCore::SessionId session_id = {};
     u64 layer_id = {};
     u32 buffer_nvmap_handle = 0;
 };
