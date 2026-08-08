@@ -81,7 +81,7 @@
     <ClCompile Include="user_interface\settings\system_config_input.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
-    <ClCompile Include="user_interface\settings\config_setting .cpp">
+    <ClCompile Include="user_interface\settings\config_setting.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
     <ClCompile Include="startup_checks.cpp">

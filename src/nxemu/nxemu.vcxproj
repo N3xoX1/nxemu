@@ -50,7 +50,7 @@
     <ClCompile Include="user_interface\discord_presence.cpp" />
     <ClCompile Include="user_interface\notification.cpp" />
     <ClCompile Include="user_interface\sciter_main_window.cpp" />
-    <ClCompile Include="user_interface\settings\config_setting .cpp" />
+    <ClCompile Include="user_interface\settings\config_setting.cpp" />
     <ClCompile Include="user_interface\settings\game_config.cpp" />
     <ClCompile Include="user_interface\settings\game_config_addons.cpp" />
     <ClCompile Include="user_interface\settings\input_config_player.cpp" />
