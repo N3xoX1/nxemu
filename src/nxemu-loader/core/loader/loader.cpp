@@ -8,6 +8,7 @@
 #include "yuzu_common/string_util.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "loader.h"
+#include "core/loader/nca.h"
 #include "core/loader/nro.h"
 #include "core/loader/nsp.h"
 #include "core/loader/xci.h"
@@ -36,6 +37,10 @@ LoaderFileType IdentifyFile(FileSys::VirtualFile file)
     {
         return *nro_type;
     }
+    else if (const auto nca_type = IdentifyFileLoader<AppLoader_NCA>(file))
+    {
+        return *nca_type;
+    }
     else if (const auto xci_type = IdentifyFileLoader<AppLoader_XCI>(file))
     {
         return *xci_type;
@@ -46,6 +51,7 @@ LoaderFileType IdentifyFile(FileSys::VirtualFile file)
     }
     else
     {
+        UNIMPLEMENTED();
         return LoaderFileType::Unknown;
     }
 }
@@ -57,6 +63,10 @@ LoaderFileType GuessFromFilename(const std::string & name)
     if (extension == "nro")
     {
         return LoaderFileType::NRO;
+    }
+    if (extension == "nca")
+    {
+        return LoaderFileType::NCA;
     }
     if (extension == "dxci")
     {
@@ -102,6 +112,9 @@ static std::shared_ptr<AppLoader> GetFileLoader(Systemloader & loader, FileSys::
     // NX NRO file format.
     case LoaderFileType::NRO:
         return std::make_shared<AppLoader_NRO>(std::move(file));
+    // NX NCA (Nintendo Content Archive) file format.
+    case LoaderFileType::NCA:
+        return std::make_shared<AppLoader_NCA>(std::move(file));
     // NX XCI (nX Card Image) file format.
     case LoaderFileType::XCI:
         return std::make_shared<AppLoader_XCI>(std::move(file), loader.GetFileSystemController(), loader.GetContentProvider(), program_id, program_index);
