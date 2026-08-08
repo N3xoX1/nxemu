@@ -371,8 +371,12 @@ void VideoManager::WaitHost(uint32_t syncpoint_id, uint32_t expected_value)
 
 uint32_t VideoManager::ShadersBuilding()
 {
-    auto & shader_notify = impl->m_gpuCore->ShaderNotify();
-    return shader_notify.ShadersBuilding();
+    if (impl != nullptr && impl->m_gpuCore != nullptr)
+    {    
+        auto & shader_notify = impl->m_gpuCore->ShaderNotify();
+        return shader_notify.ShadersBuilding();
+    }
+    return 0;
 }
 
 bool VideoManager::UseNvdec()
