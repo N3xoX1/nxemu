@@ -66,6 +66,6 @@ private:
 
     Core::System m_coreSystem;
     ISystemModules & m_modules;
-    Kernel::KProcess * m_process;
+    Kernel::KProcess * m_applicationProcess;
     std::unique_ptr<EmuThread> m_emuThread;
 };
