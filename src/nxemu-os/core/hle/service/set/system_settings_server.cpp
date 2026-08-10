@@ -48,7 +48,11 @@ Result GetFirmwareVersionImpl(FirmwareVersionFormat & out_firmware, Core::System
     FileSysNCAPtr nca = bis_system.GetEntry(FirmwareVersionSystemDataId, LoaderContentRecordType::Data);
     if (nca)
     {
-        UNIMPLEMENTED();
+        IVirtualFilePtr nca_romfs(nca->GetRomFS());
+        if (nca_romfs)
+        {
+            romfs = nca_romfs->ExtractRomFS();
+        }
     }
     if (!romfs)
     {
