@@ -219,7 +219,7 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
     kernel.AppendNewProcess(m_process);
     kernel.MakeApplicationProcess(m_process);
 
-    if (m_process->LoadFromMetadata(metaData, codeSize, 0, false).IsError())
+    if (m_process->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
     {
         return false;
     }
