@@ -341,8 +341,8 @@ if(ARCHITECTURE_x86_64)
         dynarmic/backend/x64/emit_x64_crc32.cpp
         dynarmic/backend/x64/emit_x64_data_processing.cpp
         dynarmic/backend/x64/emit_x64_floating_point.cpp
-        backend/x64/emit_x64_memory.cpp.inc
-        backend/x64/emit_x64_memory.h
+        dynarmic/backend/x64/emit_x64_memory.cpp.inc
+        dynarmic/backend/x64/emit_x64_memory.h
         dynarmic/backend/x64/emit_x64_packed.cpp
         dynarmic/backend/x64/emit_x64_saturation.cpp
         dynarmic/backend/x64/emit_x64_sha.cpp
@@ -351,22 +351,22 @@ if(ARCHITECTURE_x86_64)
         dynarmic/backend/x64/emit_x64_vector_floating_point.cpp
         dynarmic/backend/x64/emit_x64_vector_saturation.cpp
         dynarmic/backend/x64/exclusive_monitor.cpp
-        backend/x64/exclusive_monitor_friend.h
-        backend/x64/host_feature.h
+        dynarmic/backend/x64/exclusive_monitor_friend.h
+        dynarmic/backend/x64/host_feature.h
         dynarmic/backend/x64/hostloc.cpp
-        backend/x64/hostloc.h
-        backend/x64/jitstate_info.h
-        backend/x64/oparg.h
+        dynarmic/backend/x64/hostloc.h
+        dynarmic/backend/x64/jitstate_info.h
+        dynarmic/backend/x64/oparg.h
         dynarmic/backend/x64/perf_map.cpp
-        backend/x64/perf_map.h
+        dynarmic/backend/x64/perf_map.h
         dynarmic/backend/x64/reg_alloc.cpp
-        backend/x64/reg_alloc.h
-        backend/x64/stack_layout.h
+        dynarmic/backend/x64/reg_alloc.h
+        dynarmic/backend/x64/stack_layout.h
         dynarmic/backend/x64/verbose_debugging_output.cpp
-        backend/x64/verbose_debugging_output.h
+        dynarmic/backend/x64/verbose_debugging_output.h
     )
  
-    target_link_libraries(nxemu-cpu PRIVATE zydis)
+    target_link_libraries(nxemu-cpu PRIVATE Zydis)
 endif()
 
 if(ARCHITECTURE_arm64)

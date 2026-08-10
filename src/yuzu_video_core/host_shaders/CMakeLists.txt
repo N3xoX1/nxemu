@@ -68,6 +68,8 @@ set(SHADER_FILES
     vulkan_quad_indexed.comp
     vulkan_turbo_mode.comp
     vulkan_uint8.comp
+    watermark.frag
+    watermark.vert
 )
 
 find_program(GLSLANGVALIDATOR "glslangValidator")
@@ -80,7 +82,7 @@ set(SPIR_V_VERSION "spirv1.3")
 set(QUIET_FLAG "--quiet")
 
 set(SHADER_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/include)
-set(SHADER_DIR ${SHADER_INCLUDE}/video_core/host_shaders)
+set(SHADER_DIR ${SHADER_INCLUDE}/yuzu_video_core/host_shaders)
 set(HOST_SHADERS_INCLUDE ${SHADER_INCLUDE} PARENT_SCOPE)
 
 set(INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/source_shader.h.in)
