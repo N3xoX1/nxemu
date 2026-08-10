@@ -162,6 +162,13 @@ Result InfoUpdater::UpdateEffectsVersion1(EffectContext& effect_context, const b
         reinterpret_cast<EffectInfoBase::OutStatusVersion1*>(output), effect_count};
 
     for (u32 i = 0; i < effect_count; i++) {
+#ifdef _WIN32
+        // Eden #2594: The Legend of Zelda: Echoes of Wisdom can produce extreme noise
+        // on Windows when the reverb effect is processed. Skip reverb on Windows.
+        if (in_params[i].type == EffectInfoBase::Type::Reverb) {
+            continue;
+        }
+#endif
         auto effect_info{&effect_context.GetInfo(i)};
         if (effect_info->GetType() != in_params[i].type) {
             effect_info->ForceUnmapBuffers(pool_mapper);
@@ -209,6 +216,13 @@ Result InfoUpdater::UpdateEffectsVersion2(EffectContext& effect_context, const b
         reinterpret_cast<EffectInfoBase::OutStatusVersion2*>(output), effect_count};
 
     for (u32 i = 0; i < effect_count; i++) {
+#ifdef _WIN32
+        // Eden #2594: The Legend of Zelda: Echoes of Wisdom can produce extreme noise
+        // on Windows when the reverb effect is processed. Skip reverb on Windows.
+        if (in_params[i].type == EffectInfoBase::Type::Reverb) {
+            continue;
+        }
+#endif
         auto effect_info{&effect_context.GetInfo(i)};
         if (effect_info->GetType() != in_params[i].type) {
             effect_info->ForceUnmapBuffers(pool_mapper);

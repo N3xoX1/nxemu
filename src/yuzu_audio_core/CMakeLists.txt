@@ -10,11 +10,8 @@ endif()
 
 file(GLOB_RECURSE YUZU_AUDIO_CORE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
-if(ANDROID)
-    # No SDL2 / Oboe in this CMake graph; Cubeb uses AAudio on Android when available.
-    list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/sdl2_sink\\.cpp$")
-    list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/oboe_sink\\.cpp$")
-endif()
+list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/sdl2_sink\\.cpp$")
+list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/oboe_sink\\.cpp$")
 
 add_library(yuzu_audio_core STATIC ${YUZU_AUDIO_CORE_SOURCES})
 

@@ -201,70 +201,70 @@
     <ClInclude Include="backend\arm64\verbose_debugging_output.h">
       <Filter>Header Files\backend\arm64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\a32_emit_x64.h">
+    <ClInclude Include="dynarmic\backend\x64\a32_emit_x64.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\a32_jitstate.h">
+    <ClInclude Include="dynarmic\backend\x64\a32_jitstate.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\a64_emit_x64.h">
+    <ClInclude Include="dynarmic\backend\x64\a64_emit_x64.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\a64_jitstate.h">
+    <ClInclude Include="dynarmic\backend\x64\a64_jitstate.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\abi.h">
+    <ClInclude Include="dynarmic\backend\x64\abi.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\block_of_code.h">
+    <ClInclude Include="dynarmic\backend\x64\block_of_code.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\callback.h">
+    <ClInclude Include="dynarmic\backend\x64\callback.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\constant_pool.h">
+    <ClInclude Include="dynarmic\backend\x64\constant_pool.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\constants.h">
+    <ClInclude Include="dynarmic\backend\x64\constants.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\devirtualize.h">
+    <ClInclude Include="dynarmic\backend\x64\devirtualize.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\emit_x64.h">
+    <ClInclude Include="dynarmic\backend\x64\emit_x64.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\emit_x64_memory.h">
+    <ClInclude Include="dynarmic\backend\x64\emit_x64_memory.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\exclusive_monitor_friend.h">
+    <ClInclude Include="dynarmic\backend\x64\exclusive_monitor_friend.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\host_feature.h">
+    <ClInclude Include="dynarmic\backend\x64\host_feature.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\hostloc.h">
+    <ClInclude Include="dynarmic\backend\x64\hostloc.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\jitstate_info.h">
+    <ClInclude Include="dynarmic\backend\x64\jitstate_info.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\nzcv_util.h">
+    <ClInclude Include="dynarmic\backend\x64\nzcv_util.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\oparg.h">
+    <ClInclude Include="dynarmic\backend\x64\oparg.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\perf_map.h">
+    <ClInclude Include="dynarmic\backend\x64\perf_map.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\reg_alloc.h">
+    <ClInclude Include="dynarmic\backend\x64\reg_alloc.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\stack_layout.h">
+    <ClInclude Include="dynarmic\backend\x64\stack_layout.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="backend\x64\verbose_debugging_output.h">
+    <ClInclude Include="dynarmic\backend\x64\verbose_debugging_output.h">
       <Filter>Header Files\backend\x64</Filter>
     </ClInclude>
     <ClInclude Include="common\always_false.h">

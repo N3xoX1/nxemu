@@ -74,7 +74,16 @@ endif()
 
 # zlib + minizip (nxemu-loader firmware zip extraction)
 if(NOT TARGET zlibstatic)
+    set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib example/minigzip programs" FORCE)
     add_subdirectory("${CMAKE_SOURCE_DIR}/external/zlib" "${CMAKE_BINARY_DIR}/external/zlib")
+    # zlib's CMake renames the tracked source zconf.h -> zconf.h.included during
+    # out-of-source configure. Undo that so the submodule working tree stays clean.
+    # The build still uses the generated header in ${CMAKE_BINARY_DIR}/external/zlib.
+    set(_nxemu_zlib_src "${CMAKE_SOURCE_DIR}/external/zlib")
+    if(EXISTS "${_nxemu_zlib_src}/zconf.h.included" AND NOT EXISTS "${_nxemu_zlib_src}/zconf.h")
+        file(RENAME "${_nxemu_zlib_src}/zconf.h.included" "${_nxemu_zlib_src}/zconf.h")
+    endif()
+    unset(_nxemu_zlib_src)
 endif()
 if(TARGET zlibstatic AND NOT TARGET ZLIB::ZLIB)
     add_library(ZLIB::ZLIB ALIAS zlibstatic)
@@ -147,11 +156,14 @@ endif()
 
 # Zydis
 if(ARCHITECTURE_x86_64)
-    if(NOT TARGET zydis)
+    if(NOT TARGET Zydis)
         set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
         set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
         set(CMAKE_POSITION_INDEPENDENT_CODE ON)
         add_subdirectory(zydis)
+    endif()
+    if(TARGET Zydis AND NOT TARGET zydis)
+        add_library(zydis ALIAS Zydis)
     endif()
 endif()
 
