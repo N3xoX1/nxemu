@@ -133,16 +133,16 @@ extern IModuleSettings * g_settings;
 OSManager::OSManager(ISystemModules & modules) :
     m_modules(modules),
     m_coreSystem(modules),
-    m_process(nullptr)
+    m_applicationProcess(nullptr)
 {
 }
 
 OSManager::~OSManager()
 {
-    if (m_process != nullptr)
+    if (m_applicationProcess != nullptr)
     {
-        m_process->Close();
-        m_process = nullptr;
+        m_applicationProcess->Close();
+        m_applicationProcess = nullptr;
     }
 }
 
@@ -150,7 +150,7 @@ void OSManager::EmulationStarting()
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
 
-    m_emuThread = std::make_unique<EmuThread>(m_coreSystem, m_process);
+    m_emuThread = std::make_unique<EmuThread>(m_coreSystem, m_applicationProcess);
     m_emuThread->Start();
 }
 
@@ -204,22 +204,22 @@ void OSManager::ShutdownMainProcess()
 
 bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
-    if (m_process != nullptr)
+    if (m_applicationProcess != nullptr)
     {
         return false;
     }
     m_coreSystem.InitializeKernel(metaData.GetTitleID());
     Kernel::KernelCore & kernel = m_coreSystem.Kernel();
-    m_process = Kernel::KProcess::Create(kernel);
-    if (m_process == nullptr)
+    m_applicationProcess = Kernel::KProcess::Create(kernel);
+    if (m_applicationProcess == nullptr)
     {
         return false;
     }
-    Kernel::KProcess::Register(kernel, m_process);
-    kernel.AppendNewProcess(m_process);
-    kernel.MakeApplicationProcess(m_process);
+    Kernel::KProcess::Register(kernel, m_applicationProcess);
+    kernel.AppendNewProcess(m_applicationProcess);
+    kernel.MakeApplicationProcess(m_applicationProcess);
 
-    if (m_process->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
+    if (m_applicationProcess->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
     {
         return false;
     }
@@ -230,26 +230,26 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
         .launch_type = Service::AM::LaunchType::FrontendInitiated,
     };
     params.program_id = metaData.GetTitleID();
-    m_coreSystem.GetAppletManager().CreateAndInsertByFrontendAppletParameters(m_process->GetProcessId(), params);
+    m_coreSystem.GetAppletManager().CreateAndInsertByFrontendAppletParameters(m_applicationProcess->GetProcessId(), params);
 
-    processID = m_process->GetProcessId();
-    baseAddress = GetInteger(m_process->GetEntryPoint());
+    processID = m_applicationProcess->GetProcessId();
+    baseAddress = GetInteger(m_applicationProcess->GetEntryPoint());
     return true;
 }
 
 void OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uint32_t version, StorageId baseGameStorageId, StorageId updateStorageId, uint8_t * nacpData, uint32_t nacpDataLen)
 {
-    m_coreSystem.AddGlueRegistrationForProcess(*m_process, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
-    m_process->Run(priority, stackSize);
+    m_coreSystem.AddGlueRegistrationForProcess(*m_applicationProcess, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
+    m_applicationProcess->Run(priority, stackSize);
 }
 
 bool OSManager::LoadModule(const IModuleInfo & module, uint64_t baseAddress)
 {
-    if (m_process == nullptr)
+    if (m_applicationProcess == nullptr)
     {
         return false;
     }
-    m_process->LoadModule(module, baseAddress);
+    m_applicationProcess->LoadModule(module, baseAddress);
     return true;
 }
 
