@@ -1,8 +1,5 @@
-:root {
-  --color-notification-background: #181818;
-}
-
 html {
+  var(color-notification-background): #181818;
   margin: 0;
   padding: 0 7px 14px 7px;
   border: 0;
@@ -22,27 +19,27 @@ body {
 .notification-panel {
   border-radius: 8px;
   border: none;
-  background-color: var(--color-notification-background);
+  background-color: color(color-notification-background);
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 1),
     0 12px 12px rgba(0, 0, 0, 0.55);
   overflow: hidden;
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9rem;
 }
 
 .notification-panel > header {
   width: *;
   flow: horizontal;
-  background-color: var(--color-titlebar-background);
+  background-color: color(color-titlebar-background);
   height: window-caption-height;
   margin: 0;
-  color: var(--color-titlebar-text);
+  color: color(color-titlebar-text);
 }
 
 html[data-active="false"] .notification-panel > header {
-  background-color: var(--color-titlebar-background-inactive);
+  background-color: color(color-titlebar-background-inactive);
 }
 
 .notification-panel > header > window-caption {
@@ -51,7 +48,7 @@ html[data-active="false"] .notification-panel > header {
   width: *;
   height: *;
   padding: 0 0.75em 0 1.1em;
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 1rem;
   font-weight: 400;
 }
@@ -84,17 +81,17 @@ html[data-active="false"] .notification-panel > header {
   foreground-repeat: no-repeat;
   foreground-position: 50% 50%;
   stroke-width: 0;
-  fill: var(--color-titlebar-icon);
+  fill: color(color-titlebar-icon);
   transition: background-color linear 100ms;
   padding: 0.25em;
 }
 
 html[data-active="false"] .notification-panel > header > window-buttons > window-button {
-  fill: var(--color-titlebar-icon-inactive);
+  fill: color(color-titlebar-icon-inactive);
 }
 
 .notification-panel > header > window-buttons > window-button:hover {
-  background: var(--color-titlebar-icon-hover);
+  background: color(color-titlebar-icon-hover);
 }
 
 .notification-panel > header > window-buttons > window-button[role="window-close"] {
@@ -124,10 +121,10 @@ html[data-active="false"] .notification-panel > header > window-buttons > window
 }
 
 .notification-panel button {
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   background: #232728;
   border: 1px solid #55575a;
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.85rem;
 }
 

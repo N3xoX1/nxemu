@@ -1,11 +1,11 @@
-:root {
-  --color-config-page: #31363B;
-  --color-config-page-border: #505050;
+html {
+  var(color-config-page): #31363B;
+  var(color-config-page-border): #505050;
 }
 
 div.ConfigPage
 {
-  background: var(--color-dialog-background);
+  background: color(color-dialog-background);
   flow: horizontal;
   width: 100%%;
   height: 100%%;
@@ -16,8 +16,8 @@ popup.tooltip
   background: #4f6459;
   border: 1px solid #6a6a6a;
   padding: 0.5rem;
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.8rem;
 }
 
@@ -35,10 +35,10 @@ popup.tooltip
 .tab-button {
   background: #2b2f32;
   border: 1px solid #55575a;
-  border-bottom: 1px solid var(--color-config-page-border);
+  border-bottom: 1px solid color(color-config-page-border);
   border-radius: 2px 2px 0 0;
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.8rem;
   padding: 0.2rem 1.3rem 0.2rem 1.3rem;
   margin: 0;
@@ -50,7 +50,7 @@ popup.tooltip
 
 .tab-button:hover {
   border: 1px solid #55575a;
-  border-bottom: 1px solid var(--color-config-page-border);
+  border-bottom: 1px solid color(color-config-page-border);
 }
 
 .tab-button:active {
@@ -58,15 +58,15 @@ popup.tooltip
 }
 
 .tab-button.active {
-  background: var(--color-config-page);
-  border-color: var(--color-config-page-border);
-  border-bottom: 1px solid var(--color-config-page);
+  background: color(color-config-page);
+  border-color: color(color-config-page-border);
+  border-bottom: 1px solid color(color-config-page);
 }
 
 .input-group 
 {
   position: relative;
-  background-color: var(--color-config-page);
+  background-color: color(color-config-page);
   border: 1px solid #55575a;
   padding: 1.2rem 0.5rem 0.5rem 0.5rem;
   margin: 0 0 1rem 0;
@@ -84,7 +84,7 @@ popup.tooltip
   top: -0.5rem;
   left: 0;
   margin: 0 auto;
-  background-color: var(--color-config-page);
+  background-color: color(color-config-page);
   padding: 0 6px;
   font-size: 0.8rem;
   color: #f0f0f0;
@@ -94,7 +94,7 @@ popup.tooltip
 {
   display: inline-block;
   position: relative;
-  background-color: var(--color-config-page);
+  background-color: color(color-config-page);
   border: 1px solid #55575a;
   padding: 0.4em 0.2rem 0.2rem 0.2rem;
   border-radius: 2px;
@@ -108,7 +108,7 @@ popup.tooltip
   top: -0.7rem;
   left: 0;
   margin: 0 auto;
-  background-color: var(--color-config-page);
+  background-color: color(color-config-page);
   padding: 0 6px;
   font-size: 0.8rem;
   color: #f0f0f0;
@@ -261,7 +261,7 @@ label:disabled {
 .active-profile-label
 {
   margin: 0 0 0.65rem 0;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   font-size: 0.9rem;
 }
 
@@ -337,7 +337,7 @@ label:disabled {
   width: 90px;
   margin-top: 0.35rem;
   text-align: center;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   font-size: 0.85rem;
   overflow-x: hidden;
   text-overflow: ellipsis;
@@ -412,9 +412,9 @@ label:disabled {
   border-radius: 21px;
   background: #2b2f32;
   border: 1px solid #55575a;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   font-size: 1.6rem;
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   line-height: 40px;
   text-align: center;
   padding: 0;
@@ -445,7 +445,7 @@ label:disabled {
 .hotkeys-table th,
 .hotkeys-table td
 {
-  border: 1px solid var(--color-config-page-border);
+  border: 1px solid color(color-config-page-border);
   padding: 0.35rem 0.75rem;
   text-align: left;
   vertical-align: middle;

@@ -6,12 +6,12 @@
 
 #StatusBar
 {
-  background: var(--color-statusbar-background);
+  background: color(color-statusbar-background);
   flow: horizontal;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   padding: 0.2em 1em;
-  border-top: 1px solid var(--color-statusbar-border);
-  font-family: var(--font-ui);
+  border-top: 1px solid color(color-statusbar-border);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.8em;
   font-weight: 100;
   height: 1.6rem;
@@ -49,14 +49,14 @@
 #StatusBar #dockedMode:hover,
 #StatusBar #volumePopupBtn:hover
 {
-  border: 1px solid var(--color-statusbar-hover-border);
+  border: 1px solid color(color-statusbar-hover-border);
 }
 
 #StatusBar #volumePopupBtn svg
 {
   width: 1.2em;
   height: 1.2em;
-  fill: var(--color-ui-text-primary);
+  fill: color(color-ui-text-primary);
   vertical-align: middle;
 }
 
@@ -67,8 +67,8 @@
 
 #VolumePopup
 {
-  background: var(--color-statusbar-background);
-  border: 1px solid var(--color-statusbar-border);
+  background: color(color-statusbar-background);
+  border: 1px solid color(color-statusbar-border);
   padding: 1em;
 }
 
@@ -81,8 +81,8 @@
 
 #PausePanel
 {
-  background: var(--color-pause-panel-background);
-  color: var(--color-ui-text-primary);
+  background: color(color-pause-panel-background);
+  color: color(color-ui-text-primary);
   overflow: hidden;
 }
 
@@ -101,7 +101,7 @@
 
 #PausePanel .pause-panel-title
 {
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 2rem;
   font-weight: 600;
   margin: 0 0 0.5rem;
@@ -109,10 +109,10 @@
 
 #PausePanel .pause-panel-subtitle
 {
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 1rem;
   font-weight: 300;
-  color: var(--color-ui-text-muted);
+  color: color(color-ui-text-muted);
   margin: 0;
 }
 
@@ -144,7 +144,7 @@ rombrowser .config-button svg
 
 rombrowser .config-button .outline
 {
-  fill: var(--color-ui-text-primary);
+  fill: color(color-ui-text-primary);
 }
 
 rombrowser .config-button:hover .outline
@@ -165,10 +165,10 @@ rombrowser .config-button:hover
 
 rombrowser .games-title h1
 {
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 1.5rem;
   font-weight: 400;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   padding: 0 0 0.6rem;
   margin: 0;
   width:*
@@ -364,9 +364,9 @@ ul#menu-bar
 {
   margin: 0;
   padding: 0 0.5em 0.3em 0.5em;
-  background: var(--color-menubar-background);
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  background: color(color-menubar-background);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9em;
   font-weight: 100;
   behavior:menu-bar;
@@ -386,12 +386,12 @@ ul#menu-bar > li
 
 ul#menu-bar > li:hover
 {
-  background: var(--color-menubar-background-hover);
+  background: color(color-menubar-background-hover);
 }
 
 ul#menu-bar:focus > li:current,
 ul#menu-bar > li:owns-popup {
-  background-color: var(--color-menubar-background-active);
+  background-color: color(color-menubar-background-active);
   border-radius: 5px 5px 0;
 }
 
@@ -419,11 +419,11 @@ menu
   padding: 0.35em 0;
   min-width: 14em;
   max-width:max-content;
-  background: var(--color-menu-popup-background);
+  background: color(color-menu-popup-background);
   color: #f0f0f0;
-  border: 1px solid var(--color-menu-popup-border);
+  border: 1px solid color(color-menu-popup-border);
   border-top: none;
-  box-shadow: 0 0.25em 0.75em var(--color-menu-popup-shadow);
+  box-shadow: 0 0.25em 0.75em color(color-menu-popup-shadow);
 }
 
 @media (menu-animation-supported) {
@@ -491,7 +491,7 @@ menu li .menu-item-glyph.menu-item-glyph-spacer
 
 menu li .menu-item-glyph.menu-item-checkbox
 {
-  border: 1.5px solid var(--color-ui-text-muted, #8c8c8c);
+  border: 1.5px solid var(color-ui-text-muted, #8c8c8c);
   border-radius: 3px;
   position: relative;
   foreground-image: none;
@@ -499,7 +499,7 @@ menu li .menu-item-glyph.menu-item-checkbox
 
 menu li .menu-item-glyph.menu-item-checkbox.checked
 {
-  border-color: var(--color-ui-text-primary, #f0f0f0);
+  border-color: var(color-ui-text-primary, #f0f0f0);
 }
 
 menu li .menu-item-glyph.menu-item-icon-svg
@@ -544,7 +544,7 @@ menu li .menu-item-glyph .menu-item-checkmark
   vertical-align: middle;
   font-size: 0.72em;
   line-height: 1.15em;
-  color: var(--color-ui-text-primary, #f0f0f0);
+  color: var(color-ui-text-primary, #f0f0f0);
 }
 
 menu li:current .menu-item-glyph.menu-item-checkbox,
@@ -565,7 +565,7 @@ menu li .menu-accelerator
   margin-left: 2.5em;
   white-space: nowrap;
   text-align: right;
-  color: var(--color-menu-shortcut-text);
+  color: color(color-menu-shortcut-text);
 }
 
 menu li .menu-accelerator:empty
@@ -577,7 +577,7 @@ menu li .menu-accelerator:empty
 
 menu li:hover
 {
-  background: var(--color-menuitem-background-hover);
+  background: color(color-menuitem-background-hover);
   border-radius: 2px;
 }
 
@@ -622,7 +622,7 @@ menu hr
   height: 1px;
   margin: 0.4em 0.65em;
   border: none;
-  background: var(--color-menu-separator);
+  background: color(color-menu-separator);
 }
 
 menu.context,
@@ -631,12 +631,12 @@ menu.context,
   padding: 0.35em 0.25em;
   min-width: 16.5em;
   max-width: 24em;
-  background: var(--color-context-menu-background);
-  color: var(--color-context-menu-text);
-  border: 1px solid var(--color-context-menu-border);
+  background: color(color-context-menu-background);
+  color: color(color-context-menu-text);
+  border: 1px solid color(color-context-menu-border);
   border-radius: 0.45em;
-  box-shadow: 0 0.4em 1.1em var(--color-context-menu-shadow);
-  font-family: var(--font-ui);
+  box-shadow: 0 0.4em 1.1em color(color-context-menu-shadow);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.86em;
   font-weight: 400;
 }
@@ -649,7 +649,7 @@ menu.context > li,
   padding: 0.42em 0.85em 0.42em 0.55em;
   margin: 0 0.15em;
   border-radius: 0.28em;
-  color: var(--color-context-menu-text);
+  color: color(color-context-menu-text);
 }
 
 menu.context > li:hover,
@@ -657,7 +657,7 @@ menu.context > li:current,
 #RomCardContextMenu > li:hover,
 #RomCardContextMenu > li:current
 {
-  background: var(--color-context-menu-hover);
+  background: color(color-context-menu-hover);
   color: #ffffff;
 }
 
@@ -666,7 +666,7 @@ menu.context > li.disabled,
 #RomCardContextMenu > li:disabled,
 #RomCardContextMenu > li.disabled
 {
-  color: var(--color-context-menu-muted);
+  color: color(color-context-menu-muted);
   background: transparent;
   opacity: 0.55;
 }
@@ -682,7 +682,7 @@ menu.context > li .menu-item-glyph,
   max-height: 1.25em;
   margin: 0 0.65em 0 0.1em;
   padding: 0;
-  color: var(--color-context-menu-text);
+  color: color(color-context-menu-text);
   vertical-align: middle;
   flow: horizontal;
   horizontal-align: center;
@@ -714,7 +714,7 @@ menu.context > hr,
 #RomCardContextMenu > hr
 {
   margin: 0.3em 0.7em;
-  background: var(--color-context-menu-separator);
+  background: color(color-context-menu-separator);
 }
 
 menu.context > li:has-child-of-type(menu),
@@ -724,6 +724,6 @@ menu.context > li:has-child-of-type(menu),
   foreground-repeat: no-repeat;
   foreground-position: right 0.7em top 50%;
   foreground-size: 0.4em 0.55em;
-  foreground-image-transformation: colorize(var(--color-context-menu-muted));
+  foreground-image-transformation: colorize(color(color-context-menu-muted));
   padding-right: 1.6em;
 }
