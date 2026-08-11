@@ -64,13 +64,13 @@ body>.footer
   font-weight: 600;
   margin-top: *;
   margin-bottom: 0.2em;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
 }
 
 .about-version,
 .about-copyright
 {
-  color: var(--color-ui-text-muted);
+  color: color(color-ui-text-muted);
 }
 
 .about-version
@@ -93,7 +93,7 @@ body>.footer
 {
   line-height: 1.45;
   margin-bottom: 0.85em;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
 }
 
 .about-description p
@@ -103,7 +103,7 @@ body>.footer
 
 .about-disclaimer
 {
-  color: var(--color-ui-text-muted);
+  color: color(color-ui-text-muted);
   font-size: 0.9rem;
 }
 
@@ -115,14 +115,14 @@ body>.footer
 
 .about-credits-title
 {
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   font-weight: 600;
   margin-bottom: 0.25em;
 }
 
 .about-credits-list
 {
-  color: var(--color-ui-text-muted);
+  color: color(color-ui-text-muted);
   font-size: 0.9rem;
 }
 
@@ -134,7 +134,7 @@ body>.footer
 
 .about-link-sep
 {
-  color: var(--color-ui-text-muted);
+  color: color(color-ui-text-muted);
 }
 
 a.about-link
@@ -151,7 +151,7 @@ a.about-link:hover
 
 .about-trademark
 {
-  color: var(--color-ui-text-muted);
+  color: color(color-ui-text-muted);
   font-size: 0.75rem;
   line-height: 1.35;
 }

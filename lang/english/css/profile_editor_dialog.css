@@ -2,8 +2,8 @@
 {
   padding: 0.75rem 0.5rem 0.25rem;
   min-width: 32rem;
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9rem;
 }
 
@@ -30,7 +30,7 @@
 .profile-field > label
 {
   margin: 0 0 0.35rem 0;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
 }
 
 .profile-field > input
@@ -47,7 +47,7 @@
   border-radius: 0.35rem;
   padding: 0 0.6rem;
   margin: 0;
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.875rem;
   line-height: 2rem;
   vertical-align: middle;

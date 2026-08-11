@@ -13,8 +13,8 @@ body
   padding: 0.5rem 0.25rem;
   min-width: 32rem;
   height: 21rem;
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9rem;
 }
 

@@ -1,42 +1,39 @@
-:root {
-  --font-ui: 'Segoe UI', Arial, sans-serif;
-  --color-ui-text-primary: #eff0f1;
-  --color-ui-text-muted: #b0b6bc;
-  --color-statusbar-background: #31363b;
-  --color-statusbar-border: #434242;
-  --color-statusbar-hover-border: #76797c;
-  --color-pause-panel-background: #25282c;
-  --color-main-background: #2d2d2d;
-  --color-titlebar-background: #181818;
-  --color-titlebar-background-inactive: #2d2d2d;
-  --color-titlebar-text: #FFF;
-  --color-titlebar-icon: #FFF;
-  --color-titlebar-icon-hover: #0078d7;
-  --color-titlebar-icon-inactive: #2f7bb0;
-  --color-menubar-background: #181818;
-  --color-menubar-background-hover: #2c2c2c;
-  --color-menubar-background-active: #2c2c2c;
-  --color-menuitem-background: #2c2c2c;
-  --color-menuitem-background-hover: #383838;
-  --color-menu-popup-background: #252526;
-  --color-menu-popup-border: #454545;
-  --color-menu-popup-shadow: rgba(0, 0, 0, 0.45);
-  --color-menu-shortcut-text: #b8b8b8;
-  --color-menu-separator: #3d3d3d;
-  --color-context-menu-background: #2b2b2b;
-  --color-context-menu-border: #3c3c3c;
-  --color-context-menu-hover: #3a3a3a;
-  --color-context-menu-text: #f3f3f3;
-  --color-context-menu-muted: #a8a8a8;
-  --color-context-menu-separator: #404040;
-  --color-context-menu-shadow: rgba(0, 0, 0, 0.55);
-  --color-window-border: #353535;
-}
+html {
+  var(font-ui): "Segoe UI";
+  var(color-ui-text-primary): #eff0f1;
+  var(color-ui-text-muted): #b0b6bc;
+  var(color-statusbar-background): #31363b;
+  var(color-statusbar-border): #434242;
+  var(color-statusbar-hover-border): #76797c;
+  var(color-pause-panel-background): #25282c;
+  var(color-main-background): #2d2d2d;
+  var(color-titlebar-background): #181818;
+  var(color-titlebar-background-inactive): #2d2d2d;
+  var(color-titlebar-text): #FFF;
+  var(color-titlebar-icon): #FFF;
+  var(color-titlebar-icon-hover): #0078d7;
+  var(color-titlebar-icon-inactive): #2f7bb0;
+  var(color-menubar-background): #181818;
+  var(color-menubar-background-hover): #2c2c2c;
+  var(color-menubar-background-active): #2c2c2c;
+  var(color-menuitem-background): #2c2c2c;
+  var(color-menuitem-background-hover): #383838;
+  var(color-menu-popup-background): #252526;
+  var(color-menu-popup-border): #454545;
+  var(color-menu-popup-shadow): rgba(0, 0, 0, 0.45);
+  var(color-menu-shortcut-text): #b8b8b8;
+  var(color-menu-separator): #3d3d3d;
+  var(color-context-menu-background): #2b2b2b;
+  var(color-context-menu-border): #3c3c3c;
+  var(color-context-menu-hover): #3a3a3a;
+  var(color-context-menu-text): #f3f3f3;
+  var(color-context-menu-muted): #a8a8a8;
+  var(color-context-menu-separator): #404040;
+  var(color-context-menu-shadow): rgba(0, 0, 0, 0.55);
+  var(color-window-border): #353535;
 
-html
-{
-  border: 1px solid var(--color-window-border);
-  background-color: var(--color-main-background);
+  border: 1px solid color(color-window-border);
+  background-color: color(color-main-background);
   box-sizing: border-box;
 }
 
@@ -49,15 +46,15 @@ html > header
 {
   width: *;
   flow: horizontal;
-  background-color: var(--color-titlebar-background);
+  background-color: color(color-titlebar-background);
   height: window-caption-height;
   margin: 0;
-  color: var(--color-titlebar-text);
+  color: color(color-titlebar-text);
 }
 
 html[data-active="false"] > header
 {
-  background-color: var(--color-titlebar-background-inactive);
+  background-color: color(color-titlebar-background-inactive);
 }
 
 html > header > window-caption
@@ -66,7 +63,7 @@ html > header > window-caption
   line-height: window-caption-height;
   width: *;
   padding: 0 1em;
-  font-family: var(--font-ui);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9em;
   font-weight: 100;
 }
@@ -101,19 +98,19 @@ html > header > window-buttons > window-button {
   foreground-repeat: no-repeat;
   foreground-position: 50% 50%;
   stroke-width: 0;
-  fill: var(--color-titlebar-icon);
+  fill: color(color-titlebar-icon);
   transition: background-color linear 100ms;
   padding: 0.25em;
 }
 
 html[data-active="false"] > header > window-buttons > window-button
 {
-  fill: var(--color-titlebar-icon-inactive);
+  fill: color(color-titlebar-icon-inactive);
 }
 
 html > header > window-buttons > window-button:hover
 {
-  background: var(--color-titlebar-icon-hover);
+  background: color(color-titlebar-icon-hover);
 }
 
 html > header > window-buttons > window-button[role="window-close"]

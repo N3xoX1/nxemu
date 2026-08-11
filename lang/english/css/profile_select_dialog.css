@@ -3,8 +3,8 @@
   padding: 0.75rem 0.5rem 0.25rem;
   min-width: 30rem;
   min-height: 18rem;
-  color: var(--color-ui-text-primary);
-  font-family: var(--font-ui);
+  color: color(color-ui-text-primary);
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9rem;
   flow: vertical;
   height: *;
@@ -13,7 +13,7 @@
 .profile-select-instruction
 {
   margin: 0 0 0.65rem 0;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   font-size: 0.95rem;
 }
 
@@ -78,7 +78,7 @@
   width: 90px;
   margin-top: 0.35rem;
   text-align: center;
-  color: var(--color-ui-text-primary);
+  color: color(color-ui-text-primary);
   font-size: 0.85rem;
   overflow-x: hidden;
   text-overflow: ellipsis;
