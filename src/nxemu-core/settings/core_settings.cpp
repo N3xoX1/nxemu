@@ -74,6 +74,7 @@ namespace
         { NXCoreSetting::LogFilter, "", "LogFilter", &coreSettings.LogFilter, "*:Info" },
         { NXCoreSetting::EmulationRunning, false },
         { NXCoreSetting::EmulationState, (int)EmulationState::Stopped },
+        { NXCoreSetting::Has39BitAddressSpace, false },
         { NXCoreSetting::DisplayedFrames, false },
         { NXCoreSetting::ShuttingDown, false},
         { NXCoreSetting::DiskCacheLoadStage, -1 },

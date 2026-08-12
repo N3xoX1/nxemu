@@ -1,7 +1,7 @@
 #include "cpu_settings.h"
 #include "cpu_enum_strings.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
-#include <nxemu-loader/loader_settings_identifiers.h>
+#include <nxemu-core/settings/identifiers.h>
 #include <common/json.h>
 #include <common/json_util.h>
 #include <cstring>
@@ -119,7 +119,7 @@ bool IsFastmemEnabled()
 
 void UpdateNceEnabled()
 {
-    const bool has_39bit = g_settings->GetBool(NXLoaderSetting::Has39BitAddressSpace);
+    const bool has_39bit = g_settings->GetBool(NXCoreSetting::Has39BitAddressSpace);
     const bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
     if (is_nce && !IsFastmemEnabled())
     {
@@ -137,7 +137,7 @@ bool AffectsNceEnabled(const char * setting)
     return strcmp(setting, NXCpuSetting::CpuBackend) == 0 ||
            strcmp(setting, NXCpuSetting::CpuDebugMode) == 0 ||
            strcmp(setting, NXCpuSetting::CpuoptFastmem) == 0 ||
-           strcmp(setting, NXLoaderSetting::Has39BitAddressSpace) == 0;
+           strcmp(setting, NXCoreSetting::Has39BitAddressSpace) == 0;
 }
 
 void CpuSettingChanged(const char * setting, void * /*userData*/)
@@ -259,9 +259,7 @@ void SetupCpuSetting(void)
         g_settings->RegisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
     }
 
-    g_settings->SetDefaultBool(NXLoaderSetting::Has39BitAddressSpace, false);
-    g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, false);
-    g_settings->RegisterCallback(NXLoaderSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
+    g_settings->RegisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
 
     g_settings->SetDefaultBool(NXCpuSetting::NceEnabled, false);
     UpdateNceEnabled();
@@ -273,7 +271,7 @@ void CleanupCpuSetting(void)
     {
         g_settings->UnregisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
     }
-    g_settings->UnregisterCallback(NXLoaderSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
+    g_settings->UnregisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
 }
 
 void SaveCpuSettings(void)

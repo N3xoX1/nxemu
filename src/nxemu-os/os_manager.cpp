@@ -157,6 +157,7 @@ void OSManager::EmulationStarting()
 void OSManager::EmulationStopping(bool wait)
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
+    g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, false);
 
     if (m_emuThread)
     {
@@ -218,12 +219,13 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
     Kernel::KProcess::Register(kernel, m_applicationProcess);
     kernel.AppendNewProcess(m_applicationProcess);
     kernel.MakeApplicationProcess(m_applicationProcess);
+    g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, metaData.GetAddressSpaceType() == ProgramAddressSpaceType::Is39Bit);
 
     if (m_applicationProcess->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
     {
         return false;
     }
-    
+
     auto params = Service::AM::FrontendAppletParameters{
         .applet_id = Service::AM::AppletId::Application,
         .applet_type = Service::AM::AppletType::Application,
