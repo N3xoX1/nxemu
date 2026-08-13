@@ -22,32 +22,25 @@ namespace
 
 bool ShouldCreateGuestApplet(AppletId applet_id)
 {
-#define X(Name, name)                                               \
-    if (applet_id == AppletId::Name &&                              \
-        osSettings.name##_applet_mode != AppletMode::LLE) \
-    {                                                               \
-        return false;                                               \
+    switch (applet_id)
+    {
+    case AppletId::Cabinet: return osSettings.cabinet_applet_mode == AppletMode::LLE;
+    case AppletId::Controller: return osSettings.controller_applet_mode == AppletMode::LLE;
+    case AppletId::DataErase: return osSettings.data_erase_applet_mode == AppletMode::LLE;
+    case AppletId::Error: return osSettings.error_applet_mode == AppletMode::LLE;
+    case AppletId::NetConnect: return osSettings.net_connect_applet_mode == AppletMode::LLE;
+    case AppletId::ProfileSelect: return osSettings.player_select_applet_mode == AppletMode::LLE;
+    case AppletId::SoftwareKeyboard: return osSettings.swkbd_applet_mode == AppletMode::LLE;
+    case AppletId::MiiEdit: return osSettings.mii_edit_applet_mode == AppletMode::LLE;
+    case AppletId::Web: return osSettings.web_applet_mode == AppletMode::LLE;
+    case AppletId::Shop: return osSettings.shop_applet_mode == AppletMode::LLE;
+    case AppletId::PhotoViewer: return osSettings.photo_viewer_applet_mode == AppletMode::LLE;
+    case AppletId::OfflineWeb: return osSettings.offline_web_applet_mode == AppletMode::LLE;
+    case AppletId::LoginShare: return osSettings.login_share_applet_mode == AppletMode::LLE;
+    case AppletId::WebAuth: return osSettings.wifi_web_auth_applet_mode == AppletMode::LLE;
+    case AppletId::MyPage: return osSettings.my_page_applet_mode == AppletMode::LLE;
+    default: return true;
     }
-
-    X(Cabinet, cabinet)
-    X(Controller, controller)
-    X(DataErase, data_erase)
-    X(Error, error)
-    X(NetConnect, net_connect)
-    X(ProfileSelect, player_select)
-    X(SoftwareKeyboard, swkbd)
-    X(MiiEdit, mii_edit)
-    X(Web, web)
-    X(Shop, shop)
-    X(PhotoViewer, photo_viewer)
-    X(OfflineWeb, offline_web)
-    X(LoginShare, login_share)
-    X(WebAuth, wifi_web_auth)
-    X(MyPage, my_page)
-
-#undef X
-
-    return true;
 }
 
 AppletProgramId AppletIdToProgramId(AppletId applet_id)
