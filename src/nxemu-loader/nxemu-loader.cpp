@@ -1,5 +1,4 @@
 #include "loader_settings.h"
-#include "loader_settings_identifiers.h"
 #include "system_loader.h"
 #include <memory>
 #include <stdio.h>
@@ -101,10 +100,6 @@ Output: None
 */
 void CALL EmulationStopping(bool wait)
 {
-    if (g_settings != nullptr)
-    {
-        g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, false);
-    }
 }
 
 /*

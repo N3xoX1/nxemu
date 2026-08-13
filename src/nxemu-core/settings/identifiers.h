@@ -28,6 +28,7 @@ constexpr const char * ShowLogConsole = "nxcore:ShowLogConsole";
 constexpr const char * LogFilter = "nxcore:LogFilter";
 constexpr const char * EmulationRunning = "nxcore:EmulationRunning";
 constexpr const char * EmulationState = "nxcore:EmulationState";
+constexpr const char * Has39BitAddressSpace = "nxcore:Has39BitAddressSpace";
 constexpr const char * DisplayedFrames = "nxcore:DisplayedFrames";
 constexpr const char * ShuttingDown = "nxcore:ShuttingDown";
 constexpr const char * DiskCacheLoadStage = "nxcore:DiskCacheLoadStage";

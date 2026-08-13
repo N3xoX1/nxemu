@@ -8,7 +8,6 @@
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/romfs_factory.h"
 #include "core/loader/nso.h"
-#include "loader_settings_identifiers.h"
 #include "system_loader.h"
 #include "yuzu_common/interface_pointer.h"
 #include "yuzu_common/interface_pointer_def.h"
@@ -154,9 +153,7 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     }
     metadata.Print();
 
-    const bool is_39bit = metadata.GetAddressSpaceType() == ProgramAddressSpaceType::Is39Bit;
     const bool is_application = metadata.GetPoolPartition() == PoolPartition::Application;
-    g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, is_39bit);
 
     IPatchCollectionPtr patch_ctx(systemModules.Cpu().CreatePatchCollection(is_application));
     const std::array static_modules = {"rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};
