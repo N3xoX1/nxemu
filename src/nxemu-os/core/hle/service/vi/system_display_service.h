@@ -3,6 +3,7 @@
 
 #include "yuzu_common/math_util.h"
 #include "core/hle/service/cmif_types.h"
+#include "yuzu_common/fence.h"
 #include "core/hle/service/service.h"
 #include "core/hle/service/vi/shared_buffer_manager.h"
 
@@ -31,6 +32,12 @@ private:
     Result ConnectSharedLayer(u64 layer_id);
     Result GetSharedFrameBufferAcquirableEvent(OutCopyHandle<Kernel::KReadableEvent> out_event,
                                                u64 layer_id);
+    Result AcquireSharedFrameBuffer(Out<android::Fence> out_fence,
+                                    Out<std::array<s32, 4>> out_slots, Out<s64> out_target_slot,
+                                    u64 layer_id);
+    Result PresentSharedFrameBuffer(android::Fence fence, Common::Rectangle<s32> crop_region,
+                                    u32 window_transform, s32 swap_interval, u64 layer_id,
+                                    s64 surface_id);
     Result CancelSharedFrameBuffer(u64 layer_id, s64 slot);
 
 private:

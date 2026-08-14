@@ -61,6 +61,8 @@ ISystemDisplayService::ISystemDisplayService(Core::System & system_, std::shared
         {8251, nullptr, "CloseSharedLayer"},
         {8252, C<&ISystemDisplayService::ConnectSharedLayer>, "ConnectSharedLayer"},
         {8253, nullptr, "DisconnectSharedLayer"},
+        {8254, C<&ISystemDisplayService::AcquireSharedFrameBuffer>, "AcquireSharedFrameBuffer"},
+        {8255, C<&ISystemDisplayService::PresentSharedFrameBuffer>, "PresentSharedFrameBuffer"},
         {8256, C<&ISystemDisplayService::GetSharedFrameBufferAcquirableEvent>, "GetSharedFrameBufferAcquirableEvent"},
         {8257, nullptr, "FillSharedFrameBufferColor"},
         {8258, C<&ISystemDisplayService::CancelSharedFrameBuffer>, "CancelSharedFrameBuffer"},
@@ -148,8 +150,19 @@ Result ISystemDisplayService::ConnectSharedLayer(u64 layer_id)
     R_SUCCEED();
 }
 
-Result ISystemDisplayService::GetSharedFrameBufferAcquirableEvent(
-    OutCopyHandle<Kernel::KReadableEvent> out_event, u64 layer_id)
+Result ISystemDisplayService::AcquireSharedFrameBuffer(Out<android::Fence> out_fence, Out<std::array<s32, 4>> out_slots, Out<s64> out_target_slot, u64 layer_id)
+{
+    LOG_DEBUG(Service_VI, "called");
+    R_RETURN(m_container->GetSharedBufferManager()->AcquireSharedFrameBuffer(out_fence, *out_slots, out_target_slot, layer_id));
+}
+
+Result ISystemDisplayService::PresentSharedFrameBuffer(android::Fence fence, Common::Rectangle<s32> crop_region, u32 window_transform, s32 swap_interval, u64 layer_id, s64 surface_id)
+{
+    LOG_DEBUG(Service_VI, "called");
+    R_RETURN(m_container->GetSharedBufferManager()->PresentSharedFrameBuffer(fence, crop_region, window_transform, swap_interval, layer_id, surface_id));
+}
+
+Result ISystemDisplayService::GetSharedFrameBufferAcquirableEvent(OutCopyHandle<Kernel::KReadableEvent> out_event, u64 layer_id)
 {
     LOG_DEBUG(Service_VI, "called");
     R_RETURN(m_container->GetSharedBufferManager()->GetSharedFrameBufferAcquirableEvent(out_event,
