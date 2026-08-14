@@ -59,13 +59,41 @@ bool Process::Initialize(u64 program_id)
     }
     Kernel::KProcess::Register(m_system.Kernel(), process);
 
+    Kernel::KProcess * const previous_process = m_system.CurrentProcess();
+    m_system.SetCurrentProcess(process);
     SCOPE_EXIT
     {
+        m_system.SetCurrentProcess(previous_process);
         process->Close();
     };
 
-    UNIMPLEMENTED();
-    return false;
+    // Insert process modules into memory.
+    GuestProcessLoadParameters load_parameters{};
+    const LoaderResultStatus load_result = app_loader->Load(m_system.GetSystemModules(), &load_parameters);
+
+    // Ensure loading was successful.
+    if (load_result != LoaderResultStatus::Success)
+    {
+        return false;
+    }
+
+    // TODO: remove this, kernel already tracks this
+    m_system.Kernel().AppendNewProcess(process);
+
+    // Note the load parameters from NPDM.
+    m_main_thread_priority = load_parameters.main_thread_priority;
+    m_main_thread_stack_size = (uint64_t)load_parameters.main_thread_stack_size;
+    m_program_id = program_id;
+
+    // This process has not started yet.
+    m_process_started = false;
+
+    // Take ownership of the process object.
+    m_process = process;
+    m_process->Open();
+
+    // We succeeded.
+    return true;
 }
 
 void Process::Finalize()

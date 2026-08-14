@@ -10,7 +10,6 @@
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
-#include "loader_settings_identifiers.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include "yuzu_common/settings.h"
 #include "yuzu_common/swap.h"
@@ -223,11 +222,8 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     program_image.resize(static_cast<u32>(program_image.size()) + bss_size);
     size_t image_size = program_image.size();
 
-#ifdef defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     const auto& code = codeset.CodeSegment();
-
-    // NROs always have a 39-bit address space.
-    g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, true);
 
     // Create NCE patcher
     Core::NCE::Patcher patch{};
@@ -261,7 +257,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     // Setup the process code layout
     IOperatingSystem & operatingSystem = modules.OperatingSystem();
     baseAddress = fastmem_base;
-    if (!operatingSystem.CreateApplicationProcess(image_size, FileSys::ProgramMetadata::GetDefault(), baseAddress, processID, false))
+    if (!operatingSystem.SetupCurrentProcess(image_size, FileSys::ProgramMetadata::GetDefault(), baseAddress, processID, false))
     {
         return false;
     }

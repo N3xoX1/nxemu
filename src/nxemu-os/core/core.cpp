@@ -290,6 +290,8 @@ struct System::Impl {
         gpu_dirty_memory_managers;
 
     std::deque<std::vector<u8>> user_channel;
+
+    Kernel::KProcess * current_process{nullptr};
 };
 
 System::System(ISystemModules & modules) : 
@@ -436,6 +438,16 @@ const Kernel::GlobalSchedulerContext & System::GlobalSchedulerContext() const
 Kernel::KProcess * System::ApplicationProcess()
 {
     return impl->kernel.ApplicationProcess();
+}
+
+void System::SetCurrentProcess(Kernel::KProcess * process)
+{
+    impl->current_process = process;
+}
+
+Kernel::KProcess * System::CurrentProcess() const
+{
+    return impl->current_process;
 }
 
 Core::DeviceMemory & System::DeviceMemory()

@@ -203,6 +203,27 @@ void OSManager::ShutdownMainProcess()
     m_coreSystem.ShutdownMainProcess();
 }
 
+bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
+{
+    if (m_applicationProcess == nullptr)
+    {
+        return CreateApplicationProcess(codeSize, metaData, baseAddress, processID, is_hbl);
+    }
+    Kernel::KProcess * const current = m_coreSystem.CurrentProcess();
+    if (current == nullptr)
+    {
+        UNIMPLEMENTED();
+        return false;
+    }
+    if (current->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
+    {
+        return false;
+    }
+    processID = current->GetProcessId();
+    baseAddress = GetInteger(current->GetEntryPoint());
+    return true;
+}
+
 bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
     if (m_applicationProcess != nullptr)
@@ -247,11 +268,12 @@ void OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uin
 
 bool OSManager::LoadModule(const IModuleInfo & module, uint64_t baseAddress)
 {
-    if (m_applicationProcess == nullptr)
+    Kernel::KProcess * const process = m_coreSystem.CurrentProcess() != nullptr ? m_coreSystem.CurrentProcess() : m_applicationProcess;
+    if (process == nullptr)
     {
         return false;
     }
-    m_applicationProcess->LoadModule(module, baseAddress);
+    process->LoadModule(module, baseAddress);
     return true;
 }
 
