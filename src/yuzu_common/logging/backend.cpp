@@ -248,12 +248,18 @@ public:
 
     static void Start()
     {
-        instance->StartBackendThread();
+        if (instance)
+        {
+            instance->StartBackendThread();
+        }
     }
 
     static void Stop()
     {
-        instance->StopBackendThread();
+        if (instance)
+        {
+            instance->StopBackendThread();
+        }
     }
 
     Impl(const Impl &) = delete;

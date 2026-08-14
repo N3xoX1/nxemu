@@ -50,6 +50,40 @@ bool IsIntegral(double d)
     return modf(d, &integral_part) == 0.0;
 }
 
+std::string CodePointToUTF8(unsigned int cp)
+{
+    std::string result;
+
+    if (cp <= 0x7f)
+    {
+        result.resize(1);
+        result[0] = static_cast<char>(cp);
+    }
+    else if (cp <= 0x7FF)
+    {
+        result.resize(2);
+        result[1] = static_cast<char>(0x80 | (0x3f & cp));
+        result[0] = static_cast<char>(0xC0 | (0x1f & (cp >> 6)));
+    }
+    else if (cp <= 0xFFFF)
+    {
+        result.resize(3);
+        result[2] = static_cast<char>(0x80 | (0x3f & cp));
+        result[1] = static_cast<char>(0x80 | (0x3f & (cp >> 6)));
+        result[0] = static_cast<char>(0xE0 | (0xf & (cp >> 12)));
+    }
+    else if (cp <= 0x10FFFF)
+    {
+        result.resize(4);
+        result[3] = static_cast<char>(0x80 | (0x3f & cp));
+        result[2] = static_cast<char>(0x80 | (0x3f & (cp >> 6)));
+        result[1] = static_cast<char>(0x80 | (0x3f & (cp >> 12)));
+        result[0] = static_cast<char>(0xF0 | (0x7 & (cp >> 18)));
+    }
+
+    return result;
+}
+
 } // namespace
 
 JsonValue::JsonValue(JsonValueType type) :
@@ -1419,6 +1453,16 @@ bool JsonReader::DecodeString(JsonToken & token, std::string & Decoded)
             case 't':
                 Decoded += '\t';
                 break;
+            case 'u':
+            {
+                unsigned int unicode;
+                if (!DecodeUnicodeCodePoint(token, current, end, unicode))
+                {
+                    return false;
+                }
+                Decoded += CodePointToUTF8(unicode);
+                break;
+            }
             default:
                 return AddError("Bad escape sequence in string", token, current);
             }
@@ -1430,6 +1474,71 @@ bool JsonReader::DecodeString(JsonToken & token, std::string & Decoded)
     }
     return true;
 }
+
+bool JsonReader::DecodeUnicodeCodePoint(JsonToken & token, const char *& current, const char * end, unsigned int & unicode)
+{
+    if (!DecodeUnicodeEscapeSequence(token, current, end, unicode))
+    {
+        return false;
+    }
+    if (unicode >= 0xD800 && unicode <= 0xDBFF)
+    {
+        if (end - current < 6)
+        {
+            return AddError("additional six characters expected to parse unicode surrogate pair.", token, current);
+        }
+        if (*(current++) == '\\' && *(current++) == 'u')
+        {
+            unsigned int surrogatePair;
+            if (DecodeUnicodeEscapeSequence(token, current, end, surrogatePair))
+            {
+                unicode = 0x10000 + ((unicode & 0x3FF) << 10) + (surrogatePair & 0x3FF);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return AddError("expecting another \\u token to begin the second half of a unicode surrogate pair", token, current);
+        }
+    }
+    return true;
+}
+
+bool JsonReader::DecodeUnicodeEscapeSequence(JsonToken & token, const char *& current, const char * end, unsigned int & unicode)
+{
+    if (end - current < 4)
+    {
+        return AddError("Bad unicode escape sequence in string: four digits expected.", token, current);
+    }
+    int value = 0;
+    for (int index = 0; index < 4; ++index)
+    {
+        char c = *current++;
+        value *= 16;
+        if (c >= '0' && c <= '9')
+        {
+            value += c - '0';
+        }
+        else if (c >= 'a' && c <= 'f')
+        {
+            value += c - 'a' + 10;
+        }
+        else if (c >= 'A' && c <= 'F')
+        {
+            value += c - 'A' + 10;
+        }
+        else
+        {
+            return AddError("Bad unicode escape sequence in string: hexadecimal digit expected.", token, current);
+        }
+    }
+    unicode = (unsigned int)value;
+    return true;
+}
+
 void JsonReader::SkipSpaces()
 {
     while (m_current != m_end)
