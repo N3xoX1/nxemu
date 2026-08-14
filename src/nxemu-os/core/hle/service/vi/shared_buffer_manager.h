@@ -5,30 +5,36 @@
 
 #include <map>
 
-#include "yuzu_common/math_util.h"
 #include "core/hle/service/nvdrv/core/container.h"
+#include "yuzu_common/fence.h"
+#include "yuzu_common/math_util.h"
 #include "yuzu_common/nvdata.h"
 
-namespace Kernel {
+namespace Kernel
+{
 class KPageGroup;
 class KReadableEvent;
 } // namespace Kernel
 
-namespace Service::android {
+namespace Service::android
+{
 class BufferQueueProducer;
 }
 
-namespace Service::Nvidia {
+namespace Service::Nvidia
+{
 class Module;
 }
 
 union Result;
 
-namespace Service::VI {
+namespace Service::VI
+{
 
 class Container;
 
-struct SharedMemorySlot {
+struct SharedMemorySlot
+{
     u64 buffer_offset;
     u64 size;
     s32 width;
@@ -36,7 +42,8 @@ struct SharedMemorySlot {
 };
 static_assert(sizeof(SharedMemorySlot) == 0x18, "SharedMemorySlot has wrong size");
 
-struct SharedMemoryPoolLayout {
+struct SharedMemoryPoolLayout
+{
     s32 num_slots;
     std::array<SharedMemorySlot, 0x10> slots;
 };
@@ -44,23 +51,22 @@ static_assert(sizeof(SharedMemoryPoolLayout) == 0x188, "SharedMemoryPoolLayout h
 
 struct SharedBufferSession;
 
-class SharedBufferManager final {
+class SharedBufferManager final
+{
 public:
-    explicit SharedBufferManager(Core::System& system, Container& container,
-                                 std::shared_ptr<Nvidia::Module> nvdrv);
+    explicit SharedBufferManager(Core::System & system, Container & container, std::shared_ptr<Nvidia::Module> nvdrv);
     ~SharedBufferManager();
 
-    Result CreateSession(Kernel::KProcess* owner_process, u64* out_buffer_id, u64* out_layer_handle,
-                         u64 display_id, bool enable_blending);
-    void DestroySession(Kernel::KProcess* owner_process);
+    Result CreateSession(Kernel::KProcess * owner_process, u64 * out_buffer_id, u64 * out_layer_handle, u64 display_id, bool enable_blending);
+    void DestroySession(Kernel::KProcess * owner_process);
 
-    Result GetSharedBufferMemoryHandleId(u64* out_buffer_size, s32* out_nvmap_handle,
-                                         SharedMemoryPoolLayout* out_pool_layout, u64 buffer_id,
-                                         u64 applet_resource_user_id);
+    Result GetSharedBufferMemoryHandleId(u64 * out_buffer_size, s32 * out_nvmap_handle, SharedMemoryPoolLayout * out_pool_layout, u64 buffer_id, u64 applet_resource_user_id);
+    Result AcquireSharedFrameBuffer(android::Fence * out_fence, std::array<s32, 4> & out_slots, s64 * out_target_slot, u64 layer_id);
+    Result PresentSharedFrameBuffer(android::Fence fence, Common::Rectangle<s32> crop_region, u32 transform, s32 swap_interval, u64 layer_id, s64 slot);
     Result CancelSharedFrameBuffer(u64 layer_id, s64 slot);
-    Result GetSharedFrameBufferAcquirableEvent(Kernel::KReadableEvent** out_event, u64 layer_id);
+    Result GetSharedFrameBufferAcquirableEvent(Kernel::KReadableEvent ** out_event, u64 layer_id);
 
-    Result WriteAppletCaptureBuffer(bool* out_was_written, s32* out_layer_index);
+    Result WriteAppletCaptureBuffer(bool * out_was_written, s32 * out_layer_index);
 
 private:
     u64 m_next_buffer_id = 1;
@@ -71,12 +77,13 @@ private:
     std::unique_ptr<Kernel::KPageGroup> m_buffer_page_group;
 
     std::mutex m_guard;
-    Core::System& m_system;
-    Container& m_container;
+    Core::System & m_system;
+    Container & m_container;
     const std::shared_ptr<Nvidia::Module> m_nvdrv;
 };
 
-struct SharedBufferSession {
+struct SharedBufferSession
+{
     Nvidia::DeviceFD nvmap_fd = {};
     Nvidia::NvCore::SessionId session_id = {};
     u64 layer_id = {};

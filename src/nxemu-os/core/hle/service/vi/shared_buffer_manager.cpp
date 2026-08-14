@@ -316,6 +316,61 @@ Result SharedBufferManager::GetSharedBufferMemoryHandleId(u64* out_buffer_size,
     R_SUCCEED();
 }
 
+Result SharedBufferManager::AcquireSharedFrameBuffer(android::Fence* out_fence,
+                                                     std::array<s32, 4>& out_slot_indexes,
+                                                     s64* out_target_slot, u64 layer_id) {
+    // Get the producer.
+    std::shared_ptr<android::BufferQueueProducer> producer;
+    R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), layer_id));
+
+    // Get the next buffer from the producer.
+    s32 slot;
+    R_UNLESS(producer->DequeueBuffer(std::addressof(slot), out_fence, SharedBufferAsync != 0,
+                                     SharedBufferWidth, SharedBufferHeight,
+                                     SharedBufferBlockLinearFormat, 0) == android::Status::NoError,
+             VI::ResultOperationFailed);
+
+    // Assign remaining outputs.
+    *out_target_slot = slot;
+    out_slot_indexes = {0, 1, -1, -1};
+
+    // We succeeded.
+    R_SUCCEED();
+}
+
+Result SharedBufferManager::PresentSharedFrameBuffer(android::Fence fence,
+                                                     Common::Rectangle<s32> crop_region,
+                                                     u32 transform, s32 swap_interval, u64 layer_id,
+                                                     s64 slot) {
+    // Get the producer.
+    std::shared_ptr<android::BufferQueueProducer> producer;
+    R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), layer_id));
+
+    // Request to queue the buffer.
+    std::shared_ptr<android::GraphicBuffer> buffer;
+    R_UNLESS(producer->RequestBuffer(static_cast<s32>(slot), std::addressof(buffer)) ==
+                 android::Status::NoError,
+             VI::ResultOperationFailed);
+
+    ON_RESULT_FAILURE {
+        producer->CancelBuffer(static_cast<s32>(slot), fence);
+    };
+
+    // Queue the buffer to the producer.
+    android::QueueBufferInput input{};
+    android::QueueBufferOutput output{};
+    input.crop = crop_region;
+    input.fence = fence;
+    input.transform = static_cast<android::NativeWindowTransform>(transform);
+    input.swap_interval = swap_interval;
+    R_UNLESS(producer->QueueBuffer(static_cast<s32>(slot), input, std::addressof(output)) ==
+                 android::Status::NoError,
+             VI::ResultOperationFailed);
+
+    // We succeeded.
+    R_SUCCEED();
+}
+
 Result SharedBufferManager::CancelSharedFrameBuffer(u64 layer_id, s64 slot) {
     // Get the producer.
     std::shared_ptr<android::BufferQueueProducer> producer;
@@ -341,8 +396,40 @@ Result SharedBufferManager::GetSharedFrameBufferAcquirableEvent(Kernel::KReadabl
     R_SUCCEED();
 }
 
-Result SharedBufferManager::WriteAppletCaptureBuffer(bool* out_was_written, s32* out_layer_index) {
-    UNIMPLEMENTED();
+Result SharedBufferManager::WriteAppletCaptureBuffer(bool * out_was_written, s32 * out_layer_index)
+{
+    R_UNLESS(m_buffer_page_group != nullptr, VI::ResultNotFound);
+
+    IVideo & video = m_system.GetVideo();
+    const uint32_t capture_size = video.GetAppletCaptureBuffer(nullptr, 0);
+    std::vector<u8> capture_buffer(capture_size);
+    video.GetAppletCaptureBuffer(capture_buffer.data(), capture_size);
+
+    s64 e = -1280 * 768 * 4;
+    for (auto & block : *m_buffer_page_group)
+    {
+        u8 * const block_start = m_system.DeviceMemory().GetPointer<u8>(block.GetAddress());
+        u8 * const block_end = m_system.DeviceMemory().GetPointer<u8>(block.GetAddress() + block.GetSize());
+        if (block_start == nullptr || block_end == nullptr || block_end <= block_start)
+        {
+            continue;
+        }
+
+        for (u8 * start = block_start; start < block_end; start++)
+        {
+            *start = 0;
+            if (e >= 0 && e < static_cast<s64>(capture_buffer.size()))
+            {
+                *start = capture_buffer[e];
+            }
+            e++;
+        }
+
+        video.InvalidateMemory(block_start, static_cast<uint64_t>(block_end - block_start));
+    }
+
+    *out_was_written = true;
+    *out_layer_index = 1;
     R_SUCCEED();
 }
 
