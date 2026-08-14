@@ -316,6 +316,61 @@ Result SharedBufferManager::GetSharedBufferMemoryHandleId(u64* out_buffer_size,
     R_SUCCEED();
 }
 
+Result SharedBufferManager::AcquireSharedFrameBuffer(android::Fence* out_fence,
+                                                     std::array<s32, 4>& out_slot_indexes,
+                                                     s64* out_target_slot, u64 layer_id) {
+    // Get the producer.
+    std::shared_ptr<android::BufferQueueProducer> producer;
+    R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), layer_id));
+
+    // Get the next buffer from the producer.
+    s32 slot;
+    R_UNLESS(producer->DequeueBuffer(std::addressof(slot), out_fence, SharedBufferAsync != 0,
+                                     SharedBufferWidth, SharedBufferHeight,
+                                     SharedBufferBlockLinearFormat, 0) == android::Status::NoError,
+             VI::ResultOperationFailed);
+
+    // Assign remaining outputs.
+    *out_target_slot = slot;
+    out_slot_indexes = {0, 1, -1, -1};
+
+    // We succeeded.
+    R_SUCCEED();
+}
+
+Result SharedBufferManager::PresentSharedFrameBuffer(android::Fence fence,
+                                                     Common::Rectangle<s32> crop_region,
+                                                     u32 transform, s32 swap_interval, u64 layer_id,
+                                                     s64 slot) {
+    // Get the producer.
+    std::shared_ptr<android::BufferQueueProducer> producer;
+    R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), layer_id));
+
+    // Request to queue the buffer.
+    std::shared_ptr<android::GraphicBuffer> buffer;
+    R_UNLESS(producer->RequestBuffer(static_cast<s32>(slot), std::addressof(buffer)) ==
+                 android::Status::NoError,
+             VI::ResultOperationFailed);
+
+    ON_RESULT_FAILURE {
+        producer->CancelBuffer(static_cast<s32>(slot), fence);
+    };
+
+    // Queue the buffer to the producer.
+    android::QueueBufferInput input{};
+    android::QueueBufferOutput output{};
+    input.crop = crop_region;
+    input.fence = fence;
+    input.transform = static_cast<android::NativeWindowTransform>(transform);
+    input.swap_interval = swap_interval;
+    R_UNLESS(producer->QueueBuffer(static_cast<s32>(slot), input, std::addressof(output)) ==
+                 android::Status::NoError,
+             VI::ResultOperationFailed);
+
+    // We succeeded.
+    R_SUCCEED();
+}
+
 Result SharedBufferManager::CancelSharedFrameBuffer(u64 layer_id, s64 slot) {
     // Get the producer.
     std::shared_ptr<android::BufferQueueProducer> producer;
