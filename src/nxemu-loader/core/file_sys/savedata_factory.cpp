@@ -217,6 +217,14 @@ bool SaveDataFactoryImpl::OpenSaveData(IVirtualDirectory ** out_save_data, SaveD
     return true;
 }
 
+void SaveDataFactoryImpl::SetAutoCreate(bool state)
+{
+    if (m_saveDataFactory)
+    {
+        m_saveDataFactory->SetAutoCreate(state);
+    }
+}
+
 void SaveDataFactoryImpl::Release()
 {
     delete this;

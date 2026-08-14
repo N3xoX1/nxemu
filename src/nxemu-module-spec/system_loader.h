@@ -237,6 +237,7 @@ nxinterface IFilesystem
 nxinterface ISaveDataFactory
 {
     virtual bool OpenSaveData(IVirtualDirectory ** out_save_data, SaveDataSpaceId space, const SaveDataAttribute & attribute) = 0;
+    virtual void SetAutoCreate(bool state) = 0;
     virtual void Release() = 0;
 };
 
