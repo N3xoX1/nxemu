@@ -310,6 +310,8 @@ private:
     bool DecodeNumber(JsonToken & token, JsonValue & decoded);
     bool DecodeString(JsonToken & token);
     bool DecodeString(JsonToken & token, std::string & decoded);
+    bool DecodeUnicodeCodePoint(JsonToken & token, const char *& current, const char * end, unsigned int & unicode);
+    bool DecodeUnicodeEscapeSequence(JsonToken & token, const char *& current, const char * end, unsigned int & unicode);
     void SkipSpaces();
     char GetNextChar();
     JsonValue & CurrentValue();
