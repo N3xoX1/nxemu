@@ -48,6 +48,8 @@ public:
     uint32_t ShadersBuilding() override;
     bool UseNvdec() override;
     void ClearCdmaInstance(uint32_t id) override;
+    uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) override;
+    void InvalidateMemory(const uint8_t * pointer, uint64_t size) override;
 
 private:
     VideoManager() = delete;

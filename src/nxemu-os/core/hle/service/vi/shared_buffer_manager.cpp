@@ -341,8 +341,40 @@ Result SharedBufferManager::GetSharedFrameBufferAcquirableEvent(Kernel::KReadabl
     R_SUCCEED();
 }
 
-Result SharedBufferManager::WriteAppletCaptureBuffer(bool* out_was_written, s32* out_layer_index) {
-    UNIMPLEMENTED();
+Result SharedBufferManager::WriteAppletCaptureBuffer(bool * out_was_written, s32 * out_layer_index)
+{
+    R_UNLESS(m_buffer_page_group != nullptr, VI::ResultNotFound);
+
+    IVideo & video = m_system.GetVideo();
+    const uint32_t capture_size = video.GetAppletCaptureBuffer(nullptr, 0);
+    std::vector<u8> capture_buffer(capture_size);
+    video.GetAppletCaptureBuffer(capture_buffer.data(), capture_size);
+
+    s64 e = -1280 * 768 * 4;
+    for (auto & block : *m_buffer_page_group)
+    {
+        u8 * const block_start = m_system.DeviceMemory().GetPointer<u8>(block.GetAddress());
+        u8 * const block_end = m_system.DeviceMemory().GetPointer<u8>(block.GetAddress() + block.GetSize());
+        if (block_start == nullptr || block_end == nullptr || block_end <= block_start)
+        {
+            continue;
+        }
+
+        for (u8 * start = block_start; start < block_end; start++)
+        {
+            *start = 0;
+            if (e >= 0 && e < static_cast<s64>(capture_buffer.size()))
+            {
+                *start = capture_buffer[e];
+            }
+            e++;
+        }
+
+        video.InvalidateMemory(block_start, static_cast<uint64_t>(block_end - block_start));
+    }
+
+    *out_was_written = true;
+    *out_layer_index = 1;
     R_SUCCEED();
 }
 

@@ -1,6 +1,7 @@
 #include "render_window.h"
 #include "video_manager.h"
 #include "video_settings.h"
+#include "yuzu_video_core/capture.h"
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/dma_pusher.h"
 #include "yuzu_video_core/host1x/host1x.h"
@@ -14,8 +15,11 @@
 #include "yuzu_common/settings.h"
 #include "nxemu-video/video_settings.h"
 #include <chrono>
+#include <cstring>
+#include <algorithm>
 #include <future>
 #include <thread>
+#include <vector>
 
 extern IModuleSettings * g_settings;
 
@@ -387,4 +391,41 @@ bool VideoManager::UseNvdec()
 void VideoManager::ClearCdmaInstance(uint32_t id)
 {
     impl->m_gpuCore->ClearCdmaInstance(id);
+}
+
+uint32_t VideoManager::GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size)
+{
+    constexpr uint32_t required = (uint32_t)VideoCore::Capture::TiledSize;
+    if (out == nullptr || out_size < required)
+    {
+        return required;
+    }
+    if (impl == nullptr || impl->m_gpuCore == nullptr)
+    {
+        std::memset(out, 0, required);
+        return required;
+    }
+    std::vector<uint8_t> capture = impl->m_gpuCore->GetAppletCaptureBuffer();
+    const uint32_t copy_size =  (uint32_t)(std::min<size_t>(capture.size(), required));
+    if (copy_size < required)
+    {
+        std::memset(out + copy_size, 0, required - copy_size);
+    }
+    if (copy_size > 0)
+    {
+        std::memcpy(out, capture.data(), copy_size);
+    }
+    return required;
+}
+
+void VideoManager::InvalidateMemory(const uint8_t * pointer, uint64_t size)
+{
+    if (impl == nullptr || impl->m_gpuCore == nullptr || impl->m_host1x == nullptr || pointer == nullptr || size == 0)
+    {
+        return;
+    }
+    thread_local Common::ScratchBuffer<u32> scratch;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        impl->m_gpuCore->InvalidateRegion(address, size);
+    });
 }
