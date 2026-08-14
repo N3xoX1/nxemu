@@ -274,6 +274,9 @@ public:
     /// Provides a constant pointer to the application process.
     [[nodiscard]] const Kernel::KProcess * ApplicationProcess() const;
 
+    void SetCurrentProcess(Kernel::KProcess * process);
+    [[nodiscard]] Kernel::KProcess * CurrentProcess() const;
+
     ICoreTiming & Timing() override;
 
     /// Provides a reference to the core timing instance.
