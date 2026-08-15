@@ -12,7 +12,6 @@
 #include "yuzu_common/cityhash.h"
 #include "yuzu_common/fs/fs.h"
 #include "yuzu_common/fs/path_util.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/thread_worker.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 #include "yuzu_shader_recompiler/environment.h"
@@ -40,7 +39,6 @@
 #include "video_settings.h"
 
 namespace Vulkan {
-MICROPROFILE_DECLARE(Vulkan_PipelineCache);
 
 namespace {
 using Shader::Backend::SPIRV::EmitSPIRV;
@@ -419,7 +417,6 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
-    MICROPROFILE_SCOPE(Vulkan_PipelineCache);
 
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
@@ -438,8 +435,6 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
 }
 
 ComputePipeline* PipelineCache::CurrentComputePipeline() {
-    MICROPROFILE_SCOPE(Vulkan_PipelineCache);
-
     const ShaderInfo* const shader{ComputeShader()};
     if (!shader) {
         return nullptr;

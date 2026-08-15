@@ -12,7 +12,6 @@
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/thread.h"
 #include "yuzu_common/thread_worker.h"
@@ -44,8 +43,6 @@
 #include "core/hle/service/server_manager.h"
 #include "core/hle/service/sm/sm.h"
 #include "core/memory.h"
-
-MICROPROFILE_DEFINE(Kernel_SVC, "Kernel", "SVC", MP_RGB(70, 200, 70));
 
 namespace Kernel {
 
@@ -842,8 +839,6 @@ struct KernelCore::Impl {
     std::atomic_bool is_shutting_down{};
     u32 single_core_thread_id{};
 
-    std::array<u64, Hardware::NUM_CPU_CORES> svc_ticks{};
-
     KWorkerTaskManager worker_task_manager;
 
     // System context
@@ -1291,14 +1286,6 @@ bool KernelCore::IsShuttingDown() const {
 void KernelCore::ExceptionalExitApplication() {
     exception_exited = true;
     SuspendEmulation(true);
-}
-
-void KernelCore::EnterSVCProfile() {
-    impl->svc_ticks[CurrentPhysicalCoreIndex()] = MicroProfileEnter(MICROPROFILE_TOKEN(Kernel_SVC));
-}
-
-void KernelCore::ExitSVCProfile() {
-    MicroProfileLeave(MICROPROFILE_TOKEN(Kernel_SVC), impl->svc_ticks[CurrentPhysicalCoreIndex()]);
 }
 
 Init::KSlabResourceCounts& KernelCore::SlabResourceCounts() {

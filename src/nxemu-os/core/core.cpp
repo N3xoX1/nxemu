@@ -5,7 +5,6 @@
 #include <atomic>
 
 #include "yuzu_audio_core/audio_core.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/hardware_properties.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -32,11 +31,6 @@
 #include "network/network.h"
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-video/video_settings_identifiers.h>
-
-MICROPROFILE_DEFINE(ARM_CPU0, "ARM", "CPU 0", MP_RGB(255, 64, 64));
-MICROPROFILE_DEFINE(ARM_CPU1, "ARM", "CPU 1", MP_RGB(255, 64, 64));
-MICROPROFILE_DEFINE(ARM_CPU2, "ARM", "CPU 2", MP_RGB(255, 64, 64));
-MICROPROFILE_DEFINE(ARM_CPU3, "ARM", "CPU 3", MP_RGB(255, 64, 64));
 
 extern IModuleSettings * g_settings;
 
@@ -172,11 +166,6 @@ struct System::Impl {
         exit_locked = false;
         exit_requested = false;
 
-        microprofile_cpu[0] = MICROPROFILE_TOKEN(ARM_CPU0);
-        microprofile_cpu[1] = MICROPROFILE_TOKEN(ARM_CPU1);
-        microprofile_cpu[2] = MICROPROFILE_TOKEN(ARM_CPU2);
-        microprofile_cpu[3] = MICROPROFILE_TOKEN(ARM_CPU3);
-
         perf_stats = std::make_unique<PerfStats>(titleID);
 
         // Reset counters and set time origin to current frame
@@ -282,9 +271,6 @@ struct System::Impl {
 
     ExecuteProgramCallback execute_program_callback;
     std::stop_source stop_event;
-
-    std::array<u64, Hardware::NUM_CPU_CORES> dynarmic_ticks{};
-    std::array<MicroProfileToken, Hardware::NUM_CPU_CORES> microprofile_cpu{};
 
     std::array<Core::GPUDirtyMemoryManager, Hardware::NUM_CPU_CORES>
         gpu_dirty_memory_managers;
@@ -656,18 +642,6 @@ void System::RegisterCoreThread(std::size_t id)
 void System::RegisterHostThread()
 {
     impl->kernel.RegisterHostThread();
-}
-
-void System::EnterCPUProfile()
-{
-    std::size_t core = impl->kernel.GetCurrentHostThreadID();
-    impl->dynarmic_ticks[core] = MicroProfileEnter(impl->microprofile_cpu[core]);
-}
-
-void System::ExitCPUProfile()
-{
-    std::size_t core = impl->kernel.GetCurrentHostThreadID();
-    MicroProfileLeave(impl->microprofile_cpu[core], impl->dynarmic_ticks[core]);
 }
 
 bool System::IsMulticore() const

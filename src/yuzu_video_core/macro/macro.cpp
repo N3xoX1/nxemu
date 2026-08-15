@@ -12,7 +12,6 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/fs/fs.h"
 #include "yuzu_common/fs/path_util.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/macro/macro.h"
@@ -22,8 +21,6 @@
 #if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
 #include "yuzu_video_core/macro/macro_jit_x64.h"
 #endif
-
-MICROPROFILE_DEFINE(MacroHLE, "GPU", "Execute macro HLE", MP_RGB(128, 192, 192));
 
 namespace Tegra {
 
@@ -73,7 +70,6 @@ void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
     if (compiled_macro != macro_cache.end()) {
         const auto& cache_info = compiled_macro->second;
         if (cache_info.has_hle_program) {
-            MICROPROFILE_SCOPE(MacroHLE);
             cache_info.hle_program->Execute(parameters, method);
         } else {
             maxwell3d.RefreshParameters();
@@ -118,7 +114,6 @@ void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
         } else {
             cache_info.has_hle_program = true;
             cache_info.hle_program = std::move(hle_program);
-            MICROPROFILE_SCOPE(MacroHLE);
             cache_info.hle_program->Execute(parameters, method);
         }
 

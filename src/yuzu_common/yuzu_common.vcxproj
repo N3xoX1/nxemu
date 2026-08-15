@@ -86,7 +86,6 @@
     <ClInclude Include="lz4_compression.h" />
     <ClInclude Include="make_unique_for_overwrite.h" />
     <ClInclude Include="math_util.h" />
-    <ClInclude Include="microprofile.h" />
     <ClInclude Include="multi_level_page_table.h" />
     <ClInclude Include="nvdata.h" />
     <ClInclude Include="overflow.h" />
@@ -157,7 +156,6 @@
     <ClCompile Include="logging\filter.cpp" />
     <ClCompile Include="logging\text_formatter.cpp" />
     <ClCompile Include="lz4_compression.cpp" />
-    <ClCompile Include="microprofile.cpp" />
     <ClCompile Include="multi_level_page_table.cpp" />
     <ClCompile Include="page_table.cpp" />
     <ClCompile Include="param_package.cpp" />

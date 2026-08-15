@@ -10,12 +10,9 @@
 #include "yuzu_audio_core/audio_core.h"
 #include "yuzu_audio_core/common/common.h"
 #include "yuzu_common/logging/log.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/thread.h"
 #include "core/core.h"
 #include "core/core_timing.h"
-
-MICROPROFILE_DEFINE(OpusDecoder, "Audio", "DSP_OpusDecoder", MP_RGB(60, 19, 97));
 
 namespace AudioCore::ADSP::OpusDecoder {
 

@@ -4427,7 +4427,6 @@ void Call(Core::System& system, u32 imm) {
 
     uint64_t args[8];
     kernel.CurrentPhysicalCore().SaveSvcArguments(process, args);
-    kernel.EnterSVCProfile();
 
     if (process.Is64Bit()) {
         Call64(system, imm, args);
@@ -4435,7 +4434,6 @@ void Call(Core::System& system, u32 imm) {
         Call32(system, imm, args);
     }
 
-    kernel.ExitSVCProfile();
     kernel.CurrentPhysicalCore().LoadSvcArguments(process, args);
 }
 

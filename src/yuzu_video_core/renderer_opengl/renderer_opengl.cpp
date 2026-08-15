@@ -10,7 +10,6 @@
 
 #include "frontend/emu_window.h"
 #include "yuzu_common/logging/log.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/stb.h"

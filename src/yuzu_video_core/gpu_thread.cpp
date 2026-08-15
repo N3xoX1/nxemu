@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_common/yuzu_assert.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/thread.h"
@@ -19,13 +18,7 @@ namespace VideoCommon::GPUThread {
 /// Runs the GPU thread
 static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler, SynchState & state)
 {
-    std::string name = "GPU";
-    MicroProfileOnThreadCreate(name.c_str());
-    SCOPE_EXIT {
-        MicroProfileOnThreadExit();
-    };
-
-    Common::SetCurrentThreadName(name.c_str());
+    Common::SetCurrentThreadName("GPU");
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     gpu.RegisterHostThread();
 

@@ -13,7 +13,6 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/math_util.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
@@ -40,11 +39,6 @@ using GLvec4 = std::array<GLfloat, 4>;
 using VideoCore::Surface::PixelFormat;
 using VideoCore::Surface::SurfaceTarget;
 using VideoCore::Surface::SurfaceType;
-
-MICROPROFILE_DEFINE(OpenGL_Drawing, "OpenGL", "Drawing", MP_RGB(128, 128, 192));
-MICROPROFILE_DEFINE(OpenGL_Clears, "OpenGL", "Clears", MP_RGB(128, 128, 192));
-MICROPROFILE_DEFINE(OpenGL_Blits, "OpenGL", "Blits", MP_RGB(128, 128, 192));
-MICROPROFILE_DEFINE(OpenGL_CacheManagement, "OpenGL", "Cache Management", MP_RGB(100, 255, 100));
 
 namespace {
 constexpr size_t NUM_SUPPORTED_VERTEX_ATTRIBUTES = 16;
@@ -157,8 +151,6 @@ void RasterizerOpenGL::LoadDiskResources(u64 title_id, std::stop_token stop_load
 }
 
 void RasterizerOpenGL::Clear(u32 layer_count) {
-    MICROPROFILE_SCOPE(OpenGL_Clears);
-
     gpu_memory->FlushCaching();
     const auto& regs = maxwell3d->regs;
     bool use_color{};
@@ -228,9 +220,8 @@ void RasterizerOpenGL::Clear(u32 layer_count) {
 }
 
 template <typename Func>
-void RasterizerOpenGL::PrepareDraw(bool is_indexed, Func&& draw_func) {
-    MICROPROFILE_SCOPE(OpenGL_Drawing);
-
+void RasterizerOpenGL::PrepareDraw(bool is_indexed, Func&& draw_func)
+{
     SCOPE_EXIT {
         gpu.TickWork();
     };
@@ -356,8 +347,7 @@ void RasterizerOpenGL::DrawIndirect() {
 }
 
 void RasterizerOpenGL::DrawTexture() {
-    MICROPROFILE_SCOPE(OpenGL_Drawing);
-
+    
     SCOPE_EXIT {
         gpu.TickWork();
     };
@@ -486,7 +476,6 @@ void RasterizerOpenGL::DisableGraphicsUniformBuffer(size_t stage, u32 index) {
 void RasterizerOpenGL::FlushAll() {}
 
 void RasterizerOpenGL::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
-    MICROPROFILE_SCOPE(OpenGL_CacheManagement);
     if (addr == 0 || size == 0) {
         return;
     }
@@ -544,7 +533,6 @@ RasterizerDownloadArea RasterizerOpenGL::GetFlushArea(DAddr addr, u64 size) {
 }
 
 void RasterizerOpenGL::InvalidateRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
-    MICROPROFILE_SCOPE(OpenGL_CacheManagement);
     if (addr == 0 || size == 0) {
         return;
     }
@@ -565,7 +553,6 @@ void RasterizerOpenGL::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
 }
 
 bool RasterizerOpenGL::OnCPUWrite(DAddr addr, u64 size) {
-    MICROPROFILE_SCOPE(OpenGL_CacheManagement);
     if (addr == 0 || size == 0) {
         return false;
     }
@@ -587,8 +574,6 @@ bool RasterizerOpenGL::OnCPUWrite(DAddr addr, u64 size) {
 }
 
 void RasterizerOpenGL::OnCacheInvalidation(DAddr addr, u64 size) {
-    MICROPROFILE_SCOPE(OpenGL_CacheManagement);
-
     if (addr == 0 || size == 0) {
         return;
     }
@@ -718,7 +703,6 @@ bool RasterizerOpenGL::AccelerateConditionalRendering() {
 bool RasterizerOpenGL::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,
                                              const Tegra::Engines::Fermi2D::Surface& dst,
                                              const Tegra::Engines::Fermi2D::Config& copy_config) {
-    MICROPROFILE_SCOPE(OpenGL_Blits);
     std::scoped_lock lock{texture_cache.mutex};
     return texture_cache.BlitImage(dst, src, copy_config);
 }
@@ -754,7 +738,6 @@ std::optional<FramebufferTextureInfo> RasterizerOpenGL::AccelerateDisplay(
     if (framebuffer_addr == 0) {
         return {};
     }
-    MICROPROFILE_SCOPE(OpenGL_CacheManagement);
 
     std::scoped_lock lock{texture_cache.mutex};
     const auto [image_view, scaled] =
