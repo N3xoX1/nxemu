@@ -30,6 +30,7 @@ private:
     void EnableAssigningSingleOnSlSrPress(HLERequestContext& ctx);
     void DisableAssigningSingleOnSlSrPress(HLERequestContext& ctx);
     void GetLastActiveNpad(HLERequestContext& ctx);
+    void GetNpadSystemExtStyle(HLERequestContext& ctx);
     void ApplyNpadSystemCommonPolicyFull(HLERequestContext& ctx);
     void GetNpadFullKeyGripColor(HLERequestContext& ctx);
     void GetMaskedSupportedNpadStyleSet(HLERequestContext& ctx);
