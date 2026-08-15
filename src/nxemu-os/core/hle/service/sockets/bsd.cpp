@@ -8,7 +8,6 @@
 
 #include <fmt/format.h>
 
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/socket_types.h"
 #include "core/core.h"
 #include "core/hle/kernel/k_thread.h"

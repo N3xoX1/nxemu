@@ -30,8 +30,6 @@ void PhysicalCore::RunThread(Kernel::KThread * thread)
     interface->Initialize();
 
     const auto EnterContext = [&]() {
-        system.EnterCPUProfile();
-
         // Lock the core context.
         std::scoped_lock lk{m_guard};
 
@@ -62,8 +60,6 @@ void PhysicalCore::RunThread(Kernel::KThread * thread)
         // On exit, we no longer are running.
         m_cpucore = nullptr;
         m_current_thread = nullptr;
-
-        system.ExitCPUProfile();
     };
 
     while (true)

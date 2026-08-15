@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/thread.h"
@@ -13,9 +12,6 @@
 #include "yuzu_video_core/vulkan_common/vulkan_surface.h"
 
 namespace Vulkan {
-
-MICROPROFILE_DEFINE(Vulkan_WaitPresent, "Vulkan", "Wait For Present", MP_RGB(128, 128, 128));
-MICROPROFILE_DEFINE(Vulkan_CopyToSwapchain, "Vulkan", "Copy to swapchain", MP_RGB(192, 255, 192));
 
 namespace {
 
@@ -141,8 +137,6 @@ PresentManager::PresentManager(const vk::Instance& instance_,
 PresentManager::~PresentManager() = default;
 
 Frame* PresentManager::GetRenderFrame() {
-    MICROPROFILE_SCOPE(Vulkan_WaitPresent);
-
     // Wait for free presentation frames
     std::unique_lock lock{free_mutex};
     free_cv.wait(lock, [this] { return !free_queue.empty(); });
@@ -325,8 +319,6 @@ void PresentManager::CopyToSwapchain(Frame* frame) {
 }
 
 void PresentManager::CopyToSwapchainImpl(Frame* frame) {
-    MICROPROFILE_SCOPE(Vulkan_CopyToSwapchain);
-
     // If the size of the incoming frames has changed, recreate the swapchain
     // to account for that.
     const bool is_suboptimal = swapchain.NeedsRecreation();

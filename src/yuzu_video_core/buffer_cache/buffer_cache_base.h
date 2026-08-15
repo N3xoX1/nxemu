@@ -17,7 +17,6 @@
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/range_sets.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
@@ -34,10 +33,6 @@
 #include "yuzu_video_core/texture_cache/types.h"
 
 namespace VideoCommon {
-
-MICROPROFILE_DECLARE(GPU_PrepareBuffers);
-MICROPROFILE_DECLARE(GPU_BindUploadBuffers);
-MICROPROFILE_DECLARE(GPU_DownloadMemory);
 
 using BufferId = Common::SlotId;
 

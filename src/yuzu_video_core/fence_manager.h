@@ -14,7 +14,6 @@
 #include <queue>
 
 #include "yuzu_common/common_types.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/thread.h"
@@ -194,15 +193,8 @@ private:
     }
 
     void ReleaseThreadFunc(std::stop_token stop_token) {
-        std::string name = "GPUFencingThread";
-        MicroProfileOnThreadCreate(name.c_str());
-
         // Cleanup
-        SCOPE_EXIT {
-            MicroProfileOnThreadExit();
-        };
-
-        Common::SetCurrentThreadName(name.c_str());
+        Common::SetCurrentThreadName("GPUFencingThread");
         Common::SetCurrentThreadPriority(Common::ThreadPriority::High);
 
         TFence current_fence;

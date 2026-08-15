@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_common/fiber.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/thread.h"
 #include "yuzu_common/hardware_properties.h"
@@ -192,7 +191,6 @@ void CpuManager::RunThread(std::stop_token token, std::size_t core) {
     } else {
         name = "CPUThread";
     }
-    MicroProfileOnThreadCreate(name.c_str());
     Common::SetCurrentThreadName(name.c_str());
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     auto& data = core_data[core];
@@ -201,7 +199,6 @@ void CpuManager::RunThread(std::stop_token token, std::size_t core) {
     // Cleanup
     SCOPE_EXIT {
         data.host_context->Exit();
-        MicroProfileOnThreadExit();
     };
 
     // Running

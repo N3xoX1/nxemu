@@ -168,9 +168,6 @@
     <ClInclude Include="math_util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="microprofile.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="overflow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -390,9 +387,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="hex_util.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="microprofile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="page_table.cpp">

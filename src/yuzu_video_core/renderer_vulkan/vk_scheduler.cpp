@@ -8,7 +8,6 @@
 
 #include "yuzu_video_core/renderer_vulkan/vk_query_cache.h"
 
-#include "yuzu_common/microprofile.h"
 #include "yuzu_common/thread.h"
 #include "yuzu_video_core/renderer_vulkan/vk_command_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
@@ -20,8 +19,6 @@
 #include "video_settings.h"
 
 namespace Vulkan {
-
-MICROPROFILE_DECLARE(Vulkan_WaitForWorker);
 
 void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
                                          vk::CommandBuffer upload_cmdbuf) {
@@ -65,7 +62,6 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore)
 }
 
 void Scheduler::WaitWorker() {
-    MICROPROFILE_SCOPE(Vulkan_WaitForWorker);
     DispatchWork();
 
     // Ensure the queue is drained.

@@ -3,16 +3,12 @@
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
-#include "yuzu_common/microprofile.h"
 #include "yuzu_video_core/engines/fermi_2d.h"
 #include "yuzu_video_core/engines/sw_blitter/blitter.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/textures/decoders.h"
-
-MICROPROFILE_DECLARE(GPU_BlitEngine);
-MICROPROFILE_DEFINE(GPU_BlitEngine, "GPU", "Blit Engine", MP_RGB(224, 224, 128));
 
 using VideoCore::Surface::BytesPerBlock;
 using VideoCore::Surface::PixelFormatFromRenderTargetFormat;
@@ -61,9 +57,7 @@ void Fermi2D::ConsumeSinkImpl() {
 }
 
 void Fermi2D::Blit() {
-    MICROPROFILE_SCOPE(GPU_BlitEngine);
-    LOG_DEBUG(HW_GPU, "called. source address=0x{:x}, destination address=0x{:x}",
-              regs.src.Address(), regs.dst.Address());
+    LOG_DEBUG(HW_GPU, "called. source address=0x{:x}, destination address=0x{:x}", regs.src.Address(), regs.dst.Address());
 
     UNIMPLEMENTED_IF_MSG(regs.operation != Operation::SrcCopy, "Operation is not copy");
     UNIMPLEMENTED_IF_MSG(regs.src.layer != 0, "Source layer is not zero");
