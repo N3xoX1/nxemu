@@ -409,7 +409,7 @@ Result FSP_SRV::OpenDataStorageWithProgramIndex(OutInterface<IStorage> out_inter
 Result FSP_SRV::DisableAutoSaveDataCreation()
 {
     LOG_DEBUG(Service_FS, "called");
-    UNIMPLEMENTED();
+    save_data_controller->SetAutoCreate(false);
     R_SUCCEED();
 }
 

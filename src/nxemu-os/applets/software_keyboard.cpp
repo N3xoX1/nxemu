@@ -44,7 +44,7 @@ void DefaultSoftwareKeyboardApplet::ShowNormalKeyboard() const
 {
     LOG_WARNING(Service_AM, "(STUBBED) called, backend requested to show the normal software keyboard.");
 
-    SubmitNormalText(u"yuzu");
+    SubmitNormalText(u"nxemu");
 }
 
 void DefaultSoftwareKeyboardApplet::ShowTextCheckDialog(uint32_t text_check_result_raw, const uint16_t * message_utf16, uint32_t message_utf16_unit_count) const
