@@ -29,6 +29,7 @@
 #include "core/hle/service/ns/language.h"
 #include "core/hle/service/set/settings_server.h"
 #include "core/loader/loader.h"
+#include "core/loader/nso.h"
 #include "loader_settings.h"
 
 extern IModuleSettings * g_settings;
@@ -337,8 +338,80 @@ std::vector<VirtualFile> PatchManager::CollectPatches(const std::vector<VirtualD
 
 std::vector<u8> PatchManager::PatchNSO(const std::vector<u8> & nso, const std::string & name) const
 {
-    UNIMPLEMENTED();
-    return {};
+    if (nso.size() < sizeof(Loader::NSOHeader))
+    {
+        return nso;
+    }
+
+    Loader::NSOHeader header;
+    std::memcpy(&header, nso.data(), sizeof(header));
+
+    if (header.magic != Common::MakeMagic('N', 'S', 'O', '0'))
+    {
+        return nso;
+    }
+
+    const std::string build_id_raw = Common::HexToString(header.build_id);
+    const std::string build_id = build_id_raw.substr(0, build_id_raw.find_last_not_of('0') + 1);
+
+    if (Settings::values.dump_nso)
+    {
+        LOG_INFO(Loader, "Dumping NSO for name={}, build_id={}, title_id={:016X}", name, build_id, title_id);
+        const VirtualDir dump_dir = fs_controller.GetModificationDumpRoot(title_id);
+        if (dump_dir != nullptr)
+        {
+            const VirtualDir nso_dir = GetOrCreateDirectoryRelative(dump_dir, "/nso");
+            const VirtualFile file = nso_dir->CreateFile(fmt::format("{}-{}.nso", name, build_id));
+
+            file->Resize(nso.size());
+            file->WriteBytes(nso);
+        }
+    }
+
+    LOG_INFO(Loader, "Patching NSO for name={}, build_id={}", name, build_id);
+
+    const VirtualDir load_dir = fs_controller.GetModificationLoadRoot(title_id);
+    if (load_dir == nullptr)
+    {
+        LOG_ERROR(Loader, "Cannot load mods for invalid title_id={:016X}", title_id);
+        return nso;
+    }
+
+    std::vector<VirtualDir> patch_dirs = load_dir->GetSubdirectories();
+    std::sort(patch_dirs.begin(), patch_dirs.end(), [](const VirtualDir & l, const VirtualDir & r) { return l->GetName() < r->GetName(); });
+    const std::vector<VirtualFile> patches = CollectPatches(patch_dirs, build_id);
+
+    std::vector<u8> out = nso;
+    for (const VirtualFile & patch_file : patches)
+    {
+        if (patch_file->GetExtension() == "ips")
+        {
+            LOG_INFO(Loader, "    - Applying IPS patch from mod \"{}\"", patch_file->GetContainingDirectory()->GetParentDirectory()->GetName());
+            const VirtualFile patched = PatchIPS(std::make_shared<VectorVfsFile>(out), patch_file);
+            if (patched != nullptr)
+            {
+                out = patched->ReadAllBytes();            
+            }
+        }
+        else if (patch_file->GetExtension() == "pchtxt")
+        {
+            LOG_INFO(Loader, "    - Applying IPSwitch patch from mod \"{}\"", patch_file->GetContainingDirectory()->GetParentDirectory()->GetName());
+            const IPSwitchCompiler compiler{patch_file};
+            const VirtualFile patched = compiler.Apply(std::make_shared<VectorVfsFile>(out));
+            if (patched != nullptr)
+            {            
+                out = patched->ReadAllBytes();
+            }
+        }
+    }
+
+    if (out.size() < sizeof(Loader::NSOHeader))
+    {
+        return nso;
+    }
+
+    std::memcpy(out.data(), &header, sizeof(header));
+    return out;
 }
 
 bool PatchManager::HasNSOPatch(const BuildID & build_id_, std::string_view name) const
