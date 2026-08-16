@@ -44,7 +44,7 @@ IHidSystemServer::IHidSystemServer(Core::System& system_, std::shared_ptr<Resour
         {304, &IHidSystemServer::EnableAssigningSingleOnSlSrPress, "EnableAssigningSingleOnSlSrPress"},
         {305, &IHidSystemServer::DisableAssigningSingleOnSlSrPress, "DisableAssigningSingleOnSlSrPress"},
         {306, &IHidSystemServer::GetLastActiveNpad, "GetLastActiveNpad"},
-        {307, nullptr, "GetNpadSystemExtStyle"},
+        {307, &IHidSystemServer::GetNpadSystemExtStyle, "GetNpadSystemExtStyle"},
         {308, &IHidSystemServer::ApplyNpadSystemCommonPolicyFull, "ApplyNpadSystemCommonPolicyFull"},
         {309, &IHidSystemServer::GetNpadFullKeyGripColor, "GetNpadFullKeyGripColor"},
         {310, &IHidSystemServer::GetMaskedSupportedNpadStyleSet, "GetMaskedSupportedNpadStyleSet"},
@@ -297,6 +297,21 @@ void IHidSystemServer::GetLastActiveNpad(HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(result);
     rb.PushEnum(npad_id);
+}
+
+void IHidSystemServer::GetNpadSystemExtStyle(HLERequestContext& ctx) {
+    LOG_DEBUG(Service_HID, "called");
+
+    NpadStyleSet style_set{};
+    Result result = GetResourceManager()->GetNpad()->GetSupportedNpadStyleSet(0, style_set);
+    if (R_FAILED(result)) {
+        style_set = NpadStyleSet::All;
+        result = ResultSuccess;
+    }
+
+    IPC::ResponseBuilder rb{ctx, 4};
+    rb.Push(result);
+    rb.Push((u64)style_set);
 }
 
 void IHidSystemServer::ApplyNpadSystemCommonPolicyFull(HLERequestContext& ctx) {
