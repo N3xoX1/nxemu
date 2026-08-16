@@ -268,6 +268,7 @@ bool GameConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint
         {
             m_gameConfigAddons->SaveSetting();
         }
+        m_revertAddonsOnClose = false;
         if (m_window != nullptr)
         {
             m_window->Destroy();
