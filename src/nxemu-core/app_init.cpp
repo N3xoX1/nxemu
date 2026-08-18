@@ -23,7 +23,7 @@ bool AppInit(INotification * notification, const char * baseDirectory, const cha
         return false;
     }
 
-    Path config_path(app_base, "NxEmu.config");
+    Path config_path(appDirectory, "NxEmu.config");
     config_path.AppendDirectory("config");
 
     g_notify = notification;

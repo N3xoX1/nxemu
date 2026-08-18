@@ -81,7 +81,7 @@ static void EnablePerMonitorDpiAwareness()
 int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpszArgs*/, _In_ int /*nWinMode*/)
 {
     EnablePerMonitorDpiAwareness();
-    bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::PathToUTF8String(Common::FS::GetDefaultAppStorageDirectory()).c_str());
+    bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
 
     if (uiSettings.performVulkanCheck)
     {
