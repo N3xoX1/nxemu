@@ -84,7 +84,6 @@ enum
     EVENT_DISK_CACHE_STATUS = 0x2004,
     EVENT_FIRMWARE_INSTALL_DONE = 0x2005,
     EVENT_FIRMWARE_INSTALL_ACTIVE = 0x2006,
-    EVENT_FIRMWARE_INSTALL_FINISHED = 0x2007,
 };
 
 const uint32_t kKeyboardStateControl = 0x0040u | 0x0080u;
@@ -226,6 +225,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>()),
     m_firmwareInstallInProgress(false),
     m_firmwareInstallUiActive(false),
+    m_firmwareInstallLastTotal(0),
     m_mouseCursorHidden(false),
     m_lastMouseActivityTick(0),
     m_lastTrackedMouseX(0),
@@ -876,6 +876,10 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
 
     if (state == EmulationState::RomLoaded)
     {
+        if (impl->m_firmwareInstallUiActive && !impl->m_firmwareInstallInProgress)
+        {
+            impl->StopFirmwareInstallUi();
+        }
         impl->UpdateLoadingScreenDetails();
         SciterElement loadingMain(impl->m_rootElement.FindFirst("#LoadingPanel .loading-main"));
         if (loadingMain.IsValid())
@@ -1165,6 +1169,12 @@ void SciterMainWindow::StartFirmwareInstallUi()
         return;
     }
 
+    const int32_t total = SettingsStore::GetInstance().GetInt(NXLoaderSetting::FirmwareInstallTotal);
+    if (total <= 0 && !m_firmwareInstallInProgress)
+    {
+        return;
+    }
+
     m_firmwareInstallUiActive = true;
 
     SciterElement fillEl(m_rootElement.GetElementByID("LoadingProgressFill"));
@@ -1224,6 +1234,7 @@ void SciterMainWindow::StopFirmwareInstallUi()
     }
     else if (state == EmulationState::RomLoaded)
     {
+        UpdateLoadingScreenDetails();
         ShowPanel(Panel::Loading);
         RefreshDiskCacheLoadingText();
     }
@@ -1241,16 +1252,21 @@ void SciterMainWindow::StopFirmwareInstallUi()
 
 void SciterMainWindow::FinishFirmwareInstall()
 {
-    if (m_firmwareInstallThread.joinable())
+    StopFirmwareInstallUi();
+
+    if (m_firmwareInstallThread.joinable() && !m_firmwareInstallInProgress)
     {
         m_firmwareInstallThread.join();
     }
-    m_firmwareInstallInProgress = false;
-    StopFirmwareInstallUi();
-    UpdateEmulationStatusText();
-    if (!m_emulationRunning)
+
+    if (!m_firmwareInstallThread.joinable())
     {
-        ResetMenu();
+        m_firmwareInstallInProgress = false;
+        UpdateEmulationStatusText();
+        if (!m_emulationRunning)
+        {
+            ResetMenu();
+        }
     }
 }
 
@@ -1267,6 +1283,7 @@ void SciterMainWindow::BeginFirmwareInstall(const char * utf8_path)
     const std::string path = utf8_path;
     m_firmwareInstallThread = std::thread([this, path]() {
         m_modules.Modules().Systemloader().InstallFirmwarePackage(path.c_str());
+        m_firmwareInstallInProgress = false;
         m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_DONE);
     });
 }
@@ -1275,13 +1292,15 @@ void SciterMainWindow::FirmwareInstallTotalChanged(const char * /*setting*/, voi
 {
     SciterMainWindow * impl = static_cast<SciterMainWindow *>(userData);
     const int32_t total = SettingsStore::GetInstance().GetInt(NXLoaderSetting::FirmwareInstallTotal);
+    const int32_t previous = impl->m_firmwareInstallLastTotal;
+    impl->m_firmwareInstallLastTotal = total;
     if (total > 0)
     {
         impl->m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_ACTIVE);
     }
-    else if (impl->m_firmwareInstallUiActive)
+    else if (previous > 0)
     {
-        impl->m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_FINISHED);
+        impl->m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_DONE);
     }
 }
 
@@ -2258,7 +2277,15 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     {
         if (m_firmwareInstallUiActive)
         {
-            RefreshFirmwareInstallLoading();
+            const int32_t total = SettingsStore::GetInstance().GetInt(NXLoaderSetting::FirmwareInstallTotal);
+            if (total <= 0 && !m_firmwareInstallInProgress)
+            {
+                StopFirmwareInstallUi();
+            }
+            else
+            {
+                RefreshFirmwareInstallLoading();
+            }
         }
     }
     else if (timerId == (uint32_t *)TIMER_OPEN_GAME_CONFIG)
@@ -2338,10 +2365,6 @@ bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/
     else if (event_code == EVENT_FIRMWARE_INSTALL_ACTIVE)
     {
         StartFirmwareInstallUi();
-    }
-    else if (event_code == EVENT_FIRMWARE_INSTALL_FINISHED)
-    {
-        StopFirmwareInstallUi();
     }
     else if (event_code == EVENT_FIRMWARE_INSTALL_DONE)
     {
