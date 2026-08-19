@@ -156,7 +156,7 @@ private:
     s64 global_timer = 0;
 
 #ifdef _WIN32
-    s64 timer_resolution_ns;
+    s64 timer_resolution_ns{1'000'000};
 #endif
 
     using heap_t =

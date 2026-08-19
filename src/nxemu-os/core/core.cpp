@@ -32,6 +32,10 @@
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-video/video_settings_identifiers.h>
 
+#ifdef _WIN32
+#include "yuzu_common/windows/timer_resolution.h"
+#endif
+
 extern IModuleSettings * g_settings;
 
 namespace Core {
@@ -60,6 +64,12 @@ struct System::Impl {
     void Initialize(System& system)
     {
         is_multicore = true; // osSettings.use_multi_core;
+
+#ifdef _WIN32
+        const std::chrono::nanoseconds timer_resolution = Common::Windows::SetCurrentTimerResolutionToMaximum();
+        core_timing.SetTimerResolutionNs(timer_resolution);
+        LOG_INFO(Core, "Host Timer Resolution: {:.4f} ms", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(timer_resolution).count());
+#endif
 
         core_timing.SetMulticore(is_multicore);
         core_timing.Initialize([&system]() { system.RegisterHostThread(); });
