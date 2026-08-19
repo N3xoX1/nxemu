@@ -26,10 +26,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x0129,
+    MODULE_LOADER_SPECS_VERSION = 0x012A,
     MODULE_VIDEO_SPECS_VERSION = 0x011D,
     MODULE_CPU_SPECS_VERSION = 0x0112,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011A,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011B,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -300,6 +300,12 @@ nxinterface ISystemModules
     virtual IOperatingSystem & OperatingSystem() = 0;
     virtual IVideo & Video() = 0;
     virtual ICpu & Cpu() = 0;
+};
+
+enum class ApplicationLaunchType : uint32_t
+{
+    FrontendInitiated = 0,
+    ApplicationInitiated = 1,
 };
 
 /*

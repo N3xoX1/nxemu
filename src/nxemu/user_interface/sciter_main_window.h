@@ -4,6 +4,7 @@
 #include "startup_checks.h"
 #include "user_interface/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
+#include <deque>
 #include <map>
 #include <memory>
 #include <string>
@@ -93,7 +94,7 @@ public:
     bool Show();
     void ShowConfig(const char * startPage);
     void ShowGameConfig(const char * gamePath);
-    void LoadGame(const char * path);
+    void LoadGame(const char * path, int32_t program_index = 0, ApplicationLaunchType launch_type = ApplicationLaunchType::FrontendInitiated);
     void OpenGameSaveDataLocation(const char * gamePath);
     void OpenGameModDataLocation(const char * gamePath);
     void OpenSaveDataFolderForUser(uint64_t programId, const uint8_t uuidBytes[HOST_PROFILE_UUID_SIZE]);
@@ -130,6 +131,12 @@ private:
     void OnStopGame();
     void DoStopGame();
     void OnPauseContinueGame();
+    void OnExecuteProgram(uint64_t program_index);
+    void OnReloadProgram();
+    void OnExitProgram();
+    static void ExecuteProgramCallbackThunk(size_t program_index, void * userData);
+    static void ExitCallbackThunk(void * userData);
+    static void CollectUserChannelEntry(const uint8_t * data, uint32_t size, void * userData);
     void OnSystemConfig();
     void OnInputConfig();
     void OnInstallFirmwareFromFile();
@@ -175,6 +182,7 @@ private:
     void ShowPanel(Panel panel);
     void RefreshDiskCacheLoadingText();
     void RegisterApplets();
+    void RegisterSystemCallbacks();
 
     // IWindowDestroySink
     void OnWindowDestroy(HWINDOW hWnd) override;
@@ -229,6 +237,7 @@ private:
     bool m_useSpeedLimit;
     uint32_t m_speedLimit;
     bool m_emulationRunning;
+    bool m_reloadingGame;
     bool m_pendingStartInFullscreen;
     bool m_pendingStartWithUiHidden;
     std::map<std::string, std::string> m_menuIconSvgs;
@@ -245,4 +254,10 @@ private:
     int32_t m_lastTrackedMouseX;
     int32_t m_lastTrackedMouseY;
     DiscordPresence m_discordPresence;
+    std::deque<std::vector<uint8_t>> m_pendingUserChannel;
+    std::string m_pendingReloadPath;
+    int32_t m_currentProgramIndex;
+    int32_t m_previousProgramIndex;
+    int32_t m_pendingReloadProgramIndex;
+    ApplicationLaunchType m_pendingReloadLaunchType;
 };
