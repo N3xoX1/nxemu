@@ -542,13 +542,13 @@ bool Systemloader::SelectAndLoad(void * parentWindow)
     {
         return false;
     }
-    return LoadRom(fileName.c_str());
+    return LoadRom(fileName.c_str(), 0, -1, ApplicationLaunchType::FrontendInitiated);
 #else
     return false;
 #endif
 }
 
-bool Systemloader::LoadRom(const char * fileName)
+bool Systemloader::LoadRom(const char * fileName, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
     if (fileName == nullptr || fileName[0] == '\0')
     {
@@ -558,7 +558,7 @@ bool Systemloader::LoadRom(const char * fileName)
     impl->PrepareFirmwareForLoad(fileName);
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::LoadingRom);
     impl->m_file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
-    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, 0, 0);
+    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, 0, program_index);
     if (!impl->m_appLoader)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
@@ -603,6 +603,9 @@ bool Systemloader::LoadRom(const char * fileName)
         LOG_ERROR(Core, "Failed to read title for ROM!");
     }
 
+    IOperatingSystem & operatingSystem = impl->m_modules.OperatingSystem();
+    operatingSystem.SetApplicationLaunchParameters(program_index, previous_program_index, launch_type);
+
     const auto [load_result, load_parameters] = app_loader->Load(*this, impl->m_modules);
     if (load_result != LoaderResultStatus::Success)
     {
@@ -633,7 +636,6 @@ bool Systemloader::LoadRom(const char * fileName)
     StorageId baseGameStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(impl->m_titleID, LoaderContentRecordType::Program));
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
 
-    IOperatingSystem & operatingSystem = impl->m_modules.OperatingSystem();
     operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size());
     return true;
 }

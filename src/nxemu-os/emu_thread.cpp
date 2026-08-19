@@ -109,6 +109,7 @@ void EmuThread::Stop()
     impl->m_stop_source.request_stop();
     {
         std::lock_guard<std::mutex> lk{impl->m_should_run_mutex};
+        impl->m_should_run.store(false, std::memory_order_release);
         impl->m_should_run_cv.notify_one();
     }
 }

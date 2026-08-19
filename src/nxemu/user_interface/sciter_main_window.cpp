@@ -84,6 +84,10 @@ enum
     EVENT_DISK_CACHE_STATUS = 0x2004,
     EVENT_FIRMWARE_INSTALL_DONE = 0x2005,
     EVENT_FIRMWARE_INSTALL_ACTIVE = 0x2006,
+    EVENT_FIRMWARE_INSTALL_FINISHED = 0x2007,
+    EVENT_EXECUTE_PROGRAM = 0x2008,
+    EVENT_EXIT_PROGRAM = 0x2009,
+    EVENT_RELOAD_PROGRAM = 0x200A,
 };
 
 const uint32_t kKeyboardStateControl = 0x0040u | 0x0080u;
@@ -229,7 +233,12 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_mouseCursorHidden(false),
     m_lastMouseActivityTick(0),
     m_lastTrackedMouseX(0),
-    m_lastTrackedMouseY(0)
+    m_lastTrackedMouseY(0),
+    m_reloadingGame(false),
+    m_currentProgramIndex(0),
+    m_previousProgramIndex(-1),
+    m_pendingReloadProgramIndex(-1),
+    m_pendingReloadLaunchType(ApplicationLaunchType::FrontendInitiated)
 {
     SettingsStore & settings = SettingsStore::GetInstance();
     settings.RegisterCallback(NXCoreSetting::EmulationRunning, SciterMainWindow::EmulationRunning, this);
@@ -374,6 +383,101 @@ void SciterMainWindow::RegisterApplets()
     os.SetFrontendApplets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &m_ProfileSelect, nullptr, &m_WebBrowser);
 }
 
+void SciterMainWindow::RegisterSystemCallbacks()
+{
+    if (!m_modules.IsValid())
+    {
+        return;
+    }
+    IOperatingSystem & os = m_modules.Modules().OperatingSystem();
+    os.RegisterExecuteProgramCallback(&SciterMainWindow::ExecuteProgramCallbackThunk, this);
+    os.RegisterExitCallback(&SciterMainWindow::ExitCallbackThunk, this);
+}
+
+void SciterMainWindow::CollectUserChannelEntry(const uint8_t * data, uint32_t size, void * userData)
+{
+    SciterMainWindow * impl = (SciterMainWindow *)userData;
+    if (data == nullptr || size == 0)
+    {
+        impl->m_pendingUserChannel.emplace_back();
+        return;
+    }
+    impl->m_pendingUserChannel.emplace_back(data, data + size);
+}
+
+void SciterMainWindow::ExecuteProgramCallbackThunk(size_t program_index, void * userData)
+{
+    SciterMainWindow * impl = (SciterMainWindow *)userData;
+    if (!impl->m_modules.IsValid())
+    {
+        return;
+    }
+
+    impl->m_pendingUserChannel.clear();
+    impl->m_modules.Modules().OperatingSystem().ExportUserChannel(&SciterMainWindow::CollectUserChannelEntry, impl);
+    impl->m_rootElement.PostEvent(EVENT_EXECUTE_PROGRAM, program_index);
+}
+
+void SciterMainWindow::ExitCallbackThunk(void * userData)
+{
+    SciterMainWindow * impl = static_cast<SciterMainWindow *>(userData);
+    impl->m_rootElement.PostEvent(EVENT_EXIT_PROGRAM);
+}
+
+void SciterMainWindow::OnExecuteProgram(uint64_t program_index)
+{
+    const std::string path = SettingsStore::GetInstance().GetString(NXCoreSetting::GameFile);
+    if (path.empty())
+    {
+        m_pendingUserChannel.clear();
+        return;
+    }
+    LoadGame(path.c_str(), (int32_t)program_index, ApplicationLaunchType::ApplicationInitiated);
+}
+
+void SciterMainWindow::OnExitProgram()
+{
+    if (m_reloadingGame)
+    {
+        return;
+    }
+    if (!m_emulationRunning)
+    {
+        return;
+    }
+    if (m_currentProgramIndex != 0)
+    {
+        const std::string path = SettingsStore::GetInstance().GetString(NXCoreSetting::GameFile);
+        if (!path.empty())
+        {
+            const int32_t previous_index = m_previousProgramIndex >= 0 ? m_previousProgramIndex : 0;
+            LoadGame(path.c_str(), previous_index, ApplicationLaunchType::ApplicationInitiated);
+            return;
+        }
+    }
+
+    AllowOSSleep();
+    SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+}
+
+void SciterMainWindow::OnReloadProgram()
+{
+    if (m_pendingReloadPath.empty())
+    {
+        m_reloadingGame = false;
+        return;
+    }
+
+    const std::string path = std::move(m_pendingReloadPath);
+    const int32_t program_index = m_pendingReloadProgramIndex;
+    const ApplicationLaunchType launch_type = m_pendingReloadLaunchType;
+    m_pendingReloadPath.clear();
+    m_pendingReloadProgramIndex = -1;
+    m_pendingReloadLaunchType = ApplicationLaunchType::FrontendInitiated;
+
+    LoadGame(path.c_str(), program_index, launch_type);
+}
+
 void SciterMainWindow::ResetMenu()
 {
     if (m_menuBar == nullptr)
@@ -510,6 +614,7 @@ bool SciterMainWindow::Show()
     CreateRenderWindow();
     m_modules.Setup(*this);
     RegisterApplets();
+    RegisterSystemCallbacks();
     ResetMenu();
     UpdateStatusWidgets();
     UpdateEmulationStatusText();
@@ -573,13 +678,38 @@ void SciterMainWindow::ShowGameConfig(const char * gamePath)
     m_rootElement.SetTimer(1, (uint32_t *)TIMER_OPEN_GAME_CONFIG);
 }
 
-void SciterMainWindow::LoadGame(const char * path)
+void SciterMainWindow::LoadGame(const char * path, int32_t program_index, ApplicationLaunchType launch_type)
 {
+    SettingsStore & settings = SettingsStore::GetInstance();
+    const int32_t previous_program_index = launch_type == ApplicationLaunchType::ApplicationInitiated ? m_currentProgramIndex : -1;
+    if (settings.GetBool(NXCoreSetting::EmulationRunning) && launch_type == ApplicationLaunchType::ApplicationInitiated)
+    {
+        m_pendingReloadPath = path != nullptr ? path : "";
+        m_pendingReloadProgramIndex = program_index;
+        m_pendingReloadLaunchType = launch_type;
+        m_reloadingGame = true;
+        settings.SetBool(NXCoreSetting::EmulationRunning, false);
+        return;
+    }
+
+    std::deque<std::vector<uint8_t>> pendingUserChannel = std::move(m_pendingUserChannel);
+    m_pendingUserChannel.clear();
+
     m_modules.Setup(*this);
     RegisterApplets();
+    RegisterSystemCallbacks();
+
+    IOperatingSystem & operatingSystem = m_modules.Modules().OperatingSystem();
+    for (const auto & entry : pendingUserChannel)
+    {
+        operatingSystem.PushUserChannelEntry(entry.data(), static_cast<uint32_t>(entry.size()));
+    }
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
-    loader.LoadRom(path);
+    loader.LoadRom(path, program_index, previous_program_index, launch_type);
+    m_currentProgramIndex = program_index;
+    m_previousProgramIndex = previous_program_index;
+    m_reloadingGame = false;
     UpdateEmulationStatusText();
 }
 
@@ -808,6 +938,11 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     SciterMainWindow * impl = (SciterMainWindow *)userData;
     SettingsStore & settings = SettingsStore::GetInstance();
     impl->m_emulationRunning = settings.GetBool(NXCoreSetting::EmulationRunning);
+    if (!impl->m_emulationRunning && impl->m_pendingReloadProgramIndex != -1)
+    {
+        impl->m_rootElement.PostEvent(EVENT_RELOAD_PROGRAM);
+        return;
+    }
     impl->m_pendingStartInFullscreen = impl->m_emulationRunning && uiSettings.startGamesInFullscreen;
     impl->m_pendingStartWithUiHidden = impl->m_emulationRunning && uiSettings.startGamesWithUiHidden;
     if (!impl->m_emulationRunning && impl->m_win32Fullscreen && impl->m_win32Fullscreen->active)
@@ -926,6 +1061,10 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
     }
     else if (state == EmulationState::Stopped)
     {
+        if (impl->m_reloadingGame)
+        {
+            return;
+        }
         impl->m_rootElement.PostEvent(EVENT_EMULATION_STOPPED);
     }
 }
@@ -1089,6 +1228,7 @@ void SciterMainWindow::OnOpenFile()
 
     m_modules.Setup(*this);
     RegisterApplets();
+    RegisterSystemCallbacks();
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
     loader.SelectAndLoad((void *)m_window->GetHandle());
@@ -2312,7 +2452,7 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     return true;
 }
 
-bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t /*reason*/)
+bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t reason)
 {
     if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::PopupDismissed) && m_window != nullptr)
     {
@@ -2349,6 +2489,18 @@ bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/
         m_shownFirstFrame = false;
         ResetMouseCursorHiding();
         ShowPanel(Panel::RomBrowser);
+    }
+    else if (event_code == EVENT_EXECUTE_PROGRAM)
+    {
+        OnExecuteProgram(reason);
+    }
+    else if (event_code == EVENT_RELOAD_PROGRAM)
+    {
+        OnReloadProgram();
+    }
+    else if (event_code == EVENT_EXIT_PROGRAM)
+    {
+        OnExitProgram();
     }
     else if (event_code == EVENT_EMULATION_FIRST_FRAME)
     {
