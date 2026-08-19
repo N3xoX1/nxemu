@@ -248,6 +248,7 @@ private:
     std::unique_ptr<Win32FullscreenState> m_win32Fullscreen;
     bool m_firmwareInstallInProgress;
     bool m_firmwareInstallUiActive;
+    int32_t m_firmwareInstallLastTotal;
     std::thread m_firmwareInstallThread;
     bool m_mouseCursorHidden;
     uint64_t m_lastMouseActivityTick;
