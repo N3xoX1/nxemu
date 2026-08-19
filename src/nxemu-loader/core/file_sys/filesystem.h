@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <vector>
 #include "core/file_sys/vfs/vfs_types.h"
 #include <yuzu_common/common_types.h>
 #include <nxemu-module-spec/system_loader.h>
@@ -42,6 +43,7 @@ public:
     FileSys::VirtualDir GetSDMCModificationLoadRoot(uint64_t title_id) const;
     FileSys::VirtualDir GetModificationLoadRoot(uint64_t title_id) const;
     FileSys::VirtualDir GetModificationDumpRoot(uint64_t title_id) const;
+    std::vector<FileSys::VirtualDir> GetAddOnModificationLoadRoots(uint64_t title_id) const;
 
     FileSys::VirtualDir GetSystemNANDContentDirectory() const;
 
