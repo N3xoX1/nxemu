@@ -520,6 +520,9 @@ nxinterface ICacheInvalidator
 };
 
 typedef void (*DeviceEnumCallback)(const char * device, void * userData);
+typedef void (*ExecuteProgramCallback)(size_t program_index, void * userData);
+typedef void (*ExitCallback)(void * userData);
+typedef void (*UserChannelEntryCallback)(const uint8_t * data, uint32_t size, void * userData);
 
 nxinterface IParamPackage
 {
@@ -705,6 +708,11 @@ nxinterface IOperatingSystem
     virtual bool RemoveProfile(const uint8_t uuid[HOST_PROFILE_UUID_SIZE]) = 0;
     virtual bool SetProfileImage(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], const uint8_t * image_data, uint32_t image_size) = 0;
     virtual bool GetProfileImagePath(const uint8_t uuid[HOST_PROFILE_UUID_SIZE], char * out_path, uint32_t out_path_size) const = 0;
+    virtual void SetApplicationLaunchParameters(int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) = 0;
+    virtual void RegisterExecuteProgramCallback(ExecuteProgramCallback callback, void * userData) = 0;
+    virtual void RegisterExitCallback(ExitCallback callback, void * userData) = 0;
+    virtual void ExportUserChannel(UserChannelEntryCallback callback, void * userData) = 0;
+    virtual void PushUserChannelEntry(const uint8_t * data, uint32_t size) = 0;
 };
 
 EXPORT IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules);

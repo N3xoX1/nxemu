@@ -133,7 +133,10 @@ extern IModuleSettings * g_settings;
 OSManager::OSManager(ISystemModules & modules) :
     m_modules(modules),
     m_coreSystem(modules),
-    m_applicationProcess(nullptr)
+    m_applicationProcess(nullptr),
+    m_programIndex(0),
+    m_previousProgramIndex(-1),
+    m_launchType(ApplicationLaunchType::FrontendInitiated)
 {
 }
 
@@ -161,6 +164,12 @@ void OSManager::EmulationStopping(bool wait)
 
     if (m_emuThread)
     {
+        m_coreSystem.SetShuttingDown(true);
+        if (m_coreSystem.IsPoweredOn())
+        {
+            m_coreSystem.SetExitRequested(true);
+            m_coreSystem.GetAppletManager().RequestExit();
+        }
         m_emuThread->Stop();
         if (wait)
         {
@@ -250,10 +259,18 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
     auto params = Service::AM::FrontendAppletParameters{
         .applet_id = Service::AM::AppletId::Application,
         .applet_type = Service::AM::AppletType::Application,
-        .launch_type = Service::AM::LaunchType::FrontendInitiated,
+        .launch_type = m_launchType == ApplicationLaunchType::ApplicationInitiated
+                           ? Service::AM::LaunchType::ApplicationInitiated
+                           : Service::AM::LaunchType::FrontendInitiated,
+        .program_index = m_programIndex,
+        .previous_program_index = m_previousProgramIndex,
     };
     params.program_id = metaData.GetTitleID();
     m_coreSystem.GetAppletManager().CreateAndInsertByFrontendAppletParameters(m_applicationProcess->GetProcessId(), params);
+
+    m_programIndex = 0;
+    m_previousProgramIndex = -1;
+    m_launchType = ApplicationLaunchType::FrontendInitiated;
 
     processID = m_applicationProcess->GetProcessId();
     baseAddress = GetInteger(m_applicationProcess->GetEntryPoint());
@@ -633,4 +650,43 @@ bool OSManager::GetProfileImagePath(const uint8_t uuid_bytes[HOST_PROFILE_UUID_S
 
     std::memcpy(out_path, path.c_str(), path.size() + 1);
     return true;
+}
+
+void OSManager::SetApplicationLaunchParameters(int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
+{
+    m_programIndex = program_index;
+    m_previousProgramIndex = previous_program_index;
+    m_launchType = launch_type;
+}
+
+void OSManager::RegisterExecuteProgramCallback(ExecuteProgramCallback callback, void * userData)
+{
+    m_coreSystem.RegisterExecuteProgramCallback(callback, userData);
+}
+
+void OSManager::RegisterExitCallback(ExitCallback callback, void * userData)
+{
+    m_coreSystem.RegisterExitCallback(callback, userData);
+}
+
+void OSManager::ExportUserChannel(UserChannelEntryCallback callback, void * userData)
+{
+    if (callback == nullptr)
+    {
+        return;
+    }
+    for (const auto & entry : m_coreSystem.GetUserChannel())
+    {
+        callback(entry.data(), (uint32_t)entry.size(), userData);
+    }
+}
+
+void OSManager::PushUserChannelEntry(const uint8_t * data, uint32_t size)
+{
+    if (data == nullptr || size == 0)
+    {
+        m_coreSystem.GetUserChannel().emplace_back();
+        return;
+    }
+    m_coreSystem.GetUserChannel().emplace_back(data, data + size);
 }

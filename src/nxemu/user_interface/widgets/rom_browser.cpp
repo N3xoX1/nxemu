@@ -230,7 +230,7 @@ bool WidgetRomBrowser::RenderUI()
     return false;
 }
 
-bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t /*reason*/)
+bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t event_code, uint64_t /*reason*/)
 {
     if (event_code == EVENT_UPDATE_LIST && !m_updatingUI)
     {
