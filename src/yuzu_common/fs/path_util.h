@@ -184,14 +184,6 @@ template <typename Path>
 #endif
 
 /**
- * Resolves the default yuzu/nxemu user data root (portable {@code user/} next to the executable,
- * or {@code %AppData%/nxemu} on Windows, or XDG paths on Linux).
- *
- * On Android this returns an empty path; the frontend must supply a directory via SetAppDirectory.
- */
-[[nodiscard]] std::filesystem::path GetDefaultAppStorageDirectory();
-
-/**
  * Sets the directory used for application storage. Used on Android where we do not know internal
  * storage until informed by the frontend.
  *

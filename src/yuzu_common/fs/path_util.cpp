@@ -55,27 +55,6 @@ namespace Common::FS {
 
 namespace fs = std::filesystem;
 
-fs::path GetDefaultAppStorageDirectory()
-{
-#ifdef _WIN32
-    fs::path yuzu_path = GetExeDirectory() / PORTABLE_DIR;
-    if (!IsDir(yuzu_path))
-    {
-        yuzu_path = GetAppDataRoamingDirectory() / NXEMU_DIR;
-    }
-    return yuzu_path;
-#elif defined(ANDROID)
-    return {};
-#else
-    fs::path yuzu_path = GetCurrentDir() / PORTABLE_DIR;
-    if (Exists(yuzu_path) && IsDir(yuzu_path))
-    {
-        return yuzu_path;
-    }
-    return GetDataDirectory("XDG_DATA_HOME") / NXEMU_DIR;
-#endif
-}
-
 /**
  * The PathManagerImpl is a singleton allowing to manage the mapping of
  * YuzuPath enums to real filesystem paths.
