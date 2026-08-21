@@ -80,10 +80,16 @@ static void EnablePerMonitorDpiAwareness()
 
 int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpszArgs*/, _In_ int /*nWinMode*/)
 {
+    const VulkanCheckResult probe = RunVulkanProbeIfChild();
+    if (probe != VULKAN_CHECK_DONE)
+    {
+        return probe == EXIT_VULKAN_AVAILABLE ? 0 : 1;
+    }
+
     EnablePerMonitorDpiAwareness();
     bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
 
-    if (uiSettings.performVulkanCheck)
+    if (res && uiSettings.performVulkanCheck)
     {
         VulkanCheckResult result = StartupVulkanChecks();
         if (result != VULKAN_CHECK_DONE)
