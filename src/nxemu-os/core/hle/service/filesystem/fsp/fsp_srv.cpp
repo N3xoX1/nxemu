@@ -224,8 +224,9 @@ Result FSP_SRV::CreateSaveDataFileSystem(FileSys::SaveDataCreationInfo save_crea
 Result FSP_SRV::CreateSaveDataFileSystemBySystemSaveDataId(SaveDataAttribute save_struct, FileSys::SaveDataCreationInfo save_create_struct)
 {
     LOG_DEBUG(Service_FS, "called save_struct = {}", DebugInfo(save_struct));
-    UNIMPLEMENTED();
-    R_SUCCEED();
+
+    IVirtualDirectoryPtr save_data_dir;
+    R_RETURN(save_data_controller->CreateSaveData(save_data_dir.GetAddressForSet(), SaveDataSpaceId::System, save_struct) ? ResultSuccess : FileSys::ResultTargetNotFound);
 }
 
 Result FSP_SRV::OpenSaveDataFileSystem(OutInterface<IFileSystem> out_interface, SaveDataSpaceId space_id, SaveDataAttribute attribute)
