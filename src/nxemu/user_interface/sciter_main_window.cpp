@@ -4,6 +4,7 @@
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
 #include "user_interface/about_dialog.h"
+#include "user_interface/app_events.h"
 #include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"
@@ -22,8 +23,8 @@
 #include <nxemu/settings/ui_identifiers.h>
 #include <sciter_element.h>
 #include <widgets/menubar.h>
-#include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
+#include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/settings.h>
 #include <yuzu_common/uuid.h>
@@ -75,21 +76,6 @@ struct Win32FullscreenState
 
 namespace
 {
-enum
-{
-    EVENT_EMULATION_LOADING = 0x2000,
-    EVENT_EMULATION_RUNNING = 0x2001,
-    EVENT_EMULATION_STOPPED = 0x2002,
-    EVENT_EMULATION_FIRST_FRAME = 0x2003,
-    EVENT_DISK_CACHE_STATUS = 0x2004,
-    EVENT_FIRMWARE_INSTALL_DONE = 0x2005,
-    EVENT_FIRMWARE_INSTALL_ACTIVE = 0x2006,
-    EVENT_FIRMWARE_INSTALL_FINISHED = 0x2007,
-    EVENT_EXECUTE_PROGRAM = 0x2008,
-    EVENT_EXIT_PROGRAM = 0x2009,
-    EVENT_RELOAD_PROGRAM = 0x200A,
-};
-
 const uint32_t kKeyboardStateControl = 0x0040u | 0x0080u;
 const uint32_t kKeyboardStateAlt = 0x0100u | 0x0200u;
 const uint32_t kKeyboardStateShift = 0x0001u | 0x0002u;

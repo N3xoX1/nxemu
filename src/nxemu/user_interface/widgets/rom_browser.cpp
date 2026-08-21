@@ -1,5 +1,6 @@
 #include "rom_browser.h"
 #include "user_interface/html_utils.h"
+#include "user_interface/app_events.h"
 #include "user_interface/sciter_main_window.h"
 #include "settings/ui_settings.h"
 #include <map>
@@ -22,7 +23,6 @@ namespace
 {
 enum
 {
-    EVENT_UPDATE_LIST = 0x1000,
     TIMER_UPDATE_UI = 1,
 };
 

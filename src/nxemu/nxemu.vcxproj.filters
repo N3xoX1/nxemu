@@ -254,6 +254,9 @@
     <ClInclude Include="applets\profile_select.h">
       <Filter>Header Files\applets</Filter>
     </ClInclude>
+    <ClInclude Include="user_interface\app_events.h">
+      <Filter>Header Files\user_interface</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="user_interface\nxemu.rc">

@@ -3,6 +3,7 @@
 #include <nxemu-module-spec/operating_system.h>
 #include <sciter_element.h>
 #include <sciter_handler.h>
+#include "user_interface/app_events.h"
 #include <mutex>
 
 class SystemModules;
@@ -31,8 +32,6 @@ public:
 private:
     ProfileSelectApplet(const ProfileSelectApplet &) = delete;
     ProfileSelectApplet & operator=(const ProfileSelectApplet &) = delete;
-
-    static constexpr uint32_t EVENT_PROFILE_SELECT = 0x2008;
 
     void ProcessPendingSelect();
     void ShowDialog();
