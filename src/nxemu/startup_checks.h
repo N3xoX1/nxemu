@@ -6,6 +6,8 @@ enum VulkanCheckResult {
     EXIT_VULKAN_NOT_AVAILABLE = 1,
     VULKAN_CHECK_DONE = 2
 };
+
+VulkanCheckResult RunVulkanProbeIfChild();
 VulkanCheckResult StartupVulkanChecks();
 
 class VkDeviceRecord {

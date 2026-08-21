@@ -263,44 +263,42 @@ bool SpawnChild(const char* arg0, PROCESS_INFORMATION* pi, int flags) {
 }
 #endif
 
-bool CheckEnvVars(bool & vulkanCreated) 
+VulkanCheckResult RunVulkanProbeIfChild()
 {
 #ifdef _WIN32
     char variable_contents[8];
     const DWORD startup_check_var = GetEnvironmentVariableA(STARTUP_CHECK_ENV_VAR, variable_contents, 8);
-    if (startup_check_var > 0 && std::strncmp(variable_contents, ENV_VAR_ENABLED_TEXT, 8) == 0) 
+    if (startup_check_var > 0 && std::strncmp(variable_contents, ENV_VAR_ENABLED_TEXT, 8) == 0)
     {
-        vulkanCreated = CheckVulkan();
-        return true;
+        return CheckVulkan() ? EXIT_VULKAN_AVAILABLE : EXIT_VULKAN_NOT_AVAILABLE;
     }
 
     char is_child_s[8];
     const DWORD is_child_len = GetEnvironmentVariableA(IS_CHILD_ENV_VAR, is_child_s, 8);
-    if (is_child_len > 0 && std::strncmp(is_child_s, ENV_VAR_ENABLED_TEXT, 8) == 0) 
+    if (is_child_len > 0 && std::strncmp(is_child_s, ENV_VAR_ENABLED_TEXT, 8) == 0)
     {
-        return false;
+        return VULKAN_CHECK_DONE;
     }
-    else if (!SetEnvironmentVariableA(IS_CHILD_ENV_VAR, ENV_VAR_ENABLED_TEXT)) 
+    else if (!SetEnvironmentVariableA(IS_CHILD_ENV_VAR, ENV_VAR_ENABLED_TEXT))
     {
-        return true;
+        return EXIT_VULKAN_NOT_AVAILABLE;
     }
 #elif defined(NXEMU_UNIX)
     const char* startup_check_var = getenv(STARTUP_CHECK_ENV_VAR);
     if (startup_check_var != nullptr &&
         std::strncmp(startup_check_var, ENV_VAR_ENABLED_TEXT, 8) == 0) {
-        CheckVulkan();
-        return true;
+        return CheckVulkan() ? EXIT_VULKAN_AVAILABLE : EXIT_VULKAN_NOT_AVAILABLE;
     }
 #endif
-    return false;
+    return VULKAN_CHECK_DONE;
 }
 
 VulkanCheckResult StartupVulkanChecks()
 {
-    bool vulkanCreated;
-    if (CheckEnvVars(vulkanCreated))
+    const VulkanCheckResult childResult = RunVulkanProbeIfChild();
+    if (childResult != VULKAN_CHECK_DONE)
     {
-        return vulkanCreated ? EXIT_VULKAN_AVAILABLE : EXIT_VULKAN_NOT_AVAILABLE;
+        return childResult;
     }
 
 #ifdef _WIN32
