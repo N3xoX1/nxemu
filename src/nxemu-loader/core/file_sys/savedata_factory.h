@@ -64,6 +64,7 @@ public:
     operator bool() const;
 
     // ISaveDataFactory
+    bool CreateSaveData(IVirtualDirectory ** out_save_data, SaveDataSpaceId space, const SaveDataAttribute & attribute) override;
     bool OpenSaveData(IVirtualDirectory ** out_save_data, SaveDataSpaceId space, const SaveDataAttribute & attribute) override;
     void SetAutoCreate(bool state) override;
     void Release() override;
