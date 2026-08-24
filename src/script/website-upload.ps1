@@ -174,6 +174,42 @@ function Upload-FilesToWebsite {
     Write-Host "Upload process completed"
 }
 
+function Get-GitHubChangeAuthor {
+    param(
+        [string]$CommitId,
+        [string]$PrNumber
+    )
+
+    $headers = @{ 'User-Agent' = 'nxemu-website-upload' }
+
+    if ($PrNumber) {
+        try {
+            $pr = Invoke-RestMethod -Uri "https://api.github.com/repos/N3xoX1/nxemu/pulls/$PrNumber" -Headers $headers
+            if ($pr.user.login) {
+                return $pr.user.login
+            }
+        } catch {
+            Write-Host "Could not fetch GitHub PR #$PrNumber : $($_.Exception.Message)"
+        }
+    }
+
+    if ($CommitId) {
+        try {
+            $commit = Invoke-RestMethod -Uri "https://api.github.com/repos/N3xoX1/nxemu/commits/$CommitId" -Headers $headers
+            if ($commit.author.login) {
+                return $commit.author.login
+            }
+            if ($commit.commit.author.name) {
+                return $commit.commit.author.name
+            }
+        } catch {
+            Write-Host "Could not fetch GitHub commit $CommitId : $($_.Exception.Message)"
+        }
+    }
+
+    return ""
+}
+
 function Parse-JenkinsChangeset {
     param(
         [System.Xml.XmlDocument]$XmlResponse
@@ -190,32 +226,56 @@ function Parse-JenkinsChangeset {
     foreach ($changeset in $changesets) {
         foreach ($item in $changeset.SelectNodes(".//item")) {
             $commitId = ""
-            $comment = ""
+            $title = ""
             
             $commitIdNode = $item.SelectSingleNode(".//commitId")
             if ($commitIdNode) {
                 $commitId = $commitIdNode.InnerText
             }
-            
-            $commentNode = $item.SelectSingleNode(".//comment")
-            if ($commentNode) {
-				$comment = $commentNode.InnerText
-				$comment = $comment -replace "`r`n", " "  # Replace CRLF with space
-				$comment = $comment -replace "`n", " "    # Replace LF with space  
-				$comment = $comment -replace "`r", " "    # Replace CR with space
-				$comment = $comment -replace "\s+", " "   # Replace multiple spaces with single space
-				$comment = $comment.Trim()                # Remove leading/trailing whitespace
+
+            $msgNode = $item.SelectSingleNode(".//msg")
+            if ($msgNode -and $msgNode.InnerText.Trim().Length -gt 0) {
+                $title = $msgNode.InnerText
+            } else {
+                $commentNode = $item.SelectSingleNode(".//comment")
+                if ($commentNode) {
+                    $title = ($commentNode.InnerText -split "`r?`n")[0]
+                }
             }
-            
-            if ($comment.Length -gt 0 -and $commitId.Length -gt 0) {
-                $ProductDescription += "- $comment (commit: [$commitId](https://github.com/N3xoX1/nxemu/commit/$commitId))`r`n"
+
+            $title = $title -replace "\s+", " "
+            $title = $title.Trim()
+
+            if ($title.Length -eq 0 -or $commitId.Length -eq 0) {
+                continue
             }
+
+            $prNumber = ""
+            if ($title -match '(?:pull request #|#)(\d+)') {
+                $prNumber = $Matches[1]
+            }
+            $title = $title -replace '\s*\((?:pull request )?#\d+\)\s*$', ''
+            $title = $title.Trim()
+
+            $author = Get-GitHubChangeAuthor -CommitId $commitId -PrNumber $prNumber
+            $line = "- $title"
+
+            if ($prNumber -and $author) {
+                $line += " (PR [#$prNumber](https://github.com/N3xoX1/nxemu/pull/$prNumber) from [$author](https://github.com/$author))"
+            } elseif ($prNumber) {
+                $line += " (PR [#$prNumber](https://github.com/N3xoX1/nxemu/pull/$prNumber))"
+            } elseif ($author) {
+                $line += " (from [$author](https://github.com/$author))"
+            } else {
+                $line += " (commit: [$commitId](https://github.com/N3xoX1/nxemu/commit/$commitId))"
+            }
+
+            $ProductDescription += "$line`r`n"
         }
     }
     
-    # Format final description
     if ($ProductDescription.Length -gt 0) {
-        return "Changes:`r`n$ProductDescription"
+        return $ProductDescription.TrimEnd()
     } else {
         return "No code changes"
     }
