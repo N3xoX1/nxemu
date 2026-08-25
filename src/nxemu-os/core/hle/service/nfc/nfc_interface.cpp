@@ -6,7 +6,10 @@
 #include "core/hle/kernel/k_event.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/nfc/common/device_manager.h"
+#include "core/hle/service/nfc/mifare_result.h"
+#include "core/hle/service/nfc/mifare_types.h"
 #include "core/hle/service/nfc/nfc_interface.h"
+#include "core/hle/service/nfc/nfc_result.h"
 #include "core/hle/service/nfc/nfc_types.h"
 #include "core/hle/service/nfp/nfp_result.h"
 #include "core/hle/service/set/system_settings_server.h"
@@ -43,7 +46,16 @@ void NfcInterface::Initialize(HLERequestContext& ctx) {
 void NfcInterface::Finalize(HLERequestContext& ctx) {
     LOG_INFO(Service_NFC, "called");
 
-    UNIMPLEMENTED();
+    if (state != State::NonInitialized) {
+        if (GetBackendType() != BackendType::None) {
+            GetManager()->Finalize();
+        }
+        device_manager = nullptr;
+        state = State::NonInitialized;
+    }
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(ResultSuccess);
 }
 
 void NfcInterface::GetState(HLERequestContext& ctx) {
@@ -66,47 +78,142 @@ void NfcInterface::IsNfcEnabled(HLERequestContext& ctx) {
 }
 
 void NfcInterface::ListDevices(HLERequestContext& ctx) {
+    std::vector<u64> nfp_devices;
+    const std::size_t max_allowed_devices = ctx.GetWriteBufferNumElements<u64>();
     LOG_DEBUG(Service_NFC, "called");
 
-    UNIMPLEMENTED();
+    auto result = GetManager()->ListDevices(nfp_devices, max_allowed_devices, true);
+    result = TranslateResultToServiceError(result);
+
+    if (result.IsError()) {
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(result);
+        return;
+    }
+
+    ctx.WriteBuffer(nfp_devices);
+
+    IPC::ResponseBuilder rb{ctx, 3};
+    rb.Push(ResultSuccess);
+    rb.Push(static_cast<s32>(nfp_devices.size()));
 }
 
 void NfcInterface::GetDeviceState(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    LOG_DEBUG(Service_NFC, "called, device_handle={}", device_handle);
+
+    const auto device_state = GetManager()->GetDeviceState(device_handle);
+
+    if (device_state > DeviceState::Finalized) {
+        ASSERT_MSG(false, "Invalid device state");
+    }
+
+    IPC::ResponseBuilder rb{ctx, 3};
+    rb.Push(ResultSuccess);
+    rb.PushEnum(device_state);
 }
 
 void NfcInterface::GetNpadId(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    LOG_DEBUG(Service_NFC, "called, device_handle={}", device_handle);
+
+    NpadIdType npad_id{};
+    auto result = GetManager()->GetNpadId(device_handle, npad_id);
+    result = TranslateResultToServiceError(result);
+
+    if (result.IsError()) {
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(result);
+        return;
+    }
+
+    IPC::ResponseBuilder rb{ctx, 3};
+    rb.Push(ResultSuccess);
+    rb.PushEnum(npad_id);
 }
 
 void NfcInterface::AttachAvailabilityChangeEvent(HLERequestContext& ctx) {
     LOG_INFO(Service_NFC, "called");
 
-    auto manager = GetManager();
-
     IPC::ResponseBuilder rb{ctx, 2, 1};
     rb.Push(ResultSuccess);
-    rb.PushCopyObjects(manager->AttachAvailabilityChangeEvent());
+    rb.PushCopyObjects(GetManager()->AttachAvailabilityChangeEvent());
 }
 
 void NfcInterface::StartDetection(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    auto tag_protocol{NfcProtocol::All};
+
+    if (backend_type == BackendType::Nfc) {
+        tag_protocol = rp.PopEnum<NfcProtocol>();
+    }
+
+    LOG_INFO(Service_NFC, "called, device_handle={}, nfp_protocol={}", device_handle, tag_protocol);
+    auto result = GetManager()->StartDetection(device_handle, tag_protocol);
+    result = TranslateResultToServiceError(result);
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(result);
 }
 
 void NfcInterface::StopDetection(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    LOG_INFO(Service_NFC, "called, device_handle={}", device_handle);
+
+    auto result = GetManager()->StopDetection(device_handle);
+    result = TranslateResultToServiceError(result);
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(result);
 }
 
 void NfcInterface::GetTagInfo(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    LOG_INFO(Service_NFC, "called, device_handle={}", device_handle);
+
+    TagInfo tag_info{};
+    auto result = GetManager()->GetTagInfo(device_handle, tag_info);
+    result = TranslateResultToServiceError(result);
+
+    if (result.IsSuccess()) {
+        ctx.WriteBuffer(tag_info);
+    }
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(result);
 }
 
 void NfcInterface::AttachActivateEvent(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    LOG_DEBUG(Service_NFC, "called, device_handle={}", device_handle);
+
+    Kernel::KReadableEvent* out_event = nullptr;
+    auto result = GetManager()->AttachActivateEvent(&out_event, device_handle);
+    result = TranslateResultToServiceError(result);
+
+    IPC::ResponseBuilder rb{ctx, 2, 1};
+    rb.Push(result);
+    rb.PushCopyObjects(out_event);
 }
 
 void NfcInterface::AttachDeactivateEvent(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    LOG_DEBUG(Service_NFC, "called, device_handle={}", device_handle);
+
+    Kernel::KReadableEvent* out_event = nullptr;
+    auto result = GetManager()->AttachDeactivateEvent(&out_event, device_handle);
+    result = TranslateResultToServiceError(result);
+
+    IPC::ResponseBuilder rb{ctx, 2, 1};
+    rb.Push(result);
+    rb.PushCopyObjects(out_event);
 }
 
 void NfcInterface::SetNfcEnabled(HLERequestContext& ctx) {
@@ -121,15 +228,74 @@ void NfcInterface::SetNfcEnabled(HLERequestContext& ctx) {
 }
 
 void NfcInterface::ReadMifare(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    const auto buffer{ctx.ReadBuffer()};
+    const auto number_of_commands{ctx.GetReadBufferNumElements<MifareReadBlockParameter>()};
+    std::vector<MifareReadBlockParameter> read_commands(number_of_commands);
+
+    memcpy(read_commands.data(), buffer.data(),
+           number_of_commands * sizeof(MifareReadBlockParameter));
+
+    LOG_INFO(Service_NFC, "called, device_handle={}, read_commands_size={}", device_handle,
+             number_of_commands);
+
+    std::vector<MifareReadBlockData> out_data(number_of_commands);
+    auto result = GetManager()->ReadMifare(device_handle, read_commands, out_data);
+    result = TranslateResultToServiceError(result);
+
+    if (result.IsSuccess()) {
+        ctx.WriteBuffer(out_data);
+    }
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(result);
 }
 
 void NfcInterface::WriteMifare(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    const auto buffer{ctx.ReadBuffer()};
+    const auto number_of_commands{ctx.GetReadBufferNumElements<MifareWriteBlockParameter>()};
+    std::vector<MifareWriteBlockParameter> write_commands(number_of_commands);
+
+    memcpy(write_commands.data(), buffer.data(),
+           number_of_commands * sizeof(MifareWriteBlockParameter));
+
+    LOG_INFO(Service_NFC, "(STUBBED) called, device_handle={}, write_commands_size={}",
+             device_handle, number_of_commands);
+
+    auto result = GetManager()->WriteMifare(device_handle, write_commands);
+    result = TranslateResultToServiceError(result);
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(result);
 }
 
 void NfcInterface::SendCommandByPassThrough(HLERequestContext& ctx) {
-    UNIMPLEMENTED();
+    IPC::RequestParser rp{ctx};
+    const auto device_handle{rp.Pop<u64>()};
+    const auto timeout{rp.PopRaw<s64>()};
+    const auto command_data{ctx.ReadBuffer()};
+    LOG_INFO(Service_NFC, "(STUBBED) called, device_handle={}, timeout={}, data_size={}",
+             device_handle, timeout, command_data.size());
+
+    std::vector<u8> out_data(1);
+    auto result =
+        GetManager()->SendCommandByPassThrough(device_handle, timeout, command_data, out_data);
+    result = TranslateResultToServiceError(result);
+
+    if (result.IsError()) {
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(result);
+        return;
+    }
+
+    ctx.WriteBuffer(out_data);
+
+    IPC::ResponseBuilder rb{ctx, 3};
+    rb.Push(ResultSuccess);
+    rb.Push(static_cast<u32>(out_data.size()));
 }
 
 std::shared_ptr<DeviceManager> NfcInterface::GetManager() {
@@ -144,18 +310,107 @@ BackendType NfcInterface::GetBackendType() const {
 }
 
 Result NfcInterface::TranslateResultToServiceError(Result result) const {
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    const auto backend = GetBackendType();
+
+    if (result.IsSuccess()) {
+        return result;
+    }
+
+    if (result.GetModule() != ErrorModule::NFC) {
+        return result;
+    }
+
+    switch (backend) {
+    case BackendType::Mifare:
+        return TranslateResultToNfp(result);
+    case BackendType::Nfp: {
+        return TranslateResultToNfp(result);
+    }
+    default:
+        if (result != ResultBackupPathAlreadyExist) {
+            return result;
+        }
+        return ResultUnknown74;
+    }
 }
 
 Result NfcInterface::TranslateResultToNfp(Result result) const {
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    if (result == ResultDeviceNotFound) {
+        return NFP::ResultDeviceNotFound;
+    }
+    if (result == ResultInvalidArgument) {
+        return NFP::ResultInvalidArgument;
+    }
+    if (result == ResultWrongApplicationAreaSize) {
+        return NFP::ResultWrongApplicationAreaSize;
+    }
+    if (result == ResultWrongDeviceState) {
+        return NFP::ResultWrongDeviceState;
+    }
+    if (result == ResultUnknown74) {
+        return NFP::ResultUnknown74;
+    }
+    if (result == ResultNfcDisabled) {
+        return NFP::ResultNfcDisabled;
+    }
+    if (result == ResultNfcNotInitialized) {
+        return NFP::ResultNfcDisabled;
+    }
+    if (result == ResultWriteAmiiboFailed) {
+        return NFP::ResultWriteAmiiboFailed;
+    }
+    if (result == ResultTagRemoved) {
+        return NFP::ResultTagRemoved;
+    }
+    if (result == ResultRegistrationIsNotInitialized) {
+        return NFP::ResultRegistrationIsNotInitialized;
+    }
+    if (result == ResultApplicationAreaIsNotInitialized) {
+        return NFP::ResultApplicationAreaIsNotInitialized;
+    }
+    if (result == ResultCorruptedDataWithBackup) {
+        return NFP::ResultCorruptedDataWithBackup;
+    }
+    if (result == ResultCorruptedData) {
+        return NFP::ResultCorruptedData;
+    }
+    if (result == ResultWrongApplicationAreaId) {
+        return NFP::ResultWrongApplicationAreaId;
+    }
+    if (result == ResultApplicationAreaExist) {
+        return NFP::ResultApplicationAreaExist;
+    }
+    if (result == ResultInvalidTagType) {
+        return NFP::ResultNotAnAmiibo;
+    }
+    if (result == ResultUnableToAccessBackupFile) {
+        return NFP::ResultUnableToAccessBackupFile;
+    }
+    LOG_WARNING(Service_NFC, "Result conversion not handled");
+    return result;
 }
 
 Result NfcInterface::TranslateResultToMifare(Result result) const {
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    if (result == ResultDeviceNotFound) {
+        return Mifare::ResultDeviceNotFound;
+    }
+    if (result == ResultInvalidArgument) {
+        return Mifare::ResultInvalidArgument;
+    }
+    if (result == ResultWrongDeviceState) {
+        return Mifare::ResultWrongDeviceState;
+    }
+    if (result == ResultNfcDisabled) {
+        return Mifare::ResultNfcDisabled;
+    }
+    if (result == ResultTagRemoved) {
+        return Mifare::ResultTagRemoved;
+    }
+    if (result == ResultInvalidTagType) {
+        return Mifare::ResultNotAMifare;
+    }
+    LOG_WARNING(Service_NFC, "Result conversion not handled");
+    return result;
 }
 
 } // namespace Service::NFC

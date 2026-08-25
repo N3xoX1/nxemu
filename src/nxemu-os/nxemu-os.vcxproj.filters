@@ -2115,6 +2115,12 @@
     <ClInclude Include="core\hle\service\bcat\backend\backend.h">
       <Filter>Header Files\core\hle\service\bcat\backend</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\service\nfc\nfc.h">
+      <Filter>Header Files\core\hle\service\nfc</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\nfc\mifare_result.h">
+      <Filter>Header Files\core\hle\service\nfc</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in">
@@ -3525,6 +3531,9 @@
     </ClCompile>
     <ClCompile Include="core\hle\service\bcat\backend\backend.cpp">
       <Filter>Source Files\core\hle\service\bcat\backend</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\nfc\nfc.cpp">
+      <Filter>Source Files\core\hle\service\nfc</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
