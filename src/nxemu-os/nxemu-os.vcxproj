@@ -177,6 +177,7 @@
     <ClCompile Include="core\hle\service\ldn\user_local_communication_service.cpp" />
     <ClCompile Include="core\hle\service\nfc\common\device.cpp" />
     <ClCompile Include="core\hle\service\nfc\common\device_manager.cpp" />
+    <ClCompile Include="core\hle\service\nfc\nfc.cpp" />
     <ClCompile Include="core\hle\service\nfc\nfc_interface.cpp" />
     <ClCompile Include="core\hle\service\nfp\nfp.cpp" />
     <ClCompile Include="core\hle\service\nfp\nfp_interface.cpp" />
@@ -709,7 +710,9 @@
     <ClInclude Include="core\hle\service\ldn\user_local_communication_service.h" />
     <ClInclude Include="core\hle\service\nfc\common\device.h" />
     <ClInclude Include="core\hle\service\nfc\common\device_manager.h" />
+    <ClInclude Include="core\hle\service\nfc\mifare_result.h" />
     <ClInclude Include="core\hle\service\nfc\mifare_types.h" />
+    <ClInclude Include="core\hle\service\nfc\nfc.h" />
     <ClInclude Include="core\hle\service\nfc\nfc_interface.h" />
     <ClInclude Include="core\hle\service\nfc\nfc_result.h" />
     <ClInclude Include="core\hle\service\nfc\nfc_types.h" />

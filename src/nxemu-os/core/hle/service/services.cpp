@@ -33,6 +33,7 @@
 #include "core/hle/service/mm/mm_u.h"
 #include "core/hle/service/mnpp/mnpp_app.h"
 #include "core/hle/service/ncm/ncm.h"
+#include "core/hle/service/nfc/nfc.h"
 #include "core/hle/service/nfp/nfp.h"
 #include "core/hle/service/ngc/ngc.h"
 #include "core/hle/service/nifm/nifm.h"
@@ -104,6 +105,7 @@ Services::Services(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system
     kernel.RunOnGuestCoreProcess("mnpp",       [&] { MNPP::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("nvnflinger", [&] { Nvnflinger::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("NCM",        [&] { NCM::LoopProcess(system); });
+    kernel.RunOnGuestCoreProcess("nfc",        [&] { NFC::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("nfp",        [&] { NFP::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("ngc",        [&] { NGC::LoopProcess(system); });
     kernel.RunOnGuestCoreProcess("nifm",       [&] { NIFM::LoopProcess(system); });
