@@ -1,9 +1,8 @@
 #pragma once
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <vector>
 
-__interface ISciterUI;
-__interface ISciterWindow;
 class SystemModules;
 
 struct PendingProfileImage

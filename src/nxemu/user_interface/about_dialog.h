@@ -1,9 +1,7 @@
 #pragma once
 
 #include <sciter_handler.h>
-
-__interface ISciterUI;
-__interface ISciterWindow;
+#include <sciter_ui.h>
 
 class AboutDialog :
     public IClickSink,

@@ -1,12 +1,11 @@
 #pragma once
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <widgets/page_nav.h>
 #include <memory>
 #include <unordered_map>
 #include <nxemu-module-spec/base.h>
 
-__interface ISciterUI;
-__interface ISciterWindow;
 nxinterface IParamPackageList;
 class InputConfigPlayer;
 class SystemModules;

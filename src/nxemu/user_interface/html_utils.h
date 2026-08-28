@@ -1,9 +1,9 @@
 #pragma once
 
+#include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <string>
 
-__interface ISciterUI;
-__interface IClickSink;
 class SciterElement;
 
 std::string HtmlEscape(const std::string & text);
