@@ -1,11 +1,10 @@
 #pragma once
 #include "profile_image_selector_dialog.h"
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <stdint.h>
 
-__interface ISciterUI;
-__interface ISciterWindow;
 class SystemModules;
 
 enum class ProfileEditorMode

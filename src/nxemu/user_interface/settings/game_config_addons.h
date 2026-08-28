@@ -2,12 +2,12 @@
 #include <nxemu-module-spec/base.h>
 #include <sciter_element.h>
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <string>
 #include <vector>
 
 class GameConfig;
 class SystemModules;
-__interface ISciterUI;
 nxinterface IRomInfo;
 
 class GameConfigAddons :

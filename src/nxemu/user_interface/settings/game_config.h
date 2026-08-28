@@ -1,13 +1,12 @@
 #pragma once
 
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <widgets/page_nav.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <string>
 #include <vector>
 
-__interface ISciterUI;
-__interface ISciterWindow;
 class SystemModules;
 class GameConfigAddons;
 

@@ -1,8 +1,7 @@
 #pragma once
 #include <memory>
 #include <nxemu-core/notification.h>
-
-__interface ISciterUI;
+#include <sciter_ui.h>
 
 class Notification :
     public INotification

@@ -1,5 +1,6 @@
 #pragma once
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <widgets/page_nav.h>
 #include <map>
 #include <string>
@@ -7,8 +8,6 @@
 #include <vector>
 #include "startup_checks.h"
 
-__interface ISciterUI;
-__interface ISciterWindow;
 class SciterElement;
 class SystemConfigAudio;
 class SystemConfigGraphics;

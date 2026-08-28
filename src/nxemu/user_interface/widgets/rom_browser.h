@@ -1,14 +1,14 @@
 #pragma once
 #include <nxemu-module-spec/base.h>
+#include <sciter_ui.h>
 
-__interface ISciterUI;
 nxinterface ISystemModules;
 class SciterMainWindow;
 class SystemModules;
 
 static const char * IID_ROMBROWSER = "F68DFC0D-C86D-4810-97C6-48289FA650ED";
 
-__interface IRomBrowser
+suinterface IRomBrowser
 {
     void PopulateAsync() = 0;
     void SetMainWindow(SciterMainWindow * window, ISystemModules * modules) = 0;

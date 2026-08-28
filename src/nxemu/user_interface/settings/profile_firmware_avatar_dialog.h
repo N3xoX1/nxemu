@@ -1,13 +1,13 @@
 #pragma once
 #include "profile_image_selector_dialog.h"
 #include <sciter_handler.h>
+#include <sciter_ui.h>
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
-__interface ISciterUI;
 class SystemModules;
 
 struct FirmwareProfileAvatar
