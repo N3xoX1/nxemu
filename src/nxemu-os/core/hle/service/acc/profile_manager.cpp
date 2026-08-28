@@ -13,6 +13,7 @@
 #include "yuzu_common/string_util.h"
 #include <nxemu-module-spec/base.h>
 #include "os_settings_identifiers.h"
+#include "profile_image_writer.h"
 #include "core/hle/service/acc/profile_manager.h"
 
 extern IModuleSettings * g_settings;
@@ -44,12 +45,21 @@ constexpr Result ERROR_ARGUMENT_IS_NULL(ErrorModule::Account, 20);
 
 constexpr char ACC_SAVE_AVATORS_BASE_PATH[] = "system/save/8000000000000010/su/avators";
 
+namespace {
+std::filesystem::path ProfileImagePath(const UUID& uuid) {
+    return FS::GetYuzuPath(FS::YuzuPath::NANDDir) / ACC_SAVE_AVATORS_BASE_PATH /
+           (uuid.FormattedString() + ".jpg");
+}
+} // namespace
+
 ProfileManager::ProfileManager() {
     ParseUserSaveFile();
 
     // Create an user if none are present
     if (user_count == 0) {
-        CreateNewUser(UUID::MakeRandom(), "NxEmu");
+        const UUID uuid = UUID::MakeRandom();
+        CreateNewUser(uuid, "NxEmu");
+        WriteDefaultProfileJpeg(ProfileImagePath(uuid));
         WriteUserSaveFile();
     }
 
