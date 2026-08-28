@@ -61,8 +61,6 @@ add_library(yuzu_common STATIC
     lz4_compression.h
     make_unique_for_overwrite.h
     math_util.h
-    microprofile.cpp
-    microprofile.h
     multi_level_page_table.cpp
     multi_level_page_table.h
     overflow.h
