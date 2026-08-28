@@ -45,10 +45,6 @@ if (ARCHITECTURE_arm64 AND NOT TARGET merry::oaknut)
     add_subdirectory(oaknut)
 endif()
 
-# MicroProfile (vendored under src/3rd_party; external/microprofile is not used)
-add_library(microprofile INTERFACE)
-target_include_directories(microprofile INTERFACE "${CMAKE_SOURCE_DIR}/src/3rd_party/microprofile")
-
 # stb (header-only; yuzu_common uses stb::headers)
 if(NOT TARGET stb::headers)
     add_library(stb_headers INTERFACE)
