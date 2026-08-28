@@ -33,9 +33,15 @@ target_include_directories(nxemu-video PRIVATE
 )
 
 target_link_libraries(nxemu-video PRIVATE yuzu_common)
+target_link_libraries(nxemu-video PRIVATE video_core)
 
-if(TARGET video_core)
-    target_link_libraries(nxemu-video PRIVATE video_core)
+if(NOT ANDROID)
+    find_package(PkgConfig REQUIRED)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_package(X11 REQUIRED)
+        pkg_check_modules(WAYLAND_CLIENT wayland-client REQUIRED IMPORTED_TARGET)
+        target_link_libraries(nxemu-video PRIVATE X11::X11 PkgConfig::WAYLAND_CLIENT)
+    endif()
 endif()
 
 if(ANDROID_ABI STREQUAL "arm64-v8a")
@@ -46,3 +52,5 @@ if(ANDROID)
     target_link_libraries(nxemu-video PRIVATE log android)
     target_link_options(nxemu-video PRIVATE "LINKER:-Bsymbolic")
 endif()
+
+nxemu_set_module_output(nxemu-video video)

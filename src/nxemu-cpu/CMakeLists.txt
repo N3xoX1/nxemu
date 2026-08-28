@@ -48,6 +48,8 @@ add_library(nxemu-cpu SHARED
     cpu_settings.cpp
     cpu_settings.h
     cpu_settings_identifiers.h
+    patch/patch_collection.cpp
+    patch/patch_collection.h
     dynarmic_cp15.cpp
     dynarmic_cp15.h
     exclusive_monitor_interface.cpp
@@ -324,6 +326,7 @@ if(ARCHITECTURE_x86_64)
     target_sources(nxemu-cpu PRIVATE
         dynarmic/common/spin_lock_x64.cpp
         dynarmic/common/x64_disassemble.cpp
+        dynarmic/backend/exception_handler_posix.cpp
         dynarmic/backend/x64/a32_emit_x64.cpp
         dynarmic/backend/x64/a32_emit_x64_memory.cpp
         dynarmic/backend/x64/a32_interface.cpp
@@ -442,3 +445,5 @@ target_link_libraries(nxemu-cpu PRIVATE
 if(ANDROID)
     target_link_libraries(nxemu-cpu PRIVATE log)
 endif()
+
+nxemu_set_module_output(nxemu-cpu cpu)
