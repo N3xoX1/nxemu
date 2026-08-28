@@ -65,10 +65,10 @@ namespace
         { NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system\\nxemu-os.dll" },
 #endif
 #else
-        { NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "libnxemu-loader.so" },
-        { NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "libnxemu-cpu.so" },
-        { NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "libnxemu-video.so" },
-        { NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "libnxemu-os.so" },
+        {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader/libnxemu-loader.so"},
+        {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "cpu/libnxemu-cpu.so"},
+        {NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "video/libnxemu-video.so"},
+        {NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system/libnxemu-os.so"},
 #endif
         { NXCoreSetting::ShowLogConsole, "", "ShowLogConsole", &coreSettings.ShowLogConsole, false },
         { NXCoreSetting::LogFilter, "", "LogFilter", &coreSettings.LogFilter, "*:Info" },
