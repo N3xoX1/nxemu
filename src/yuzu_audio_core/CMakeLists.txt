@@ -22,7 +22,6 @@ target_include_directories(yuzu_audio_core PUBLIC
     ${CMAKE_SOURCE_DIR}/external/boost
     ${CMAKE_SOURCE_DIR}/external/fmt/include
     ${CMAKE_SOURCE_DIR}/external/opus/include
-    ${CMAKE_SOURCE_DIR}/src/3rd_party/microprofile
 )
 
 target_compile_definitions(yuzu_audio_core PUBLIC
