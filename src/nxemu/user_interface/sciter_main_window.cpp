@@ -8,6 +8,7 @@
 #include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"
+#include <common/path.h>
 #include <common/shell_open.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
@@ -118,6 +119,30 @@ std::string GetInstalledFirmwareDisplayVersion(ISystemloader & loader)
         return {};
     }
     return std::string(buffer, length);
+}
+
+std::string BuildSwitchOpenFileFilter(ISystemloader & loader)
+{
+    const uint32_t count = loader.GetSupportedGameExtensions(nullptr, 0);
+    std::vector<const char *> extensions(count);
+    loader.GetSupportedGameExtensions(extensions.data(), count);
+
+    stdstr wildcards, patterns;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        wildcards += stdstr_f("%s*.%s", wildcards.empty() ? "" : ", ", extensions[i]);
+        patterns += stdstr_f("%s*.%s", patterns.empty() ? "" : ";", extensions[i]);
+    }
+
+    stdstr filter = stdstr_f("Switch Files (%s)", wildcards.c_str());
+    filter += '\0';
+    filter += patterns.empty() ? "*.*" : patterns;
+    filter += '\0';
+    filter += "All files (*.*)";
+    filter += '\0';
+    filter += "*.*";
+    filter += '\0';
+    return filter;
 }
 
 void UpdateLoadingProgressBar(SciterElement & fillEl, bool indeterminate, int widthPercent, bool shaderBuilding)
@@ -1212,13 +1237,15 @@ void SciterMainWindow::OnOpenFile()
         return;
     }
 
-    m_modules.Setup(*this);
-    RegisterApplets();
-    RegisterSystemCallbacks();
-
     ISystemloader & loader = m_modules.Modules().Systemloader();
-    loader.SelectAndLoad((void *)m_window->GetHandle());
-    UpdateEmulationStatusText();
+    const std::string filter = BuildSwitchOpenFileFilter(loader);
+
+    Path fileToOpen;
+    if (!fileToOpen.FileSelect((void *)m_window->GetHandle(), Path(Path::MODULE_DIRECTORY), filter.c_str(), true))
+    {
+        return;
+    }
+    LoadGame(fileToOpen, 0, ApplicationLaunchType::FrontendInitiated);
 }
 
 void SciterMainWindow::OnInstallFirmwareFromFile()

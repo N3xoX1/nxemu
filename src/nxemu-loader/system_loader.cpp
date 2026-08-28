@@ -415,19 +415,20 @@ bool InstallFirmwareFilesToRegistered(::FileSystemController & fs_controller, co
     return true;
 }
 
+const char * const kSupportedGameExtensions[] = {
+    "dxci",
+    "dnsp",
+    "nro",
+};
+constexpr uint32_t kSupportedGameExtensionCount = (uint32_t)(sizeof(kSupportedGameExtensions) / sizeof(kSupportedGameExtensions[0]));
+
 bool HasSupportedFileExtension(const char * fileName)
 {
-    static const char * supported_extensions[] = {
-        "nro",
-        "dxci",
-        "dnsp",
-    };
-
     std::string ext = Path(fileName).GetExtension();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    for (const char * supported : supported_extensions)
+    for (uint32_t i = 0; i < kSupportedGameExtensionCount; ++i)
     {
-        if (ext == supported)
+        if (ext == kSupportedGameExtensions[i])
         {
             return true;
         }
@@ -528,24 +529,17 @@ bool Systemloader::Initialize()
     return true;
 }
 
-bool Systemloader::SelectAndLoad(void * parentWindow)
+uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const
 {
-#ifndef __ANDROID__
-    Path fileToOpen;
-    std::string fileName;
-    const char * filter = "Switch Files (*.dxci, *.dnsp, *.nro)\0*.dxci;*.dnsp;*.nro;\0All files (*.*)\0*.*\0";
-    if (fileToOpen.FileSelect(parentWindow, Path(Path::MODULE_DIRECTORY), filter, true))
+    if (extensions != nullptr && maxCount > 0)
     {
-        fileName = (const std::string &)fileToOpen;
+        const uint32_t copyCount = maxCount < kSupportedGameExtensionCount ? maxCount : kSupportedGameExtensionCount;
+        for (uint32_t i = 0; i < copyCount; ++i)
+        {
+            extensions[i] = kSupportedGameExtensions[i];
+        }
     }
-    if (fileName.length() == 0)
-    {
-        return false;
-    }
-    return LoadRom(fileName.c_str(), 0, -1, ApplicationLaunchType::FrontendInitiated);
-#else
-    return false;
-#endif
+    return kSupportedGameExtensionCount;
 }
 
 bool Systemloader::LoadRom(const char * fileName, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
