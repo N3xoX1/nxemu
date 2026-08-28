@@ -19,6 +19,7 @@ add_executable(nxemu
     user_interface/key_mappings.h
     user_interface/notification.cpp
     user_interface/notification.h
+    user_interface/app_events.h
     user_interface/sciter_main_window.cpp
     user_interface/sciter_main_window.h
     user_interface/widgets/rom_browser.cpp
