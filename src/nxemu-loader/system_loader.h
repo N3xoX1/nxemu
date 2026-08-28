@@ -28,7 +28,7 @@ public:
     
     //ISystemloader
     bool Initialize() override;
-    bool SelectAndLoad(void * parentWindow) override;
+    uint32_t GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const override;
     bool LoadRom(const char * fileName, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
     IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
