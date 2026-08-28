@@ -15,7 +15,10 @@
 #include <widgets/page_nav.h>
 #include <widgets/tooltip_host.h>
 #include "user_interface/widgets/rom_browser.h"
+
+#ifdef WIN32
 #include <windows.h>
+#endif
 
 void RegisterWidgets(ISciterUI & sciterUI)
 {
@@ -27,7 +30,9 @@ void RegisterWidgets(ISciterUI & sciterUI)
     Register_WidgetRomBrowser(sciterUI);
 }
 
-extern "C" {
+#ifdef WIN32
+extern "C"
+{
     __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;         // NVIDIA
     __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;   // AMD
 }
@@ -77,8 +82,9 @@ static void EnablePerMonitorDpiAwareness()
         }
     }
 }
+#endif
 
-int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpszArgs*/, _In_ int /*nWinMode*/)
+static int RunApplication() 
 {
     const VulkanCheckResult probe = RunVulkanProbeIfChild();
     if (probe != VULKAN_CHECK_DONE)
@@ -86,7 +92,9 @@ int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInsta
         return probe == EXIT_VULKAN_AVAILABLE ? 0 : 1;
     }
 
+#ifdef WIN32
     EnablePerMonitorDpiAwareness();
+#endif
     bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
 
     if (res && uiSettings.performVulkanCheck)
@@ -118,3 +126,15 @@ int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInsta
     Notification::CleanUp();
     return res ? 0 : 1;
 }
+
+#ifdef _WIN32
+int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpszArgs*/, _In_ int /*nWinMode*/)
+{
+    return RunApplication();
+}
+#else
+int main(int /*argc*/, char * /*argv*/[])
+{
+    return RunApplication();
+}
+#endif
