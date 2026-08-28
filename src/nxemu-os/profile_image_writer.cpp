@@ -1,9 +1,12 @@
 #include "profile_image_writer.h"
 
+#include "default_profile_image.h"
 #include "yuzu_common/fs/file.h"
 #include "yuzu_common/fs/fs.h"
 #include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/stb.h"
+#include <cstring>
+#include <vector>
 namespace
 {
 constexpr int ProfileDimension = 256;
@@ -83,4 +86,19 @@ bool WriteProfileJpegFromMemory(const uint8_t * data, size_t size, const std::fi
         pixels = nullptr;
     }
     return WriteJpegRgb(resized.data(), destination);
+}
+
+bool WriteDefaultProfileJpeg(const std::filesystem::path & destination)
+{
+    return WriteProfileJpegFromMemory(default_profile_png, default_profile_png_len, destination);
+}
+
+bool EnsureDefaultProfileJpeg(const std::filesystem::path & destination)
+{
+    std::error_code ec;
+    if (std::filesystem::exists(destination, ec) && !ec)
+    {
+        return true;
+    }
+    return WriteDefaultProfileJpeg(destination);
 }

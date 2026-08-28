@@ -258,6 +258,7 @@
     <ClCompile Include="core\memory\dmnt_cheat_vm.cpp" />
     <ClCompile Include="core\perf_stats.cpp" />
     <ClCompile Include="core\reporter.cpp" />
+    <ClCompile Include="default_profile_image.cpp" />
     <ClCompile Include="emu_thread.cpp" />
     <ClCompile Include="nxemu-os.cpp" />
     <ClCompile Include="core\core_timing.cpp" />
@@ -1024,6 +1025,7 @@
     <ClInclude Include="core\memory\dmnt_cheat_types.h" />
     <ClInclude Include="core\perf_stats.h" />
     <ClInclude Include="core\reporter.h" />
+    <ClInclude Include="default_profile_image.h" />
     <ClInclude Include="emu_thread.h" />
     <ClInclude Include="nxemu-os.h" />
     <ClInclude Include="os_manager.h" />

@@ -2121,6 +2121,9 @@
     <ClInclude Include="core\hle\service\nfc\mifare_result.h">
       <Filter>Header Files\core\hle\service\nfc</Filter>
     </ClInclude>
+    <ClInclude Include="default_profile_image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in">
@@ -3534,6 +3537,9 @@
     </ClCompile>
     <ClCompile Include="core\hle\service\nfc\nfc.cpp">
       <Filter>Source Files\core\hle\service\nfc</Filter>
+    </ClCompile>
+    <ClCompile Include="default_profile_image.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
