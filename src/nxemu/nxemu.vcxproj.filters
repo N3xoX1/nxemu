@@ -144,6 +144,9 @@
     <ClCompile Include="applets\profile_select.cpp">
       <Filter>Source Files\applets</Filter>
     </ClCompile>
+    <ClCompile Include="user_interface\file_dialogs.cpp">
+      <Filter>Source Files\user_interface</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="user_interface\resource.h">
@@ -255,6 +258,9 @@
       <Filter>Header Files\applets</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\app_events.h">
+      <Filter>Header Files\user_interface</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\file_dialogs.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
   </ItemGroup>

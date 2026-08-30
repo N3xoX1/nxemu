@@ -5,6 +5,7 @@
 #include "settings/ui_settings.h"
 #include "user_interface/about_dialog.h"
 #include "user_interface/app_events.h"
+#include "user_interface/file_dialogs.h"
 #include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"
@@ -1241,7 +1242,7 @@ void SciterMainWindow::OnOpenFile()
     const std::string filter = BuildSwitchOpenFileFilter(loader);
 
     Path fileToOpen;
-    if (!fileToOpen.FileSelect((void *)m_window->GetHandle(), Path(Path::MODULE_DIRECTORY), filter.c_str(), true))
+    if (!FileSelect((void *)m_window->GetHandle(), Path(Path::MODULE_DIRECTORY), filter.c_str(), true, fileToOpen))
     {
         return;
     }
@@ -1256,9 +1257,8 @@ void SciterMainWindow::OnInstallFirmwareFromFile()
     }
 
     Path file;
-    const char * filter =
-        "Firmware Package (*.dxci, *.zip)\0*.dxci;*.zip\0DXCI (*.dxci)\0*.dxci\0ZIP (*.zip)\0*.zip\0All files (*.*)\0*.*\0";
-    if (!file.FileSelect((void *)m_window->GetHandle(), Path(Path::CURRENT_DIRECTORY), filter, true))
+    const char * filter = "Firmware Package (*.dxci, *.zip)\0*.dxci;*.zip\0DXCI (*.dxci)\0*.dxci\0ZIP (*.zip)\0*.zip\0All files (*.*)\0*.*\0";
+    if (!FileSelect((void *)m_window->GetHandle(), Path(Path::CURRENT_DIRECTORY), filter, true, file))
     {
         return;
     }
@@ -1273,8 +1273,7 @@ void SciterMainWindow::OnInstallFirmwareFromFolder()
         return;
     }
 
-    Path folder;
-    folder.BrowseForDirectory((void *)m_window->GetHandle(), "Select folder containing firmware .dnca files");
+    Path folder = BrowseForDirectory((void *)m_window->GetHandle(), "Select folder containing firmware .dnca files");
     if (!folder.DirectoryExists())
     {
         return;

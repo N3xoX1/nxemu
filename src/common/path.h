@@ -50,12 +50,6 @@ public:
 
     bool FileDelete(bool evenIfReadOnly = true) const;
     bool FileExists() const;
-
-#ifdef _WIN32
-    bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilter, bool fileMustExist);
-
-    Path & BrowseForDirectory(void * parentWindow, const char * title);
-#endif
     
     bool IsDirectory() const;
     bool DirectoryCreate(bool createIntermediates = true);
