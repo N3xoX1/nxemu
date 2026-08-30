@@ -7,7 +7,7 @@
 #include <shlobj_core.h>
 #include <io.h>
 #else
-#include <climits>
+#include <cerrno>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -655,14 +655,23 @@ void Path::SetToCurrentDirectory()
     }
     SetDriveDirectory(stdstr().FromUTF16(path.data()).c_str());
 #else
-    char buf[PATH_MAX];
-    if (getcwd(buf, sizeof(buf)) != nullptr)
+    size_t bufferSize = 4096;
+    std::vector<char> buf(bufferSize);
+
+    while (true)
     {
-        SetDriveDirectory(buf);
-    }
-    else
-    {
-        m_path = "";
+        if (getcwd(buf.data(), bufferSize) != nullptr)
+        {
+            SetDriveDirectory(buf.data());
+            return;
+        }
+        if (errno != ERANGE)
+        {
+            m_path = "";
+            return;
+        }
+        bufferSize *= 2;
+        buf.resize(bufferSize);
     }
 #endif 
 }
@@ -694,17 +703,28 @@ void Path::SetToModuleDirectory()
         buffPath.resize(bufferSize);
     }
 #else
-    char buf[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len != -1)
+    size_t bufferSize = 4096;
+    std::vector<char> buffPath(bufferSize);
+
+    while (true)
     {
-        buf[len] = '\0';
-        m_path = buf;
-        SetNameExtension("");
-    }
-    else
-    {
-        m_path = "";
+        ssize_t result = readlink("/proc/self/exe", buffPath.data(), bufferSize);
+
+        if (result < 0)
+        {
+            m_path = "";
+            return;
+        }
+
+        if ((size_t)result < bufferSize)
+        {
+            m_path.assign(buffPath.data(), (size_t)result);
+            SetNameExtension("");
+            return;
+        }
+
+        bufferSize *= 2;
+        buffPath.resize(bufferSize);
     }
 #endif 
 }
