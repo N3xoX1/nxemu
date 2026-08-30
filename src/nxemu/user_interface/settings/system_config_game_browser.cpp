@@ -2,6 +2,7 @@
 #include "settings/ui_identifiers.h"
 #include "system_config.h"
 #include "system_config_game_browser.h"
+#include "user_interface/file_dialogs.h"
 #include <common/path.h>
 #include <nxemu-loader/loader_settings_identifiers.h>
 #include <widgets/list_box.h>
@@ -90,7 +91,7 @@ bool SystemConfigGameBrowser::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*s
     const std::string elementID = clickElem.GetAttributeByName("id");
     if (elementID == "gameDirectoryAdd")
     {
-        Path newDirectory = Path().BrowseForDirectory((void *)m_window.GetHandle(), "Select Game Directory");
+        Path newDirectory = BrowseForDirectory((void *)m_window.GetHandle(), "Select Game Directory");
         if (newDirectory.DirectoryExists() && m_gamesPage.IsValid())
         {
             std::shared_ptr<void> interfacePtr = m_sciterUI.GetElementInterface(m_gamesPage.GetElementByID("gameDirectoryList"), IID_ILISTBOX);
@@ -107,7 +108,7 @@ bool SystemConfigGameBrowser::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*s
     }
     else if (elementID == "addOnDirectoryAdd")
     {
-        Path newDirectory = Path().BrowseForDirectory((void *)m_window.GetHandle(), "Select Add-On Directory");
+        Path newDirectory = BrowseForDirectory((void *)m_window.GetHandle(), "Select Add-On Directory");
         if (newDirectory.DirectoryExists() && m_addOnsPage.IsValid())
         {
             std::shared_ptr<void> interfacePtr = m_sciterUI.GetElementInterface(m_addOnsPage.GetElementByID("addOnDirectoryList"), IID_ILISTBOX);

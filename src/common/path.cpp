@@ -3,11 +3,9 @@
 
 #ifdef _WIN32
 #include <Windows.h>
-#include <CommDlg.h>
-#include <shlobj_core.h>
 #include <io.h>
 #else
-#include <climits>
+#include <cerrno>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -397,93 +395,6 @@ bool Path::FileExists() const
     return stat(m_path.c_str(), &st) == 0;
 #endif 
 }
-
-#ifdef _WIN32
-bool Path::FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilter, bool fileMustExist)
-{
-    size_t filterLen = 0;
-    while (fileFilter[filterLen] != '\0' || fileFilter[filterLen + 1] != '\0')
-    {
-        filterLen++;
-    }
-    filterLen += 2;
-
-    std::vector<wchar_t> fileFilterW(filterLen);
-    MultiByteToWideChar(CP_UTF8, 0, fileFilter, (int)filterLen, fileFilterW.data(), static_cast<int>(filterLen));
-
-    Path currentDir(CURRENT_DIRECTORY);
-    std::wstring initialDirW = stdstr(initialDir).ToUTF16();
-
-    OPENFILENAME openfilename = {};
-    std::vector<wchar_t> fileName(32768);
-
-    openfilename.lStructSize = sizeof(openfilename);
-    openfilename.hwndOwner = (HWND)hwndOwner;
-    openfilename.lpstrFilter = fileFilterW.data();
-    openfilename.lpstrFile = fileName.data();
-    openfilename.lpstrInitialDir = initialDirW.c_str();
-    openfilename.nMaxFile = (DWORD)fileName.size();
-    openfilename.Flags = OFN_HIDEREADONLY | (fileMustExist ? OFN_FILEMUSTEXIST : 0);
-
-    bool res = GetOpenFileName(&openfilename) != 0;
-    if (Path(CURRENT_DIRECTORY) != currentDir)
-    {
-        currentDir.DirectoryChange();
-    }
-    if (!res)
-    {
-        return false;
-    }
-    m_path = stdstr().FromUTF16(fileName.data());
-    CleanPath(m_path);
-    return true;
-}
-
-Path & Path::BrowseForDirectory(void * parentWindow, const char * title)
-{
-    *this = Path();
-    const HRESULT hrCo = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
-    IFileDialog* dlg = nullptr;
-    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&dlg));
-    if (SUCCEEDED(hr))
-    {
-        DWORD options = 0;
-        if (SUCCEEDED(dlg->GetOptions(&options)))
-        {
-            options |= FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR;
-            dlg->SetOptions(options);
-        }
-
-        if (title && *title)
-        {
-            dlg->SetTitle(stdstr_f(title).ToUTF16().c_str());
-        }
-        hr = dlg->Show((HWND)parentWindow);
-        if (SUCCEEDED(hr))
-        {
-            IShellItem* result = nullptr;
-            if (SUCCEEDED(dlg->GetResult(&result)) && result)
-            {
-                PWSTR psz = nullptr;
-                if (SUCCEEDED(result->GetDisplayName(SIGDN_FILESYSPATH, &psz)) && psz)
-                {
-                    *this = Path(stdstr().FromUTF16(psz).c_str(), "");
-                    CoTaskMemFree(psz);
-                }
-                result->Release();
-            }
-        }
-        dlg->Release();
-    }
-
-    if (SUCCEEDED(hrCo))
-    {
-        CoUninitialize();
-    }
-    return *this;
-}
-#endif
 
 bool Path::IsDirectory() const
 {

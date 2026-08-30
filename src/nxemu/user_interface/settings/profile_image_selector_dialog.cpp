@@ -1,5 +1,6 @@
 #include "profile_image_selector_dialog.h"
 #include "profile_firmware_avatar_dialog.h"
+#include "user_interface/file_dialogs.h"
 #include "user_interface/html_utils.h"
 #include <common/path.h>
 #include <nxemu-core/modules/system_modules.h>
@@ -121,7 +122,7 @@ bool ProfileImageSelectorDialog::ImportImageFile()
     const char * filter =
         "Image Files (*.jpg;*.jpeg;*.png;*.bmp)\0*.jpg;*.jpeg;*.png;*.bmp\0"
         "All files (*.*)\0*.*\0";
-    if (!file.FileSelect((void *)(m_window != nullptr ? m_window->GetHandle() : nullptr), Path(Path::CURRENT_DIRECTORY), filter, true))
+    if (!FileSelect((void *)(m_window != nullptr ? m_window->GetHandle() : nullptr), Path(Path::CURRENT_DIRECTORY), filter, true, file))
     {
         return false;
     }

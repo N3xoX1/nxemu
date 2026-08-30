@@ -42,6 +42,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="settings\ui_settings.cpp" />
     <ClCompile Include="startup_checks.cpp" />
+    <ClCompile Include="user_interface\file_dialogs.cpp" />
     <ClCompile Include="user_interface\game_list_worker.cpp" />
     <ClCompile Include="user_interface\hotkey_map.cpp" />
     <ClCompile Include="user_interface\html_utils.cpp" />
@@ -79,6 +80,7 @@
     <ClInclude Include="settings\ui_settings_identifiers.h" />
     <ClInclude Include="startup_checks.h" />
     <ClInclude Include="user_interface\app_events.h" />
+    <ClInclude Include="user_interface\file_dialogs.h" />
     <ClInclude Include="user_interface\game_list_worker.h" />
     <ClInclude Include="user_interface\hotkey_map.h" />
     <ClInclude Include="user_interface\html_utils.h" />
