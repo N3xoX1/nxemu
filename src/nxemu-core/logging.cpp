@@ -2,6 +2,7 @@
 #include "settings/core_settings.h"
 #include "settings/identifiers.h"
 #include "settings/settings.h"
+#include <string.h>
 #include <yuzu_common/logging/backend.h>
 
 #ifdef WIN32
