@@ -16,69 +16,6 @@
     <Filter Include="Plugin Spec">
       <UniqueIdentifier>{6fe1b415-8781-4421-9dfe-d48957319e49}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\backend">
-      <UniqueIdentifier>{c88dfe24-2d70-47de-a7b5-2c6a2e0cace5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\backend\x64">
-      <UniqueIdentifier>{4b8a631a-24ce-4963-aa84-a7e67d1ef227}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\interface">
-      <UniqueIdentifier>{977f2883-ae10-4774-9854-1e19465d5b5c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\interface\A64">
-      <UniqueIdentifier>{92ef4596-d0aa-4a7c-a010-bc788dceceed}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\backend\arm64">
-      <UniqueIdentifier>{00f75cc0-5e43-4c9d-842a-b43865698947}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\common">
-      <UniqueIdentifier>{6b94035a-c04d-4885-ba9d-db6a9782926d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\common\crypto">
-      <UniqueIdentifier>{413de2b6-6bb7-4f97-866b-6b3f2d85b6d7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\common\fp">
-      <UniqueIdentifier>{48f30bc7-3e27-4783-8cfe-ce35dd58127a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\common\fp\op">
-      <UniqueIdentifier>{eb5deac5-dc82-49c8-8aef-bea30d9d10b4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend">
-      <UniqueIdentifier>{cafc2941-2502-436c-8f43-9f66753dfe0f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A32">
-      <UniqueIdentifier>{9ae49ef6-f5e7-4587-9e5c-337185fa6fd8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A32\decoder">
-      <UniqueIdentifier>{52ed0f4b-0a53-406c-997f-2cffbf437b0a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A32\translate">
-      <UniqueIdentifier>{6b1f2272-e81c-47ef-b98e-9ffbbf409f1a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A64">
-      <UniqueIdentifier>{516ad251-3d13-48ec-ae4c-5f8e01eff255}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A64\decoder">
-      <UniqueIdentifier>{90bbb1e3-f28b-475e-b842-647f0fa5c2d1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A64\translate">
-      <UniqueIdentifier>{6d828a1a-63c8-4407-a779-72cc58b82095}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\A64\translate\impl">
-      <UniqueIdentifier>{b34354f2-f201-4400-80df-10731b447c56}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\frontend\decoder">
-      <UniqueIdentifier>{9ce1f9ad-463e-40ec-a145-f4a49608f544}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\interface\A32">
-      <UniqueIdentifier>{ad3fec48-f4b5-4381-b05f-e3f54e610bd1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\ir">
-      <UniqueIdentifier>{0cff058d-98b1-4db6-bebc-dadbd4f35b61}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\ir\opt">
-      <UniqueIdentifier>{e41648d6-3929-41ff-8451-ce9822a22314}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\dynarmic">
       <UniqueIdentifier>{ec436750-23bf-4a7e-9346-4591e66488af}</UniqueIdentifier>
     </Filter>
@@ -118,17 +55,83 @@
     <Filter Include="Source Files\frontend\A64\translate">
       <UniqueIdentifier>{adba25c9-791e-4946-b426-1e8b1b519150}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ir">
-      <UniqueIdentifier>{c62d15c2-1f39-432c-86a0-bc174b6c205e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="ir\opt">
-      <UniqueIdentifier>{6398325c-1e07-4096-9bad-96f8ff57185d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\patch">
       <UniqueIdentifier>{e6cc1998-1afe-46e4-832c-fc39c6f5b1c9}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\patch">
       <UniqueIdentifier>{4bad9da8-645f-4d85-8f79-d6f66d2dc171}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic">
+      <UniqueIdentifier>{314c0d19-20eb-480b-961e-eae5434e2b7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\ir">
+      <UniqueIdentifier>{e43c9baf-82fd-41f0-8a0f-5a71245e52b5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\ir\opt">
+      <UniqueIdentifier>{39ebebb5-45df-4d64-a08e-623e487aa263}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\backend">
+      <UniqueIdentifier>{98c2e7dd-f483-45fd-8fb0-b0f65f433bd0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\common">
+      <UniqueIdentifier>{b8bb236b-f856-4138-b47d-90af996e2a0d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend">
+      <UniqueIdentifier>{41e71169-caaf-438b-a3df-790c4acf1d7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\interface">
+      <UniqueIdentifier>{f377a2e2-6b90-4f97-a38e-66d2c906fae5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\backend\arm64">
+      <UniqueIdentifier>{2245984f-408b-4848-841e-8bfa7db837dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\backend\x64">
+      <UniqueIdentifier>{6bb84a54-af77-4965-95dd-14664b419455}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\common\crypto">
+      <UniqueIdentifier>{02c45f6f-3028-4161-a768-fed74ff798b0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\common\fp">
+      <UniqueIdentifier>{c694184d-55d8-4414-9f09-08a708e66a47}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\common\fp\op">
+      <UniqueIdentifier>{64e032da-fee1-47cd-9476-3afb4afae713}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A32">
+      <UniqueIdentifier>{4d883c38-d833-4364-be01-62079452e02c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A64">
+      <UniqueIdentifier>{2782bb8a-a9b4-4c6f-b153-6e0ad5977b03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\decoder">
+      <UniqueIdentifier>{5494e16d-c235-4025-97ff-cfcf2f172636}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A32\decoder">
+      <UniqueIdentifier>{a327edb3-86f8-4d35-af51-ec198110663f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A32\disassembler">
+      <UniqueIdentifier>{2e9d25df-2376-47c4-a422-cdfea0b9b5f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A32\translate">
+      <UniqueIdentifier>{12b8bea3-be02-453a-89ee-bc472cd0a8ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A32\translate\impl">
+      <UniqueIdentifier>{da5ae0e7-bf47-4313-9eca-9076daef3310}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A64\decoder">
+      <UniqueIdentifier>{934ebab1-5482-470d-9c8b-77fc1df56681}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A64\translate">
+      <UniqueIdentifier>{3e1b111f-611c-4c7c-8c69-ad1372158b54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\frontend\A64\translate\imlp">
+      <UniqueIdentifier>{44415947-29d9-46af-a755-07ef6723e589}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\interface\A32">
+      <UniqueIdentifier>{e9a975cf-6916-49cf-a444-ed136e36e522}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\dynamic\interface\A64">
+      <UniqueIdentifier>{d4e6c058-ea11-4891-a067-8266180d3632}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -138,395 +141,386 @@
     <ClInclude Include="..\nxemu-plugin-spec\Cpu.h">
       <Filter>Plugin Spec</Filter>
     </ClInclude>
-    <ClInclude Include="arm_dynarmic_64.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A64\a64.h">
-      <Filter>Header Files\interface\A64</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A64\config.h">
-      <Filter>Header Files\interface\A64</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\halt_reason.h">
-      <Filter>Header Files\interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\optimization_flags.h">
-      <Filter>Header Files\interface</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\block_range_information.h">
-      <Filter>Header Files\backend</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\exception_handler.h">
-      <Filter>Header Files\backend</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\a32_jitstate.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\a64_address_space.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\a64_core.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\a64_jitstate.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\abi.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\address_space.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\devirtualize.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\emit_arm64.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\emit_context.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\fastmem.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\fpsr_manager.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\reg_alloc.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\stack_layout.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="backend\arm64\verbose_debugging_output.h">
-      <Filter>Header Files\backend\arm64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\a32_emit_x64.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\a32_jitstate.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\a64_emit_x64.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\a64_jitstate.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\abi.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\block_of_code.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\callback.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\constant_pool.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\constants.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\devirtualize.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\emit_x64.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\emit_x64_memory.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\exclusive_monitor_friend.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\host_feature.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\hostloc.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\jitstate_info.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\nzcv_util.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\oparg.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\perf_map.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\reg_alloc.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\stack_layout.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic\backend\x64\verbose_debugging_output.h">
-      <Filter>Header Files\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="common\always_false.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\atomic.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\cast_util.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\lut_from_list.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\math_util.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\memory_pool.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\safe_ops.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\spin_lock.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\spin_lock_x64.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\u128.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\variant_util.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\x64_disassemble.h">
-      <Filter>Header Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="common\crypto\aes.h">
-      <Filter>Header Files\common\crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="common\crypto\crc32.h">
-      <Filter>Header Files\common\crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="common\crypto\sm4.h">
-      <Filter>Header Files\common\crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\fpcr.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\fpsr.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\fused.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\info.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\mantissa_util.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\process_exception.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\process_nan.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\rounding_mode.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\unpacked.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\util.h">
-      <Filter>Header Files\common\fp</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPCompare.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPConvert.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPMulAdd.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPNeg.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPRecipEstimate.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPRecipExponent.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPRecipStepFused.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPRoundInt.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPRSqrtEstimate.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPRSqrtStepFused.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="common\fp\op\FPToFixed.h">
-      <Filter>Header Files\common\fp\op</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\imm.h">
-      <Filter>Header Files\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\a32_ir_emitter.h">
-      <Filter>Header Files\frontend\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\a32_location_descriptor.h">
-      <Filter>Header Files\frontend\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\a32_types.h">
-      <Filter>Header Files\frontend\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\FPSCR.h">
-      <Filter>Header Files\frontend\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\ITState.h">
-      <Filter>Header Files\frontend\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\PSR.h">
-      <Filter>Header Files\frontend\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\decoder\arm.h">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\decoder\asimd.h">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\decoder\thumb16.h">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\decoder\thumb32.h">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\decoder\vfp.h">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\translate\a32_translate.h">
-      <Filter>Header Files\frontend\A32\translate</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\translate\conditional_state.h">
-      <Filter>Header Files\frontend\A32\translate</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A32\translate\translate_callbacks.h">
-      <Filter>Header Files\frontend\A32\translate</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A64\a64_ir_emitter.h">
-      <Filter>Header Files\frontend\A64</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A64\a64_location_descriptor.h">
-      <Filter>Header Files\frontend\A64</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A64\a64_types.h">
-      <Filter>Header Files\frontend\A64</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A64\decoder\a64.h">
-      <Filter>Header Files\frontend\A64\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A64\translate\a64_translate.h">
-      <Filter>Header Files\frontend\A64\translate</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\A64\translate\impl\impl.h">
-      <Filter>Header Files\frontend\A64\translate\impl</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\decoder\decoder_detail.h">
-      <Filter>Header Files\frontend\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="frontend\decoder\matcher.h">
-      <Filter>Header Files\frontend\decoder</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\exclusive_monitor.h">
-      <Filter>Header Files\interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A32\a32.h">
-      <Filter>Header Files\interface\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A32\arch_version.h">
-      <Filter>Header Files\interface\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A32\config.h">
-      <Filter>Header Files\interface\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A32\coprocessor.h">
-      <Filter>Header Files\interface\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\A32\coprocessor_util.h">
-      <Filter>Header Files\interface\A32</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\acc_type.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\basic_block.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\cond.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\ir_emitter.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\location_descriptor.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\microinstruction.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\opcodes.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\terminal.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\type.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\value.h">
-      <Filter>Header Files\ir</Filter>
-    </ClInclude>
-    <ClInclude Include="ir\opt\passes.h">
-      <Filter>Header Files\ir\opt</Filter>
-    </ClInclude>
-    <ClInclude Include="version.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="exclusive_monitor_interface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="arm_dynarmic.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cpu_manager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cpu_enum_strings.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cpu_settings.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cpu_settings_identifiers.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="arm_dynarmic_32.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="dynarmic_cp15.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="patch\patch_collection.h">
       <Filter>Header Files\patch</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\acc_type.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\basic_block.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\cond.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\ir_emitter.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\location_descriptor.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\microinstruction.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\opcodes.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\terminal.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\type.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\value.h">
+      <Filter>Header Files\dynamic\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\opt\ir_matcher.h">
+      <Filter>Header Files\dynamic\ir\opt</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\ir\opt\passes.h">
+      <Filter>Header Files\dynamic\ir\opt</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\block_range_information.h">
+      <Filter>Header Files\dynamic\backend</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\exception_handler.h">
+      <Filter>Header Files\dynamic\backend</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\a32_address_space.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\a32_core.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\a32_jitstate.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\a64_address_space.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\a64_core.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\a64_jitstate.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\abi.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\address_space.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\devirtualize.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\emit_arm64.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\emit_arm64_memory.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\emit_context.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\fastmem.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\fpsr_manager.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\reg_alloc.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\stack_layout.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\verbose_debugging_output.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\a32_emit_x64.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\a32_jitstate.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\a64_emit_x64.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\a64_jitstate.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\abi.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\block_of_code.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\callback.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\constant_pool.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\constants.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\devirtualize.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\emit_x64.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\emit_x64_memory.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\exclusive_monitor_friend.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\host_feature.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\hostloc.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\jitstate_info.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\nzcv_util.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\oparg.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\perf_map.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\reg_alloc.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\stack_layout.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\verbose_debugging_output.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\always_false.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\atomic.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\cast_util.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\llvm_disassemble.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\lut_from_list.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\math_util.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\memory_pool.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\safe_ops.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\spin_lock.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\spin_lock_arm64.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\spin_lock_x64.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\string_util.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\u128.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\variant_util.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\x64_disassemble.h">
+      <Filter>Header Files\dynamic\common</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\crypto\aes.h">
+      <Filter>Header Files\dynamic\common\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\crypto\crc32.h">
+      <Filter>Header Files\dynamic\common\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\crypto\sm4.h">
+      <Filter>Header Files\dynamic\common\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\fpcr.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\fpsr.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\fused.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\info.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\mantissa_util.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\process_exception.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\process_nan.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\rounding_mode.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\unpacked.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\util.h">
+      <Filter>Header Files\dynamic\common\fp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPCompare.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPConvert.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPMulAdd.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPNeg.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPRecipEstimate.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPRecipExponent.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPRecipStepFused.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPRoundInt.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPRSqrtEstimate.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPRSqrtStepFused.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\common\fp\op\FPToFixed.h">
+      <Filter>Header Files\dynamic\common\fp\op</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\imm.h">
+      <Filter>Header Files\dynamic\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\a32_ir_emitter.h">
+      <Filter>Header Files\dynamic\frontend\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\a32_location_descriptor.h">
+      <Filter>Header Files\dynamic\frontend\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\a32_types.h">
+      <Filter>Header Files\dynamic\frontend\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\FPSCR.h">
+      <Filter>Header Files\dynamic\frontend\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\ITState.h">
+      <Filter>Header Files\dynamic\frontend\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\PSR.h">
+      <Filter>Header Files\dynamic\frontend\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\decoder\arm.h">
+      <Filter>Header Files\dynamic\frontend\A32\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\decoder\asimd.h">
+      <Filter>Header Files\dynamic\frontend\A32\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\decoder\thumb16.h">
+      <Filter>Header Files\dynamic\frontend\A32\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\decoder\thumb32.h">
+      <Filter>Header Files\dynamic\frontend\A32\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\decoder\vfp.h">
+      <Filter>Header Files\dynamic\frontend\A32\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\translate\a32_translate.h">
+      <Filter>Header Files\dynamic\frontend\A32\translate</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\translate\conditional_state.h">
+      <Filter>Header Files\dynamic\frontend\A32\translate</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\translate\translate_callbacks.h">
+      <Filter>Header Files\dynamic\frontend\A32\translate</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\disassembler\disassembler.h">
+      <Filter>Header Files\dynamic\frontend\A32\disassembler</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A32\translate\impl\a32_translate_impl.h">
+      <Filter>Header Files\dynamic\frontend\A32\translate\impl</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A64\a64_ir_emitter.h">
+      <Filter>Header Files\dynamic\frontend\A64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A64\a64_location_descriptor.h">
+      <Filter>Header Files\dynamic\frontend\A64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A64\a64_types.h">
+      <Filter>Header Files\dynamic\frontend\A64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A64\decoder\a64.h">
+      <Filter>Header Files\dynamic\frontend\A64\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A64\translate\a64_translate.h">
+      <Filter>Header Files\dynamic\frontend\A64\translate</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\A64\translate\impl\impl.h">
+      <Filter>Header Files\dynamic\frontend\A64\translate\imlp</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\decoder\decoder_detail.h">
+      <Filter>Header Files\dynamic\frontend\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\frontend\decoder\matcher.h">
+      <Filter>Header Files\dynamic\frontend\decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A32\a32.h">
+      <Filter>Header Files\dynamic\interface\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A32\arch_version.h">
+      <Filter>Header Files\dynamic\interface\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A32\config.h">
+      <Filter>Header Files\dynamic\interface\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A32\coprocessor.h">
+      <Filter>Header Files\dynamic\interface\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A32\coprocessor_util.h">
+      <Filter>Header Files\dynamic\interface\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A32\disassembler.h">
+      <Filter>Header Files\dynamic\interface\A32</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A64\a64.h">
+      <Filter>Header Files\dynamic\interface\A64</Filter>
+    </ClInclude>
+    <ClInclude Include="dynarmic\interface\A64\config.h">
+      <Filter>Header Files\dynamic\interface\A64</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1040,60 +1034,6 @@
     <ClCompile Include="dynarmic\frontend\A64\translate\impl\system_flag_manipulation.cpp">
       <Filter>Source Files\frontend\A64\translate</Filter>
     </ClCompile>
-    <ClCompile Include="dynarmic\ir\basic_block.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\ir_emitter.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\location_descriptor.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\microinstruction.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opcodes.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\type.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\value.cpp">
-      <Filter>ir</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\a32_constant_memory_reads_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\a32_get_set_elimination_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\a64_callback_config_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\a64_get_set_elimination_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\a64_merge_interpret_blocks.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\constant_propagation_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\dead_code_elimination_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\identity_removal_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\naming_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\polyfill_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
-    <ClCompile Include="dynarmic\ir\opt\verification_pass.cpp">
-      <Filter>ir\opt</Filter>
-    </ClCompile>
     <ClCompile Include="exclusive_monitor_interface.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -1118,26 +1058,62 @@
     <ClCompile Include="patch\patch_collection.cpp">
       <Filter>Source Files\patch</Filter>
     </ClCompile>
+    <ClCompile Include="dynarmic\ir\basic_block.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\ir_emitter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\location_descriptor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\microinstruction.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opcodes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\a32_constant_memory_reads_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\a32_get_set_elimination_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\a64_callback_config_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\a64_get_set_elimination_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\a64_merge_interpret_blocks.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\constant_propagation_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\dead_code_elimination_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\identity_removal_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\naming_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\polyfill_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\opt\verification_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\type.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dynarmic\ir\value.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="frontend\A32\decoder\arm.inc">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </None>
-    <None Include="frontend\A32\decoder\asimd.inc">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </None>
-    <None Include="frontend\A32\decoder\thumb16.inc">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </None>
-    <None Include="frontend\A32\decoder\thumb32.inc">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </None>
-    <None Include="frontend\A32\decoder\vfp.inc">
-      <Filter>Header Files\frontend\A32\decoder</Filter>
-    </None>
-    <None Include="frontend\A64\decoder\a64.inc">
-      <Filter>Header Files\frontend\A64\decoder</Filter>
-    </None>
     <None Include="dynarmic\backend\x64\emit_x64_memory.cpp.inc">
       <Filter>Source Files\dynarmic\backend\x64</Filter>
     </None>
