@@ -286,6 +286,10 @@ void EmulatedDevices::SetKeyboardModifier(const Common::Input::CallbackStatus& c
     case ::KeyboardModifier::RightAlt:
         device_status.keyboard_moddifier_state.right_alt.Assign(current_status.value);
         break;
+    case ::KeyboardModifier::LeftMeta:
+    case ::KeyboardModifier::RightMeta:
+        device_status.keyboard_moddifier_state.gui.Assign(current_status.value);
+        break;
     case ::KeyboardModifier::CapsLock:
         device_status.keyboard_moddifier_state.caps_lock.Assign(current_status.value);
         break;
@@ -294,6 +298,14 @@ void EmulatedDevices::SetKeyboardModifier(const Common::Input::CallbackStatus& c
         break;
     case ::KeyboardModifier::NumLock:
         device_status.keyboard_moddifier_state.num_lock.Assign(current_status.value);
+        break;
+    case ::KeyboardModifier::Katakana:
+        device_status.keyboard_moddifier_state.katakana.Assign(current_status.value);
+        break;
+    case ::KeyboardModifier::Hiragana:
+        device_status.keyboard_moddifier_state.hiragana.Assign(current_status.value);
+        break;
+    case ::KeyboardModifier::NumKeyboardMods:
         break;
     }
 
@@ -359,6 +371,8 @@ void EmulatedDevices::SetMouseButton(const Common::Input::CallbackStatus& callba
     case ::MouseButton::Back:
         device_status.mouse_button_state.back.Assign(current_status.value);
         break;
+    case ::MouseButton::NumMouseButtons:
+        break;
     }
 
     lock.unlock();
@@ -388,6 +402,8 @@ void EmulatedDevices::SetMouseWheel(const Common::Input::CallbackStatus& callbac
         break;
     case ::MouseWheel::Y:
         device_status.mouse_wheel_state.y = static_cast<s32>(analog_value.value);
+        break;
+    case ::MouseWheel::NumMouseWheels:
         break;
     }
 
