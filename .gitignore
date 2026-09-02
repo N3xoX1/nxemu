@@ -32,3 +32,13 @@ Thumbs.db
 /src/nxemu-os/version.h
 /src/nxemu-loader/version.h
 /config/NxEmu.config
+
+# Android (src/android Gradle project)
+src/android/.gradle/
+src/android/.idea/
+src/android/.cxx/
+src/android/build/
+src/android/app/build/
+src/android/local.properties
+src/android/*.iml
+src/android/app/*.iml
