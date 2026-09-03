@@ -1081,6 +1081,8 @@ void EmulatedController::SetButton(const Common::Input::CallbackStatus & callbac
         }
         controller.capture_button_state.capture.Assign(current_status.value);
         break;
+    case NativeButtonValues::NumButtons:
+        break;
     }
 
     lock.unlock();
@@ -1160,6 +1162,8 @@ void EmulatedController::SetStick(const Common::Input::CallbackStatus & callback
         controller.npad_button_state.stick_r_right.Assign(controller.stick_values.status[index].right);
         controller.npad_button_state.stick_r_down.Assign(controller.stick_values.status[index].down);
         break;
+    case NativeAnalogValues::NumAnalogs:
+        break;
     }
 }
 
@@ -1213,6 +1217,8 @@ void EmulatedController::SetTrigger(const Common::Input::CallbackStatus & callba
     case PadTrigger::RTrigger:
         controller.gc_trigger_state.right = static_cast<s32>(trigger.analog.value * HID_TRIGGER_MAX);
         controller.npad_button_state.zr.Assign(trigger.pressed.value);
+        break;
+    case PadTrigger::NumTriggers:
         break;
     }
 }
@@ -2365,7 +2371,7 @@ NpadButton EmulatedController::GetTurboButtonMask() const
     // Apply no mask when disabled
     if (turbo_button_state < TURBO_BUTTON_DELAY)
     {
-        return {NpadButton::All};
+        return NpadButton::All;
     }
 
     NpadButtonState button_mask{};

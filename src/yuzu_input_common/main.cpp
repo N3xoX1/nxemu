@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2017 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
 #include <memory>
 #include "yuzu_common/input.h"
 #include "yuzu_common/param_package.h"
@@ -163,10 +164,13 @@ struct InputSubsystem::Impl {
 
     [[nodiscard]] std::shared_ptr<InputEngine> GetInputEngine(
         const IParamPackage & params) const {
-        if (!params.Has("engine") || params.GetString("engine", "") == "any") {
+        if (!params.Has("engine")) {
             return nullptr;
         }
         const std::string engine = params.GetString("engine", "");
+        if (engine == "any") {
+            return nullptr;
+        }
         if (engine == keyboard->GetEngineName()) {
             return keyboard;
         }
@@ -232,7 +236,7 @@ struct InputSubsystem::Impl {
     }
 
     ButtonNames GetButtonName(const IParamPackage & params) const {
-        if (!params.Has("engine") || params.GetString("engine", "") == "any") {
+        if (!params.Has("engine") || std::strcmp(params.GetString("engine", ""), "any") == 0) {
             return ButtonNames::Undefined;
         }
         const auto input_engine = GetInputEngine(params);
