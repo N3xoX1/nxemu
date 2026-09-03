@@ -23,4 +23,5 @@
 #undef Always
 #undef False
 #undef None
+#undef Success
 #undef True
