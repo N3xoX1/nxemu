@@ -154,6 +154,13 @@ if(ARCHITECTURE_x86_64)
     target_link_libraries(yuzu_common PRIVATE xbyak::xbyak)
 endif()
 
+if(ARCHITECTURE_arm64)
+    target_sources(yuzu_common PRIVATE
+        arm64/native_clock.cpp
+        arm64/native_clock.h
+    )
+endif()
+
 set_source_files_properties(stb.cpp PROPERTIES COMPILE_OPTIONS "-Wno-implicit-fallthrough;-Wno-missing-declarations;-Wno-missing-field-initializers")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")

@@ -4,6 +4,7 @@
 #ifdef ANDROID
 #include <sys/system_properties.h>
 #endif
+#include <string_view>
 #include "yuzu_common/arm64/native_clock.h"
 
 namespace Common::Arm64 {
