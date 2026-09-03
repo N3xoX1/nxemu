@@ -1,4 +1,8 @@
 #include "patch/patch_collection.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
+#include <nxemu-module-spec/base.h>
+
+extern IModuleSettings * g_settings;
 
 PatchCollection::PatchCollection(ISystemModules & modules, bool is_application) :
     m_modules(modules),

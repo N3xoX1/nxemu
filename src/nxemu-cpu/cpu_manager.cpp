@@ -43,6 +43,7 @@ IPatchCollection * CpuInterface::CreatePatchCollection(bool is_application)
 
 ICpuCore * CpuInterface::CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex)
 {
+#ifdef FIX_NCE
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
@@ -53,6 +54,7 @@ ICpuCore * CpuInterface::CreateCpuCore(ICoreSystem & system, bool is64Bit, bool 
         return new Core::ArmNce > (system, true, coreIndex);
     }
     else
+#endif
 #endif
     if (is64Bit)
     {
