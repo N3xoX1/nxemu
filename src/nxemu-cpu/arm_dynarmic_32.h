@@ -25,8 +25,6 @@ public:
 
     bool IsInThumbMode() const;
 
-    void ClearInstructionCache();
-
     // ICpuCore
     void Initialize() override;
     ProcessorArchitecture GetArchitecture() const override;
@@ -40,6 +38,7 @@ public:
     CpuHaltReason StepThread(IKernelThread * thread) override;
     void LockThread(IKernelThread * thread) override;
     void UnlockThread(IKernelThread * thread) override;
+    void ClearInstructionCache() override;
     void InvalidateCacheRange(uint64_t addr, uint64_t size) override;
     const CpuDebugWatchpoint * HaltedWatchpoint() const override;
     void RewindBreakpointInstruction() override;
