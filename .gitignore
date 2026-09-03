@@ -37,6 +37,9 @@ Thumbs.db
 src/android/.gradle/
 src/android/.idea/
 src/android/.cxx/
+src/android/.externalNativeBuild/
+src/android/app/.cxx/
+src/android/app/.externalNativeBuild/
 src/android/build/
 src/android/app/build/
 src/android/local.properties
