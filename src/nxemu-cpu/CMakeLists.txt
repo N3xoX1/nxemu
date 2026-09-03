@@ -376,6 +376,11 @@ if(ARCHITECTURE_arm64)
     target_compile_definitions(nxemu-cpu PRIVATE ARCHITECTURE_Aarch64=1)
  
     target_sources(nxemu-cpu PRIVATE
+        nce/arm_nce_asm_definitions.h
+        nce/guest_context.h
+        nce/instructions.h
+        nce/patcher.cpp
+        nce/patcher.h
         dynarmic/backend/exception_handler_generic.cpp
         dynarmic/common/spin_lock_arm64.cpp
         dynarmic/backend/arm64/a32_jitstate.cpp
