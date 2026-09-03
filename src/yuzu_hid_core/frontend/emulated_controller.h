@@ -319,7 +319,7 @@ public:
     NpadGcTriggerState GetTriggers() const;
 
     /// Returns the latest status of motion input from the mouse
-    MotionState GetMotions() const;
+    MotionState GetMotions() const override;
 
     /// Returns the latest color value from the controller
     ControllerColors GetColors() const;
