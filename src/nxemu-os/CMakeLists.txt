@@ -53,7 +53,6 @@ target_include_directories(nxemu-os PRIVATE
     ${CMAKE_SOURCE_DIR}/external
     ${CMAKE_BINARY_DIR}/generated
     ${CMAKE_SOURCE_DIR}/external/boost
-    ${CMAKE_SOURCE_DIR}/src/3rd_party/nx_tzdb/include
     ${CMAKE_SOURCE_DIR}/src/3rd_party
     ${CMAKE_SOURCE_DIR}/src/3rd_party/stb
     ${CMAKE_SOURCE_DIR}/external/libusb/libusb
