@@ -113,8 +113,8 @@ private:
     void ClearItems() override;
 
     static void SettingChanged(const char * setting, void * userData);
-    static IWidget * __stdcall CreateWidget(ISciterUI & sciterUI);
-    static void __stdcall ReleaseWidget(IWidget * widget);
+    static IWidget * sui_callback CreateWidget(ISciterUI & sciterUI);
+    static void sui_callback ReleaseWidget(IWidget * widget);
 
     ISciterUI & m_sciterUI;
     IBaseElement * m_baseElement;
