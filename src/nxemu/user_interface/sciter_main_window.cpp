@@ -67,6 +67,7 @@ const char * DockedModeLabel(DockedMode mode)
 
 } // namespace
 
+#ifdef _WIN32
 struct Win32FullscreenState
 {
     bool active = false;
@@ -75,6 +76,7 @@ struct Win32FullscreenState
     LONG_PTR savedStyle = 0;
     LONG_PTR savedExStyle = 0;
 };
+#endif
 
 namespace
 {
@@ -238,7 +240,9 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_lastDiskCacheStatusPostMs(0),
     m_lastPostedDiskCacheStage(0),
     m_shownFirstFrame(false),
+#ifdef _WIN32
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>()),
+#endif
     m_firmwareInstallInProgress(false),
     m_firmwareInstallUiActive(false),
     m_firmwareInstallLastTotal(0),
@@ -957,10 +961,12 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     }
     impl->m_pendingStartInFullscreen = impl->m_emulationRunning && uiSettings.startGamesInFullscreen;
     impl->m_pendingStartWithUiHidden = impl->m_emulationRunning && uiSettings.startGamesWithUiHidden;
+#ifdef WIN32
     if (!impl->m_emulationRunning && impl->m_win32Fullscreen && impl->m_win32Fullscreen->active)
     {
         impl->ExitFullscreen();
     }
+#endif
     if (!impl->m_emulationRunning)
     {
         impl->m_hideUi = false;
@@ -2125,6 +2131,7 @@ void SciterMainWindow::ToggleHideUi()
     ResetMenu();
 }
 
+#ifdef WIN32
 void SciterMainWindow::ToggleFullscreen()
 {
     if (!m_win32Fullscreen)
@@ -2276,6 +2283,7 @@ void SciterMainWindow::ResetWindowSize(uint32_t nominal_width, uint32_t nominal_
     }
     LayoutRenderWindow();
 }
+#endif
 
 bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t /*reason*/)
 {
