@@ -11,7 +11,7 @@
 #include "yuzu_video_core/rasterizer_interface.h"
 #include <nxemu-core/settings/identifiers.h>
 #include "yuzu_video_core/shader_notify.h"
-#include <stop_token>
+#include "yuzu_common/polyfill_thread.h"
 #include "yuzu_common/settings.h"
 #include "nxemu-video/video_settings.h"
 #include <chrono>
