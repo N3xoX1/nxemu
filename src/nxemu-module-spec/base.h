@@ -26,10 +26,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x012C,
-    MODULE_VIDEO_SPECS_VERSION = 0x011D,
-    MODULE_CPU_SPECS_VERSION = 0x0112,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011B,
+    MODULE_LOADER_SPECS_VERSION = 0x012D,
+    MODULE_VIDEO_SPECS_VERSION = 0x011E,
+    MODULE_CPU_SPECS_VERSION = 0x0113,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011C,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -281,6 +281,8 @@ nxinterface IModuleInfo
     virtual uint64_t DataSegmentAddr(void) const = 0;
     virtual uint64_t DataSegmentOffset(void) const = 0;
     virtual uint64_t DataSegmentSize(void) const = 0;
+    virtual uint64_t PatchSegmentAddr(void) const = 0;
+    virtual uint64_t PatchSegmentSize(void) const = 0;
 };
 
 nxinterface IProcess
