@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright © 2020 Skyline Team and Contributors
 // SPDX-License-Identifier: MPL-2.0
 
-#include "common/bit_field.h"
-#include "common/common_types.h"
+#pragma once
+
+#include "yuzu_common/bit_field.h"
+#include "yuzu_common/common_types.h"
 
 namespace Core::NCE {
 
