@@ -1,20 +1,308 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: #000;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font: 24px sans-serif;
+    :root {
+      --bg: #ffffff;
+      --text: #000000;
     }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --text: #e0e0e0;
+      }
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      font-family: sans-serif;
+    }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 56px;
+}
+
+.topbar-back {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 56px;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.back-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.settings-list {
+  padding: 8px 16px;
+}
+
+.settings-item {
+  padding: 16px 0;
+  font-size: 16px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+  cursor: pointer;
+}
+
+.fab {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  border: none;
+  background: #4fc3f7;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.fab svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.setting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-remove {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.folder-remove svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
   </style>
+<script>
+let navStack = ['gamesPage'];
+
+function onSettingChanged(setting) {
+  if (setting === 'nxui:GameDirectories') {
+    renderGameFolders();
+    refreshGameList();
+  }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function refreshGameList() {
+}
+
+function navigate(page) {
+  navStack.push(page);
+  showPage(page);
+}
+
+function goBack() {
+  if (navStack.length > 1) {
+    navStack.pop();
+    showPage(navStack[navStack.length - 1]);
+  }
+}
+
+function formatGameFolder(uri) {
+    const decoded = decodeURIComponent(uri);
+    const prefix = 'content://com.android.externalstorage.documents/tree/';
+
+    if (!decoded.startsWith(prefix)) return decoded;
+
+    const path = decoded.substring(prefix.length);
+    const colonIndex = path.indexOf(':');
+    const volume = path.substring(0, colonIndex);
+    const folder = path.substring(colonIndex + 1);
+
+    if (volume === 'primary') {
+        return 'Internal Storage:' + folder;
+    }
+    return volume + ':' + folder;
+}
+
+function renderGameFolders() {
+    const list = document.getElementById('folderList');
+    const empty = document.getElementById('noFolders');
+
+    let dirs;
+    try {
+        dirs = JSON.parse(NxEmu.getSettingString('nxui:GameDirectories') || '[]');
+    } catch (e) {
+        dirs = [];
+    }
+    empty.style.display = dirs.length === 0 ? '' : 'none';
+    list.innerHTML = '';
+    dirs.forEach((uri, index) => {
+        const name = formatGameFolder(uri);
+        const item = document.createElement('div');
+        item.className = 'folder-item';
+        item.innerHTML = `
+            <div class="setting-info">
+                <div class="setting-label">${escapeHtml(name)}</div>
+            </div>
+            <button class="folder-remove" onclick="removeGameFolder('${uri.replace(/'/g, "\\'")}')">
+                <svg viewBox="0 0 1024 1024"><path d="M160 256H96a32 32 0 0 1 0-64h256V95.936a32 32 0 0 1 32-32h256a32 32 0 0 1 32 32V192h256a32 32 0 1 1 0 64h-64v672a32 32 0 0 1-32 32H192a32 32 0 0 1-32-32zm448-64v-64H416v64zM224 896h576V256H224zm192-128a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32m192 0a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32"/></svg>
+            </button>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function removeGameFolder(uri) {
+  let dirs;
+  try {
+    dirs = JSON.parse(NxEmu.getSettingString('nxui:GameDirectories') || '[]');
+  } catch (e) {
+    dirs = [];
+  }
+  dirs = dirs.filter(function (d) { return d !== uri; });
+  NxEmu.setSettingString('nxui:GameDirectories', JSON.stringify(dirs));
+  NxEmu.saveSettings();
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  document.getElementById(page).style.display = '';
+  if (page === 'gameFolders') { renderGameFolders(); }
+  if (page === 'gamesPage') { refreshGameList(); }
+}
+</script>
 </head>
-<body>Hello from NxEmu</body>
+<body>
+  <div id="gamesPage" class="page">
+    <div class="topbar">
+      <div class="logo"><img src="file:///android_asset/nxlogo-32x32.png" width="20" height="20" alt="">NxEmu</div>
+      <button class="settings-btn" onclick="navigate('settingsPage')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0   0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+    <div id="gameList" class="game-list">game list</div>
+  </div>
+  <div id="settingsPage" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="page-title">Settings</div>
+    </div>
+    <div class="settings-list">
+      <div class="settings-item" onclick="navigate('gameFolders')">
+        <span>Game Folders</span>
+      </div>
+    </div>
+  </div>
+  <div id="gameFolders" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="page-title">Game Folders</div>
+    </div>
+    <div id="folderList" class="settings-list"></div>
+    <div id="noFolders" class="empty-hint">
+      <p>No game folders added</p>
+    </div>
+    <button class="fab" onclick="NxEmu.addGameDirectory()">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
+</body>
 </html>
