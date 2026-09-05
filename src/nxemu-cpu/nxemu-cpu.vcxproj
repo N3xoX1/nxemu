@@ -167,6 +167,13 @@
     <ClInclude Include="dynarmic\ir\terminal.h" />
     <ClInclude Include="dynarmic\ir\type.h" />
     <ClInclude Include="dynarmic\ir\value.h" />
+    <ClInclude Include="nce\arm_nce.h" />
+    <ClInclude Include="nce\arm_nce_asm_definitions.h" />
+    <ClInclude Include="nce\guest_context.h" />
+    <ClInclude Include="nce\instructions.h" />
+    <ClInclude Include="nce\interpreter_visitor.h" />
+    <ClInclude Include="nce\patcher.h" />
+    <ClInclude Include="nce\visitor_base.h" />
     <ClInclude Include="patch\patch_collection.h" />
   </ItemGroup>
   <ItemGroup>
