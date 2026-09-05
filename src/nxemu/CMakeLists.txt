@@ -2,6 +2,8 @@ add_executable(nxemu
     main.cpp
     startup_checks.cpp
     startup_checks.h
+    vulkan_probe.cpp
+    vulkan_probe.h
     settings/ui_settings.cpp
     settings/ui_settings.h
     settings/ui_identifiers.h
@@ -67,7 +69,9 @@ target_include_directories(nxemu PRIVATE
     ${CMAKE_SOURCE_DIR}/external/sciterui/include
 )
 
-target_compile_definitions(nxemu PRIVATE)
+if(UNIX)
+    target_compile_definitions(nxemu PRIVATE NXEMU_UNIX=1)
+endif()
 
 target_link_libraries(nxemu PRIVATE
     sciterui
@@ -76,6 +80,7 @@ target_link_libraries(nxemu PRIVATE
     nxemu_core
     fmt::fmt
     Vulkan::Headers
+    Vulkan::UtilityHeaders
     ${CMAKE_DL_LIBS}
 )
 nxemu_set_app_output(nxemu)

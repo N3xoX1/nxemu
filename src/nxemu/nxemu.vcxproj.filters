@@ -87,6 +87,9 @@
     <ClCompile Include="startup_checks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vulkan_probe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="user_interface\settings\system_config_game_browser.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
@@ -192,6 +195,9 @@
       <Filter>Header Files\user_interface\settings</Filter>
     </ClInclude>
     <ClInclude Include="startup_checks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_probe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\settings\system_config_debug.h">

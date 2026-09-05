@@ -84,12 +84,12 @@ static void EnablePerMonitorDpiAwareness()
 }
 #endif
 
-static int RunApplication() 
+static int RunApplication(const char * arg0) 
 {
-    const VulkanCheckResult probe = RunVulkanProbeIfChild();
-    if (probe != VULKAN_CHECK_DONE)
-    {
-        return probe == EXIT_VULKAN_AVAILABLE ? 0 : 1;
+    bool has_broken_vulkan = false;
+    bool is_child = false;
+    if (CheckEnvVars(&is_child)) {
+        return 0;
     }
 
 #ifdef WIN32
@@ -97,14 +97,10 @@ static int RunApplication()
 #endif
     bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
 
-    if (res && uiSettings.performVulkanCheck)
-    {
-        VulkanCheckResult result = StartupVulkanChecks();
-        if (result != VULKAN_CHECK_DONE)
-        {
-            return result == EXIT_VULKAN_AVAILABLE ? 0 : 1;
-        }
+    if (res && StartupChecks(arg0, &has_broken_vulkan, uiSettings.performVulkanCheck)) {
+        return 0;
     }
+    uiSettings.hasBrokenVulkan = has_broken_vulkan;
 
     ISciterUI * sciterUI = nullptr;
     if (res && !SciterUIInit(uiSettings.languageDir, uiSettings.languageBase.c_str(), uiSettings.languageCurrent.c_str(), uiSettings.sciterConsole, sciterUI))
@@ -130,11 +126,13 @@ static int RunApplication()
 #ifdef _WIN32
 int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpszArgs*/, _In_ int /*nWinMode*/)
 {
-    return RunApplication();
+    char arg0[MAX_PATH]{};
+    GetModuleFileNameA(nullptr, arg0, MAX_PATH);
+    return RunApplication(arg0);
 }
 #else
-int main(int /*argc*/, char * /*argv*/[])
+int main(int argc, char * argv[])
 {
-    return RunApplication();
+    return RunApplication((argc > 0 && argv[0] != nullptr) ? argv[0] : "nxemu");
 }
 #endif
