@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstring>
 #include <limits>
-#include <new>
 #include <span>
 #include <type_traits>
 #include <vector>
@@ -100,17 +99,9 @@ public:
     }
 
 private:
-    // It is important to align the below variables for performance reasons:
-    // Having them on the same cache-line would result in false-sharing between them.
-    // TODO: Remove this ifdef whenever clang and GCC support
-    //       std::hardware_destructive_interference_size.
-#ifdef __cpp_lib_hardware_interference_size
-    alignas(std::hardware_destructive_interference_size) std::atomic_size_t m_read_index{0};
-    alignas(std::hardware_destructive_interference_size) std::atomic_size_t m_write_index{0};
-#else
-    alignas(128) std::atomic_size_t m_read_index{0};
-    alignas(128) std::atomic_size_t m_write_index{0};
-#endif
+    static constexpr std::size_t destructive_interference_size = 128;
+    alignas(destructive_interference_size) std::atomic_size_t m_read_index{0};
+    alignas(destructive_interference_size) std::atomic_size_t m_write_index{0};
 
     std::array<T, capacity> m_data;
 };
