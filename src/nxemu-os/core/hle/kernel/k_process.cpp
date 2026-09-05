@@ -1390,10 +1390,6 @@ Result KProcess::LoadFromMetadata(const IProgramMetadata & metadata, std::size_t
 
 void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
 {
-    const auto ReprotectSegment = [&](const CodeSet::Segment & segment, Svc::MemoryPermission permission) {
-        m_page_table.SetProcessMemoryPermission(segment.addr + base_addr, segment.size, permission);
-    };
-
     this->GetCoreMemory().WriteBlock(base_addr, module.Data(), module.DataSize());
 
     m_page_table.SetProcessMemoryPermission((KProcessAddress)(module.CodeSegmentAddr()) + base_addr, module.CodeSegmentSize(), Svc::MemoryPermission::ReadExecute);
@@ -1401,14 +1397,16 @@ void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
     m_page_table.SetProcessMemoryPermission((KProcessAddress)(module.DataSegmentAddr()) + base_addr, module.DataSegmentSize(), Svc::MemoryPermission::ReadWrite);
 
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
-    const auto & patch = code_set.PatchSegment();
-    if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled) && patch.size != 0)
+    const uint64_t patch_size = module.PatchSegmentSize();
+    if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled) && patch_size != 0)
     {
         auto & buffer = m_kernel.System().DeviceMemory().buffer;
-        const auto & code = code_set.CodeSegment();
-        buffer.Protect(GetInteger(base_addr + code.addr), code.size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
-        buffer.Protect(GetInteger(base_addr + patch.addr), patch.size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
-        ReprotectSegment(code_set.PatchSegment(), Svc::MemoryPermission::None);
+        const uint64_t code_addr = module.CodeSegmentAddr();
+        const uint64_t code_size = module.CodeSegmentSize();
+        const uint64_t patch_addr = module.PatchSegmentAddr();
+        buffer.Protect(GetInteger(base_addr) + code_addr, code_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
+        buffer.Protect(GetInteger(base_addr) + patch_addr, patch_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
+        m_page_table.SetProcessMemoryPermission((KProcessAddress)(patch_addr) + base_addr, patch_size, Svc::MemoryPermission::None);
     }
 #endif
 }

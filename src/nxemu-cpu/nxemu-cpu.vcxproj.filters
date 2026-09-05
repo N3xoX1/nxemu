@@ -133,6 +133,9 @@
     <Filter Include="Header Files\dynamic\interface\A64">
       <UniqueIdentifier>{d4e6c058-ea11-4891-a067-8266180d3632}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\nce">
+      <UniqueIdentifier>{b2c9d5c7-feff-4402-8b5b-04eb15c717d3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nxemu-plugin-spec\Base.h">
@@ -521,6 +524,27 @@
     </ClInclude>
     <ClInclude Include="dynarmic\interface\A64\config.h">
       <Filter>Header Files\dynamic\interface\A64</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\arm_nce.h">
+      <Filter>Header Files\nce</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\arm_nce_asm_definitions.h">
+      <Filter>Header Files\nce</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\guest_context.h">
+      <Filter>Header Files\nce</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\instructions.h">
+      <Filter>Header Files\nce</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\interpreter_visitor.h">
+      <Filter>Header Files\nce</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\patcher.h">
+      <Filter>Header Files\nce</Filter>
+    </ClInclude>
+    <ClInclude Include="nce\visitor_base.h">
+      <Filter>Header Files\nce</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

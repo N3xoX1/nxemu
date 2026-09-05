@@ -19,7 +19,6 @@ set(NXEMU_VIDEO_SOURCES
     video_settings.cpp
     video_settings.h
     video_settings_identifiers.h
-    version.h
     render_window.h
 )
 

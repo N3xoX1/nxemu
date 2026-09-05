@@ -98,6 +98,14 @@ struct CodeSet :
     {
         return segments[2].size;
     }
+    uint64_t PatchSegmentAddr(void) const
+    {
+        return patch_segment.addr.GetValue();
+    }
+    uint64_t PatchSegmentSize(void) const
+    {
+        return patch_segment.size;
+    }
 
     Segment& CodeSegment() {
         return segments[0];
