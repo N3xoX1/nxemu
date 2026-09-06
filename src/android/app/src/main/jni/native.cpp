@@ -9,6 +9,7 @@
 #include <yuzu_common/android/java_bridge.h>
 #include <yuzu_common/fs/fs_android.h>
 #include <yuzu_common/fs/path_util.h>
+#include "emulation_session.h"
 #include "notification.h"
 #include "settings/settings_bridge.h"
 
@@ -76,13 +77,16 @@ Java_org_nxemu_NativeLibrary_appInit(JNIEnv * env, jclass /*clazz*/, jstring app
     SettingsStore & store = SettingsStore::GetInstance();
     store.SetString(NXCoreSetting::ModuleDirectory, moduleDir.c_str());
     SettingsChange_Start(vm, env);
+    EmulationSession::GetInstance().InitializeSystem();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_org_nxemu_NativeLibrary_appCleanup(JNIEnv * env, jclass /*clazz*/)
 {
+    EmulationSession::GetInstance().ShutdownSystem();
     SettingsChange_Stop(env);
     AppCleanup();
+    Common::FS::Android::UnRegisterCallbacks(env);
     ClearNativeLibraryGlobalRef(env);
     if (g_native_library_class != nullptr)
     {
