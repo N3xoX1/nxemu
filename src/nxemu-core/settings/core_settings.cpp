@@ -64,6 +64,11 @@ namespace
         { NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "video\\nxemu-video.dll" },
         { NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system\\nxemu-os.dll" },
 #endif
+#elif defined(ANDROID)
+        {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "libnxemu-loader.so"},
+        {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "libnxemu-cpu.so"},
+        {NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "libnxemu-video.so"},
+        {NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "libnxemu-os.so"},
 #else
         {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader/libnxemu-loader.so"},
         {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "cpu/libnxemu-cpu.so"},
