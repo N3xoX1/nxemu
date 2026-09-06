@@ -24,7 +24,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -42,6 +42,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="settings\ui_settings.cpp" />
     <ClCompile Include="startup_checks.cpp" />
+    <ClCompile Include="vulkan_probe.cpp" />
     <ClCompile Include="user_interface\file_dialogs.cpp" />
     <ClCompile Include="user_interface\game_list_worker.cpp" />
     <ClCompile Include="user_interface\hotkey_map.cpp" />
@@ -79,6 +80,7 @@
     <ClInclude Include="settings\ui_settings.h" />
     <ClInclude Include="settings\ui_settings_identifiers.h" />
     <ClInclude Include="startup_checks.h" />
+    <ClInclude Include="vulkan_probe.h" />
     <ClInclude Include="user_interface\app_events.h" />
     <ClInclude Include="user_interface\file_dialogs.h" />
     <ClInclude Include="user_interface\game_list_worker.h" />
