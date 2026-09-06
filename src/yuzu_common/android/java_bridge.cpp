@@ -27,14 +27,6 @@ jclass g_boolean_class = nullptr;
 jmethodID g_boolean_ctor = nullptr;
 jmethodID g_boolean_boolean_value = nullptr;
 
-jmethodID g_input_device_get_guid = nullptr;
-jmethodID g_input_device_get_port = nullptr;
-jmethodID g_input_device_get_supports_vibration = nullptr;
-jmethodID g_input_device_get_name = nullptr;
-jmethodID g_input_device_get_axes = nullptr;
-jmethodID g_input_device_has_keys = nullptr;
-jmethodID g_input_device_vibrate = nullptr;
-
 void ClearPendingJniException(JNIEnv * env)
 {
     if (env->ExceptionCheck())
@@ -90,38 +82,9 @@ void InitJavaBoxCache(JNIEnv * env)
     }
 }
 
-void InitInputDeviceCache(JNIEnv * env)
-{
-    const jclass input_device_class = env->FindClass("org/nxemu/input/NxemuInputDevice");
-    if (input_device_class == nullptr)
-    {
-        LOG_ERROR(Common, "Java bridge failed to resolve org.nxemu.input.NxemuInputDevice");
-        ClearPendingJniException(env);
-        return;
-    }
-
-    g_input_device_get_name = env->GetMethodID(input_device_class, "getName", "()Ljava/lang/String;");
-    g_input_device_get_guid = env->GetMethodID(input_device_class, "getGUID", "()Ljava/lang/String;");
-    g_input_device_get_port = env->GetMethodID(input_device_class, "getPort", "()I");
-    g_input_device_get_supports_vibration = env->GetMethodID(input_device_class, "getSupportsVibration", "()Z");
-    g_input_device_vibrate = env->GetMethodID(input_device_class, "vibrate", "(F)V");
-    g_input_device_get_axes = env->GetMethodID(input_device_class, "getAxes", "()[Ljava/lang/Integer;");
-    g_input_device_has_keys = env->GetMethodID(input_device_class, "hasKeys", "([I)[Z");
-    env->DeleteLocalRef(input_device_class);
-
-    if (!g_input_device_get_name || !g_input_device_get_guid || !g_input_device_get_port ||
-        !g_input_device_get_supports_vibration || !g_input_device_vibrate ||
-        !g_input_device_get_axes || !g_input_device_has_keys)
-    {
-        LOG_ERROR(Common, "Java bridge failed to resolve NxemuInputDevice members");
-        ClearPendingJniException(env);
-    }
-}
-
 void InitJniCaches(JNIEnv * env)
 {
     InitJavaBoxCache(env);
-    InitInputDeviceCache(env);
     if (g_double_class != nullptr)
     {
         g_jni_caches_initialized = true;
@@ -290,41 +253,6 @@ jobject ToJBoolean(JNIEnv * env, bool value)
     }
     return env->NewObject(g_boolean_class, g_boolean_ctor,
                           static_cast<jboolean>(value ? JNI_TRUE : JNI_FALSE));
-}
-
-jmethodID GetInputDeviceGetGUID()
-{
-    return g_input_device_get_guid;
-}
-
-jmethodID GetInputDeviceGetPort()
-{
-    return g_input_device_get_port;
-}
-
-jmethodID GetInputDeviceGetSupportsVibration()
-{
-    return g_input_device_get_supports_vibration;
-}
-
-jmethodID GetInputDeviceGetName()
-{
-    return g_input_device_get_name;
-}
-
-jmethodID GetInputDeviceGetAxes()
-{
-    return g_input_device_get_axes;
-}
-
-jmethodID GetInputDeviceHasKeys()
-{
-    return g_input_device_has_keys;
-}
-
-jmethodID GetInputDeviceVibrate()
-{
-    return g_input_device_vibrate;
 }
 
 jmethodID GetIntegerIntValue()
