@@ -54,13 +54,6 @@ jobject ToJInteger(JNIEnv* env, s32 value);
 bool GetJBoolean(JNIEnv* env, jobject jboolean);
 jobject ToJBoolean(JNIEnv* env, bool value);
 
-jmethodID GetInputDeviceGetGUID();
-jmethodID GetInputDeviceGetPort();
-jmethodID GetInputDeviceGetSupportsVibration();
-jmethodID GetInputDeviceGetName();
-jmethodID GetInputDeviceGetAxes();
-jmethodID GetInputDeviceHasKeys();
-jmethodID GetInputDeviceVibrate();
 jmethodID GetIntegerIntValue();
 
 #endif
