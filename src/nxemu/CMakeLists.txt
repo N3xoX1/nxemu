@@ -78,6 +78,7 @@ target_link_libraries(nxemu PRIVATE
     common
     yuzu_common
     nxemu_core
+    discord-rpc
     fmt::fmt
     Vulkan::Headers
     Vulkan::UtilityHeaders
