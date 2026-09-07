@@ -1,5 +1,6 @@
 #include "video_manager.h"
 #include "video_settings.h"
+#include <cstring>
 #include <memory>
 #include <stdio.h>
 #include <nxemu-core/settings/identifiers.h>

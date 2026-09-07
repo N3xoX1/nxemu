@@ -1,5 +1,6 @@
 #include "cpu_manager.h"
 #include "cpu_settings.h"
+#include <cstring>
 #include <memory>
 #include <stdio.h>
 #include <nxemu-core/settings/identifiers.h>

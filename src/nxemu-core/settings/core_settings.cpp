@@ -3,6 +3,7 @@
 #include "settings.h"
 #include <common/json.h>
 #include <common/path.h>
+#include <cstring>
 #include <yuzu_common/yuzu_assert.h>
 
 namespace

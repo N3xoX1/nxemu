@@ -3,6 +3,7 @@
 #include "settings/input_config.h"
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
+#include <cstring>
 #include "user_interface/about_dialog.h"
 #include "user_interface/app_events.h"
 #include "user_interface/file_dialogs.h"

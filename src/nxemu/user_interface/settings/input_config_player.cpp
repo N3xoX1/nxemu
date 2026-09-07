@@ -1,6 +1,7 @@
 #include "input_config.h"
 #include "input_config_player.h"
 #include <common/std_string.h>
+#include <cstring>
 #include <sciter_handler.h>
 #include <widgets/combo_box.h>
 #include <unordered_map>

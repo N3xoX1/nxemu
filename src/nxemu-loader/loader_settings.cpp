@@ -1,6 +1,7 @@
 #include "loader_settings.h"
 #include "loader_settings_identifiers.h"
 #include <common/json_util.h>
+#include <cstring>
 #include <nxemu-module-spec/base.h>
 #include <yuzu_common/yuzu_assert.h>
 
