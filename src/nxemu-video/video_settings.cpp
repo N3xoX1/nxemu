@@ -3,6 +3,7 @@
 #include "video_settings_identifiers.h"
 #include <algorithm>
 #include <common/json.h>
+#include <cstring>
 #include <nxemu-module-spec/base.h>
 #include <yuzu_common/yuzu_assert.h>
 

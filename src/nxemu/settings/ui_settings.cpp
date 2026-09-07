@@ -3,6 +3,7 @@
 #include <common/json.h>
 #include <common/json_util.h>
 #include <common/path.h>
+#include <cstring>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/settings.h>
 #include <sciter_handler.h>

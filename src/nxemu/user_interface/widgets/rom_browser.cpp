@@ -3,6 +3,7 @@
 #include "user_interface/app_events.h"
 #include "user_interface/sciter_main_window.h"
 #include "settings/ui_settings.h"
+#include <cstring>
 #include <map>
 #include <common/path.h>
 #include <common/std_string.h>  

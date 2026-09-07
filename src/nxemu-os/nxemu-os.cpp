@@ -1,5 +1,6 @@
 #include "os_manager.h"
 #include "os_settings.h"
+#include <cstring>
 #include <memory>
 #include <stdio.h>
 #include <nxemu-core/settings/identifiers.h>

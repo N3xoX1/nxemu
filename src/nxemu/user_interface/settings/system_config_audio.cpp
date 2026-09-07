@@ -2,6 +2,7 @@
 #include "system_config_audio.h"
 #include "system_config.h"
 #include <common/std_string.h>
+#include <cstring>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-os/os_settings_identifiers.h>

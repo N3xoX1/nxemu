@@ -1,5 +1,6 @@
 #include "loader_settings.h"
 #include "system_loader.h"
+#include <cstring>
 #include <memory>
 #include <stdio.h>
 #include <nxemu-core/settings/identifiers.h>
