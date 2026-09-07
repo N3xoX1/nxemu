@@ -1,4 +1,6 @@
 add_library(nxemu-android SHARED
+    android_render_window.cpp
+    emulation_session.cpp
     native.cpp
     notification.cpp
     settings/settings_bridge.cpp
