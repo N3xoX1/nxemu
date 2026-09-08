@@ -264,7 +264,9 @@ namespace
             {
                 return m_package->GetFloat(key, default_value);
             }
+#ifdef WIN32
             __debugbreak();
+#endif
             return 0.0f;
         }
 
