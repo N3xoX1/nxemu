@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
 
 #include <nxemu-core/modules/system_modules.h>
 #include "android_render_window.h"
@@ -13,6 +14,8 @@ public:
 
     void InitializeSystem();
     void ShutdownSystem();
+
+    std::string QueryRomMetadata(const std::string & path);
 
 private:
     EmulationSession() = default;

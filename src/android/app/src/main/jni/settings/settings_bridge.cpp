@@ -5,12 +5,13 @@
 #include <nxemu-core/settings/settings.h>
 #include <yuzu_common/android/java_bridge.h>
 
+static jmethodID s_on_setting_changed = nullptr;
+
 namespace
 {
     constexpr const char * kLogTag = "NxEmu";
 
     jclass s_native_library_class = nullptr;
-    jmethodID s_on_setting_changed = nullptr;
 
     void OnSettingChanged(const char * setting, void * /*userData*/)
     {
@@ -37,8 +38,7 @@ namespace
     }
 }
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_org_nxemu_NativeLibrary_getSettingString(JNIEnv * env, jclass /*clazz*/, jstring setting)
+extern "C" JNIEXPORT jstring JNICALL Java_org_nxemu_NativeLibrary_getSettingString(JNIEnv * env, jclass /*clazz*/, jstring setting)
 {
     const char * key = env->GetStringUTFChars(setting, nullptr);
     const char * value = SettingsStore::GetInstance().GetString(key);
@@ -48,9 +48,7 @@ Java_org_nxemu_NativeLibrary_getSettingString(JNIEnv * env, jclass /*clazz*/, js
     return env->NewStringUTF(value != nullptr ? value : "");
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_NativeLibrary_setSettingString(JNIEnv * env, jclass /*clazz*/, jstring setting,
-                                              jstring value)
+extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_setSettingString(JNIEnv * env, jclass /*clazz*/, jstring setting, jstring value)
 {
     const char * key = env->GetStringUTFChars(setting, nullptr);
     const char * val = env->GetStringUTFChars(value, nullptr);
@@ -61,10 +59,10 @@ Java_org_nxemu_NativeLibrary_setSettingString(JNIEnv * env, jclass /*clazz*/, js
     env->ReleaseStringUTFChars(setting, key);
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_NativeLibrary_saveSettings(JNIEnv * /*env*/, jclass /*clazz*/)
+extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_saveSettings(JNIEnv * /*env*/, jclass /*clazz*/)
 {
     SaveUISetting();
+    SettingsStore::GetInstance().Save();
 }
 
 void SettingsChange_Start(JavaVM * /*javaVm*/, JNIEnv * env)
