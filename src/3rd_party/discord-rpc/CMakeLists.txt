@@ -36,5 +36,12 @@ else()
 endif()
 
 if(UNIX)
-    target_compile_options(discord-rpc PRIVATE -Wno-unknown-pragmas)
+    target_compile_options(discord-rpc PRIVATE
+        -Wno-unknown-pragmas
+        -Wno-deprecated-declarations
+    )
+    # GCC 15+ diagnoses uninstantiated RapidJSON templates (const member assignment).
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
+        target_compile_options(discord-rpc PRIVATE -Wno-template-body)
+    endif()
 endif()
