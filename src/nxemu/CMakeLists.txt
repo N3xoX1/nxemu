@@ -22,6 +22,8 @@ add_executable(nxemu
     user_interface/notification.cpp
     user_interface/notification.h
     user_interface/app_events.h
+    user_interface/file_dialogs.cpp
+    user_interface/file_dialogs.h
     user_interface/sciter_main_window.cpp
     user_interface/sciter_main_window.h
     user_interface/widgets/rom_browser.cpp
@@ -36,6 +38,12 @@ add_executable(nxemu
     user_interface/settings/input_config.h
     user_interface/settings/input_config_player.cpp
     user_interface/settings/input_config_player.h
+    user_interface/settings/profile_editor_dialog.cpp
+    user_interface/settings/profile_editor_dialog.h
+    user_interface/settings/profile_firmware_avatar_dialog.cpp
+    user_interface/settings/profile_firmware_avatar_dialog.h
+    user_interface/settings/profile_image_selector_dialog.cpp
+    user_interface/settings/profile_image_selector_dialog.h
     user_interface/settings/system_config.cpp
     user_interface/settings/system_config.h
     user_interface/settings/system_config_audio.cpp
@@ -48,10 +56,16 @@ add_executable(nxemu
     user_interface/settings/system_config_graphics.h
     user_interface/settings/system_config_hotkeys.cpp
     user_interface/settings/system_config_hotkeys.h
+    user_interface/settings/system_config_input.cpp
+    user_interface/settings/system_config_input.h
     user_interface/settings/system_config_logging.cpp
     user_interface/settings/system_config_logging.h
+    user_interface/settings/system_config_profiles.cpp
+    user_interface/settings/system_config_profiles.h
     user_interface/settings/system_config_system.cpp
     user_interface/settings/system_config_system.h
+    user_interface/settings/system_config_system_tab.cpp
+    user_interface/settings/system_config_system_tab.h
     applets/profile_select.cpp
     applets/profile_select.h
     applets/web_browser.cpp
