@@ -166,6 +166,54 @@
   fill: currentColor;
 }
 
+.empty-hint {
+  padding: 40px 16px;
+  text-align: center;
+  color: rgba(128, 128, 128, 0.6);
+  font-size: 14px;
+}
+
+.game-list {
+  padding: 8px 8px 88px;
+}
+
+.game-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 12px;
+}
+
+.game-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.game-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-title {
+  font-size: 16px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.game-sub {
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.85);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
   </style>
 <script>
 let navStack = ['gamesPage'];
@@ -186,7 +234,81 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+function iconMimeFromBase64(b64) {
+    if (!b64 || b64.length < 4) return 'image/jpeg';
+    try {
+        const head = atob(b64.slice(0, 8));
+        const c0 = head.charCodeAt(0);
+        const c1 = head.charCodeAt(1);
+        if (c0 === 0xff && c1 === 0xd8) return 'image/jpeg';
+        if (head.startsWith('GIF')) return 'image/gif';
+        if (head.charCodeAt(0) === 0x89 && head.slice(1, 4) === 'PNG') return 'image/png';
+    } catch (e) {}
+    return 'image/jpeg';
+}
+
 async function refreshGameList() {
+    const container = document.getElementById('gameList');
+    if (!container) return;
+    container.innerHTML = '<div class="empty-hint">Scanning…</div>';
+
+    let paths = [];
+    try {
+        paths = JSON.parse(NxEmu.scanGameLibraryPaths());
+    } catch (e) {
+        paths = [];
+    }
+
+    container.innerHTML = '';
+    if (!paths.length) {
+        container.innerHTML = '<div class="empty-hint">No ROM files found. Add a game folder in Settings.</div>';
+        return;
+    }
+
+    let shown = false;
+    for (let i = 0; i < paths.length; i++) {
+        const path = paths[i];
+        let meta = { title: '', icon: '', error: 'failed', path };
+        try {
+            meta = JSON.parse(NxEmu.queryRomMetadata(path));
+        } catch (e) {
+            meta.error = 'parse';
+        }
+        if (meta.error) {
+            continue;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'game-row';
+        const title = meta.title && meta.title.length ? meta.title : shortPath(path);
+        const iconSrc = meta.icon && meta.icon.length
+            ? ('data:' + iconMimeFromBase64(meta.icon) + ';base64,' + meta.icon)
+            : 'file:///android_asset/nxlogo-32x32.png';
+        const pidLine = meta.programId && meta.programId !== '0'
+            ? '<div class="game-sub">ID ' + escapeHtml(meta.programId) + '</div>'
+            : '';
+        row.innerHTML =
+            '<img class="game-icon" src="' + iconSrc + '" alt="" />' +
+            '<div class="game-meta">' +
+            '<div class="game-title">' + escapeHtml(title) + '</div>' +
+            pidLine +
+            '</div>';
+        container.appendChild(row);
+        shown = true;
+    }
+    if (!shown) {
+        container.innerHTML = '<div class="empty-hint">No ROM files found. Add a game folder in Settings.</div>';
+    }
+}
+
+function shortPath(uri) {
+    try {
+        const u = decodeURIComponent(uri);
+        const last = u.lastIndexOf('/');
+        return last >= 0 ? u.slice(last + 1) : u;
+    } catch (e) {
+        return uri;
+    }
 }
 
 function navigate(page) {
@@ -274,7 +396,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0   0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       </button>
     </div>
-    <div id="gameList" class="game-list">game list</div>
+    <div id="gameList" class="game-list"></div>
   </div>
   <div id="settingsPage" class="page" style="display:none">
     <div class="topbar-back">
@@ -304,5 +426,6 @@ function showPage(page) {
       <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
   </div>
+<script>refreshGameList();</script>
 </body>
 </html>

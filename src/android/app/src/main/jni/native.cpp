@@ -2,6 +2,7 @@
 #include <jni.h>
 #include <string>
 
+#include <common/json.h>
 #include <nxemu-core/app_init.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
@@ -32,6 +33,18 @@ namespace
             env->ReleaseStringUTFChars(value, chars);
         }
         return result;
+    }
+
+    std::string FailJson(const std::string & path, const char * err)
+    {
+        JsonValue obj(JsonValueType::Object);
+        obj["path"] = path;
+        obj["title"] = "";
+        obj["programId"] = "0";
+        obj["fileType"] = 0;
+        obj["icon"] = "";
+        obj["error"] = err != nullptr ? err : "";
+        return JsonStyledWriter().write(obj);
     }
 }
 
@@ -93,4 +106,23 @@ Java_org_nxemu_NativeLibrary_appCleanup(JNIEnv * env, jclass /*clazz*/)
         env->DeleteGlobalRef(g_native_library_class);
         g_native_library_class = nullptr;
     }
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_nxemu_NativeLibrary_queryRomMetadata(JNIEnv * env, jclass /*clazz*/, jstring j_path)
+{
+    if (j_path == nullptr)
+    {
+        const std::string json = FailJson({}, "null_path");
+        return env->NewStringUTF(json.c_str());
+    }
+
+    const std::string path = JStringToUtf8(env, j_path);
+    const std::string json = EmulationSession::GetInstance().QueryRomMetadata(path);
+    if (json.empty())
+    {
+        const std::string fail = FailJson(path, "metadata_unavailable");
+        return env->NewStringUTF(fail.c_str());
+    }
+    return env->NewStringUTF(json.c_str());
 }

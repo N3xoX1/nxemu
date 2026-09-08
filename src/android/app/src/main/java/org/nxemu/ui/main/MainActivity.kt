@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    fun launchAddGameDirectory() {
+    fun AddGameDirectory() {
         addGameDirectory.launch(null)
     }
 }
