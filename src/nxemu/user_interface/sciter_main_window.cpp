@@ -32,8 +32,14 @@
 #include <yuzu_common/settings.h>
 #include <yuzu_common/uuid.h>
 
+#ifdef _WIN32
 #include <Windows.h>
+#else
+#include <strings.h>
+#define _stricmp strcasecmp
+#endif
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -64,6 +70,16 @@ const char * DockedModeLabel(DockedMode mode)
     case DockedMode::Docked: return "Docked";
     }
     return "Docked";
+}
+
+uint64_t NowMs()
+{
+#ifdef _WIN32
+    return GetTickCount64();
+#else
+    using namespace std::chrono;
+    return (uint64_t)(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+#endif
 }
 
 } // namespace
@@ -241,9 +257,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_lastDiskCacheStatusPostMs(0),
     m_lastPostedDiskCacheStage(0),
     m_shownFirstFrame(false),
-#ifdef _WIN32
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>()),
-#endif
     m_firmwareInstallInProgress(false),
     m_firmwareInstallUiActive(false),
     m_firmwareInstallLastTotal(0),
@@ -850,9 +864,14 @@ void SciterMainWindow::CreateRenderWindow()
     SciterElement::RECT rect = mainContents.GetLocation();
     uint32_t width = rect.right - rect.left;
     uint32_t height = rect.bottom - rect.top;
+#ifdef _WIN32
     m_renderWindow = CreateWindowExW(0, L"Static", L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                      rect.left, rect.top, width, height, (HWND)m_window->GetHandle(), nullptr, GetModuleHandle(nullptr), nullptr);
     ShowWindow((HWND)m_renderWindow, SW_HIDE);
+#else
+    (void)width;
+    (void)height;
+#endif
 
     if (m_modules.IsValid())
     {
@@ -865,7 +884,9 @@ void SciterMainWindow::ResetMouseCursorHiding()
 {
     m_mouseCursorHidden = false;
     m_lastMouseActivityTick = 0;
+#ifdef _WIN32
     SetCursor(LoadCursor(nullptr, IDC_ARROW));
+#endif
 }
 
 void SciterMainWindow::UpdateDiscordPresence()
@@ -885,6 +906,7 @@ void SciterMainWindow::UpdateMouseCursorHiding()
         return;
     }
 
+#ifdef _WIN32
     HWND hwnd = (HWND)m_renderWindow;
     if (hwnd == nullptr)
     {
@@ -904,7 +926,7 @@ void SciterMainWindow::UpdateMouseCursorHiding()
     }
 
     const bool over_render_window = PtInRect(&window_rect, cursor_pos) != 0;
-    const uint64_t now = GetTickCount64();
+    const uint64_t now = NowMs();
 
     if (!over_render_window)
     {
@@ -938,6 +960,7 @@ void SciterMainWindow::UpdateMouseCursorHiding()
     {
         SetCursor(nullptr);
     }
+#endif
 }
 
 void SciterMainWindow::SetCaption(const std::string & caption)
@@ -962,7 +985,7 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     }
     impl->m_pendingStartInFullscreen = impl->m_emulationRunning && uiSettings.startGamesInFullscreen;
     impl->m_pendingStartWithUiHidden = impl->m_emulationRunning && uiSettings.startGamesWithUiHidden;
-#ifdef WIN32
+#ifdef _WIN32
     if (!impl->m_emulationRunning && impl->m_win32Fullscreen && impl->m_win32Fullscreen->active)
     {
         impl->ExitFullscreen();
@@ -981,7 +1004,9 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     {
         if (impl->m_renderWindow != nullptr)
         {
+#ifdef _WIN32
             DestroyWindow((HWND)impl->m_renderWindow);
+#endif
             impl->m_renderWindow = nullptr;
         }
         impl->CreateRenderWindow();
@@ -1019,7 +1044,9 @@ void SciterMainWindow::ShowPanel(Panel panel)
         }
         elem.SetStyleAttribute("display", panel == entry.panel ? "block" : "none");
     }
+#ifdef _WIN32
     ShowWindow((HWND)m_renderWindow, panel == Panel::Renderer ? SW_SHOW : SW_HIDE);
+#endif
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
 }
 
@@ -1049,7 +1076,9 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
         if (impl->m_pendingStartInFullscreen && uiSettings.startGamesInFullscreen)
         {
             impl->m_pendingStartInFullscreen = false;
+#ifdef _WIN32
             impl->EnterFullscreen();
+#endif
         }
         if (impl->m_pendingStartWithUiHidden && uiSettings.startGamesWithUiHidden)
         {
@@ -1152,7 +1181,7 @@ void SciterMainWindow::DiskCacheLoadChanged(const char * /*setting*/, void * use
     const int stage = settings.GetInt(NXCoreSetting::DiskCacheLoadStage);
 
     constexpr uint64_t intervalMs = 50;
-    const uint64_t now = GetTickCount64();
+    const uint64_t now = NowMs();
     const bool neverPosted = (impl->m_lastDiskCacheStatusPostMs == 0);
     const bool stageChanged = (stage != impl->m_lastPostedDiskCacheStage);
     const uint64_t elapsed = neverPosted ? intervalMs : (now - impl->m_lastDiskCacheStatusPostMs);
@@ -1856,7 +1885,9 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         OnOpenLogDirectory();
         break;
     case GuiAction::ToggleFullscreen:
+#ifdef _WIN32
         ToggleFullscreen();
+#endif
         break;
     case GuiAction::ToggleStartGamesInFullscreen:
         OnToggleStartGamesInFullscreen();
@@ -1874,13 +1905,19 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         OnToggleSpeedLimit();
         break;
     case GuiAction::ResetWindowSize720p:
+#ifdef _WIN32
         ResetWindowSize(1280U, 720U);
+#endif
         break;
     case GuiAction::ResetWindowSize900p:
+#ifdef _WIN32
         ResetWindowSize(1600U, 900U);
+#endif
         break;
     case GuiAction::ResetWindowSize1080p:
+#ifdef _WIN32
         ResetWindowSize(1920U, 1080U);
+#endif
         break;
     case GuiAction::Invalid:
     default:
@@ -1895,6 +1932,7 @@ void * SciterMainWindow::RenderSurface() const
 
 float SciterMainWindow::PixelRatio() const
 {
+#ifdef _WIN32
     HWND hwnd = nullptr;
     if (m_renderWindow != nullptr)
     {
@@ -1928,6 +1966,7 @@ float SciterMainWindow::PixelRatio() const
             return static_cast<float>(dpi) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
         }
     }
+#endif
     return 1.0f;
 }
 
@@ -2029,7 +2068,12 @@ void SciterMainWindow::LayoutRenderWindow()
     SciterElement::RECT rect = mainContents.GetLocation();
     uint32_t width = rect.right - rect.left;
     uint32_t height = rect.bottom - rect.top;
+#ifdef _WIN32
     MoveWindow((HWND)m_renderWindow, rect.left, rect.top, width, height, false);
+#else
+    (void)width;
+    (void)height;
+#endif
     if (m_modules.IsValid())
     {
         IVideo & video = m_modules.Modules().Video();
@@ -2132,7 +2176,7 @@ void SciterMainWindow::ToggleHideUi()
     ResetMenu();
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 void SciterMainWindow::ToggleFullscreen()
 {
     if (!m_win32Fullscreen)
