@@ -1,10 +1,10 @@
 #include "file_dialogs.h"
+#include <common/path.h>
 
 #ifdef _WIN32
 #include <Windows.h>
 
 #include <CommDlg.h>
-#include <common/path.h>
 #include <common/std_string.h>
 #include <shlobj_core.h>
 #include <vector>
