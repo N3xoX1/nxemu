@@ -6,13 +6,16 @@
     <application
         android:name="org.nxemu.NxEmuApplication"
         android:label="NxEmu"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:isGame="true"
         android:appCategory="game"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="@style/Theme.NxEmu.Splash">
         <activity
             android:name="org.nxemu.ui.main.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.NxEmu.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

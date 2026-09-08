@@ -12,6 +12,7 @@ import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NXUISetting
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         webView = WebView(this).apply {
             setBackgroundColor(webViewBackground())

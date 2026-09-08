@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NxEmu" parent="android:Theme.DeviceDefault.NoActionBar">
+    </style>
+
+    <style name="Theme.NxEmu.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_nxemu_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.NxEmu</item>
+    </style>
+</resources>
