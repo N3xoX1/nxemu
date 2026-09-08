@@ -4,7 +4,10 @@
 #include <sciter_handler.h>
 #include <sciter_ui.h>
 #include <common/std_string.h>
-#include <Windows.h>
+
+#ifdef WIN32
+#include<Windows.h>
+#endif
 
 namespace
 {
@@ -191,10 +194,14 @@ NotificationResponse Notification::Query(const char * message, const char * titl
 void Notification::BreakPoint(const char * fileName, uint32_t lineNumber)
 {
     DisplayError(stdstr_f("Break point found at\n%s\n%d", fileName, lineNumber).c_str(), "Error");
+#ifdef WIN32
     if (IsDebuggerPresent() != 0)
     {
         DebugBreak();
     }
+#else
+    __builtin_trap();
+#endif
 }
 
 void Notification::AppInitDone(void)
