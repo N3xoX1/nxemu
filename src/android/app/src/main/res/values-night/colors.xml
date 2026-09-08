@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">NxEmu</string>
+    <color name="splash_background">#1E1E32</color>
 </resources>
