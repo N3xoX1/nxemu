@@ -2,231 +2,393 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <style>
     :root {
       --bg: #ffffff;
-      --text: #000000;
+      --text: #111111;
+      --muted: rgba(128, 128, 128, 0.85);
+      --line: rgba(128, 128, 128, 0.2);
+      --card: rgba(128, 128, 128, 0.1);
+      --accent: #4fc3f7;
+      --accent-text: #00344a;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #121212;
-        --text: #e0e0e0;
+        --text: #e8e8e8;
+        --accent-text: #00344a;
       }
+    }
+
+    html.dark {
+      --bg: #121212;
+      --text: #e8e8e8;
+    }
+
+    html.light {
+      --bg: #ffffff;
+      --text: #111111;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      height: 100%;
     }
 
     body {
       background-color: var(--bg);
       color: var(--text);
       margin: 0;
-      font-family: sans-serif;
+      font-family: system-ui, sans-serif;
+      overscroll-behavior: none;
     }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  height: 56px;
-}
+    .page {
+      min-height: 100%;
+    }
 
-.topbar-back {
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  height: 56px;
-}
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px 0 16px;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 2;
+    }
 
-.logo {
-  font-size: 24px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+    .topbar-back {
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 2;
+    }
 
-.settings-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+    }
 
-.settings-btn svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-}
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-.back-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 22px;
+    }
 
-.back-btn svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
+    .icon-btn:active {
+      background: var(--card);
+    }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 700;
-}
+    .icon-btn svg,
+    .settings-btn svg,
+    .back-btn svg,
+    .folder-remove svg {
+      width: 22px;
+      height: 22px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
 
-.settings-list {
-  padding: 8px 16px;
-}
+    .settings-btn,
+    .back-btn {
+      width: 44px;
+      height: 44px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 22px;
+    }
 
-.settings-item {
-  padding: 16px 0;
-  font-size: 16px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-  cursor: pointer;
-}
+    .settings-btn:active,
+    .back-btn:active {
+      background: var(--card);
+    }
 
-.fab {
-  position: fixed;
-  bottom: 24px;
-  right: 20px;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  border: none;
-  background: #4fc3f7;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+    }
 
-.fab svg {
-  width: 24px;
-  height: 24px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
+    .library-status {
+      padding: 0 16px 8px;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
 
-.folder-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-}
+    .settings-list {
+      padding: 8px 16px;
+    }
 
-.setting-info {
-  flex: 1;
-  min-width: 0;
-}
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
 
-.setting-label {
-  font-size: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+    .settings-item:active {
+      background: var(--card);
+      margin: 0 -16px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
 
-.folder-remove {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
+    .setting-chevron {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      opacity: 0.45;
+    }
 
-.folder-remove svg {
-  width: 22px;
-  height: 22px;
-  fill: currentColor;
-}
+    .fab {
+      position: fixed;
+      bottom: 24px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-.empty-hint {
-  padding: 40px 16px;
-  text-align: center;
-  color: rgba(128, 128, 128, 0.6);
-  font-size: 14px;
-}
+    .fab svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+    }
 
-.game-list {
-  padding: 8px 8px 88px;
-}
+    .folder-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
 
-.game-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 12px;
-}
+    .setting-info {
+      flex: 1;
+      min-width: 0;
+    }
 
-.game-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 10px;
-  object-fit: contain;
-  flex-shrink: 0;
-  background: rgba(128, 128, 128, 0.15);
-}
+    .setting-label {
+      font-size: 16px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
-.game-meta {
-  flex: 1;
-  min-width: 0;
-}
+    .setting-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
 
-.game-title {
-  font-size: 16px;
-  font-weight: 600;
-  word-break: break-word;
-}
+    .folder-remove {
+      width: 44px;
+      height: 44px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 22px;
+    }
 
-.game-sub {
-  font-size: 12px;
-  color: rgba(128, 128, 128, 0.85);
-  margin-top: 4px;
-  word-break: break-all;
-}
+    .folder-remove:active {
+      background: var(--card);
+    }
 
+    .folder-remove svg {
+      fill: currentColor;
+      stroke: none;
+    }
+
+    .empty-hint {
+      padding: 40px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .empty-state {
+      padding: 48px 24px 96px;
+      text-align: center;
+    }
+
+    .empty-title {
+      font-size: 18px;
+      font-weight: 650;
+      margin: 0 0 8px;
+      color: var(--text);
+    }
+
+    .empty-copy {
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0 0 20px;
+      line-height: 1.45;
+    }
+
+    .primary-btn {
+      border: none;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-size: 15px;
+      font-weight: 650;
+      padding: 12px 18px;
+      border-radius: 12px;
+    }
+
+    .primary-btn:active {
+      opacity: 0.85;
+    }
+
+    .link-btn {
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 650;
+      padding: 8px 8px 0;
+    }
+
+    .game-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+      gap: 14px 10px;
+      padding: 8px 16px 96px;
+    }
+
+    .game-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .game-card.is-failed {
+      display: none;
+    }
+
+    .game-icon,
+    .game-icon-ph {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      object-fit: contain;
+      background: var(--card);
+      display: block;
+    }
+
+    .game-icon-ph {
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .game-title {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .scan-hint {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 4px 0 8px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
   </style>
 <script>
 let navStack = ['gamesPage'];
+let gameListGen = 0;
+let libraryDirty = true;
+
+function applyTheme() {
+  let dark = false;
+  try {
+    dark = !!NxEmu.isDarkTheme();
+  } catch (e) {
+    dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.classList.toggle('light', !dark);
+}
 
 function onSettingChanged(setting) {
   if (setting === 'nxui:GameDirectories') {
+    libraryDirty = true;
     renderGameFolders();
-    refreshGameList();
+    renderSettingsSummary();
+    if (navStack[navStack.length - 1] === 'gamesPage') {
+      refreshGameList();
+    }
   }
 }
 
+function handleAndroidBack() {
+  if (navStack.length > 1) {
+    goBack();
+    return true;
+  }
+  return false;
+}
+
 function escapeHtml(text) {
-    if (!text) return '';
+  if (!text) return '';
   return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -235,80 +397,185 @@ function escapeHtml(text) {
 }
 
 function iconMimeFromBase64(b64) {
-    if (!b64 || b64.length < 4) return 'image/jpeg';
-    try {
-        const head = atob(b64.slice(0, 8));
-        const c0 = head.charCodeAt(0);
-        const c1 = head.charCodeAt(1);
-        if (c0 === 0xff && c1 === 0xd8) return 'image/jpeg';
-        if (head.startsWith('GIF')) return 'image/gif';
-        if (head.charCodeAt(0) === 0x89 && head.slice(1, 4) === 'PNG') return 'image/png';
-    } catch (e) {}
-    return 'image/jpeg';
+  if (!b64 || b64.length < 4) return 'image/jpeg';
+  try {
+    const head = atob(b64.slice(0, 8));
+    const c0 = head.charCodeAt(0);
+    const c1 = head.charCodeAt(1);
+    if (c0 === 0xff && c1 === 0xd8) return 'image/jpeg';
+    if (head.startsWith('GIF')) return 'image/gif';
+    if (head.charCodeAt(0) === 0x89 && head.slice(1, 4) === 'PNG') return 'image/png';
+  } catch (e) {}
+  return 'image/jpeg';
 }
 
-async function refreshGameList() {
-    const container = document.getElementById('gameList');
-    if (!container) return;
-    container.innerHTML = '<div class="empty-hint">ScanningÖ</div>';
+function getConfiguredFolders() {
+  try {
+    const dirs = JSON.parse(NxEmu.getSettingString('nxui:GameDirectories') || '[]');
+    return Array.isArray(dirs) ? dirs : [];
+  } catch (e) {
+    return [];
+  }
+}
 
-    let paths = [];
-    try {
-        paths = JSON.parse(NxEmu.scanGameLibraryPaths());
-    } catch (e) {
-        paths = [];
-    }
+function setLibraryStatus(text) {
+  const status = document.getElementById('libraryStatus');
+  if (status) status.textContent = text || '';
+}
 
-    container.innerHTML = '';
-    if (!paths.length) {
-        container.innerHTML = '<div class="empty-hint">No ROM files found. Add a game folder in Settings.</div>';
-        return;
-    }
+function renderEmptyGames(kind) {
+  const container = document.getElementById('gameList');
+  container.className = '';
+  if (kind === 'no-folders') {
+    container.innerHTML =
+      '<div class="empty-state">' +
+      '<p class="empty-title">Add a game folder</p>' +
+      '<p class="empty-copy">NxEmu lists games from folders you choose. Your files stay where they are.</p>' +
+      '<button class="primary-btn" onclick="NxEmu.addGameDirectory()">Add game folder</button>' +
+      '</div>';
+    return;
+  }
+  if (kind === 'no-roms') {
+    container.innerHTML =
+      '<div class="empty-state">' +
+      '<p class="empty-title">No games found</p>' +
+      '<p class="empty-copy">No .nro, .dxci, or .dnsp files were found in your folders.</p>' +
+      '<button class="primary-btn" onclick="navigate(\'gameFolders\')">Manage folders</button>' +
+      '</div>';
+    return;
+  }
+  container.innerHTML =
+    '<div class="empty-state">' +
+    '<p class="empty-title">Couldn\'t read these files</p>' +
+    '<p class="empty-copy">Files were found, but none could be opened as games. Check that they are valid dumps.</p>' +
+    '<button class="link-btn" onclick="refreshGameList()">Try again</button>' +
+    '</div>';
+}
 
-    let shown = false;
-    for (let i = 0; i < paths.length; i++) {
-        const path = paths[i];
-        let meta = { title: '', icon: '', error: 'failed', path };
-        try {
-            meta = JSON.parse(NxEmu.queryRomMetadata(path));
-        } catch (e) {
-            meta.error = 'parse';
-        }
-        if (meta.error) {
-            continue;
-        }
+function refreshGameList() {
+  libraryDirty = false;
+  const gen = ++gameListGen;
+  const container = document.getElementById('gameList');
+  if (!container) return;
 
-        const row = document.createElement('div');
-        row.className = 'game-row';
-        const title = meta.title && meta.title.length ? meta.title : shortPath(path);
-        const iconSrc = meta.icon && meta.icon.length
-            ? ('data:' + iconMimeFromBase64(meta.icon) + ';base64,' + meta.icon)
-            : 'file:///android_asset/nxlogo-32x32.png';
-        const pidLine = meta.programId && meta.programId !== '0'
-            ? '<div class="game-sub">ID ' + escapeHtml(meta.programId) + '</div>'
-            : '';
-        row.innerHTML =
-            '<img class="game-icon" src="' + iconSrc + '" alt="" />' +
-            '<div class="game-meta">' +
-            '<div class="game-title">' + escapeHtml(title) + '</div>' +
-            pidLine +
-            '</div>';
-        container.appendChild(row);
-        shown = true;
-    }
-    if (!shown) {
-        container.innerHTML = '<div class="empty-hint">No ROM files found. Add a game folder in Settings.</div>';
-    }
+  const folders = getConfiguredFolders();
+  if (!folders.length) {
+    setLibraryStatus('');
+    renderEmptyGames('no-folders');
+    return;
+  }
+
+  container.className = '';
+  container.innerHTML = '<div class="empty-hint">Scanning foldersù</div>';
+  setLibraryStatus('Scanningù');
+  NxEmu.requestGameLibraryScan(gen);
+}
+
+function onGameLibraryPaths(gen, jsonStr) {
+  if (gen !== gameListGen) return;
+  const container = document.getElementById('gameList');
+  if (!container) return;
+
+  let paths = [];
+  try {
+    paths = JSON.parse(jsonStr);
+  } catch (e) {
+    paths = [];
+  }
+  if (!Array.isArray(paths)) paths = [];
+
+  if (!paths.length) {
+    setLibraryStatus('');
+    renderEmptyGames('no-roms');
+    return;
+  }
+
+  container.className = 'game-list';
+  container.innerHTML = '';
+  const cards = [];
+  for (let i = 0; i < paths.length; i++) {
+    const path = paths[i];
+    const card = document.createElement('div');
+    card.className = 'game-card is-loading';
+    card.innerHTML =
+      '<div class="game-icon-ph"></div>' +
+      '<div class="game-title">' + escapeHtml(shortPath(path)) + '</div>';
+    container.appendChild(card);
+    cards.push({ path: path, el: card });
+  }
+  setLibraryStatus('Loading 0 of ' + paths.length);
+  loadGameMetadata(gen, cards, 0, 0, 0);
+}
+
+function fillGameCard(card, meta, path) {
+  const title = meta.title && meta.title.length ? meta.title : shortPath(path);
+  const iconSrc = meta.icon && meta.icon.length
+    ? ('data:' + iconMimeFromBase64(meta.icon) + ';base64,' + meta.icon)
+    : 'file:///android_asset/nxlogo-32x32.png';
+  card.className = 'game-card';
+  card.innerHTML =
+    '<img class="game-icon" src="' + iconSrc + '" alt="">' +
+    '<div class="game-title">' + escapeHtml(title) + '</div>';
+  card.dataset.title = title.toLowerCase();
+}
+
+async function loadGameMetadata(gen, cards, index, loaded, failed) {
+  if (gen !== gameListGen) return;
+  if (index >= cards.length) {
+    finishGameList(gen, cards, loaded, failed);
+    return;
+  }
+
+  setLibraryStatus('Loading ' + (index + 1) + ' of ' + cards.length);
+  const item = cards[index];
+  let meta = { title: '', icon: '', error: 'failed', path: item.path };
+  try {
+    meta = JSON.parse(NxEmu.queryRomMetadata(item.path));
+  } catch (e) {
+    meta.error = 'parse';
+  }
+
+  if (meta && !meta.error) {
+    fillGameCard(item.el, meta, item.path);
+    loaded += 1;
+  } else {
+    item.el.className = 'game-card is-failed';
+    failed += 1;
+  }
+
+  await new Promise(function (resolve) { setTimeout(resolve, 0); });
+  loadGameMetadata(gen, cards, index + 1, loaded, failed);
+}
+
+function finishGameList(gen, cards, loaded, failed) {
+  if (gen !== gameListGen) return;
+  const container = document.getElementById('gameList');
+  if (!container) return;
+
+  if (!loaded) {
+    setLibraryStatus('');
+    renderEmptyGames('unreadable');
+    return;
+  }
+
+  const visible = Array.prototype.slice.call(container.querySelectorAll('.game-card:not(.is-failed)'));
+  visible.sort(function (a, b) {
+    return (a.dataset.title || '').localeCompare(b.dataset.title || '');
+  });
+  visible.forEach(function (el) { container.appendChild(el); });
+
+  const gameLabel = loaded === 1 ? '1 game' : loaded + ' games';
+  setLibraryStatus(failed ? gameLabel + ' ù ' + failed + ' skipped' : gameLabel);
 }
 
 function shortPath(uri) {
-    try {
-        const u = decodeURIComponent(uri);
-        const last = u.lastIndexOf('/');
-        return last >= 0 ? u.slice(last + 1) : u;
-    } catch (e) {
-        return uri;
-    }
+  try {
+    const u = decodeURIComponent(uri);
+    const last = u.lastIndexOf('/');
+    return last >= 0 ? u.slice(last + 1) : u;
+  } catch (e) {
+    return uri;
+  }
 }
 
 function navigate(page) {
@@ -324,67 +591,74 @@ function goBack() {
 }
 
 function formatGameFolder(uri) {
-    const decoded = decodeURIComponent(uri);
-    const prefix = 'content://com.android.externalstorage.documents/tree/';
+  const decoded = decodeURIComponent(uri);
+  const prefix = 'content://com.android.externalstorage.documents/tree/';
 
-    if (!decoded.startsWith(prefix)) return decoded;
+  if (!decoded.startsWith(prefix)) return decoded;
 
-    const path = decoded.substring(prefix.length);
-    const colonIndex = path.indexOf(':');
-    const volume = path.substring(0, colonIndex);
-    const folder = path.substring(colonIndex + 1);
+  const path = decoded.substring(prefix.length);
+  const colonIndex = path.indexOf(':');
+  const volume = path.substring(0, colonIndex);
+  const folder = path.substring(colonIndex + 1);
 
-    if (volume === 'primary') {
-        return 'Internal Storage:' + folder;
-    }
-    return volume + ':' + folder;
+  if (volume === 'primary') {
+    return 'Internal storage / ' + folder;
+  }
+  return volume + ' / ' + folder;
+}
+
+function renderSettingsSummary() {
+  const meta = document.getElementById('gameFoldersMeta');
+  if (!meta) return;
+  const n = getConfiguredFolders().length;
+  if (n === 0) meta.textContent = 'None added';
+  else if (n === 1) meta.textContent = '1 folder';
+  else meta.textContent = n + ' folders';
 }
 
 function renderGameFolders() {
-    const list = document.getElementById('folderList');
-    const empty = document.getElementById('noFolders');
+  const list = document.getElementById('folderList');
+  const empty = document.getElementById('noFolders');
+  if (!list || !empty) return;
 
-    let dirs;
-    try {
-        dirs = JSON.parse(NxEmu.getSettingString('nxui:GameDirectories') || '[]');
-    } catch (e) {
-        dirs = [];
-    }
-    empty.style.display = dirs.length === 0 ? '' : 'none';
-    list.innerHTML = '';
-    dirs.forEach((uri, index) => {
-        const name = formatGameFolder(uri);
-        const item = document.createElement('div');
-        item.className = 'folder-item';
-        item.innerHTML = `
-            <div class="setting-info">
-                <div class="setting-label">${escapeHtml(name)}</div>
-            </div>
-            <button class="folder-remove" onclick="removeGameFolder('${uri.replace(/'/g, "\\'")}')">
-                <svg viewBox="0 0 1024 1024"><path d="M160 256H96a32 32 0 0 1 0-64h256V95.936a32 32 0 0 1 32-32h256a32 32 0 0 1 32 32V192h256a32 32 0 1 1 0 64h-64v672a32 32 0 0 1-32 32H192a32 32 0 0 1-32-32zm448-64v-64H416v64zM224 896h576V256H224zm192-128a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32m192 0a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32"/></svg>
-            </button>
-        `;
-        list.appendChild(item);
+  const dirs = getConfiguredFolders();
+  empty.style.display = dirs.length === 0 ? '' : 'none';
+  list.innerHTML = '';
+  const fab = document.querySelector('#gameFolders .fab');
+  if (fab) fab.style.display = dirs.length === 0 ? 'none' : '';
+  dirs.forEach(function (uri) {
+    const name = formatGameFolder(uri);
+    const item = document.createElement('div');
+    item.className = 'folder-item';
+    item.innerHTML =
+      '<div class="setting-info">' +
+      '<div class="setting-label">' + escapeHtml(name) + '</div>' +
+      '</div>' +
+      '<button class="folder-remove" type="button" aria-label="Remove folder">' +
+      '<svg viewBox="0 0 1024 1024"><path d="M160 256H96a32 32 0 0 1 0-64h256V95.936a32 32 0 0 1 32-32h256a32 32 0 0 1 32 32V192h256a32 32 0 1 1 0 64h-64v672a32 32 0 0 1-32 32H192a32 32 0 0 1-32-32zm448-64v-64H416v64zM224 896h576V256H224zm192-128a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32m192 0a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32"/></svg>' +
+      '</button>';
+    item.querySelector('.folder-remove').addEventListener('click', function () {
+      removeGameFolder(uri);
     });
+    list.appendChild(item);
+  });
 }
 
 function removeGameFolder(uri) {
-  let dirs;
-  try {
-    dirs = JSON.parse(NxEmu.getSettingString('nxui:GameDirectories') || '[]');
-  } catch (e) {
-    dirs = [];
+  if (!confirm('Remove this folder from the library? The files will not be deleted.')) {
+    return;
   }
-  dirs = dirs.filter(function (d) { return d !== uri; });
+  const dirs = getConfiguredFolders().filter(function (d) { return d !== uri; });
   NxEmu.setSettingString('nxui:GameDirectories', JSON.stringify(dirs));
   NxEmu.saveSettings();
 }
 
 function showPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById(page).style.display = '';
-  if (page === 'gameFolders') { renderGameFolders(); }
-  if (page === 'gamesPage') { refreshGameList(); }
+  if (page === 'gameFolders') renderGameFolders();
+  if (page === 'settingsPage') renderSettingsSummary();
+  if (page === 'gamesPage' && libraryDirty) refreshGameList();
 }
 </script>
 </head>
@@ -392,40 +666,55 @@ function showPage(page) {
   <div id="gamesPage" class="page">
     <div class="topbar">
       <div class="logo"><img src="file:///android_asset/nxlogo-32x32.png" width="20" height="20" alt="">NxEmu</div>
-      <button class="settings-btn" onclick="navigate('settingsPage')">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0   0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      </button>
+      <div class="topbar-actions">
+        <button class="icon-btn" type="button" aria-label="Refresh library" onclick="refreshGameList()">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.2"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <button class="settings-btn" type="button" aria-label="Settings" onclick="navigate('settingsPage')">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </div>
     </div>
+    <div id="libraryStatus" class="library-status"></div>
     <div id="gameList" class="game-list"></div>
   </div>
   <div id="settingsPage" class="page" style="display:none">
     <div class="topbar-back">
-      <button class="back-btn" onclick="goBack()">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="page-title">Settings</div>
     </div>
     <div class="settings-list">
       <div class="settings-item" onclick="navigate('gameFolders')">
-        <span>Game Folders</span>
+        <div class="setting-info">
+          <div class="setting-label">Game folders</div>
+          <div id="gameFoldersMeta" class="setting-sub">None added</div>
+        </div>
+        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
   </div>
   <div id="gameFolders" class="page" style="display:none">
     <div class="topbar-back">
-      <button class="back-btn" onclick="goBack()">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
-      <div class="page-title">Game Folders</div>
+      <div class="page-title">Game folders</div>
     </div>
     <div id="folderList" class="settings-list"></div>
-    <div id="noFolders" class="empty-hint">
-      <p>No game folders added</p>
+    <div id="noFolders" class="empty-state">
+      <p class="empty-title">No folders yet</p>
+      <p class="empty-copy">Choose a folder that contains .nro, .dxci, or .dnsp files. NxEmu will scan it and any subfolders.</p>
+      <button class="primary-btn" onclick="NxEmu.addGameDirectory()">Add game folder</button>
     </div>
-    <button class="fab" onclick="NxEmu.addGameDirectory()">
+    <button class="fab" type="button" aria-label="Add game folder" onclick="NxEmu.addGameDirectory()">
       <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
   </div>
-<script>refreshGameList();</script>
+<script>
+applyTheme();
+refreshGameList();
+</script>
 </body>
 </html>
