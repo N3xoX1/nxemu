@@ -123,7 +123,9 @@ void GameListWorker::ScanFileSystem(ScanTarget target, const std::string & dir_p
 
                 if (res2 == LoaderResultStatus::Success && program_ids.size() > 1 && (file_type == LoaderFileType::XCI || file_type == LoaderFileType::NSP))
                 {
+#ifdef WIN32
                     __debugbreak();
+#endif
 #ifdef tofix
                     for (const auto id : program_ids)
                     {
@@ -167,7 +169,9 @@ void GameListWorker::ScanFileSystem(ScanTarget target, const std::string & dir_p
                         res3 = info->ReadTitle(name.data(), &size);
                     }
 
+#ifdef WIN32
                     //__debugbreak();
+#endif
 #ifdef tofix
                     const FileSys::PatchManager patch{program_id, system.GetFileSystemController(), system.GetContentProvider()};
                     auto entry = MakeGameListEntry(physical_name, name, Common::FS::GetSize(physical_name), icon, *info, program_id, compatibility_list, play_time_manager, patch);
@@ -178,7 +182,9 @@ void GameListWorker::ScanFileSystem(ScanTarget target, const std::string & dir_p
         }
         else if (is_dir)
         {
+#ifdef WIN32
             __debugbreak();
+#endif
 #ifdef tofix
             watch_list.append(QString::fromStdString(physical_name));
 #endif
