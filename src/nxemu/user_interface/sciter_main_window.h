@@ -17,8 +17,14 @@
 #include <sciter_ui.h>
 #include <widgets/menubar.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 struct Win32FullscreenState;
+#else
+struct Win32FullscreenState
+{
+    bool active = false;
+    uint32_t pendingSwallowKeyUp = 0;
+};
 #endif
 
 class SystemConfig;
@@ -168,7 +174,7 @@ private:
     void ToggleHideUi();
     void UpdateUIVisibility();
 
-#ifdef WIN32
+#ifdef _WIN32
     void ToggleFullscreen();
     void EnterFullscreen();
     void ExitFullscreen();
@@ -245,9 +251,7 @@ private:
     uint64_t m_lastDiskCacheStatusPostMs;
     int m_lastPostedDiskCacheStage;
     bool m_shownFirstFrame;
-#ifdef WIN32
     std::unique_ptr<Win32FullscreenState> m_win32Fullscreen;
-#endif
     bool m_firmwareInstallInProgress;
     bool m_firmwareInstallUiActive;
     int32_t m_firmwareInstallLastTotal;
