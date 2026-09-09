@@ -29,6 +29,10 @@ object NativeLibrary {
 
     external fun queryRomMetadata(path: String): String
 
+    external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String): Boolean
+    external fun emulationSurfaceDestroyed()
+    external fun surfaceChanged(surface: android.view.Surface)
+
     /** Used from native [yuzu_common/fs/fs_android.cpp] via RegisterCallbacks. */
     @JvmStatic
     fun getParentDirectory(path: String): String {

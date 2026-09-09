@@ -1,5 +1,6 @@
 package org.nxemu.ui.main
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
@@ -17,9 +18,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NXUISetting
 import org.nxemu.NativeLibrary
+import org.nxemu.ui.emulation.EmulationActivity
 
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
+    private var emulationLaunchPending = false
 
     private val addGameDirectory = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -100,6 +103,11 @@ class MainActivity : ComponentActivity() {
         setContentView(webView)
     }
 
+    override fun onResume() {
+        super.onResume()
+        emulationLaunchPending = false
+    }
+
     override fun onDestroy() {
         NativeLibrary.onSettingChangedListener = null
         super.onDestroy()
@@ -107,6 +115,18 @@ class MainActivity : ComponentActivity() {
 
     fun AddGameDirectory() {
         addGameDirectory.launch(null)
+    }
+
+    fun launchGame(path: String) {
+        if (path.isEmpty() || emulationLaunchPending) {
+            return
+        }
+        emulationLaunchPending = true
+        startActivity(
+            Intent(this, EmulationActivity::class.java).apply {
+                putExtra(EmulationActivity.EXTRA_GAME_PATH, path)
+            }
+        )
     }
 
     fun dispatchGameLibraryPaths(gen: Int, json: String) {
