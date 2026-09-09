@@ -43,7 +43,7 @@ if(NOT ANDROID)
     endif()
 endif()
 
-if(ANDROID_ABI STREQUAL "arm64-v8a")
+if(ANDROID)
     target_link_libraries(nxemu-video PRIVATE adrenotools)
 endif()
 
