@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <sstream>
+#include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "yuzu_common/fs/fs.h"
 #ifdef ANDROID
@@ -24,6 +26,7 @@
 #endif
 
 #ifdef __APPLE__
+#include <mach-o/dyld.h> // Used in GetExeDirectory()
 #include <sys/param.h> // Used in GetBundleDirectory()
 
 // CFURL contains __attribute__ directives that gcc does not know how to parse, so we need to just
@@ -101,8 +104,12 @@ public:
         yuzu_path_cache = yuzu_path / CACHE_DIR;
         yuzu_path_config = yuzu_path / CONFIG_DIR;
 #else
-        yuzu_path = GetCurrentDir() / PORTABLE_DIR;
-        if (Exists(yuzu_path) && IsDir(yuzu_path)) {
+        const fs::path exe_dir = GetExeDirectory();
+        yuzu_path = exe_dir.empty() ? fs::path{} : exe_dir / PORTABLE_DIR;
+        if (!IsDir(yuzu_path)) {
+            yuzu_path = GetCurrentDir() / PORTABLE_DIR;
+        }
+        if (IsDir(yuzu_path)) {
             yuzu_path_cache = yuzu_path / CACHE_DIR;
             yuzu_path_config = yuzu_path / CONFIG_DIR;
         } else {
@@ -274,6 +281,42 @@ fs::path GetAppDataRoamingDirectory() {
 }
 
 #else
+
+fs::path GetExeDirectory() {
+#ifdef __APPLE__
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::vector<char> buf(size);
+    if (size == 0 || _NSGetExecutablePath(buf.data(), &size) != 0) {
+        LOG_ERROR(Common_Filesystem,
+                  "Failed to get the path to the executable of the current process");
+        return {};
+    }
+    std::error_code ec;
+    const fs::path exe_path = fs::weakly_canonical(buf.data(), ec);
+    if (ec) {
+        return fs::path{buf.data()}.parent_path();
+    }
+    return exe_path.parent_path();
+#else
+    size_t buffer_size = 4096;
+    std::vector<char> buf(buffer_size);
+
+    while (true) {
+        const ssize_t result = ::readlink("/proc/self/exe", buf.data(), buffer_size);
+        if (result < 0) {
+            LOG_ERROR(Common_Filesystem,
+                      "Failed to get the path to the executable of the current process");
+            return {};
+        }
+        if (static_cast<size_t>(result) < buffer_size) {
+            return fs::path{std::string_view{buf.data(), static_cast<size_t>(result)}}.parent_path();
+        }
+        buffer_size *= 2;
+        buf.resize(buffer_size);
+    }
+#endif
+}
 
 fs::path GetHomeDirectory() {
     const char* home_env_var = getenv("HOME");
