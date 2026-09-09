@@ -3,12 +3,14 @@
 #include "user_interface/app_events.h"
 #include "user_interface/sciter_main_window.h"
 #include "settings/ui_settings.h"
+#include <chrono>
 #include <cstring>
 #include <map>
 #include <common/path.h>
 #include <common/std_string.h>  
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-core/modules/system_modules.h>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu/settings/ui_identifiers.h>
 #include <sciter_handler.h>
@@ -98,6 +100,7 @@ private:
     WidgetRomBrowser(ISciterUI & sciterUI);
     bool RenderUI();
     void SelectRomCard(const SciterElement & card);
+    bool StartGame(const SciterElement & card);
     SciterElement FindRomCard(SCITER_ELEMENT start) const;
     std::string GetContextMenuItemId(SCITER_ELEMENT start) const;
     bool HandleContextMenuCommand(const std::string & itemId);
@@ -127,6 +130,8 @@ private:
     SciterElement m_configButton;
     SciterElement m_currentGame;
     std::string m_contextMenuPath;
+    std::string m_lastRomClickPath;
+    std::chrono::steady_clock::time_point m_lastRomClickTime;
     std::mutex m_romsMutex;
     RomEntrys m_roms;
     std::unique_ptr<RomListWorker> m_currentWorker;
@@ -273,8 +278,24 @@ bool WidgetRomBrowser::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
     }
     else if (strcmp(className.c_str(), "rom-card") == 0)
     {
+        const std::string path = el.GetAttribute("data-path");
+        const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+        const std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastRomClickTime);
+        // ClickHandler can deliver both sinking and bubbling mouse-up for one click.
+        if (!path.empty() && path == m_lastRomClickPath && elapsed.count() >= 0 && elapsed.count() < 20)
+        {
+            return true;
+        }
+
+        const bool doubleClick = !path.empty() && path == m_lastRomClickPath && elapsed.count() <= 500;
+        m_lastRomClickTime = now;
+        m_lastRomClickPath = path;
         SelectRomCard(el);
-        return false;
+        if (doubleClick)
+        {
+            StartGame(el);
+        }
+        return true;
     }
     return HandleContextMenuCommand(GetContextMenuItemId(source));
 }
@@ -291,6 +312,35 @@ void WidgetRomBrowser::SelectRomCard(const SciterElement & card)
     }
     m_currentGame = card;
     m_currentGame.SetState(SciterElement::STATE_CURRENT | SciterElement::STATE_VISITED, 0, true);
+}
+
+bool WidgetRomBrowser::StartGame(const SciterElement & card)
+{
+    if (!card.IsValid() || m_window == nullptr)
+    {
+        return false;
+    }
+
+    SettingsStore & settings = SettingsStore::GetInstance();
+    if (settings.GetBool(NXCoreSetting::EmulationRunning))
+    {
+        return true;
+    }
+
+    const EmulationState state = static_cast<EmulationState>(settings.GetInt(NXCoreSetting::EmulationState));
+    if (state != EmulationState::Stopped)
+    {
+        return true;
+    }
+
+    const std::string path = card.GetAttribute("data-path");
+    if (path.empty())
+    {
+        return false;
+    }
+
+    m_window->LoadGame(path.c_str());
+    return true;
 }
 
 SciterElement WidgetRomBrowser::FindRomCard(SCITER_ELEMENT start) const
@@ -366,10 +416,11 @@ bool WidgetRomBrowser::HandleContextMenuCommand(const std::string & itemId)
 bool WidgetRomBrowser::OnDoubleClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/)
 {
     SciterElement el(element);
-    if (strcmp(el.GetAttribute("class").c_str(), "rom-card") == 0 && m_window != nullptr)
+    if (strcmp(el.GetAttribute("class").c_str(), "rom-card") == 0)
     {
-        std::string path = el.GetAttribute("data-path");
-        m_window->LoadGame(path.c_str());
+        SelectRomCard(el);
+        StartGame(el);
+        return true;
     }
     return false;
 }
