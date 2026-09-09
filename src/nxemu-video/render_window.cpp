@@ -12,9 +12,7 @@
 #include <dlfcn.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/dynamic_library.h>
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
 #include <adrenotools/driver.h>
-#endif
 #endif
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-module-spec/video.h>
@@ -251,49 +249,40 @@ private:
 
 std::shared_ptr<Common::DynamicLibrary> LoadAndroidVulkanDriverFromSettings()
 {
-    if (g_settings == nullptr)
+    const std::string hook_lib_dir = g_settings != nullptr ? g_settings->GetString(NXCoreSetting::GpuHookLibDir) : "";
+    if (!hook_lib_dir.empty())
     {
-        return {};
+        const std::string custom_driver_dir = g_settings->GetString(NXCoreSetting::GpuCustomDriverDir);
+        const std::string custom_driver_name = g_settings->GetString(NXCoreSetting::GpuCustomDriverName);
+        const std::string file_redirect_dir = g_settings->GetString(NXCoreSetting::GpuFileRedirectDir);
+
+        void * handle{};
+        const char * file_redirect_dir_ptr{};
+        int feature_flags{};
+
+        if (!file_redirect_dir.empty())
+        {
+            feature_flags |= ADRENOTOOLS_DRIVER_FILE_REDIRECT;
+            file_redirect_dir_ptr = file_redirect_dir.c_str();
+        }
+
+        if (!custom_driver_name.empty())
+        {
+            handle = adrenotools_open_libvulkan(RTLD_NOW, feature_flags | ADRENOTOOLS_DRIVER_CUSTOM, nullptr, hook_lib_dir.c_str(), custom_driver_dir.c_str(), custom_driver_name.c_str(), file_redirect_dir_ptr, nullptr);
+        }
+
+        if (handle == nullptr)
+        {
+            handle = adrenotools_open_libvulkan(RTLD_NOW, feature_flags, nullptr, hook_lib_dir.c_str(), nullptr, nullptr, file_redirect_dir_ptr, nullptr);
+        }
+
+        if (handle != nullptr)
+        {
+            return std::make_shared<Common::DynamicLibrary>(handle);
+        }
     }
 
-    const std::string hook_lib_dir = g_settings->GetString(NXCoreSetting::GpuHookLibDir);
-    if (hook_lib_dir.empty())
-    {
-        return {};
-    }
-
-    const std::string custom_driver_dir = g_settings->GetString(NXCoreSetting::GpuCustomDriverDir);
-    const std::string custom_driver_name = g_settings->GetString(NXCoreSetting::GpuCustomDriverName);
-    const std::string file_redirect_dir = g_settings->GetString(NXCoreSetting::GpuFileRedirectDir);
-
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
-    void * handle{};
-    const char * file_redirect_dir_ptr{};
-    int feature_flags{};
-
-    if (!file_redirect_dir.empty())
-    {
-        feature_flags |= ADRENOTOOLS_DRIVER_FILE_REDIRECT;
-        file_redirect_dir_ptr = file_redirect_dir.c_str();
-    }
-
-    if (!custom_driver_name.empty())
-    {
-        handle = adrenotools_open_libvulkan(RTLD_NOW, feature_flags | ADRENOTOOLS_DRIVER_CUSTOM, nullptr, hook_lib_dir.c_str(), custom_driver_dir.c_str(), custom_driver_name.c_str(), file_redirect_dir_ptr, nullptr);
-    }
-
-    if (handle == nullptr)
-    {
-        handle = adrenotools_open_libvulkan(RTLD_NOW, feature_flags, nullptr, hook_lib_dir.c_str(), nullptr, nullptr, file_redirect_dir_ptr, nullptr);
-    }
-
-    if (handle != nullptr)
-    {
-        return std::make_shared<Common::DynamicLibrary>(handle);
-    }
-#endif
-
-    auto fallback = std::make_shared<Common::DynamicLibrary>();
+    std::shared_ptr<Common::DynamicLibrary> fallback = std::make_shared<Common::DynamicLibrary>();
     if (fallback->Open("libvulkan.so"))
     {
         return fallback;
