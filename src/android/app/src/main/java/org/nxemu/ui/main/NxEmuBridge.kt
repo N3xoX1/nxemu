@@ -48,4 +48,9 @@ class NxEmuBridge(private val activity: MainActivity) {
     fun queryRomMetadata(path: String): String {
         return NativeLibrary.queryRomMetadata(path)
     }
+
+    @JavascriptInterface
+    fun launchGame(path: String) {
+        activity.runOnUiThread { activity.launchGame(path) }
+    }
 }

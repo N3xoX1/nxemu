@@ -311,6 +311,10 @@
       min-width: 0;
     }
 
+    .game-card:active {
+      opacity: 0.7;
+    }
+
     .game-card.is-failed {
       display: none;
     }
@@ -466,8 +470,8 @@ function refreshGameList() {
   }
 
   container.className = '';
-  container.innerHTML = '<div class="empty-hint">Scanning foldersù</div>';
-  setLibraryStatus('Scanningù');
+  container.innerHTML = '<div class="empty-hint">Scanning folders...</div>';
+  setLibraryStatus('Scanning...');
   NxEmu.requestGameLibraryScan(gen);
 }
 
@@ -517,6 +521,11 @@ function fillGameCard(card, meta, path) {
     '<img class="game-icon" src="' + iconSrc + '" alt="">' +
     '<div class="game-title">' + escapeHtml(title) + '</div>';
   card.dataset.title = title.toLowerCase();
+  card.onclick = function () {
+    try {
+      NxEmu.launchGame(path);
+    } catch (e) {}
+  };
 }
 
 async function loadGameMetadata(gen, cards, index, loaded, failed) {
@@ -565,7 +574,7 @@ function finishGameList(gen, cards, loaded, failed) {
   visible.forEach(function (el) { container.appendChild(el); });
 
   const gameLabel = loaded === 1 ? '1 game' : loaded + ' games';
-  setLibraryStatus(failed ? gameLabel + ' ù ' + failed + ' skipped' : gameLabel);
+  setLibraryStatus(failed ? gameLabel + ' ? ' + failed + ' skipped' : gameLabel);
 }
 
 function shortPath(uri) {

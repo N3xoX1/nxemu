@@ -1,4 +1,6 @@
 #include <android/log.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include <jni.h>
 #include <string>
 
@@ -125,4 +127,62 @@ Java_org_nxemu_NativeLibrary_queryRomMetadata(JNIEnv * env, jclass /*clazz*/, js
         return env->NewStringUTF(fail.c_str());
     }
     return env->NewStringUTF(json.c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_nxemu_NativeLibrary_emulationSurfaceReady(JNIEnv * env, jclass /*clazz*/, jobject jsurface,
+                                                   jfloat pixel_ratio, jstring jpath)
+{
+    if (jsurface == nullptr || jpath == nullptr)
+    {
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "emulationSurfaceReady: null surface or path");
+        return JNI_FALSE;
+    }
+
+    ANativeWindow * nw = ANativeWindow_fromSurface(env, jsurface);
+    if (nw == nullptr)
+    {
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "emulationSurfaceReady: ANativeWindow_fromSurface failed");
+        return JNI_FALSE;
+    }
+
+    const std::string rom_path = JStringToUtf8(env, jpath);
+    if (rom_path.empty())
+    {
+        ANativeWindow_release(nw);
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "emulationSurfaceReady: empty path");
+        return JNI_FALSE;
+    }
+
+    return EmulationSession::GetInstance().Run(nw, pixel_ratio, rom_path) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_NativeLibrary_emulationSurfaceDestroyed(JNIEnv * /*env*/, jclass /*clazz*/)
+{
+    EmulationSession::GetInstance().SurfaceDestroyed();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_NativeLibrary_surfaceChanged(JNIEnv * env, jclass /*clazz*/, jobject jsurface)
+{
+    if (jsurface == nullptr)
+    {
+        return;
+    }
+    ANativeWindow * nw = ANativeWindow_fromSurface(env, jsurface);
+    if (nw == nullptr)
+    {
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "surfaceChanged: ANativeWindow_fromSurface failed");
+        return;
+    }
+    EmulationSession & session = EmulationSession::GetInstance();
+    if (session.NativeWindow() == nw)
+    {
+        ANativeWindow_release(nw);
+        session.SurfaceChanged();
+        return;
+    }
+    ANativeWindow_release(nw);
+    session.SurfaceChanged();
 }
