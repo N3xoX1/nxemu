@@ -99,6 +99,8 @@ target_link_libraries(nxemu PRIVATE
     ${CMAKE_DL_LIBS}
 )
 nxemu_set_app_output(nxemu)
+include(nxemu_setup_environment)
+nxemu_setup_environment(nxemu)
 
 # Runtime needs the Sciter engine beside the executable
 if(WIN32)
