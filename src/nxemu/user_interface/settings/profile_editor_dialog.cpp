@@ -3,6 +3,7 @@
 #include "user_interface/html_utils.h"
 #include "user_interface/notification.h"
 #include <common/std_string.h>
+#include <cstring>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-os/os_settings_identifiers.h>

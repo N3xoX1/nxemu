@@ -2,6 +2,7 @@
 #include "input_config_player.h"
 #include <common/std_string.h>
 #include <cstring>
+#include <utility>
 #include <sciter_handler.h>
 #include <widgets/combo_box.h>
 #include <unordered_map>
@@ -1357,7 +1358,7 @@ std::string InputConfigPlayer::AnalogToText(const IParamPackage& param, const st
 
     if (std::string(param.GetString("engine", "")) == "analog_from_button") 
     {
-        return ButtonToText(ParamPackage({ param.GetString(dir.c_str(), "") }));
+        return ButtonToText(ParamPackage(param.GetString(dir.c_str(), "")));
     }
 
     if (!param.Has("axis_x") || !param.Has("axis_y"))
