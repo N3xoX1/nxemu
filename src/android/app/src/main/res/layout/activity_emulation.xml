@@ -92,4 +92,39 @@
             android:scaleType="fitEnd"
             android:visibility="gone" />
     </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/overlay_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginHorizontal="20dp"
+        android:fitsSystemWindows="true">
+
+        <TextView
+            android:id="@+id/show_fps_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:clickable="false"
+            android:focusable="false"
+            android:shadowColor="@android:color/black"
+            android:shadowRadius="3"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/show_device_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:clickable="false"
+            android:focusable="false"
+            android:gravity="end"
+            android:shadowColor="@android:color/black"
+            android:shadowRadius="3"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </FrameLayout>
 </FrameLayout>

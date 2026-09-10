@@ -22,7 +22,7 @@ object GpuDriverHelper {
         NativeLibrary.setSettingString(NXCoreSetting.GpuCustomDriverDir, driverInstallationPath)
         NativeLibrary.setSettingString(
             NXCoreSetting.GpuCustomDriverName,
-            installedCustomDriverName(driverInstallationPath),
+            installedCustomDriverName(installDir = driverInstallationPath),
         )
         NativeLibrary.setSettingString(NXCoreSetting.GpuFileRedirectDir, "")
     }

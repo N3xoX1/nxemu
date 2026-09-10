@@ -5,7 +5,10 @@ import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
 import android.util.Log
 import android.view.SurfaceHolder
@@ -23,6 +26,7 @@ import org.nxemu.NativeLibrary
 import org.nxemu.R
 import org.json.JSONObject
 import java.nio.ByteBuffer
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -32,11 +36,18 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         Thread(r, "nxemu-emu").apply { isDaemon = true }
     }
     private val nativeSurfaceSessionOpen = AtomicBoolean(false)
+    private val perfStatsHandler = Handler(Looper.getMainLooper())
+    private var perfStatsUpdater: Runnable? = null
     private lateinit var loadingIndicator: View
     private lateinit var loadingCornerLogo: ImageView
     private lateinit var loadingCornerBanner: ImageView
     private lateinit var loadingImage: ImageView
     private lateinit var loadingTitle: TextView
+    private lateinit var showFpsText: TextView
+    private lateinit var showDeviceText: TextView
+    private lateinit var overlayAppVersion: String
+    private lateinit var overlayPhoneModel: String
+    private lateinit var overlaySoc: String
 
     private val settingChangedListener: (String) -> Unit = { setting ->
         if (setting == NXCoreSetting.DisplayedFrames) {
@@ -58,6 +69,9 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         loadingImage = findViewById(R.id.loading_image)
         loadingTitle = findViewById(R.id.loading_title)
         loadingTitle.text = getString(R.string.app_name)
+        showFpsText = findViewById(R.id.show_fps_text)
+        showDeviceText = findViewById(R.id.show_device_text)
+        cacheDeviceOverlayInfo()
 
         NativeLibrary.addSettingChangedListener(settingChangedListener)
         hideLoadingIfFirstFrame()
@@ -91,7 +105,61 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (NativeLibrary.getSettingBool(NXCoreSetting.DisplayedFrames)) {
             stopAnimatedDrawables()
             loadingIndicator.visibility = View.GONE
+            startPerfOverlay()
         }
+    }
+
+    private fun startPerfOverlay() {
+        if (perfStatsUpdater != null) {
+            return
+        }
+        showFpsText.visibility = View.VISIBLE
+        showDeviceText.visibility = View.VISIBLE
+        val updater = object : Runnable {
+            override fun run() {
+                if (isDestroyed) {
+                    return
+                }
+                val stats = NativeLibrary.getPerfStats()
+                val fps = if (stats.size > 1) stats[1] else 0.0
+                val shaders = NativeLibrary.getShadersBuilding()
+                var fpsLine = String.format(Locale.US, "FPS: %.1f", fps)
+                if (shaders > 0) {
+                    val shaderLabel = if (shaders == 1) "shader" else "shaders"
+                    fpsLine += String.format(Locale.US, " | Building: %d %s", shaders, shaderLabel)
+                }
+                showFpsText.text = fpsLine
+                showDeviceText.text = deviceOverlayLine()
+                perfStatsHandler.postDelayed(this, 800)
+            }
+        }
+        perfStatsUpdater = updater
+        perfStatsHandler.post(updater)
+    }
+
+    private fun stopPerfOverlay() {
+        perfStatsUpdater?.let { perfStatsHandler.removeCallbacks(it) }
+        perfStatsUpdater = null
+    }
+
+    private fun cacheDeviceOverlayInfo() {
+        overlayAppVersion = NativeLibrary.getAppVersion()
+        overlayPhoneModel = Build.MODEL.ifBlank { "N/A" }
+        overlaySoc = if (Build.VERSION.SDK_INT >= 31 && Build.SOC_MODEL.isNotBlank()) {
+            Build.SOC_MODEL
+        } else {
+            Build.HARDWARE.ifBlank { "N/A" }
+        }
+    }
+
+    private fun deviceOverlayLine(): String {
+        val firmware = NativeLibrary.getFirmwareVersion().ifBlank { "N/A" }
+        return listOf(
+            overlayAppVersion,
+            overlayPhoneModel,
+            overlaySoc,
+            firmware,
+        ).joinToString(" | ")
     }
 
     private fun loadRomInfo(path: String) {
@@ -226,6 +294,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         NativeLibrary.removeSettingChangedListener(settingChangedListener)
+        stopPerfOverlay()
         stopAnimatedDrawables()
         if (nativeSurfaceSessionOpen.get()) {
             try {

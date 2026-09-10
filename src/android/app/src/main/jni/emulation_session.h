@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -19,6 +20,10 @@ public:
 
     std::string QueryRomMetadata(const std::string & path);
     std::string QueryRomInfo(const std::string & path);
+
+    std::array<double, 4> GetPerfStats();
+    uint32_t GetShadersBuilding();
+    std::string GetFirmwareVersion();
 
     bool Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path);
     void SurfaceDestroyed();
