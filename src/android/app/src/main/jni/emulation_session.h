@@ -18,6 +18,7 @@ public:
     void ShutdownSystem();
 
     std::string QueryRomMetadata(const std::string & path);
+    std::string QueryRomInfo(const std::string & path);
 
     bool Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path);
     void SurfaceDestroyed();

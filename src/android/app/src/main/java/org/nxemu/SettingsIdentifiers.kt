@@ -9,4 +9,5 @@ object NXCoreSetting {
     const val GpuCustomDriverDir = "nxcore:GpuCustomDriverDir"
     const val GpuCustomDriverName = "nxcore:GpuCustomDriverName"
     const val GpuFileRedirectDir = "nxcore:GpuFileRedirectDir"
+    const val DisplayedFrames = "nxcore:DisplayedFrames"
 }

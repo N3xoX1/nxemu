@@ -23,6 +23,14 @@ import org.nxemu.ui.emulation.EmulationActivity
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private var emulationLaunchPending = false
+    private val settingChangedForwarder: (String) -> Unit = { setting ->
+        runOnUiThread {
+            webView.evaluateJavascript(
+                "onSettingChanged('${setting.replace("'", "\\'")}')",
+                null
+            )
+        }
+    }
 
     private val addGameDirectory = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -91,14 +99,7 @@ class MainActivity : ComponentActivity() {
                 }
             },
         )
-        NativeLibrary.onSettingChangedListener = { setting ->
-            runOnUiThread {
-                webView.evaluateJavascript(
-                    "onSettingChanged('${setting.replace("'", "\\'")}')",
-                    null
-                )
-            }
-        }
+        NativeLibrary.addSettingChangedListener(settingChangedForwarder)
         webView.loadUrl("file:///android_asset/index.html")
         setContentView(webView)
     }
@@ -109,7 +110,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        NativeLibrary.onSettingChangedListener = null
+        NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
         super.onDestroy()
     }
 

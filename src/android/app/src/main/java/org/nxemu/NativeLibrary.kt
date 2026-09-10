@@ -6,28 +6,39 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import java.net.URLDecoder
+import java.util.concurrent.CopyOnWriteArrayList
 
 object NativeLibrary {
     init {
         System.loadLibrary("nxemu-android")
     }
 
-    var onSettingChangedListener: ((String) -> Unit)? = null
+    private val settingChangedListeners = CopyOnWriteArrayList<(String) -> Unit>()
+
+    fun addSettingChangedListener(listener: (String) -> Unit) {
+        settingChangedListeners.add(listener)
+    }
+
+    fun removeSettingChangedListener(listener: (String) -> Unit) {
+        settingChangedListeners.remove(listener)
+    }
 
     @JvmStatic
     fun onSettingChanged(setting: String) {
         Log.d("NxEmu", "onSettingChanged (kotlin): $setting")
-        onSettingChangedListener?.invoke(setting)
+        settingChangedListeners.forEach { listener -> listener(setting) }
     }
 
     external fun appInit(appDirectory: String, nativeModuleLibDir: String)
     external fun appCleanup()
 
     external fun getSettingString(setting: String): String
+    external fun getSettingBool(setting: String): Boolean
     external fun setSettingString(setting: String, value: String)
     external fun saveSettings()
 
     external fun queryRomMetadata(path: String): String
+    external fun queryRomInfo(path: String): String
 
     external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String): Boolean
     external fun emulationSurfaceDestroyed()
