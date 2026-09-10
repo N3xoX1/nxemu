@@ -20,8 +20,6 @@ namespace
 {
     constexpr const char * kLogTag = "NxEmu";
 
-    jclass g_native_library_class = nullptr;
-
     std::string JStringToUtf8(JNIEnv * env, jstring value)
     {
         if (value == nullptr)
@@ -58,14 +56,7 @@ Java_org_nxemu_NativeLibrary_appInit(JNIEnv * env, jclass /*clazz*/, jstring app
     env->GetJavaVM(&vm);
     SetJavaVM(vm);
 
-    if (g_native_library_class != nullptr)
-    {
-        env->DeleteGlobalRef(g_native_library_class);
-        g_native_library_class = nullptr;
-    }
-
     jclass local_class = env->FindClass("org/nxemu/NativeLibrary");
-    g_native_library_class = static_cast<jclass>(env->NewGlobalRef(local_class));
     SetNativeLibraryGlobalRef(env->NewGlobalRef(local_class));
     env->DeleteLocalRef(local_class);
 
@@ -103,11 +94,6 @@ Java_org_nxemu_NativeLibrary_appCleanup(JNIEnv * env, jclass /*clazz*/)
     AppCleanup();
     Common::FS::Android::UnRegisterCallbacks(env);
     ClearNativeLibraryGlobalRef(env);
-    if (g_native_library_class != nullptr)
-    {
-        env->DeleteGlobalRef(g_native_library_class);
-        g_native_library_class = nullptr;
-    }
 }
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -125,6 +111,18 @@ Java_org_nxemu_NativeLibrary_queryRomMetadata(JNIEnv * env, jclass /*clazz*/, js
     {
         const std::string fail = FailJson(path, "metadata_unavailable");
         return env->NewStringUTF(fail.c_str());
+    }
+    return env->NewStringUTF(json.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_nxemu_NativeLibrary_queryRomInfo(JNIEnv * env, jclass /*clazz*/, jstring j_path)
+{
+    const std::string path = JStringToUtf8(env, j_path);
+    const std::string json = EmulationSession::GetInstance().QueryRomInfo(path);
+    if (json.empty())
+    {
+        return env->NewStringUTF("{}");
     }
     return env->NewStringUTF(json.c_str());
 }

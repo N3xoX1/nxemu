@@ -16,6 +16,54 @@
 namespace
 {
     constexpr const char * kLogTag = "NxEmu";
+    constexpr uint32_t kMaxArtworkBytes = 16 * 1024 * 1024;
+
+    std::string EncodeRomImage(IRomInfo * rom, LoaderResultStatus (IRomInfo::*reader)(uint8_t *, uint32_t *))
+    {
+        if (rom == nullptr)
+        {
+            return {};
+        }
+        uint32_t size = 0;
+        LoaderResultStatus status = (rom->*reader)(nullptr, &size);
+        if (status != LoaderResultStatus::Success || size == 0 || size >= kMaxArtworkBytes)
+        {
+            return {};
+        }
+        std::vector<uint8_t> data(size);
+        status = (rom->*reader)(data.data(), &size);
+        if (status != LoaderResultStatus::Success || size == 0)
+        {
+            return {};
+        }
+        data.resize(size);
+        return base64_encode(data.data(), data.size());
+    }
+
+    std::string ReadRomTitle(IRomInfo * rom)
+    {
+        if (rom == nullptr)
+        {
+            return {};
+        }
+        std::string title;
+        uint32_t title_sz = 0;
+        LoaderResultStatus title_res = rom->ReadTitle(nullptr, &title_sz);
+        if (title_res == LoaderResultStatus::Success && title_sz > 0 && title_sz < 1024 * 1024)
+        {
+            title.resize(title_sz);
+            title_res = rom->ReadTitle(title.data(), &title_sz);
+            if (title_res != LoaderResultStatus::Success)
+            {
+                title.clear();
+            }
+        }
+        if (const auto nul = title.find('\0'); nul != std::string::npos)
+        {
+            title.resize(nul);
+        }
+        return title;
+    }
 }
 
 EmulationSession & EmulationSession::GetInstance()
@@ -167,36 +215,8 @@ std::string EmulationSession::QueryRomMetadata(const std::string & path)
     const LoaderResultStatus pid_res = rom->ReadProgramId(program_id);
     const bool have_pid = pid_res == LoaderResultStatus::Success;
 
-    std::string title;
-    uint32_t title_sz = 0;
-    LoaderResultStatus title_res = rom->ReadTitle(nullptr, &title_sz);
-    if (title_res == LoaderResultStatus::Success && title_sz > 0 && title_sz < 1024 * 1024)
-    {
-        title.resize(title_sz);
-        title_res = rom->ReadTitle(title.data(), &title_sz);
-        if (title_res != LoaderResultStatus::Success)
-        {
-            title.clear();
-        }
-    }
-    if (const auto nul = title.find('\0'); nul != std::string::npos)
-    {
-        title.resize(nul);
-    }
-
-    std::string icon_b64;
-    uint32_t icon_sz = 0;
-    LoaderResultStatus icon_res = rom->ReadIcon(nullptr, &icon_sz);
-    if (icon_res == LoaderResultStatus::Success && icon_sz > 0 && icon_sz < 16 * 1024 * 1024)
-    {
-        std::vector<uint8_t> icon(icon_sz);
-        icon_res = rom->ReadIcon(icon.data(), &icon_sz);
-        if (icon_res == LoaderResultStatus::Success && icon_sz > 0)
-        {
-            icon.resize(icon_sz);
-            icon_b64 = base64_encode(icon.data(), icon.size());
-        }
-    }
+    const std::string title = ReadRomTitle(rom);
+    const std::string icon_b64 = EncodeRomImage(rom, &IRomInfo::ReadIcon);
 
     rom->Release();
 
@@ -217,5 +237,37 @@ std::string EmulationSession::QueryRomMetadata(const std::string & path)
     obj["fileType"] = static_cast<int>(file_type);
     obj["icon"] = icon_b64;
     obj["error"] = JsonValue();
+    return JsonStyledWriter().write(obj);
+}
+
+std::string EmulationSession::QueryRomInfo(const std::string & path)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return {};
+    }
+
+    ISystemloader & loader = m_system_modules->Modules().Systemloader();
+    IRomInfo * rom = nullptr;
+    if (!path.empty())
+    {
+        rom = loader.RomInfo(path.c_str(), 0, 0);
+    }
+    if (rom == nullptr)
+    {
+        rom = loader.LoadedRomInfo();
+    }
+    if (rom == nullptr)
+    {
+        return {};
+    }
+
+    JsonValue obj(JsonValueType::Object);
+    obj["title"] = ReadRomTitle(rom);
+    obj["icon"] = EncodeRomImage(rom, &IRomInfo::ReadIcon);
+    obj["logo"] = EncodeRomImage(rom, &IRomInfo::ReadLogo);
+    obj["banner"] = EncodeRomImage(rom, &IRomInfo::ReadBanner);
+    rom->Release();
     return JsonStyledWriter().write(obj);
 }

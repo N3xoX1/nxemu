@@ -2,6 +2,7 @@
 #include "ui_identifiers.h"
 #include "ui_settings.h"
 #include <android/log.h>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <yuzu_common/android/java_bridge.h>
 
@@ -48,6 +49,18 @@ extern "C" JNIEXPORT jstring JNICALL Java_org_nxemu_NativeLibrary_getSettingStri
     return env->NewStringUTF(value != nullptr ? value : "");
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_org_nxemu_NativeLibrary_getSettingBool(JNIEnv * env, jclass /*clazz*/, jstring setting)
+{
+    if (setting == nullptr)
+    {
+        return JNI_FALSE;
+    }
+    const char * key = env->GetStringUTFChars(setting, nullptr);
+    const bool value = SettingsStore::GetInstance().GetBool(key);
+    env->ReleaseStringUTFChars(setting, key);
+    return value ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_setSettingString(JNIEnv * env, jclass /*clazz*/, jstring setting, jstring value)
 {
     const char * key = env->GetStringUTFChars(setting, nullptr);
@@ -74,12 +87,14 @@ void SettingsChange_Start(JavaVM * /*javaVm*/, JNIEnv * env)
 
     SettingsStore & store = SettingsStore::GetInstance();
     store.RegisterCallback(NXUISetting::GameDirectories, OnSettingChanged, nullptr);
+    store.RegisterCallback(NXCoreSetting::DisplayedFrames, OnSettingChanged, nullptr);
 }
 
 void SettingsChange_Stop(JNIEnv * env)
 {
     SettingsStore & store = SettingsStore::GetInstance();
     store.UnregisterCallback(NXUISetting::GameDirectories, OnSettingChanged, nullptr);
+    store.UnregisterCallback(NXCoreSetting::DisplayedFrames, OnSettingChanged, nullptr);
 
     s_on_setting_changed = nullptr;
     if (s_native_library_class != nullptr)
