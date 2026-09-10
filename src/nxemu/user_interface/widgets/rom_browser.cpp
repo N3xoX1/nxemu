@@ -388,7 +388,7 @@ void WidgetRomBrowser::SettingChanged(const char * setting, void * userData)
     }
 }
 
-IWidget * __stdcall WidgetRomBrowser::CreateWidget(ISciterUI & sciterUI)
+IWidget * sui_callback WidgetRomBrowser::CreateWidget(ISciterUI & sciterUI)
 {
     std::shared_ptr<WidgetRomBrowser> instance(new WidgetRomBrowser(sciterUI));
     IWidget * widget = (IWidget *)instance.get();
@@ -397,7 +397,7 @@ IWidget * __stdcall WidgetRomBrowser::CreateWidget(ISciterUI & sciterUI)
     return widget;
 }
 
-void __stdcall WidgetRomBrowser::ReleaseWidget(IWidget * widget)
+void sui_callback WidgetRomBrowser::ReleaseWidget(IWidget * widget)
 {
     RomBrowsers::iterator it = m_instances.find(widget);
     if (it != m_instances.end())
