@@ -371,7 +371,6 @@ ul#menu-bar
   font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9em;
   font-weight: 100;
-  behavior:menu-bar;
   flow: horizontal;
 }
 
@@ -384,6 +383,7 @@ ul#menu-bar > li
   display: block;
   flow: horizontal;
   border-radius: 5px;
+  position: relative;
 }
 
 ul#menu-bar > li:hover
@@ -428,6 +428,14 @@ menu
   box-shadow: 0 0.25em 0.75em color(color-menu-popup-shadow);
 }
 
+ul#menu-bar menu
+{
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 10000;
+}
+
 @media (menu-animation-supported) {
    menu {
      popup-animation: popup-animation(type:blend,duration:100ms);
@@ -437,6 +445,18 @@ menu
 menu menu
 {
   max-width: max-content;
+}
+
+ul#menu-bar menu li
+{
+  position: relative;
+}
+
+ul#menu-bar menu menu
+{
+  left: 100%;
+  top: 0;
+  border-top: 1px solid color(color-menu-popup-border);
 }
 
 menu li
