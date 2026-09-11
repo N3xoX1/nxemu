@@ -2,6 +2,7 @@
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
+#include <array>
 #include <string>
 
 #include <common/json.h>
@@ -183,4 +184,32 @@ Java_org_nxemu_NativeLibrary_surfaceChanged(JNIEnv * env, jclass /*clazz*/, jobj
     }
     ANativeWindow_release(nw);
     session.SurfaceChanged();
+}
+
+extern "C" JNIEXPORT jdoubleArray JNICALL
+Java_org_nxemu_NativeLibrary_getPerfStats(JNIEnv * env, jclass /*clazz*/)
+{
+    jdoubleArray j_stats = env->NewDoubleArray(4);
+    const std::array<double, 4> results = EmulationSession::GetInstance().GetPerfStats();
+    env->SetDoubleArrayRegion(j_stats, 0, 4, results.data());
+    return j_stats;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_nxemu_NativeLibrary_getShadersBuilding(JNIEnv * /*env*/, jclass /*clazz*/)
+{
+    return static_cast<jint>(EmulationSession::GetInstance().GetShadersBuilding());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_nxemu_NativeLibrary_getFirmwareVersion(JNIEnv * env, jclass /*clazz*/)
+{
+    const std::string version = EmulationSession::GetInstance().GetFirmwareVersion();
+    return env->NewStringUTF(version.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_nxemu_NativeLibrary_getAppVersion(JNIEnv * env, jclass /*clazz*/)
+{
+    return env->NewStringUTF(VER_FILE_VERSION_STR);
 }
