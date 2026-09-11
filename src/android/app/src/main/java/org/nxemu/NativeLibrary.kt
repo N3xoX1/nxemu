@@ -39,6 +39,10 @@ object NativeLibrary {
 
     external fun queryRomMetadata(path: String): String
     external fun queryRomInfo(path: String): String
+    external fun getPerfStats(): DoubleArray
+    external fun getShadersBuilding(): Int
+    external fun getFirmwareVersion(): String
+    external fun getAppVersion(): String
 
     external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String): Boolean
     external fun emulationSurfaceDestroyed()

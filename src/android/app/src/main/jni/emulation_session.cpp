@@ -271,3 +271,46 @@ std::string EmulationSession::QueryRomInfo(const std::string & path)
     rom->Release();
     return JsonStyledWriter().write(obj);
 }
+
+std::array<double, 4> EmulationSession::GetPerfStats()
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return {0.0, 0.0, 0.0, 0.0};
+    }
+    IOperatingSystem & os = m_system_modules->Modules().OperatingSystem();
+    if (!os.IsPoweredOn())
+    {
+        return {0.0, 0.0, 0.0, 0.0};
+    }
+    const PerfStatsResults results = os.GetAndResetPerfStats();
+    return {results.system_fps, results.average_game_fps, results.frametime, results.emulation_speed};
+}
+
+uint32_t EmulationSession::GetShadersBuilding()
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return 0;
+    }
+    return m_system_modules->Modules().Video().ShadersBuilding();
+}
+
+std::string EmulationSession::GetFirmwareVersion()
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return "N/A";
+    }
+    char buffer[32]{};
+    const uint32_t length =
+        m_system_modules->Modules().Systemloader().GetInstalledFirmwareDisplayVersion(buffer, sizeof(buffer));
+    if (length == 0)
+    {
+        return "N/A";
+    }
+    return std::string(buffer, length);
+}
