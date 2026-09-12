@@ -213,3 +213,42 @@ Java_org_nxemu_NativeLibrary_getAppVersion(JNIEnv * env, jclass /*clazz*/)
 {
     return env->NewStringUTF(VER_FILE_VERSION_STR);
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_features_input_NativeInput_onTouchPressed(JNIEnv * /*env*/, jobject /*obj*/,
+                                                           jint /*fingerId*/, jfloat /*x*/, jfloat /*y*/)
+{
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_features_input_NativeInput_onTouchMoved(JNIEnv * /*env*/, jobject /*obj*/,
+                                                         jint /*fingerId*/, jfloat /*x*/, jfloat /*y*/)
+{
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_features_input_NativeInput_onTouchReleased(JNIEnv * /*env*/, jobject /*obj*/,
+                                                           jint /*fingerId*/)
+{
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_features_input_NativeInput_onOverlayButtonEventImpl(JNIEnv * /*env*/, jobject /*obj*/,
+                                                                   jint port, jint buttonId, jint action)
+{
+    EmulationSession::GetInstance().SetOverlayButton(port, buttonId, action == 1);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_features_input_NativeInput_onOverlayJoystickEventImpl(JNIEnv * /*env*/, jobject /*obj*/,
+                                                                   jint port, jint stickId, jfloat x, jfloat y)
+{
+    EmulationSession::GetInstance().SetOverlayJoystick(port, stickId, x, y);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_nxemu_features_input_NativeInput_getStyleIndexImpl(JNIEnv * /*env*/, jobject /*obj*/,
+                                                            jint playerIndex)
+{
+    return EmulationSession::GetInstance().GetStyleIndex(playerIndex);
+}

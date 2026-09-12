@@ -60,4 +60,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.window:window:1.3.0")
 }

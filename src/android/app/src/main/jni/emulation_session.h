@@ -25,6 +25,10 @@ public:
     uint32_t GetShadersBuilding();
     std::string GetFirmwareVersion();
 
+    void SetOverlayButton(int port, int button_id, bool pressed);
+    void SetOverlayJoystick(int port, int stick_id, float x, float y);
+    int GetStyleIndex(int player_index);
+
     bool Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path);
     void SurfaceDestroyed();
     void SurfaceChanged();
