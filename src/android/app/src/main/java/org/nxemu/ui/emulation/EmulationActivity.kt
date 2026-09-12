@@ -3,6 +3,7 @@ package org.nxemu.ui.emulation
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
+import android.graphics.PixelFormat
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
@@ -25,6 +26,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import org.nxemu.NXCoreSetting
 import org.nxemu.NativeLibrary
 import org.nxemu.R
+import org.nxemu.overlay.InputOverlay
+import org.nxemu.overlay.model.OverlayLayout
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.util.Locale
@@ -46,6 +49,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var loadingTitle: TextView
     private lateinit var showFpsText: TextView
     private lateinit var showDeviceText: TextView
+    private lateinit var surfaceInputOverlay: InputOverlay
     private lateinit var overlayAppVersion: String
     private lateinit var overlayPhoneModel: String
     private lateinit var overlaySoc: String
@@ -72,6 +76,10 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         loadingTitle.text = getString(R.string.app_name)
         showFpsText = findViewById(R.id.show_fps_text)
         showDeviceText = findViewById(R.id.show_device_text)
+        surfaceInputOverlay = findViewById(R.id.surface_input_overlay)
+        surfaceInputOverlay.setZOrderMediaOverlay(true)
+        surfaceInputOverlay.holder.setFormat(PixelFormat.TRANSLUCENT)
+        updateInputOverlayLayout()
         cacheDeviceOverlayInfo()
 
         NativeLibrary.addSettingChangedListener(settingChangedListener)
@@ -107,6 +115,9 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             stopAnimatedDrawables()
             loadingIndicator.visibility = View.GONE
             startPerfOverlay()
+            surfaceInputOverlay.visibility = View.VISIBLE
+            updateInputOverlayLayout()
+            surfaceInputOverlay.refreshControls()
         }
     }
 
@@ -141,6 +152,15 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun stopPerfOverlay() {
         perfStatsUpdater?.let { perfStatsHandler.removeCallbacks(it) }
         perfStatsUpdater = null
+    }
+
+    private fun updateInputOverlayLayout() {
+        surfaceInputOverlay.layout =
+            if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                OverlayLayout.Portrait
+            } else {
+                OverlayLayout.Landscape
+            }
     }
 
     private fun cacheDeviceOverlayInfo() {

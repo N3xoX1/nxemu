@@ -10,6 +10,7 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-module-spec/video.h>
 
@@ -313,4 +314,46 @@ std::string EmulationSession::GetFirmwareVersion()
         return "N/A";
     }
     return std::string(buffer, length);
+}
+
+void EmulationSession::SetOverlayButton(int port, int button_id, bool pressed)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return;
+    }
+    IOperatingSystem & os = m_system_modules->Modules().OperatingSystem();
+    if (!os.IsPoweredOn())
+    {
+        return;
+    }
+    os.SetPlayerButtonState((uint32_t)port, (uint32_t)button_id, pressed);
+}
+
+void EmulationSession::SetOverlayJoystick(int port, int stick_id, float x, float y)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return;
+    }
+    IOperatingSystem & os = m_system_modules->Modules().OperatingSystem();
+    if (!os.IsPoweredOn())
+    {
+        return;
+    }
+    os.SetPlayerAnalogState((uint32_t)port, (uint32_t)stick_id, x, y);
+}
+
+int EmulationSession::GetStyleIndex(int player_index)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return static_cast<int>(NpadStyleIndex::Fullkey);
+    }
+    IOperatingSystem & os = m_system_modules->Modules().OperatingSystem();
+    const NpadIdType npad_id = player_index == 8 ? NpadIdType::Handheld : (NpadIdType)player_index;
+    return (int)os.GetEmulatedController(npad_id).GetNpadStyleIndex();
 }

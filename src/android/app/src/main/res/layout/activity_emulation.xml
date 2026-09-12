@@ -10,6 +10,16 @@
         android:layout_height="match_parent"
         android:keepScreenOn="true" />
 
+    <org.nxemu.overlay.InputOverlay
+        android:id="@+id/surface_input_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:defaultFocusHighlightEnabled="false"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:visibility="invisible" />
+
     <FrameLayout
         android:id="@+id/loading_indicator"
         android:layout_width="match_parent"
