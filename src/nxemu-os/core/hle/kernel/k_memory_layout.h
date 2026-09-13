@@ -73,7 +73,7 @@ constexpr std::size_t KernelResourceSize = KernelPageTableHeapSize + KernelIniti
 bool IsKernelAddressKey(KProcessAddress key) = delete;
 
 constexpr bool IsKernelAddress(KProcessAddress address) {
-    return KernelVirtualAddressSpaceBase <= GetInteger(address) &&
+    return KernelVirtualAddressSpaceBase <= address.GetValue() &&
            address < KernelVirtualAddressSpaceEnd;
 }
 
@@ -107,10 +107,10 @@ public:
     }
 
     KVirtualAddress GetLinearVirtualAddress(KPhysicalAddress address) const {
-        return GetInteger(address) + m_linear_phys_to_virt_diff;
+        return address.GetValue() + m_linear_phys_to_virt_diff;
     }
     KPhysicalAddress GetLinearPhysicalAddress(KVirtualAddress address) const {
-        return GetInteger(address) + m_linear_virt_to_phys_diff;
+        return address.GetValue() + m_linear_virt_to_phys_diff;
     }
 
     const KMemoryRegion* FindVirtual(KVirtualAddress address) const {
@@ -264,8 +264,8 @@ public:
 
     auto GetLinearRegionVirtualExtents() const {
         const auto physical = GetLinearRegionPhysicalExtents();
-        return KMemoryRegion(GetInteger(GetLinearVirtualAddress(physical.GetAddress())),
-                             GetInteger(GetLinearVirtualAddress(physical.GetLastAddress())), 0,
+        return KMemoryRegion(GetLinearVirtualAddress(physical.GetAddress()).GetValue(),
+                             GetLinearVirtualAddress(physical.GetLastAddress()).GetValue(), 0,
                              KMemoryRegionType_None);
     }
 
@@ -337,12 +337,12 @@ private:
     static bool IsTypedAddress(const KMemoryRegion*& region, AddressType address,
                                const KMemoryRegionTree& tree, KMemoryRegionType type) {
         // Check if the cached region already contains the address.
-        if (region != nullptr && region->Contains(GetInteger(address))) {
+        if (region != nullptr && region->Contains(address.GetValue())) {
             return true;
         }
 
         // Find the containing region, and update the cache.
-        if (const KMemoryRegion* found = tree.Find(GetInteger(address));
+        if (const KMemoryRegion* found = tree.Find(address.GetValue());
             found != nullptr && found->IsDerivedFrom(type)) {
             region = found;
             return true;
@@ -355,12 +355,12 @@ private:
     static bool IsTypedAddress(const KMemoryRegion*& region, AddressType address, size_t size,
                                const KMemoryRegionTree& tree, KMemoryRegionType type) {
         // Get the end of the checked region.
-        const u64 last_address = GetInteger(address) + size - 1;
+        const u64 last_address = address.GetValue() + size - 1;
 
         // Walk the tree to verify the region is correct.
-        const KMemoryRegion* cur = (region != nullptr && region->Contains(GetInteger(address)))
+        const KMemoryRegion* cur = (region != nullptr && region->Contains(address.GetValue()))
                                        ? region
-                                       : tree.Find(GetInteger(address));
+                                       : tree.Find(address.GetValue());
         while (cur != nullptr && cur->IsDerivedFrom(type)) {
             if (last_address <= cur->GetLastAddress()) {
                 region = cur;
@@ -374,7 +374,7 @@ private:
 
     template <typename AddressType>
     static const KMemoryRegion* Find(AddressType address, const KMemoryRegionTree& tree) {
-        return tree.Find(GetInteger(address));
+        return tree.Find(address.GetValue());
     }
 
     static KMemoryRegion& Dereference(KMemoryRegion* region) {

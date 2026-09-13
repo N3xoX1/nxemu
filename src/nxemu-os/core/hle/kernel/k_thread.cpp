@@ -225,9 +225,9 @@ Result KThread::Initialize(KThreadFunction func, uintptr_t arg, KProcessAddress 
 
     // Initialize thread context.
     if (m_parent != nullptr && !m_parent->Is64Bit()) {
-        ResetThreadContext32(m_thread_context, GetInteger(user_stack_top), GetInteger(func), arg);
+        ResetThreadContext32(m_thread_context, user_stack_top.GetValue(), func.GetValue(), arg);
     } else {
-        ResetThreadContext64(m_thread_context, GetInteger(user_stack_top), GetInteger(func), arg);
+        ResetThreadContext64(m_thread_context, user_stack_top.GetValue(), func.GetValue(), arg);
     }
 
     // Setup the stack parameters.

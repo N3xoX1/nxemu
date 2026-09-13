@@ -251,11 +251,6 @@ static_assert(!(PhysicalAddress(0U) >= PhysicalAddress(1U)));
 
 } // namespace Common
 
-template <bool Virtual, typename T>
-constexpr inline uint64_t GetInteger(Common::TypedAddress<Virtual, T> address) {
-    return address.GetValue();
-}
-
 template <>
 struct fmt::formatter<Common::PhysicalAddress> {
     constexpr auto parse(fmt::format_parse_context& ctx) {

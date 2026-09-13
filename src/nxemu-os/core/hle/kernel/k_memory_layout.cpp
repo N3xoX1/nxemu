@@ -135,9 +135,9 @@ void KMemoryLayout::InitializeLinearMemoryRegionTrees(KPhysicalAddress aligned_l
                                                       KVirtualAddress linear_virtual_start) {
     // Set static differences.
     m_linear_phys_to_virt_diff =
-        GetInteger(linear_virtual_start) - GetInteger(aligned_linear_phys_start);
+        linear_virtual_start.GetValue() - aligned_linear_phys_start.GetValue();
     m_linear_virt_to_phys_diff =
-        GetInteger(aligned_linear_phys_start) - GetInteger(linear_virtual_start);
+        aligned_linear_phys_start.GetValue() - linear_virtual_start.GetValue();
 
     // Initialize linear trees.
     for (auto& region : GetPhysicalMemoryRegionTree()) {

@@ -421,7 +421,7 @@ Result KMemoryManager::AllocateForProcess(KPageGroup* out, size_t num_pages, u32
     } else {
         // Set all the allocated memory.
         for (const auto& block : *out) {
-            m_system.DeviceMemory().buffer.ClearBackingRegion(GetInteger(block.GetAddress()) -
+            m_system.DeviceMemory().buffer.ClearBackingRegion(block.GetAddress().GetValue() -
                                                                   Core::DramMemoryMap::Base,
                                                               block.GetSize(), fill_pattern);
         }
@@ -448,7 +448,7 @@ size_t KMemoryManager::Impl::Initialize(KPhysicalAddress address, size_t size,
     m_management_region = management;
     m_page_reference_counts.resize(
         Kernel::Board::Nintendo::Nx::KSystemControl::Init::GetIntendedMemorySize() / PageSize);
-    ASSERT(Common::IsAligned(GetInteger(m_management_region), PageSize));
+    ASSERT(Common::IsAligned(m_management_region.GetValue(), PageSize));
 
     // Initialize the manager's KPageHeap.
     m_heap.Initialize(address, size, management + manager_size, page_heap_size);

@@ -96,7 +96,7 @@ Result MapProcessCodeMemory(u64* out, Kernel::KProcess* process, const ProcessMe
                             size_t num_regions, std::mt19937_64& generate_random) {
     auto& page_table = process->GetKPageTable();
     const u64 alias_code_start =
-        GetInteger(page_table.GetAliasCodeRegionStart()) / Kernel::PageSize;
+        page_table.GetAliasCodeRegionStart().GetValue() / Kernel::PageSize;
     const u64 alias_code_size = page_table.GetAliasCodeRegionSize() / Kernel::PageSize;
 
     for (size_t trial = 0; trial < 64; trial++) {

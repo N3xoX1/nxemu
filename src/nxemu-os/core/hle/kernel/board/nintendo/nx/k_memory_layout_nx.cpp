@@ -81,9 +81,9 @@ void SetupDramPhysicalMemoryRegions(KMemoryLayout& memory_layout) {
 
     // Insert blocks into the tree.
     ASSERT(memory_layout.GetPhysicalMemoryRegionTree().Insert(
-        GetInteger(physical_memory_base_address), intended_memory_size, KMemoryRegionType_Dram));
+        physical_memory_base_address.GetValue(), intended_memory_size, KMemoryRegionType_Dram));
     ASSERT(memory_layout.GetPhysicalMemoryRegionTree().Insert(
-        GetInteger(physical_memory_base_address), ReservedEarlyDramSize,
+        physical_memory_base_address.GetValue(), ReservedEarlyDramSize,
         KMemoryRegionType_DramReservedEarly));
 
     // Insert the KTrace block at the end of Dram, if KTrace is enabled.
@@ -92,7 +92,7 @@ void SetupDramPhysicalMemoryRegions(KMemoryLayout& memory_layout) {
         const KPhysicalAddress ktrace_buffer_phys_addr =
             physical_memory_base_address + intended_memory_size - KTraceBufferSize;
         ASSERT(memory_layout.GetPhysicalMemoryRegionTree().Insert(
-            GetInteger(ktrace_buffer_phys_addr), KTraceBufferSize,
+            ktrace_buffer_phys_addr.GetValue(), KTraceBufferSize,
             KMemoryRegionType_KernelTraceBuffer));
     }
 }

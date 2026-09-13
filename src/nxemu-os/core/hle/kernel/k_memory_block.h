@@ -365,7 +365,7 @@ public:
 
     constexpr KMemoryInfo GetMemoryInfo() const {
         return {
-            .m_address = GetInteger(this->GetAddress()),
+            .m_address = this->GetAddress().GetValue(),
             .m_size = this->GetSize(),
             .m_state = m_memory_state,
             .m_device_disable_merge_left_count = m_device_disable_merge_left_count,
@@ -470,7 +470,7 @@ public:
     constexpr void Split(KMemoryBlock* block, KProcessAddress addr) {
         ASSERT(this->GetAddress() < addr);
         ASSERT(this->Contains(addr));
-        ASSERT(Common::IsAligned(GetInteger(addr), PageSize));
+        ASSERT(Common::IsAligned(addr.GetValue(), PageSize));
 
         block->m_address = m_address;
         block->m_num_pages = (addr - this->GetAddress()) / PageSize;

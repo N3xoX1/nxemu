@@ -241,15 +241,15 @@ void CheatEngine::Initialize() {
 
     const auto& page_table = system.ApplicationProcess()->GetKPageTable();
     metadata.heap_extents = {
-        .base = GetInteger(page_table.GetHeapRegionStart()),
+        .base = page_table.GetHeapRegionStart().GetValue(),
         .size = page_table.GetHeapRegionSize(),
     };
     metadata.aslr_extents = {
-        .base = GetInteger(page_table.GetAliasCodeRegionStart()),
+        .base = page_table.GetAliasCodeRegionStart().GetValue(),
         .size = page_table.GetAliasCodeRegionSize(),
     };
     metadata.alias_extents = {
-        .base = GetInteger(page_table.GetAliasRegionStart()),
+        .base = page_table.GetAliasRegionStart().GetValue(),
         .size = page_table.GetAliasRegionSize(),
     };
 

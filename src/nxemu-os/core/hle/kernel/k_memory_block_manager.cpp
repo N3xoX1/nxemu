@@ -16,8 +16,8 @@ Result KMemoryBlockManager::Initialize(KProcessAddress st, KProcessAddress nd,
     // Set our start and end.
     m_start_address = st;
     m_end_address = nd;
-    ASSERT(Common::IsAligned(GetInteger(m_start_address), PageSize));
-    ASSERT(Common::IsAligned(GetInteger(m_end_address), PageSize));
+    ASSERT(Common::IsAligned(m_start_address.GetValue(), PageSize));
+    ASSERT(Common::IsAligned(m_end_address.GetValue(), PageSize));
 
     // Initialize and insert the block.
     start_block->Initialize(m_start_address, (m_end_address - m_start_address) / PageSize,
@@ -59,17 +59,17 @@ KProcessAddress KMemoryBlockManager::FindFreeArea(KProcessAddress region_start,
             }
 
             KProcessAddress area =
-                (info.GetAddress() <= GetInteger(region_start)) ? region_start : info.GetAddress();
+                (info.GetAddress() <= region_start.GetValue()) ? region_start : info.GetAddress();
             area += guard_pages * PageSize;
 
             const KProcessAddress offset_area =
-                Common::AlignDown(GetInteger(area), alignment) + offset;
+                Common::AlignDown(area.GetValue(), alignment) + offset;
             area = (area <= offset_area) ? offset_area : offset_area + alignment;
 
             const KProcessAddress area_end = area + num_pages * PageSize + guard_pages * PageSize;
             const KProcessAddress area_last = area_end - 1;
 
-            if (info.GetAddress() <= GetInteger(area) && area < area_last &&
+            if (info.GetAddress() <= area.GetValue() && area < area_last &&
                 area_last <= region_last && area_last <= info.GetLastAddress()) {
                 return area;
             }
@@ -115,7 +115,7 @@ void KMemoryBlockManager::Update(KMemoryBlockManagerUpdateAllocator* allocator,
                                  KMemoryBlockDisableMergeAttribute clear_disable_attr) {
     // Ensure for auditing that we never end up with an invalid tree.
     KScopedMemoryBlockManagerAuditor auditor(this);
-    ASSERT(Common::IsAligned(GetInteger(address), PageSize));
+    ASSERT(Common::IsAligned(address.GetValue(), PageSize));
     ASSERT((attr & (KMemoryAttribute::IpcLocked | KMemoryAttribute::DeviceShared)) ==
            KMemoryAttribute::None);
 
@@ -180,7 +180,7 @@ void KMemoryBlockManager::UpdateIfMatch(KMemoryBlockManagerUpdateAllocator* allo
                                         KMemoryBlockDisableMergeAttribute clear_disable_attr) {
     // Ensure for auditing that we never end up with an invalid tree.
     KScopedMemoryBlockManagerAuditor auditor(this);
-    ASSERT(Common::IsAligned(GetInteger(address), PageSize));
+    ASSERT(Common::IsAligned(address.GetValue(), PageSize));
     ASSERT((attr & (KMemoryAttribute::IpcLocked | KMemoryAttribute::DeviceShared)) ==
            KMemoryAttribute::None);
 
@@ -242,7 +242,7 @@ void KMemoryBlockManager::UpdateLock(KMemoryBlockManagerUpdateAllocator* allocat
                                      MemoryBlockLockFunction lock_func, KMemoryPermission perm) {
     // Ensure for auditing that we never end up with an invalid tree.
     KScopedMemoryBlockManagerAuditor auditor(this);
-    ASSERT(Common::IsAligned(GetInteger(address), PageSize));
+    ASSERT(Common::IsAligned(address.GetValue(), PageSize));
 
     KProcessAddress cur_address = address;
     size_t remaining_pages = num_pages;
@@ -292,7 +292,7 @@ void KMemoryBlockManager::UpdateAttribute(KMemoryBlockManagerUpdateAllocator* al
                                           KMemoryAttribute mask, KMemoryAttribute attr) {
     // Ensure for auditing that we never end up with an invalid tree.
     KScopedMemoryBlockManagerAuditor auditor(this);
-    ASSERT(Common::IsAligned(GetInteger(address), PageSize));
+    ASSERT(Common::IsAligned(address.GetValue(), PageSize));
 
     KProcessAddress cur_address = address;
     size_t remaining_pages = num_pages;
@@ -304,7 +304,7 @@ void KMemoryBlockManager::UpdateAttribute(KMemoryBlockManagerUpdateAllocator* al
 
         if ((it->GetAttribute() & mask) != attr) {
             // If we need to, create a new block before and insert it.
-            if (cur_info.GetAddress() != GetInteger(cur_address)) {
+            if (cur_info.GetAddress() != cur_address.GetValue()) {
                 KMemoryBlock* new_block = allocator->Allocate();
 
                 it->Split(new_block, cur_address);

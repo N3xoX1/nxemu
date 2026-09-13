@@ -379,7 +379,7 @@ Result CleanupServerHandles(KernelCore& kernel, uint64_t message, size_t buffer_
     } else {
         msg_ptr = GetCurrentMemory(kernel).GetPointer<u32>(thread.GetTlsAddress());
         buffer_size = MessageBufferSize;
-        message = GetInteger(thread.GetTlsAddress());
+        message = thread.GetTlsAddress().GetValue();
     }
 
     // Parse the message.
@@ -531,7 +531,7 @@ Result ProcessReceiveMessageMapAliasDescriptors(int& offset, KProcessPageTable& 
 
     // Set the output descriptor.
     dst_msg.Set(cur_offset,
-                MessageBuffer::MapAliasDescriptor(reinterpret_cast<void*>(GetInteger(dst_address)),
+                MessageBuffer::MapAliasDescriptor(reinterpret_cast<void*>(dst_address.GetValue()),
                                                   size, src_desc.GetAttribute()));
 
     R_SUCCEED();
@@ -567,7 +567,7 @@ Result ReceiveMessage(KernelCore& kernel, bool& recv_list_broken, uint64_t dst_m
     } else {
         dst_msg_ptr = dst_page_table.GetMemory().GetPointer<u32>(dst_thread.GetTlsAddress());
         dst_buffer_size = MessageBufferSize;
-        dst_message_buffer = GetInteger(dst_thread.GetTlsAddress());
+        dst_message_buffer = dst_thread.GetTlsAddress().GetValue();
         dst_user = false;
     }
 
@@ -578,7 +578,7 @@ Result ReceiveMessage(KernelCore& kernel, bool& recv_list_broken, uint64_t dst_m
     } else {
         src_msg_ptr = src_page_table.GetMemory().GetPointer<u32>(src_thread.GetTlsAddress());
         src_buffer_size = MessageBufferSize;
-        src_message_buffer = GetInteger(src_thread.GetTlsAddress());
+        src_message_buffer = src_thread.GetTlsAddress().GetValue();
         src_user = false;
     }
 
@@ -778,14 +778,14 @@ Result ProcessSendMessageReceiveMapping(KProcessPageTable& src_page_table,
     R_TRY(GetMapAliasTestStateAndAttributeMask(test_state, test_attr_mask, src_state));
 
     // Determine buffer extents.
-    KProcessAddress aligned_dst_start = Common::AlignDown(GetInteger(client_address), PageSize);
-    KProcessAddress aligned_dst_end = Common::AlignUp(GetInteger(client_address) + size, PageSize);
-    KProcessAddress mapping_dst_start = Common::AlignUp(GetInteger(client_address), PageSize);
+    KProcessAddress aligned_dst_start = Common::AlignDown(client_address.GetValue(), PageSize);
+    KProcessAddress aligned_dst_end = Common::AlignUp(client_address.GetValue() + size, PageSize);
+    KProcessAddress mapping_dst_start = Common::AlignUp(client_address.GetValue(), PageSize);
     KProcessAddress mapping_dst_end =
-        Common::AlignDown(GetInteger(client_address) + size, PageSize);
+        Common::AlignDown(client_address.GetValue() + size, PageSize);
 
     KProcessAddress mapping_src_end =
-        Common::AlignDown(GetInteger(server_address) + size, PageSize);
+        Common::AlignDown(server_address.GetValue() + size, PageSize);
 
     // If the start of the buffer is unaligned, handle that.
     if (aligned_dst_start != mapping_dst_start) {
@@ -881,7 +881,7 @@ Result SendMessage(KernelCore& kernel, uint64_t src_message_buffer, size_t src_b
     } else {
         dst_msg_ptr = dst_page_table.GetMemory().GetPointer<u32>(dst_thread.GetTlsAddress());
         dst_buffer_size = MessageBufferSize;
-        dst_message_buffer = GetInteger(dst_thread.GetTlsAddress());
+        dst_message_buffer = dst_thread.GetTlsAddress().GetValue();
         dst_user = false;
     }
 
@@ -891,7 +891,7 @@ Result SendMessage(KernelCore& kernel, uint64_t src_message_buffer, size_t src_b
     } else {
         src_msg_ptr = src_page_table.GetMemory().GetPointer<u32>(src_thread.GetTlsAddress());
         src_buffer_size = MessageBufferSize;
-        src_message_buffer = GetInteger(src_thread.GetTlsAddress());
+        src_message_buffer = src_thread.GetTlsAddress().GetValue();
         src_user = false;
     }
 
@@ -1144,7 +1144,7 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
         // HLE request.
         if (!client_message)
         {
-            client_message = GetInteger(client_thread->GetTlsAddress());
+            client_message = client_thread->GetTlsAddress().GetValue();
         }
         Core::Memory::Memory & memory{client_thread->GetOwnerKProcess()->GetCoreMemory()};
         u32* cmd_buf{reinterpret_cast<u32*>(memory.GetPointer(client_message))};

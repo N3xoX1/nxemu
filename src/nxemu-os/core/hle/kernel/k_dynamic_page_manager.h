@@ -42,7 +42,7 @@ public:
 
         // Set addresses.
         m_address = memory;
-        m_aligned_address = Common::AlignDown(GetInteger(memory), align);
+        m_aligned_address = Common::AlignDown(memory.GetValue(), align);
 
         // Calculate extents.
         const size_t managed_size = m_address + size - m_aligned_address;
@@ -146,7 +146,7 @@ public:
 
         // Set the bit for the free page.
         size_t offset =
-            (reinterpret_cast<uint64_t>(pb) - GetInteger(m_aligned_address)) / sizeof(PageBuffer);
+            (reinterpret_cast<uint64_t>(pb) - m_aligned_address.GetValue()) / sizeof(PageBuffer);
         m_page_bitmap.SetBit(offset);
 
         // Decrement our used count.

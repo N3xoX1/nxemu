@@ -12,7 +12,7 @@ PageTable::~PageTable() noexcept = default;
 
 bool PageTable::BeginTraversal(TraversalEntry* out_entry, TraversalContext* out_context,
                                Common::ProcessAddress address) const {
-    out_context->next_offset = GetInteger(address);
+    out_context->next_offset = address.GetValue();
     out_context->next_page = address / page_size;
 
     return this->ContinueTraversal(out_entry, out_context);

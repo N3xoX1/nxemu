@@ -178,7 +178,7 @@ void PhysicalCore::LoadContext(const KThread * thread)
     if (interface)
     {
         interface->SetContext(thread->GetContext());
-        interface->SetTpidrroEl0(GetInteger(thread->GetTlsAddress()));
+        interface->SetTpidrroEl0(thread->GetTlsAddress().GetValue());
         interface->SetWatchpointArray(process->GetWatchpoints().data(), (uint32_t)process->GetWatchpoints().size());
     }
 }

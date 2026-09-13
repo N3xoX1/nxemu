@@ -124,7 +124,7 @@ struct PageTable {
             return false;
         }
 
-        *out_phys_addr = backing_addr[virt_addr / page_size] + GetInteger(virt_addr);
+        *out_phys_addr = backing_addr[virt_addr / page_size] + virt_addr.GetValue();
         return true;
     }
 

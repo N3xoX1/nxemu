@@ -18,12 +18,12 @@ namespace Kernel {
 namespace {
 
 bool ReadFromUser(KernelCore& kernel, u32* out, KProcessAddress address) {
-    *out = GetCurrentMemory(kernel).Read32(GetInteger(address));
+    *out = GetCurrentMemory(kernel).Read32(address.GetValue());
     return true;
 }
 
 bool WriteToUser(KernelCore& kernel, KProcessAddress address, const u32* p) {
-    GetCurrentMemory(kernel).Write32(GetInteger(address), *p);
+    GetCurrentMemory(kernel).Write32(address.GetValue(), *p);
     return true;
 }
 
@@ -37,7 +37,7 @@ bool UpdateLockAtomic(KernelCore& kernel, u32* out, KProcessAddress address, u32
     while (true) 
     {
         // Load the value from the address.
-        expected = monitor.ExclusiveRead32((uint32_t)current_core, GetInteger(address));
+        expected = monitor.ExclusiveRead32((uint32_t)current_core, address.GetValue());
 
         // Orr in the new mask.
         u32 value = expected | new_orr_mask;
@@ -48,7 +48,7 @@ bool UpdateLockAtomic(KernelCore& kernel, u32* out, KProcessAddress address, u32
         }
 
         // Try to store.
-        if (monitor.ExclusiveWrite32((uint32_t)current_core, GetInteger(address), value))
+        if (monitor.ExclusiveWrite32((uint32_t)current_core, address.GetValue(), value))
         {
             break;
         }

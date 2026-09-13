@@ -95,7 +95,7 @@ private:
     }
 
     constexpr size_t GetRegionIndex(KProcessAddress addr) const {
-        ASSERT(Common::IsAligned(GetInteger(addr), Svc::ThreadLocalRegionSize));
+        ASSERT(Common::IsAligned(addr.GetValue(), Svc::ThreadLocalRegionSize));
         ASSERT(this->Contains(addr));
         return (addr - this->GetAddress()) / Svc::ThreadLocalRegionSize;
     }

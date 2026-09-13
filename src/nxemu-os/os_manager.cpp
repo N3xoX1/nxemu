@@ -229,7 +229,7 @@ bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & 
         return false;
     }
     processID = current->GetProcessId();
-    baseAddress = GetInteger(current->GetEntryPoint());
+    baseAddress = current->GetEntryPoint().GetValue();
     return true;
 }
 
@@ -273,7 +273,7 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
     m_launchType = ApplicationLaunchType::FrontendInitiated;
 
     processID = m_applicationProcess->GetProcessId();
-    baseAddress = GetInteger(m_applicationProcess->GetEntryPoint());
+    baseAddress = m_applicationProcess->GetEntryPoint().GetValue();
     return true;
 }
 

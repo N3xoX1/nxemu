@@ -752,11 +752,11 @@ Result KProcess::DeleteThreadLocalRegion(KProcessAddress addr)
         KScopedSchedulerLock sl(m_kernel);
 
         // Try to find the page in the partially used list.
-        auto it = m_partially_used_tlp_tree.find_key(Common::AlignDown(GetInteger(addr), PageSize));
+        auto it = m_partially_used_tlp_tree.find_key(Common::AlignDown(addr.GetValue(), PageSize));
         if (it == m_partially_used_tlp_tree.end())
         {
             // If we don't find it, it has to be in the fully used list.
-            it = m_fully_used_tlp_tree.find_key(Common::AlignDown(GetInteger(addr), PageSize));
+            it = m_fully_used_tlp_tree.find_key(Common::AlignDown(addr.GetValue(), PageSize));
             R_UNLESS(it != m_fully_used_tlp_tree.end(), ResultInvalidAddress);
 
             // Release the region.
@@ -1361,7 +1361,7 @@ Result KProcess::LoadFromMetadata(const IProgramMetadata & metadata, std::size_t
         .name = {},
         .version = {},
         .program_id = metadata.GetTitleID(),
-        .code_address = code_address + GetInteger(aslr_space_start),
+        .code_address = code_address + aslr_space_start.GetValue(),
         .code_num_pages = static_cast<s32>(code_size / PageSize),
         .flags = flag,
         .reslimit = Svc::InvalidHandle,
@@ -1404,8 +1404,8 @@ void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
         const uint64_t code_addr = module.CodeSegmentAddr();
         const uint64_t code_size = module.CodeSegmentSize();
         const uint64_t patch_addr = module.PatchSegmentAddr();
-        buffer.Protect(GetInteger(base_addr) + code_addr, code_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
-        buffer.Protect(GetInteger(base_addr) + patch_addr, patch_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
+        buffer.Protect(base_addr.GetValue() + code_addr, code_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
+        buffer.Protect(base_addr.GetValue() + patch_addr, patch_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
         m_page_table.SetProcessMemoryPermission((KProcessAddress)(patch_addr) + base_addr, patch_size, Svc::MemoryPermission::None);
     }
 #endif
@@ -1451,7 +1451,7 @@ bool KProcess::InsertWatchpoint(KProcessAddress addr, u64 size, CpuDebugWatchpoi
     watch->endAddress = addr.GetValue() + size;
     watch->type = type;
 
-    for (KProcessAddress page = Common::AlignDown(GetInteger(addr), PageSize); page < addr + size; page += PageSize)
+    for (KProcessAddress page = Common::AlignDown(addr.GetValue(), PageSize); page < addr + size; page += PageSize)
     {
         m_debug_page_refcounts[page]++;
         this->GetCoreMemory().MarkRegionDebug(page, PageSize, true);
@@ -1475,7 +1475,7 @@ bool KProcess::RemoveWatchpoint(KProcessAddress addr, u64 size, CpuDebugWatchpoi
     watch->endAddress = 0;
     watch->type = CpuDebugWatchpointType::None;
 
-    for (KProcessAddress page = Common::AlignDown(GetInteger(addr), PageSize); page < addr + size; page += PageSize)
+    for (KProcessAddress page = Common::AlignDown(addr.GetValue(), PageSize); page < addr + size; page += PageSize)
     {
         m_debug_page_refcounts[page]--;
         if (!m_debug_page_refcounts[page])

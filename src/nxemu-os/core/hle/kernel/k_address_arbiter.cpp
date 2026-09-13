@@ -29,7 +29,7 @@ namespace
 
 bool ReadFromUser(KernelCore& kernel, s32* out, KProcessAddress address)
 {
-    *out = GetCurrentMemory(kernel).Read32(GetInteger(address));
+    *out = GetCurrentMemory(kernel).Read32(address.GetValue());
     return true;
 }
 
@@ -49,7 +49,7 @@ bool DecrementIfLessThan(KernelCore& kernel, s32* out, KProcessAddress address, 
     {
         // Load the value from the address.
         current_value =
-            static_cast<s32>(monitor.ExclusiveRead32((uint32_t)current_core, GetInteger(address)));
+            static_cast<s32>(monitor.ExclusiveRead32((uint32_t)current_core, address.GetValue()));
 
         // Compare it to the desired one.
         if (current_value < value)
@@ -58,7 +58,7 @@ bool DecrementIfLessThan(KernelCore& kernel, s32* out, KProcessAddress address, 
             const s32 decrement_value = current_value - 1;
 
             // Decrement and try to store.
-            if (monitor.ExclusiveWrite32((uint32_t)current_core, GetInteger(address), static_cast<u32>(decrement_value)))
+            if (monitor.ExclusiveWrite32((uint32_t)current_core, address.GetValue(), static_cast<u32>(decrement_value)))
             {
                 break;
             }
@@ -92,14 +92,14 @@ bool UpdateIfEqual(KernelCore& kernel, s32* out, KProcessAddress address, s32 va
 
     // Load the value from the address.
     while (true) {
-        current_value = static_cast<s32>(monitor.ExclusiveRead32((uint32_t)current_core, GetInteger(address)));
+        current_value = static_cast<s32>(monitor.ExclusiveRead32((uint32_t)current_core, address.GetValue()));
 
         // Compare it to the desired one.
         if (current_value == value) {
             // If equal, we want to try to write the new value.
 
             // Try to store.
-            if (monitor.ExclusiveWrite32((uint32_t)current_core, GetInteger(address), static_cast<u32>(new_value)))
+            if (monitor.ExclusiveWrite32((uint32_t)current_core, address.GetValue(), static_cast<u32>(new_value)))
             {
                 break;
             }

@@ -10,7 +10,7 @@ void KPageHeap::Initialize(KPhysicalAddress address, size_t size,
                            KVirtualAddress management_address, size_t management_size,
                            const size_t* block_shifts, size_t num_block_shifts) {
     // Check our assumptions.
-    ASSERT(Common::IsAligned(GetInteger(address), PageSize));
+    ASSERT(Common::IsAligned(address.GetValue(), PageSize));
     ASSERT(Common::IsAligned(size, PageSize));
     ASSERT(0 < num_block_shifts && num_block_shifts <= NumMemoryBlockPageShifts);
     const KVirtualAddress management_end = management_address + management_size;
@@ -163,8 +163,8 @@ void KPageHeap::Free(KPhysicalAddress addr, size_t num_pages) {
     KPhysicalAddress after_end = end;
     while (big_index >= 0) {
         const size_t block_size = m_blocks[big_index].GetSize();
-        const KPhysicalAddress big_start = Common::AlignUp(GetInteger(start), block_size);
-        const KPhysicalAddress big_end = Common::AlignDown(GetInteger(end), block_size);
+        const KPhysicalAddress big_start = Common::AlignUp(start.GetValue(), block_size);
+        const KPhysicalAddress big_end = Common::AlignDown(end.GetValue(), block_size);
         if (big_start < big_end) {
             // Free as many big blocks as we can.
             for (auto block = big_start; block < big_end; block += block_size) {

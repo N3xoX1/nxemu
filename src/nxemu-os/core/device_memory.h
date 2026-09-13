@@ -49,13 +49,13 @@ public:
     template <typename T>
     T* GetPointer(Common::PhysicalAddress addr) {
         return reinterpret_cast<T*>(buffer.BackingBasePointer() +
-                                    (GetInteger(addr) - DramMemoryMap::Base));
+                                    (addr.GetValue() - DramMemoryMap::Base));
     }
 
     template <typename T>
     const T* GetPointer(Common::PhysicalAddress addr) const {
         return reinterpret_cast<T*>(buffer.BackingBasePointer() +
-                                    (GetInteger(addr) - DramMemoryMap::Base));
+                                    (addr.GetValue() - DramMemoryMap::Base));
     }
 
     template <typename T>

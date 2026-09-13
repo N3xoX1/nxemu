@@ -155,7 +155,7 @@ public:
         return std::max<s64>(m_parent.m_system.Timing().GetDowncount(), 0);
     }
 
-    bool CheckMemoryAccess(u64 addr, u64 size, CpuDebugWatchpointType type)
+    bool CheckMemoryAccess(u64 addr, u64 size, CpuDebugWatchpointType /*type*/)
     {
         if (!m_check_memory_access)
         {
@@ -400,11 +400,11 @@ CpuHaltReason ArmDynarmic32::StepThread(IKernelThread * thread)
     return TranslateHaltReason(m_jit->Step());
 }
 
-void ArmDynarmic32::LockThread(IKernelThread * thread)
+void ArmDynarmic32::LockThread(IKernelThread * /*thread*/)
 {
 }
 
-void ArmDynarmic32::UnlockThread(IKernelThread * thread)
+void ArmDynarmic32::UnlockThread(IKernelThread * /*thread*/)
 {
 }
 
@@ -518,7 +518,7 @@ void ArmDynarmic32::SetContext(const CpuThreadContext & ctx)
     m_cp15->uprw = static_cast<u32>(ctx.tpidr);
 }
 
-void ArmDynarmic32::SignalInterrupt(IKernelThread * thread)
+void ArmDynarmic32::SignalInterrupt(IKernelThread * /*thread*/)
 {
     m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::BreakLoop));
 }

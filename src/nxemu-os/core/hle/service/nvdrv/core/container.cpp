@@ -123,7 +123,7 @@ SessionId Container::OpenSession(Kernel::KProcess * process)
 
             // Check if we're done.
             const uintptr_t next_address = svc_mem_info.base_address + svc_mem_info.size;
-            if (next_address <= GetInteger(cur_addr))
+            if (next_address <= cur_addr.GetValue())
             {
                 break;
             }

@@ -60,7 +60,7 @@ Result MapSharedBufferIntoProcessAddressSpace(Common::ProcessAddress* out_map_ad
     auto& page_table = process->GetKPageTable();
 
     // Get bounds of where mapping is possible.
-    const VAddr alias_code_begin = GetInteger(page_table.GetAliasCodeRegionStart());
+    const VAddr alias_code_begin = page_table.GetAliasCodeRegionStart().GetValue();
     const VAddr alias_code_size = page_table.GetAliasCodeRegionSize() / YUZU_PAGESIZE;
     const auto state = Kernel::KMemoryState::IoMemory;
     const auto perm = Kernel::KMemoryPermission::UserReadWrite;
@@ -121,7 +121,7 @@ Result AllocNvMapHandle(Nvidia::Devices::nvmap& nvmap, u32 handle, Common::Proce
         .flags = {},
         .align = 0,
         .kind = 0,
-        .address = GetInteger(buffer),
+        .address = buffer.GetValue(),
     };
     R_UNLESS(nvmap.IocAlloc(alloc_params, nvmap_fd) == Nvidia::NvResult::Success,
              VI::ResultOperationFailed);

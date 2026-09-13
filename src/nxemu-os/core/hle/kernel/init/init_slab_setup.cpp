@@ -107,7 +107,7 @@ static_assert(KernelPageBufferAdditionalSize ==
 static KPhysicalAddress TranslateSlabAddrToPhysical(KMemoryLayout& memory_layout,
                                                     KVirtualAddress slab_addr) {
     slab_addr -= memory_layout.GetSlabRegion().GetAddress();
-    return GetInteger(slab_addr) + Core::DramMemoryMap::SlabHeapBase;
+    return slab_addr.GetValue() + Core::DramMemoryMap::SlabHeapBase;
 }
 
 template <typename T>
@@ -115,7 +115,7 @@ KVirtualAddress InitializeSlabHeap(Core::System& system, KMemoryLayout& memory_l
                                    KVirtualAddress address, size_t num_objects) {
 
     const size_t size = Common::AlignUp(sizeof(T) * num_objects, alignof(void*));
-    KVirtualAddress start = Common::AlignUp(GetInteger(address), alignof(T));
+    KVirtualAddress start = Common::AlignUp(address.GetValue(), alignof(T));
 
     // This should use the virtual memory address passed in, but currently, we do not setup the
     // kernel virtual memory layout. Instead, we simply map these at a region of physical memory

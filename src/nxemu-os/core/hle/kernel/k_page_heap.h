@@ -135,8 +135,8 @@ private:
             KPhysicalAddress end = addr + size;
             const size_t align = (m_next_block_shift != 0) ? (u64(1) << m_next_block_shift)
                                                            : (u64(1) << m_block_shift);
-            addr = Common::AlignDown(GetInteger(addr), align);
-            end = Common::AlignUp(GetInteger(end), align);
+            addr = Common::AlignDown(addr.GetValue(), align);
+            end = Common::AlignUp(end.GetValue(), align);
 
             m_heap_address = addr;
             m_end_offset = (end - addr) / (u64(1) << m_block_shift);

@@ -22,7 +22,7 @@ Result SetHeapSize(Core::System& system, u64* out_address, u64 size) {
               .SetHeapSize(std::addressof(address), size));
 
     // We succeeded.
-    *out_address = GetInteger(address);
+    *out_address = address.GetValue();
     R_SUCCEED();
 }
 
