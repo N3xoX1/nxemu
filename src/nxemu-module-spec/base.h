@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include <string>
 
 #if !defined(EXPORT) && defined(__cplusplus) && defined(_WIN32)
 #define EXPORT extern "C" __declspec(dllexport)
@@ -26,10 +25,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x012D,
-    MODULE_VIDEO_SPECS_VERSION = 0x011E,
-    MODULE_CPU_SPECS_VERSION = 0x0114,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011C,
+    MODULE_LOADER_SPECS_VERSION = 0x012E,
+    MODULE_VIDEO_SPECS_VERSION = 0x011F,
+    MODULE_CPU_SPECS_VERSION = 0x0115,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011D,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -72,7 +71,7 @@ nxinterface IModuleSettings
     virtual void SetDefaultString(const char * setting, const char * value) = 0;
 
     virtual const char * GetSectionSettings(const char * section) const = 0;
-    virtual void SetSectionSettings(const char * section, const std::string & json) = 0;
+    virtual void SetSectionSettings(const char * section, const char * json) = 0;
 
     virtual void RegisterCallback(const char * setting, SettingChangeCallback callback, void * userData) = 0;
     virtual void UnregisterCallback(const char * setting, SettingChangeCallback callback, void * userData) = 0;

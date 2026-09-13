@@ -4,6 +4,7 @@
 #include <sciter_ui.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <stdint.h>
+#include <string>
 
 class SystemModules;
 

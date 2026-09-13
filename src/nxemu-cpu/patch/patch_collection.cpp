@@ -1,6 +1,7 @@
 #include "patch/patch_collection.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/base.h>
+#include <algorithm>
 
 extern IModuleSettings * g_settings;
 

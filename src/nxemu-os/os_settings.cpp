@@ -997,7 +997,7 @@ void SaveOsSettings(void)
             UNIMPLEMENTED();
         }
     }
-    g_settings->SetSectionSettings("nxemu-os", root.isNull() ? "" : JsonStyledWriter().write(root));
+    g_settings->SetSectionSettings("nxemu-os", root.isNull() ? "" : JsonStyledWriter().write(root).c_str());
 }
 
 namespace

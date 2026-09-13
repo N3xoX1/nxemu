@@ -1,5 +1,6 @@
 #include "module_settings.h"
 #include "settings/settings.h"
+#include <cstring>
 
 const char * ModuleSettings::GetString(const char * setting) const
 {
@@ -68,13 +69,13 @@ const char * ModuleSettings::GetSectionSettings(const char * section) const
     return m_sectionSetting.c_str();
 }
 
-void ModuleSettings::SetSectionSettings(const char * section, const std::string & json)
+void ModuleSettings::SetSectionSettings(const char * section, const char * json)
 {
     JsonValue root;
-    if (!json.empty())
+    if (json != nullptr && json[0] != '\0')
     {
         JsonReader reader;
-        if (!reader.Parse(json.data(), json.data() + json.size(), root))
+        if (!reader.Parse(json, json + strlen(json), root))
         {
             return;
         }
