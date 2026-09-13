@@ -447,7 +447,7 @@ void KScheduler::SwitchThread(KThread * next_thread)
     m_current_thread = next_thread;
 
     // Set the new Thread Local region.
-    // cpu::SwitchThreadLocalRegion(GetInteger(next_thread->GetThreadLocalRegionAddress()));
+    // cpu::SwitchThreadLocalRegion(next_thread->GetThreadLocalRegionAddress().GetValue());
 }
 
 void KScheduler::ScheduleImpl()
