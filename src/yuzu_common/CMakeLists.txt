@@ -128,6 +128,13 @@ if (WIN32)
   target_link_libraries(yuzu_common PRIVATE ntdll)
 endif()
 
+if (NOT WIN32)
+  target_sources(yuzu_common PRIVATE
+    signal_chain.cpp
+    signal_chain.h
+  )
+endif()
+
 if(ANDROID)
     target_sources(yuzu_common PRIVATE
         android/java_bridge.cpp
