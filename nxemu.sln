@@ -94,6 +94,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "resource_packer", "external
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nxemu-loader", "src\nxemu-loader\nxemu-loader.vcxproj", "{CFE792F6-D4A5-4805-B0E6-2FA4CDD4DAE7}"
 	ProjectSection(ProjectDependencies) = postProject
+		{93A649B4-9E40-44A4-80A5-5EAFA3AF6024} = {93A649B4-9E40-44A4-80A5-5EAFA3AF6024}
 		{D442FBFE-1018-4056-A0AE-CBCB6BF9DD90} = {D442FBFE-1018-4056-A0AE-CBCB6BF9DD90}
 	EndProjectSection
 EndProject

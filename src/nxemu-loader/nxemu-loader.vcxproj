@@ -222,6 +222,9 @@
     <ProjectReference Include="..\common\common.vcxproj">
       <Project>{ec81be93-8316-4db6-8a26-b13fb5b13848}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\nx_tzdb\nx_tzdb.vcxproj">
+      <Project>{93a649b4-9e40-44a4-80a5-5eafa3af6024}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\yuzu_common\yuzu_common.vcxproj">
       <Project>{250224f2-2e89-410e-8bdb-875959daba2c}</Project>
     </ProjectReference>
