@@ -56,6 +56,7 @@ public:
     uint64_t GetTotalSpaceSize(StorageId id) const override;
     bool OpenProcess(uint64_t * programId, ISaveDataFactory ** saveDataFactory, IRomFsController ** romFsController, uint64_t processId) override;
     bool OpenSDMC(IVirtualDirectory ** out_sdmc) const override;
+    IVirtualDirectory * OpenBCATDirectory(uint64_t title_id) const override;
 
 private:
     std::shared_ptr<FileSys::SaveDataFactory> CreateSaveDataFactory(FileSys::ProgramId program_id) const;

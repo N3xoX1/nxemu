@@ -289,6 +289,7 @@ nxinterface IFileSystemController
     virtual uint64_t GetTotalSpaceSize(StorageId id) const = 0;
 
     virtual bool OpenSDMC(IVirtualDirectory** out_sdmc) const = 0;
+    virtual IVirtualDirectory * OpenBCATDirectory(uint64_t title_id) const = 0;
 };
 
 nxinterface IContentProvider

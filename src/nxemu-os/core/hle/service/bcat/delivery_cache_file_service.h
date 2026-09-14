@@ -6,6 +6,7 @@
 #include "core/hle/service/bcat/bcat_types.h"
 #include "core/hle/service/cmif_types.h"
 #include "core/hle/service/service.h"
+#include "yuzu_common/fs/filesystem_interfaces.h"
 
 namespace Core {
 class System;
@@ -15,7 +16,7 @@ namespace Service::BCAT {
 
 class IDeliveryCacheFileService final : public ServiceFramework<IDeliveryCacheFileService> {
 public:
-    explicit IDeliveryCacheFileService(Core::System& system_);
+    explicit IDeliveryCacheFileService(Core::System& system_, IVirtualDirectoryPtr root_);
     ~IDeliveryCacheFileService() override;
 
 private:
@@ -25,6 +26,8 @@ private:
     Result GetSize(Out<u64> out_size);
     Result GetDigest(Out<BcatDigest> out_digest);
 
+    IVirtualDirectoryPtr root;
+    IVirtualFilePtr current_file;
 };
 
 } // namespace Service::BCAT

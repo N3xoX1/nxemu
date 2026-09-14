@@ -154,6 +154,21 @@ bool FileSystemController::OpenSDMC(IVirtualDirectory ** out_sdmc) const
     return true;
 }
 
+IVirtualDirectory * FileSystemController::OpenBCATDirectory(uint64_t title_id) const
+{
+    if (bis_factory == nullptr)
+    {
+        return nullptr;
+    }
+
+    auto directory = bis_factory->GetBCATDirectory(title_id);
+    if (directory == nullptr)
+    {
+        return nullptr;
+    }
+    return std::make_unique<VirtualDirectoryImpl>(directory).release();
+}
+
 FileSys::RegisteredCache * FileSystemController::SystemNANDContents() const
 {
     LOG_TRACE(Service_FS, "Opening System NAND Contents");

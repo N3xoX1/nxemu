@@ -3,8 +3,13 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstring>
+#include <span>
+
+#include "yuzu_common/cityhash.h"
 
 #include "core/hle/service/bcat/bcat_result.h"
 #include "core/hle/service/bcat/bcat_types.h"
@@ -33,6 +38,13 @@ constexpr Result VerifyNameValidDir(DirectoryName name) {
 
 constexpr Result VerifyNameValidFile(FileName name) {
     return VerifyNameValidInternal(name, '.');
+}
+
+inline BcatDigest DigestBytes(std::span<const u8> bytes) {
+    const auto hash = Common::CityHash128(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    BcatDigest digest{};
+    std::memcpy(digest.data(), hash.data(), digest.size());
+    return digest;
 }
 
 } // namespace Service::BCAT

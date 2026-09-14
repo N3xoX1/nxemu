@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "core/core.h"
 #include "core/hle/service/bcat/bcat_service.h"
 #include "core/hle/service/bcat/delivery_cache_storage_service.h"
 #include "core/hle/service/bcat/service_creator.h"
@@ -39,14 +40,20 @@ Result IServiceCreator::CreateDeliveryCacheStorageService(ClientProcessId proces
 {
     LOG_INFO(Service_BCAT, "called, process_id={}", process_id.pid);
 
-    UNIMPLEMENTED();
+    const auto title_id = system.GetApplicationProcessProgramID();
+    IVirtualDirectoryPtr root(
+        system.GetSystemloader().FileSystemController().OpenBCATDirectory(title_id));
+    *out_interface = std::make_shared<IDeliveryCacheStorageService>(
+        system, std::move(root));
     R_SUCCEED();
 }
 
 Result IServiceCreator::CreateDeliveryCacheStorageServiceWithApplicationId(
     u64 application_id, OutInterface<IDeliveryCacheStorageService> out_interface) {
     LOG_DEBUG(Service_BCAT, "called, application_id={:016X}", application_id);
-    UNIMPLEMENTED();
+    IVirtualDirectoryPtr root(
+        system.GetSystemloader().FileSystemController().OpenBCATDirectory(application_id));
+    *out_interface = std::make_shared<IDeliveryCacheStorageService>(system, std::move(root));
     R_SUCCEED();
 }
 
