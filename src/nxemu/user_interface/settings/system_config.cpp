@@ -53,7 +53,7 @@ void SystemConfig::Display(void * parentWindow, const char * startPage)
         subPage = initialPage.substr(separator + 1);
         initialPage = initialPage.substr(0, separator);
     }
-    if (!m_sciterUI.WindowCreate(parentWindow, "system_config.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_CHILD, m_window))
+    if (!m_sciterUI.WindowCreate(parentWindow, "system_config.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_CHILD | SUIW_HIDDEN, m_window))
     {
         return;
     }
@@ -91,6 +91,7 @@ void SystemConfig::Display(void * parentWindow, const char * startPage)
     }
     m_window->FixMinSize();
     m_window->CenterWindow();
+    m_window->Show();
 }
 
 void SystemConfig::SavePage(SCITER_ELEMENT pageElement, const ConfigSetting* settings, size_t settingsCount)

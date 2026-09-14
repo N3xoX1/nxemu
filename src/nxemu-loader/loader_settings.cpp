@@ -372,7 +372,7 @@ void SaveLoaderSettings(void)
             UNIMPLEMENTED();
         }
     }
-    g_settings->SetSectionSettings("nxemu-loader", root.isNull() ? "" : JsonStyledWriter().write(root));
+    g_settings->SetSectionSettings("nxemu-loader", root.isNull() ? "" : JsonStyledWriter().write(root).c_str());
 }
 
 void SetLoaderDisabledAddons(uint64_t program_id, std::vector<std::string> names)

@@ -3,10 +3,10 @@
 
 #include <dlfcn.h>
 
-#include "common/assert.h"
-#include "common/dynamic_library.h"
-#include "common/scope_exit.h"
-#include "common/signal_chain.h"
+#include "yuzu_common/dynamic_library.h"
+#include "yuzu_common/scope_exit.h"
+#include "yuzu_common/signal_chain.h"
+#include "yuzu_common/yuzu_assert.h"
 
 namespace Common {
 

@@ -316,5 +316,5 @@ void SaveCpuSettings(void)
             root[it->first] = it->second;
         }
     }
-    g_settings->SetSectionSettings("nxemu-cpu", root.isNull() ? "" : JsonStyledWriter().write(root));
+    g_settings->SetSectionSettings("nxemu-cpu", root.isNull() ? "" : JsonStyledWriter().write(root).c_str());
 }

@@ -707,7 +707,7 @@ void SaveVideoSettings(void)
             json[it->first] = it->second;
         }
     }
-    g_settings->SetSectionSettings("nxemu-video", json.isNull() ? "" : JsonStyledWriter().write(json));
+    g_settings->SetSectionSettings("nxemu-video", json.isNull() ? "" : JsonStyledWriter().write(json).c_str());
 }
 
 namespace
