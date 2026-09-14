@@ -1300,14 +1300,12 @@ KProcess::KProcess(KernelCore & kernel) :
 
 KProcess::~KProcess() = default;
 
-Result KProcess::LoadFromMetadata(const IProgramMetadata & metadata, std::size_t code_size,
-                                  KProcessAddress aslr_space_start, bool is_hbl)
+Result KProcess::LoadFromMetadata(const IProgramMetadata & metadata, std::size_t code_size, KProcessAddress aslr_space_start, bool is_hbl)
 {
     // Create a resource limit for the process.
-    const auto pool = static_cast<KMemoryManager::Pool>(metadata.GetPoolPartition());
+    const auto pool = (KMemoryManager::Pool)metadata.GetPoolPartition();
     const auto physical_memory_size = m_kernel.MemoryManager().GetSize(pool);
-    auto * res_limit =
-        Kernel::CreateResourceLimitForProcess(m_kernel.System(), physical_memory_size);
+    auto * res_limit = Kernel::CreateResourceLimitForProcess(m_kernel.System(), physical_memory_size);
 
     // Ensure we maintain a clean state on exit.
     SCOPE_EXIT
@@ -1374,8 +1372,7 @@ Result KProcess::LoadFromMetadata(const IProgramMetadata & metadata, std::size_t
     std::memcpy(params.name.data(), name, std::min(name_len, sizeof(params.name)));
 
     // Initialize for application process.
-    R_TRY(this->Initialize(params, std::span<const u32>(metadata.GetKernelCapabilities(), metadata.GetKernelCapabilitiesSize()), res_limit, pool,
-                           aslr_space_start));
+    R_TRY(this->Initialize(params, std::span<const u32>(metadata.GetKernelCapabilities(), metadata.GetKernelCapabilitiesSize()), res_limit, pool, aslr_space_start));
 
     // Assign remaining properties.
     m_is_hbl = is_hbl;

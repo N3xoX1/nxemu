@@ -248,7 +248,7 @@ public:
         return m_entropy[i];
     }
 
-    bool IsApplication() const
+    bool IsApplication() const override
     {
         return m_is_application;
     }

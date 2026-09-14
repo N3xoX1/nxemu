@@ -15,6 +15,7 @@
 #include "yuzu_common/settings.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/cpu.h>
+#include <nxemu-module-spec/operating_system.h>
 
 using IPatchCollectionPtr = InterfacePtr<IPatchCollection>;
 template class InterfacePtr<IPatchCollection>;
@@ -184,25 +185,22 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
         code_size = *tentative_next_load_addr;
     }
 
+    IOperatingSystem & operatingSystem = systemModules.OperatingSystem();
+
     // Enable direct memory mapping in case of NCE.
-    const uint64_t fastmem_base = [&]() -> size_t
+    uint64_t fastmem_base = 0;
+    if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
-        if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
-        {
-            UNIMPLEMENTED();
-            return 0;
-        }
-        return 0;
-    }();
+        UNIMPLEMENTED();
+    }
 
     // Add patch size to the total module size
     code_size += patch_ctx ? patch_ctx->GetTotalPatchSize() : 0;
 
     // Setup the process code layout
-    IOperatingSystem & operatingSystem = systemModules.OperatingSystem();
     uint64_t base_address = 0;
     uint64_t processID = 0;
-    if (!operatingSystem.SetupCurrentProcess(code_size, metadata, base_address, processID, is_hbl))
+    if (!operatingSystem.SetupCurrentProcess(code_size, metadata, fastmem_base, base_address, processID, is_hbl))
     {
         return {LoaderResultStatus::ErrorUnableToParseKernelMetadata, {}};
     }

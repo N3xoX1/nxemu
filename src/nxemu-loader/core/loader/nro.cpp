@@ -216,7 +216,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
 
     codeset.DataSegment().size += bss_size;
     program_image.resize(static_cast<u32>(program_image.size()) + bss_size);
-    size_t image_size = program_image.size();
+    uint32_t image_size = (uint32_t)program_image.size();
 
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
     const auto& code = codeset.CodeSegment();
@@ -241,22 +241,20 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     }
 #endif
 
-    // Enable direct memory mapping in case of NCE.
-    const uint64_t fastmem_base = [&]() -> size_t {
-        if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
-            UNIMPLEMENTED();
-            return 0;
-        }
-        return 0;
-    }();
-
-    // Setup the process code layout
     IOperatingSystem & operatingSystem = modules.OperatingSystem();
-    baseAddress = fastmem_base;
-    if (!operatingSystem.SetupCurrentProcess(image_size, FileSys::ProgramMetadata::GetDefault(), baseAddress, processID, false))
+
+    // Enable direct memory mapping in case of NCE.
+    uint64_t fastmem_base = 0;
+    if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
+        UNIMPLEMENTED();
+    }
+
+    uint64_t process_base = 0;
+    if (!operatingSystem.SetupCurrentProcess(image_size, FileSys::ProgramMetadata::GetDefault(), fastmem_base, process_base, processID, false))
     {
         return false;
     }
+    baseAddress = process_base;
 
     // Relocate code patch and copy to the program_image if running under NCE.
     // This needs to be after LoadFromMetadata so we can use the process entry point.

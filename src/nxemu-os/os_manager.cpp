@@ -212,11 +212,11 @@ void OSManager::ShutdownMainProcess()
     m_coreSystem.ShutdownMainProcess();
 }
 
-bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
+bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
     if (m_applicationProcess == nullptr)
     {
-        return CreateApplicationProcess(codeSize, metaData, baseAddress, processID, is_hbl);
+        return CreateApplicationProcess(codeSize, metaData, aslr_space_start, baseAddress, processID, is_hbl);
     }
     Kernel::KProcess * const current = m_coreSystem.CurrentProcess();
     if (current == nullptr)
@@ -224,7 +224,7 @@ bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & 
         UNIMPLEMENTED();
         return false;
     }
-    if (current->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
+    if (current->LoadFromMetadata(metaData, codeSize, aslr_space_start, is_hbl).IsError())
     {
         return false;
     }
@@ -233,7 +233,7 @@ bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & 
     return true;
 }
 
-bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
+bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
     if (m_applicationProcess != nullptr)
     {
@@ -251,7 +251,7 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
     kernel.MakeApplicationProcess(m_applicationProcess);
     g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, metaData.GetAddressSpaceType() == ProgramAddressSpaceType::Is39Bit);
 
-    if (m_applicationProcess->LoadFromMetadata(metaData, codeSize, 0, is_hbl).IsError())
+    if (m_applicationProcess->LoadFromMetadata(metaData, codeSize, aslr_space_start, is_hbl).IsError())
     {
         return false;
     }
