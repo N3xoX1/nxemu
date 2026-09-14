@@ -34,7 +34,7 @@ InputConfig::~InputConfig()
 
 void InputConfig::Display(void * parentWindow)
 {
-    if (!m_modules.IsValid() || !m_sciterUI.WindowCreate(parentWindow, "input_config.html", 0, 0, 0, 0, SUIW_CHILD, m_window))
+    if (!m_modules.IsValid() || !m_sciterUI.WindowCreate(parentWindow, "input_config.html", 0, 0, 0, 0, SUIW_CHILD | SUIW_HIDDEN, m_window))
     {
         return;
     }
@@ -63,6 +63,7 @@ void InputConfig::Display(void * parentWindow)
 
     m_window->FixMinSize();
     m_window->CenterWindow();
+    m_window->Show();
 }
 
 const IParamPackageList & InputConfig::InputDeviceList() const

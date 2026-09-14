@@ -149,7 +149,7 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
         m_size = ReadableByteSize((uint64_t)fileSize);
     }
 
-    if (!m_sciterUI.WindowCreate(parentWindow, "game_config.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_CHILD, m_window))
+    if (!m_sciterUI.WindowCreate(parentWindow, "game_config.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_CHILD | SUIW_HIDDEN, m_window))
     {
         Notification::GetInstance().DisplayError("Unable to create the game configuration dialog.", "Configure Game");
         return;
@@ -176,6 +176,7 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
 
     m_window->FixMinSize();
     m_window->CenterWindow();
+    m_window->Show();
 }
 
 void GameConfig::RefreshControlMetadata()
