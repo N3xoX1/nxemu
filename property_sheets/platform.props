@@ -54,6 +54,7 @@
     </Bscmake>
     <ClCompile>
       <AdditionalIncludeDirectories>.\;$(SolutionDir)\src;$(SolutionDir)\src\3rd_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <IgnoreStandardIncludePath>false</IgnoreStandardIncludePath>
       <PreprocessToFile>false</PreprocessToFile>
