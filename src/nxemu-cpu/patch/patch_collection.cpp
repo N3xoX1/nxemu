@@ -1,6 +1,7 @@
 #include "patch/patch_collection.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/operating_system.h>
 #include <algorithm>
 
 extern IModuleSettings * g_settings;
@@ -18,7 +19,7 @@ PatchCollection::PatchCollection(ISystemModules & modules, bool is_application) 
 void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size)
 {
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
-    if (!g_settings->GetBool(NXCpuSetting::NceEnabled))
+    if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return;
     }
@@ -40,7 +41,7 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
 void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t * program_image, uint32_t * image_size, uint32_t code_offset, uint32_t code_size, uint64_t * segment_addr, uint32_t * segment_size)
 {
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
-    if (!g_settings->GetBool(NXCpuSetting::NceEnabled))
+    if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return;
     }
@@ -57,16 +58,23 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
     Core::NCE::Patcher & patch = m_patchers[patch_index];
     const uint32_t image_size_before_relocate = *image_size;
     uint64_t image_size64 = *image_size;
+    Core::NCE::EntryTrampolines trampolines;
 
-    if (!patch.RelocateAndCopy(load_base, code_offset, code_size, program_image, &image_size64, &m_entry_trampolines))
+    const bool copied = patch.RelocateAndCopy(load_base, code_offset, code_size, program_image, &image_size64, &trampolines);
+    *image_size = (uint32_t)image_size64;
+
+    if (IKernelProcess * process = m_modules.OperatingSystem().CurrentProcess())
     {
-        *image_size = (uint32_t)image_size64;
-        RegisterPostTrampolines();
-        return;
+        for (const auto & [module_text, patch_text] : trampolines)
+        {
+            process->RegisterPostHandler(module_text, patch_text);
+        }
     }
 
-    *image_size = (uint32_t)image_size64;
-    RegisterPostTrampolines();
+    if (!copied)
+    {
+        return;
+    }
 
     if (segment_addr != nullptr)
     {
@@ -91,7 +99,7 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
 uint32_t PatchCollection::GetTotalPatchSize() const
 {
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
-    if (!g_settings->GetBool(NXCpuSetting::NceEnabled))
+    if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return 0;
     }
@@ -110,12 +118,12 @@ uint32_t PatchCollection::GetTotalPatchSize() const
 uint32_t PatchCollection::GetPreTextSize(int32_t patch_index) const
 {
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
-    if (!g_settings->GetBool(NXCpuSetting::NceEnabled))
+    if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return 0;
     }
 
-    if (patch_index < 0 || patch_index >= m_patchers.size())
+    if (patch_index < 0 || patch_index >= (int32_t)m_patchers.size())
     {
         return 0;
     }

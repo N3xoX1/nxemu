@@ -11,6 +11,10 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
+#include <nxemu-core/settings/identifiers.h>
+#include <nxemu-module-spec/cpu.h>
+#include "yuzu_common/interface_pointer.h"
+#include "yuzu_common/interface_pointer_def.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/swap.h"
 #include "core/core.h"
@@ -26,6 +30,8 @@
 #include "core/memory.h"
 
 extern IModuleSettings * g_settings;
+
+using IPatchCollectionPtr = InterfacePtr<IPatchCollection>;
 
 namespace Loader {
 
@@ -219,25 +225,18 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     uint32_t image_size = (uint32_t)program_image.size();
 
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
-    const auto& code = codeset.CodeSegment();
+    const auto & code = codeset.CodeSegment();
 
-    // Create NCE patcher
-    Core::NCE::Patcher patch{};
+    g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, true);
 
-    if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
-        // Patch SVCs and MRS calls in the guest code
-        patch.PatchText(program_image, code);
-
-        // We only support PostData patching for NROs.
-        ASSERT(patch.GetPatchMode() == Core::NCE::PatchMode::PostData);
-
-        // Update patch section.
-        auto& patch_segment = codeset.PatchSegment();
-        patch_segment.addr = image_size;
-        patch_segment.size = static_cast<u32>(patch.GetSectionSize());
-
-        // Add patch section size to the module size.
-        image_size += patch_segment.size;
+    IPatchCollectionPtr patch_ctx(modules.Cpu().CreatePatchCollection(true));
+    int32_t patch_index = -1;
+    if (patch_ctx)
+    {
+        patch_index = patch_ctx->GetLastIndex();
+        patch_ctx->PatchText(patch_index, program_image.data(), image_size, (uint32_t)code.offset, code.size);
+        patch_index = patch_ctx->GetLastIndex();
+        image_size += patch_ctx->GetTotalPatchSize();
     }
 #endif
 
@@ -259,9 +258,20 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     // Relocate code patch and copy to the program_image if running under NCE.
     // This needs to be after LoadFromMetadata so we can use the process entry point.
 #if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
-    if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
-        patch.RelocateAndCopy(process.GetEntryPoint(), code, program_image,
-                              &process.GetPostHandlers());
+    if (patch_ctx && patch_index >= 0 && g_settings->GetBool(NXCpuSetting::NceEnabled))
+    {
+        uint32_t reloc_size = static_cast<uint32_t>(program_image.size());
+        program_image.resize(reloc_size + patch_ctx->GetTotalPatchSize());
+        uint64_t patch_segment_addr = 0;
+        uint32_t patch_segment_size = 0;
+        patch_ctx->Relocate(patch_index, baseAddress, program_image.data(), &reloc_size, (uint32_t)code.offset, code.size, &patch_segment_addr, &patch_segment_size);
+        program_image.resize(reloc_size);
+        if (patch_segment_size != 0)
+        {
+            Kernel::CodeSet::Segment & patch_segment = codeset.PatchSegment();
+            patch_segment.addr = patch_segment_addr;
+            patch_segment.size = patch_segment_size;
+        }
     }
 #endif
 

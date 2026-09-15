@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+#include <unordered_map>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/cpu.h>
 #include "core/hle/kernel/code_set.h"
@@ -136,9 +137,7 @@ private:
     std::atomic<s64> m_num_ipc_messages{};
     std::atomic<s64> m_num_ipc_replies{};
     std::atomic<s64> m_num_ipc_receives{};
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     std::unordered_map<u64, u64> m_post_handlers{};
-#endif
     ExclusiveMonitorPtr m_exclusive_monitor;
     Core::Memory::Memory m_memory;
 
@@ -558,11 +557,20 @@ public:
 
     static void Switch(KProcess* cur_process, KProcess* next_process);
 
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
-    std::unordered_map<u64, u64>& GetPostHandlers() noexcept {
-        return m_post_handlers;
+    uint64_t FindPostHandler(uint64_t pc) const override
+    {
+        const auto it = m_post_handlers.find(pc);
+        if (it == m_post_handlers.end())
+        {
+            return 0;
+        }
+        return it->second;
     }
-#endif
+
+    void RegisterPostHandler(uint64_t module_text, uint64_t patch_text) override
+    {
+        m_post_handlers.insert_or_assign(module_text, patch_text);
+    }
 
     ICpuCore * GetCpuCore(int32_t coreIndex) const
     {

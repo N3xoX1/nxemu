@@ -126,6 +126,8 @@ nxinterface IKernelProcess
     virtual IMemory & GetMemory() = 0;
     virtual bool Is64Bit() const = 0;
     virtual bool IsApplication() const = 0;
+    virtual uint64_t FindPostHandler(uint64_t pc) const = 0;
+    virtual void RegisterPostHandler(uint64_t module_text, uint64_t patch_text) = 0;
     virtual void LogBacktrace(ICpuCore & cpuCore) = 0;
 };
 

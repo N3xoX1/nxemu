@@ -233,6 +233,16 @@ bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & 
     return true;
 }
 
+IKernelProcess * OSManager::CurrentProcess()
+{
+    Kernel::KProcess * current = m_coreSystem.CurrentProcess();
+    if (current != nullptr)
+    {
+        return current;
+    }
+    return m_applicationProcess;
+}
+
 bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
     if (m_applicationProcess != nullptr)

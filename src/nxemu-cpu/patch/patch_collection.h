@@ -2,8 +2,8 @@
 #include <nxemu-module-spec/cpu.h>
 
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
-#undef NOMINMAX
 #include "nce/patcher.h"
+#include <vector>
 #endif
 
 class PatchCollection final :
