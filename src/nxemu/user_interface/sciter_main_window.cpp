@@ -2065,7 +2065,21 @@ void SciterMainWindow::LayoutRenderWindow()
     {
         return;
     }
-    SciterElement::RECT rect = mainContents.GetLocation();
+    SciterElement::RECT rect = mainContents.GetLocation(SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX);
+    const bool uiHidden = m_hideUi || (m_win32Fullscreen != nullptr && m_win32Fullscreen->active);
+    SciterElement mainMenu(m_rootElement.GetElementByID("MainMenu"));
+    if (!uiHidden && mainMenu.IsValid())
+    {
+        const SciterElement::RECT menuRect = mainMenu.GetLocation(SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX);
+        if (rect.top < menuRect.bottom)
+        {
+            rect.top = menuRect.bottom;
+        }
+    }
+    if (rect.right <= rect.left || rect.bottom <= rect.top)
+    {
+        return;
+    }
     uint32_t width = rect.right - rect.left;
     uint32_t height = rect.bottom - rect.top;
 #ifdef _WIN32
@@ -2134,6 +2148,18 @@ void SciterMainWindow::UpdateLoadingScreenDetails()
 void SciterMainWindow::UpdateUIVisibility()
 {
     const bool hide = m_hideUi || (m_win32Fullscreen != nullptr && m_win32Fullscreen->active);
+
+    if (m_rootElement.IsValid())
+    {
+        if (hide)
+        {
+            m_rootElement.AddClassName("nx-ui-hidden");
+        }
+        else
+        {
+            m_rootElement.RemoveClassName("nx-ui-hidden");
+        }
+    }
 
     std::array<SciterElement, 3> shellPanels = {{
         m_rootElement.FindFirst("header"),
