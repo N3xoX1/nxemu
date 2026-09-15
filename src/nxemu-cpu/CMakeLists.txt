@@ -374,7 +374,14 @@ endif()
 
 if(ARCHITECTURE_arm64)
     target_compile_definitions(nxemu-cpu PRIVATE ARCHITECTURE_Aarch64=1)
- 
+
+    enable_language(C ASM)
+    set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -x assembler-with-cpp")
+    if(NOT MSVC)
+        target_compile_options(nxemu-cpu PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-Wa,--noexecstack>)
+        target_link_options(nxemu-cpu PRIVATE -Wl,-z,noexecstack)
+    endif()
+
     target_sources(nxemu-cpu PRIVATE
         dynarmic/backend/exception_handler_generic.cpp
         dynarmic/common/spin_lock_arm64.cpp
@@ -412,8 +419,19 @@ if(ARCHITECTURE_arm64)
         dynarmic/backend/arm64/stack_layout.h
         dynarmic/backend/arm64/verbose_debugging_output.cpp
         dynarmic/backend/arm64/verbose_debugging_output.h
+        nce/arm_nce_asm_definitions.h
+        nce/arm_nce.cpp
+        nce/arm_nce.h
+        nce/arm_nce.s
+        nce/guest_context.h
+        nce/instructions.h
+        nce/interpreter_visitor.cpp
+        nce/interpreter_visitor.h
+        nce/patcher.cpp
+        nce/patcher.h
+        nce/visitor_base.h
     )
- 
+
     if(TARGET merry::oaknut)
         target_link_libraries(nxemu-cpu PRIVATE merry::oaknut)
     elseif(TARGET oaknut)
