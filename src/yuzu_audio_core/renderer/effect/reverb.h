@@ -69,6 +69,7 @@ public:
             buffer.resize(delay_time + 1, 0);
             buffer_end = &buffer[delay_time];
             output = &buffer[0];
+            input = &buffer[0];
             decay = decay_rate;
             sample_count_max = delay_time;
             SetDelay(delay_time);
@@ -79,7 +80,6 @@ public:
                 return;
             }
             sample_count = delay_time;
-            input = &buffer[0];
         }
 
         Common::FixedPoint<50, 14> Tick(const Common::FixedPoint<50, 14> sample) {
@@ -107,9 +107,12 @@ public:
         }
 
         Common::FixedPoint<50, 14> TapOut(const s32 index) const {
-            auto out{input - (index + 1)};
+            const Common::FixedPoint<50, 14>* out{input - index};
             if (out < buffer.data()) {
                 out += sample_count;
+            }
+            if (out >= buffer_end) {
+                out = buffer.data() + ((out - buffer.data()) % (sample_count_max + 1));
             }
             return *out;
         }
