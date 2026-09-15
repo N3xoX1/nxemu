@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "common/arm64/native_clock.h"
-#include "common/bit_cast.h"
-#include "common/literals.h"
 #include "core/arm/nce/arm_nce.h"
 #include "core/arm/nce/guest_context.h"
 #include "core/arm/nce/instructions.h"
@@ -11,6 +8,9 @@
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/hle/kernel/svc.h"
+#include "yuzu_common/arm64/native_clock.h"
+#include "yuzu_common/bit_cast.h"
+#include "yuzu_common/literals.h"
 
 namespace Core::NCE {
 

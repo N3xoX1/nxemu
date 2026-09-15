@@ -174,15 +174,7 @@ public:
             return true;
         }
 
-#ifdef tofix
-        const auto match{m_parent.MatchingWatchpoint(addr, size, type) };
-        if (match)
-        {
-            m_parent.m_halted_watchpoint = match;
-            m_parent.m_jit->HaltExecution(Core::DataAbort);
-            return false;
-        }
-#endif
+        UNIMPLEMENTED();
         return true;
     }
 

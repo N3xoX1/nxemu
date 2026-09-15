@@ -10,6 +10,7 @@
 #include <yuzu_common/page_table.h>
 #include <yuzu_common/hardware_properties.h>
 #include "yuzu_common/literals.h"
+#include "yuzu_common/yuzu_assert.h"
 
 extern IModuleNotification * g_notify;
 
@@ -215,7 +216,7 @@ public:
         {
             return true;
         }
-        g_notify->BreakPoint(__FILE__, __LINE__);
+        UNIMPLEMENTED();
         return true;
     }
 
