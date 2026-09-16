@@ -535,10 +535,78 @@ private:
     }
 };
 
+class ISslServiceForSystem final : public ServiceFramework<ISslServiceForSystem> {
+public:
+    explicit ISslServiceForSystem(Core::System& system_)
+        : ServiceFramework{system_, "ssl:s"} {
+        static const FunctionInfo functions[] = {
+            {0, &ISslServiceForSystem::CreateContext, "CreateContext"},
+            {1, nullptr, "GetContextCount"},
+            {2, nullptr, "GetCertificates"},
+            {3, nullptr, "GetCertificateBufSize"},
+            {4, nullptr, "DebugIoctl"},
+            {5, &ISslServiceForSystem::SetInterfaceVersion, "SetInterfaceVersion"},
+            {6, nullptr, "FlushSessionCache"},
+            {7, nullptr, "SetDebugOption"},
+            {8, nullptr, "GetDebugOption"},
+            {9, nullptr, "ClearTls12FallbackFlag"},
+            {10, nullptr, "GetCertificateByIndex"},
+            {11, nullptr, "GetTrustedCertificateCount"},
+            {100, &ISslServiceForSystem::CreateContextForSystem, "CreateContextForSystem"},
+            {101, nullptr, "SetThreadCoreMask"},
+            {102, nullptr, "GetThreadCoreMask"},
+            {103, nullptr, "VerifySignature"},
+            {104, nullptr, "ResetCoverageCounters"},
+            {105, nullptr, "DumpCoverageProfile"},
+        };
+        RegisterHandlers(functions);
+    }
+
+private:
+    void CreateContext(HLERequestContext& ctx) {
+        struct Parameters {
+            SslVersion ssl_version;
+            INSERT_PADDING_BYTES(0x4);
+            u64 pid_placeholder;
+        };
+        static_assert(sizeof(Parameters) == 0x10, "Parameters is an invalid size");
+
+        IPC::RequestParser rp{ctx};
+        const auto parameters = rp.PopRaw<Parameters>();
+
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+        rb.Push(ResultSuccess);
+        rb.PushIpcInterface<ISslContext>(system, parameters.ssl_version);
+    }
+
+    void SetInterfaceVersion(HLERequestContext& ctx) {
+        IPC::RequestParser rp{ctx};
+        [[maybe_unused]] const u32 ssl_version = rp.Pop<u32>();
+        IPC::ResponseBuilder{ctx, 2}.Push(ResultSuccess);
+    }
+
+    void CreateContextForSystem(HLERequestContext& ctx) {
+        struct Parameters {
+            SslVersion ssl_version;
+            INSERT_PADDING_BYTES(0x4);
+            u64 pid_placeholder;
+        };
+        static_assert(sizeof(Parameters) == 0x10, "Parameters is an invalid size");
+
+        IPC::RequestParser rp{ctx};
+        const auto parameters = rp.PopRaw<Parameters>();
+
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+        rb.Push(ResultSuccess);
+        rb.PushIpcInterface<ISslContext>(system, parameters.ssl_version);
+    }
+};
+
 void LoopProcess(Core::System& system) {
     auto server_manager = std::make_unique<ServerManager>(system);
 
     server_manager->RegisterNamedService("ssl", std::make_shared<ISslService>(system));
+    server_manager->RegisterNamedService("ssl:s", std::make_shared<ISslServiceForSystem>(system));
     ServerManager::RunServer(std::move(server_manager));
 }
 
