@@ -727,6 +727,11 @@ void SciterMainWindow::LoadGame(const char * path, int32_t program_index, Applic
     m_pendingUserChannel.clear();
 
     m_modules.Setup(*this);
+    if (!m_modules.IsValid())
+    {
+        Notification::GetInstance().DisplayError("Required modules failed to load.", "Error loading file");
+        return;
+    }
     RegisterApplets();
     RegisterSystemCallbacks();
 

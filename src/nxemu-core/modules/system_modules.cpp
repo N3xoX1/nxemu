@@ -64,6 +64,11 @@ struct SystemModules::Impl :
         }
     }
 
+    bool IsValid() const
+    {
+        return valid;
+    }
+
     void StartEmulation() override
     {
         SettingsStore & settings = SettingsStore::GetInstance();
@@ -260,7 +265,7 @@ void SystemModules::FlushSettings(void)
 
 bool SystemModules::IsValid() const
 {
-    return impl.get() != nullptr ? impl->valid : false;
+    return impl.get() != nullptr ? impl->IsValid() : false;
 }
 
 ISystemModules & SystemModules::Modules()

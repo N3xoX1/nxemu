@@ -25,10 +25,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x012E,
-    MODULE_VIDEO_SPECS_VERSION = 0x011F,
-    MODULE_CPU_SPECS_VERSION = 0x0115,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011E,
+    MODULE_LOADER_SPECS_VERSION = 0x012F,
+    MODULE_VIDEO_SPECS_VERSION = 0x0120,
+    MODULE_CPU_SPECS_VERSION = 0x0116,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x011F,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -296,7 +296,8 @@ nxinterface ISystemModules
 {
     virtual void StartEmulation() = 0;
     virtual void StopEmulation(bool wait) = 0;
-
+    virtual bool IsValid() const = 0;
+    
     virtual ISystemloader & Systemloader() = 0;
     virtual IOperatingSystem & OperatingSystem() = 0;
     virtual IVideo & Video() = 0;
