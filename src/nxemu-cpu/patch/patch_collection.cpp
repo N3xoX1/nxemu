@@ -3,6 +3,7 @@
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <algorithm>
+#include <iterator>
 
 extern IModuleSettings * g_settings;
 
@@ -150,7 +151,7 @@ int32_t PatchCollection::GetLastIndex() const
 
 void PatchCollection::SaveIndex(uint32_t module_index)
 {
-    if (module_index < (sizeof(m_module_patcher_indices) / sizeof(m_module_patcher_indices[0])))
+    if (module_index < std::size(m_module_patcher_indices))
     {
         m_module_patcher_indices[module_index] = GetLastIndex();
     }
