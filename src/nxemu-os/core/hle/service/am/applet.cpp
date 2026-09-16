@@ -20,6 +20,9 @@ Applet::Applet(Core::System& system, std::unique_ptr<Process> process_)
 
     aruid = process->GetProcessId();
     program_id = process->GetProgramId();
+
+    // NXEmu does not emulate the health-warning overlay, so start with its dismissal event signaled.
+    health_warning_disappeared_system_event.Signal();
 }
 
 Applet::~Applet() = default;
