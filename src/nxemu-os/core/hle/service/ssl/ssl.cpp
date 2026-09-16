@@ -106,6 +106,8 @@ public:
             {33, nullptr, "ExportKeyingMaterial"},
             {34, nullptr, "SetIoTimeout"},
             {35, nullptr, "GetIoTimeout"},
+            {36, nullptr, "GetSessionTicket"},
+            {37, nullptr, "SetSessionTicket"},
         };
         // clang-format on
 
@@ -437,7 +439,17 @@ private:
     }
 
     void CreateConnection(HLERequestContext& ctx) {
-        UNIMPLEMENTED();
+        LOG_WARNING(Service_SSL, "called");
+
+        std::unique_ptr<SSLConnectionBackend> backend;
+        const Result res = CreateSSLConnectionBackend(&backend);
+
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+        rb.Push(res);
+        if (res == ResultSuccess) {
+            rb.PushIpcInterface<ISslConnection>(system, ssl_version, shared_data,
+                                                std::move(backend));
+        }
     }
 
     void GetConnectionCount(HLERequestContext& ctx) {
@@ -497,7 +509,9 @@ public:
             {6, nullptr, "FlushSessionCache"},
             {7, nullptr, "SetDebugOption"},
             {8, nullptr, "GetDebugOption"},
-            {8, nullptr, "ClearTls12FallbackFlag"},
+            {9, nullptr, "ClearTls12FallbackFlag"},
+            {10, nullptr, "GetCertificateByIndex"},
+            {11, nullptr, "GetTrustedCertificateCount"},
         };
         // clang-format on
 
