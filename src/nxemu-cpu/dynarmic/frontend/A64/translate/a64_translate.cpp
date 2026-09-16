@@ -27,7 +27,7 @@ IR::Block Translate(LocationDescriptor descriptor, MemoryReadCodeFuncType memory
             if (auto decoder = Decode<TranslatorVisitor>(*instruction)) {
                 should_continue = decoder->get().call(visitor, *instruction);
             } else {
-                should_continue = visitor.InterpretThisInstruction();
+                should_continue = visitor.RaiseException(Exception::UnallocatedEncoding);
             }
         } else {
             should_continue = visitor.RaiseException(Exception::NoExecuteFault);

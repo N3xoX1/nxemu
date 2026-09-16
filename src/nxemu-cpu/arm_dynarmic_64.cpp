@@ -63,6 +63,14 @@ public:
         }
         return m_memory.Read64(vaddr);
     }
+    std::optional<u32> MemoryReadCode(uint64_t vaddr) override
+    {
+        if (!m_memory.IsValidVirtualAddressRange(vaddr, sizeof(u32)))
+        {
+            return std::nullopt;
+        }
+        return m_memory.Read32(vaddr);
+    }
     Vector MemoryRead128(uint64_t vaddr) override
     {
         if (m_check_memory_access)
@@ -173,7 +181,7 @@ public:
             return;
         case Dynarmic::A64::Exception::NoExecuteFault:
             LOG_CRITICAL(Core_ARM, "Cannot execute instruction at unmapped address {:#016x}", pc);
-            g_notify->BreakPoint(__FILE__, __LINE__);
+            ReturnException(pc, TranslateDynarmicHaltReason(CpuHaltReason::PrefetchAbort));
             return;
         default:
             if (m_debugger_enabled)
@@ -218,6 +226,13 @@ public:
         }
         UNIMPLEMENTED();
         return true;
+    }
+
+    void ReturnException(uint64_t pc, Dynarmic::HaltReason reason)
+    {
+        m_parent.GetContext(m_parent.m_breakpoint_context);
+        m_parent.m_breakpoint_context.pc = pc;
+        m_parent.m_jit->HaltExecution(reason);
     }
 
     ArmDynarmic64 & m_parent;
