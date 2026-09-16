@@ -31,6 +31,7 @@ private:
     void GetCurrentIpAddress(HLERequestContext& ctx);
     void CreateTemporaryNetworkProfile(HLERequestContext& ctx);
     void GetCurrentIpConfigInfo(HLERequestContext& ctx);
+    void SetWirelessCommunicationEnabled(HLERequestContext& ctx);
     void IsWirelessCommunicationEnabled(HLERequestContext& ctx);
     void GetInternetConnectionStatus(HLERequestContext& ctx);
     void IsEthernetCommunicationEnabled(HLERequestContext& ctx);

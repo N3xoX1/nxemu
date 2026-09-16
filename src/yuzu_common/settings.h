@@ -114,6 +114,9 @@ struct Values {
     // Network
     Setting<std::string> network_interface{linkage, std::string(), "network_interface",
                                            Category::Network};
+    SwitchableSetting<bool> airplane_mode{linkage, false, "airplane_mode", Category::Network};
+    SwitchableSetting<bool> network_access_enabled{linkage, false, "network_access_enabled",
+                                                   Category::Network};
 
     // WebService
     Setting<std::string> web_api_url{linkage, "https://api.yuzu-emu.org", "web_api_url",

@@ -8,6 +8,7 @@
 #include "core/hle/service/nifm/nifm.h"
 #include "core/hle/service/server_manager.h"
 #include "network/network.h"
+#include "yuzu_common/settings.h"
 
 namespace {
 
@@ -157,6 +158,11 @@ static_assert(sizeof(NifmNetworkProfileData) == 0x18E,
 constexpr Result ResultPendingConnection{ErrorModule::NIFM, 111};
 constexpr Result ResultNetworkCommunicationDisabled{ErrorModule::NIFM, 1111};
 
+bool IsInternetAccessEnabled() {
+    return Settings::values.network_access_enabled.GetValue() &&
+           !Settings::values.airplane_mode.GetValue();
+}
+
 class IScanRequest final : public ServiceFramework<IScanRequest> {
 public:
     explicit IScanRequest(Core::System& system_) : ServiceFramework{system_, "IScanRequest"} {
@@ -251,7 +257,8 @@ private:
         LOG_DEBUG(Service_NIFM, "(STUBBED) called");
 
         const auto result = [this] {
-            const auto has_connection = Network::GetHostIPv4Address().has_value();
+            const auto has_connection =
+                IsInternetAccessEnabled() && Network::GetHostIPv4Address().has_value();
             switch (state) {
             case RequestState::NotSubmitted:
                 return has_connection ? ResultSuccess : ResultNetworkCommunicationDisabled;
@@ -335,11 +342,11 @@ public:
 
 void IGeneralService::GetClientId(HLERequestContext& ctx) {
     static constexpr u32 client_id = 1;
-    LOG_WARNING(Service_NIFM, "(STUBBED) called");
+    LOG_DEBUG(Service_NIFM, "called, client_id={}", client_id);
 
-    IPC::ResponseBuilder rb{ctx, 4};
-    rb.Push(ResultSuccess);
-    rb.Push<u64>(client_id); // Client ID needs to be non zero otherwise it's considered invalid
+    // nn::nifm::ClientId is a 4-byte value returned through a HIPC pointer buffer.
+    ctx.WriteBuffer(client_id);
+    IPC::ResponseBuilder{ctx, 2}.Push(ResultSuccess);
 }
 
 void IGeneralService::CreateScanRequest(HLERequestContext& ctx) {
@@ -506,25 +513,32 @@ void IGeneralService::GetCurrentIpConfigInfo(HLERequestContext& ctx) {
     rb.PushRaw<IpConfigInfo>(ip_config_info);
 }
 
-void IGeneralService::IsWirelessCommunicationEnabled(HLERequestContext& ctx) {
-    LOG_WARNING(Service_NIFM, "(STUBBED) called");
+void IGeneralService::SetWirelessCommunicationEnabled(HLERequestContext& ctx) {
+    IPC::RequestParser rp{ctx};
+    const u8 enable = rp.Pop<u8>();
+    Settings::values.airplane_mode.SetValue(enable == 0);
+    IPC::ResponseBuilder{ctx, 2}.Push(ResultSuccess);
+}
 
+void IGeneralService::IsWirelessCommunicationEnabled(HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(ResultSuccess);
-    rb.Push<u8>(1);
+    rb.Push<u8>(!Settings::values.airplane_mode.GetValue());
 }
 
 void IGeneralService::GetInternetConnectionStatus(HLERequestContext& ctx) {
-    LOG_WARNING(Service_NIFM, "(STUBBED) called");
-
     struct Output {
         u8 type{static_cast<u8>(NetworkInterfaceType::WiFi_Ieee80211)};
-        u8 wifi_strength{3};
-        InternetConnectionStatus state{InternetConnectionStatus::Connected};
+        u8 wifi_strength{};
+        InternetConnectionStatus state{InternetConnectionStatus::ConnectingUnknown1};
     };
     static_assert(sizeof(Output) == 0x3, "Output has incorrect size.");
 
-    constexpr Output out{};
+    Output out{};
+    if (IsInternetAccessEnabled() && Network::GetHostIPv4Address().has_value()) {
+        out.wifi_strength = 3;
+        out.state = InternetConnectionStatus::Connected;
+    }
 
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(ResultSuccess);
@@ -544,15 +558,12 @@ void IGeneralService::IsEthernetCommunicationEnabled(HLERequestContext& ctx) {
 }
 
 void IGeneralService::IsAnyInternetRequestAccepted(HLERequestContext& ctx) {
-    LOG_ERROR(Service_NIFM, "(STUBBED) called");
+    const bool accepted =
+        IsInternetAccessEnabled() && Network::GetHostIPv4Address().has_value();
 
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(ResultSuccess);
-    if (Network::GetHostIPv4Address().has_value()) {
-        rb.Push<u8>(1);
-    } else {
-        rb.Push<u8>(0);
-    }
+    rb.Push<u8>(accepted);
 }
 
 void IGeneralService::IsAnyForegroundRequestAccepted(HLERequestContext& ctx) {
@@ -583,7 +594,7 @@ IGeneralService::IGeneralService(Core::System& system_)
         {13, nullptr, "GetCurrentAccessPointOld"},
         {14, &IGeneralService::CreateTemporaryNetworkProfile, "CreateTemporaryNetworkProfile"},
         {15, &IGeneralService::GetCurrentIpConfigInfo, "GetCurrentIpConfigInfo"},
-        {16, nullptr, "SetWirelessCommunicationEnabled"},
+        {16, &IGeneralService::SetWirelessCommunicationEnabled, "SetWirelessCommunicationEnabled"},
         {17, &IGeneralService::IsWirelessCommunicationEnabled, "IsWirelessCommunicationEnabled"},
         {18, &IGeneralService::GetInternetConnectionStatus, "GetInternetConnectionStatus"},
         {19, nullptr, "SetEthernetCommunicationEnabled"},

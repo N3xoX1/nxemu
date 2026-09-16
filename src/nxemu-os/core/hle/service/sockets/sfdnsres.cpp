@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 
+#include "yuzu_common/settings.h"
 #include "yuzu_common/string_util.h"
 #include "yuzu_common/swap.h"
 #include "core/core.h"
@@ -16,6 +17,15 @@
 #include "core/memory.h"
 
 namespace Service::Sockets {
+
+namespace {
+
+bool IsInternetAccessEnabled() {
+    return Settings::values.network_access_enabled.GetValue() &&
+           !Settings::values.airplane_mode.GetValue();
+}
+
+} // namespace
 
 SFDNSRES::SFDNSRES(Core::System& system_) : ServiceFramework{system_, "sfdnsres"} {
     static const FunctionInfo functions[] = {
@@ -150,6 +160,11 @@ static std::pair<u32, GetAddrInfoError> GetHostByNameRequestImpl(HLERequestConte
     const std::string host = Common::StringFromBuffer(host_buffer);
     // For now, ignore options, which are in input buffer 1 for GetHostByNameRequestWithOptions.
 
+    if (!IsInternetAccessEnabled() && host != "localhost") {
+        LOG_DEBUG(Network, "Guest Internet access is disabled, refusing DNS lookup for {}", host);
+        return {0, GetAddrInfoError::NODATA};
+    }
+
     // Prevent resolution of Nintendo servers
     if (host.find("srv.nintendo.net") != std::string::npos) {
         LOG_WARNING(Network, "Resolution of hostname {} requested, returning EAI_AGAIN", host);
@@ -266,6 +281,11 @@ static std::pair<u32, GetAddrInfoError> GetAddrInfoRequestImpl(HLERequestContext
 
     const auto host_buffer = ctx.ReadBuffer(0);
     const std::string host = Common::StringFromBuffer(host_buffer);
+
+    if (!IsInternetAccessEnabled() && host != "localhost") {
+        LOG_DEBUG(Network, "Guest Internet access is disabled, refusing DNS lookup for {}", host);
+        return {0, GetAddrInfoError::NODATA};
+    }
 
     // Prevent resolution of Nintendo servers
     if (host.find("srv.nintendo.net") != std::string::npos) {
