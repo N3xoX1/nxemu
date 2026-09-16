@@ -436,7 +436,7 @@ void SciterMainWindow::CollectUserChannelEntry(const uint8_t * data, uint32_t si
     impl->m_pendingUserChannel.emplace_back(data, data + size);
 }
 
-void SciterMainWindow::ExecuteProgramCallbackThunk(size_t program_index, void * userData)
+void SciterMainWindow::ExecuteProgramCallbackThunk(uint32_t program_index, void * userData)
 {
     SciterMainWindow * impl = (SciterMainWindow *)userData;
     if (!impl->m_modules.IsValid())

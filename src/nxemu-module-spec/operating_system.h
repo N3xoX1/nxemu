@@ -522,7 +522,7 @@ nxinterface ICacheInvalidator
 };
 
 typedef void (*DeviceEnumCallback)(const char * device, void * userData);
-typedef void (*ExecuteProgramCallback)(size_t program_index, void * userData);
+typedef void (*ExecuteProgramCallback)(uint32_t program_index, void * userData);
 typedef void (*ExitCallback)(void * userData);
 typedef void (*UserChannelEntryCallback)(const uint8_t * data, uint32_t size, void * userData);
 
@@ -607,7 +607,7 @@ struct StickStatus {
 
 struct SticksValues
 {
-    StickStatus status[(size_t)NativeAnalogValues::NumAnalogs];
+    StickStatus status[(uint32_t)NativeAnalogValues::NumAnalogs];
 };
 
 typedef struct {
@@ -637,7 +637,7 @@ nxinterface IEmulatedController
     virtual void SetStickParam(uint32_t index, const IParamPackage & param) = 0;
     virtual void SetMotionParam(uint32_t index, const IParamPackage & param) = 0;
     virtual void SetControllerEventCallback(ControllerEventCallback cb, void * user) = 0;
-    virtual void GetButtonsStatus(button_status_t * buttons, size_t num_buttons) const = 0;
+    virtual void GetButtonsStatus(button_status_t * buttons, uint32_t num_buttons) const = 0;
     virtual void SetNpadStyleIndex(NpadStyleIndex npad_type) = 0;
     virtual MotionState GetMotions() const = 0;
     virtual SticksValues GetSticksValues() const = 0;

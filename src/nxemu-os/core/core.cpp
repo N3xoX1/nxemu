@@ -707,7 +707,7 @@ void System::ExecuteProgram(std::size_t program_index)
 {
     if (impl->execute_program_callback)
     {
-        impl->execute_program_callback(program_index, impl->execute_program_user_data);
+        impl->execute_program_callback((uint32_t)program_index, impl->execute_program_user_data);
     }
     else
     {

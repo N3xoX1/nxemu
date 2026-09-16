@@ -1697,7 +1697,7 @@ void InputConfigPlayer::ControllerEventCallback(ControllerTriggerType type)
     switch (type) {
     case ControllerTriggerType::Button:
     case ControllerTriggerType::Trigger:
-        m_emulatedController->GetButtonsStatus(m_buttonValues, sizeof(m_buttonValues)/sizeof(m_buttonValues[0]));
+        m_emulatedController->GetButtonsStatus(m_buttonValues, (uint32_t)(sizeof(m_buttonValues)/sizeof(m_buttonValues[0])));
         UpdateButtonState();
         break;
     case ControllerTriggerType::Stick:

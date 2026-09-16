@@ -277,7 +277,7 @@ public:
 
     /// Returns the latest button status from the controller with parameters
     ButtonValues GetButtonsValues() const;
-    void GetButtonsStatus(button_status_t* buttons, size_t num_buttons) const override;
+    void GetButtonsStatus(button_status_t* buttons, uint32_t num_buttons) const override;
 
     /// Returns the latest analog stick status from the controller with parameters
     SticksValues GetSticksValues() const override;

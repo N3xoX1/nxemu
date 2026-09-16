@@ -140,7 +140,7 @@ private:
     void OnExecuteProgram(uint64_t program_index);
     void OnReloadProgram();
     void OnExitProgram();
-    static void ExecuteProgramCallbackThunk(size_t program_index, void * userData);
+    static void ExecuteProgramCallbackThunk(uint32_t program_index, void * userData);
     static void ExitCallbackThunk(void * userData);
     static void CollectUserChannelEntry(const uint8_t * data, uint32_t size, void * userData);
     void OnSystemConfig();

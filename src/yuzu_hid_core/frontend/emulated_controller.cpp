@@ -2111,7 +2111,7 @@ ButtonValues EmulatedController::GetButtonsValues() const
     return controller.button_values;
 }
 
-void EmulatedController::GetButtonsStatus(button_status_t * buttons, size_t num_buttons) const
+void EmulatedController::GetButtonsStatus(button_status_t * buttons, uint32_t num_buttons) const
 {
     if (buttons == nullptr || num_buttons == 0)
     {
@@ -2119,8 +2119,8 @@ void EmulatedController::GetButtonsStatus(button_status_t * buttons, size_t num_
     }
 
     std::scoped_lock lock{mutex};
-    size_t toCopy = std::min(num_buttons, controller.button_values.size());
-    for (size_t i = 0; i < toCopy; ++i)
+    uint32_t toCopy = std::min(num_buttons, (uint32_t)controller.button_values.size());
+    for (uint32_t i = 0; i < toCopy; ++i)
     {
         const Common::Input::ButtonStatus & src = controller.button_values[i];
         button_status_t & dst = buttons[i];
