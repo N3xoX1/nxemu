@@ -70,6 +70,7 @@ popup.tooltip
   border: 1px solid #55575a;
   padding: 1.2rem 0.5rem 0.5rem 0.5rem;
   margin: 0 0 1rem 0;
+  flow: vertical;
 }
 
 .input-grid-directional {
