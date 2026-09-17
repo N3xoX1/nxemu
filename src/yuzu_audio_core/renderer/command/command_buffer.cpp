@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -17,6 +20,15 @@
 #include "yuzu_audio_core/renderer/voice/voice_state.h"
 
 namespace AudioCore::Renderer {
+
+namespace {
+constexpr f32 BiquadParameterFixedScaleQ14 = 16384.0f; // 1 << 14
+
+[[nodiscard]] inline s16 ToQ14Clamped(f32 v) {
+    const f32 scaled = std::clamp(v * BiquadParameterFixedScaleQ14, -32768.0f, 32767.0f);
+    return static_cast<s16>(scaled);
+}
+} // namespace
 
 template <typename T, CommandId Id>
 T& CommandBuffer::GenerateStart(const s32 node_id) {
@@ -234,6 +246,13 @@ void CommandBuffer::GenerateBiquadFilterCommand(const s32 node_id, VoiceInfo& vo
 
     cmd.biquad = voice_info.biquads[biquad_index];
 
+    if (voice_info.use_float_biquads) {
+        cmd.biquad_float = voice_info.biquads_float[biquad_index];
+        cmd.use_float_coefficients = true;
+    } else {
+        cmd.use_float_coefficients = false;
+    }
+
     cmd.state = memory_pool->Translate(CpuAddr(voice_state.biquad_states[biquad_index].data()),
                                        MaxBiquadFilters * sizeof(VoiceState::BiquadFilterState));
 
@@ -249,16 +268,36 @@ void CommandBuffer::GenerateBiquadFilterCommand(const s32 node_id, EffectInfoBas
                                                 const bool use_float_processing) {
     auto& cmd{GenerateStart<BiquadFilterCommand, CommandId::BiquadFilter>(node_id)};
 
-    const auto& parameter{
-        *reinterpret_cast<BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter())};
+    const auto& biquad_info = static_cast<const BiquadFilterInfo&>(effect_info);
     const auto state{reinterpret_cast<VoiceState::BiquadFilterState*>(
         effect_info.GetStateBuffer() + channel * sizeof(VoiceState::BiquadFilterState))};
 
-    cmd.input = buffer_offset + parameter.inputs[channel];
-    cmd.output = buffer_offset + parameter.outputs[channel];
+    if (biquad_info.UsesFloatParameterFormat()) {
+        const auto& parameter{
+            *reinterpret_cast<BiquadFilterInfo::ParameterVersion2*>(effect_info.GetParameter())};
 
-    cmd.biquad.b = parameter.b;
-    cmd.biquad.a = parameter.a;
+        cmd.input = buffer_offset + parameter.inputs[channel];
+        cmd.output = buffer_offset + parameter.outputs[channel];
+
+        // Convert float coefficients to Q2.14 fixed-point as expected by the legacy DSP path.
+        cmd.biquad.b[0] = ToQ14Clamped(parameter.b[0]);
+        cmd.biquad.b[1] = ToQ14Clamped(parameter.b[1]);
+        cmd.biquad.b[2] = ToQ14Clamped(parameter.b[2]);
+        cmd.biquad.a[0] = ToQ14Clamped(parameter.a[0]);
+        cmd.biquad.a[1] = ToQ14Clamped(parameter.a[1]);
+    } else {
+        const auto& parameter{
+            *reinterpret_cast<BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter())};
+
+        cmd.input = buffer_offset + parameter.inputs[channel];
+        cmd.output = buffer_offset + parameter.outputs[channel];
+
+        cmd.biquad.b = parameter.b;
+        cmd.biquad.a = parameter.a;
+    }
+
+    // Effects always use the fixed-point coefficient path on the DSP.
+    cmd.use_float_coefficients = false;
 
     cmd.state = memory_pool->Translate(CpuAddr(state),
                                        MaxBiquadFilters * sizeof(VoiceState::BiquadFilterState));
@@ -582,6 +621,16 @@ void CommandBuffer::GenerateCopyMixBufferCommand(const s32 node_id, EffectInfoBa
                                                  const s16 buffer_offset, const s8 channel) {
     auto& cmd{GenerateStart<CopyMixBufferCommand, CommandId::CopyMixBuffer>(node_id)};
 
+    const auto& biquad_info = static_cast<const BiquadFilterInfo&>(effect_info);
+    if (biquad_info.UsesFloatParameterFormat()) {
+        const auto& parameter_v2{
+            *reinterpret_cast<BiquadFilterInfo::ParameterVersion2*>(effect_info.GetParameter())};
+        cmd.input_index = buffer_offset + parameter_v2.inputs[channel];
+        cmd.output_index = buffer_offset + parameter_v2.outputs[channel];
+        GenerateEnd<CopyMixBufferCommand>(cmd);
+        return;
+    }
+
     const auto& parameter{
         *reinterpret_cast<BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter())};
     cmd.input_index = buffer_offset + parameter.inputs[channel];
@@ -654,6 +703,13 @@ void CommandBuffer::GenerateMultitapBiquadFilterCommand(const s32 node_id, Voice
     cmd.input = buffer_count + channel;
     cmd.output = buffer_count + channel;
     cmd.biquads = voice_info.biquads;
+
+    if (voice_info.use_float_biquads) {
+        cmd.biquads_float = voice_info.biquads_float;
+        cmd.use_float_coefficients = true;
+    } else {
+        cmd.use_float_coefficients = false;
+    }
 
     cmd.states[0] =
         memory_pool->Translate(CpuAddr(voice_state.biquad_states[0].data()),

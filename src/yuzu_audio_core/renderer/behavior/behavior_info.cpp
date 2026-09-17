@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -107,7 +110,7 @@ bool BehaviorInfo::IsCommandProcessingTimeEstimatorVersion4Supported() const {
 }
 
 bool BehaviorInfo::IsCommandProcessingTimeEstimatorVersion5Supported() const {
-    return CheckFeatureSupported(SupportTags::CommandProcessingTimeEstimatorVersion4,
+    return CheckFeatureSupported(SupportTags::CommandProcessingTimeEstimatorVersion5,
                                  user_revision);
 }
 
@@ -188,6 +191,26 @@ bool BehaviorInfo::IsReverbChannelMappingChanged() const {
 
 bool BehaviorInfo::IsI3dl2ReverbChannelMappingChanged() const {
     return CheckFeatureSupported(SupportTags::I3dl2ReverbChannelMappingChange, user_revision);
+}
+
+bool BehaviorInfo::IsSplitterPrevVolumeResetSupported() const {
+    return CheckFeatureSupported(SupportTags::SplitterPrevVolumeReset, user_revision);
+}
+
+bool BehaviorInfo::IsSplitterDestinationV2bSupported() const {
+    return CheckFeatureSupported(SupportTags::SplitterDestinationV2b, user_revision);
+}
+
+bool BehaviorInfo::IsBiquadFilterParameterFloatSupported() const {
+    return CheckFeatureSupported(SupportTags::BiquadFilterParameterFloat, user_revision);
+}
+
+bool BehaviorInfo::IsVoiceInParameterV2Supported() const {
+    return CheckFeatureSupported(SupportTags::VoiceInParameterV2, user_revision);
+}
+
+bool BehaviorInfo::IsBiquadFilterParameterForSplitterEnabled() const {
+    return CheckFeatureSupported(SupportTags::SplitterBiquadFilterParameter, user_revision);
 }
 
 } // namespace AudioCore::Renderer

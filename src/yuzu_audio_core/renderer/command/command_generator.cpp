@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -361,38 +364,50 @@ void CommandGenerator::GenerateAuxCommand(const s16 buffer_offset, EffectInfoBas
 void CommandGenerator::GenerateBiquadFilterEffectCommand(const s16 buffer_offset,
                                                          EffectInfoBase& effect_info,
                                                          const s32 node_id) {
-    const auto& parameter{
-        *reinterpret_cast<BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter())};
-    if (effect_info.IsEnabled()) {
-        bool needs_init{false};
+    EffectInfoBase::ParameterState param_state{};
+    s8 channel_count = 0;
 
-        switch (parameter.state) {
-        case EffectInfoBase::ParameterState::Initialized:
-            needs_init = true;
-            break;
-        case EffectInfoBase::ParameterState::Updating:
-        case EffectInfoBase::ParameterState::Updated:
-            if (render_context.behavior->IsBiquadFilterEffectStateClearBugFixed()) {
-                needs_init = false;
-            } else {
-                needs_init = parameter.state == EffectInfoBase::ParameterState::Updating;
-            }
-            break;
-        default:
-            LOG_ERROR(Service_Audio, "Invalid biquad parameter state {}",
-                      static_cast<u32>(parameter.state));
-            break;
-        }
-
-        for (s8 channel = 0; channel < parameter.channel_count; channel++) {
-            command_buffer.GenerateBiquadFilterCommand(
-                node_id, effect_info, buffer_offset, channel, needs_init,
-                render_context.behavior->UseBiquadFilterFloatProcessing());
-        }
+    const auto& biquad_info = static_cast<const BiquadFilterInfo&>(effect_info);
+    if (biquad_info.UsesFloatParameterFormat()) {
+        const auto* parameter =
+            reinterpret_cast<const BiquadFilterInfo::ParameterVersion2*>(effect_info.GetParameter());
+        param_state = parameter->state;
+        channel_count = parameter->channel_count;
     } else {
-        for (s8 channel = 0; channel < parameter.channel_count; channel++) {
-            command_buffer.GenerateCopyMixBufferCommand(node_id, effect_info, buffer_offset,
-                                                        channel);
+        const auto* parameter =
+            reinterpret_cast<const BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter());
+        param_state = parameter->state;
+        channel_count = parameter->channel_count;
+    }
+
+    if (channel_count > 0 && param_state <= EffectInfoBase::ParameterState::Updated) {
+        if (effect_info.IsEnabled()) {
+            bool needs_init{false};
+
+            switch (param_state) {
+            case EffectInfoBase::ParameterState::Initialized:
+                needs_init = true;
+                break;
+            case EffectInfoBase::ParameterState::Updating:
+                needs_init = !render_context.behavior->IsBiquadFilterEffectStateClearBugFixed();
+                break;
+            case EffectInfoBase::ParameterState::Updated:
+                needs_init = false;
+                break;
+            }
+
+            const bool use_float_processing =
+                render_context.behavior->UseBiquadFilterFloatProcessing();
+
+            for (s8 channel = 0; channel < channel_count; channel++) {
+                command_buffer.GenerateBiquadFilterCommand(node_id, effect_info, buffer_offset, channel,
+                                                           needs_init, use_float_processing);
+            }
+        } else {
+            for (s8 channel = 0; channel < channel_count; channel++) {
+                command_buffer.GenerateCopyMixBufferCommand(node_id, effect_info, buffer_offset,
+                                                            channel);
+            }
         }
     }
 }

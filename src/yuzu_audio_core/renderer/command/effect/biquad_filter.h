@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -50,12 +53,16 @@ struct BiquadFilterCommand : ICommand {
     s16 output;
     /// Input parameters for biquad
     VoiceInfo::BiquadFilterParameter biquad;
+    /// Input parameters for biquad (REV15+ native float)
+    VoiceInfo::BiquadFilterParameter2 biquad_float;
     /// Biquad state, updated each call
     CpuAddr state;
     /// If true, reset the state
     bool needs_init;
     /// If true, use float processing rather than int
     bool use_float_processing;
+    /// If true, use native float coefficients (REV15+)
+    bool use_float_coefficients;
 };
 
 /**
@@ -71,5 +78,19 @@ struct BiquadFilterCommand : ICommand {
 void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
                             std::array<s16, 3>& b, std::array<s16, 2>& a,
                             VoiceState::BiquadFilterState& state, const u32 sample_count);
+
+/**
+ * Biquad filter float implementation with native float coefficients (SDK REV15+).
+ *
+ * @param output       - Output container for filtered samples.
+ * @param input        - Input container for samples to be filtered.
+ * @param b            - Feedforward coefficients (float).
+ * @param a            - Feedback coefficients (float).
+ * @param state        - State to track previous samples.
+ * @param sample_count - Number of samples to process.
+ */
+void ApplyBiquadFilterFloat2(std::span<s32> output, std::span<const s32> input,
+                             std::array<f32, 3>& b, std::array<f32, 2>& a,
+                             VoiceState::BiquadFilterState& state, const u32 sample_count);
 
 } // namespace AudioCore::Renderer

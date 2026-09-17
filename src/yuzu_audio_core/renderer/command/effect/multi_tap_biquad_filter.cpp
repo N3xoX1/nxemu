@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -25,16 +28,21 @@ void MultiTapBiquadFilterCommand::Process(const AudioRenderer::CommandListProces
     auto output_buffer{
         processor.mix_buffers.subspan(output * processor.sample_count, processor.sample_count)};
 
-    // TODO: Fix this, currently just applies the filter to the input twice,
-    // and doesn't chain the biquads together at all.
     for (u32 i = 0; i < filter_tap_count; i++) {
+        const auto stage_input = i == 0 ? input_buffer : output_buffer;
         auto state{reinterpret_cast<VoiceState::BiquadFilterState*>(states[i])};
         if (needs_init[i]) {
             *state = {};
         }
 
-        ApplyBiquadFilterFloat(output_buffer, input_buffer, biquads[i].b, biquads[i].a, *state,
-                               processor.sample_count);
+        // REV15+: Use native float coefficients if available
+        if (use_float_coefficients) {
+            ApplyBiquadFilterFloat2(output_buffer, stage_input, biquads_float[i].numerator,
+                                    biquads_float[i].denominator, *state, processor.sample_count);
+        } else {
+            ApplyBiquadFilterFloat(output_buffer, stage_input, biquads[i].b, biquads[i].a, *state,
+                                   processor.sample_count);
+        }
     }
 }
 

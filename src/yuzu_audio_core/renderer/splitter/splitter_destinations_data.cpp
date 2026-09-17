@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -49,7 +52,8 @@ std::span<f32> SplitterDestinationData::GetMixVolumePrev() {
     return prev_mix_volumes;
 }
 
-void SplitterDestinationData::Update(const InParameter& params) {
+void SplitterDestinationData::Update(const InParameter& params,
+                                     const bool is_prev_volume_reset_supported) {
     if (params.id != id || params.magic != GetSplitterSendDataMagic()) {
         return;
     }
@@ -57,7 +61,9 @@ void SplitterDestinationData::Update(const InParameter& params) {
     destination_id = params.mix_id;
     mix_volumes = params.mix_volumes;
 
-    if (!in_use && params.in_use) {
+    const bool reset_prev_volume =
+        is_prev_volume_reset_supported ? params.reset_prev_volume : (!in_use && params.in_use);
+    if (reset_prev_volume) {
         prev_mix_volumes = mix_volumes;
         need_update = false;
     }
@@ -82,6 +88,16 @@ SplitterDestinationData* SplitterDestinationData::GetNext() const {
 
 void SplitterDestinationData::SetNext(SplitterDestinationData* next_) {
     next = next_;
+}
+
+std::span<SplitterDestinationData::BiquadFilterParameter2>
+SplitterDestinationData::GetBiquadFilters() {
+    return biquad_filters;
+}
+
+std::span<const SplitterDestinationData::BiquadFilterParameter2>
+SplitterDestinationData::GetBiquadFilters() const {
+    return biquad_filters;
 }
 
 } // namespace AudioCore::Renderer

@@ -1,10 +1,14 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_audio_core/adsp/apps/audio_renderer/command_list_processor.h"
 #include "yuzu_audio_core/renderer/command/effect/biquad_filter.h"
 #include "yuzu_audio_core/renderer/voice/voice_state.h"
-#include "yuzu_common/bit_cast.h"
+#include <numeric>
+#include <bit>
 
 namespace AudioCore::Renderer {
 /**
@@ -20,15 +24,15 @@ namespace AudioCore::Renderer {
 void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
                             std::array<s16, 3>& b_, std::array<s16, 2>& a_,
                             VoiceState::BiquadFilterState& state, const u32 sample_count) {
-    constexpr f64 min{std::numeric_limits<s32>::min()};
-    constexpr f64 max{std::numeric_limits<s32>::max()};
+    constexpr f64 min{(std::numeric_limits<s32>::min)()};
+    constexpr f64 max{(std::numeric_limits<s32>::max)()};
     std::array<f64, 3> b{Common::FixedPoint<50, 14>::from_base(b_[0]).to_double(),
                          Common::FixedPoint<50, 14>::from_base(b_[1]).to_double(),
                          Common::FixedPoint<50, 14>::from_base(b_[2]).to_double()};
     std::array<f64, 2> a{Common::FixedPoint<50, 14>::from_base(a_[0]).to_double(),
                          Common::FixedPoint<50, 14>::from_base(a_[1]).to_double()};
-    std::array<f64, 4> s{Common::BitCast<f64>(state.s0), Common::BitCast<f64>(state.s1),
-                         Common::BitCast<f64>(state.s2), Common::BitCast<f64>(state.s3)};
+    std::array<f64, 4> s{std::bit_cast<f64>(state.s0), std::bit_cast<f64>(state.s1),
+                         std::bit_cast<f64>(state.s2), std::bit_cast<f64>(state.s3)};
 
     for (u32 i = 0; i < sample_count; i++) {
         f64 in_sample{static_cast<f64>(input[i])};
@@ -42,10 +46,44 @@ void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
         s[2] = sample;
     }
 
-    state.s0 = Common::BitCast<s64>(s[0]);
-    state.s1 = Common::BitCast<s64>(s[1]);
-    state.s2 = Common::BitCast<s64>(s[2]);
-    state.s3 = Common::BitCast<s64>(s[3]);
+    state.s0 = std::bit_cast<s64>(s[0]);
+    state.s1 = std::bit_cast<s64>(s[1]);
+    state.s2 = std::bit_cast<s64>(s[2]);
+    state.s3 = std::bit_cast<s64>(s[3]);
+}
+
+/**
+ * Biquad filter float implementation with native float coefficients.
+ */
+void ApplyBiquadFilterFloat2(std::span<s32> output, std::span<const s32> input,
+                             std::array<f32, 3>& b, std::array<f32, 2>& a,
+                             VoiceState::BiquadFilterState& state, const u32 sample_count) {
+    constexpr f64 min{std::numeric_limits<s32>::min()};
+    constexpr f64 max{std::numeric_limits<s32>::max()};
+
+    std::array<f64, 3> b_double{static_cast<f64>(b[0]), static_cast<f64>(b[1]),
+                                static_cast<f64>(b[2])};
+    std::array<f64, 2> a_double{static_cast<f64>(a[0]), static_cast<f64>(a[1])};
+    std::array<f64, 4> s{std::bit_cast<f64>(state.s0), std::bit_cast<f64>(state.s1),
+                         std::bit_cast<f64>(state.s2), std::bit_cast<f64>(state.s3)};
+
+    for (u32 i = 0; i < sample_count; i++) {
+        f64 in_sample{static_cast<f64>(input[i])};
+        auto sample{in_sample * b_double[0] + s[0] * b_double[1] + s[1] * b_double[2] +
+                    s[2] * a_double[0] + s[3] * a_double[1]};
+
+        output[i] = static_cast<s32>(std::clamp(sample, min, max));
+
+        s[1] = s[0];
+        s[0] = in_sample;
+        s[3] = s[2];
+        s[2] = sample;
+    }
+
+    state.s0 = std::bit_cast<s64>(s[0]);
+    state.s1 = std::bit_cast<s64>(s[1]);
+    state.s2 = std::bit_cast<s64>(s[2]);
+    state.s3 = std::bit_cast<s64>(s[3]);
 }
 
 /**
@@ -61,8 +99,8 @@ void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
 static void ApplyBiquadFilterInt(std::span<s32> output, std::span<const s32> input,
                                  std::array<s16, 3>& b, std::array<s16, 2>& a,
                                  VoiceState::BiquadFilterState& state, const u32 sample_count) {
-    constexpr s64 min{std::numeric_limits<s32>::min()};
-    constexpr s64 max{std::numeric_limits<s32>::max()};
+    constexpr s64 min{(std::numeric_limits<s32>::min)()};
+    constexpr s64 max{(std::numeric_limits<s32>::max)()};
 
     for (u32 i = 0; i < sample_count; i++) {
         const s64 in_sample{input[i]};
@@ -95,8 +133,14 @@ void BiquadFilterCommand::Process(const AudioRenderer::CommandListProcessor& pro
         processor.mix_buffers.subspan(output * processor.sample_count, processor.sample_count)};
 
     if (use_float_processing) {
-        ApplyBiquadFilterFloat(output_buffer, input_buffer, biquad.b, biquad.a, *state_,
-                               processor.sample_count);
+        // REV15+: Use native float coefficients if available
+        if (use_float_coefficients) {
+            ApplyBiquadFilterFloat2(output_buffer, input_buffer, biquad_float.numerator,
+                                    biquad_float.denominator, *state_, processor.sample_count);
+        } else {
+            ApplyBiquadFilterFloat(output_buffer, input_buffer, biquad.b, biquad.a, *state_,
+                                   processor.sample_count);
+        }
     } else {
         ApplyBiquadFilterInt(output_buffer, input_buffer, biquad.b, biquad.a, *state_,
                              processor.sample_count);

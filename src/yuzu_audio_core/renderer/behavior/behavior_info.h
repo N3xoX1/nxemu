@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -360,6 +363,45 @@ public:
      * @return True if supported, otherwise false.
      */
     bool IsI3dl2ReverbChannelMappingChanged() const;
+
+    /**
+     * Check if explicit previous mix volume reset is supported for splitters.
+     * This allows splitters to explicitly reset their previous mix volumes instead of
+     * doing so implicitly on first use.
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsSplitterPrevVolumeResetSupported() const;
+
+    /**
+     * Check if splitter destination v2b parameter format is supported (revision 15+).
+     * This uses the extended parameter format with biquad filter fields.
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsSplitterDestinationV2bSupported() const;
+
+    /**
+     * Check if biquad filter parameters use float coefficients (revision 15+).
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsBiquadFilterParameterFloatSupported() const;
+
+    /**
+     * Check if voice input parameter v2 format is supported (revision 15+).
+     * This uses the extended parameter format with float biquad filters.
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsVoiceInParameterV2Supported() const;
+
+    /**
+     * Check if splitter destinations can carry biquad filter parameters (revision 12+).
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsBiquadFilterParameterForSplitterEnabled() const;
 
     /// Host version
     u32 process_revision;

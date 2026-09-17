@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -13,9 +16,10 @@
 #include "yuzu_common/polyfill_ranges.h"
 
 namespace AudioCore {
-constexpr u32 CurrentRevision = 11;
+constexpr u32 CurrentRevision = 15;
 
 enum class SupportTags {
+    CommandProcessingTimeEstimatorVersion5,
     CommandProcessingTimeEstimatorVersion4,
     CommandProcessingTimeEstimatorVersion3,
     CommandProcessingTimeEstimatorVersion2,
@@ -44,6 +48,11 @@ enum class SupportTags {
     DelayChannelMappingChange,
     ReverbChannelMappingChange,
     I3dl2ReverbChannelMappingChange,
+    SplitterPrevVolumeReset,
+    SplitterBiquadFilterParameter,
+    SplitterDestinationV2b,
+    BiquadFilterParameterFloat,
+    VoiceInParameterV2,
 
     // Not a real tag, just here to get the count.
     Size
@@ -84,9 +93,15 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
             {SupportTags::EffectInfoVer2, 9},
             {SupportTags::CommandProcessingTimeEstimatorVersion4, 10},
             {SupportTags::MultiTapBiquadFilterProcessing, 10},
+            {SupportTags::CommandProcessingTimeEstimatorVersion5, 11},
             {SupportTags::DelayChannelMappingChange, 11},
             {SupportTags::ReverbChannelMappingChange, 11},
             {SupportTags::I3dl2ReverbChannelMappingChange, 11},
+            {SupportTags::SplitterBiquadFilterParameter, 12},
+            {SupportTags::SplitterPrevVolumeReset, 13},
+            {SupportTags::SplitterDestinationV2b, 15},
+            {SupportTags::BiquadFilterParameterFloat, 15},
+            {SupportTags::VoiceInParameterV2, 15},
         }};
 
     const auto& feature =

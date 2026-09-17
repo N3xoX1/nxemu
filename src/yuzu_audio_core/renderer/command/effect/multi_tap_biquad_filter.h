@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -49,12 +52,16 @@ struct MultiTapBiquadFilterCommand : ICommand {
     s16 output;
     /// Biquad parameters
     std::array<VoiceInfo::BiquadFilterParameter, MaxBiquadFilters> biquads;
+    /// Biquad parameters (REV15+ native float)
+    std::array<VoiceInfo::BiquadFilterParameter2, MaxBiquadFilters> biquads_float;
     /// Biquad states, updated each call
     std::array<CpuAddr, MaxBiquadFilters> states;
     /// If each biquad needs initialisation
     std::array<bool, MaxBiquadFilters> needs_init;
     /// Number of active biquads
     u8 filter_tap_count;
+    /// If true, use native float coefficients (REV15+)
+    bool use_float_coefficients;
 };
 
 } // namespace AudioCore::Renderer
