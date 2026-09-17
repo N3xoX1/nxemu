@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <chrono>
+#include <optional>
+
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
 
@@ -130,5 +133,13 @@ struct Linger {
 };
 
 void LoopProcess(Core::System& system);
+
+// Wake deferred BSD requests without blocking a BSD host worker.
+bool IsBsdDeferralEnabled();
+void SignalBsdDeferral();
+void RegisterBsdDeferredPoll(
+    const void* request_key,
+    std::optional<std::chrono::steady_clock::time_point> deadline = std::nullopt);
+void UnregisterBsdDeferredPoll(const void* request_key);
 
 } // namespace Service::Sockets

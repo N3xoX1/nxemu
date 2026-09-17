@@ -363,6 +363,11 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
     Result res = ResultSuccess;
     Result service_res = ResultSuccess;
 
+    // Remember whether a deferral wake is consumed while the service decides to defer. A wake
+    // consumed before this session reaches m_deferred_sessions must be replayed afterwards.
+    const u64 deferral_generation =
+        m_deferral_event ? m_deferral_generation.load(std::memory_order_relaxed) : 0;
+
     // Mark the request as not deferred.
     session->GetContext()->SetIsDeferred(false);
 
@@ -373,9 +378,20 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
 
     // If we've been deferred, we're done.
     if (session->GetContext()->GetIsDeferred()) {
-        // Insert into deferred session list.
-        std::scoped_lock ll{m_deferred_list_mutex};
-        m_deferred_sessions.push_back(session);
+        bool replay_deferral = false;
+        {
+            // Insert into deferred session list. The same lock is taken by OnDeferralEvent while
+            // advancing the generation, so the final comparison cannot miss a consumed wake.
+            std::scoped_lock ll{m_deferred_list_mutex};
+            m_deferred_sessions.push_back(session);
+            replay_deferral =
+                m_deferral_event &&
+                deferral_generation != m_deferral_generation.load(std::memory_order_relaxed);
+        }
+
+        if (replay_deferral) {
+            m_deferral_event->Signal();
+        }
 
         // Finish.
         R_SUCCEED();
@@ -406,6 +422,7 @@ Result ServerManager::OnDeferralEvent() {
     // Get and clear list.
     const auto deferrals = [&] {
         std::scoped_lock lk{m_deferred_list_mutex};
+        m_deferral_generation.fetch_add(1, std::memory_order_relaxed);
         return std::move(m_deferred_sessions);
     }();
 

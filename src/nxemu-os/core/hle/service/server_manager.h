@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <list>
 #include <mutex>
 #include <optional>
@@ -85,6 +86,7 @@ private:
     Common::IntrusiveListBaseTraits<Port>::ListType m_servers{};
     Common::IntrusiveListBaseTraits<Session>::ListType m_sessions{};
     std::list<Session*> m_deferred_sessions{};
+    std::atomic<u64> m_deferral_generation{};
     std::optional<MultiWaitHolder> m_wakeup_holder{};
     std::optional<MultiWaitHolder> m_deferral_holder{};
 

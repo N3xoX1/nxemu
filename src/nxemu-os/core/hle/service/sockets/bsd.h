@@ -3,7 +3,11 @@
 
 #pragma once
 
+#include <chrono>
+#include <map>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -38,11 +42,14 @@ public:
     std::optional<std::shared_ptr<Network::SocketBase>> GetSocket(s32 fd);
 
 private:
+    class EventFdEntry;
+
     /// Maximum number of file descriptors
     static constexpr size_t MAX_FD = 128;
 
     struct FileDescriptor {
         std::shared_ptr<Network::SocketBase> socket;
+        std::shared_ptr<EventFdEntry> event_fd;
         s32 flags = 0;
         bool is_connection_based = false;
     };
@@ -155,6 +162,18 @@ private:
     std::pair<s32, Errno> SocketImpl(Domain domain, Type type, Protocol protocol);
     std::pair<s32, Errno> PollImpl(std::vector<u8>& write_buffer, std::span<const u8> read_buffer,
                                    s32 nfds, s32 timeout);
+    std::pair<s32, Errno> PollEventFdImpl(std::vector<u8>& write_buffer,
+                                          std::span<const u8> read_buffer, s32 nfds);
+    bool PollSetContainsEventFd(std::span<const u8> read_buffer, s32 nfds) const;
+    bool PollSetContainsHostSocket(std::span<const u8> read_buffer, s32 nfds) const;
+
+    struct DeferredPollState {
+        std::vector<u8> read_buffer;
+        std::optional<std::chrono::steady_clock::time_point> deadline;
+    };
+
+    std::mutex deferred_poll_mutex;
+    std::map<const HLERequestContext*, DeferredPollState> deferred_polls;
     std::pair<s32, Errno> AcceptImpl(s32 fd, std::vector<u8>& write_buffer);
     Errno BindImpl(s32 fd, std::span<const u8> addr);
     Errno ConnectImpl(s32 fd, std::span<const u8> addr);
@@ -174,6 +193,7 @@ private:
 
     s32 FindFreeFileDescriptorHandle() noexcept;
     bool IsFileDescriptorValid(s32 fd) const noexcept;
+    bool IsSocketDescriptorValid(s32 fd) const noexcept;
 
     void BuildErrnoResponse(HLERequestContext& ctx, Errno bsd_errno) const noexcept;
 
