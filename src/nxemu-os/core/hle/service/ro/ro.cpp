@@ -177,7 +177,11 @@ struct ProcessContext {
 
             std::vector<u8> nro_data(size);
             m_process->GetCoreMemory().ReadBlock(base_address, nro_data.data(), size);
-            UNIMPLEMENTED();
+
+            SHA256 sha256;
+            sha256.init();
+            sha256.update(nro_data.data(), static_cast<unsigned int>(nro_data.size()));
+            sha256.final(hash.data());
         }
 
         for (size_t i = 0; i < MaxNrrInfos; i++) {
