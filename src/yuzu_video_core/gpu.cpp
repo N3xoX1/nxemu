@@ -76,7 +76,7 @@ struct GPU::Impl :
         return CreateChannel(new_channel_id++);
     }
 
-    void InitChannel(Control::ChannelState & to_init, u64 program_id)
+    void InitChannel(Control::ChannelState & to_init, uint64_t program_id)
     {
         to_init.Init(gpu, program_id);
         to_init.BindRasterizer(rasterizer);
@@ -124,21 +124,21 @@ struct GPU::Impl :
 
     /// Request a host GPU memory flush from the CPU.
     template <typename Func>
-    [[nodiscard]] u64 RequestSyncOperation(Func && action)
+    [[nodiscard]] uint64_t RequestSyncOperation(Func && action)
     {
         std::unique_lock lck{sync_request_mutex};
-        const u64 fence = ++last_sync_fence;
+        const uint64_t fence = last_sync_fence.fetch_add(1, std::memory_order_relaxed) + 1;
         sync_requests.emplace_back(action);
         return fence;
     }
 
     /// Obtains current flush request fence id.
-    [[nodiscard]] u64 CurrentSyncRequestFence() const
+    [[nodiscard]] uint64_t CurrentSyncRequestFence() const
     {
         return current_sync_fence.load(std::memory_order_relaxed);
     }
 
-    void WaitForSyncOperation(const u64 fence)
+    void WaitForSyncOperation(const uint64_t fence)
     {
         std::unique_lock lck{sync_request_mutex};
         sync_request_cv.wait(lck, [this, fence] { return CurrentSyncRequestFence() >= fence; });
@@ -147,6 +147,12 @@ struct GPU::Impl :
     /// Tick pending requests within the GPU.
     void TickWork()
     {
+        if (last_sync_fence.load(std::memory_order_acquire) ==
+            current_sync_fence.load(std::memory_order_relaxed))
+        {
+            return;
+        }
+
         std::unique_lock lck{sync_request_mutex};
         while (!sync_requests.empty())
         {
@@ -226,9 +232,9 @@ struct GPU::Impl :
         return *shader_notify;
     }
 
-    [[nodiscard]] u64 GetTicks() const
+    [[nodiscard]] uint64_t GetTicks() const
     {
-        u64 gpu_tick = m_modules.OperatingSystem().GetGPUTicks();
+        uint64_t gpu_tick = m_modules.OperatingSystem().GetGPUTicks();
 
         if (videoSettings.use_fast_gpu_time)
         {
@@ -326,12 +332,12 @@ struct GPU::Impl :
     }
 
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
-    void FlushRegion(DAddr addr, u64 size)
+    void FlushRegion(DAddr addr, uint64_t size)
     {
         gpu_thread.FlushRegion(addr, size);
     }
 
-    RasterizerDownloadArea OnCPURead(DAddr addr, u64 size)
+    RasterizerDownloadArea OnCPURead(DAddr addr, uint64_t size)
     {
         auto raster_area = rasterizer->GetFlushArea(addr, size);
         if (raster_area.preemtive)
@@ -339,7 +345,7 @@ struct GPU::Impl :
             return raster_area;
         }
         raster_area.preemtive = true;
-        const u64 fence = RequestSyncOperation([this, &raster_area]() {
+        const uint64_t fence = RequestSyncOperation([this, &raster_area]() {
             rasterizer->FlushRegion(raster_area.startAddress, raster_area.endAddress - raster_area.startAddress);
         });
         gpu_thread.TickGPU();
@@ -348,18 +354,18 @@ struct GPU::Impl :
     }
 
     /// Notify rasterizer that any caches of the specified region should be invalidated
-    void InvalidateRegion(DAddr addr, u64 size)
+    void InvalidateRegion(DAddr addr, uint64_t size)
     {
         gpu_thread.InvalidateRegion(addr, size);
     }
 
-    bool OnCPUWrite(DAddr addr, u64 size)
+    bool OnCPUWrite(DAddr addr, uint64_t size)
     {
         return rasterizer->OnCPUWrite(addr, size);
     }
 
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
-    void FlushAndInvalidateRegion(DAddr addr, u64 size)
+    void FlushAndInvalidateRegion(DAddr addr, uint64_t size)
     {
         gpu_thread.FlushAndInvalidateRegion(addr, size);
     }
@@ -455,8 +461,8 @@ struct GPU::Impl :
     std::condition_variable sync_cv;
 
     std::list<std::function<void()>> sync_requests;
-    std::atomic<u64> current_sync_fence{};
-    u64 last_sync_fence{};
+    std::atomic<uint64_t> current_sync_fence{};
+    std::atomic<uint64_t> last_sync_fence{};
     std::mutex sync_request_mutex;
     std::condition_variable sync_request_cv;
 
@@ -487,7 +493,7 @@ std::shared_ptr<Control::ChannelState> GPU::AllocateChannel()
     return impl->AllocateChannel();
 }
 
-void GPU::InitChannel(Control::ChannelState & to_init, u64 program_id)
+void GPU::InitChannel(Control::ChannelState & to_init, uint64_t program_id)
 {
     impl->InitChannel(to_init, program_id);
 }
@@ -527,17 +533,17 @@ void GPU::OnCommandListEnd()
     impl->OnCommandListEnd();
 }
 
-u64 GPU::RequestFlush(DAddr addr, std::size_t size)
+uint64_t GPU::RequestFlush(DAddr addr, std::size_t size)
 {
     return impl->RequestSyncOperation([this, addr, size]() { impl->rasterizer->FlushRegion(addr, size); });
 }
 
-u64 GPU::CurrentSyncRequestFence() const
+uint64_t GPU::CurrentSyncRequestFence() const
 {
     return impl->CurrentSyncRequestFence();
 }
 
-void GPU::WaitForSyncOperation(u64 fence)
+void GPU::WaitForSyncOperation(uint64_t fence)
 {
     return impl->WaitForSyncOperation(fence);
 }
@@ -619,7 +625,7 @@ std::vector<u8> GPU::GetAppletCaptureBuffer()
     return impl->GetAppletCaptureBuffer();
 }
 
-u64 GPU::GetTicks() const
+uint64_t GPU::GetTicks() const
 {
     return impl->GetTicks();
 }
@@ -679,27 +685,27 @@ void GPU::ClearCdmaInstance(u32 id)
     impl->ClearCdmaInstance(id);
 }
 
-RasterizerDownloadArea GPU::OnCPURead(PAddr addr, u64 size)
+RasterizerDownloadArea GPU::OnCPURead(PAddr addr, uint64_t size)
 {
     return impl->OnCPURead(addr, size);
 }
 
-void GPU::FlushRegion(DAddr addr, u64 size)
+void GPU::FlushRegion(DAddr addr, uint64_t size)
 {
     impl->FlushRegion(addr, size);
 }
 
-void GPU::InvalidateRegion(DAddr addr, u64 size)
+void GPU::InvalidateRegion(DAddr addr, uint64_t size)
 {
     impl->InvalidateRegion(addr, size);
 }
 
-bool GPU::OnCPUWrite(DAddr addr, u64 size)
+bool GPU::OnCPUWrite(DAddr addr, uint64_t size)
 {
     return impl->OnCPUWrite(addr, size);
 }
 
-void GPU::FlushAndInvalidateRegion(DAddr addr, u64 size)
+void GPU::FlushAndInvalidateRegion(DAddr addr, uint64_t size)
 {
     impl->FlushAndInvalidateRegion(addr, size);
 }
