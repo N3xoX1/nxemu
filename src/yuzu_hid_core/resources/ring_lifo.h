@@ -44,8 +44,7 @@ struct Lifo {
             buffer_count++;
         }
         buffer_tail = GetNextEntryIndex();
-        const auto& previous_entry = ReadPreviousEntry();
-        entries[buffer_tail].sampling_number = previous_entry.sampling_number + 1;
+        entries[buffer_tail].sampling_number = new_state.sampling_number << 1;
         entries[buffer_tail].state = new_state;
     }
 };
