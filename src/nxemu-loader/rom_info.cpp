@@ -117,8 +117,89 @@ void RegisterMatchingAddOnEntriesFromNsp(const FileSys::NSP & nsp, uint64_t base
                     version = it->second;
                 }
             }
-            provider.AddEntry(entry.first.first, entry.first.second, title.first, version, std::make_unique<VirtualFileImpl>(file).release());
+            provider.AddEntry(entry.first.first, entry.first.second, title.first, version,
+                              std::make_unique<VirtualFileImpl>(file).release());
         }
+    }
+}
+
+void RegisterMatchingAddOnEntriesFromFile(FileSys::VirtualFile file,
+    uint64_t base_program_id, IManualContentProvider & provider)
+{
+    if (!file)
+    {
+        return;
+    }
+
+    const std::string ext = ToLowerAscii(file->GetExtension());
+    if (ext == "dnsp")
+    {
+        RegisterMatchingAddOnEntriesFromNsp(FileSys::NSP(file), base_program_id, provider);
+    }
+    else if (ext == "dxci")
+    {
+        const FileSys::XCI xci(file);
+        if (xci.GetStatus() == LoaderResultStatus::Success)
+        {
+            const std::shared_ptr<FileSys::NSP> nsp = xci.GetSecurePartitionNSP();
+            if (nsp)
+            {
+                RegisterMatchingAddOnEntriesFromNsp(*nsp, base_program_id, provider);
+            }
+        }
+    }
+    else if (ext == "nca")
+    {
+        const FileSys::NCA nca(file);
+        if (nca.GetStatus() != LoaderResultStatus::Success &&
+            nca.GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS)
+        {
+            return;
+        }
+
+        const uint64_t title_id = nca.GetTitleId();
+        if (FileSys::GetBaseTitleID(title_id) != base_program_id ||
+            title_id == base_program_id)
+        {
+            return;
+        }
+
+        const LoaderTitleType title_type =
+            (title_id & 0x800) != 0 ? LoaderTitleType::Update : LoaderTitleType::AOC;
+        provider.AddEntry(title_type, FileSys::GetCRTypeFromNCAType(nca.GetType()), title_id, 0,
+                          std::make_unique<VirtualFileImpl>(file).release());
+    }
+}
+
+void RegisterSiblingAddOnEntries(uint64_t program_id, const FileSys::VirtualFile & game_file,
+                                 IManualContentProvider & provider)
+{
+    if (program_id == 0 || !game_file)
+    {
+        return;
+    }
+
+    const FileSys::VirtualDir parent = game_file->GetContainingDirectory();
+    if (!parent)
+    {
+        return;
+    }
+
+    const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
+    for (const FileSys::VirtualFile & sibling : parent->GetFiles())
+    {
+        if (!sibling || sibling->GetName() == game_file->GetName())
+        {
+            continue;
+        }
+
+        const std::string ext = ToLowerAscii(sibling->GetExtension());
+        if (ext != "dnsp" && ext != "dxci" && ext != "nca")
+        {
+            continue;
+        }
+
+        RegisterMatchingAddOnEntriesFromFile(sibling, base_program_id, provider);
     }
 }
 
@@ -156,40 +237,7 @@ void RegisterConfiguredAddOnDirectoryEntries(uint64_t program_id, FileSys::Virtu
                 return true;
             }
 
-            const std::string ext = ToLowerAscii(std::string(Path(physical_name).GetExtension()));
-            if (ext == "dnsp")
-            {
-                RegisterMatchingAddOnEntriesFromNsp(FileSys::NSP(file), base_program_id, provider);
-            }
-            else if (ext == "dxci")
-            {
-                const FileSys::XCI xci(file);
-                if (xci.GetStatus() == LoaderResultStatus::Success)
-                {
-                    const std::shared_ptr<FileSys::NSP> nsp = xci.GetSecurePartitionNSP();
-                    if (nsp)
-                    {
-                        RegisterMatchingAddOnEntriesFromNsp(*nsp, base_program_id, provider);
-                    }
-                }
-            }
-            else if (ext == "nca")
-            {
-                const FileSys::NCA nca(file);
-                if (nca.GetStatus() != LoaderResultStatus::Success)
-                {
-                    return true;
-                }
-
-                const uint64_t title_id = nca.GetTitleId();
-                if (FileSys::GetBaseTitleID(title_id) != base_program_id || title_id == base_program_id)
-                {
-                    return true;
-                }
-
-                const LoaderTitleType title_type = (title_id & 0x800) != 0 ? LoaderTitleType::Update : LoaderTitleType::AOC;
-                provider.AddEntry(title_type, FileSys::GetCRTypeFromNCAType(nca.GetType()), title_id, 0, std::make_unique<VirtualFileImpl>(file).release());
-            }
+            RegisterMatchingAddOnEntriesFromFile(file, base_program_id, provider);
             return true;
         };
 
@@ -380,6 +428,13 @@ void RomInfo::PrepareManualContent()
 
     uint64_t program_id = 0;
     ReadProgramId(program_id);
+
+    // Automatically discover matching update/DLC containers stored next to the game.
+    // This makes a base DNSP/DXCI and a separate sibling update DNSP work without
+    // requiring the user to configure the same directory again as an add-on directory.
+    RegisterSiblingAddOnEntries(program_id, m_file, provider);
+
+    // Keep the explicit add-on-directory mechanism for content stored elsewhere.
     FileSys::VirtualFilesystem vfs = m_systemloader.GetFilesystem();
     RegisterConfiguredAddOnDirectoryEntries(program_id, vfs, provider);
 }
