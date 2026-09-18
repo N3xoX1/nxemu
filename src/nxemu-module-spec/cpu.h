@@ -82,6 +82,7 @@ nxinterface IMemory
     virtual uint32_t Read32(uint64_t addr) = 0;
     virtual uint64_t Read64(uint64_t addr) = 0;
     virtual bool ReadBlock(uint64_t src_addr, void * dest_buffer, uint64_t size) = 0;
+    virtual bool WriteBlock(uint64_t dest_addr, const void * src_buffer, uint64_t size) = 0;
 
     virtual void Write8(uint64_t addr, uint8_t value) = 0;
     virtual void Write16(uint64_t addr, uint16_t value) = 0;
@@ -131,9 +132,20 @@ nxinterface IKernelProcess
     virtual void LogBacktrace(ICpuCore & cpuCore) = 0;
 };
 
+struct NativeExecutionParameters
+{
+    uint64_t tpidr_el0{};
+    uint64_t tpidrro_el0{};
+    void * native_context{};
+    uint32_t lock{1};
+    uint32_t is_running{};
+    uint32_t magic{0x4D45584E}; // 'NXEM'
+};
+
 nxinterface IKernelThread
 {
     virtual IKernelProcess * GetOwnerProcess() const = 0;
+    virtual NativeExecutionParameters & GetNativeExecutionParameters() = 0;
 };
 
 struct CpuThreadContext

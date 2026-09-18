@@ -64,7 +64,7 @@ struct SystemModules::Impl :
         }
     }
 
-    bool IsValid() const
+    bool IsValid() const override
     {
         return valid;
     }

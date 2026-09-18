@@ -365,10 +365,7 @@ public:
         return m_parent;
     }
 
-    IKernelProcess * GetOwnerProcess() const override
-    {
-        return (IKernelProcess *)m_parent;
-    }
+    IKernelProcess * GetOwnerProcess() const override;
 
     bool IsUserThread() const
     {
@@ -758,18 +755,7 @@ public:
     }
 
 public:
-    // TODO: This shouldn't be defined in kernel namespace
-    struct NativeExecutionParameters
-    {
-        u64 tpidr_el0{};
-        u64 tpidrro_el0{};
-        void * native_context{};
-        std::atomic<u32> lock{1};
-        bool is_running{};
-        u32 magic{Common::MakeMagic('Y', 'U', 'Z', 'U')};
-    };
-
-    NativeExecutionParameters & GetNativeExecutionParameters()
+    NativeExecutionParameters & GetNativeExecutionParameters() override
     {
         return m_native_execution_parameters;
     }

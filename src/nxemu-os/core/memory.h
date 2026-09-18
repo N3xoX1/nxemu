@@ -349,6 +349,7 @@ public:
      *       current process' address space.
      */
     bool ReadBlock(uint64_t src_addr, void * dest_buffer, uint64_t size) override;
+    bool WriteBlock(uint64_t dest_addr, const void * src_buffer, uint64_t size) override;
 
     /**
      * Reads a contiguous block of bytes from the current process' address space.

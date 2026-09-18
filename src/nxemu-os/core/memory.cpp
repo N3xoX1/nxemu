@@ -1112,6 +1112,11 @@ bool Memory::WriteBlock(const Common::ProcessAddress dest_addr, const void* src_
     return impl->WriteBlock(dest_addr, src_buffer, size);
 }
 
+bool Memory::WriteBlock(uint64_t dest_addr, const void * src_buffer, uint64_t size)
+{
+    return WriteBlock(Common::ProcessAddress{dest_addr}, src_buffer, (std::size_t)size);
+}
+
 bool Memory::WriteBlockUnsafe(const Common::ProcessAddress dest_addr, const void* src_buffer, const std::size_t size) 
 {
     return impl->WriteBlockUnsafe(dest_addr, src_buffer, size);

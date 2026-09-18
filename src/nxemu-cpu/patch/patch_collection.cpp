@@ -66,9 +66,9 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
 
     if (IKernelProcess * process = m_modules.OperatingSystem().CurrentProcess())
     {
-        for (const auto & [module_text, patch_text] : trampolines)
+        for (Core::NCE::EntryTrampolines::const_iterator it = trampolines.begin(); it != trampolines.end(); ++it)
         {
-            process->RegisterPostHandler(module_text, patch_text);
+            process->RegisterPostHandler(it->first, it->second);
         }
     }
 

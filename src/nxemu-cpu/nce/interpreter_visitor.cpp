@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: Copyright 2023 merryhime <https://mary.rs>
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "yuzu_common/bit_cast.h"
 #include "interpreter_visitor.h"
+#include "yuzu_common/bit_cast.h"
+#include "yuzu_common/logging/log.h"
 
 namespace Core {
 
@@ -793,7 +794,7 @@ bool InterpreterVisitor::LDR_reg_fpsimd(Imm<2> size, Imm<1> opc_1, Reg Rm, Imm<3
     return this->SIMDOffset(scale, shift, opc_0, Rm, option, Rn, Vt);
 }
 
-std::optional<u64> MatchAndExecuteOneInstruction(Core::Memory::Memory& memory, mcontext_t* context,
+std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, mcontext_t* context,
                                                  fpsimd_context* fpsimd_context) {
     // Construct the interpreter.
     std::span<u64, 31> regs(reinterpret_cast<u64*>(context->regs), 31);

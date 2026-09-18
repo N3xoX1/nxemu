@@ -1,23 +1,20 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "core/arm/nce/arm_nce.h"
-#include "core/arm/nce/guest_context.h"
-#include "core/arm/nce/instructions.h"
-#include "core/arm/nce/patcher.h"
-#include "core/core.h"
-#include "core/core_timing.h"
-#include "core/hle/kernel/svc.h"
+#include "arm_dynarmic.h"
+#include "nce/guest_context.h"
+#include "nce/instructions.h"
+#include "nce/patcher.h"
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/arm64/native_clock.h"
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/literals.h"
+#include "yuzu_common/yuzu_assert.h"
 
 namespace Core::NCE {
 
 using namespace Common::Literals;
 using namespace oaknut::util;
-
-using NativeExecutionParameters = Kernel::KThread::NativeExecutionParameters;
 
 constexpr size_t MaxRelativeBranch = 128_MiB;
 constexpr u32 ModuleCodeIndex = 0x24 / sizeof(u32);
@@ -38,10 +35,9 @@ Patcher::Patcher() : c(m_patch_instructions) {
 
 Patcher::~Patcher() = default;
 
-bool Patcher::PatchText(const Kernel::PhysicalMemory& program_image,
-                        const Kernel::CodeSet::Segment& code) {
+bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint64_t code_offset,
+                        uint64_t code_size) {
     // If we have patched modules but cannot reach the new module, then it needs its own patcher.
-    const size_t image_size = program_image.size();
     if (total_program_size + image_size > MaxRelativeBranch && total_program_size > 0) {
         return false;
     }
@@ -55,7 +51,7 @@ bool Patcher::PatchText(const Kernel::PhysicalMemory& program_image,
     curr_patch->m_branch_to_module_relocations.push_back({0, 0});
 
     // Retrieve text segment data.
-    const auto text = std::span{program_image}.subspan(code.offset, code.size);
+    const auto text = std::span{program_image + code_offset, code_size};
     const auto text_words =
         std::span<const u32>{reinterpret_cast<const u32*>(text.data()), text.size() / sizeof(u32)};
 
@@ -119,15 +115,14 @@ bool Patcher::PatchText(const Kernel::PhysicalMemory& program_image,
     return true;
 }
 
-bool Patcher::RelocateAndCopy(Common::ProcessAddress load_base,
-                              const Kernel::CodeSet::Segment& code,
-                              Kernel::PhysicalMemory& program_image,
-                              EntryTrampolines* out_trampolines) {
+bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t code_size,
+                              uint8_t * program_image, uint64_t * image_size,
+                              EntryTrampolines * out_trampolines) {
     const size_t patch_size = GetSectionSize();
-    const size_t image_size = program_image.size();
+    const size_t current_image_size = *image_size;
 
     // Retrieve text segment data.
-    const auto text = std::span{program_image}.subspan(code.offset, code.size);
+    const auto text = std::span{program_image + code_offset, code_size};
     const auto text_words =
         std::span<u32>{reinterpret_cast<u32*>(text.data()), text.size() / sizeof(u32)};
 
@@ -151,17 +146,17 @@ bool Patcher::RelocateAndCopy(Common::ProcessAddress load_base,
 
     const auto RebasePatch = [&](ptrdiff_t patch_offset) {
         if (mode == PatchMode::PreText) {
-            return GetInteger(load_base) + patch_offset;
+            return load_base + patch_offset;
         } else {
-            return GetInteger(load_base) + total_program_size + patch_offset;
+            return load_base + total_program_size + patch_offset;
         }
     };
 
     const auto RebasePc = [&](uintptr_t module_offset) {
         if (mode == PatchMode::PreText) {
-            return GetInteger(load_base) + patch_size + module_offset;
+            return load_base + patch_size + module_offset;
         } else {
-            return GetInteger(load_base) + module_offset;
+            return load_base + module_offset;
         }
     };
 
@@ -193,18 +188,18 @@ bool Patcher::RelocateAndCopy(Common::ProcessAddress load_base,
 
     // Remove the patched module size from the total. This is done so total_program_size
     // always represents the distance from the currently patched module to the patch section.
-    total_program_size -= image_size;
+    total_program_size -= current_image_size;
 
     // Only copy to the program image of the last module
     if (m_relocate_module_index == modules.size()) {
         if (this->mode == PatchMode::PreText) {
-            ASSERT(image_size == total_program_size);
-            std::memcpy(program_image.data(), m_patch_instructions.data(),
+            ASSERT(current_image_size == total_program_size);
+            std::memcpy(program_image, m_patch_instructions.data(),
                         m_patch_instructions.size() * sizeof(u32));
         } else {
-            program_image.resize(image_size + patch_size);
-            std::memcpy(program_image.data() + image_size, m_patch_instructions.data(),
+            std::memcpy(program_image + current_image_size, m_patch_instructions.data(),
                         m_patch_instructions.size() * sizeof(u32));
+            *image_size = current_image_size + patch_size;
         }
         return true;
     }
@@ -213,7 +208,8 @@ bool Patcher::RelocateAndCopy(Common::ProcessAddress load_base,
 }
 
 size_t Patcher::GetSectionSize() const noexcept {
-    return Common::AlignUp(m_patch_instructions.size() * sizeof(u32), Core::Memory::YUZU_PAGESIZE);
+    constexpr u64 NcePageSize = 0x1000;
+    return Common::AlignUp(m_patch_instructions.size() * sizeof(u32), NcePageSize);
 }
 
 void Patcher::WriteLoadContext() {
@@ -310,7 +306,7 @@ void Patcher::WriteSvcTrampoline(ModuleDestLabel module_dest, u32 svc_id) {
     c.STR(W2, X1, offsetof(GuestContext, svc));
 
     // We are calling a SVC. Clear esr_el1 and return it.
-    static_assert(std::is_same_v<std::underlying_type_t<HaltReason>, u64>);
+    static_assert(sizeof(std::underlying_type_t<Dynarmic::HaltReason>) <= sizeof(u64));
     oaknut::Label retry;
     c.ADD(X2, X1, offsetof(GuestContext, esr_el1));
     c.l(retry);
@@ -319,7 +315,7 @@ void Patcher::WriteSvcTrampoline(ModuleDestLabel module_dest, u32 svc_id) {
     c.CBNZ(W3, retry);
 
     // Add "calling SVC" flag. Since this is X0, this is now our return value.
-    c.ORR(X0, X0, static_cast<u64>(HaltReason::SupervisorCall));
+    c.ORR(X0, X0, static_cast<u64>(TranslateDynarmicHaltReason(CpuHaltReason::SupervisorCall)));
 
     // Offset the GuestContext pointer to the HostContext member.
     // STP has limited range of [-512, 504] which we can't reach otherwise

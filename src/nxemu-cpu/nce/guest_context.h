@@ -3,17 +3,17 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
+#include <cstddef>
 
-#include "common/common_funcs.h"
-#include "common/common_types.h"
-#include "core/arm/arm_interface.h"
-#include "core/arm/nce/arm_nce_asm_definitions.h"
+#include "nce/arm_nce_asm_definitions.h"
+#include "yuzu_common/common_types.h"
+#include <nxemu-module-spec/cpu.h>
 
 namespace Core {
 
 class ArmNce;
-class System;
 
 struct HostContext {
     alignas(16) std::array<u64, 12> host_saved_regs{};
@@ -36,8 +36,8 @@ struct GuestContext {
     std::atomic<u64> esr_el1{};
     u32 nzcv{};
     u32 svc{};
-    System* system{};
-    ArmNce* parent{};
+    IMemory * memory{};
+    ArmNce * parent{};
 };
 
 // Verify assembly offsets.

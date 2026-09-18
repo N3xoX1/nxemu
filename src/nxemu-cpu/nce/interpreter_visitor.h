@@ -4,20 +4,20 @@
 
 #pragma once
 
+#include <optional>
 #include <signal.h>
+#include <span>
 #include <unistd.h>
 
-#include "core/arm/nce/visitor_base.h"
+#include "nce/visitor_base.h"
+#include "yuzu_common/common_types.h"
+#include <nxemu-module-spec/cpu.h>
 
 namespace Core {
 
-namespace Memory {
-class Memory;
-}
-
 class InterpreterVisitor final : public VisitorBase {
 public:
-    explicit InterpreterVisitor(Core::Memory::Memory& memory, std::span<u64, 31> regs,
+    explicit InterpreterVisitor(IMemory& memory, std::span<u64, 31> regs,
                                 std::span<u128, 32> fpsimd_regs, u64& sp, const u64& pc)
         : m_memory(memory), m_regs(regs), m_fpsimd_regs(fpsimd_regs), m_sp(sp), m_pc(pc) {}
     ~InterpreterVisitor() override = default;
@@ -90,14 +90,14 @@ public:
                         Vec Vt) override;
 
 private:
-    Core::Memory::Memory& m_memory;
+    IMemory& m_memory;
     std::span<u64, 31> m_regs;
     std::span<u128, 32> m_fpsimd_regs;
     u64& m_sp;
     const u64& m_pc;
 };
 
-std::optional<u64> MatchAndExecuteOneInstruction(Core::Memory::Memory& memory, mcontext_t* context,
+std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, mcontext_t* context,
                                                  fpsimd_context* fpsimd_context);
 
 } // namespace Core

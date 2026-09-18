@@ -103,6 +103,11 @@ KThread::KThread(KernelCore& kernel)
     : KAutoObjectWithSlabHeapAndContainer{kernel}, m_activity_pause_lock{kernel} {}
 KThread::~KThread() = default;
 
+IKernelProcess * KThread::GetOwnerProcess() const
+{
+    return (IKernelProcess *)m_parent;
+}
+
 Result KThread::Initialize(KThreadFunction func, uintptr_t arg, KProcessAddress user_stack_top,
                            s32 prio, s32 virt_core, KProcess* owner, ThreadType type) {
     // Assert parameters are valid.
