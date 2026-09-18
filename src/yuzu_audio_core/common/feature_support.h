@@ -93,6 +93,7 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
             {SupportTags::EffectInfoVer2, 9},
             {SupportTags::CommandProcessingTimeEstimatorVersion4, 10},
             {SupportTags::MultiTapBiquadFilterProcessing, 10},
+            {SupportTags::DeviceApiVersion2, 10},
             {SupportTags::CommandProcessingTimeEstimatorVersion5, 11},
             {SupportTags::DelayChannelMappingChange, 11},
             {SupportTags::ReverbChannelMappingChange, 11},
