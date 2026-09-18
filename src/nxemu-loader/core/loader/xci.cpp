@@ -9,6 +9,7 @@
 #include "core/file_sys/card_image.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/control_metadata.h"
+#include "core/file_sys/filesystem.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/submission_package.h"
@@ -79,7 +80,7 @@ AppLoader_XCI::LoadResult AppLoader_XCI::Load(Systemloader & loader, ISystemModu
     FileSys::VirtualFile update_raw;
     if (ReadUpdateRaw(update_raw) == LoaderResultStatus::Success && update_raw != nullptr)
     {
-        UNIMPLEMENTED();
+        loader.GetFileSystemController().SetPackedUpdate(result.second->process_id, std::move(update_raw));
     }
     is_loaded = true;
     return result;

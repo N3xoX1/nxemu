@@ -65,7 +65,7 @@ AppLoader_NCA::LoadResult AppLoader_NCA::Load(Systemloader & loader, ISystemModu
 
         if (update_nca)
         {
-            UNIMPLEMENTED();
+            exefs = update_nca->GetExeFS();
         }
 
         if (exefs == nullptr)

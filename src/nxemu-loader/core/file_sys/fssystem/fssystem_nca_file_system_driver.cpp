@@ -749,7 +749,73 @@ Result NcaFileSystemDriver::CreatePatchMetaStorage(
     const NcaAesCtrUpperIv & upper_iv, const NcaPatchInfo & patch_info,
     const NcaMetaDataHashDataInfo & meta_data_hash_data_info)
 {
-    UNIMPLEMENTED();
+    // Validate preconditions.
+    ASSERT(out_aes_ctr_ex_meta != nullptr);
+    ASSERT(out_indirect_meta != nullptr);
+    ASSERT(base_storage != nullptr);
+    ASSERT(Common::IsAligned<s64>(patch_info.aes_ctr_ex_size, NcaHeader::XtsBlockSize));
+
+    // Validate patch info extents.
+    R_UNLESS(patch_info.aes_ctr_ex_size >= 0 && patch_info.HasAesCtrExTable(),
+             ResultInvalidNcaPatchInfoAesCtrExSize);
+    R_UNLESS(patch_info.indirect_size > 0 && patch_info.HasIndirectTable(),
+             ResultInvalidNcaPatchInfoIndirectSize);
+    R_UNLESS(patch_info.indirect_size + patch_info.indirect_offset <= patch_info.aes_ctr_ex_offset,
+             ResultInvalidNcaPatchInfoAesCtrExOffset);
+    R_UNLESS(patch_info.aes_ctr_ex_offset + patch_info.aes_ctr_ex_size <=
+                 meta_data_hash_data_info.offset,
+             ResultRomNcaInvalidPatchMetaDataHashDataOffset);
+
+    // Get the base storage size.
+    const s64 base_size = base_storage->GetSize();
+
+    // Check that extents remain within range.
+    R_UNLESS(patch_info.indirect_offset + patch_info.indirect_size <= base_size,
+             ResultNcaBaseStorageOutOfRangeE);
+    R_UNLESS(patch_info.aes_ctr_ex_offset + patch_info.aes_ctr_ex_size <= base_size,
+             ResultNcaBaseStorageOutOfRangeB);
+
+    // Check that metadata hash data extents remain within range.
+    const s64 meta_data_hash_data_offset = meta_data_hash_data_info.offset;
+    const s64 meta_data_hash_data_size =
+        Common::AlignUp<s64>(meta_data_hash_data_info.size, NcaHeader::CtrBlockSize);
+    R_UNLESS(meta_data_hash_data_offset + meta_data_hash_data_size <= base_size,
+             ResultNcaBaseStorageOutOfRangeB);
+
+    // The loader accepts decrypted NCAs, so this region is already decrypted.
+    auto decrypted_storage = std::make_shared<OffsetVfsFile>(
+        std::move(base_storage),
+        meta_data_hash_data_offset + meta_data_hash_data_size - patch_info.indirect_offset,
+        patch_info.indirect_offset);
+    R_UNLESS(decrypted_storage != nullptr, ResultAllocationMemoryFailedAllocateShared);
+
+    // Verify the patch metadata hash layer before exposing the bucket-tree tables.
+    VirtualFile integrity_storage;
+    Result rc = this->CreateIntegrityVerificationStorageForMeta(
+        std::addressof(integrity_storage), out_layer_info_storage, std::move(decrypted_storage),
+        patch_info.indirect_offset, meta_data_hash_data_info);
+    if (rc == ResultInvalidNcaMetaDataHashDataSize)
+    {
+        R_THROW(ResultRomNcaInvalidPatchMetaDataHashDataSize);
+    }
+    if (rc == ResultInvalidNcaMetaDataHashDataHash)
+    {
+        R_THROW(ResultRomNcaInvalidPatchMetaDataHashDataHash);
+    }
+    R_TRY(rc);
+
+    // Expose the indirect and AES-CTR-EX bucket-tree metadata independently.
+    auto indirect_meta_storage =
+        std::make_shared<OffsetVfsFile>(integrity_storage, patch_info.indirect_size, 0);
+    R_UNLESS(indirect_meta_storage != nullptr, ResultAllocationMemoryFailedAllocateShared);
+
+    auto aes_ctr_ex_meta_storage = std::make_shared<OffsetVfsFile>(
+        integrity_storage, patch_info.aes_ctr_ex_size,
+        patch_info.aes_ctr_ex_offset - patch_info.indirect_offset);
+    R_UNLESS(aes_ctr_ex_meta_storage != nullptr, ResultAllocationMemoryFailedAllocateShared);
+
+    *out_aes_ctr_ex_meta = std::move(aes_ctr_ex_meta_storage);
+    *out_indirect_meta = std::move(indirect_meta_storage);
     R_SUCCEED();
 }
 
@@ -916,8 +982,37 @@ Result NcaFileSystemDriver::CreateIntegrityVerificationStorageImpl(
         R_UNLESS(last_layer_info_offset + layer_info.size <= layer_info_offset,
                  ResultRomNcaInvalidIntegrityLayerInfoOffset);
     }
-    storage_info.SetDataStorage(std::make_shared<OffsetVfsFile>(
-        std::move(base_storage), layer_info.size, last_layer_info_offset));
+    switch (level_hash_info.max_layers - 1)
+    {
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::MasterStorage:
+        storage_info.SetMasterHashStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::Layer1Storage:
+        storage_info.SetLayer1HashStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::Layer2Storage:
+        storage_info.SetLayer2HashStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::Layer3Storage:
+        storage_info.SetLayer3HashStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::Layer4Storage:
+        storage_info.SetLayer4HashStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::Layer5Storage:
+        storage_info.SetLayer5HashStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    case HierarchicalIntegrityVerificationStorage::HierarchicalStorageInformation::DataStorage:
+        storage_info.SetDataStorage(std::make_shared<OffsetVfsFile>(
+            std::move(base_storage), layer_info.size, last_layer_info_offset));
+        break;
+    }
 
     // Make the integrity romfs storage.
     auto integrity_storage = std::make_shared<IntegrityRomFsStorage>();

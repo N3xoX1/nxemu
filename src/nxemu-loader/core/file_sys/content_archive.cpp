@@ -87,8 +87,11 @@ NCA::NCA(VirtualFile file_, const NCA * base_nca) :
             }
         }
 
-        if (header_reader.GetEncryptionType() == NcaFsHeader::EncryptionType::AesCtrEx)
+        const auto & patch_info = header_reader.GetPatchInfo();
+        if (patch_info.HasIndirectTable() && patch_info.HasAesCtrExTable())
         {
+            // Decrypted BKTR updates retain both patch metadata tables even though their
+            // encryption type is None. Use the BKTR structure itself to identify updates.
             is_update = true;
         }
     }
