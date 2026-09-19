@@ -89,7 +89,6 @@ void Break(Core::System& system, BreakReason reason, u64 info1, u64 info2) {
         handle_debug_buffer(info1, info2);
         break;
     }
-    UNIMPLEMENTED();
 
     if (!notification_only) {
         LOG_CRITICAL(
