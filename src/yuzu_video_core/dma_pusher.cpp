@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_video_core/dma_pusher.h"
+#include "video_settings.h"
 #include "yuzu_common/cityhash.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/memory_manager.h"
-#include "video_settings.h"
 
 namespace Tegra
 {
@@ -85,7 +85,7 @@ bool DmaPusher::Step()
         }
 
         // Push buffer non-empty, read a word
-        if (dma_state.method >= MacroRegistersStart)
+        if (Settings::IsGPULevelHigh() && dma_state.method >= MacroRegistersStart)
         {
             if (subchannels[dma_state.subchannel])
             {
@@ -97,7 +97,7 @@ bool DmaPusher::Step()
             ProcessCommands(headers);
         };
         const auto unsafe_process = [&] {
-            Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::UnsafeRead> headers(memory_manager, dma_state.dma_get, command_list_header.size,&command_headers);
+            Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::UnsafeRead> headers(memory_manager, dma_state.dma_get, command_list_header.size, &command_headers);
             ProcessCommands(headers);
         };
         if (Settings::IsGPULevelHigh())
@@ -215,7 +215,10 @@ void DmaPusher::CallMethod(u32 argument) const
             subchannel->method_sink.emplace_back(dma_state.method, argument);
             return;
         }
-        subchannel->ConsumeSink();
+        if (!subchannel->method_sink.empty())
+        {
+            subchannel->ConsumeSink();
+        }
         subchannel->current_dma_segment = dma_state.dma_get + dma_state.dma_word_offset;
         subchannel->CallMethod(dma_state.method, argument, dma_state.is_last_call);
     }
@@ -230,7 +233,10 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
     else
     {
         auto subchannel = subchannels[dma_state.subchannel];
-        subchannel->ConsumeSink();
+        if (!subchannel->method_sink.empty())
+        {
+            subchannel->ConsumeSink();
+        }
         subchannel->current_dma_segment = dma_state.dma_get + dma_state.dma_word_offset;
         subchannel->CallMultiMethod(dma_state.method, base_start, num_methods, dma_state.method_count);
     }
