@@ -55,8 +55,8 @@ ICommonStateGetter::ICommonStateGetter(Core::System & system_, std::shared_ptr<A
         {59, nullptr, "SetVrPositionForDebug"},
         {60, D<&ICommonStateGetter::GetDefaultDisplayResolution>, "GetDefaultDisplayResolution"},
         {61, D<&ICommonStateGetter::GetDefaultDisplayResolutionChangeEvent>, "GetDefaultDisplayResolutionChangeEvent"},
-        {62, nullptr, "GetHdcpAuthenticationState"},
-        {63, nullptr, "GetHdcpAuthenticationStateChangeEvent"},
+        {62, D<&ICommonStateGetter::GetHdcpAuthenticationState>, "GetHdcpAuthenticationState"},
+        {63, D<&ICommonStateGetter::GetHdcpAuthenticationStateChangeEvent>, "GetHdcpAuthenticationStateChangeEvent"},
         {64, nullptr, "SetTvPowerStateMatchingMode"},
         {65, nullptr, "GetApplicationIdByContentActionName"},
         {66, &ICommonStateGetter::SetCpuBoostMode, "SetCpuBoostMode"},
@@ -146,6 +146,21 @@ Result ICommonStateGetter::GetWriterLockAccessorEx(
 {
     LOG_INFO(Service_AM, "called, button_type={}", button_type);
     *out_lock_accessor = std::make_shared<ILockAccessor>(system);
+    R_SUCCEED();
+}
+
+Result ICommonStateGetter::GetHdcpAuthenticationState(Out<s32> out_state) {
+    LOG_DEBUG(Service_AM, "called");
+
+    std::scoped_lock lk{m_applet->lock};
+    *out_state = m_applet->hdcp_authentication_state;
+    R_SUCCEED();
+}
+
+Result ICommonStateGetter::GetHdcpAuthenticationStateChangeEvent(
+    OutCopyHandle<Kernel::KReadableEvent> out_event) {
+    LOG_DEBUG(Service_AM, "called");
+    *out_event = m_applet->hdcp_authentication_state_changed_event.GetHandle();
     R_SUCCEED();
 }
 

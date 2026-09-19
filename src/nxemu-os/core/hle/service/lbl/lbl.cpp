@@ -3,8 +3,10 @@
 
 #include <cmath>
 #include <memory>
+#include <mutex>
 
 #include "yuzu_common/logging/log.h"
+#include "core/core.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/lbl/lbl.h"
 #include "core/hle/service/server_manager.h"
@@ -52,6 +54,17 @@ public:
         // clang-format on
 
         RegisterHandlers(functions);
+    }
+
+    AmbientLightSensorState GetAmbientLightSensorStateForApplet() {
+        std::scoped_lock lk{ambient_light_sensor_mutex};
+        // Saturation is not modeled; keep the existing synthetic lux value.
+        return {false, ambient_light_value};
+    }
+
+    bool IsAmbientLightSensorAvailableForApplet() const {
+        // Keep AM consistent with lbl command 23.
+        return true;
     }
 
 private:
@@ -194,7 +207,10 @@ private:
 
         LOG_DEBUG(Service_LBL, "called light_value={}", light_value);
 
-        ambient_light_value = light_value;
+        {
+            std::scoped_lock lk{ambient_light_sensor_mutex};
+            ambient_light_value = light_value;
+        }
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
@@ -203,9 +219,13 @@ private:
     void GetAmbientLightSensorValue(HLERequestContext& ctx) {
         LOG_DEBUG(Service_LBL, "called");
 
+        const auto state = GetAmbientLightSensorStateForApplet();
+        // Preserve the existing pre-5.0.0 lbl ABI here. HOS 5.0.0+ changed cmd 16 to return
+        // AmbientLightSensorValue { u32 over_limit; f32 lux }; version-aware handling of that
+        // direct lbl command is a separate issue from the AM forwarding implemented here.
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(ResultSuccess);
-        rb.Push(ambient_light_value);
+        rb.Push(state.lux);
     }
 
     void SetBrightnessReflectionDelayLevel(HLERequestContext& ctx) {
@@ -334,6 +354,7 @@ private:
 
     bool vr_mode_enabled = false;
     float current_brightness = 1.0f;
+    std::mutex ambient_light_sensor_mutex;
     float ambient_light_value = 0.0f;
     float current_vr_brightness = 1.0f;
     bool dimming = true;
@@ -342,6 +363,17 @@ private:
     bool auto_brightness = false;
     bool auto_brightness_supported = true; // TODO(ogniK): Move to system settings
 };
+
+
+AmbientLightSensorState GetAmbientLightSensorState(Core::System& system) {
+    const auto service = system.ServiceManager().GetService<LBL>("lbl", true);
+    return service ? service->GetAmbientLightSensorStateForApplet() : AmbientLightSensorState{};
+}
+
+bool IsAmbientLightSensorAvailable(Core::System& system) {
+    const auto service = system.ServiceManager().GetService<LBL>("lbl", true);
+    return service && service->IsAmbientLightSensorAvailableForApplet();
+}
 
 void LoopProcess(Core::System& system) {
     auto server_manager = std::make_unique<ServerManager>(system);

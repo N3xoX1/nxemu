@@ -8,6 +8,7 @@
 #include "core/hle/service/am/service/self_controller.h"
 #include "core/hle/service/caps/caps_su.h"
 #include "core/hle/service/cmif_serialization.h"
+#include "core/hle/service/lbl/lbl.h"
 #include "core/hle/service/sm/sm.h"
 #include "core/hle/service/vi/vi_results.h"
 
@@ -52,12 +53,12 @@ ISelfController::ISelfController(Core::System& system_, std::shared_ptr<Applet> 
         {63, D<&ISelfController::GetIdleTimeDetectionExtension>, "GetIdleTimeDetectionExtension"},
         {64, nullptr, "SetInputDetectionSourceSet"},
         {65, D<&ISelfController::ReportUserIsActive>, "ReportUserIsActive"},
-        {66, nullptr, "GetCurrentIlluminance"},
-        {67, nullptr, "IsIlluminanceAvailable"},
+        {66, D<&ISelfController::GetCurrentIlluminance>, "GetCurrentIlluminance"},
+        {67, D<&ISelfController::IsIlluminanceAvailable>, "IsIlluminanceAvailable"},
         {68, D<&ISelfController::SetAutoSleepDisabled>, "SetAutoSleepDisabled"},
         {69, D<&ISelfController::IsAutoSleepDisabled>, "IsAutoSleepDisabled"},
         {70, nullptr, "ReportMultimediaError"},
-        {71, nullptr, "GetCurrentIlluminanceEx"},
+        {71, D<&ISelfController::GetCurrentIlluminanceEx>, "GetCurrentIlluminanceEx"},
         {72, D<&ISelfController::SetInputDetectionPolicy>, "SetInputDetectionPolicy"},
         {80, nullptr, "SetWirelessPriorityMode"},
         {90, D<&ISelfController::GetAccumulatedSuspendedTickValue>, "GetAccumulatedSuspendedTickValue"},
@@ -298,6 +299,33 @@ Result ISelfController::GetIdleTimeDetectionExtension(
 
 Result ISelfController::ReportUserIsActive() {
     LOG_WARNING(Service_AM, "(STUBBED) called");
+    R_SUCCEED();
+}
+
+Result ISelfController::GetCurrentIlluminance(Out<f32> out_illuminance) {
+    LOG_DEBUG(Service_AM, "called");
+
+    // HOS forwards this to lbl and ignores over_limit.
+    *out_illuminance = Service::LBL::GetAmbientLightSensorState(system).lux;
+    R_SUCCEED();
+}
+
+Result ISelfController::IsIlluminanceAvailable(Out<bool> out_is_illuminance_available) {
+    LOG_DEBUG(Service_AM, "called");
+
+    // HOS forwards this to lbl.
+    *out_is_illuminance_available = Service::LBL::IsAmbientLightSensorAvailable(system);
+    R_SUCCEED();
+}
+
+Result ISelfController::GetCurrentIlluminanceEx(Out<bool> out_over_limit,
+                                                Out<f32> out_illuminance) {
+    LOG_DEBUG(Service_AM, "called");
+
+    // HOS forwards both values from lbl.
+    const auto state = Service::LBL::GetAmbientLightSensorState(system);
+    *out_over_limit = state.over_limit;
+    *out_illuminance = state.lux;
     R_SUCCEED();
 }
 

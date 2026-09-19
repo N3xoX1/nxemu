@@ -23,6 +23,7 @@ private:
     Result IsCompleted(Out<bool> out_is_completed);
     Result GetResult(Out<Result> out_result);
     Result PresetLibraryAppletGpuTimeSliceZero();
+    Result Unknown90(u64 arg0, u64 arg1, u64 arg2, u64 arg3);
     Result Start();
     Result RequestExit();
     Result Terminate();

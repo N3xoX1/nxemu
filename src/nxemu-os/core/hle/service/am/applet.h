@@ -43,6 +43,7 @@ struct Applet {
     AppletType type{};
     ProgramId program_id{};
     LibraryAppletMode library_applet_mode{};
+    s32 program_index{};
     s32 previous_program_index{-1};
     ScreenshotPermission previous_screenshot_permission{ScreenshotPermission::Enable};
 
@@ -74,9 +75,11 @@ struct Applet {
     // Application functions
     bool game_play_recording_supported{};
     GamePlayRecordingState game_play_recording_state{GamePlayRecordingState::Disabled};
+    bool media_playback_state{};
     bool jit_service_launched{};
     bool is_running{};
     bool application_crash_report_enabled{};
+    s32 hdcp_authentication_state{};
 
     // Common state
     FocusState focus_state{};
@@ -116,6 +119,8 @@ struct Applet {
     Event friend_invitation_storage_channel_event;
     Event notification_storage_channel_event;
     Event health_warning_disappeared_system_event;
+    Event hdcp_authentication_state_changed_event;
+    Event unknown_event;
     Event acquired_sleep_lock_event;
     Event pop_from_general_channel_event;
     Event library_applet_launchable_event;

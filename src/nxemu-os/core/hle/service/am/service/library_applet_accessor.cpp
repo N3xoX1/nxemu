@@ -25,6 +25,7 @@ ILibraryAppletAccessor::ILibraryAppletAccessor(Core::System& system_,
         {30, D<&ILibraryAppletAccessor::GetResult>, "GetResult"},
         {50, nullptr, "SetOutOfFocusApplicationSuspendingEnabled"},
         {60, D<&ILibraryAppletAccessor::PresetLibraryAppletGpuTimeSliceZero>, "PresetLibraryAppletGpuTimeSliceZero"},
+        {90, D<&ILibraryAppletAccessor::Unknown90>, "Unknown90"},
         {100, D<&ILibraryAppletAccessor::PushInData>, "PushInData"},
         {101, D<&ILibraryAppletAccessor::PopOutData>, "PopOutData"},
         {102, nullptr, "PushExtraStorage"},
@@ -65,6 +66,15 @@ Result ILibraryAppletAccessor::GetResult(Out<Result> out_result) {
 
 Result ILibraryAppletAccessor::PresetLibraryAppletGpuTimeSliceZero() {
     LOG_INFO(Service_AM, "(STUBBED) called");
+    R_SUCCEED();
+}
+
+Result ILibraryAppletAccessor::Unknown90(u64 arg0, u64 arg1, u64 arg2, u64 arg3) {
+    // HOS 20.0.0+ call-site analysis shows a 0x20-byte input (4 x u64). The semantics of
+    // these values are still unknown, so preserve the ABI without inventing zero-only validation.
+    LOG_WARNING(Service_AM,
+                "(STUBBED) called, arg0={:#x}, arg1={:#x}, arg2={:#x}, arg3={:#x}", arg0,
+                arg1, arg2, arg3);
     R_SUCCEED();
 }
 

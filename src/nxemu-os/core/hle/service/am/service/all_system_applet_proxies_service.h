@@ -12,6 +12,7 @@ namespace AM {
 
 struct Applet;
 struct AppletAttribute;
+class IApplicationProxy;
 class ILibraryAppletProxy;
 class ISystemAppletProxy;
 
@@ -25,6 +26,9 @@ private:
     Result OpenSystemAppletProxy(Out<SharedPointer<ISystemAppletProxy>> out_system_applet_proxy,
                                  ClientProcessId pid,
                                  InCopyHandle<Kernel::KProcess> process_handle);
+    Result OpenSystemApplicationProxy(
+        Out<SharedPointer<IApplicationProxy>> out_system_application_proxy, ClientProcessId pid,
+        InCopyHandle<Kernel::KProcess> process_handle);
     Result OpenLibraryAppletProxy(Out<SharedPointer<ILibraryAppletProxy>> out_library_applet_proxy,
                                   ClientProcessId pid,
                                   InCopyHandle<Kernel::KProcess> process_handle,

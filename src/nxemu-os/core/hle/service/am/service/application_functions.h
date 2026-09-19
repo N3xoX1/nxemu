@@ -26,6 +26,7 @@ public:
 private:
     Result PopLaunchParameter(Out<SharedPointer<IStorage>> out_storage,
                               LaunchParameterKind launch_parameter_kind);
+    Result CreateApplicationAndRequestToStart(u64 application_id);
     Result EnsureSaveData(Out<u64> out_size, Common::UUID user_id);
     Result GetDesiredLanguage(Out<u64> out_language_code);
     Result SetTerminateResult(Result terminate_result);
@@ -47,6 +48,7 @@ private:
     Result IsGamePlayRecordingSupported(Out<bool> out_is_game_play_recording_supported);
     Result InitializeGamePlayRecording(
         u64 transfer_memory_size, InCopyHandle<Kernel::KTransferMemory> transfer_memory_handle);
+    Result SetMediaPlaybackStateForApplication(bool enabled);
     Result SetGamePlayRecordingState(GamePlayRecordingState game_play_recording_state);
     Result EnableApplicationCrashReport(bool enabled);
     Result InitializeApplicationCopyrightFrameBuffer(
@@ -73,6 +75,8 @@ private:
     Result TryPopFromFriendInvitationStorageChannel(Out<SharedPointer<IStorage>> out_storage);
     Result GetNotificationStorageChannelEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result GetHealthWarningDisappearedSystemEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
+    Result SetHdcpAuthenticationActivated(bool activated);
+    Result GetUnknownEvent210(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result PrepareForJit();
 
     const std::shared_ptr<Applet> m_applet;

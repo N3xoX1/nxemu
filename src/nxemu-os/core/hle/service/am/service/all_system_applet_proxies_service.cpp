@@ -4,6 +4,7 @@
 #include "core/core.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/service/all_system_applet_proxies_service.h"
+#include "core/hle/service/am/service/application_proxy.h"
 #include "core/hle/service/am/service/library_applet_proxy.h"
 #include "core/hle/service/am/service/system_applet_proxy.h"
 #include "core/hle/service/cmif_serialization.h"
@@ -18,7 +19,7 @@ IAllSystemAppletProxiesService::IAllSystemAppletProxiesService(Core::System& sys
         {200, D<&IAllSystemAppletProxiesService::OpenLibraryAppletProxyOld>, "OpenLibraryAppletProxyOld"},
         {201, D<&IAllSystemAppletProxiesService::OpenLibraryAppletProxy>, "OpenLibraryAppletProxy"},
         {300, nullptr, "OpenOverlayAppletProxy"},
-        {350, nullptr, "OpenSystemApplicationProxy"},
+        {350, D<&IAllSystemAppletProxiesService::OpenSystemApplicationProxy>, "OpenSystemApplicationProxy"},
         {400, nullptr, "CreateSelfLibraryAppletCreatorForDevelop"},
         {410, nullptr, "GetSystemAppletControllerForDebug"},
         {1000, nullptr, "GetDebugFunctions"},
@@ -38,6 +39,21 @@ Result IAllSystemAppletProxiesService::OpenSystemAppletProxy(
     if (const auto applet = this->GetAppletFromProcessId(pid); applet) {
         *out_system_applet_proxy =
             std::make_shared<ISystemAppletProxy>(system, applet, process_handle.Get());
+        R_SUCCEED();
+    } else {
+        UNIMPLEMENTED();
+        R_THROW(ResultUnknown);
+    }
+}
+
+Result IAllSystemAppletProxiesService::OpenSystemApplicationProxy(
+    Out<SharedPointer<IApplicationProxy>> out_system_application_proxy, ClientProcessId pid,
+    InCopyHandle<Kernel::KProcess> process_handle) {
+    LOG_DEBUG(Service_AM, "called");
+
+    if (const auto applet = this->GetAppletFromProcessId(pid); applet) {
+        *out_system_application_proxy =
+            std::make_shared<IApplicationProxy>(system, applet, process_handle.Get());
         R_SUCCEED();
     } else {
         UNIMPLEMENTED();

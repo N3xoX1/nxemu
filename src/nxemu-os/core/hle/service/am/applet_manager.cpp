@@ -184,6 +184,7 @@ void AppletManager::CreateAndInsertByFrontendAppletParameters(
     applet->program_id = params.program_id;
     applet->applet_id = params.applet_id;
     applet->type = params.applet_type;
+    applet->program_index = params.program_index;
     applet->previous_program_index = params.previous_program_index;
 
     // Push UserChannel data from previous application
