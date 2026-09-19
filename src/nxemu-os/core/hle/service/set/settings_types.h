@@ -398,6 +398,14 @@ struct AccountNotificationSettings {
 static_assert(sizeof(AccountNotificationSettings) == 0x18,
               "AccountNotificationSettings is an invalid size");
 
+// nn::settings::system::AccountUserSettings (21.0.0+).
+// Public RE sources currently confirm the command IDs, but not this payload layout.
+struct AccountUserSettings {
+    std::array<u8, 0x40> data;
+};
+static_assert(sizeof(AccountUserSettings) == 0x40,
+              "AccountUserSettings is an invalid size");
+
 /// This is nn::settings::factory::BatteryLot
 struct BatteryLot {
     std::array<char, 0x18> lot_number;
@@ -500,5 +508,14 @@ struct TvSettings {
     f32 contrast_ratio;
 };
 static_assert(sizeof(TvSettings) == 0x20, "TvSettings is an invalid size");
+
+/// nn::settings::system::RebootlessSystemUpdateVersion (5.0.0+).
+struct RebootlessSystemUpdateVersion {
+    u32 version;
+    std::array<u8, 0x1C> reserved;
+    std::array<char, 0x20> display_version;
+};
+static_assert(sizeof(RebootlessSystemUpdateVersion) == 0x40,
+              "RebootlessSystemUpdateVersion is an invalid size");
 
 } // namespace Service::Set

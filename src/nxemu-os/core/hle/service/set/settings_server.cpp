@@ -111,6 +111,7 @@ ISettingsServer::ISettingsServer(Core::System & system_) :
         {9, C<&ISettingsServer::GetKeyCodeMap2>, "GetKeyCodeMap2"},
         {10, nullptr, "GetFirmwareVersionForDebug"},
         {11, C<&ISettingsServer::GetDeviceNickName>, "GetDeviceNickName"},
+        {12, C<&ISettingsServer::GetKeyCodeMapByPort>, "GetKeyCodeMapByPort"},
     };
     // clang-format on
 
@@ -240,6 +241,31 @@ Result ISettingsServer::GetDeviceNickName( OutLargeData<std::array<u8, 0x80>, Bu
     *out_device_name = {};
     memcpy(out_device_name->data(), osSettings.device_name.data(), string_size);
     R_SUCCEED();
+}
+
+Result ISettingsServer::GetKeyCodeMapByPort(
+    OutLargeData<KeyCodeMap, BufferAttr_HipcMapAlias> out_key_code_map, u32 port)
+{
+    LOG_DEBUG(Service_SET, "called, port={}", port);
+
+    R_UNLESS(out_key_code_map != nullptr, ResultNullPointer);
+
+    const auto language_code =
+        available_language_codes[static_cast<s32>(osSettings.language_index)];
+    const auto key_code = std::find_if(
+        language_to_layout.cbegin(), language_to_layout.cend(),
+        [=](const auto& element) { return element.first == language_code; });
+
+    if (key_code == language_to_layout.cend())
+    {
+        LOG_ERROR(Service_SET,
+                  "Could not find keyboard layout for language index {}, defaulting to English us",
+                  osSettings.language_index);
+        *out_key_code_map = KeyCodeMapEnglishUsInternational;
+        R_SUCCEED();
+    }
+
+    R_RETURN(GetKeyCodeMapImpl(*out_key_code_map, key_code->second, key_code->first));
 }
 
 } // namespace Service::Set

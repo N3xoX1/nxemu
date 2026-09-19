@@ -92,6 +92,8 @@ public:
     Result SetSpeakerAutoMuteFlag(bool force_mute_on_headphone_removed);
     Result GetQuestFlag(Out<QuestFlag> out_quest_flag);
     Result SetQuestFlag(QuestFlag quest_flag);
+    Result GetRebootlessSystemUpdateVersion(
+        Out<RebootlessSystemUpdateVersion> out_rebootless_system_update);
     Result GetDeviceTimeZoneLocationName(Out<Service::PSC::Time::LocationName> out_name);
     Result SetDeviceTimeZoneLocationName(const Service::PSC::Time::LocationName& name);
     Result SetRegionCode(SystemRegionCode region_code);
@@ -104,6 +106,12 @@ public:
     Result SetPrimaryAlbumStorage(PrimaryAlbumStorage primary_album_storage);
     Result GetBatteryLot(Out<BatteryLot> out_battery_lot);
     Result GetSerialNumber(Out<SerialNumber> out_console_serial);
+    Result GetConsoleInformationUploadFlag(Out<bool> out_flag);
+    Result SetConsoleInformationUploadFlag(bool flag);
+    Result GetAutomaticApplicationDownloadFlag(Out<bool> out_flag);
+    Result SetAutomaticApplicationDownloadFlag(bool flag);
+    Result GetUsb30EnableFlag(Out<bool> out_usb30_enable_flag);
+    Result SetUsb30EnableFlag(bool usb30_enable_flag);
     Result GetNfcEnableFlag(Out<bool> out_nfc_enable_flag);
     Result SetNfcEnableFlag(bool nfc_enable_flag);
     Result GetSleepSettings(Out<SleepSettings> out_sleep_settings);
@@ -155,6 +163,12 @@ public:
     Result GetFieldTestingFlag(Out<bool> out_field_testing_flag);
     Result GetPanelCrcMode(Out<s32> out_panel_crc_mode);
     Result SetPanelCrcMode(s32 panel_crc_mode);
+    Result GetHttpAuthConfigs(Out<s32> out_count,
+                              OutBuffer<BufferAttr_HipcMapAlias> out_configs);
+    Result GetAccountUserSettings(
+        Out<u32> out_count,
+        OutLargeData<AccountUserSettings, BufferAttr_HipcMapAlias> out_settings);
+    Result GetDefaultAccountUserSettings(Out<AccountUserSettings> out_settings);
 
 private:
     bool LoadSettingsFile(std::filesystem::path& path, auto&& default_func);

@@ -116,10 +116,10 @@ ISystemSettingsServer::ISystemSettingsServer(Core::System & system_) :
         {22, C<&ISystemSettingsServer::SetEulaVersions>, "SetEulaVersions"},
         {23, C<&ISystemSettingsServer::GetColorSetId>, "GetColorSetId"},
         {24, C<&ISystemSettingsServer::SetColorSetId>, "SetColorSetId"},
-        {25, nullptr, "GetConsoleInformationUploadFlag"},
-        {26, nullptr, "SetConsoleInformationUploadFlag"},
-        {27, nullptr, "GetAutomaticApplicationDownloadFlag"},
-        {28, nullptr, "SetAutomaticApplicationDownloadFlag"},
+        {25, C<&ISystemSettingsServer::GetConsoleInformationUploadFlag>, "GetConsoleInformationUploadFlag"},
+        {26, C<&ISystemSettingsServer::SetConsoleInformationUploadFlag>, "SetConsoleInformationUploadFlag"},
+        {27, C<&ISystemSettingsServer::GetAutomaticApplicationDownloadFlag>, "GetAutomaticApplicationDownloadFlag"},
+        {28, C<&ISystemSettingsServer::SetAutomaticApplicationDownloadFlag>, "SetAutomaticApplicationDownloadFlag"},
         {29, C<&ISystemSettingsServer::GetNotificationSettings>, "GetNotificationSettings"},
         {30, C<&ISystemSettingsServer::SetNotificationSettings>, "SetNotificationSettings"},
         {31, C<&ISystemSettingsServer::GetAccountNotificationSettings>, "GetAccountNotificationSettings"},
@@ -154,8 +154,8 @@ ISystemSettingsServer::ISystemSettingsServer(Core::System & system_) :
         {62, C<&ISystemSettingsServer::GetDebugModeFlag>, "GetDebugModeFlag"},
         {63, C<&ISystemSettingsServer::GetPrimaryAlbumStorage>, "GetPrimaryAlbumStorage"},
         {64, C<&ISystemSettingsServer::SetPrimaryAlbumStorage>, "SetPrimaryAlbumStorage"},
-        {65, nullptr, "GetUsb30EnableFlag"},
-        {66, nullptr, "SetUsb30EnableFlag"},
+        {65, C<&ISystemSettingsServer::GetUsb30EnableFlag>, "GetUsb30EnableFlag"},
+        {66, C<&ISystemSettingsServer::SetUsb30EnableFlag>, "SetUsb30EnableFlag"},
         {67, C<&ISystemSettingsServer::GetBatteryLot>, "GetBatteryLot"},
         {68, C<&ISystemSettingsServer::GetSerialNumber>, "GetSerialNumber"},
         {69, C<&ISystemSettingsServer::GetNfcEnableFlag>, "GetNfcEnableFlag"},
@@ -238,7 +238,7 @@ ISystemSettingsServer::ISystemSettingsServer(Core::System & system_) :
         {146, nullptr, "SetConsoleSixAxisSensorAngularVelocityTimeBias"},
         {147, nullptr, "GetConsoleSixAxisSensorAngularAcceleration"},
         {148, nullptr, "SetConsoleSixAxisSensorAngularAcceleration"},
-        {149, nullptr, "GetRebootlessSystemUpdateVersion"},
+        {149, C<&ISystemSettingsServer::GetRebootlessSystemUpdateVersion>, "GetRebootlessSystemUpdateVersion"},
         {150, C<&ISystemSettingsServer::GetDeviceTimeZoneLocationUpdatedTime>, "GetDeviceTimeZoneLocationUpdatedTime"},
         {151, C<&ISystemSettingsServer::SetDeviceTimeZoneLocationUpdatedTime>, "SetDeviceTimeZoneLocationUpdatedTime"},
         {152, C<&ISystemSettingsServer::GetUserSystemClockAutomaticCorrectionUpdatedTime>, "GetUserSystemClockAutomaticCorrectionUpdatedTime"},
@@ -300,6 +300,10 @@ ISystemSettingsServer::ISystemSettingsServer(Core::System & system_) :
         {208, nullptr, "SetHearingProtectionSafeguardFlag"},
         {209, nullptr, "GetHearingProtectionSafeguardRemainingTime"},
         {210, nullptr, "SetHearingProtectionSafeguardRemainingTime"},
+        {315, C<&ISystemSettingsServer::GetHttpAuthConfigs>, "GetHttpAuthConfigs"},
+        {319, C<&ISystemSettingsServer::GetAccountUserSettings>, "GetAccountUserSettings"},
+        {320, nullptr, "SetAccountUserSettings"},
+        {321, C<&ISystemSettingsServer::GetDefaultAccountUserSettings>, "GetDefaultAccountUserSettings"},
     };
     // clang-format on
 
@@ -865,6 +869,17 @@ Result ISystemSettingsServer::SetQuestFlag(QuestFlag quest_flag)
     R_SUCCEED();
 }
 
+Result ISystemSettingsServer::GetRebootlessSystemUpdateVersion(
+    Out<RebootlessSystemUpdateVersion> out_rebootless_system_update)
+{
+    LOG_INFO(Service_SET, "(STUBBED) called");
+
+    *out_rebootless_system_update = {};
+    std::memcpy(out_rebootless_system_update->display_version.data(), "0.0.0", sizeof("0.0.0"));
+
+    R_SUCCEED();
+}
+
 Result ISystemSettingsServer::GetDeviceTimeZoneLocationName(Out<Service::PSC::Time::LocationName> out_name)
 {
     LOG_INFO(Service_SET, "called");
@@ -964,6 +979,57 @@ Result ISystemSettingsServer::GetSerialNumber(Out<SerialNumber> out_console_seri
     LOG_INFO(Service_SET, "called");
 
     *out_console_serial = {"YUZ10000000001"};
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::GetConsoleInformationUploadFlag(Out<bool> out_flag)
+{
+    LOG_INFO(Service_SET, "called, flag={}", m_system_settings.console_information_upload_flag);
+
+    *out_flag = m_system_settings.console_information_upload_flag;
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::SetConsoleInformationUploadFlag(bool flag)
+{
+    LOG_INFO(Service_SET, "called, flag={}", flag);
+
+    m_system_settings.console_information_upload_flag = flag;
+    SetSaveNeeded();
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::GetAutomaticApplicationDownloadFlag(Out<bool> out_flag)
+{
+    LOG_INFO(Service_SET, "called, flag={}", m_system_settings.automatic_application_download_flag);
+
+    *out_flag = m_system_settings.automatic_application_download_flag;
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::SetAutomaticApplicationDownloadFlag(bool flag)
+{
+    LOG_INFO(Service_SET, "called, flag={}", flag);
+
+    m_system_settings.automatic_application_download_flag = flag;
+    SetSaveNeeded();
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::GetUsb30EnableFlag(Out<bool> out_usb30_enable_flag)
+{
+    LOG_INFO(Service_SET, "called, usb30_enable_flag={}", m_system_settings.usb_30_enable_flag);
+
+    *out_usb30_enable_flag = m_system_settings.usb_30_enable_flag;
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::SetUsb30EnableFlag(bool usb30_enable_flag)
+{
+    LOG_INFO(Service_SET, "called, usb30_enable_flag={}", usb30_enable_flag);
+
+    m_system_settings.usb_30_enable_flag = usb30_enable_flag;
+    SetSaveNeeded();
     R_SUCCEED();
 }
 
@@ -1338,6 +1404,35 @@ Result ISystemSettingsServer::SetPanelCrcMode(s32 panel_crc_mode)
 
     m_system_settings.panel_crc_mode = panel_crc_mode;
     SetSaveNeeded();
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::GetHttpAuthConfigs(
+    Out<s32> out_count, OutBuffer<BufferAttr_HipcMapAlias> out_configs)
+{
+    LOG_WARNING(Service_SET, "(STUBBED) called, buffer_size={}", out_configs.size());
+
+    *out_count = 0;
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::GetAccountUserSettings(
+    Out<u32> out_count,
+    OutLargeData<AccountUserSettings, BufferAttr_HipcMapAlias> out_settings)
+{
+    LOG_WARNING(Service_SET, "(STUBBED) called");
+
+    *out_count = 0;
+    *out_settings = {};
+    R_SUCCEED();
+}
+
+Result ISystemSettingsServer::GetDefaultAccountUserSettings(
+    Out<AccountUserSettings> out_settings)
+{
+    LOG_WARNING(Service_SET, "(STUBBED) called");
+
+    *out_settings = {};
     R_SUCCEED();
 }
 
