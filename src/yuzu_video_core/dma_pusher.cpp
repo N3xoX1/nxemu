@@ -140,11 +140,40 @@ void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)
                 index += max_write;
                 continue;
             }
-            else
+            if (dma_state.method >= non_puller_methods)
             {
-                dma_state.is_last_call = dma_state.method_count <= 1;
-                CallMethod(command_header.argument);
+                auto * const subchannel = subchannels[dma_state.subchannel];
+                while (index < commands.size() && dma_state.method_count != 0)
+                {
+                    if (subchannel->execution_mask[dma_state.method])
+                    {
+                        dma_state.dma_word_offset = static_cast<u32>(index * sizeof(u32));
+                        dma_state.is_last_call = dma_state.method_count <= 1;
+                        CallMethod(commands[index].argument);
+                        dma_state.method++;
+                        if (dma_increment_once)
+                        {
+                            dma_state.non_incrementing = true;
+                        }
+                        dma_state.method_count--;
+                        index++;
+                        break;
+                    }
+                    subchannel->method_sink.emplace_back(dma_state.method, commands[index].argument);
+                    dma_state.method++;
+                    dma_state.method_count--;
+                    index++;
+                    if (dma_increment_once)
+                    {
+                        dma_state.non_incrementing = true;
+                        break;
+                    }
+                }
+                continue;
             }
+
+            dma_state.is_last_call = dma_state.method_count <= 1;
+            CallMethod(command_header.argument);
 
             if (!dma_state.non_incrementing)
             {
