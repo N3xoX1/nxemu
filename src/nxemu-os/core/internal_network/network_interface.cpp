@@ -193,6 +193,11 @@ std::optional<NetworkInterface> GetSelectedNetworkInterface() {
         LOG_ERROR(Network, "GetAvailableNetworkInterfaces returned no interfaces");
         return std::nullopt;
     }
+    
+    // An empty setting means automatic selection. Use the first available interface.
+    if (selected_network_interface.empty()) {
+        return network_interfaces.front();
+    }
 
     const auto res =
         std::ranges::find_if(network_interfaces, [&selected_network_interface](const auto& iface) {
