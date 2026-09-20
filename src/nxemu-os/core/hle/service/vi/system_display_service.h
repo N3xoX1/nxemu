@@ -11,15 +11,21 @@ namespace Service::VI {
 struct DisplayMode;
 
 class Container;
+class IApplicationDisplayService;
 
 class ISystemDisplayService final : public ServiceFramework<ISystemDisplayService> {
 public:
-    explicit ISystemDisplayService(Core::System& system_, std::shared_ptr<Container> container);
+    explicit ISystemDisplayService(Core::System& system_, std::shared_ptr<Container> container,
+                                   std::shared_ptr<IApplicationDisplayService> application_service);
     ~ISystemDisplayService() override;
 
 private:
-    Result SetLayerZ(u32 z_value, u64 layer_id);
+    Result GetLayerZ(Out<s64> out_z_value, u64 layer_id);
+    Result SetLayerZ(u64 layer_id, s64 z_value);
     Result SetLayerVisibility(bool visible, u64 layer_id);
+    Result CreateStrayLayer(Out<u64> out_layer_id, Out<u64> out_size,
+                            OutBuffer<BufferAttr_HipcMapAlias> out_native_window, u32 flags,
+                            u64 display_id);
     Result ListDisplayModes(Out<u64> out_count, u64 display_id,
                             OutArray<DisplayMode, BufferAttr_HipcMapAlias> out_display_modes);
     Result GetDisplayMode(Out<DisplayMode> out_display_mode, u64 display_id);
@@ -42,6 +48,7 @@ private:
 
 private:
     const std::shared_ptr<Container> m_container;
+    const std::shared_ptr<IApplicationDisplayService> m_application_service;
 };
 
 } // namespace Service::VI

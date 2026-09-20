@@ -2,22 +2,31 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/hle/service/cmif_serialization.h"
+#include "core/hle/service/vi/application_display_service.h"
 #include "core/hle/service/vi/container.h"
 #include "core/hle/service/vi/manager_display_service.h"
+#include "core/hle/service/vi/vi_types.h"
+#include "os_settings.h"
+#include "os_settings_identifiers.h"
+#include <nxemu-module-spec/operating_system.h>
+
+extern IModuleSettings* g_settings;
 
 namespace Service::VI {
 
-IManagerDisplayService::IManagerDisplayService(Core::System& system_,
-                                               std::shared_ptr<Container> container)
-    : ServiceFramework{system_, "IManagerDisplayService"}, m_container{std::move(container)} {
+IManagerDisplayService::IManagerDisplayService(
+    Core::System& system_, std::shared_ptr<Container> container,
+    std::shared_ptr<IApplicationDisplayService> application_service)
+    : ServiceFramework{system_, "IManagerDisplayService"}, m_container{std::move(container)},
+      m_application_service{std::move(application_service)} {
     // clang-format off
     static const FunctionInfo functions[] = {
         {200, nullptr, "AllocateProcessHeapBlock"},
         {201, nullptr, "FreeProcessHeapBlock"},
-        {1102, nullptr, "GetDisplayResolution"},
+        {1102, C<&IManagerDisplayService::GetDisplayResolution>, "GetDisplayResolution"},
         {2010, C<&IManagerDisplayService::CreateManagedLayer>, "CreateManagedLayer"},
         {2011, C<&IManagerDisplayService::DestroyManagedLayer>, "DestroyManagedLayer"},
-        {2012, nullptr, "CreateStrayLayer"},
+        {2012, C<&IManagerDisplayService::CreateStrayLayer>, "CreateStrayLayer"},
         {2050, nullptr, "CreateIndirectLayer"},
         {2051, nullptr, "DestroyIndirectLayer"},
         {2052, nullptr, "CreateIndirectProducerEndPoint"},
@@ -116,6 +125,19 @@ Result IManagerDisplayService::SetLayerBlending(bool enabled, u64 layer_id) {
     R_RETURN(m_container->SetLayerBlending(layer_id, enabled));
 }
 
+Result IManagerDisplayService::GetDisplayResolution(Out<s64> out_width, Out<s64> out_height,
+                                                      u64 display_id) {
+    LOG_DEBUG(Service_VI, "called. display_id={}", display_id);
+
+    const bool is_docked =
+        g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    *out_width = static_cast<s64>(is_docked ? DisplayResolution::DockedWidth
+                                             : DisplayResolution::UndockedWidth);
+    *out_height = static_cast<s64>(is_docked ? DisplayResolution::DockedHeight
+                                              : DisplayResolution::UndockedHeight);
+    R_SUCCEED();
+}
+
 Result IManagerDisplayService::CreateManagedLayer(Out<u64> out_layer_id, u32 flags, u64 display_id,
                                                   AppletResourceUserId aruid) {
     LOG_DEBUG(Service_VI, "called. flags={}, display={}, aruid={}", flags, display_id, aruid.pid);
@@ -125,6 +147,14 @@ Result IManagerDisplayService::CreateManagedLayer(Out<u64> out_layer_id, u32 fla
 Result IManagerDisplayService::DestroyManagedLayer(u64 layer_id) {
     LOG_DEBUG(Service_VI, "called. layer_id={}", layer_id);
     R_RETURN(m_container->DestroyManagedLayer(layer_id));
+}
+
+Result IManagerDisplayService::CreateStrayLayer(
+    Out<u64> out_layer_id, Out<u64> out_size,
+    OutBuffer<BufferAttr_HipcMapAlias> out_native_window, u32 flags, u64 display_id) {
+    LOG_DEBUG(Service_VI, "called. flags={}, display_id={}", flags, display_id);
+    R_RETURN(m_application_service->CreateStrayLayer(out_layer_id, out_size, out_native_window,
+                                                      flags, display_id));
 }
 
 Result IManagerDisplayService::AddToLayerStack(u32 stack_id, u64 layer_id) {

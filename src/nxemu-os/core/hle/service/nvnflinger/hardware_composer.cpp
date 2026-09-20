@@ -73,7 +73,6 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
         const auto& item = buffer.item;
         const auto& igbp_buffer = *item.graphic_buffer;
 
-        // TODO: get proper Z-index from layer
         if (layer->visible) {
             composition_stack.emplace_back(HwcLayer{
                 .buffer_handle = igbp_buffer.BufferId(),
@@ -82,7 +81,7 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
                 .width = igbp_buffer.Width(),
                 .height = igbp_buffer.Height(),
                 .stride = igbp_buffer.Stride(),
-                .z_index = 0,
+                .z_index = layer->z_index,
                 .blending = layer->blending,
                 .transform = static_cast<android::BufferTransformFlags>(item.transform),
                 .crop_rect = item.crop,

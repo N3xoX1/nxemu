@@ -3,6 +3,7 @@
 
 #include "core/hle/service/vi/system_display_service.h"
 #include "core/hle/service/cmif_serialization.h"
+#include "core/hle/service/vi/application_display_service.h"
 #include "core/hle/service/vi/container.h"
 #include "core/hle/service/vi/vi_types.h"
 #include "os_settings.h"
@@ -14,9 +15,11 @@ extern IModuleSettings * g_settings;
 namespace Service::VI
 {
 
-ISystemDisplayService::ISystemDisplayService(Core::System & system_, std::shared_ptr<Container> container) :
-    ServiceFramework{system_, "ISystemDisplayService"},
-    m_container{std::move(container)}
+ISystemDisplayService::ISystemDisplayService(
+    Core::System& system_, std::shared_ptr<Container> container,
+    std::shared_ptr<IApplicationDisplayService> application_service)
+    : ServiceFramework{system_, "ISystemDisplayService"}, m_container{std::move(container)},
+      m_application_service{std::move(application_service)}
 {
     // clang-format off
     static const FunctionInfo functions[] = {
@@ -26,12 +29,12 @@ ISystemDisplayService::ISystemDisplayService(Core::System & system_, std::shared
         {1204, nullptr, "SetDisplayMagnification"},
         {2201, nullptr, "SetLayerPosition"},
         {2203, nullptr, "SetLayerSize"},
-        {2204, nullptr, "GetLayerZ"},
+        {2204, C<&ISystemDisplayService::GetLayerZ>, "GetLayerZ"},
         {2205, C<&ISystemDisplayService::SetLayerZ>, "SetLayerZ"},
         {2207, C<&ISystemDisplayService::SetLayerVisibility>, "SetLayerVisibility"},
         {2209, nullptr, "SetLayerAlpha"},
         {2210, nullptr, "SetLayerPositionAndSize"},
-        {2312, nullptr, "CreateStrayLayer"},
+        {2312, C<&ISystemDisplayService::CreateStrayLayer>, "CreateStrayLayer"},
         {2400, nullptr, "OpenIndirectLayer"},
         {2401, nullptr, "CloseIndirectLayer"},
         {2402, nullptr, "FlipIndirectLayer"},
@@ -74,18 +77,35 @@ ISystemDisplayService::ISystemDisplayService(Core::System & system_, std::shared
 
 ISystemDisplayService::~ISystemDisplayService() = default;
 
-Result ISystemDisplayService::SetLayerZ(u32 z_value, u64 layer_id)
+Result ISystemDisplayService::GetLayerZ(Out<s64> out_z_value, u64 layer_id)
 {
-    LOG_WARNING(Service_VI, "(STUBBED) called. layer_id={}, z_value={}", layer_id, z_value);
+    LOG_DEBUG(Service_VI, "called. layer_id={}", layer_id);
+
+    s32 z_value{};
+    R_TRY(m_container->GetLayerZIndex(layer_id, &z_value));
+    *out_z_value = static_cast<s64>(z_value);
     R_SUCCEED();
 }
 
-// This function currently does nothing but return a success error code in
-// the vi library itself, so do the same thing, but log out the passed in values.
+Result ISystemDisplayService::SetLayerZ(u64 layer_id, s64 z_value)
+{
+    LOG_DEBUG(Service_VI, "called. layer_id={}, z_value={}", layer_id, z_value);
+    R_RETURN(m_container->SetLayerZIndex(layer_id, static_cast<s32>(z_value)));
+}
+
 Result ISystemDisplayService::SetLayerVisibility(bool visible, u64 layer_id)
 {
     LOG_DEBUG(Service_VI, "called, layer_id={}, visible={}", layer_id, visible);
-    R_SUCCEED();
+    R_RETURN(m_container->SetLayerVisibility(layer_id, visible));
+}
+
+Result ISystemDisplayService::CreateStrayLayer(
+    Out<u64> out_layer_id, Out<u64> out_size,
+    OutBuffer<BufferAttr_HipcMapAlias> out_native_window, u32 flags, u64 display_id)
+{
+    LOG_DEBUG(Service_VI, "called. flags={}, display_id={}", flags, display_id);
+    R_RETURN(m_application_service->CreateStrayLayer(out_layer_id, out_size, out_native_window,
+                                                      flags, display_id));
 }
 
 Result ISystemDisplayService::ListDisplayModes(Out<u64> out_count, u64 display_id,OutArray<DisplayMode, BufferAttr_HipcMapAlias> out_display_modes)

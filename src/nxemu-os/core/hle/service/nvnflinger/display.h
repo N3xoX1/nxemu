@@ -12,7 +12,7 @@ struct Layer {
     explicit Layer(std::shared_ptr<android::BufferItemConsumer> buffer_item_consumer_,
                    s32 consumer_id_)
         : buffer_item_consumer(std::move(buffer_item_consumer_)), consumer_id(consumer_id_),
-          blending(LayerBlending::None), visible(true) {}
+          blending(LayerBlending::None), z_index(0), visible(true) {}
     ~Layer() {
         buffer_item_consumer->Abandon();
     }
@@ -20,6 +20,7 @@ struct Layer {
     std::shared_ptr<android::BufferItemConsumer> buffer_item_consumer;
     s32 consumer_id;
     LayerBlending blending;
+    s32 z_index;
     bool visible;
 };
 

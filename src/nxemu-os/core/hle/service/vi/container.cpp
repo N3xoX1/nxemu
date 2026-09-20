@@ -131,6 +131,36 @@ Result Container::SetLayerBlending(u64 layer_id, bool enabled) {
     R_SUCCEED();
 }
 
+Result Container::SetLayerZIndex(u64 layer_id, s32 z_index) {
+    std::scoped_lock lk{m_lock};
+
+    auto* const layer = m_layers.GetLayerById(layer_id);
+    R_UNLESS(layer != nullptr, VI::ResultNotFound);
+
+    if (auto layer_ref = m_surface_flinger->FindLayer(layer->GetConsumerBinderId())) {
+        layer_ref->z_index = z_index;
+    } else {
+        LOG_WARNING(Service_VI,
+                    "SetLayerZIndex failed to find SurfaceFlinger layer for layer_id={} (cid={})",
+                    layer_id, layer->GetConsumerBinderId());
+    }
+
+    R_SUCCEED();
+}
+
+Result Container::GetLayerZIndex(u64 layer_id, s32* out_z_index) {
+    std::scoped_lock lk{m_lock};
+
+    auto* const layer = m_layers.GetLayerById(layer_id);
+    R_UNLESS(layer != nullptr, VI::ResultNotFound);
+
+    const auto surface_layer = m_surface_flinger->FindLayer(layer->GetConsumerBinderId());
+    R_UNLESS(surface_layer != nullptr, VI::ResultNotFound);
+
+    *out_z_index = surface_layer->z_index;
+    R_SUCCEED();
+}
+
 void Container::LinkVsyncEvent(u64 display_id, Event* event) {
     std::scoped_lock lk{m_lock};
     m_conductor->LinkVsyncEvent(display_id, event);

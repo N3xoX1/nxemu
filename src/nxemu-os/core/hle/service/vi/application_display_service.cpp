@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/nvnflinger/hos_binder_driver.h"
 #include "core/hle/service/nvnflinger/parcel.h"
@@ -35,6 +37,7 @@ IApplicationDisplayService::IApplicationDisplayService(Core::System& system_,
         {2031, C<&IApplicationDisplayService::DestroyStrayLayer>, "DestroyStrayLayer"},
         {2101, C<&IApplicationDisplayService::SetLayerScalingMode>, "SetLayerScalingMode"},
         {2102, C<&IApplicationDisplayService::ConvertScalingMode>, "ConvertScalingMode"},
+        {2103, C<&IApplicationDisplayService::Cmd2103>, "Cmd2103"},
         {2450, C<&IApplicationDisplayService::GetIndirectLayerImageMap>, "GetIndirectLayerImageMap"},
         {2451, nullptr, "GetIndirectLayerImageCropMap"},
         {2460, C<&IApplicationDisplayService::GetIndirectLayerImageRequiredMemoryInfo>, "GetIndirectLayerImageRequiredMemoryInfo"},
@@ -67,14 +70,18 @@ Result IApplicationDisplayService::GetRelayService(
 Result IApplicationDisplayService::GetSystemDisplayService(
     Out<SharedPointer<ISystemDisplayService>> out_system_display_service) {
     LOG_WARNING(Service_VI, "(STUBBED) called");
-    *out_system_display_service = std::make_shared<ISystemDisplayService>(system, m_container);
+    auto self = std::static_pointer_cast<IApplicationDisplayService>(shared_from_this());
+    *out_system_display_service =
+        std::make_shared<ISystemDisplayService>(system, m_container, std::move(self));
     R_SUCCEED();
 }
 
 Result IApplicationDisplayService::GetManagerDisplayService(
     Out<SharedPointer<IManagerDisplayService>> out_manager_display_service) {
     LOG_WARNING(Service_VI, "(STUBBED) called");
-    *out_manager_display_service = std::make_shared<IManagerDisplayService>(system, m_container);
+    auto self = std::static_pointer_cast<IApplicationDisplayService>(shared_from_this());
+    *out_manager_display_service =
+        std::make_shared<IManagerDisplayService>(system, m_container, std::move(self));
     R_SUCCEED();
 }
 
@@ -85,11 +92,21 @@ Result IApplicationDisplayService::GetIndirectDisplayTransactionService(
 }
 
 Result IApplicationDisplayService::OpenDisplay(Out<u64> out_display_id, DisplayName display_name) {
-    LOG_WARNING(Service_VI, "(STUBBED) called");
-
     display_name[display_name.size() - 1] = '\0';
-    ASSERT_MSG(strcmp(display_name.data(), "Default") == 0,
-               "Non-default displays aren't supported yet");
+    LOG_DEBUG(Service_VI, "called with display_name={}", display_name.data());
+
+    constexpr std::array<const char*, 5> valid_names = {
+        "Default", "External", "Edid", "Internal", "Null",
+    };
+
+    bool valid_name = false;
+    for (const auto* name : valid_names) {
+        if (std::strcmp(name, display_name.data()) == 0) {
+            valid_name = true;
+            break;
+        }
+    }
+    R_UNLESS(valid_name, ResultOperationFailed);
 
     R_RETURN(m_container->OpenDisplay(out_display_id, display_name));
 }
@@ -270,6 +287,12 @@ Result IApplicationDisplayService::ConvertScalingMode(Out<ConvertedScaleMode> ou
         LOG_ERROR(Service_VI, "Invalid scaling mode specified, mode={}", mode);
         R_THROW(VI::ResultOperationFailed);
     }
+}
+
+Result IApplicationDisplayService::Cmd2103(Out<std::array<u8, 0x18>> out_unknown) {
+    LOG_WARNING(Service_VI, "(STUBBED) called");
+    *out_unknown = {};
+    R_SUCCEED();
 }
 
 Result IApplicationDisplayService::GetIndirectLayerImageMap(
