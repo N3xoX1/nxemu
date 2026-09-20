@@ -147,7 +147,7 @@ void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)
                 {
                     if (subchannel->execution_mask[dma_state.method])
                     {
-                        dma_state.dma_word_offset = static_cast<u32>(index * sizeof(u32));
+                        dma_state.dma_word_offset = (uint32_t)(index * sizeof(uint32_t));
                         dma_state.is_last_call = dma_state.method_count <= 1;
                         CallMethod(commands[index].argument);
                         dma_state.method++;
@@ -159,6 +159,7 @@ void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)
                         index++;
                         break;
                     }
+                    dma_state.is_last_call = dma_state.method_count <= 1;
                     subchannel->method_sink.emplace_back(dma_state.method, commands[index].argument);
                     dma_state.method++;
                     dma_state.method_count--;
@@ -206,6 +207,7 @@ void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)
                 dma_state.method = command_header.method;
                 dma_state.subchannel = command_header.subchannel;
                 dma_state.dma_word_offset = static_cast<u64>(-static_cast<s64>(dma_state.dma_get)); // negate to set address as 0
+                dma_state.is_last_call = true;
                 CallMethod(command_header.arg_count);
                 dma_state.non_incrementing = true;
                 dma_increment_once = false;
