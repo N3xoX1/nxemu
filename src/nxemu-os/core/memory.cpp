@@ -923,7 +923,22 @@ struct Memory::Impl {
 
     void InvalidateGPUMemory(u8 * p, size_t size)
     {
-        UNIMPLEMENTED();
+        constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
+        const size_t core = std::min(system.GetCurrentHostThreadID(), sys_core);
+
+        if (core == sys_core) [[unlikely]]
+        {
+            sys_core_guard.lock();
+        }
+        SCOPE_EXIT
+        {
+            if (core == sys_core) [[unlikely]]
+            {
+                sys_core_guard.unlock();
+            }
+        };
+
+        system.GetVideo().InvalidateMemory(p, size);
     }
 
     Core::System& system;

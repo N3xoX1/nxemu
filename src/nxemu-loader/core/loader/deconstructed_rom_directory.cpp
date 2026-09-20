@@ -193,7 +193,9 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     uint64_t fastmem_base = 0;
     if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
-        UNIMPLEMENTED();
+        IDeviceMemory & buffer = operatingSystem.DeviceMemory();
+        buffer.EnableDirectMappedAddress();
+        fastmem_base = reinterpret_cast<uint64_t>(buffer.VirtualBasePointer());
     }
 
     // Add patch size to the total module size
