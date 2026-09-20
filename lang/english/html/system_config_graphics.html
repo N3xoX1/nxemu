@@ -67,6 +67,14 @@
         <div class="right"><ComboBox id="AccuracyLevel" tooltip="GPU emulation accuracy.\nMost games render fine with Normal, but High is still required for some.\nParticles tend to only render correctly with High accuracy.\nExtreme should only be used for debugging.\nThis option can be changed while playing.\nSome games may require booting on high to render properly."/></div>
       </div>
       <div class="form-row">
+        <div class="left"><label for="DMAAccuracy">DMA Accuracy:</label></div>
+        <div class="right"><ComboBox id="DMAAccuracy" tooltip="Controls the DMA read mode.\nUnsafe is faster, while Safe is more stable and can fix issues in some games.\nDefault follows the GPU Accuracy setting."/></div>
+      </div>
+      <div class="form-row checkbox-row">
+        <div class="left"><label for="SyncMemoryOperations">Sync Memory Operations</label></div>
+        <div class="right"><input type="checkbox" id="SyncMemoryOperations" tooltip="Ensures data consistency between compute and memory operations.\nThis option fixes issues in games, but may degrade performance.\nUnreal Engine 4 games often see the most significant changes thereof."></div>
+      </div>
+      <div class="form-row">
         <div class="left"><label for="AnisotropicFiltering">Anisotropic Filtering:</label></div>
         <div class="right"><ComboBox id="AnisotropicFiltering" tooltip="Controls the quality of texture rendering at oblique angles.\nIt’s a light setting and safe to set at 16x on most GPUs."/></div>
       </div>

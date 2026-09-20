@@ -68,6 +68,9 @@ public:
     /// Signal a GPU based semaphore as a fence
     virtual void SignalFence(std::function<void()>&& func) = 0;
 
+    /// Signal a fence and wait for its deferred synchronization operations to complete.
+    virtual void WaitForFence() = 0;
+
     /// Send an operation to be done after a certain amount of flushes.
     virtual void SyncOperation(std::function<void()>&& func) = 0;
 

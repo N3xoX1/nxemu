@@ -46,10 +46,17 @@ static_assert(sizeof(CommandHeader) == sizeof(u32), "CommandHeader has incorrect
 struct CommandListHeader {
     union {
         u64 raw;
-        BitField<0, 40, GPUVAddr> addr;
+        BitField<0, 1, u64> conditional_fetch;
+        BitField<40, 1, u64> is_privileged;
         BitField<41, 1, u64> is_non_main;
         BitField<42, 21, u64> size;
+        BitField<63, 1, u64> sync;
     };
+
+    [[nodiscard]] GPUVAddr Address() const {
+        // GP_ENTRY0 bits 0-1 are not part of the byte address.
+        return static_cast<GPUVAddr>(raw & 0xFFFFFFFFFCULL);
+    }
 };
 static_assert(sizeof(CommandListHeader) == sizeof(u64), "CommandListHeader is incorrect size");
 

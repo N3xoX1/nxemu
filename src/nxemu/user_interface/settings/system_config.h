@@ -38,6 +38,7 @@ public:
         ScalingFilter,
         AntiAliasing,
         GpuAccuracy,
+        DmaAccuracy,
         AnisotropyMode,
         AstcRecompression,
         VramUsageMode,

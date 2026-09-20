@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_video_core/dma_pusher.h"
+
 #include "video_settings.h"
 #include "yuzu_common/cityhash.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/memory_manager.h"
+#include "yuzu_video_core/rasterizer_interface.h"
 
 namespace Tegra
 {
 
 constexpr u32 MacroRegistersStart = 0xE00;
-constexpr u32 ComputeInline = 0x6D;
+[[maybe_unused]] constexpr u32 ComputeInline = 0x6D;
 
 DmaPusher::DmaPusher(GPU & gpu_, MemoryManager & memory_manager_, Control::ChannelState & channel_state_) :
     gpu{gpu_},
@@ -46,79 +49,74 @@ bool DmaPusher::Step()
 {
     if (!ib_enable || dma_pushbuffer.empty())
     {
-        // pushbuffer empty and IB empty or nonexistent - nothing to do
         return false;
     }
 
-    CommandList & command_list{dma_pushbuffer.front()};
+    CommandList & command_list = dma_pushbuffer.front();
 
-    ASSERT_OR_EXECUTE(
-        command_list.command_lists.size() || command_list.prefetch_command_list.size(), {
-            // Somehow the command_list is empty, in order to avoid a crash
-            // We ignore it and assume its size is 0.
-            dma_pushbuffer.pop();
-            dma_pushbuffer_subindex = 0;
-            return true;
-        });
+    const size_t prefetch_size = command_list.prefetch_command_list.size();
+    const size_t command_list_size = command_list.command_lists.size();
 
-    if (command_list.prefetch_command_list.size())
+    if (prefetch_size == 0 && command_list_size == 0)
     {
-        // Prefetched command list from nvdrv, used for things like synchronization
+        dma_pushbuffer.pop();
+        dma_pushbuffer_subindex = 0;
+        return true;
+    }
+
+    if (prefetch_size > 0)
+    {
         ProcessCommands(command_list.prefetch_command_list);
         dma_pushbuffer.pop();
+        return true;
     }
-    else
+
+    const CommandListHeader & header = command_list.command_lists[dma_pushbuffer_subindex];
+    dma_state.dma_get = header.Address();
+
+    // SYNC_WAIT applies to the current GP entry, including zero-length entries.
+    if (header.sync && Settings::IsSyncMemoryOperationsEnabled())
     {
-        const CommandListHeader command_list_header{command_list.command_lists[dma_pushbuffer_subindex++]};
-        dma_state.dma_get = command_list_header.addr;
-
-        if (dma_pushbuffer_subindex >= command_list.command_lists.size())
-        {
-            // We've gone through the current list, remove it from the queue
-            dma_pushbuffer.pop();
-            dma_pushbuffer_subindex = 0;
-        }
-
-        if (command_list_header.size == 0)
-        {
-            return true;
-        }
-
-        // Push buffer non-empty, read a word
-        if (Settings::IsGPULevelHigh() && dma_state.method >= MacroRegistersStart)
-        {
-            if (subchannels[dma_state.subchannel])
-            {
-                subchannels[dma_state.subchannel]->current_dirty = memory_manager.IsMemoryDirty(dma_state.dma_get, command_list_header.size * sizeof(u32));
-            }
-        }
-        const auto safe_process = [&] {
-            Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::SafeRead> headers(memory_manager, dma_state.dma_get, command_list_header.size, &command_headers);
-            ProcessCommands(headers);
-        };
-        const auto unsafe_process = [&] {
-            Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::UnsafeRead> headers(memory_manager, dma_state.dma_get, command_list_header.size, &command_headers);
-            ProcessCommands(headers);
-        };
-        if (Settings::IsGPULevelHigh())
-        {
-            if (dma_state.method >= MacroRegistersStart)
-            {
-                unsafe_process();
-                return true;
-            }
-            if (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::KeplerCompute &&
-                dma_state.method == ComputeInline)
-            {
-                unsafe_process();
-                return true;
-            }
-            safe_process();
-            return true;
-        }
-        unsafe_process();
+        SynchronizeMemoryOperations();
     }
+
+    if (header.size > 0 && Settings::IsGPULevelHigh() &&
+        dma_state.method >= MacroRegistersStart && subchannels[dma_state.subchannel])
+    {
+        subchannels[dma_state.subchannel]->current_dirty =
+            memory_manager.IsMemoryDirty(dma_state.dma_get, header.size * sizeof(u32));
+    }
+
+    if (header.size > 0)
+    {
+        const bool use_safe = Settings::UseSafeDMAReads();
+        if (use_safe)
+        {
+            Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::SafeRead> headers(
+                memory_manager, dma_state.dma_get, header.size, &command_headers);
+            ProcessCommands(headers);
+        }
+        else
+        {
+            Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::UnsafeRead> headers(
+                memory_manager, dma_state.dma_get, header.size, &command_headers);
+            ProcessCommands(headers);
+        }
+    }
+
+    if (++dma_pushbuffer_subindex >= command_list_size)
+    {
+        dma_pushbuffer.pop();
+        dma_pushbuffer_subindex = 0;
+    }
+
     return true;
+}
+
+void DmaPusher::SynchronizeMemoryOperations()
+{
+    ASSERT(rasterizer != nullptr);
+    rasterizer->WaitForFence();
 }
 
 void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)
@@ -271,9 +269,10 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
     }
 }
 
-void DmaPusher::BindRasterizer(VideoCore::RasterizerInterface * rasterizer)
+void DmaPusher::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 {
-    puller.BindRasterizer(rasterizer);
+    rasterizer = rasterizer_;
+    puller.BindRasterizer(rasterizer_);
 }
 
 } // namespace Tegra

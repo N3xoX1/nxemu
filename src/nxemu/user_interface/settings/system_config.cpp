@@ -474,6 +474,11 @@ void SystemConfig::InitializeTranslations()
         {(uint32_t)GpuAccuracy::High, "High"},
         {(uint32_t)GpuAccuracy::Extreme, "Extreme"},
     }});
+    m_settingTranslations.insert({ TranslationType::DmaAccuracy, {
+        {0, "Default"},
+        {1, "Unsafe (fast)"},
+        {2, "Safe (stable)"},
+    }});
     m_settingTranslations.insert({ TranslationType::AnisotropyMode, {
         {(uint32_t)AnisotropyMode::Automatic, "Automatic"},
         {(uint32_t)AnisotropyMode::Default, "Default"},

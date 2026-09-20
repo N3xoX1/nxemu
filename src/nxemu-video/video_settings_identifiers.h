@@ -19,12 +19,14 @@ namespace NXVideoSetting
     constexpr const char * EnableAsynchronousPresentation = "nxvideo:EnableAsynchronousPresentation";
     constexpr const char * ForceMaximumClocks = "nxvideo:ForceMaximumClocks";
     constexpr const char * EnableReactiveFlushing = "nxvideo:EnableReactiveFlushing";
+    constexpr const char * SyncMemoryOperations = "nxvideo:SyncMemoryOperations";
     constexpr const char * UseAsynchronousShaderBuilding = "nxvideo:UseAsynchronousShaderBuilding";
     constexpr const char * FastGPUTime = "nxvideo:FastGPUTime";
     constexpr const char * UseVulkanPipelineCache = "nxvideo:UseVulkanPipelineCache";
     constexpr const char * SyncToFramerateOfVideoPlayback = "nxvideo:SyncToFramerateOfVideoPlayback";
     constexpr const char * BarrierFeedbackLoops = "nxvideo:BarrierFeedbackLoops";
     constexpr const char * AccuracyLevel = "nxvideo:AccuracyLevel";
+    constexpr const char * DMAAccuracy = "nxvideo:DMAAccuracy";
     constexpr const char * AnisotropicFiltering = "nxvideo:AnisotropicFiltering";
     constexpr const char * ASTCRecompressionMethod = "nxvideo:ASTCRecompressionMethod";
     constexpr const char * VRAMUsageMode = "nxvideo:VRAMUsageMode";

@@ -27,6 +27,8 @@ namespace
 
     static ConfigSetting advancedSettings[] = {
         ConfigSetting(ConfigSetting::ComboBox, "AccuracyLevel", true, SystemConfig::TranslationType::GpuAccuracy, NXVideoSetting::AccuracyLevel),
+        ConfigSetting(ConfigSetting::ComboBox, "DMAAccuracy", true, SystemConfig::TranslationType::DmaAccuracy, NXVideoSetting::DMAAccuracy),
+        ConfigSetting(ConfigSetting::CheckBox, "SyncMemoryOperations", true, NXVideoSetting::SyncMemoryOperations),
         ConfigSetting(ConfigSetting::ComboBox, "AnisotropicFiltering", false, SystemConfig::TranslationType::AnisotropyMode, NXVideoSetting::AnisotropicFiltering),
         ConfigSetting(ConfigSetting::ComboBox, "ASTCRecompressionMethod", false, SystemConfig::TranslationType::AstcRecompression, NXVideoSetting::ASTCRecompressionMethod),
         ConfigSetting(ConfigSetting::ComboBox, "VRAMUsageMode", false, SystemConfig::TranslationType::VramUsageMode, NXVideoSetting::VRAMUsageMode),

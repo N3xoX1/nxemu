@@ -287,6 +287,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
     settings.RegisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
+    settings.RegisterCallback(NXVideoSetting::SyncMemoryOperations, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::EnableDiscordPresence, SciterMainWindow::SettingChanged, this);
 
@@ -383,6 +384,7 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
     settings.UnregisterCallback(NXVideoSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
+    settings.UnregisterCallback(NXVideoSetting::SyncMemoryOperations, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::EnableDiscordPresence, SciterMainWindow::SettingChanged, this);
 
@@ -654,6 +656,7 @@ bool SciterMainWindow::Show()
 
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("dockedMode"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("renderer"), IID_ICLICKSINK, (IClickSink *)this);
+    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("syncMemoryOperations"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volume"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volumePopupBtn"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("audioVolume"), IID_ISTATECHANGESINK, (IStateChangeSink *)this);
@@ -842,6 +845,14 @@ void SciterMainWindow::UpdateStatusWidgets()
     {
         stdstr_f text("%s", RendererBackendLabel((RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI)));
         renderer.SetHTML((const uint8_t *)text.c_str(), text.size());
+    }
+
+    SciterElement syncMemoryOperations(m_rootElement.GetElementByID("syncMemoryOperations"));
+    if (syncMemoryOperations.IsValid())
+    {
+        const bool enabled = settings.GetBool(NXVideoSetting::SyncMemoryOperations);
+        stdstr_f text("SMO: %s", enabled ? "ON" : "OFF");
+        syncMemoryOperations.SetHTML((const uint8_t *)text.c_str(), text.size());
     }
 
     SciterElement volume(m_rootElement.GetElementByID("volume"));
@@ -2389,6 +2400,13 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
             m_modules.FlushSettings();
         }
     }
+    else if (source == rootElement.GetElementByID("syncMemoryOperations"))
+    {
+        SettingsStore & settings = SettingsStore::GetInstance();
+        const bool enabled = settings.GetBool(NXVideoSetting::SyncMemoryOperations);
+        settings.SetBool(NXVideoSetting::SyncMemoryOperations, !enabled);
+        UpdateStatusWidgets();
+    }
     else if (source == rootElement.GetElementByID("volume"))
     {
         SettingsStore & settings = SettingsStore::GetInstance();
@@ -2445,6 +2463,10 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
     else if (strcmp(setting, NXVideoSetting::ResolutionUpFactor) == 0)
     {
         impl->m_resolutionUpFactor = SettingsStore::GetInstance().GetFloat(NXVideoSetting::ResolutionUpFactor);
+    }
+    else if (strcmp(setting, NXVideoSetting::SyncMemoryOperations) == 0)
+    {
+        impl->UpdateStatusWidgets();
     }
     else if (strcmp(setting, NXOsSetting::UseMultiCore) == 0)
     {

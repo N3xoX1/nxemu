@@ -38,6 +38,10 @@ struct ResolutionScalingInfo
 void UpdateGPUAccuracy();
 bool IsGPULevelExtreme();
 bool IsGPULevelHigh();
+bool IsDMALevelDefault();
+bool IsDMALevelSafe();
+bool UseSafeDMAReads();
+bool IsSyncMemoryOperationsEnabled();
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info);
 void UpdateRescalingInfo();
 
@@ -72,9 +76,11 @@ struct VideoSettings
     bool renderer_force_max_clock;
     AstcDecodeMode accelerate_astc;
     GpuAccuracy gpu_accuracy;
+    int32_t dma_accuracy;
     AnisotropyMode max_anisotropy;
     bool async_presentation;
     bool use_reactive_flushing;
+    bool sync_memory_operations;
 
     bool use_asynchronous_shaders;
     bool use_fast_gpu_time;

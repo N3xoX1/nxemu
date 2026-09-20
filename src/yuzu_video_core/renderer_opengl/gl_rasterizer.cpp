@@ -615,6 +615,10 @@ void RasterizerOpenGL::SignalFence(std::function<void()>&& func) {
     fence_manager.SignalFence(std::move(func));
 }
 
+void RasterizerOpenGL::WaitForFence() {
+    fence_manager.WaitForFence();
+}
+
 void RasterizerOpenGL::SyncOperation(std::function<void()>&& func) {
     fence_manager.SyncOperation(std::move(func));
 }

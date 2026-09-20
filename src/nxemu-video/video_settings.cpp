@@ -2,6 +2,7 @@
 #include "video_enum_strings.h"
 #include "video_settings_identifiers.h"
 #include <algorithm>
+#include <atomic>
 #include <common/json.h>
 #include <cstring>
 #include <nxemu-module-spec/base.h>
@@ -10,6 +11,13 @@
 extern IModuleSettings * g_settings;
 
 VideoSettings videoSettings{};
+
+namespace
+{
+// Configuration storage stays on the settings thread; the GPU reads these snapshots.
+std::atomic<int32_t> runtime_dma_accuracy{0};
+std::atomic<bool> runtime_sync_memory_operations{true};
+}
 
 namespace Settings
 {
@@ -28,6 +36,27 @@ bool IsGPULevelHigh()
 {
     return videoSettings.current_gpu_accuracy == GpuAccuracy::Extreme ||
            videoSettings.current_gpu_accuracy == GpuAccuracy::High;
+}
+
+bool IsDMALevelDefault()
+{
+    return runtime_dma_accuracy.load(std::memory_order_relaxed) == 0;
+}
+
+bool IsDMALevelSafe()
+{
+    return runtime_dma_accuracy.load(std::memory_order_relaxed) == 2;
+}
+
+bool UseSafeDMAReads()
+{
+    const int32_t accuracy = runtime_dma_accuracy.load(std::memory_order_relaxed);
+    return accuracy == 0 ? IsGPULevelHigh() : accuracy == 2;
+}
+
+bool IsSyncMemoryOperationsEnabled()
+{
+    return runtime_sync_memory_operations.load(std::memory_order_relaxed);
 }
 
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info)
@@ -213,6 +242,8 @@ static VideoSetting settings[] = {
     {NXVideoSetting::AccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, GpuAccuracy::High},
     {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Automatic},
 #endif
+    {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2},
+    {NXVideoSetting::SyncMemoryOperations, "video", "sync_memory_operations", &videoSettings.sync_memory_operations, true},
     {NXVideoSetting::VSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu},
 #ifdef _WIN32
@@ -308,6 +339,16 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
             break;
         default:
             UNIMPLEMENTED();
+        }
+        if (strcmp(setting, NXVideoSetting::DMAAccuracy) == 0)
+        {
+            runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
+            return;
+        }
+        if (strcmp(setting, NXVideoSetting::SyncMemoryOperations) == 0)
+        {
+            runtime_sync_memory_operations.store(videoSettings.sync_memory_operations, std::memory_order_relaxed);
+            return;
         }
     }
     Settings::UpdateRescalingInfo();
@@ -576,6 +617,8 @@ void SetupVideoSetting(void)
         }
         g_settings->RegisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
     }
+    runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
+    runtime_sync_memory_operations.store(videoSettings.sync_memory_operations, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();
     Settings::UpdateGPUAccuracy();
 }
