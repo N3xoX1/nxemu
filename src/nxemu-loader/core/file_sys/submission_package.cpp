@@ -303,8 +303,7 @@ void NSP::ReadNCAs(const std::vector<VirtualFile> & files)
                     // If the last 3 hexadecimal digits of the NCA's TitleID is between 0x1 and
                     // 0x7FF, this is a multi-program update NCA. Otherwise, this is a regular
                     // update NCA.
-                    if ((next_nca->GetTitleId() & 0x7FF) != 0 &&
-                        (next_nca->GetTitleId() & 0x800) == 0)
+                    if ((next_nca->GetTitleId() & 0x7FF) != 0)
                     {
                         ncas[next_nca->GetTitleId()][{cnmt.GetType(), rec.type}] = std::move(next_nca);
                     }
