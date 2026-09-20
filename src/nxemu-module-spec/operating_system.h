@@ -514,6 +514,8 @@ struct PerfStatsResults
 nxinterface IDeviceMemory
 {
     virtual const uint8_t * BackingBasePointer() const = 0;
+    virtual uint8_t * VirtualBasePointer() = 0;
+    virtual void EnableDirectMappedAddress() = 0;
 };
 
 nxinterface ICacheInvalidator

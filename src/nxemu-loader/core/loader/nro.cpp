@@ -224,7 +224,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     program_image.resize(static_cast<u32>(program_image.size()) + bss_size);
     uint32_t image_size = (uint32_t)program_image.size();
 
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     const auto & code = codeset.CodeSegment();
 
     g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, true);
@@ -244,8 +244,11 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
 
     // Enable direct memory mapping in case of NCE.
     uint64_t fastmem_base = 0;
-    if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
-        UNIMPLEMENTED();
+    if (g_settings->GetBool(NXCpuSetting::NceEnabled))
+    {
+        IDeviceMemory & buffer = operatingSystem.DeviceMemory();
+        buffer.EnableDirectMappedAddress();
+        fastmem_base = reinterpret_cast<uint64_t>(buffer.VirtualBasePointer());
     }
 
     uint64_t process_base = 0;
@@ -257,7 +260,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
 
     // Relocate code patch and copy to the program_image if running under NCE.
     // This needs to be after LoadFromMetadata so we can use the process entry point.
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     if (patch_ctx && patch_index >= 0 && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         uint32_t reloc_size = static_cast<uint32_t>(program_image.size());

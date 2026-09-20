@@ -118,6 +118,11 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
 bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t code_size,
                               uint8_t * program_image, uint64_t * image_size,
                               EntryTrampolines * out_trampolines) {
+    if (image_size == nullptr || program_image == nullptr || out_trampolines == nullptr ||
+        m_relocate_module_index >= modules.size()) {
+        return false;
+    }
+
     const size_t patch_size = GetSectionSize();
     const size_t current_image_size = *image_size;
 

@@ -160,7 +160,10 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         {
             uint64_t patch_segment_addr = 0;
             uint32_t patch_segment_size = 0;
+            const uint32_t patch_bytes = patch_collection->GetTotalPatchSize();
+            program_image.resize(image_size + patch_bytes);
             patch_collection->Relocate(patch_index, load_base, program_image.data(), &image_size, (uint32_t)code.offset, code.size, &patch_segment_addr, &patch_segment_size);
+            program_image.resize(image_size);
             if (patch_segment_size != 0)
             {
                 Kernel::CodeSet::Segment & patch_segment = codeset.PatchSegment();

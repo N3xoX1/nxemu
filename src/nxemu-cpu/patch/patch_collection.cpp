@@ -12,14 +12,14 @@ PatchCollection::PatchCollection(ISystemModules & modules, bool is_application) 
     m_is_application(is_application)
 {
     std::fill(std::begin(m_module_patcher_indices), std::end(m_module_patcher_indices), -1);
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     m_patchers.emplace_back();
 #endif
 }
 
 void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size)
 {
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return;
@@ -41,7 +41,7 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
 
 void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t * program_image, uint32_t * image_size, uint32_t code_offset, uint32_t code_size, uint64_t * segment_addr, uint32_t * segment_size)
 {
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return;
@@ -99,7 +99,7 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
 
 uint32_t PatchCollection::GetTotalPatchSize() const
 {
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return 0;
@@ -118,7 +118,7 @@ uint32_t PatchCollection::GetTotalPatchSize() const
 
 uint32_t PatchCollection::GetPreTextSize(int32_t patch_index) const
 {
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return 0;
@@ -142,7 +142,7 @@ uint32_t PatchCollection::GetPreTextSize(int32_t patch_index) const
 
 int32_t PatchCollection::GetLastIndex() const
 {
-#if defined(FIX_NCE) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__))
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     return (int32_t)(m_patchers.size()) - 1;
 #else
     return 0;
