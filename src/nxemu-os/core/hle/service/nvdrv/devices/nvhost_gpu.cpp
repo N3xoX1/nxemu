@@ -122,7 +122,7 @@ NvResult nvhost_gpu::Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> inpu
         case 0x3:
             return WrapFixed(this, &nvhost_gpu::ChannelSetTimeout, input, output);
         case 0x8:
-            return WrapFixedVariable(this, &nvhost_gpu::SubmitGPFIFOBase1, input, output, false);
+            return WrapFixedVariable(this, &nvhost_gpu::SubmitGPFIFOBase1, input, output, fd, false);
         case 0x9:
             return WrapFixed(this, &nvhost_gpu::AllocateObjectContext, input, output);
         case 0xb:
@@ -134,7 +134,7 @@ NvResult nvhost_gpu::Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> inpu
         case 0x1a:
             return WrapFixed(this, &nvhost_gpu::AllocGPFIFOEx2, input, output, fd);
         case 0x1b:
-            return WrapFixedVariable(this, &nvhost_gpu::SubmitGPFIFOBase1, input, output, true);
+            return WrapFixedVariable(this, &nvhost_gpu::SubmitGPFIFOBase1, input, output, fd, true);
         case 0x1d:
             return WrapFixed(this, &nvhost_gpu::ChannelSetTimeslice, input, output);
         default:
@@ -339,8 +339,21 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
     return NvResult::Success;
 }
 
+IMemory& nvhost_gpu::GetSessionMemory(DeviceFD fd) {
+    if (const auto it = sessions.find(fd); it != sessions.end()) {
+        if (auto* const session = core.GetSession(it->second);
+            session != nullptr && session->process != nullptr) {
+            return session->process->GetMemory();
+        }
+    }
+
+    LOG_ERROR(Service_NVDRV, "No session for fd={}, falling back to application memory", fd);
+    return system.ApplicationMemory();
+}
+
 NvResult nvhost_gpu::SubmitGPFIFOBase1(IoctlSubmitGpfifo& params,
-                                       std::span<Tegra::CommandListHeader> commands, bool kickoff) {
+                                       std::span<Tegra::CommandListHeader> commands, DeviceFD fd,
+                                       bool kickoff) {
     if (params.num_entries > commands.size()) {
         UNIMPLEMENTED();
         return NvResult::InvalidSize;
@@ -348,8 +361,8 @@ NvResult nvhost_gpu::SubmitGPFIFOBase1(IoctlSubmitGpfifo& params,
 
     Tegra::CommandList entries(params.num_entries);
     if (kickoff) {
-        system.ApplicationMemory().ReadBlock(params.address, entries.command_lists.data(),
-                                             params.num_entries * sizeof(Tegra::CommandListHeader));
+        GetSessionMemory(fd).ReadBlock(params.address, entries.command_lists.data(),
+                                       params.num_entries * sizeof(Tegra::CommandListHeader));
     } else {
         std::memcpy(entries.command_lists.data(), commands.data(),
                     params.num_entries * sizeof(Tegra::CommandListHeader));
