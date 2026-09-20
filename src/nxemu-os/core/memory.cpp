@@ -1155,6 +1155,10 @@ void Memory::MarkRegionDebug(Common::ProcessAddress vaddr, u64 size, bool debug)
     impl->MarkRegionDebug(vaddr.GetValue(), size, debug);
 }
 
+bool Memory::InvalidateNCE(uint64_t vaddr, uint64_t size) {
+    return InvalidateNCE(Common::ProcessAddress(vaddr), static_cast<size_t>(size));
+}
+
 bool Memory::InvalidateNCE(Common::ProcessAddress vaddr, size_t size) {
     [[maybe_unused]] bool mapped = true;
     [[maybe_unused]] bool rasterizer = false;

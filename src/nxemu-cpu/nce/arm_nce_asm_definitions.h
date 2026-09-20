@@ -24,7 +24,7 @@
 #define TpidrEl0NativeContext 0x10
 #define TpidrEl0Lock 0x18
 #define TpidrEl0TlsMagic 0x20
-#define TlsMagic 0x555a5559
+#define TlsMagic 0x4D45584E
 
 #define SpinLockLocked 0
 #define SpinLockUnlocked 1

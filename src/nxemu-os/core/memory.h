@@ -145,6 +145,7 @@ public:
      */
     u8* GetPointer(Common::ProcessAddress vaddr);
     u8* GetPointerSilent(uint64_t vaddr) override;
+    bool InvalidateNCE(uint64_t vaddr, uint64_t size) override;
 
     template <typename T>
     T* GetPointer(Common::ProcessAddress vaddr) {

@@ -13,6 +13,7 @@
 #include "yuzu_common/interface_pointer_def.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/cpu.h>
 #include <nxemu-module-spec/operating_system.h>
@@ -155,6 +156,7 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     metadata.Print();
 
     const bool is_application = metadata.GetPoolPartition() == PoolPartition::Application;
+    g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, metadata.GetAddressSpaceType() == ProgramAddressSpaceType::Is39Bit);
 
     IPatchCollectionPtr patch_ctx(systemModules.Cpu().CreatePatchCollection(is_application));
     const std::array static_modules = {"rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};

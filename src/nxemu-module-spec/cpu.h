@@ -76,6 +76,7 @@ nxinterface IMemory
     virtual bool IsValidVirtualAddressRange(uint64_t base, uint64_t size) const = 0;
     virtual void RasterizerMarkRegionCached(uint64_t vaddr, uint64_t size, bool cached) = 0;
     virtual uint8_t * GetPointerSilent(uint64_t vaddr) = 0;
+    virtual bool InvalidateNCE(uint64_t vaddr, uint64_t size) = 0;
 
     virtual uint8_t Read8(uint64_t addr) = 0;
     virtual uint16_t Read16(uint64_t addr) = 0;
