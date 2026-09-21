@@ -43,13 +43,36 @@
     margin: 0 0 0.5em 0;
   }
 
+  .form-row
+  {
+    flow: horizontal;
+    width: *;
+    vertical-align: middle;
+  }
+
   .form-row .left,
   .form-row .right
   {
-    width: 50%%;
-    display: inline-block;
+    width: *;
+    vertical-align: middle;
   }
 
+  .form-row .right
+  {
+    flow: horizontal;
+  }
+
+  .form-row .right ComboBox,
+  .form-row .right input[type="text"]
+  {
+    display: block;
+    width: *;
+  }
+
+  .form-row .right input[type="hslider"]
+  {
+    width: *;
+  }
 PageNav.page_tabs {
   display: flex;
 }
@@ -93,18 +116,19 @@ PageNav.page_tabs page.active {
 {
   background: color(color-config-page);
   border: 1px solid color(color-config-page-border);
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   flow: horizontal;
   padding: 1em 1em 0 1em;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9rem;
   color: #eff0f1;
 }
 
 #gameDirectoryList,
 #addOnDirectoryList {
-  width: 100%%;
+  display: block;
+  width: *;
 }
 
 #gameDirectoryList select,
@@ -118,7 +142,7 @@ PageNav.page_tabs page.active {
   overflow-y: auto;
   padding: 0.1rem;
   margin-bottom: 1rem;
-  width: 100%%;
+  width: *;
 }
 
 #gameDirectoryList option,
