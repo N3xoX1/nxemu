@@ -47,6 +47,8 @@ public:
             {20102, nullptr, "GetFriendDetailedInfo"},
             {20103, nullptr, "SyncFriendList"},
             {20104, nullptr, "RequestSyncFriendList"},
+            {20105, &IFriendService::GetFriendListForViewer, "GetFriendListForViewerV1"},
+            {20108, &IFriendService::GetFriendListForViewer, "GetFriendListForViewerV2"},
             {20110, nullptr, "LoadFriendSetting"},
             {20200, &IFriendService::GetReceivedFriendRequestCount, "GetReceivedFriendRequestCount"},
             {20201, nullptr, "GetFriendRequestList"},
@@ -158,6 +160,14 @@ private:
 
         rb.Push<u32>(0); // Friend count
         // TODO(ogniK): Return a buffer of u64s which are the "NetworkServiceAccountId"
+    }
+
+    void GetFriendListForViewer(HLERequestContext& ctx) {
+        LOG_DEBUG(Service_Friend, "(STUBBED) called");
+
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(ResultSuccess);
+        rb.Push<u32>(0);
     }
 
     void CheckFriendListAvailability(HLERequestContext& ctx) {

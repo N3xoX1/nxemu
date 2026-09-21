@@ -108,13 +108,73 @@ IFileSysRegisteredCache & FileSystemController::GetSystemNANDContents() const
 
 uint64_t FileSystemController::GetFreeSpaceSize(StorageId id) const
 {
-    UNIMPLEMENTED();
+    switch (id)
+    {
+    case StorageId::None:
+    case StorageId::GameCard:
+        return 0;
+    case StorageId::SdCard:
+        if (sdmc_factory == nullptr)
+        {
+            return 0;
+        }
+        return sdmc_factory->GetSDMCFreeSpace();
+    case StorageId::Host:
+        if (bis_factory == nullptr)
+        {
+            return 0;
+        }
+        return bis_factory->GetSystemNANDFreeSpace() + bis_factory->GetUserNANDFreeSpace();
+    case StorageId::NandSystem:
+        if (bis_factory == nullptr)
+        {
+            return 0;
+        }
+        return bis_factory->GetSystemNANDFreeSpace();
+    case StorageId::NandUser:
+        if (bis_factory == nullptr)
+        {
+            return 0;
+        }
+        return bis_factory->GetUserNANDFreeSpace();
+    }
+
     return 0;
 }
 
 uint64_t FileSystemController::GetTotalSpaceSize(StorageId id) const
 {
-    UNIMPLEMENTED();
+    switch (id)
+    {
+    case StorageId::None:
+    case StorageId::GameCard:
+        return 0;
+    case StorageId::SdCard:
+        if (sdmc_factory == nullptr)
+        {
+            return 0;
+        }
+        return sdmc_factory->GetSDMCTotalSpace();
+    case StorageId::Host:
+        if (bis_factory == nullptr)
+        {
+            return 0;
+        }
+        return bis_factory->GetFullNANDTotalSpace();
+    case StorageId::NandSystem:
+        if (bis_factory == nullptr)
+        {
+            return 0;
+        }
+        return bis_factory->GetSystemNANDTotalSpace();
+    case StorageId::NandUser:
+        if (bis_factory == nullptr)
+        {
+            return 0;
+        }
+        return bis_factory->GetUserNANDTotalSpace();
+    }
+
     return 0;
 }
 

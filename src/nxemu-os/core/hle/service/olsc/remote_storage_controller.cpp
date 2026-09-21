@@ -25,7 +25,7 @@ IRemoteStorageController::IRemoteStorageController(Core::System& system_)
         {15, nullptr, "RegisterUploadSaveDataTransferTaskForAutonomyRegistration"},
         {16, nullptr, "CreateCleanupToDeleteSaveDataArchiveInfoTask"},
         {17, nullptr, "ListDataInfo"},
-        {18, nullptr, "GetDataInfo"},
+        {18, D<&IRemoteStorageController::GetDataInfo>, "GetDataInfoV1"},
         {19, nullptr, "Unknown19"},
         {20, nullptr, "CreateSaveDataArchiveInfoCacheForSaveDataBackupUpdationTask"},
         {21, nullptr, "ListSecondarySaves"},
@@ -33,6 +33,7 @@ IRemoteStorageController::IRemoteStorageController(Core::System& system_)
         {23, nullptr, "TouchSecondarySave"},
         {24, nullptr, "GetSecondarySaveDataInfo"},
         {25, nullptr, "RegisterDownloadSaveDataTransferTaskForAutonomyRegistration"},
+        {27, D<&IRemoteStorageController::GetDataInfo>, "GetDataInfoV2"},
         {900, nullptr, "Unknown900"},
     };
     // clang-format on
@@ -48,6 +49,13 @@ Result IRemoteStorageController::GetSecondarySave(Out<bool> out_has_secondary_sa
     LOG_ERROR(Service_OLSC, "(STUBBED) called, application_id={:016X}", application_id);
     *out_has_secondary_save = false;
     *out_unknown = {};
+    R_SUCCEED();
+}
+
+Result IRemoteStorageController::GetDataInfo(Out<std::array<u8, 0x38>> out_data,
+                                             u64 application_id) {
+    LOG_WARNING(Service_OLSC, "(STUBBED) called, application_id={:016X}", application_id);
+    out_data->fill(0);
     R_SUCCEED();
 }
 

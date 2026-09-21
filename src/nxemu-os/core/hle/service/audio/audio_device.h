@@ -49,6 +49,8 @@ private:
     Result ListAudioOutputDeviceName(
         OutArray<AudioDevice::AudioDeviceName, BufferAttr_HipcMapAlias> out_names,
         Out<s32> out_count);
+    Result SetAudioDeviceOutputVolumeAutoTuneEnabled(bool enabled);
+    Result IsAudioDeviceOutputVolumeAutoTuneEnabled(Out<bool> out_enabled);
 
     KernelHelpers::ServiceContext service_context;
     std::unique_ptr<AudioCore::Renderer::AudioDevice> impl;

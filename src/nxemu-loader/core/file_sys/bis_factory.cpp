@@ -113,7 +113,9 @@ uint64_t BISFactory::GetSystemNANDFreeSpace() const
         return GetSystemNANDTotalSpace();
     }
 
-    return GetSystemNANDTotalSpace() - sys_dir->GetSize();
+    const auto total_size = GetSystemNANDTotalSpace();
+    const auto used_size = sys_dir->GetSize();
+    return used_size < total_size ? total_size - used_size : 0;
 }
 
 uint64_t BISFactory::GetSystemNANDTotalSpace() const

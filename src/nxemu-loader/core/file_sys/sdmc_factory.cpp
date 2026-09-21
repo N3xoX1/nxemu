@@ -52,7 +52,9 @@ VirtualDir SDMCFactory::GetImageDirectory() const {
 }
 
 uint64_t SDMCFactory::GetSDMCFreeSpace() const {
-    return GetSDMCTotalSpace() - sd_dir->GetSize();
+    const auto total_size = GetSDMCTotalSpace();
+    const auto used_size = sd_dir->GetSize();
+    return used_size < total_size ? total_size - used_size : 0;
 }
 
 uint64_t SDMCFactory::GetSDMCTotalSpace() const {

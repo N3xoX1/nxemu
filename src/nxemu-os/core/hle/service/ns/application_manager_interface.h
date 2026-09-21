@@ -39,9 +39,12 @@ public:
         OutArray<ApplicationRightsOnClient, BufferAttr_HipcMapAlias> out_rights, Out<u32> out_count,
         u32 flags, u64 application_id, Uid account_id);
     Result CheckSdCardMountStatus();
+    Result GetTotalSpaceSize(Out<s64> out_total_space_size, u64 storage_id);
+    Result GetFreeSpaceSize(Out<s64> out_free_space_size, u64 storage_id);
     Result GetSdCardMountStatusChangedEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result GetGameCardUpdateDetectionEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result ResumeAll();
+    Result TouchApplication(u64 application_id);
     Result IsApplicationUpdateRequested(Out<bool> out_update_required, Out<u32> out_update_version,
                                         u64 application_id);
     Result CheckApplicationLaunchVersion(u64 application_id);

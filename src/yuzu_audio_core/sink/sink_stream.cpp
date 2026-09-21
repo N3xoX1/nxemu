@@ -219,7 +219,17 @@ void SinkStream::ProcessAudioIn(std::span<const s16> input_buffer, std::size_t n
         }
     }
 
-    std::memcpy(&last_frame[0], &input_buffer[(frames_written - 1) * frame_size], frame_size_bytes);
+    if (frames_written > 0) {
+        std::memcpy(&last_frame[0], &input_buffer[(frames_written - 1) * frame_size], frame_size_bytes);
+    }
+
+    // update sample counts fuer audio-ins
+    {
+        std::scoped_lock lk{sample_count_lock};
+        last_sample_count_update_time = system.CoreTiming().GetGlobalTimeNs();
+        min_played_sample_count = max_played_sample_count;
+        max_played_sample_count += frames_written;
+    }
 }
 
 void SinkStream::ProcessAudioOutAndRender(std::span<s16> output_buffer, std::size_t num_frames)

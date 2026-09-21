@@ -29,6 +29,8 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
         {12, D<&IAudioDevice::QueryAudioDeviceOutputEvent>, "QueryAudioDeviceOutputEvent"},
         {13, D<&IAudioDevice::GetActiveAudioDeviceName>, "GetActiveAudioOutputDeviceName"},
         {14, D<&IAudioDevice::ListAudioOutputDeviceName>, "ListAudioOutputDeviceName"},
+        {19, D<&IAudioDevice::SetAudioDeviceOutputVolumeAutoTuneEnabled>, "SetAudioDeviceOutputVolumeAutoTuneEnabled"},
+        {20, D<&IAudioDevice::IsAudioDeviceOutputVolumeAutoTuneEnabled>, "IsAudioDeviceOutputVolumeAutoTuneEnabled"},
     };
     RegisterHandlers(functions);
 
@@ -157,6 +159,17 @@ Result IAudioDevice::ListAudioOutputDeviceName(
     }
 
     LOG_DEBUG(Service_Audio, "called.\nNames={}", out);
+    R_SUCCEED();
+}
+
+Result IAudioDevice::SetAudioDeviceOutputVolumeAutoTuneEnabled(bool enabled) {
+    LOG_WARNING(Service_Audio, "(STUBBED) called, enabled={}", enabled);
+    R_SUCCEED();
+}
+
+Result IAudioDevice::IsAudioDeviceOutputVolumeAutoTuneEnabled(Out<bool> out_enabled) {
+    LOG_WARNING(Service_Audio, "(STUBBED) called");
+    *out_enabled = false;
     R_SUCCEED();
 }
 

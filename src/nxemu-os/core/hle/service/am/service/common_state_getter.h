@@ -29,6 +29,7 @@ private:
     Result ReceiveMessage(Out<AppletMessage> out_applet_message);
     Result GetCurrentFocusState(Out<FocusState> out_focus_state);
     Result RequestToAcquireSleepLock();
+    Result ReleaseSleepLock();
     Result GetAcquiredSleepLockEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result GetReaderLockAccessorEx(Out<SharedPointer<ILockAccessor>> out_lock_accessor,
                                    u32 button_type);

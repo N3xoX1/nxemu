@@ -110,6 +110,8 @@ public:
                 break;
             }
 
+            session.ReleaseBuffer(buffers[index]);
+
             ReleaseBuffer(index, core_timing.GetGlobalTimeNs().count());
             buffer_released = true;
         }

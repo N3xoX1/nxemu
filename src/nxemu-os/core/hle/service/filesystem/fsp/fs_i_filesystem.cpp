@@ -32,7 +32,7 @@ IFileSystem::IFileSystem(Core::System & system_, IVirtualDirectoryPtr && dir_, S
         {13, D<&IFileSystem::CleanDirectoryRecursively>, "CleanDirectoryRecursively"},
         {14, nullptr, "GetFileTimeStampRaw"},
         {15, nullptr, "QueryEntry"},
-        {16, nullptr, "GetFileSystemAttribute"},
+        {16, D<&IFileSystem::GetFileSystemAttribute>, "GetFileSystemAttribute"},
     };
     RegisterHandlers(functions);
 }
@@ -133,7 +133,7 @@ Result IFileSystem::GetFreeSpaceSize(Out<s64> out_size, const InLargeData<FileSy
 {
     LOG_DEBUG(Service_FS, "called");
 
-    UNIMPLEMENTED();
+    *out_size = static_cast<s64>(size_getter.get_free_size());
     R_SUCCEED();
 }
 
@@ -141,7 +141,52 @@ Result IFileSystem::GetTotalSpaceSize(Out<s64> out_size, const InLargeData<FileS
 {
     LOG_DEBUG(Service_FS, "called");
 
-    UNIMPLEMENTED();
+    *out_size = static_cast<s64>(size_getter.get_total_size());
+    R_SUCCEED();
+}
+
+Result IFileSystem::GetFileSystemAttribute(Out<FileSys::FileSystemAttribute> out_attribute)
+{
+    LOG_WARNING(Service_FS, "(STUBBED) called");
+
+    constexpr s32 kEntryNameLengthMax = 0x80;
+    constexpr s32 kPathLengthMax = 0x300;
+
+    FileSys::FileSystemAttribute attribute{};
+
+    attribute.dir_entry_name_length_max_defined = true;
+    attribute.file_entry_name_length_max_defined = true;
+    attribute.dir_path_name_length_max_defined = true;
+    attribute.file_path_name_length_max_defined = true;
+
+    attribute.utf16_create_dir_path_len_max_defined = true;
+    attribute.utf16_delete_dir_path_len_max_defined = true;
+    attribute.utf16_rename_src_dir_path_len_max_defined = true;
+    attribute.utf16_rename_dest_dir_path_len_max_defined = true;
+    attribute.utf16_open_dir_path_len_max_defined = true;
+
+    attribute.utf16_dir_entry_name_length_max_defined = true;
+    attribute.utf16_file_entry_name_length_max_defined = true;
+    attribute.utf16_dir_path_name_length_max_defined = true;
+    attribute.utf16_file_path_name_length_max_defined = true;
+
+    attribute.dir_entry_name_length_max = kEntryNameLengthMax;
+    attribute.file_entry_name_length_max = kEntryNameLengthMax;
+    attribute.dir_path_name_length_max = kPathLengthMax;
+    attribute.file_path_name_length_max = kPathLengthMax;
+
+    attribute.utf16_create_dir_path_length_max = kPathLengthMax;
+    attribute.utf16_delete_dir_path_length_max = kPathLengthMax;
+    attribute.utf16_rename_src_dir_path_length_max = kPathLengthMax;
+    attribute.utf16_rename_dest_dir_path_length_max = kPathLengthMax;
+    attribute.utf16_open_dir_path_length_max = kPathLengthMax;
+
+    attribute.utf16_dir_entry_name_length_max = kEntryNameLengthMax;
+    attribute.utf16_file_entry_name_length_max = kEntryNameLengthMax;
+    attribute.utf16_dir_path_name_length_max = kPathLengthMax;
+    attribute.utf16_file_path_name_length_max = kPathLengthMax;
+
+    *out_attribute = attribute;
     R_SUCCEED();
 }
 

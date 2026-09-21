@@ -16,9 +16,13 @@ public:
     ~IAppletCommonFunctions() override;
 
 private:
+    Result SetHomeButtonDoubleClickEnabled(bool home_button_double_click_enabled);
     Result GetHomeButtonDoubleClickEnabled(Out<bool> out_home_button_double_click_enabled);
+    Result SetDisplayMagnification(f32 x, f32 y, f32 width, f32 height);
     Result SetCpuBoostRequestPriority(s32 priority);
     Result GetCurrentApplicationId(Out<u64> out_application_id);
+    Result SetGpuTimeSliceBoost(s64 time_span);
+    Result Unknown350(Out<u16> out_unknown);
 
     const std::shared_ptr<Applet> applet;
 };

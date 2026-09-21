@@ -50,6 +50,8 @@ private:
     Result ScanPrivate(Out<s16> network_count, WifiChannel channel, const ScanFilter& scan_filter,
                        OutArray<NetworkInfo, BufferAttr_HipcAutoSelect> out_network_info);
 
+    Result SetProtocol(u32 protocol);
+
     Result SetWirelessControllerRestriction(WirelessControllerRestriction wireless_restriction);
 
     Result OpenAccessPoint();

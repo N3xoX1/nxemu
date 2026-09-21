@@ -14,6 +14,7 @@ public:
 private:
     Result GetSecondarySave(Out<bool> out_has_secondary_save, Out<std::array<u64, 3>> out_unknown,
                             u64 application_id);
+    Result GetDataInfo(Out<std::array<u8, 0x38>> out_data, u64 application_id);
 };
 
 } // namespace Service::OLSC

@@ -48,7 +48,7 @@ IHidServer::IHidServer(Core::System& system_, std::shared_ptr<ResourceManager> r
         {1, C<&IHidServer::ActivateDebugPad>, "ActivateDebugPad"},
         {11, C<&IHidServer::ActivateTouchScreen>, "ActivateTouchScreen"},
         {21, C<&IHidServer::ActivateMouse>, "ActivateMouse"},
-        {26, nullptr, "ActivateDebugMouse"},
+        {26, C<&IHidServer::ActivateDebugMouse>, "ActivateDebugMouse"},
         {31, C<&IHidServer::ActivateKeyboard>, "ActivateKeyboard"},
         {32, C<&IHidServer::SendKeyboardLockKeyEvent>, "SendKeyboardLockKeyEvent"},
         {40, C<&IHidServer::AcquireXpadIdEventHandle>, "AcquireXpadIdEventHandle"},
@@ -89,6 +89,7 @@ IHidServer::IHidServer(Core::System& system_, std::shared_ptr<ResourceManager> r
         {88, C<&IHidServer::GetSixAxisSensorIcInformation>, "GetSixAxisSensorIcInformation"},
         {89, C<&IHidServer::ResetIsSixAxisSensorDeviceNewlyAssigned>, "ResetIsSixAxisSensorDeviceNewlyAssigned"},
         {91, C<&IHidServer::ActivateGesture>, "ActivateGesture"},
+        {92, C<&IHidServer::SetGestureOutputRanges>, "SetGestureOutputRanges"},
         {100, C<&IHidServer::SetSupportedNpadStyleSet>, "SetSupportedNpadStyleSet"},
         {101, C<&IHidServer::GetSupportedNpadStyleSet>, "GetSupportedNpadStyleSet"},
         {102, C<&IHidServer::SetSupportedNpadIdType>, "SetSupportedNpadIdType"},
@@ -184,6 +185,7 @@ IHidServer::IHidServer(Core::System& system_, std::shared_ptr<ResourceManager> r
         {1003, C<&IHidServer::IsFirmwareUpdateNeededForNotification>, "IsFirmwareUpdateNeededForNotification"},
         {1004, C<&IHidServer::SetTouchScreenResolution>, "SetTouchScreenResolution"},
         {2000, nullptr, "ActivateDigitizer"},
+        {3150, C<&IHidServer::SetMouseLibraryVersion>, "SetMouseLibraryVersion"},
     };
     // clang-format on
 
@@ -231,6 +233,11 @@ Result IHidServer::ActivateMouse(ClientAppletResourceUserId aruid) {
     }
 
     R_RETURN(GetResourceManager()->GetMouse()->Activate(aruid.pid));
+}
+
+Result IHidServer::ActivateDebugMouse(ClientAppletResourceUserId aruid) {
+    LOG_WARNING(Service_HID, "(STUBBED) called, applet_resource_user_id={}", aruid.pid);
+    R_SUCCEED();
 }
 
 Result IHidServer::ActivateKeyboard(ClientAppletResourceUserId aruid) {
@@ -574,6 +581,12 @@ Result IHidServer::ActivateGesture(u32 basic_gesture_id, ClientAppletResourceUse
     }
 
     R_RETURN(GetResourceManager()->GetGesture()->Activate(aruid.pid, basic_gesture_id));
+}
+
+Result IHidServer::SetGestureOutputRanges(u32 param1, u32 param2, u32 param3, u32 param4) {
+    LOG_WARNING(Service_HID, "(STUBBED) called, param1={}, param2={}, param3={}, param4={}",
+                param1, param2, param3, param4);
+    R_SUCCEED();
 }
 
 Result IHidServer::SetSupportedNpadStyleSet(NpadStyleSet supported_style_set,
@@ -1434,6 +1447,11 @@ Result IHidServer::SetTouchScreenResolution(u32 width, u32 height,
 std::shared_ptr<ResourceManager> IHidServer::GetResourceManager() {
     resource_manager->Initialize();
     return resource_manager;
+}
+
+Result IHidServer::SetMouseLibraryVersion(ClientAppletResourceUserId aruid) {
+    LOG_INFO(Service_HID, "(STUBBED) called, applet_resource_user_id={}", aruid.pid);
+    R_SUCCEED();
 }
 
 } // namespace Service::HID

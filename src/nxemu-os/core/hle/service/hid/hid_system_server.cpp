@@ -96,6 +96,7 @@ IHidSystemServer::IHidSystemServer(Core::System& system_, std::shared_ptr<Resour
         {547, nullptr, "GetAllowedBluetoothLinksCount"},
         {548, &IHidSystemServer::GetRegisteredDevices, "GetRegisteredDevices"},
         {549, nullptr, "GetConnectableRegisteredDevices"},
+        {551, &IHidSystemServer::GetRegisteredDevices, "GetRegisteredDevicesForControllerSupport"},
         {700, nullptr, "ActivateUniquePad"},
         {702, &IHidSystemServer::AcquireUniquePadConnectionEventHandle, "AcquireUniquePadConnectionEventHandle"},
         {703, &IHidSystemServer::GetUniquePadIds, "GetUniquePadIds"},

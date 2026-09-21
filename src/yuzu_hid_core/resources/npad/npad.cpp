@@ -160,11 +160,14 @@ void NPad::ControllerUpdate(ControllerTriggerType type, std::size_t controller_i
             if (!controller.device->IsConnected()) {
                 return;
             }
-            auto* shared_memory = controller.shared_memory;
-            const auto& battery_level = controller.device->GetBattery();
-            shared_memory->battery_level_dual = battery_level.dual.battery_level;
-            shared_memory->battery_level_left = battery_level.left.battery_level;
-            shared_memory->battery_level_right = battery_level.right.battery_level;
+            if (auto* shared_memory = controller.shared_memory; shared_memory) {
+                const auto& battery_level = controller.device->GetBattery();
+                shared_memory->battery_level_dual = battery_level.dual.battery_level;
+                shared_memory->battery_level_left = battery_level.left.battery_level;
+                shared_memory->battery_level_right = battery_level.right.battery_level;
+            } else {
+                LOG_WARNING(Service_HID, "shared_memory is null {}", controller_idx);
+            }
             break;
         }
         default:
@@ -183,6 +186,10 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
     const auto& body_colors = controller.device->GetColors();
     const auto& battery_level = controller.device->GetBattery();
     auto* shared_memory = controller.shared_memory;
+    if (!shared_memory) {
+        LOG_WARNING(Service_HID, "shared_memory is null for npad_id={}", npad_id);
+        return;
+    }
     if (controller_type == NpadStyleIndex::None) {
         npad_resource.SignalStyleSetUpdateEvent(aruid, npad_id);
         return;
@@ -708,6 +715,10 @@ bool NPad::SetNpadMode(u64 aruid, NpadIdType& new_npad_id, NpadIdType npad_id,
     }
 
     auto& controller = GetControllerFromNpadIdType(aruid, npad_id);
+    if (!controller.shared_memory) {
+        LOG_WARNING(Service_HID, "shared_memory is null for npad_id={}", npad_id);
+        return false;
+    }
     if (controller.shared_memory->assignment_mode != assignment_mode) {
         controller.shared_memory->assignment_mode = assignment_mode;
     }
@@ -803,6 +814,10 @@ Result NPad::DisconnectNpad(u64 aruid, NpadIdType npad_id) {
     auto& controller = GetControllerFromNpadIdType(aruid, npad_id);
 
     auto* shared_memory = controller.shared_memory;
+    if (!shared_memory) {
+        LOG_WARNING(Service_HID, "shared_memory is null for npad_id={}", npad_id);
+        return ResultSuccess;
+    }
     // Don't reset shared_memory->assignment_mode this value is persistent
     shared_memory->style_tag.raw = NpadStyleSet::None; // Zero out
     shared_memory->device_type.raw = 0;
@@ -1131,7 +1146,11 @@ NPad::NpadControllerData& NPad::GetControllerFromNpadIdType(u64 aruid,
         npad_id = NpadIdType::Player1;
     }
     const auto npad_index = NpadIdTypeToIndex(npad_id);
-    const auto aruid_index = applet_resource_holder.applet_resource->GetIndexFromAruid(aruid);
+    auto aruid_index = applet_resource_holder.applet_resource->GetIndexFromAruid(aruid);
+    if (aruid_index >= AruidIndexMax) {
+        LOG_ERROR(Service_HID, "Invalid aruid:{:016X}", aruid);
+        aruid_index = 0;
+    }
     return controller_data[aruid_index][npad_index];
 }
 
@@ -1142,7 +1161,11 @@ const NPad::NpadControllerData& NPad::GetControllerFromNpadIdType(
         npad_id = NpadIdType::Player1;
     }
     const auto npad_index = NpadIdTypeToIndex(npad_id);
-    const auto aruid_index = applet_resource_holder.applet_resource->GetIndexFromAruid(aruid);
+    auto aruid_index = applet_resource_holder.applet_resource->GetIndexFromAruid(aruid);
+    if (aruid_index >= AruidIndexMax) {
+        LOG_ERROR(Service_HID, "Invalid aruid:{:016X}", aruid);
+        aruid_index = 0;
+    }
     return controller_data[aruid_index][npad_index];
 }
 

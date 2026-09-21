@@ -37,6 +37,7 @@ private:
     Result ActivateDebugPad(ClientAppletResourceUserId aruid);
     Result ActivateTouchScreen(ClientAppletResourceUserId aruid);
     Result ActivateMouse(ClientAppletResourceUserId aruid);
+    Result ActivateDebugMouse(ClientAppletResourceUserId aruid);
     Result ActivateKeyboard(ClientAppletResourceUserId aruid);
     Result SendKeyboardLockKeyEvent(u32 flags);
     Result AcquireXpadIdEventHandle(OutCopyHandle<Kernel::KReadableEvent> out_event,
@@ -104,6 +105,7 @@ private:
     Result ResetIsSixAxisSensorDeviceNewlyAssigned(Core::HID::SixAxisSensorHandle sixaxis_handle,
                                                    ClientAppletResourceUserId aruid);
     Result ActivateGesture(u32 basic_gesture_id, ClientAppletResourceUserId aruid);
+    Result SetGestureOutputRanges(u32 param1, u32 param2, u32 param3, u32 param4);
     Result SetSupportedNpadStyleSet(NpadStyleSet supported_style_set,
                                     ClientAppletResourceUserId aruid);
     Result GetSupportedNpadStyleSet(Out<NpadStyleSet> out_supported_style_set,
@@ -258,6 +260,7 @@ private:
     Result IsFirmwareUpdateNeededForNotification(Out<bool> out_is_firmware_update_needed,
                                                  s32 unknown, ClientAppletResourceUserId aruid);
     Result SetTouchScreenResolution(u32 width, u32 height, ClientAppletResourceUserId aruid);
+    Result SetMouseLibraryVersion(ClientAppletResourceUserId aruid);
 
     std::shared_ptr<ResourceManager> resource_manager;
     std::shared_ptr<HidFirmwareSettings> firmware_settings;

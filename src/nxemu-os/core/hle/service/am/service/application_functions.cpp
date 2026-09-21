@@ -92,6 +92,7 @@ IApplicationFunctions::IApplicationFunctions(Core::System& system_, std::shared_
         {190, nullptr, "SendServerMaintenanceOverlayNotification"},
         {200, nullptr, "GetLastApplicationExitReason"},
         {210, D<&IApplicationFunctions::GetUnknownEvent210>, "Unknown210"},
+        {330, D<&IApplicationFunctions::Unknown330>, "Unknown330"},
         {500, nullptr, "StartContinuousRecordingFlushForDebug"},
         {1000, nullptr, "CreateMovieMaker"},
         {1001, D<&IApplicationFunctions::PrepareForJit>, "PrepareForJit"},
@@ -521,6 +522,12 @@ Result IApplicationFunctions::GetUnknownEvent210(
     // The producer for this HOS 20.0.0+ event is still unknown. Expose a stable event object
     // without inventing a signal source.
     *out_event = m_applet->unknown_event.GetHandle();
+    R_SUCCEED();
+}
+
+Result IApplicationFunctions::Unknown330(Out<u8> out) {
+    LOG_DEBUG(Service_AM, "called");
+    *out = 0;
     R_SUCCEED();
 }
 

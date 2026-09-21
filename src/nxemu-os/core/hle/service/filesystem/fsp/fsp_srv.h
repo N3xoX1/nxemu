@@ -52,6 +52,7 @@ private:
     Result SetCurrentProcess(ClientProcessId pid);
     Result OpenFileSystemWithPatch(OutInterface<IFileSystem> out_interface, FileSystemProxyType type, u64 open_program_id);
     Result OpenSdCardFileSystem(OutInterface<IFileSystem> out_interface);
+    Result IsExFatSupported(Out<bool> out_is_supported);
     Result CreateSaveDataFileSystem(FileSys::SaveDataCreationInfo save_create_struct, SaveDataAttribute save_struct, u128 uid);
     Result CreateSaveDataFileSystemBySystemSaveDataId(SaveDataAttribute save_struct, FileSys::SaveDataCreationInfo save_create_struct);
     Result OpenSaveDataFileSystem(OutInterface<IFileSystem> out_interface, SaveDataSpaceId space_id, SaveDataAttribute attribute);

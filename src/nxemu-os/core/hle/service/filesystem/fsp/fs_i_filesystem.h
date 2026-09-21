@@ -4,6 +4,7 @@
 #pragma once
 
 #include "yuzu_common/common_funcs.h"
+#include "core/file_sys/fs_filesystem.h"
 #include "core/file_sys/fsa/fs_i_filesystem.h"
 #include "core/hle/service/cmif_types.h"
 #include "core/hle/service/filesystem/filesystem.h"
@@ -36,6 +37,7 @@ public:
     Result Commit();
     Result GetFreeSpaceSize(Out<s64> out_size, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path);
     Result GetTotalSpaceSize(Out<s64> out_size, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path);
+    Result GetFileSystemAttribute(Out<FileSys::FileSystemAttribute> out_attribute);
 
 private:
     std::unique_ptr<FileSys::Fsa::IFileSystem> backend;

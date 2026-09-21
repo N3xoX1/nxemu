@@ -34,7 +34,7 @@ NSD::NSD(Core::System& system_, const char* name) : ServiceFramework{system_, na
         {12, nullptr, "GetDeviceId"},
         {13, nullptr, "DeleteSettings"},
         {14, nullptr, "ImportSettings"},
-        {15, nullptr, "SetChangeEnvironmentIdentifierDisabled"},
+        {15, &NSD::SetChangeEnvironmentIdentifierDisabled, "SetChangeEnvironmentIdentifierDisabled"},
         {20, &NSD::Resolve, "Resolve"},
         {21, &NSD::ResolveEx, "ResolveEx"},
         {30, nullptr, "GetNasServiceSetting"},
@@ -75,6 +75,16 @@ static Result ResolveCommon(const std::string& fqdn_in, std::array<char, 0x100>&
     }
     std::memcpy(fqdn_out.data(), res.c_str(), res.size() + 1);
     return ResultSuccess;
+}
+
+void NSD::SetChangeEnvironmentIdentifierDisabled(HLERequestContext& ctx) {
+    IPC::RequestParser rp{ctx};
+    const bool disabled = rp.Pop<bool>();
+
+    LOG_WARNING(Service, "(STUBBED) called, disabled={}", disabled);
+
+    IPC::ResponseBuilder rb{ctx, 1};
+    rb.Push(ResultSuccess);
 }
 
 void NSD::Resolve(HLERequestContext& ctx) {
