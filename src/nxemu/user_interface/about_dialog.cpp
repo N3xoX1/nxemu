@@ -25,7 +25,7 @@ void AboutDialog::Display(void * parentWindow)
     };
 
     m_window = nullptr;
-    if (!m_sciterUI.WindowCreate(parentWindow, "about_dialog.html", 0, 0, WINDOW_WIDTH, 0, SUIW_CHILD, m_window))
+    if (!m_sciterUI.WindowCreate(parentWindow, "about_dialog.html", 0, 0, WINDOW_WIDTH, 0, SUIW_CHILD | SUIW_HIDDEN, m_window))
     {
         return;
     }
@@ -56,6 +56,7 @@ void AboutDialog::Display(void * parentWindow)
 
     m_window->FixMinSize();
     m_window->CenterWindow();
+    m_window->Show();
 }
 
 void AboutDialog::Close()
