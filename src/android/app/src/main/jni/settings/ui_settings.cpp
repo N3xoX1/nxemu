@@ -4,12 +4,12 @@
 #include <cstring>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/notification.h>
-#include <android/log.h>
 
 namespace
 {
     enum class SettingType
     {
+        int32,
         StringList,
     };
 
@@ -26,6 +26,8 @@ namespace
     class UISetting
     {
     public:
+        UISetting(const char * id, const char * key, int32_t * value, int32_t defaultValue);
+        UISetting(const char * id, const char * key, ThemeMode * value, ThemeMode defaultValue);
         UISetting(const char * id, const char * key, Stringlist * value);
 
         const char * identifier;
@@ -33,12 +35,18 @@ namespace
         SettingType settingType;
         union
         {
+            int32_t * int32;
             Stringlist * string_list;
         } setting;
+        union
+        {
+            const int32_t default_int32;
+        };
     };
 
     static UISetting settings[] = {
         {NXUISetting::GameDirectories, "GameDirectories", &uiSettings.gameDirectories},
+        {NXUISetting::ThemeMode, "ThemeMode", &uiSettings.themeMode, ThemeMode::FollowSystem},
     };
 
     void UISettingChanged(const char * setting, void * /*userData*/);
@@ -49,7 +57,6 @@ UISettings uiSettings = {};
 
 void SetupUISetting()
 {
-    __android_log_print(ANDROID_LOG_INFO, "NxEmu", "SetupUISetting");
     SettingsStore & settingsStore = SettingsStore::GetInstance();
 
     uiSettings = {};
@@ -57,6 +64,9 @@ void SetupUISetting()
     {
         switch (setting.settingType)
         {
+        case SettingType::int32:
+            *(setting.setting.int32) = setting.default_int32;
+            break;
         case SettingType::StringList:
             *(setting.setting.string_list) = {};
             break;
@@ -71,13 +81,19 @@ void SetupUISetting()
         JsonValue value = JsonGetNestedValue(section, setting.json_key);
         switch (setting.settingType)
         {
+        case SettingType::int32:
+            if (value.isInt())
+            {
+                *(setting.setting.int32) = (int32_t)value.asInt64();
+            }
+            break;
         case SettingType::StringList:
             if (value.isArray())
             {
                 for (uint32_t i = 0; i < value.size(); i++)
                 {
                     if (!value[i].isString())
-                    { 
+                    {
                         continue;
                     }
                     setting.setting.string_list->push_back(value[i].asString());
@@ -87,12 +103,15 @@ void SetupUISetting()
         default:
             g_notify->BreakPoint(__FILE__, __LINE__);
         }
- 
 
         if (setting.identifier != nullptr)
         {
             switch (setting.settingType)
             {
+            case SettingType::int32:
+                settingsStore.SetDefaultInt(setting.identifier, setting.default_int32);
+                settingsStore.SetInt(setting.identifier, setting.setting.int32 != nullptr ? *setting.setting.int32 : setting.default_int32);
+                break;
             case SettingType::StringList:
                 settingsStore.SetDefaultString(setting.identifier, "");
                 settingsStore.SetString(setting.identifier, setting.setting.string_list != nullptr ? SerializeStringList(*setting.setting.string_list).c_str() : "");
@@ -101,7 +120,7 @@ void SetupUISetting()
                 g_notify->BreakPoint(__FILE__, __LINE__);
             }
 
-            settingsStore.RegisterCallback(setting.identifier, UISettingChanged, nullptr);        
+            settingsStore.RegisterCallback(setting.identifier, UISettingChanged, nullptr);
         }
     }
 }
@@ -114,23 +133,27 @@ void SaveUISetting()
         switch (setting.settingType)
         {
         case SettingType::StringList:
-            __android_log_print(ANDROID_LOG_INFO, "NxEmu", "SaveUISetting::stringList");
             if (!setting.setting.string_list->empty())
             {
                 JsonValue jsonList(JsonValueType::Array);
                 for (const std::string & item : *(setting.setting.string_list))
                 {
-                    __android_log_print(ANDROID_LOG_INFO, "NxEmu", "item: %s", item.c_str());
                     jsonList.Append(JsonValue(item));
                 }
                 JsonSetNestedValue(json, setting.json_key, std::move(jsonList));
+            }
+            break;
+        case SettingType::int32:
+            if (*setting.setting.int32 != setting.default_int32)
+            {
+                JsonSetNestedValue(json, setting.json_key, JsonValue(*setting.setting.int32));
             }
             break;
         default:
             g_notify->BreakPoint(__FILE__, __LINE__);
         }
     }
-    
+
     SettingsStore & settingstore = SettingsStore::GetInstance();
     settingstore.SetSettings("UI", json);
     settingstore.Save();
@@ -138,6 +161,20 @@ void SaveUISetting()
 
 namespace
 {
+    UISetting::UISetting(const char * id, const char * key, int32_t * value, int32_t defaultValue) :
+        identifier(id),
+        json_key(key),
+        settingType(SettingType::int32),
+        default_int32(defaultValue)
+    {
+        setting.int32 = value;
+    }
+
+    UISetting::UISetting(const char * id, const char * key, ThemeMode * value, ThemeMode defaultValue) :
+        UISetting(id, key, (int32_t *)value, (int32_t)defaultValue)
+    {
+    }
+
     UISetting::UISetting(const char * id, const char * key, Stringlist * value) :
         identifier(id),
         json_key(key),
@@ -148,7 +185,6 @@ namespace
 
     void UISettingChanged(const char * setting, void * /*userData*/)
     {
-        __android_log_print(ANDROID_LOG_INFO, "NxEmu", "UISettingChanged: setting = %s", setting);
         SettingsStore & settingsStore = SettingsStore::GetInstance();
 
         for (const UISetting & uiSetting : settings)
@@ -159,12 +195,17 @@ namespace
             }
             switch (uiSetting.settingType)
             {
+            case SettingType::int32:
+                if (uiSetting.setting.int32 != nullptr)
+                {
+                    *uiSetting.setting.int32 = settingsStore.GetInt(setting);
+                }
+                break;
             case SettingType::StringList:
                 if (uiSetting.setting.string_list != nullptr)
                 {
                     uiSetting.setting.string_list->clear();
                     std::string json = settingsStore.GetString(setting);
-                    __android_log_print(ANDROID_LOG_INFO, "NxEmu", "UISettingChanged: StringList json = %s", json.c_str());
                     JsonValue root;
                     if (!json.empty())
                     {

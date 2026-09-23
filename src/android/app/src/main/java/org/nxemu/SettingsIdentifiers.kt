@@ -2,6 +2,7 @@ package org.nxemu
 
 object NXUISetting {
     const val GameDirectories = "nxui:GameDirectories"
+    const val ThemeMode = "nxui:ThemeMode"
 }
 
 object NXCoreSetting {
