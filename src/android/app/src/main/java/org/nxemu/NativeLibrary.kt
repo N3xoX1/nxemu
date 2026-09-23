@@ -35,6 +35,8 @@ object NativeLibrary {
     external fun getSettingString(setting: String): String
     external fun getSettingBool(setting: String): Boolean
     external fun setSettingString(setting: String, value: String)
+    external fun getSettingInt(setting: String): Int
+    external fun setSettingInt(setting: String, value: Int)
     external fun saveSettings()
 
     external fun queryRomMetadata(path: String): String

@@ -39,14 +39,72 @@
 
     html, body {
       height: 100%;
+      background-color: var(--bg);
+      color: var(--text);
     }
 
     body {
-      background-color: var(--bg);
-      color: var(--text);
       margin: 0;
       font-family: system-ui, sans-serif;
       overscroll-behavior: none;
+    }
+
+    html.theme-ready {
+      transition: --bg 0.4s ease, --text 0.4s ease, --muted 0.4s ease, --line 0.4s ease, --card 0.4s ease,
+        background-color 0.4s ease, color 0.4s ease;
+    }
+
+    html.theme-ready body,
+    html.theme-ready .topbar,
+    html.theme-ready .topbar-back,
+    html.theme-ready .page,
+    html.theme-ready .setting-sub,
+    html.theme-ready .library-status,
+    html.theme-ready .empty-title,
+    html.theme-ready .empty-copy,
+    html.theme-ready .empty-hint,
+    html.theme-ready .game-title,
+    html.theme-ready .page-title,
+    html.theme-ready .logo,
+    html.theme-ready .setting-label,
+    html.theme-ready .icon-btn,
+    html.theme-ready .settings-btn,
+    html.theme-ready .back-btn {
+      transition: background-color 0.4s ease, color 0.4s ease;
+    }
+
+    html.theme-ready .settings-item,
+    html.theme-ready .folder-item {
+      transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+    }
+
+    html.theme-ready .settings-item:active,
+    html.theme-ready .folder-item:active {
+      transition-duration: 0.08s;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html.theme-ready,
+      html.theme-ready body,
+      html.theme-ready .topbar,
+      html.theme-ready .topbar-back,
+      html.theme-ready .page,
+      html.theme-ready .settings-item,
+      html.theme-ready .folder-item,
+      html.theme-ready .setting-sub,
+      html.theme-ready .library-status,
+      html.theme-ready .empty-title,
+      html.theme-ready .empty-copy,
+      html.theme-ready .empty-hint,
+      html.theme-ready .game-title,
+      html.theme-ready .page-title,
+      html.theme-ready .logo,
+      html.theme-ready .setting-label,
+      html.theme-ready .icon-btn,
+      html.theme-ready .settings-btn,
+      html.theme-ready .back-btn {
+        transition: none;
+      }
     }
 
     .page {
@@ -173,6 +231,48 @@
       height: 18px;
       flex-shrink: 0;
       opacity: 0.45;
+    }
+
+    .settings-toggle {
+      width: 44px;
+      height: 26px;
+      border-radius: 13px;
+      border: none;
+      background: var(--line);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .settings-toggle.on {
+      background: var(--accent);
+    }
+
+    .settings-toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 10px;
+      background: #fff;
+      transition: left 0.15s ease;
+    }
+
+    .settings-toggle.on::after {
+      left: 21px;
+    }
+
+    .setting-check {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      color: var(--accent);
+      opacity: 0;
+    }
+
+    .setting-check.on {
+      opacity: 1;
     }
 
     .fab {
@@ -360,6 +460,7 @@
 let navStack = ['gamesPage'];
 let gameListGen = 0;
 let libraryDirty = true;
+let themeReady = false;
 
 function applyTheme() {
   let dark = false;
@@ -370,6 +471,14 @@ function applyTheme() {
   }
   document.documentElement.classList.toggle('dark', dark);
   document.documentElement.classList.toggle('light', !dark);
+  if (!themeReady) {
+    themeReady = true;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.documentElement.classList.add('theme-ready');
+      });
+    });
+  }
 }
 
 function onSettingChanged(setting) {
@@ -380,6 +489,11 @@ function onSettingChanged(setting) {
     if (navStack[navStack.length - 1] === 'gamesPage') {
       refreshGameList();
     }
+  }
+  if (setting === 'nxui:ThemeMode') {
+    applyTheme();
+    renderThemeSummary();
+    renderThemeSettings();
   }
 }
 
@@ -625,6 +739,45 @@ function renderSettingsSummary() {
   else meta.textContent = n + ' folders';
 }
 
+function getThemeMode() {
+  try {
+    const mode = NxEmu.getSettingInt('nxui:ThemeMode');
+    if (mode === 1 || mode === 2) return mode;
+  } catch (e) {}
+  return 0;
+}
+
+function themeModeLabel(mode) {
+  if (mode === 1) return 'Light';
+  if (mode === 2) return 'Dark';
+  return 'Follow system';
+}
+
+function renderThemeSummary() {
+  const meta = document.getElementById('themeModeMeta');
+  if (meta) meta.textContent = themeModeLabel(getThemeMode());
+}
+
+function renderThemeSettings() {
+  const mode = getThemeMode();
+  setToggle('themeFollow', mode === 0);
+  setToggle('themeLight', mode === 1);
+  setToggle('themeDark', mode === 2);
+}
+
+function setThemeMode(mode) {
+  NxEmu.setSettingInt('nxui:ThemeMode', mode);
+  NxEmu.saveSettings();
+  applyTheme();
+  renderThemeSummary();
+  renderThemeSettings();
+}
+
+function setToggle(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('on', !!on);
+}
 function renderGameFolders() {
   const list = document.getElementById('folderList');
   const empty = document.getElementById('noFolders');
@@ -667,6 +820,7 @@ function showPage(page) {
   document.getElementById(page).style.display = '';
   if (page === 'gameFolders') renderGameFolders();
   if (page === 'settingsPage') renderSettingsSummary();
+  if (page === 'themeSettings') renderThemeSettings();
   if (page === 'gamesPage' && libraryDirty) refreshGameList();
 }
 </script>
@@ -701,6 +855,41 @@ function showPage(page) {
           <div id="gameFoldersMeta" class="setting-sub">None added</div>
         </div>
         <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-item" onclick="navigate('themeSettings')">
+        <div class="setting-info">
+          <div class="setting-label">Theme</div>
+          <div id="themeModeMeta" class="setting-sub">Follow system</div>
+        </div>
+        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </div>
+  </div>
+  <div id="themeSettings" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="page-title">Theme</div>
+    </div>
+    <div class="settings-list">
+      <div class="settings-item" onclick="setThemeMode(0)">
+        <div class="setting-info">
+          <div class="setting-label">Follow system</div>
+        </div>
+        <svg id="themeFollow" class="setting-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="settings-item" onclick="setThemeMode(1)">
+        <div class="setting-info">
+          <div class="setting-label">Light</div>
+        </div>
+        <svg id="themeLight" class="setting-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="settings-item" onclick="setThemeMode(2)">
+        <div class="setting-info">
+          <div class="setting-label">Dark</div>
+        </div>
+        <svg id="themeDark" class="setting-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
       </div>
     </div>
   </div>

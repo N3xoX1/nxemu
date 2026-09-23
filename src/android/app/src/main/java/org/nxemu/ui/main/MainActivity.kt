@@ -19,6 +19,7 @@ import org.json.JSONObject
 import org.nxemu.NXUISetting
 import org.nxemu.NativeLibrary
 import org.nxemu.ui.emulation.EmulationActivity
+import org.nxemu.utils.ThemeHelper
 
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         webView = WebView(this).apply {
-            setBackgroundColor(webViewBackground())
+            setBackgroundColor(ThemeHelper.backgroundColor(this@MainActivity))
             settings.javaScriptEnabled = true
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
         NativeLibrary.addSettingChangedListener(settingChangedForwarder)
         webView.loadUrl("file:///android_asset/index.html")
         setContentView(webView)
+        ThemeHelper.applySystemBars(this)
     }
 
     override fun onResume() {
@@ -135,14 +137,5 @@ class MainActivity : ComponentActivity() {
             "onGameLibraryPaths($gen, ${JSONObject.quote(json)})",
             null,
         )
-    }
-
-    private fun webViewBackground(): Int {
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        return if (night == Configuration.UI_MODE_NIGHT_YES) {
-            Color.parseColor("#121212")
-        } else {
-            Color.WHITE
-        }
     }
 }

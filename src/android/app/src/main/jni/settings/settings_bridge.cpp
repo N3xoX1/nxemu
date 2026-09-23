@@ -72,6 +72,29 @@ extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_setSettingString(
     env->ReleaseStringUTFChars(setting, key);
 }
 
+extern "C" JNIEXPORT jint JNICALL Java_org_nxemu_NativeLibrary_getSettingInt(JNIEnv * env, jclass /*clazz*/, jstring setting)
+{
+    if (setting == nullptr)
+    {
+        return 0;
+    }
+    const char * key = env->GetStringUTFChars(setting, nullptr);
+    const int32_t value = SettingsStore::GetInstance().GetInt(key);
+    env->ReleaseStringUTFChars(setting, key);
+    return value;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_setSettingInt(JNIEnv * env, jclass /*clazz*/, jstring setting, jint value)
+{
+    if (setting == nullptr)
+    {
+        return;
+    }
+    const char * key = env->GetStringUTFChars(setting, nullptr);
+    SettingsStore::GetInstance().SetInt(key, value);
+    env->ReleaseStringUTFChars(setting, key);
+}
+
 extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_saveSettings(JNIEnv * /*env*/, jclass /*clazz*/)
 {
     SaveUISetting();

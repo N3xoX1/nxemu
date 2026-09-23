@@ -1,9 +1,9 @@
 package org.nxemu.ui.main
 
-import android.content.res.Configuration
 import android.webkit.JavascriptInterface
 import org.nxemu.GameLibraryScanner
 import org.nxemu.NativeLibrary
+import org.nxemu.utils.ThemeHelper
 
 class NxEmuBridge(private val activity: MainActivity) {
     @JavascriptInterface
@@ -27,9 +27,18 @@ class NxEmuBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun getSettingInt(setting: String): Int {
+        return NativeLibrary.getSettingInt(setting)
+    }
+
+    @JavascriptInterface
+    fun setSettingInt(setting: String, value: Int) {
+        NativeLibrary.setSettingInt(setting, value)
+    }
+
+    @JavascriptInterface
     fun isDarkTheme(): Boolean {
-        val night = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        return night == Configuration.UI_MODE_NIGHT_YES
+        return ThemeHelper.isDark(activity)
     }
 
     @JavascriptInterface
