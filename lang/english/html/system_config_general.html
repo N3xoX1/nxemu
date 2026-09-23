@@ -40,16 +40,23 @@
       </table>
     </div>
   </Page>
-  <Page label="Logging" Name="Logging">
+  <Page label="Debug" Name="Debug">
     <div class="input-group">
       <div class="group-title">Logging</div>
+      <div class="form-row checkbox-row">
+        <div class="left"><label for="ShowLogConsole">Show Log Console</label></div>
+        <div class="right"><input type="checkbox" id="ShowLogConsole"></div>
+      </div>
       <div class="form-row inputtext-row">
         <div class="left"><label>Log Filter:</label></div>
         <div class="right"><input type="text" id="LogFilter" name="LogFilter" /></div>
       </div>
+    </div>
+    <div class="input-group">
+      <div class="group-title">System</div>
       <div class="form-row checkbox-row">
-        <div class="left"><label for="ShowLogConsole">Show Log Console</label></div>
-        <div class="right"><input type="checkbox" id="ShowLogConsole"></div>
+        <div class="left"><label for="UseMultiCore">Multicore CPU mode</label></div>
+        <div class="right"><input type="checkbox" id="UseMultiCore" tooltip="Uncheck to use single-core mode. Applied when the next game starts."></div>
       </div>
     </div>
   </Page>
