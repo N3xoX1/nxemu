@@ -257,6 +257,7 @@
     <ClCompile Include="core\memory\cheat_engine.cpp" />
     <ClCompile Include="core\memory\dmnt_cheat_vm.cpp" />
     <ClCompile Include="core\perf_stats.cpp" />
+    <ClCompile Include="core\performance_capture.cpp" />
     <ClCompile Include="core\reporter.cpp" />
     <ClCompile Include="default_profile_image.cpp" />
     <ClCompile Include="emu_thread.cpp" />

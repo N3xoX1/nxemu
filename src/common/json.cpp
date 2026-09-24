@@ -986,8 +986,9 @@ bool JsonReader::Parse(const char * beginDoc, const char * endDoc, JsonValue & r
         m_nodes.pop();
     }
     m_nodes.push(&root);
-    bool successful = ReadValue();
-    return successful;
+    const bool successful = ReadValue();
+    SkipSpaces();
+    return successful && m_current == m_end;
 }
 
 bool JsonReader::AddError(const std::string & message, JsonToken & token, const char * extra)
@@ -1071,6 +1072,14 @@ bool JsonReader::ReadValue()
         CurrentValue().SetOffsetLimit(token.end - m_begin);
     }
     break;
+    case JsonToken_Null:
+    {
+        JsonValue value;
+        CurrentValue().SwapPayload(value);
+        CurrentValue().SetOffsetStart(token.start - m_begin);
+        CurrentValue().SetOffsetLimit(token.end - m_begin);
+    }
+    break;
     case JsonToken_False:
     {
         JsonValue v(false);
@@ -1080,9 +1089,6 @@ bool JsonReader::ReadValue()
     }
     break;
     default:
-#ifdef WIN32
-        __debugbreak();
-#endif
         return false;
     }
     return successful;
@@ -1188,6 +1194,11 @@ bool JsonReader::ReadToken(JsonToken & token)
 {
     SkipSpaces();
     token.start = m_current;
+    if (m_current == m_end) {
+        token.type = JsonToken_EndOfStream;
+        token.end = m_current;
+        return true;
+    }
     char c = GetNextChar();
     bool ok = true;
     switch (c)
@@ -1226,6 +1237,10 @@ bool JsonReader::ReadToken(JsonToken & token)
         token.type = JsonToken_True;
         ok = Match("rue", 3);
         break;
+    case 'n':
+        token.type = JsonToken_Null;
+        ok = Match("ull", 3);
+        break;
     case 'f':
         token.type = JsonToken_False;
         ok = Match("alse", 4);
@@ -1237,9 +1252,6 @@ bool JsonReader::ReadToken(JsonToken & token)
         token.type = JsonToken_MemberSeparator;
         break;
     default:
-#ifdef WIN32
-        __debugbreak();
-#endif
         ok = false;
         break;
     }
@@ -1933,20 +1945,9 @@ std::string JsonStyledWriter::valueToString(double value, bool useSpecialFloats,
                                                         : 2];
     }
 
-    std::string buffer(size_t(36), '\0');
-    while (true)
-    {
-        uint32_t len = (uint32_t)stdstr_f((precisionType == JsonPrecisionType::significantDigits) ? "%.*g" : "%.*f", precision, value).length();
-        assert(len >= 0);
-        auto wouldPrint = static_cast<size_t>(len);
-        if (wouldPrint >= buffer.size())
-        {
-            buffer.resize(wouldPrint + 1);
-            continue;
-        }
-        buffer.resize(wouldPrint);
-        break;
-    }
+    std::string buffer = stdstr_f(
+        precisionType == JsonPrecisionType::significantDigits ? "%.*g" : "%.*f",
+        static_cast<int>(precision), value);
 
     buffer.erase(fixNumericLocale(buffer.begin(), buffer.end()), buffer.end());
 

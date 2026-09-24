@@ -177,8 +177,8 @@ GraphicsPipeline::GraphicsPipeline(const Device& device, TextureCache& texture_c
                                    std::array<std::string, 5> sources,
                                    std::array<std::vector<u32>, 5> sources_spirv,
                                    const std::array<const Shader::Info*, 5>& infos,
-                                   const GraphicsPipelineKey& key_, bool force_context_flush)
-    : texture_cache{texture_cache_}, buffer_cache{buffer_cache_}, program_manager{program_manager_},
+                                   const GraphicsPipelineKey& key_, PerformanceCaptureSharedState& capture_, bool force_context_flush)
+    : capture{capture_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_}, program_manager{program_manager_},
       state_tracker{state_tracker_}, key{key_} {
     if (shader_notify) {
         shader_notify->MarkShaderBuilding();
@@ -232,9 +232,12 @@ GraphicsPipeline::GraphicsPipeline(const Device& device, TextureCache& texture_c
         GenerateTransformFeedbackState();
     }
     const bool in_parallel = thread_worker != nullptr;
-    auto func{[this, sources_ = std::move(sources), sources_spirv_ = std::move(sources_spirv),
+    const auto queued = PERF_CAPTURE_STAMP(capture);
+    auto func{[this, queued, sources_ = std::move(sources), sources_spirv_ = std::move(sources_spirv),
                shader_notify, backend, in_parallel,
                force_context_flush](ShaderContext::Context*) mutable {
+        PERF_CAPTURE_STAMP_END(queued, capture);
+        PERF_CAPTURE_BUILD(capture);
         for (size_t stage = 0; stage < 5; ++stage) {
             switch (backend) {
             case ShaderBackend::Glsl:
@@ -616,6 +619,7 @@ void GraphicsPipeline::GenerateTransformFeedbackState() {
 }
 
 void GraphicsPipeline::WaitForBuild() {
+    PERF_CAPTURE_SCOPE(capture, pipeline_consumer_wait);
     if (built_fence.handle == 0) {
         std::unique_lock lock{built_mutex};
         built_condvar.wait(lock, [this] { return built_fence.handle != 0; });

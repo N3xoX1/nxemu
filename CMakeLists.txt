@@ -8,6 +8,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+option(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+       "Enable performance capture instrumentation" ON)
+if(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION)
+    add_compile_definitions(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION=1)
+else()
+    add_compile_definitions(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION=0)
+endif()
+
 # ============================================================
 # Architecture detection
 # ============================================================

@@ -40,7 +40,8 @@ struct GPU::Impl :
     explicit Impl(ISystemModules & modules, GPU & gpu_, Tegra::Host1x::Host1x & host1x_, bool is_async_, bool use_nvdec_) :
         m_modules(modules),
         gpu{gpu_},
-        host1x{host1x_}, use_nvdec{use_nvdec_},
+        host1x{host1x_},
+        performance_capture_state{&modules.OperatingSystem().GetPerformanceCaptureSharedState()}, use_nvdec{use_nvdec_},
         shader_notify{std::make_unique<VideoCore::ShaderNotify>()},
         is_async{is_async_},
         gpu_thread{gpu_, is_async_}, scheduler{std::make_unique<Control::Scheduler>(gpu)}
@@ -140,6 +141,7 @@ struct GPU::Impl :
 
     void WaitForSyncOperation(const uint64_t fence)
     {
+        PERF_CAPTURE_SCOPE(*performance_capture_state, host_sync_wait_call);
         std::unique_lock lck{sync_request_mutex};
         sync_request_cv.wait(lck, [this, fence] { return CurrentSyncRequestFence() >= fence; });
     }
@@ -441,6 +443,7 @@ struct GPU::Impl :
     ISystemModules & m_modules;
     GPU & gpu;
     Host1x::Host1x & host1x;
+    PerformanceCaptureSharedState* performance_capture_state;
 
     std::map<u32, std::unique_ptr<Tegra::CDmaPusher>> cdma_pushers;
     std::unique_ptr<VideoCore::RendererBase> renderer;
@@ -640,6 +643,13 @@ bool GPU::IsAsync() const
 bool GPU::UseNvdec() const
 {
     return impl->UseNvdec();
+}
+
+PerformanceCaptureSharedState& GPU::PerformanceCaptureState() { return *impl->performance_capture_state; }
+
+void GPU::SetPerformanceCaptureDevice(const char* model, const char* driver)
+{
+    impl->m_modules.OperatingSystem().SetPerformanceCaptureDevice(model, driver);
 }
 
 void GPU::RendererFrameEndNotify()

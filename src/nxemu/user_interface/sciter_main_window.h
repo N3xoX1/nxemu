@@ -4,6 +4,7 @@
 #include "startup_checks.h"
 #include "user_interface/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
+#include <chrono>
 #include <deque>
 #include <map>
 #include <memory>
@@ -51,6 +52,7 @@ class SciterMainWindow :
         ExitApplication,
         PauseOrContinueEmulation,
         StopEmulation,
+        TogglePerformanceCapture,
         OpenControllersDialog,
         OpenSystemConfiguration,
         InstallFirmwareFromFile,
@@ -155,6 +157,9 @@ private:
     void OnRecetGame(uint32_t fileIndex);
     void OnToggleDockedMode();
     void OnToggleSpeedLimit();
+    static void PerformanceCaptureSettingChanged(const char*, void* userData);
+    void OnTogglePerformanceCapture();
+    void UpdatePerformanceCaptureCaption();
     void OnToggleStartGamesInFullscreen();
     void OnToggleStartGamesWithUiHidden();
     void OnAbout();
@@ -230,6 +235,11 @@ private:
     std::shared_ptr<IRomBrowser> m_romBrowser;
     void * m_renderWindow;
     std::string m_windowTitle;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    std::string m_baseCaption;
+    bool m_benchmarkRunning{};
+    bool m_benchmarkSaveFailed{};
+#endif
     std::unique_ptr<SystemConfig> m_systemConfig;
     std::unique_ptr<GameConfig> m_gameConfig;
     std::string m_pendingGameConfigPath;

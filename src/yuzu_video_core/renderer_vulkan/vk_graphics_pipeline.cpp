@@ -259,7 +259,10 @@ GraphicsPipeline::GraphicsPipeline(
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += Shader::NumDescriptors(info->texture_descriptors);
     }
-    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics] {
+    const auto queued = PERF_CAPTURE_STAMP(scheduler.PerformanceCaptureState());
+    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, queued] {
+        PERF_CAPTURE_STAMP_END(queued, scheduler.PerformanceCaptureState());
+        PERF_CAPTURE_BUILD(scheduler.PerformanceCaptureState());
         DescriptorLayoutBuilder builder{MakeBuilder(device, stage_infos)};
         uses_push_descriptor = builder.CanUsePushDescriptor();
         descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
@@ -496,6 +499,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     if (!is_built.load(std::memory_order::relaxed)) {
         // Wait for the pipeline to be built
         scheduler.Record([this](vk::CommandBuffer) {
+            PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), pipeline_consumer_wait);
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
         });

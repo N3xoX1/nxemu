@@ -147,7 +147,7 @@ public:
 private:
     static constexpr u32 non_puller_methods = 0x40;
     static constexpr u32 max_subchannels = 8;
-    bool Step();
+    bool Step(u64 capture_epoch);
     void SynchronizeMemoryOperations();
     void ProcessCommands(std::span<const CommandHeader> commands);
 

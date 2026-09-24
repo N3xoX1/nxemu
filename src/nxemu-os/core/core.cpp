@@ -177,7 +177,7 @@ struct System::Impl {
         exit_locked = false;
         exit_requested = false;
 
-        perf_stats = std::make_unique<PerfStats>(titleID);
+        perf_stats = std::make_unique<PerfStats>(titleID, modules.OperatingSystem().GetPerformanceCaptureSharedState());
 
         // Reset counters and set time origin to current frame
         GetAndResetPerfStats();
@@ -207,6 +207,10 @@ struct System::Impl {
         service_manager.reset();
         core_timing.ClearPendingEvents();
         audio_core.reset();
+        if (modules.OperatingSystem().IsPerformanceCaptureActive()) {
+            modules.OperatingSystem().InvalidatePerformanceCapture(PerformanceInvalidation::Shutdown);
+            modules.OperatingSystem().StopPerformanceCapture(nullptr, 0);
+        }
         perf_stats.reset();
         cpu_manager.Shutdown();
         kernel.Shutdown();

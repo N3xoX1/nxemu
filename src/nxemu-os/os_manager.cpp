@@ -20,7 +20,10 @@
 #include "yuzu_input_common/drivers/virtual_gamepad.h"
 #include "yuzu_input_common/main.h"
 #include <nxemu-core/settings/identifiers.h>
+#include <algorithm>
+#include <cstring>
 #include <filesystem>
+#include <string>
 
 namespace
 {
@@ -288,6 +291,18 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
 
 void OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uint32_t version, StorageId baseGameStorageId, StorageId updateStorageId, uint8_t * nacpData, uint32_t nacpDataLen)
 {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    std::string display_version;
+    // RawNACP starts with 16 language entries of 0x300 bytes each. The
+    // version string follows the fixed 0x60-byte header after those entries.
+    constexpr std::size_t version_offset = 0x3060;
+    constexpr std::size_t version_size = 0x10;
+    if (nacpData && nacpDataLen >= version_offset + version_size) {
+        const auto* begin = reinterpret_cast<const char*>(nacpData + version_offset);
+        display_version.assign(begin, std::find(begin, begin + version_size, '\0'));
+    }
+    m_performanceCapture.SetGameVersion(version, std::move(display_version));
+#endif
     m_coreSystem.AddGlueRegistrationForProcess(*m_applicationProcess, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
     m_applicationProcess->Run(priority, stackSize);
 }
@@ -453,8 +468,52 @@ PerfStatsResults OSManager::GetAndResetPerfStats()
     return m_coreSystem.GetAndResetPerfStats();
 }
 
+PerformanceCaptureSharedState& OSManager::GetPerformanceCaptureSharedState()
+{
+    return m_performanceCapture.SharedState();
+}
+
+void OSManager::SetPerformanceCaptureDevice(const char * model, const char * driver)
+{
+    m_performanceCapture.SetDevice(model, driver);
+}
+
+bool OSManager::IsPerformanceCaptureActive() const
+{
+    return m_performanceCapture.IsActive();
+}
+
+bool OSManager::StartPerformanceCapture(const PerformanceCaptureConfig & config)
+{
+    if (!m_coreSystem.IsPoweredOn() || IsEmulationPaused()) return false;
+    return m_performanceCapture.Start(GetProgramId(), config, [this] { return m_coreSystem.CoreTiming().GetGlobalTimeUs(); });
+}
+
+bool OSManager::StopPerformanceCapture(char * output_path, uint32_t output_path_size)
+{
+    std::string path;
+    if (!m_performanceCapture.Stop(
+            [this] { return m_coreSystem.CoreTiming().GetGlobalTimeUs(); }, path))
+    {
+        return false;
+    }
+    if (output_path != nullptr && output_path_size != 0)
+    {
+        const std::size_t copy_size = std::min<std::size_t>(path.size(), output_path_size - 1);
+        std::memcpy(output_path, path.data(), copy_size);
+        output_path[copy_size] = '\0';
+    }
+    return true;
+}
+
+void OSManager::InvalidatePerformanceCapture(PerformanceInvalidation reason)
+{
+    m_performanceCapture.SharedState().Invalidate(reason);
+}
+
 void OSManager::SetEmulationPaused(bool paused)
 {
+    if (paused) InvalidatePerformanceCapture(PerformanceInvalidation::Paused);
     if (!m_emuThread)
     {
         return;
