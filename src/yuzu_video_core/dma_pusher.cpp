@@ -33,11 +33,10 @@ void DmaPusher::DispatchCalls()
     dma_pushbuffer_subindex = 0;
 
     dma_state.is_last_call = true;
-    const u64 capture_epoch = PERF_CAPTURE_EPOCH(gpu.PerformanceCaptureState());
 
     while (gpu.IsPoweredOn())
     {
-        if (!Step(capture_epoch))
+        if (!Step())
         {
             break;
         }
@@ -56,7 +55,7 @@ void DmaPusher::DispatchCalls()
     gpu.OnCommandListEnd();
 }
 
-bool DmaPusher::Step([[maybe_unused]] u64 capture_epoch)
+bool DmaPusher::Step()
 {
     if (!ib_enable || dma_pushbuffer.empty())
     {
@@ -99,9 +98,6 @@ bool DmaPusher::Step([[maybe_unused]] u64 capture_epoch)
         case MemoryOperationSyncState::None:
             if (Settings::IsGpuCommandSynchronizationEnabled())
             {
-                if (auto w = PERF_CAPTURE_WRITE_EPOCH(gpu.PerformanceCaptureState(), capture_epoch)) {
-                    w.Add(PerformanceCounter::smo_requests);
-                }
                 SynchronizeMemoryOperations();
             }
             break;
@@ -124,9 +120,10 @@ bool DmaPusher::Step([[maybe_unused]] u64 capture_epoch)
         const bool use_safe = Settings::UseSafeDMAReads();
         if (use_safe)
         {
-            if (auto w = PERF_CAPTURE_WRITE_EPOCH(gpu.PerformanceCaptureState(), capture_epoch)) {
+            if (auto w = PERF_CAPTURE_WRITE(gpu.PerformanceCaptureState())) {
                 w.Add(PerformanceCounter::dma_safe_reads);
-                w.Add(PerformanceCounter::dma_safe_read_requested_bytes, static_cast<u64>(header.size) * sizeof(Tegra::CommandHeader));
+                w.Add(PerformanceCounter::dma_safe_read_requested_bytes,
+                      static_cast<u64>(header.size) * sizeof(Tegra::CommandHeader));
             }
             Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::SafeRead> headers(
                 memory_manager, dma_state.dma_get, header.size, &command_headers);
