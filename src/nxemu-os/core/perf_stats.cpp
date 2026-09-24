@@ -28,7 +28,8 @@ constexpr std::size_t IgnoreFrames = 5;
 
 namespace Core {
 
-PerfStats::PerfStats(u64 title_id_) : title_id(title_id_) {}
+PerfStats::PerfStats(u64 title_id_, PerformanceCaptureSharedState& capture_)
+    : capture(capture_), title_id(title_id_) {}
 
 PerfStats::~PerfStats() {
     if (!Settings::values.record_frame_times || title_id == 0) {
@@ -72,10 +73,12 @@ void PerfStats::EndSystemFrame() {
 
     previous_frame_length = frame_end - previous_frame_end;
     previous_frame_end = frame_end;
+    PERF_CAPTURE_FRAME(capture, PerformanceFrameStream::Composite);
 }
 
 void PerfStats::EndGameFrame() {
     game_frames.fetch_add(1, std::memory_order_relaxed);
+    PERF_CAPTURE_FRAME(capture, PerformanceFrameStream::GameFrame);
 }
 
 double PerfStats::GetMeanFrametime() const {

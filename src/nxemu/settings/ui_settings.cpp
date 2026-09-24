@@ -22,6 +22,9 @@ namespace
         {Hotkey::ToggleDockedMode, {.key = (uint32_t)SCITER_KEY_F10}},
         {Hotkey::ToggleSpeedLimit, {.key = (uint32_t)SCITER_KEY_U, .ctrl = true}},
         {Hotkey::StopEmulation, {.key = (uint32_t)SCITER_KEY_F5}},
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        {Hotkey::PerformanceCapture, {.key = (uint32_t)SCITER_KEY_F9}},
+#endif
         {Hotkey::Controllers, {.key = (uint32_t)SCITER_KEY_C, .ctrl = true}},
         {Hotkey::Configure, {.key = (uint32_t)SCITER_KEY_T, .ctrl = true}},
     };

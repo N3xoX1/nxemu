@@ -450,7 +450,10 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
     if (!is_new) {
         return pipeline.get();
     }
+    PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), compute_pipeline_requests, 1);
+    PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), pipeline_prepare);
     pipeline = CreateComputePipeline(key, shader);
+    if (!pipeline) { PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), pipeline_prepare_failures, 1); }
     return pipeline.get();
 }
 
@@ -565,7 +568,10 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
     const auto [pair, is_new]{graphics_cache.try_emplace(graphics_key)};
     auto& pipeline{pair->second};
     if (is_new) {
+        PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), graphics_pipeline_requests, 1);
+        PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), pipeline_prepare);
         pipeline = CreateGraphicsPipeline();
+        if (!pipeline) { PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), pipeline_prepare_failures, 1); }
     }
     if (!pipeline) {
         return nullptr;
@@ -587,6 +593,7 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     // If something is using depth, we can assume that games are not rendering anything which
     // will be used one time.
     if (maxwell3d->regs.zeta_enable) {
+        PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), pipeline_async_skipped_draws, 1);
         return nullptr;
     }
     // If games are using a small index count, we can assume these are full screen quads.
@@ -596,7 +603,8 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
         return pipeline;
     }
-    return nullptr;
+    PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), pipeline_async_skipped_draws, 1);
+        return nullptr;
 }
 
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
@@ -772,7 +780,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
-                                             &shader_notify, program.info, std::move(spv_module));
+                                             &shader_notify, program.info, std::move(spv_module), scheduler.PerformanceCaptureState());
 
 } catch (const Shader::Exception& exception) {
     LOG_ERROR(Render_Vulkan, "{}", exception.what());

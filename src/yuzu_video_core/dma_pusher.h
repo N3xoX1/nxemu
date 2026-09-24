@@ -154,7 +154,7 @@ private:
         Armed,
     };
 
-    bool Step();
+    bool Step(u64 capture_epoch);
     void SynchronizeMemoryOperations();
     void ArmMemoryOperationSync();
     void WaitForArmedMemoryOperationSync();

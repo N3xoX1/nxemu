@@ -19,7 +19,7 @@ namespace Core {
  */
 class PerfStats {
 public:
-    explicit PerfStats(u64 title_id_);
+    explicit PerfStats(u64 title_id_, PerformanceCaptureSharedState& capture_);
     ~PerfStats();
 
     using Clock = std::chrono::steady_clock;
@@ -42,6 +42,7 @@ public:
     double GetLastFrameTimeScale() const;
 
 private:
+    PerformanceCaptureSharedState& capture;
     mutable std::mutex object_mutex;
 
     /// Title ID for the game that is running. 0 if there is no game running yet

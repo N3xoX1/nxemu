@@ -1,6 +1,7 @@
 #pragma once
 #include <nxemu-module-spec/operating_system.h>
 #include "core/core.h"
+#include "core/performance_capture.h"
 #include "emu_thread.h"
 
 class OSManager :
@@ -47,6 +48,12 @@ public:
     IParamPackage * GetNextInput() const override;
     void PumpInputEvents() const override;
     PerfStatsResults GetAndResetPerfStats() override;
+    PerformanceCaptureSharedState& GetPerformanceCaptureSharedState() override;
+    void SetPerformanceCaptureDevice(const char * model, const char * driver) override;
+    bool IsPerformanceCaptureActive() const override;
+    bool StartPerformanceCapture(const PerformanceCaptureConfig & config) override;
+    bool StopPerformanceCapture(char * output_path, uint32_t output_path_size) override;
+    void InvalidatePerformanceCapture(PerformanceInvalidation reason) override;
     void SetEmulationPaused(bool paused) override;
     bool IsEmulationPaused() const override;
     void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) override;
@@ -72,6 +79,7 @@ private:
 
     bool CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl);
 
+    Core::PerformanceCapture m_performanceCapture;
     Core::System m_coreSystem;
     ISystemModules & m_modules;
     Kernel::KProcess * m_applicationProcess;
