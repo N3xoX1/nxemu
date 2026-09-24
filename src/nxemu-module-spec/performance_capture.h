@@ -125,6 +125,10 @@ struct PerformanceCaptureSharedState {
         std::array<PerformanceDuration, static_cast<size_t>(PerformanceTiming::Count)> timings{};
         std::array<Frames, static_cast<size_t>(PerformanceFrameStream::Count)> frames;
         std::atomic<uint64_t> in_flight{}, memory_samples{}, memory_first{}, memory_last{}, memory_peak{};
+        std::atomic<uint64_t> process_memory_samples{}, process_working_set_first{},
+                              process_working_set_last{}, process_working_set_peak{},
+                              process_private_first{}, process_private_last{},
+                              process_private_peak{};
         std::atomic<uint32_t> invalidations{};
         Clock::time_point start{};
     };
@@ -225,6 +229,18 @@ struct PerformanceCaptureSharedState {
             PerformanceCaptureAtomicMax(w->memory_peak, bytes);
         }
     }
+    void ProcessMemory(uint64_t working_set_bytes, uint64_t private_bytes) {
+        if (auto w = Write(Epoch())) {
+            if (w->process_memory_samples.fetch_add(1, std::memory_order_relaxed) == 0) {
+                w->process_working_set_first.store(working_set_bytes, std::memory_order_relaxed);
+                w->process_private_first.store(private_bytes, std::memory_order_relaxed);
+            }
+            w->process_working_set_last.store(working_set_bytes, std::memory_order_relaxed);
+            w->process_private_last.store(private_bytes, std::memory_order_relaxed);
+            PerformanceCaptureAtomicMax(w->process_working_set_peak, working_set_bytes);
+            PerformanceCaptureAtomicMax(w->process_private_peak, private_bytes);
+        }
+    }
     // Renderer sets these before gameplay; exporter copies under this mutex.
     void SetDevice(const char* model, const char* driver) {
         std::scoped_lock lock(device_mutex);
@@ -308,6 +324,8 @@ private:
 #define PERF_CAPTURE_WRITE(state) PerformanceCaptureWrite((state))
 #define PERF_CAPTURE_WRITE_EPOCH(state, epoch) (state).Write((epoch))
 #define PERF_CAPTURE_MEMORY(state, bytes) (state).Memory(bytes)
+#define PERF_CAPTURE_PROCESS_MEMORY(state, working_set_bytes, private_bytes) \
+    (state).ProcessMemory((working_set_bytes), (private_bytes))
 #define PERF_CAPTURE_FRAME(state, stream) (state).Frame(stream)
 #define PERF_CAPTURE_INVALIDATE(state, reason) (state).Invalidate(reason)
 #define PERF_CAPTURE_BUILD(state) PerformanceCaptureTimer PERF_JOIN(perf_build_, __LINE__)(state, PerformanceTiming::pipeline_native_build, true)
@@ -321,6 +339,7 @@ private:
 #define PERF_CAPTURE_WRITE(state) PerformanceCaptureSharedState::Writer{}
 #define PERF_CAPTURE_WRITE_EPOCH(state, epoch) PerformanceCaptureSharedState::Writer{}
 #define PERF_CAPTURE_MEMORY(state, bytes) do {} while (false)
+#define PERF_CAPTURE_PROCESS_MEMORY(state, working_set_bytes, private_bytes) do {} while (false)
 #define PERF_CAPTURE_FRAME(state, stream) do {} while (false)
 #define PERF_CAPTURE_INVALIDATE(state, reason) do {} while (false)
 #define PERF_CAPTURE_BUILD(state) do {} while (false)

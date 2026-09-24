@@ -16,6 +16,7 @@
 #include "yuzu_common/settings.h"
 #include "os_settings.h"
 #include "core/perf_stats.h"
+#include "core/performance_capture.h"
 
 using namespace std::chrono_literals;
 using DoubleSecs = std::chrono::duration<double, std::chrono::seconds::period>;
@@ -25,6 +26,9 @@ using std::chrono::microseconds;
 // Purposefully ignore the first five frames, as there's a significant amount of overhead in
 // booting that we shouldn't account for
 constexpr std::size_t IgnoreFrames = 5;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+constexpr auto ProcessMemorySampleInterval = std::chrono::milliseconds{250};
+#endif
 
 namespace Core {
 
@@ -74,6 +78,17 @@ void PerfStats::EndSystemFrame() {
     previous_frame_length = frame_end - previous_frame_end;
     previous_frame_end = frame_end;
     PERF_CAPTURE_FRAME(capture, PerformanceFrameStream::Composite);
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (!capture.Epoch()) {
+        next_process_memory_sample = frame_end + ProcessMemorySampleInterval;
+    } else if (frame_end >= next_process_memory_sample) {
+        next_process_memory_sample = frame_end + ProcessMemorySampleInterval;
+        PerformanceCaptureProcessMemorySample sample{};
+        if (QueryPerformanceCaptureProcessMemory(sample)) {
+            PERF_CAPTURE_PROCESS_MEMORY(capture, sample.working_set_bytes, sample.private_bytes);
+        }
+    }
+#endif
 }
 
 void PerfStats::EndGameFrame() {
