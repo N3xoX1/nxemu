@@ -10,6 +10,13 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION && defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <psapi.h>
+#endif
 #include <fmt/format.h>
 #include <nxemu-os/version.h>
 #include <nxemu-module-spec/video.h>
@@ -116,6 +123,28 @@ uint64_t LoadCounter(const Atomic& value) {
     return value.load(std::memory_order_relaxed);
 }
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+bool QueryProcessCpuTime100ns(uint64_t& value) {
+#ifdef _WIN32
+    FILETIME creation{}, exit{}, kernel{}, user{};
+    if (!GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
+        return false;
+    }
+    const auto to_uint64 = [](const FILETIME& time) {
+        ULARGE_INTEGER ticks{};
+        ticks.LowPart = time.dwLowDateTime;
+        ticks.HighPart = time.dwHighDateTime;
+        return ticks.QuadPart;
+    };
+    value = to_uint64(kernel) + to_uint64(user);
+    return true;
+#else
+    (void)value;
+    return false;
+#endif
+}
+#endif
+
 void PutFrameSummary(JsonValue& target, const FrameSummary& s) {
     target["one_percent_sample_count"] = JsonValue(static_cast<uint64_t>(std::ceil(s.count * 0.01)));
     target["point_one_percent_sample_count"] = JsonValue(static_cast<uint64_t>(std::ceil(s.count * 0.001)));
@@ -183,6 +212,24 @@ void PutConfig(JsonValue& target, const PerformanceCaptureConfig& c) {
 
 namespace Core {
 
+bool QueryPerformanceCaptureProcessMemory(PerformanceCaptureProcessMemorySample& sample) {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION && defined(_WIN32)
+    PROCESS_MEMORY_COUNTERS_EX counters{};
+    counters.cb = static_cast<DWORD>(sizeof(counters));
+    if (!K32GetProcessMemoryInfo(GetCurrentProcess(),
+                                 reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters),
+                                 static_cast<DWORD>(sizeof(counters)))) {
+        return false;
+    }
+    sample.working_set_bytes = static_cast<uint64_t>(counters.WorkingSetSize);
+    sample.private_bytes = static_cast<uint64_t>(counters.PrivateUsage);
+    return true;
+#else
+    (void)sample;
+    return false;
+#endif
+}
+
 bool PerformanceCapture::Start(uint64_t title_, const PerformanceCaptureConfig& config_,
                                const std::function<std::chrono::microseconds()>& system_time) {
 #if !NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
@@ -206,6 +253,12 @@ bool PerformanceCapture::Start(uint64_t title_, const PerformanceCaptureConfig& 
         started_utc = stamp.str();
         shared.Begin();
         start_system = system_time();
+        process_cpu_available = QueryProcessCpuTime100ns(process_cpu_start_100ns);
+        process_cpu_stop_100ns = process_cpu_start_100ns;
+        PerformanceCaptureProcessMemorySample memory_sample{};
+        if (QueryPerformanceCaptureProcessMemory(memory_sample)) {
+            shared.ProcessMemory(memory_sample.working_set_bytes, memory_sample.private_bytes);
+        }
         return true;
     } catch (const std::exception& e) {
         LOG_ERROR(Core, "Performance capture start failed: {}", e.what());
@@ -220,8 +273,15 @@ bool PerformanceCapture::Stop(const std::function<std::chrono::microseconds()>& 
 #else
     std::scoped_lock lock(lifecycle);
     if (shared.Epoch()) {
+        PerformanceCaptureProcessMemorySample memory_sample{};
+        if (QueryPerformanceCaptureProcessMemory(memory_sample)) {
+            shared.ProcessMemory(memory_sample.working_set_bytes, memory_sample.private_bytes);
+        }
         stopped = shared.Close();
         stop_system = system_time();
+        if (process_cpu_available && !QueryProcessCpuTime100ns(process_cpu_stop_100ns)) {
+            process_cpu_available = false;
+        }
         pending.store(true, std::memory_order_release);
     }
     if (!pending.load(std::memory_order_acquire)) return false;
@@ -233,7 +293,7 @@ bool PerformanceCapture::Stop(const std::function<std::chrono::microseconds()>& 
             stopped - data.start).count());
         const double seconds = static_cast<double>(duration_ns) / 1e9;
         JsonValue root(JsonValueType::Object);
-        root["format_version"] = JsonValue(int64_t{6});
+        root["format_version"] = JsonValue(int64_t{7});
         root["title_id"] = JsonValue(fmt::format("{:016X}", title));
         root["started_utc"] = JsonValue(started_utc);
         root["duration_seconds"] = JsonValue(seconds);
@@ -319,6 +379,40 @@ bool PerformanceCapture::Stop(const std::function<std::chrono::microseconds()>& 
         root["memory"]["first_bytes"] = samples ? JsonValue(LoadCounter(data.memory_first)) : JsonValue();
         root["memory"]["last_bytes"] = samples ? JsonValue(LoadCounter(data.memory_last)) : JsonValue();
         root["memory"]["sampled_peak_bytes"] = samples ? JsonValue(LoadCounter(data.memory_peak)) : JsonValue();
+
+        const auto process_memory_samples = LoadCounter(data.process_memory_samples);
+        root["process_memory"]["available"] = JsonValue(process_memory_samples != 0);
+        root["process_memory"]["samples"] = JsonValue(process_memory_samples);
+        auto& working_set = root["process_memory"]["working_set"];
+        working_set["first_bytes"] = process_memory_samples
+                                         ? JsonValue(LoadCounter(data.process_working_set_first))
+                                         : JsonValue();
+        working_set["last_bytes"] = process_memory_samples
+                                        ? JsonValue(LoadCounter(data.process_working_set_last))
+                                        : JsonValue();
+        working_set["sampled_peak_bytes"] = process_memory_samples
+                                                ? JsonValue(LoadCounter(data.process_working_set_peak))
+                                                : JsonValue();
+        auto& private_memory = root["process_memory"]["private_commit"];
+        private_memory["first_bytes"] = process_memory_samples
+                                            ? JsonValue(LoadCounter(data.process_private_first))
+                                            : JsonValue();
+        private_memory["last_bytes"] = process_memory_samples
+                                           ? JsonValue(LoadCounter(data.process_private_last))
+                                           : JsonValue();
+        private_memory["sampled_peak_bytes"] = process_memory_samples
+                                                   ? JsonValue(LoadCounter(data.process_private_peak))
+                                                   : JsonValue();
+
+        const bool cpu_available =
+            process_cpu_available && process_cpu_stop_100ns >= process_cpu_start_100ns;
+        const uint64_t cpu_delta_100ns =
+            cpu_available ? process_cpu_stop_100ns - process_cpu_start_100ns : 0;
+        const double process_cpu_seconds = static_cast<double>(cpu_delta_100ns) / 10'000'000.0;
+        root["process_cpu"]["available"] = JsonValue(cpu_available);
+        root["process_cpu"]["process_time_seconds"] = cpu_available ? JsonValue(process_cpu_seconds) : JsonValue();
+        root["process_cpu"]["average_core_equivalents"] =
+            cpu_available && seconds > 0.0 ? JsonValue(process_cpu_seconds / seconds) : JsonValue();
 
         const auto base = Common::FS::GetYuzuPath(Common::FS::YuzuPath::LogDir) / "performance" / fmt::format("{:016X}", title);
         std::filesystem::create_directories(base);

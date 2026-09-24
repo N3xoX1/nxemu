@@ -4,6 +4,14 @@
 #include <nxemu-module-spec/performance_capture.h>
 
 namespace Core {
+
+struct PerformanceCaptureProcessMemorySample {
+    uint64_t working_set_bytes{};
+    uint64_t private_bytes{};
+};
+
+// Lightweight host-process sample used by the capture recorder. Returns false when unsupported.
+bool QueryPerformanceCaptureProcessMemory(PerformanceCaptureProcessMemorySample& sample);
 // Lifecycle and file I/O are serialized here; producers only access the shared state.
 class PerformanceCapture {
 public:
@@ -27,6 +35,8 @@ private:
     std::string game_display_version;
     std::chrono::microseconds start_system{}, stop_system{};
     PerformanceCaptureSharedState::Clock::time_point stopped{};
+    uint64_t process_cpu_start_100ns{}, process_cpu_stop_100ns{};
+    bool process_cpu_available{};
     std::string started_utc;
 };
 

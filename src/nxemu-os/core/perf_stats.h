@@ -73,6 +73,9 @@ private:
     Clock::duration previous_frame_length = Clock::duration::zero();
     /// Previously computed fps
     double previous_fps = 0;
+
+    /// Process-memory sampling is intentionally low-frequency to keep capture overhead negligible.
+    Clock::time_point next_process_memory_sample{};
 };
 
 class SpeedLimiter {
