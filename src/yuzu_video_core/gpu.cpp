@@ -374,6 +374,7 @@ struct GPU::Impl :
     {
         size_t num_fences{fences.size()};
         size_t current_request_counter{};
+        if (num_fences != 0)
         {
             std::unique_lock<std::mutex> lk(request_swap_mutex);
             if (free_swap_counters.empty())
@@ -394,6 +395,7 @@ struct GPU::Impl :
                 if (num_fences == 0)
                 {
                     renderer->Composite(layers);
+                    return;
                 }
                 const auto executer = [this, current_request_counter, layers_copy = layers]() {
                     {
