@@ -43,7 +43,9 @@ void EventInterface::FreeEvent(Kernel::KEvent* event) {
 
 void LoopProcess(Core::System& system) {
     auto server_manager = std::make_unique<ServerManager>(system);
-    auto module = std::make_shared<Module>(system);
+    Kernel::KEvent* deferral_event{};
+    server_manager->ManageDeferral(&deferral_event);
+    auto module = std::make_shared<Module>(system, deferral_event);
     const auto NvdrvInterfaceFactoryForApplication = [&, module] {
         return std::make_shared<NVDRV>(system, module, "nvdrv");
     };
@@ -64,8 +66,9 @@ void LoopProcess(Core::System& system) {
     ServerManager::RunServer(std::move(server_manager));
 }
 
-Module::Module(Core::System& system)
-    : container{system.GetVideo()}, service_context{system, "nvdrv"}, events_interface{*this} {
+Module::Module(Core::System& system, Kernel::KEvent* deferral_event_)
+    : container{system.GetVideo()}, service_context{system, "nvdrv"}, events_interface{*this},
+      deferral_event{deferral_event_} {
     builders["/dev/nvhost-as-gpu"] = [this, &system](DeviceFD fd) {
         auto device = std::make_shared<Devices::nvhost_as_gpu>(system, *this, container);
         return open_files.emplace(fd, std::move(device)).first;
@@ -104,7 +107,15 @@ Module::Module(Core::System& system)
     };
 }
 
-Module::~Module() {}
+Module::~Module() {
+    deferral_event->Close();
+}
+
+std::optional<Devices::SyncpointWaitParams> Module::GetSyncpointWait(
+    DeviceFD fd, Ioctl command, std::span<const u8> input) const {
+    const auto it = open_files.find(fd);
+    return it == open_files.end() ? std::nullopt : it->second->GetSyncpointWait(command, input);
+}
 
 NvResult Module::VerifyFD(DeviceFD fd) const {
     if (fd < 0) {
@@ -187,6 +198,11 @@ NvResult Module::Ioctl3(DeviceFD fd, Ioctl command, std::span<const u8> input, s
     return itr->second->Ioctl3(fd, command, input, output, inline_output);
 }
 
+void Module::RetainNvMapPinUntilShutdown(u32 handle, std::shared_ptr<void> pin) {
+    // One pin protects the whole nvmap backing, even across several closed address spaces.
+    retained_nvmap_pins.try_emplace(handle, std::move(pin));
+}
+
 NvResult Module::Close(DeviceFD fd) {
     if (fd < 0) {
         LOG_ERROR(Service_NVDRV, "Invalid DeviceFD={}!", fd);
@@ -203,6 +219,8 @@ NvResult Module::Close(DeviceFD fd) {
     itr->second->OnClose(fd);
 
     open_files.erase(itr);
+    // A deferred ioctl on this descriptor must be allowed to finish with an error.
+    deferral_event->Signal();
 
     return NvResult::Success;
 }

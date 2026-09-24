@@ -72,10 +72,17 @@ public:
      */
     u32 IncrementSyncpointMaxExt(u32 id, u32 amount);
 
+    void IncrementSyncpoint(u32 id);
+    u32 ReadSyncpointValue(u32 id);
+    u32 ReadSyncpointMaxValue(u32 id) const;
+
     /**
      * @return The minimum value of the syncpoint
      */
     u32 ReadSyncpointMinValue(u32 id);
+
+    // Nonblocking check. NVDRV defers the IPC reply when a wait is required.
+    bool PollSyncpoint(u32 id, u32 threshold, u32* value = nullptr);
 
     /**
      * @brief Synchronises the minimum value of the syncpoint to with the GPU

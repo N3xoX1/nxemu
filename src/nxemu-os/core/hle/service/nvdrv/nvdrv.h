@@ -7,6 +7,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -15,6 +16,7 @@
 #include "yuzu_common/nvdata.h"
 #include "core/hle/service/kernel_helpers.h"
 #include "core/hle/service/nvdrv/core/container.h"
+#include "core/hle/service/nvdrv/devices/nvdevice.h"
 #include "core/hle/service/service.h"
 
 namespace Core {
@@ -56,7 +58,7 @@ private:
 
 class Module final {
 public:
-    explicit Module(Core::System& system_);
+    explicit Module(Core::System& system_, Kernel::KEvent* deferral_event_);
     ~Module();
 
     /// Returns a pointer to one of the available devices, identified by its name.
@@ -69,6 +71,13 @@ public:
     }
 
     NvResult VerifyFD(DeviceFD fd) const;
+
+    std::optional<Devices::SyncpointWaitParams> GetSyncpointWait(
+        DeviceFD fd, Ioctl command, std::span<const u8> input) const;
+
+    Kernel::KEvent& GetDeferralEvent() const {
+        return *deferral_event;
+    }
 
     /// Opens a device node and returns a file descriptor to it.
     DeviceFD Open(const std::string& device_name, NvCore::SessionId session_id);
@@ -84,6 +93,9 @@ public:
 
     /// Closes a device file descriptor and returns operation success.
     NvResult Close(DeviceFD fd);
+
+    // The video registry keeps GMMUs alive until shutdown, including after their AS FD closes.
+    void RetainNvMapPinUntilShutdown(u32 handle, std::shared_ptr<void> pin);
 
     NvResult QueryEvent(DeviceFD fd, u32 event_id, Kernel::KEvent*& event);
 
@@ -103,10 +115,13 @@ private:
     using FilesContainerType = std::unordered_map<DeviceFD, std::shared_ptr<Devices::nvdevice>>;
     /// Mapping of file descriptors to the devices they reference.
     FilesContainerType open_files;
+    std::unordered_map<u32, std::shared_ptr<void>> retained_nvmap_pins;
 
     KernelHelpers::ServiceContext service_context;
 
     EventInterface events_interface;
+    // Owns the writable reference returned by ServerManager::ManageDeferral.
+    Kernel::KEvent* deferral_event;
 
     std::unordered_map<std::string, std::function<FilesContainerType::iterator(DeviceFD)>> builders;
 };

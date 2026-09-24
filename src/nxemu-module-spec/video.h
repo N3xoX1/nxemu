@@ -188,6 +188,7 @@ nxinterface IVideo
     virtual void Host1xUnregisterProcess(uint64_t asid) = 0;
     virtual void DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle) = 0;
     virtual uint32_t HostSyncpointValue(uint32_t id) = 0;
+    virtual void HostSyncpointIncrement(uint32_t id) = 0;
     virtual uint32_t HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void * userData) = 0;
     virtual void WaitHost(uint32_t syncpoint_id, uint32_t expected_value) = 0;
     virtual uint32_t ShadersBuilding() = 0;

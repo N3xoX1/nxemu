@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <boost/container/small_vector.hpp>
 #include <memory>
 #include <vector>
@@ -90,6 +91,10 @@ class nvhost_as_gpu;
 class nvmap;
 class nvhost_gpu final : public nvdevice {
 public:
+    nvhost_gpu* AsGpuChannel() override {
+        return this;
+    }
+
     explicit nvhost_gpu(Core::System& system_, EventInterface& events_interface_,
                         NvCore::Container& core);
     ~nvhost_gpu() override;
@@ -264,6 +269,7 @@ private:
     NvCore::SyncpointManager& syncpoint_manager;
     NvCore::NvMap& nvmap;
     IChannelStatePtr channel_state;
+    std::atomic_bool address_space_bound{};
     std::unordered_map<DeviceFD, NvCore::SessionId> sessions;
     u32 channel_syncpoint;
     std::mutex channel_mutex;

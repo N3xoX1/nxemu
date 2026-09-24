@@ -361,6 +361,13 @@ uint32_t VideoManager::HostSyncpointValue(uint32_t id)
     return impl->m_host1x->GetSyncpointManager().GetHostSyncpointValue(id);
 }
 
+void VideoManager::HostSyncpointIncrement(uint32_t id)
+{
+    auto& syncpoints = impl->m_host1x->GetSyncpointManager();
+    syncpoints.IncrementGuest(id);
+    syncpoints.IncrementHost(id);
+}
+
 uint32_t VideoManager::HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void* userData)
 {
     return impl->m_host1x->GetSyncpointManager().RegisterHostAction(fence_id, target_value, [operation, userData, slot]() {
@@ -372,6 +379,7 @@ void VideoManager::WaitHost(uint32_t syncpoint_id, uint32_t expected_value)
 {
     impl->m_host1x->GetSyncpointManager().WaitHost(syncpoint_id, expected_value);
 }
+
 
 uint32_t VideoManager::ShadersBuilding()
 {

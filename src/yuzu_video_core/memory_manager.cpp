@@ -147,6 +147,31 @@ GPUVAddr MemoryManager::PageTableOp(GPUVAddr gpu_addr, [[maybe_unused]] DAddr de
     return gpu_addr;
 }
 
+void MemoryManager::PrepareSmallPageMapping(GPUVAddr gpu_addr, size_t size) {
+    if (size == 0) {
+        return;
+    }
+    const GPUVAddr last = (gpu_addr + size - 1) & ~big_page_mask;
+    for (GPUVAddr base = gpu_addr & ~big_page_mask; base <= last; base += big_page_size) {
+        const auto old_entry = GetEntry<true>(base);
+        if (old_entry == EntryType::SmallPages) {
+            continue;
+        }
+        // Expand the whole old PTE before replacing a subrange, preserving its neighbours.
+        if (old_entry == EntryType::Mapped) {
+            const DAddr old_address = static_cast<DAddr>(big_page_table_dev[PageEntryIndex<true>(base)])
+                                      << cpu_page_bits;
+            PageTableOp<EntryType::Mapped>(base, old_address, big_page_size, GetPageKind(base));
+        } else if (old_entry == EntryType::Reserved) {
+            PageTableOp<EntryType::Reserved>(base, 0, big_page_size, PTEKind::INVALID);
+        }
+        SetEntry<true>(base, EntryType::SmallPages);
+        if (old_entry != EntryType::Free) {
+            rasterizer->ModifyGPUMemory(unique_identifier, base, big_page_size);
+        }
+    }
+}
+
 template <MemoryManager::EntryType entry_type>
 GPUVAddr MemoryManager::BigPageTableOp(GPUVAddr gpu_addr, [[maybe_unused]] DAddr dev_addr,
                                        size_t size, PTEKind kind)
@@ -155,7 +180,13 @@ GPUVAddr MemoryManager::BigPageTableOp(GPUVAddr gpu_addr, [[maybe_unused]] DAddr
     for (u64 offset{}; offset < size; offset += big_page_size)
     {
         const GPUVAddr current_gpu_addr = gpu_addr + offset;
-        [[maybe_unused]] const auto current_entry_type = GetEntry<true>(current_gpu_addr);
+        const auto current_entry_type = GetEntry<true>(current_gpu_addr);
+        if (current_entry_type == EntryType::SmallPages) {
+            // A big PTE replaces the complete slot. In particular, returning it to sparse
+            // must not expose old small-page mappings when address translation falls back.
+            PageTableOp<EntryType::Free>(current_gpu_addr & ~big_page_mask, 0,
+                                        big_page_size, PTEKind::INVALID);
+        }
         SetEntry<true>(current_gpu_addr, entry_type);
         if (current_entry_type != entry_type)
         {
@@ -209,6 +240,7 @@ GPUVAddr MemoryManager::Map(GPUVAddr gpu_addr, DAddr dev_addr, std::size_t size,
     {
         return BigPageTableOp<EntryType::Mapped>(gpu_addr, dev_addr, size, kind);
     }
+    PrepareSmallPageMapping(gpu_addr, size);
     return PageTableOp<EntryType::Mapped>(gpu_addr, dev_addr, size, kind);
 }
 
@@ -218,6 +250,7 @@ GPUVAddr MemoryManager::MapSparse(GPUVAddr gpu_addr, std::size_t size, bool is_b
     {
         return BigPageTableOp<EntryType::Reserved>(gpu_addr, 0, size, PTEKind::INVALID);
     }
+    PrepareSmallPageMapping(gpu_addr, size);
     return PageTableOp<EntryType::Reserved>(gpu_addr, 0, size, PTEKind::INVALID);
 }
 
@@ -235,8 +268,21 @@ void MemoryManager::Unmap(GPUVAddr gpu_addr, std::size_t size)
     }
     page_stash.clear();
 
-    BigPageTableOp<EntryType::Free>(gpu_addr, 0, size, PTEKind::INVALID);
-    PageTableOp<EntryType::Free>(gpu_addr, 0, size, PTEKind::INVALID);
+    const GPUVAddr end = gpu_addr + size;
+    const GPUVAddr first_end = std::min(end, Common::AlignUp(gpu_addr, big_page_size));
+    if (first_end > gpu_addr) {
+        PrepareSmallPageMapping(gpu_addr, first_end - gpu_addr);
+        PageTableOp<EntryType::Free>(gpu_addr, 0, first_end - gpu_addr, PTEKind::INVALID);
+    }
+    const GPUVAddr full_end = end & ~big_page_mask;
+    if (full_end > first_end) {
+        BigPageTableOp<EntryType::Free>(first_end, 0, full_end - first_end, PTEKind::INVALID);
+    }
+    const GPUVAddr last_start = std::max(first_end, full_end);
+    if (end > last_start) {
+        PrepareSmallPageMapping(last_start, end - last_start);
+        PageTableOp<EntryType::Free>(last_start, 0, end - last_start, PTEKind::INVALID);
+    }
 }
 
 std::optional<DAddr> MemoryManager::GpuToCpuAddress(GPUVAddr gpu_addr) const

@@ -136,6 +136,11 @@ NvResult nvmap::IocAlloc(IocAllocParams& params, DeviceFD fd) {
                                              handle_description->size,
                                              Kernel::KMemoryPermission::None, true, false)
                .IsSuccess());
+    {
+        std::scoped_lock lock(handle_description->mutex);
+        handle_description->owner_process = process;
+        handle_description->device_address_space_locked = true;
+    }
     return result;
 }
 
@@ -240,12 +245,6 @@ NvResult nvmap::IocFree(IocFreeParams& params, DeviceFD fd) {
     }
 
     if (auto freeInfo{file.FreeHandle(params.handle, false)}) {
-        auto process = container.GetSession(sessions[fd])->process;
-        if (freeInfo->can_unlock) {
-            ASSERT(process->GetKPageTable()
-                       .UnlockForDeviceAddressSpace(freeInfo->address, freeInfo->size)
-                       .IsSuccess());
-        }
         params.address = freeInfo->address;
         params.size = static_cast<u32>(freeInfo->size);
         params.flags.raw = 0;
