@@ -28,6 +28,9 @@ public:
     /// Returns a pointer to an `object_size`-bytes block of memory.
     void* Alloc();
 
+    /// Rewinds the pool to the first slab while retaining allocated slabs for reuse.
+    void Reset();
+
 private:
     // Allocates a completely new memory slab.
     // Used when an entirely new slab is needed
@@ -36,9 +39,10 @@ private:
 
     size_t object_size;
     size_t slab_size;
-    char* current_slab;
-    char* current_ptr;
-    size_t remaining;
+    char* current_slab = nullptr;
+    char* current_ptr = nullptr;
+    size_t remaining = 0;
+    size_t current_slab_index = 0;
     std::vector<char*> slabs;
 };
 

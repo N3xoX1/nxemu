@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <map>
 #include <string>
+#include <type_traits>
 
 #include <fmt/format.h>
 #include <mcl/assert.hpp>
@@ -21,14 +22,33 @@
 
 namespace Dynarmic::IR {
 
+static_assert(std::is_trivially_destructible_v<Inst>,
+              "IR instruction pool reuse requires trivially destructible Inst objects");
+
 Block::Block(const LocationDescriptor& location)
-        : location{location}, end_location{location}, cond{Cond::AL}, instruction_alloc_pool{std::make_unique<Common::Pool>(sizeof(Inst), 4096)} {}
+        : location{location}, end_location{location}, cond{Cond::AL}, instruction_alloc_pool{std::make_unique<Common::Pool>(sizeof(Inst), 64)} {}
 
 Block::~Block() = default;
 
 Block::Block(Block&&) = default;
 
 Block& Block::operator=(Block&&) = default;
+
+
+void Block::Reset(const LocationDescriptor& new_location) {
+    while (!instructions.empty()) {
+        instructions.pop_front();
+    }
+    instruction_alloc_pool->Reset();
+
+    location = new_location;
+    end_location = new_location;
+    cond = Cond::AL;
+    cond_failed.reset();
+    cond_failed_cycle_count = 0;
+    terminal = Term::Invalid{};
+    cycle_count = 0;
+}
 
 void Block::AppendNewInst(Opcode opcode, std::initializer_list<IR::Value> args) {
     PrependNewInst(end(), opcode, args);

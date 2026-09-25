@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "cpu_settings.h"
+#include <array>
+#include <limits>
 #include <yuzu_common/logging/log.h>
 #include "arm_dynarmic.h"
 #include "arm_dynarmic_64.h"
@@ -69,7 +71,23 @@ public:
         {
             return std::nullopt;
         }
-        return m_memory.Read32(vaddr);
+
+        const uint64_t page_addr = vaddr & ~CODE_PAGE_MASK;
+        if (m_last_code_page != page_addr)
+        {
+            if (!m_memory.ReadBlock(page_addr, m_cached_code_page.data(), CODE_PAGE_SIZE))
+            {
+                return m_memory.Read32(vaddr);
+            }
+            m_last_code_page = page_addr;
+        }
+
+        return m_cached_code_page[(vaddr & CODE_PAGE_MASK) / sizeof(u32)];
+    }
+
+    void InstructionSynchronizationBarrierRaised() override
+    {
+        InvalidateCodePageCache();
     }
     Vector MemoryRead128(uint64_t vaddr) override
     {
@@ -147,6 +165,7 @@ public:
 
     void InstructionCacheOperationRaised(Dynarmic::A64::InstructionCacheOperation op, uint64_t value) override
     {
+        InvalidateCodePageCache();
         switch (op)
         {
         case Dynarmic::A64::InstructionCacheOperation::InvalidateByVAToPoU:
@@ -218,6 +237,25 @@ public:
         return m_parent.m_system.Timing().GetClockTicks();
     }
 
+    void InvalidateCodePageCache()
+    {
+        m_last_code_page = INVALID_CODE_PAGE;
+    }
+
+    void InvalidateCodePageCacheRange(uint64_t addr, uint64_t size)
+    {
+        if (m_last_code_page == INVALID_CODE_PAGE || size == 0)
+        {
+            return;
+        }
+
+        const uint64_t end = addr + size - 1;
+        if (end < addr || (addr <= m_last_code_page + CODE_PAGE_MASK && end >= m_last_code_page))
+        {
+            InvalidateCodePageCache();
+        }
+    }
+
     bool CheckMemoryAccess(uint64_t /*addr*/, uint64_t /*size*/, CpuDebugWatchpointType /*type*/)
     {
         if (!m_check_memory_access)
@@ -234,6 +272,13 @@ public:
         m_parent.m_breakpoint_context.pc = pc;
         m_parent.m_jit->HaltExecution(reason);
     }
+
+    static constexpr uint64_t CODE_PAGE_SIZE = 0x1000;
+    static constexpr uint64_t CODE_PAGE_MASK = CODE_PAGE_SIZE - 1;
+    static constexpr uint64_t INVALID_CODE_PAGE = std::numeric_limits<uint64_t>::max();
+
+    std::array<u32, CODE_PAGE_SIZE / sizeof(u32)> m_cached_code_page{};
+    uint64_t m_last_code_page = INVALID_CODE_PAGE;
 
     ArmDynarmic64 & m_parent;
     IMemory & m_memory;
@@ -552,11 +597,19 @@ void ArmDynarmic64::SignalInterrupt(IKernelThread * /*thread*/)
 
 void ArmDynarmic64::ClearInstructionCache()
 {
+    if (m_cb)
+    {
+        m_cb->InvalidateCodePageCache();
+    }
     m_jit->ClearCache();
 }
 
 void ArmDynarmic64::InvalidateCacheRange(uint64_t addr, uint64_t size)
 {
+    if (m_cb)
+    {
+        m_cb->InvalidateCodePageCacheRange(addr, size);
+    }
     m_jit->InvalidateCacheRange(addr, size);
 }
 

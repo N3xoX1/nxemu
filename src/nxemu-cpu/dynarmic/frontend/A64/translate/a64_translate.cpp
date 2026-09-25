@@ -13,10 +13,9 @@
 
 namespace Dynarmic::A64 {
 
-IR::Block Translate(LocationDescriptor descriptor, MemoryReadCodeFuncType memory_read_code, TranslationOptions options) {
+void Translate(IR::Block& block, LocationDescriptor descriptor, MemoryReadCodeFuncType memory_read_code, TranslationOptions options) {
     const bool single_step = descriptor.SingleStepping();
 
-    IR::Block block{descriptor};
     TranslatorVisitor visitor{block, descriptor, std::move(options)};
 
     bool should_continue = true;
@@ -44,7 +43,11 @@ IR::Block Translate(LocationDescriptor descriptor, MemoryReadCodeFuncType memory
     ASSERT_MSG(block.HasTerminal(), "Terminal has not been set");
 
     block.SetEndLocation(*visitor.ir.current_location);
+}
 
+IR::Block Translate(LocationDescriptor descriptor, MemoryReadCodeFuncType memory_read_code, TranslationOptions options) {
+    IR::Block block{descriptor};
+    Translate(block, descriptor, std::move(memory_read_code), std::move(options));
     return block;
 }
 

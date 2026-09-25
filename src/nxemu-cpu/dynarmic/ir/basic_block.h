@@ -96,6 +96,9 @@ public:
      */
     iterator PrependNewInst(iterator insertion_point, Opcode op, std::initializer_list<Value> args);
 
+    /// Reuses this block for a new translation while retaining its instruction storage.
+    void Reset(const LocationDescriptor& location);
+
     /// Gets the starting location for this basic block.
     LocationDescriptor Location() const;
     /// Gets the end location for this basic block.
