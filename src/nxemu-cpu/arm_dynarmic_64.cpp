@@ -319,9 +319,14 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
         config.check_halt_on_memory_access = true;
     }
 
+#if !defined(NDEBUG)
+    config.optimizations &= ~Dynarmic::OptimizationFlag::DisableVerification;
+#endif
+
     // Safe optimizations
     if (cpuSettings.cpu_debug_mode)
     {
+        config.optimizations &= ~Dynarmic::OptimizationFlag::DisableVerification;
         if (!cpuSettings.cpuopt_page_tables)
         {
             config.page_table = nullptr;
