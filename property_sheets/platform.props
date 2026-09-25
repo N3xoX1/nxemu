@@ -2,7 +2,7 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
   <PropertyGroup Label="Configuration">
-    <NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION Condition="'$(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION)'==''">1</NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION>
+    <NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION Condition="'$(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION)'==''">0</NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION>
     <PlatformToolset Condition="'$(DefaultPlatformToolset)'!=''">$(DefaultPlatformToolset)</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>

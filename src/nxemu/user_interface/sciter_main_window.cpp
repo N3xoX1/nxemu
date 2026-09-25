@@ -1083,11 +1083,11 @@ void SciterMainWindow::UpdatePerformanceCaptureCaption()
     std::string caption = m_baseCaption;
     if (m_benchmarkRunning)
     {
-        caption += " | BENCH";
+        caption += " | PERFORMANCE CAPTURE ACTIVE";
     }
     else if (m_benchmarkSaveFailed)
     {
-        caption += " | BENCH: save failed";
+        caption += " | PERFORMANCE CAPTURE: SAVE FAILED";
     }
     m_rootElement.Eval(stdstr_f("Window.this.caption = \"%s\";", caption.c_str()).c_str());
     SciterElement captionElement(m_rootElement.FindFirst("[role='window-caption'] > span"));
