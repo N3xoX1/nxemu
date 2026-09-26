@@ -231,7 +231,7 @@ void PhysicalCore::LogBacktrace()
     auto * interface = process->GetCpuCore(m_core_index);
     if (interface)
     {
-        UNIMPLEMENTED();
+        process->LogBacktrace(*interface);
     }
 }
 
