@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.18)
 
 # nxemu-os depends on yuzu "core", yuzu_audio_core, src/network, hid_core (which itself
 # links "core"), cubeb, SDL, etc. Host desktop builds may still be incomplete — default OFF.
-# Android needs the OS plugin .so alongside loader/cpu/video, so default ON there.
-if(ANDROID)
+# Android and macOS require the OS plugin alongside loader/cpu/video.
+if(ANDROID OR APPLE)
     set(_NXEMU_OS_BUILD_DEFAULT ON)
 else()
     set(_NXEMU_OS_BUILD_DEFAULT OFF)
@@ -77,6 +77,13 @@ target_link_libraries(nxemu-os PRIVATE
 
 if(ANDROID)
     target_link_libraries(nxemu-os PRIVATE log)
+elseif(APPLE)
+    find_library(NXEMU_SECURITY_FRAMEWORK Security REQUIRED)
+    find_library(NXEMU_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    target_link_libraries(nxemu-os PRIVATE
+        "${NXEMU_SECURITY_FRAMEWORK}"
+        "${NXEMU_COREFOUNDATION_FRAMEWORK}"
+    )
 endif()
 
 # Use BSD socket headers and TranslateIPv4(in_addr) path (Linux/macOS/Android).

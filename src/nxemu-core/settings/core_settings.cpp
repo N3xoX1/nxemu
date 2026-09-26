@@ -49,10 +49,16 @@ namespace
         } clearValue;
     };
 
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+    constexpr const char * ModuleDirectorySettingKey = "ModuleDirectory-arm64";
+#else
+    constexpr const char * ModuleDirectorySettingKey = "ModuleDirectory-x64";
+#endif
+
     static CoreSetting settings[] = {
         { NXCoreSetting::AppBaseDirectory, &coreSettings.baseDir },
         { NXCoreSetting::AppDirectory, &coreSettings.appDir },
-        { NXCoreSetting::ModuleDirectory, "", "ModuleDirectory-x64", &coreSettings.moduleDir, &coreSettings.moduleDirValue, "./modules" },
+        { NXCoreSetting::ModuleDirectory, "", ModuleDirectorySettingKey, &coreSettings.moduleDir, &coreSettings.moduleDirValue, "./modules" },
 #ifdef _WIN32
 #ifdef _DEBUG
         { NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader\\nxemu-loader_d.dll" },
@@ -65,6 +71,11 @@ namespace
         { NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "video\\nxemu-video.dll" },
         { NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system\\nxemu-os.dll" },
 #endif
+#elif defined(__APPLE__)
+        {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader/libnxemu-loader.dylib"},
+        {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "cpu/libnxemu-cpu.dylib"},
+        {NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "video/libnxemu-video.dylib"},
+        {NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system/libnxemu-os.dylib"},
 #elif defined(ANDROID)
         {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "libnxemu-loader.so"},
         {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "libnxemu-cpu.so"},

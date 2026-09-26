@@ -189,4 +189,9 @@ target_include_directories(yuzu_common PUBLIC
 target_link_libraries(yuzu_common PUBLIC Boost::context Boost::headers fmt::fmt stb::headers Threads::Threads)
 target_link_libraries(yuzu_common PRIVATE lz4::lz4 zstd::zstd)
 
+if(APPLE)
+    find_library(YUZU_COMMON_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    target_link_libraries(yuzu_common PRIVATE ${YUZU_COMMON_COREFOUNDATION_FRAMEWORK})
+endif()
+
 create_target_directory_groups(yuzu_common)

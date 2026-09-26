@@ -377,13 +377,12 @@ if(ARCHITECTURE_arm64)
 
     enable_language(C ASM)
     set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -x assembler-with-cpp")
-    if(NOT MSVC)
+    if(UNIX AND NOT APPLE)
         target_compile_options(nxemu-cpu PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-Wa,--noexecstack>)
         target_link_options(nxemu-cpu PRIVATE -Wl,-z,noexecstack)
     endif()
 
     target_sources(nxemu-cpu PRIVATE
-        dynarmic/backend/exception_handler_generic.cpp
         dynarmic/common/spin_lock_arm64.cpp
         dynarmic/backend/arm64/a32_jitstate.cpp
         dynarmic/backend/arm64/a32_address_space.cpp
@@ -419,18 +418,82 @@ if(ARCHITECTURE_arm64)
         dynarmic/backend/arm64/stack_layout.h
         dynarmic/backend/arm64/verbose_debugging_output.cpp
         dynarmic/backend/arm64/verbose_debugging_output.h
-        nce/arm_nce_asm_definitions.h
-        nce/arm_nce.cpp
-        nce/arm_nce.h
-        nce/arm_nce.s
-        nce/guest_context.h
-        nce/instructions.h
-        nce/interpreter_visitor.cpp
-        nce/interpreter_visitor.h
-        nce/patcher.cpp
-        nce/patcher.h
-        nce/visitor_base.h
     )
+
+    if(APPLE)
+        find_program(NXEMU_MIG_EXECUTABLE mig REQUIRED)
+
+        find_path(NXEMU_MACH_EXC_INCLUDE_DIR mach/mach_exc.defs)
+        if(NOT NXEMU_MACH_EXC_INCLUDE_DIR)
+            execute_process(
+                COMMAND xcrun --sdk macosx --show-sdk-path
+                OUTPUT_VARIABLE NXEMU_MACOS_SDK
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                COMMAND_ERROR_IS_FATAL ANY
+            )
+            if(EXISTS "${NXEMU_MACOS_SDK}/usr/include/mach/mach_exc.defs")
+                set(NXEMU_MACH_EXC_INCLUDE_DIR "${NXEMU_MACOS_SDK}/usr/include")
+            endif()
+        endif()
+        if(NOT NXEMU_MACH_EXC_INCLUDE_DIR)
+            message(FATAL_ERROR "Unable to locate mach/mach_exc.defs required by Dynarmic fastmem on macOS")
+        endif()
+
+        set(_nxemu_mig_dir "${CMAKE_CURRENT_BINARY_DIR}/dynarmic/backend/arm64/mig")
+        set(_nxemu_mig_user_c "${_nxemu_mig_dir}/mach_exc_user.c")
+        set(_nxemu_mig_user_h "${_nxemu_mig_dir}/mach_exc_user.h")
+        set(_nxemu_mig_server_c "${_nxemu_mig_dir}/mach_exc_server.c")
+        set(_nxemu_mig_server_h "${_nxemu_mig_dir}/mach_exc_server.h")
+
+        add_custom_command(
+            OUTPUT
+                "${_nxemu_mig_user_c}"
+                "${_nxemu_mig_user_h}"
+                "${_nxemu_mig_server_c}"
+                "${_nxemu_mig_server_h}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_nxemu_mig_dir}"
+            COMMAND "${NXEMU_MIG_EXECUTABLE}"
+                -arch arm64
+                -user "${_nxemu_mig_user_c}"
+                -header "${_nxemu_mig_user_h}"
+                -server "${_nxemu_mig_server_c}"
+                -sheader "${_nxemu_mig_server_h}"
+                "${NXEMU_MACH_EXC_INCLUDE_DIR}/mach/mach_exc.defs"
+            DEPENDS "${NXEMU_MACH_EXC_INCLUDE_DIR}/mach/mach_exc.defs"
+            VERBATIM
+            COMMENT "Generating Dynarmic Mach exception server for arm64"
+        )
+        add_custom_target(nxemu-dynarmic-mig DEPENDS
+            "${_nxemu_mig_user_c}"
+            "${_nxemu_mig_user_h}"
+            "${_nxemu_mig_server_c}"
+            "${_nxemu_mig_server_h}"
+        )
+        add_dependencies(nxemu-cpu nxemu-dynarmic-mig)
+        target_include_directories(nxemu-cpu PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+        target_sources(nxemu-cpu PRIVATE
+            dynarmic/backend/exception_handler_macos.cpp
+            dynarmic/backend/exception_handler_macos_mig.c
+        )
+    elseif(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_compile_definitions(nxemu-cpu PRIVATE NXEMU_HAS_NCE=1)
+        target_sources(nxemu-cpu PRIVATE
+            dynarmic/backend/exception_handler_generic.cpp
+            nce/arm_nce_asm_definitions.h
+            nce/arm_nce.cpp
+            nce/arm_nce.h
+            nce/arm_nce.s
+            nce/guest_context.h
+            nce/instructions.h
+            nce/interpreter_visitor.cpp
+            nce/interpreter_visitor.h
+            nce/patcher.cpp
+            nce/patcher.h
+            nce/visitor_base.h
+        )
+    else()
+        target_sources(nxemu-cpu PRIVATE dynarmic/backend/exception_handler_generic.cpp)
+    endif()
 
     if(TARGET merry::oaknut)
         target_link_libraries(nxemu-cpu PRIVATE merry::oaknut)

@@ -5,7 +5,7 @@
 #if defined(_M_X64) || defined(ARCHITECTURE_x86_64) || defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
 #include "exclusive_monitor_interface.h"
 #endif
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+#if defined(NXEMU_HAS_NCE)
 #include "cpu_settings_identifiers.h"
 #include "nce/arm_nce.h"
 #include <nxemu-module-spec/base.h>
@@ -45,7 +45,7 @@ IPatchCollection * CpuInterface::CreatePatchCollection(bool is_application)
 
 ICpuCore * CpuInterface::CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex)
 {
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+#if defined(NXEMU_HAS_NCE)
     if (is64Bit && g_settings && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return new Core::ArmNce(system, usesWallClock, process, coreIndex);

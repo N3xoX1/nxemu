@@ -626,7 +626,8 @@ public:
 
     void ClearDpc(DpcFlag flag)
     {
-        this->GetStackParameters().dpc_flags &= ~static_cast<u8>(flag);
+        this->GetStackParameters().dpc_flags = static_cast<u8>(
+            this->GetStackParameters().dpc_flags & ~static_cast<u8>(flag));
     }
 
     u8 GetDpc() const

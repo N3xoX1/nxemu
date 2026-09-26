@@ -3,6 +3,16 @@ if (NOT TARGET fmt::fmt)
     add_subdirectory(fmt)
 endif()
 
+# AppleClang 21 rejects the consteval path used by the bundled fmt 10.x.
+# fmt 10.1.1 controls the constructor qualifier with FMT_CONSTEVAL; the newer
+# FMT_USE_CONSTEVAL switch does not exist in this bundled version. Define
+# FMT_CONSTEVAL to an empty replacement on the affected toolchain, matching
+# the upstream workaround for fmt 10.x on AppleClang 21.
+if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+    target_compile_definitions(fmt PUBLIC FMT_CONSTEVAL=)
+endif()
+
 # Boost
 if(NOT TARGET Boost::headers)
     set(BOOST_SUPERPROJECT_VERSION "1.84.0" CACHE STRING "Boost version string for modular CMakeLists")
@@ -69,12 +79,16 @@ if(TARGET libzstd_static AND NOT TARGET zstd::zstd)
 endif()
 
 # zlib + minizip (nxemu-loader firmware zip extraction)
-if(NOT TARGET zlibstatic)
+# The bundled zlib 1.3.1 CMake temporarily renames its source zconf.h during
+# out-of-source configuration. Restoring that file immediately makes quoted
+# includes select the unconfigured source header on macOS, so POSIX prototypes
+# such as read/write/lseek are lost. Use the SDK zlib on Apple instead.
+if(APPLE)
+    find_package(ZLIB REQUIRED)
+elseif(NOT TARGET zlibstatic)
     set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib example/minigzip programs" FORCE)
     add_subdirectory("${CMAKE_SOURCE_DIR}/external/zlib" "${CMAKE_BINARY_DIR}/external/zlib")
-    # zlib's CMake renames the tracked source zconf.h -> zconf.h.included during
-    # out-of-source configure. Undo that so the submodule working tree stays clean.
-    # The build still uses the generated header in ${CMAKE_BINARY_DIR}/external/zlib.
+    # Preserve the existing non-Apple behavior.
     set(_nxemu_zlib_src "${CMAKE_SOURCE_DIR}/external/zlib")
     if(EXISTS "${_nxemu_zlib_src}/zconf.h.included" AND NOT EXISTS "${_nxemu_zlib_src}/zconf.h")
         file(RENAME "${_nxemu_zlib_src}/zconf.h.included" "${_nxemu_zlib_src}/zconf.h")
