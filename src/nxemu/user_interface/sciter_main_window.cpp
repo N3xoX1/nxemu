@@ -17,6 +17,7 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-loader/loader_settings_identifiers.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/system_loader.h>
@@ -29,6 +30,7 @@
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/path_util.h>
+#include <yuzu_common/logging/log.h>
 #include <yuzu_common/settings.h>
 #include <yuzu_common/uuid.h>
 
@@ -41,8 +43,70 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <iterator>
 #include <string>
 #include <vector>
+
+namespace {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+constexpr const char* PerformanceCaptureSettings[] = {
+    NXCpuSetting::CpuAccuracy,
+    NXCpuSetting::CpuBackend,
+    NXCpuSetting::CpuDebugMode,
+    NXCpuSetting::CpuoptBlockLinking,
+    NXCpuSetting::CpuoptConstProp,
+    NXCpuSetting::CpuoptContextElimination,
+    NXCpuSetting::CpuoptFastDispatcher,
+    NXCpuSetting::CpuoptFastmem,
+    NXCpuSetting::CpuoptFastmemExclusives,
+    NXCpuSetting::CpuoptIgnoreMemoryAborts,
+    NXCpuSetting::CpuoptMiscIr,
+    NXCpuSetting::CpuoptPageTables,
+    NXCpuSetting::CpuoptRecompileExclusives,
+    NXCpuSetting::CpuoptReduceMisalignChecks,
+    NXCpuSetting::CpuoptReturnStackBuffer,
+    NXCpuSetting::CpuoptUnsafeFastmemCheck,
+    NXCpuSetting::CpuoptUnsafeIgnoreGlobalMonitor,
+    NXCpuSetting::CpuoptUnsafeIgnoreStandardFpcr,
+    NXCpuSetting::CpuoptUnsafeInaccurateNan,
+    NXCpuSetting::CpuoptUnsafeReduceFpError,
+    NXCpuSetting::CpuoptUnsafeUnfuseFma,
+    NXCpuSetting::NceEnabled,
+    NXOsSetting::DockedMode,
+    NXOsSetting::MemoryLayout,
+    NXOsSetting::SpeedLimit,
+    NXOsSetting::UseMultiCore,
+    NXOsSetting::UseSpeedLimit,
+    NXVideoSetting::ASTCRecompressionMethod,
+    NXVideoSetting::AccuracyLevel,
+    NXVideoSetting::AnisotropicFiltering,
+    NXVideoSetting::AntiAliasing,
+    NXVideoSetting::AstcDecodeMode,
+    NXVideoSetting::BarrierFeedbackLoops,
+    NXVideoSetting::DMAAccuracy,
+    NXVideoSetting::EnableAsynchronousPresentation,
+    NXVideoSetting::EnableReactiveFlushing,
+    NXVideoSetting::FSPSharpness,
+    NXVideoSetting::FastGPUTime,
+    NXVideoSetting::ForceMaximumClocks,
+    NXVideoSetting::GraphicsAPI,
+    NXVideoSetting::NvdecEmulation,
+    NXVideoSetting::ResolutionSetup,
+    NXVideoSetting::ResolutionUpFactor,
+    NXVideoSetting::ScalingFilter,
+    NXVideoSetting::ShaderBackend,
+    NXVideoSetting::SyncMemoryOperations,
+    NXVideoSetting::SyncToFramerateOfVideoPlayback,
+    NXVideoSetting::UseAsynchronousGPUEmulation,
+    NXVideoSetting::UseAsynchronousShaderBuilding,
+    NXVideoSetting::UseDiskPipelineCache,
+    NXVideoSetting::UseVulkanPipelineCache,
+    NXVideoSetting::VRAMUsageMode,
+    NXVideoSetting::VSyncMode,
+    NXVideoSetting::VulkanDevice,
+};
+#endif
+}
 
 namespace
 {
@@ -272,6 +336,10 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_pendingReloadLaunchType(ApplicationLaunchType::FrontendInitiated)
 {
     SettingsStore & settings = SettingsStore::GetInstance();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    for (const auto* key : PerformanceCaptureSettings)
+        settings.RegisterCallback(key, PerformanceCaptureSettingChanged, this);
+#endif
     settings.RegisterCallback(NXCoreSetting::EmulationRunning, SciterMainWindow::EmulationRunning, this);
     settings.RegisterCallback(NXCoreSetting::EmulationState, SciterMainWindow::EmulationStateChanged, this);
     settings.RegisterCallback(NXCoreSetting::GameFile, SciterMainWindow::GameFileChanged, this);
@@ -369,6 +437,10 @@ SciterMainWindow::~SciterMainWindow()
     m_WebBrowser.DetachWindow();
 
     SettingsStore & settings = SettingsStore::GetInstance();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    for (const auto* key : PerformanceCaptureSettings)
+        settings.UnregisterCallback(key, PerformanceCaptureSettingChanged, this);
+#endif
     settings.UnregisterCallback(NXCoreSetting::EmulationRunning, SciterMainWindow::EmulationRunning, this);
     settings.UnregisterCallback(NXCoreSetting::EmulationState, SciterMainWindow::EmulationStateChanged, this);
     settings.UnregisterCallback(NXCoreSetting::GameFile, SciterMainWindow::GameFileChanged, this);
@@ -555,6 +627,13 @@ void SciterMainWindow::ResetMenu()
         }
         systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::PauseOrContinueEmulation), paused ? "Continue" : "Pause", nullptr, HotkeyAccelerator(Hotkey::PauseContinue), MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::PauseOrContinueEmulation)));
         systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::StopEmulation), "&Stop", nullptr, HotkeyAccelerator(Hotkey::StopEmulation), MenuBarItem::CheckState::None, MenuIconSvg(GuiAction::StopEmulation)));
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        const bool performance_capture_active = m_benchmarkRunning ||
+            (m_modules.IsValid() && m_modules.Modules().OperatingSystem().IsPerformanceCaptureActive());
+        systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::TogglePerformanceCapture),
+            performance_capture_active ? "Stop Performance Capture" : "Start Performance Capture",
+            nullptr, HotkeyAccelerator(Hotkey::PerformanceCapture), MenuBarItem::CheckState::None, nullptr));
+#endif
         systemMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
         systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ToggleSpeedLimit), "Limit &Speed", nullptr, HotkeyAccelerator(Hotkey::ToggleSpeedLimit), m_useSpeedLimit ? MenuBarItem::CheckState::Checked : MenuBarItem::CheckState::Unchecked));
         mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&System", &systemMenu));
@@ -981,12 +1060,42 @@ void SciterMainWindow::UpdateMouseCursorHiding()
 
 void SciterMainWindow::SetCaption(const std::string & caption)
 {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    m_baseCaption = caption;
+    UpdatePerformanceCaptureCaption();
+#else
     m_rootElement.Eval(stdstr_f("Window.this.caption = \"%s\";", caption.c_str()).c_str());
     SciterElement captionElement(m_rootElement.FindFirst("[role='window-caption'] > span"));
     if (captionElement.IsValid())
     {
         captionElement.SetHTML((uint8_t *)caption.data(), caption.size());
     }
+#endif
+}
+
+void SciterMainWindow::UpdatePerformanceCaptureCaption()
+{
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (m_benchmarkRunning && !m_emulationRunning)
+    {
+        m_benchmarkRunning = false;
+    }
+    std::string caption = m_baseCaption;
+    if (m_benchmarkRunning)
+    {
+        caption += " | PERFORMANCE CAPTURE ACTIVE";
+    }
+    else if (m_benchmarkSaveFailed)
+    {
+        caption += " | PERFORMANCE CAPTURE: SAVE FAILED";
+    }
+    m_rootElement.Eval(stdstr_f("Window.this.caption = \"%s\";", caption.c_str()).c_str());
+    SciterElement captionElement(m_rootElement.FindFirst("[role='window-caption'] > span"));
+    if (captionElement.IsValid())
+    {
+        captionElement.SetHTML((uint8_t *)caption.data(), caption.size());
+    }
+#endif
 }
 
 void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userData)
@@ -994,6 +1103,9 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     SciterMainWindow * impl = (SciterMainWindow *)userData;
     SettingsStore & settings = SettingsStore::GetInstance();
     impl->m_emulationRunning = settings.GetBool(NXCoreSetting::EmulationRunning);
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    impl->UpdatePerformanceCaptureCaption();
+#endif
     if (!impl->m_emulationRunning && impl->m_pendingReloadProgramIndex != -1)
     {
         impl->m_rootElement.PostEvent(EVENT_RELOAD_PROGRAM);
@@ -1578,6 +1690,12 @@ void SciterMainWindow::DoStopGame()
             return;
         }
     }
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (m_modules.IsValid() && m_modules.Modules().OperatingSystem().IsPerformanceCaptureActive())
+    {
+        OnTogglePerformanceCapture();
+    }
+#endif
     AllowOSSleep();
     SettingsStore & settings = SettingsStore::GetInstance();
     settings.SetBool(NXCoreSetting::EmulationRunning, false);
@@ -1664,6 +1782,10 @@ void SciterMainWindow::UpdateEmulationStatusText()
     IOperatingSystem & operatingSystem = m_modules.Modules().OperatingSystem();
     IVideo & video = m_modules.Modules().Video();
     ISystemloader & loader = m_modules.Modules().Systemloader();
+#if defined(_WIN32) && NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (m_window && IsIconic((HWND)m_window->GetHandle()))
+        operatingSystem.InvalidatePerformanceCapture(PerformanceInvalidation::Hidden);
+#endif
     std::vector<std::string> parts;
 
     if (m_emulationRunning)
@@ -1775,6 +1897,12 @@ SciterMainWindow::GuiAction SciterMainWindow::HotkeyToGuiAction(const char * hot
     {
         return GuiAction::StopEmulation;
     }
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (strcmp(hotkeyId, Hotkey::PerformanceCapture) == 0)
+    {
+        return GuiAction::TogglePerformanceCapture;
+    }
+#endif
     if (strcmp(hotkeyId, Hotkey::Configure) == 0)
     {
         return GuiAction::OpenSystemConfiguration;
@@ -1801,6 +1929,126 @@ void SciterMainWindow::OnToggleSpeedLimit()
 {
     SettingsStore & store = SettingsStore::GetInstance();
     store.SetBool(NXOsSetting::UseSpeedLimit, !store.GetBool(NXOsSetting::UseSpeedLimit));
+}
+
+
+void SciterMainWindow::PerformanceCaptureSettingChanged(const char*, void* userData)
+{
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    auto* window = static_cast<SciterMainWindow*>(userData);
+    if (window->m_modules.IsValid())
+        window->m_modules.Modules().OperatingSystem().InvalidatePerformanceCapture(PerformanceInvalidation::ConfigurationChanged);
+#else
+    (void)userData;
+#endif
+}
+
+void SciterMainWindow::OnTogglePerformanceCapture()
+{
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (!m_emulationRunning || !m_modules.IsValid())
+    {
+        return;
+    }
+
+    IOperatingSystem & os = m_modules.Modules().OperatingSystem();
+    if (os.IsPerformanceCaptureActive())
+    {
+        m_benchmarkRunning = false;
+        std::array<char, 1024> output_path{};
+        if (os.StopPerformanceCapture(output_path.data(), static_cast<uint32_t>(output_path.size())))
+        {
+            m_benchmarkSaveFailed = false;
+            LOG_INFO(Frontend, "Performance capture saved to {}", output_path.data());
+        }
+        else
+        {
+            m_benchmarkSaveFailed = true;
+            Notification::GetInstance().DisplayError("Capture could not be saved. Press F9 to retry before closing the game. See the log for details.", "Performance Capture");
+        }
+        UpdatePerformanceCaptureCaption();
+        ResetMenu();
+        return;
+    }
+
+    SettingsStore & settings = SettingsStore::GetInstance();
+    PerformanceCaptureConfig config{};
+    config.renderer_backend = settings.GetInt(NXVideoSetting::GraphicsAPI);
+    config.shader_backend = settings.GetInt(NXVideoSetting::ShaderBackend);
+    config.gpu_accuracy = settings.GetInt(NXVideoSetting::AccuracyLevel);
+    config.dma_accuracy = settings.GetInt(NXVideoSetting::DMAAccuracy);
+    config.vsync_mode = settings.GetInt(NXVideoSetting::VSyncMode);
+    config.vulkan_device = settings.GetInt(NXVideoSetting::VulkanDevice);
+    config.cpu_backend = settings.GetInt(NXCpuSetting::CpuBackend);
+    config.cpu_accuracy = settings.GetInt(NXCpuSetting::CpuAccuracy);
+    config.docked_mode = settings.GetInt(NXOsSetting::DockedMode);
+    config.memory_layout = settings.GetInt(NXOsSetting::MemoryLayout);
+    config.speed_limit = settings.GetInt(NXOsSetting::SpeedLimit);
+    config.astc_decode_mode = settings.GetInt(NXVideoSetting::AstcDecodeMode);
+    config.nvdec_emulation = settings.GetInt(NXVideoSetting::NvdecEmulation);
+    config.resolution_setup = settings.GetInt(NXVideoSetting::ResolutionSetup);
+    config.scaling_filter = settings.GetInt(NXVideoSetting::ScalingFilter);
+    config.anti_aliasing = settings.GetInt(NXVideoSetting::AntiAliasing);
+    config.anisotropic_filtering = settings.GetInt(NXVideoSetting::AnisotropicFiltering);
+    config.astc_recompression = settings.GetInt(NXVideoSetting::ASTCRecompressionMethod);
+    config.vram_usage_mode = settings.GetInt(NXVideoSetting::VRAMUsageMode);
+    config.fsr_sharpness = settings.GetInt(NXVideoSetting::FSPSharpness);
+    config.resolution_factor = settings.GetFloat(NXVideoSetting::ResolutionUpFactor);
+    const char* cpu_option_settings[] = {
+        NXCpuSetting::CpuDebugMode,
+        NXCpuSetting::CpuoptPageTables,
+        NXCpuSetting::CpuoptBlockLinking,
+        NXCpuSetting::CpuoptReturnStackBuffer,
+        NXCpuSetting::CpuoptFastDispatcher,
+        NXCpuSetting::CpuoptContextElimination,
+        NXCpuSetting::CpuoptConstProp,
+        NXCpuSetting::CpuoptMiscIr,
+        NXCpuSetting::CpuoptReduceMisalignChecks,
+        NXCpuSetting::CpuoptFastmem,
+        NXCpuSetting::CpuoptFastmemExclusives,
+        NXCpuSetting::CpuoptRecompileExclusives,
+        NXCpuSetting::CpuoptIgnoreMemoryAborts,
+        NXCpuSetting::CpuoptUnsafeUnfuseFma,
+        NXCpuSetting::CpuoptUnsafeReduceFpError,
+        NXCpuSetting::CpuoptUnsafeIgnoreStandardFpcr,
+        NXCpuSetting::CpuoptUnsafeInaccurateNan,
+        NXCpuSetting::CpuoptUnsafeFastmemCheck,
+        NXCpuSetting::CpuoptUnsafeIgnoreGlobalMonitor,
+    };
+    for (std::size_t index = 0; index < std::size(cpu_option_settings); ++index)
+    {
+        config.cpu_options_mask |= static_cast<uint64_t>(settings.GetBool(cpu_option_settings[index]))
+                                   << index;
+    }
+    config.nce_enabled = settings.GetBool(NXCpuSetting::NceEnabled);
+    config.sync_memory_operations = settings.GetBool(NXVideoSetting::SyncMemoryOperations);
+    config.use_speed_limit = settings.GetBool(NXOsSetting::UseSpeedLimit);
+    config.use_multi_core = settings.GetBool(NXOsSetting::UseMultiCore);
+    config.async_gpu = settings.GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
+    config.async_presentation = settings.GetBool(NXVideoSetting::EnableAsynchronousPresentation);
+    config.async_shader_building = settings.GetBool(NXVideoSetting::UseAsynchronousShaderBuilding);
+    config.disk_pipeline_cache = settings.GetBool(NXVideoSetting::UseDiskPipelineCache);
+    config.vulkan_pipeline_cache = settings.GetBool(NXVideoSetting::UseVulkanPipelineCache);
+    config.force_maximum_clocks = settings.GetBool(NXVideoSetting::ForceMaximumClocks);
+    config.reactive_flushing = settings.GetBool(NXVideoSetting::EnableReactiveFlushing);
+    config.fast_gpu_time = settings.GetBool(NXVideoSetting::FastGPUTime);
+    config.sync_to_video_framerate =
+        settings.GetBool(NXVideoSetting::SyncToFramerateOfVideoPlayback);
+    config.barrier_feedback_loops = settings.GetBool(NXVideoSetting::BarrierFeedbackLoops);
+
+    m_benchmarkRunning = true;
+    m_benchmarkSaveFailed = false;
+    UpdatePerformanceCaptureCaption();
+    ResetMenu();
+    if (!os.StartPerformanceCapture(config)) {
+        m_benchmarkRunning = false;
+        UpdatePerformanceCaptureCaption();
+        ResetMenu();
+        Notification::GetInstance().DisplayError("Capture could not start. Resume the game and check the log for details.", "Performance Capture");
+    }
+#else
+    return;
+#endif
 }
 
 void SciterMainWindow::OnToggleStartGamesInFullscreen()
@@ -1879,6 +2127,11 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
     case GuiAction::StopEmulation:
         OnStopGame();
         break;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    case GuiAction::TogglePerformanceCapture:
+        OnTogglePerformanceCapture();
+        break;
+#endif
     case GuiAction::OpenControllersDialog:
         OnInputConfig();
         break;

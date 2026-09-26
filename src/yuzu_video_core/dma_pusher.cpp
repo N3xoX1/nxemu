@@ -92,6 +92,11 @@ bool DmaPusher::Step()
         const bool use_safe = Settings::UseSafeDMAReads();
         if (use_safe)
         {
+            if (auto w = PERF_CAPTURE_WRITE(gpu.PerformanceCaptureState())) {
+                w.Add(PerformanceCounter::dma_safe_reads);
+                w.Add(PerformanceCounter::dma_safe_read_requested_bytes,
+                      static_cast<u64>(header.size) * sizeof(Tegra::CommandHeader));
+            }
             Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::SafeRead> headers(
                 memory_manager, dma_state.dma_get, header.size, &command_headers);
             ProcessCommands(headers);

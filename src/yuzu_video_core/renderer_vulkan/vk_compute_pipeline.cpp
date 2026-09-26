@@ -30,8 +30,8 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
                                  Common::ThreadWorker* thread_worker,
                                  PipelineStatistics* pipeline_statistics,
                                  VideoCore::ShaderNotify* shader_notify, const Shader::Info& info_,
-                                 vk::ShaderModule spv_module_)
-    : device{device_},
+                                 vk::ShaderModule spv_module_, PerformanceCaptureSharedState& capture_)
+    : device{device_}, capture{capture_},
       pipeline_cache(pipeline_cache_), guest_descriptor_queue{guest_descriptor_queue_}, info{info_},
       spv_module(std::move(spv_module_)) {
     if (shader_notify) {
@@ -40,7 +40,10 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
     std::copy_n(info.constant_buffer_used_sizes.begin(), uniform_buffer_sizes.size(),
                 uniform_buffer_sizes.begin());
 
-    auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics] {
+    const auto queued = PERF_CAPTURE_STAMP(capture);
+    auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics, queued] {
+        PERF_CAPTURE_STAMP_END(queued, capture);
+        PERF_CAPTURE_BUILD(capture);
         DescriptorLayoutBuilder builder{device};
         builder.Add(info, VK_SHADER_STAGE_COMPUTE_BIT);
 
@@ -200,6 +203,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     if (!is_built.load(std::memory_order::relaxed)) {
         // Wait for the pipeline to be built
         scheduler.Record([this](vk::CommandBuffer) {
+            PERF_CAPTURE_SCOPE(capture, pipeline_consumer_wait);
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
         });

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <nxemu-module-spec/performance_capture.h>
 
 #include <array>
 #include <type_traits>
@@ -51,7 +52,7 @@ public:
     explicit ComputePipeline(const Device& device, TextureCache& texture_cache_,
                              BufferCache& buffer_cache_, ProgramManager& program_manager_,
                              const Shader::Info& info_, std::string code, std::vector<u32> code_v,
-                             bool force_context_flush = false);
+                             PerformanceCaptureSharedState& capture_, bool force_context_flush = false);
 
     void Configure();
 
@@ -72,6 +73,7 @@ public:
 private:
     void WaitForBuild();
 
+    PerformanceCaptureSharedState& capture;
     TextureCache& texture_cache;
     BufferCache& buffer_cache;
     Tegra::MemoryManager* gpu_memory;

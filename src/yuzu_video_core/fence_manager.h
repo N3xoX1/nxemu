@@ -83,11 +83,15 @@ public:
     }
 
     // Explicit synchronization remains blocking at every GPU accuracy level.
-    void WaitForFence() {
+    void WaitForFence(bool track_smo = true) {
+        PERF_CAPTURE_SCOPE(gpu.PerformanceCaptureState(), fence_wait_call);
+        const u64 smo_capture_epoch =
+            track_smo ? PERF_CAPTURE_EPOCH(gpu.PerformanceCaptureState()) : 0;
         // Fence submission has one GPU-thread producer; keep its waiter alive through notify_one.
         wait_finished.store(false, std::memory_order_relaxed);
 
-        const bool completed_inline = SubmitFence({}, true, true, &wait_finished);
+        const bool completed_inline =
+            SubmitFence({}, true, true, &wait_finished, track_smo, smo_capture_epoch);
         if (completed_inline) {
             return;
         }
@@ -103,7 +107,7 @@ public:
         if constexpr (!can_async_check) {
             TryReleasePendingFences<true>();
         } else if (force) {
-            WaitForFence();
+            WaitForFence(false);
         }
     }
 
@@ -155,14 +159,18 @@ private:
         }
     }
 
-    bool SubmitFence(std::function<void()>&& func, bool force_delay,
-                     bool allow_stub_fast_path, std::atomic<bool>* waiter) {
+    bool SubmitFence(std::function<void()>&& func, bool force_delay, bool allow_stub_fast_path,
+                     std::atomic<bool>* waiter, bool track_smo = false,
+                     [[maybe_unused]] u64 smo_capture_epoch = 0) {
         const bool delay_fence = force_delay || Settings::IsGPULevelHigh();
         if constexpr (!can_async_check) {
             TryReleasePendingFences<false>();
         }
 
         const bool should_flush = ShouldFlush();
+        if (auto w = PERF_CAPTURE_WRITE(gpu.PerformanceCaptureState())) {
+            w.Add(should_flush ? PerformanceCounter::fence_should_flush_true : PerformanceCounter::fence_should_flush_false);
+        }
         CommitAsyncFlushes();
 
         if constexpr (can_async_check) {
@@ -174,6 +182,13 @@ private:
             pending_operations.empty() && !fence_in_flight;
 
         if (can_complete_stub_inline) {
+            if (track_smo) {
+                if (auto w = PERF_CAPTURE_WRITE_EPOCH(gpu.PerformanceCaptureState(),
+                                                      smo_capture_epoch)) {
+                    w.Add(PerformanceCounter::smo_requests);
+                    w.Add(PerformanceCounter::smo_stub_inline);
+                }
+            }
             auto operations = std::move(uncommitted_operations);
             if (func) {
                 operations.emplace_back(std::move(func));
@@ -206,6 +221,14 @@ private:
             return true;
         }
 
+        if (track_smo) {
+            if (auto w = PERF_CAPTURE_WRITE_EPOCH(gpu.PerformanceCaptureState(),
+                                                  smo_capture_epoch)) {
+                w.Add(PerformanceCounter::smo_requests);
+                w.Add(should_flush ? PerformanceCounter::smo_real_fences
+                                   : PerformanceCounter::smo_stub_queued);
+            }
+        }
         TFence new_fence = CreateFence(!should_flush);
         if (delay_fence && func) {
             uncommitted_operations.emplace_back(std::move(func));
@@ -217,7 +240,9 @@ private:
             func();
         }
         fences.push(std::move(new_fence));
+        PERF_CAPTURE_MAX(gpu.PerformanceCaptureState(), fence_queue_depth_max, fences.size());
         if (should_flush) {
+            PERF_CAPTURE_ADD(gpu.PerformanceCaptureState(), fence_flush_requests, 1);
             rasterizer.FlushCommands();
         }
         if constexpr (can_async_check) {

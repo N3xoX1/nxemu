@@ -53,6 +53,9 @@ static const HotkeyLabelEntry kHotkeyLabels[] = {
     {Hotkey::ToggleDockedMode, "Change Docked Mode"},
     {Hotkey::ToggleSpeedLimit, "Toggle Speed Limit"},
     {Hotkey::StopEmulation, "Stop Emulation"},
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    {Hotkey::PerformanceCapture, "Performance Capture"},
+#endif
     {Hotkey::Controllers, "Controllers..."},
     {Hotkey::Configure, "Configure..."},
 };
