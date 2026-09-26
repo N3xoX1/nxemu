@@ -53,10 +53,18 @@ u32 SyncpointManager::FindFreeSyncpoint() {
 
 u32 SyncpointManager::AllocateSyncpoint(bool client_managed) {
     std::lock_guard lock(reservation_lock);
-    return ReserveSyncpoint(FindFreeSyncpoint(), client_managed);
+    const u32 id = FindFreeSyncpoint();
+    if (id == 0) {
+        return 0;
+    }
+    return ReserveSyncpoint(id, client_managed);
 }
 
 void SyncpointManager::FreeSyncpoint(u32 id) {
+    if (id == 0) {
+        return;
+    }
+
     std::lock_guard lock(reservation_lock);
     auto& syncpoint = syncpoints.at(id);
     ASSERT(syncpoint.reserved);
@@ -69,11 +77,6 @@ bool SyncpointManager::IsSyncpointAllocated(u32 id) const {
 
 bool SyncpointManager::HasSyncpointExpired(u32 id, u32 threshold) const {
     const SyncpointInfo& syncpoint{syncpoints.at(id)};
-
-    if (!syncpoint.reserved) {
-        ASSERT(false);
-        return false;
-    }
 
     // If the interface manages counters then we don't keep track of the maximum value as it handles
     // sanity checking the values then
@@ -95,24 +98,55 @@ u32 SyncpointManager::IncrementSyncpointMaxExt(u32 id, u32 amount) {
     return syncpoint.counter_max += amount;
 }
 
-u32 SyncpointManager::ReadSyncpointMinValue(u32 id) {
+void SyncpointManager::IncrementSyncpoint(u32 id) {
     auto& syncpoint = syncpoints.at(id);
 
-    if (!syncpoint.reserved) {
-        ASSERT(false);
-        return 0;
+    if (syncpoint.interface_managed) {
+        ++syncpoint.counter_max;
     }
 
+    video.HostSyncpointIncrement(id);
+}
+
+u32 SyncpointManager::ReadSyncpointValue(u32 id) {
+    auto& syncpoint = syncpoints.at(id);
+    syncpoint.counter_min = video.HostSyncpointValue(id);
     return syncpoint.counter_min;
+}
+
+u32 SyncpointManager::ReadSyncpointMaxValue(u32 id) const {
+    return syncpoints.at(id).counter_max.load(std::memory_order_acquire);
+}
+
+bool SyncpointManager::PollSyncpoint(u32 id, u32 threshold, u32* value) {
+    if (value) {
+        *value = 0;
+    }
+
+    if (HasSyncpointExpired(id, threshold)) {
+        if (value) {
+            *value = ReadSyncpointMinValue(id);
+        }
+        return true;
+    }
+
+    const u32 current = UpdateMin(id);
+    if (HasSyncpointExpired(id, threshold)) {
+        if (value) {
+            *value = current;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+u32 SyncpointManager::ReadSyncpointMinValue(u32 id) {
+    return syncpoints.at(id).counter_min;
 }
 
 u32 SyncpointManager::UpdateMin(u32 id) {
     auto& syncpoint = syncpoints.at(id);
-
-    if (!syncpoint.reserved) {
-        ASSERT(false);
-        return 0;
-    }
 
     syncpoint.counter_min = video.HostSyncpointValue(id);
     return syncpoint.counter_min;

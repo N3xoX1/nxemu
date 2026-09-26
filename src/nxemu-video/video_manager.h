@@ -43,6 +43,7 @@ public:
     void HandleRasterizerWrite(const uint8_t * pointer, uint64_t size, uint64_t * last_page, RasterizerDirtyCollect collect, void * user_data) override;
     void DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle) override;
     uint32_t HostSyncpointValue(uint32_t id) override;
+    void HostSyncpointIncrement(uint32_t id) override;
     uint32_t HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void * userData) override;
     void WaitHost(uint32_t syncpoint_id, uint32_t expected_value) override;
     uint32_t ShadersBuilding() override;

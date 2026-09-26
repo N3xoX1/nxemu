@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -20,12 +21,31 @@ class KEvent;
 
 namespace Service::Nvidia::Devices {
 
+class nvhost_gpu;
+
+struct SyncpointWaitParams {
+    u32 id;
+    u32 threshold;
+    u32 timeout_ms;
+};
+
 /// Represents an abstract nvidia device node. It is to be subclassed by concrete device nodes to
 /// implement the ioctl interface.
 class nvdevice {
 public:
     explicit nvdevice(Core::System& system_) : system{system_} {}
     virtual ~nvdevice() = default;
+
+    // Only nvhost-ctrl recognizes these commands; other devices may reuse their numbers.
+    virtual std::optional<SyncpointWaitParams> GetSyncpointWait(
+        Ioctl command, std::span<const u8> input) const {
+        return std::nullopt;
+    }
+
+    // Checked channel access without RTTI (disabled by the Windows build).
+    virtual nvhost_gpu* AsGpuChannel() {
+        return nullptr;
+    }
 
     /**
      * Handles an ioctl1 request.

@@ -12,6 +12,7 @@
 #include "core/hle/kernel/k_readable_event.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/nvdrv/nvdrv.h"
+#include "core/hle/service/nvdrv/core/syncpoint_wait.h"
 #include "core/hle/service/nvdrv/nvdrv_interface.h"
 
 namespace Service::Nvidia {
@@ -64,11 +65,38 @@ void NVDRV::Ioctl1(HLERequestContext& ctx) {
         return;
     }
 
-    // Check device
-    output_buffer.resize_destructive(ctx.GetWriteBufferSize(0));
-    const auto input_buffer = ctx.ReadBuffer(0);
+    auto pending = deferred_ioctls.find(&ctx);
+    if (pending != deferred_ioctls.end()) {
+        const bool signalled = pending->second.wait->IsSignalled();
+        const auto fd_status = nvdrv->VerifyFD(fd);
+        if (!signalled && fd_status == NvResult::Success) {
+            ctx.SetIsDeferred();
+            return;
+        }
+    }
 
+    // Deferred requests keep their first input snapshot and their original deadline.
+    output_buffer.resize_destructive(ctx.GetWriteBufferSize(0));
+    const auto input_buffer = pending == deferred_ioctls.end()
+                                  ? ctx.ReadBuffer(0)
+                                  : std::span<const u8>{pending->second.input};
     const auto nv_result = nvdrv->Ioctl1(fd, command, input_buffer, output_buffer);
+    if (pending != deferred_ioctls.end()) {
+        // Also cancel the timer/callback on errors, such as a descriptor closed by another session.
+        deferred_ioctls.erase(pending);
+    } else if (nv_result == NvResult::Timeout) {
+        const auto wait = nvdrv->GetSyncpointWait(fd, command, input_buffer);
+        if (wait && wait->timeout_ms != 0) {
+            DeferredIoctl deferred{
+                std::vector<u8>{input_buffer.begin(), input_buffer.end()},
+                std::make_unique<NvCore::SyncpointWait>(system.GetVideo(), system.CoreTiming(),
+                    nvdrv->GetDeferralEvent(), wait->id, wait->threshold, wait->timeout_ms)};
+            deferred_ioctls.emplace(&ctx, std::move(deferred));
+            ctx.SetIsDeferred();
+            return;
+        }
+    }
+
     if (command.is_out != 0) {
         ctx.WriteBuffer(output_buffer);
     }
@@ -263,6 +291,8 @@ NVDRV::NVDRV(Core::System& system_, std::shared_ptr<Module> nvdrv_, const char* 
 }
 
 NVDRV::~NVDRV() {
+    // Unregister GPU callbacks and drain timer callbacks before releasing session resources.
+    deferred_ioctls.clear();
     if (is_initialized) {
         auto& container = nvdrv->GetContainer();
         container.CloseSession(session_id);

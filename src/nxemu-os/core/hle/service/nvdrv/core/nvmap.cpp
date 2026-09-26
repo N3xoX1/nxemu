@@ -4,6 +4,7 @@
 
 #include <functional>
 
+#include "core/hle/kernel/k_process.h"
 #include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/core/heap_mapper.h"
 #include "core/hle/service/nvdrv/core/nvmap.h"
@@ -147,6 +148,39 @@ bool NvMap::TryRemoveHandle(const Handle & handle_description)
     {
         return false;
     }
+}
+
+bool NvMap::FinalizeHandleLocked(Handle& handle_description)
+{
+    if (handle_description.dupes != 0 || handle_description.internal_dupes != 0)
+    {
+        return false;
+    }
+
+    // Match nvmap free semantics: the final reference tears down any remaining pins/device
+    // mapping. P2 deliberately deferred this while an emulator-internal duplicate was alive.
+    if (handle_description.d_address)
+    {
+        std::scoped_lock queueLock(unmap_queue_lock);
+        UnmapHandle(handle_description);
+    }
+    handle_description.pins = 0;
+
+    // IocAlloc marks the CPU range DeviceShared. This used to be released only by the user-facing
+    // IocFree path, so a final internal release (GraphicBuffer) could permanently leave the range
+    // DeviceShared. Centralize the matching unlock here so it happens exactly once.
+    if (handle_description.device_address_space_locked)
+    {
+        ASSERT(handle_description.owner_process != nullptr);
+        ASSERT(handle_description.owner_process->GetKPageTable()
+                   .UnlockForDeviceAddressSpace(handle_description.address,
+                                                handle_description.size)
+                   .IsSuccess());
+        handle_description.device_address_space_locked = false;
+        handle_description.owner_process = nullptr;
+    }
+
+    return TryRemoveHandle(handle_description);
 }
 
 NvResult NvMap::CreateHandle(u64 size, std::shared_ptr<NvMap::Handle> & result_out)
@@ -323,71 +357,49 @@ void NvMap::DuplicateHandle(Handle::Id handle, bool internal_session)
 
 std::optional<NvMap::FreeInfo> NvMap::FreeHandle(Handle::Id handle, bool internal_session)
 {
-    std::weak_ptr<Handle> hWeak{GetHandle(handle)};
-    FreeInfo freeInfo;
-
-    // We use a weak ptr here so we can tell when the handle has been freed and report that back to
-    // guest
-    if (auto handle_description = hWeak.lock())
-    {
-        std::scoped_lock lock(handle_description->mutex);
-
-        if (internal_session)
-        {
-            if (--handle_description->internal_dupes < 0)
-            {
-                LOG_WARNING(Service_NVDRV, "Internal duplicate count imbalance detected!");
-            }
-        }
-        else
-        {
-            if (--handle_description->dupes < 0)
-            {
-                LOG_WARNING(Service_NVDRV, "User duplicate count imbalance detected!");
-            }
-            else if (handle_description->dupes == 0)
-            {
-                // Force unmap the handle
-                if (handle_description->d_address)
-                {
-                    std::scoped_lock queueLock(unmap_queue_lock);
-                    UnmapHandle(*handle_description);
-                }
-
-                handle_description->pins = 0;
-            }
-        }
-
-        // Try to remove the shared ptr to the handle from the map, if nothing else is using the
-        // handle then it will now be freed when `handle_description` goes out of scope
-        if (TryRemoveHandle(*handle_description))
-        {
-            LOG_DEBUG(Service_NVDRV, "Removed nvmap handle: {}", handle);
-        }
-        else
-        {
-            LOG_DEBUG(Service_NVDRV,
-                      "Tried to free nvmap handle: {} but didn't as it still has duplicates",
-                      handle);
-        }
-
-        freeInfo = {
-            .address = handle_description->address,
-            .size = handle_description->size,
-            .was_uncached = handle_description->flags.map_uncached.Value() != 0,
-            .can_unlock = true,
-        };
-    }
-    else
+    auto handle_description{GetHandle(handle)};
+    if (!handle_description)
     {
         return std::nullopt;
     }
 
-    // If the handle hasn't been freed from memory, mark that
-    if (!hWeak.expired())
+    std::scoped_lock lock(handle_description->mutex);
+
+    if (internal_session)
     {
+        if (--handle_description->internal_dupes < 0)
+        {
+            LOG_WARNING(Service_NVDRV, "Internal duplicate count imbalance detected!");
+        }
+    }
+    else
+    {
+        if (--handle_description->dupes < 0)
+        {
+            LOG_WARNING(Service_NVDRV, "User duplicate count imbalance detected!");
+        }
+    }
+
+    const FreeInfo freeInfo = {
+        .address = handle_description->address,
+        .size = handle_description->size,
+        .was_uncached = handle_description->flags.map_uncached.Value() != 0,
+    };
+
+    // User and emulator-internal references are equivalent owners of the nvmap allocation. The
+    // last one to disappear must perform the same final cleanup.
+    if (FinalizeHandleLocked(*handle_description))
+    {
+        LOG_DEBUG(Service_NVDRV, "Removed nvmap handle: {}", handle);
+    }
+    else
+    {
+        LOG_DEBUG(Service_NVDRV,
+                  "Tried to free nvmap handle: {} but didn't as it still has references "
+                  "(dupes={}, internal_dupes={}, pins={})",
+                  handle, handle_description->dupes, handle_description->internal_dupes,
+                  handle_description->pins);
         LOG_DEBUG(Service_NVDRV, "nvmap handle: {} wasn't freed as it is still in use", handle);
-        freeInfo.can_unlock = false;
     }
 
     return freeInfo;
