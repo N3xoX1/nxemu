@@ -685,6 +685,10 @@ void RasterizerVulkan::SignalFence(std::function<void()>&& func) {
     fence_manager.SignalFence(std::move(func));
 }
 
+void RasterizerVulkan::SignalMemoryOperationFence(std::function<void()>&& func) {
+    fence_manager.SignalMemoryOperationFence(std::move(func));
+}
+
 void RasterizerVulkan::WaitForFence() {
     fence_manager.WaitForFence();
 }

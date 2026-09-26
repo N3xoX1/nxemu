@@ -76,6 +76,15 @@ public:
         (void)SubmitFence(std::move(func), force_delay, false, nullptr);
     }
 
+    void SignalMemoryOperationFence(std::function<void()>&& func) {
+        const bool completed_inline = SubmitFence(std::move(func), true, true, nullptr);
+        if constexpr (!can_async_check) {
+            if (!completed_inline) {
+                TryReleasePendingFences<true>();
+            }
+        }
+    }
+
     void SignalSyncPoint(u32 value) {
         syncpoint_manager.IncrementGuest(value);
         std::function<void()> func([this, value] { syncpoint_manager.IncrementHost(value); });
