@@ -41,7 +41,7 @@ bool IsGPULevelHigh();
 bool IsDMALevelDefault();
 bool IsDMALevelSafe();
 bool UseSafeDMAReads();
-bool IsSyncMemoryOperationsEnabled();
+bool IsGpuCommandSynchronizationEnabled();
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info);
 void UpdateRescalingInfo();
 
@@ -80,7 +80,7 @@ struct VideoSettings
     AnisotropyMode max_anisotropy;
     bool async_presentation;
     bool use_reactive_flushing;
-    bool sync_memory_operations;
+    bool gpu_command_synchronization;
 
     bool use_asynchronous_shaders;
     bool use_fast_gpu_time;

@@ -36,7 +36,7 @@
 #StatusBar #volume,
 #StatusBar #renderer,
 #StatusBar #dockedMode,
-#StatusBar #syncMemoryOperations,
+#StatusBar #gpuCommandSynchronization,
 #StatusBar #volumePopupBtn
 {
   border: 1px solid transparent;
@@ -48,7 +48,7 @@
 #StatusBar #volume:hover,
 #StatusBar #renderer:hover,
 #StatusBar #dockedMode:hover,
-#StatusBar #syncMemoryOperations:hover,
+#StatusBar #gpuCommandSynchronization:hover,
 #StatusBar #volumePopupBtn:hover
 {
   border: 1px solid color(color-statusbar-hover-border);
