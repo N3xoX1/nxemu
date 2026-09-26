@@ -202,15 +202,20 @@ public:
         m_parent.m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::SupervisorCall));
     }
 
-    void AddTicks(uint64_t /*ticks*/) override
+    void AddTicks(uint64_t ticks) override
     {
-        g_notify->BreakPoint(__FILE__, __LINE__);
+        ASSERT_MSG(!m_parent.m_uses_wall_clock, "Dynarmic ticking disabled");
+
+        uint64_t amortized_ticks = ticks / Hardware::NUM_CPU_CORES;
+        amortized_ticks = std::max<uint64_t>(amortized_ticks, 1);
+        m_parent.m_system.Timing().AddTicks(amortized_ticks);
     }
 
     uint64_t GetTicksRemaining() override
     {
-        g_notify->BreakPoint(__FILE__, __LINE__);
-        return 0;
+        ASSERT_MSG(!m_parent.m_uses_wall_clock, "Dynarmic ticking disabled");
+
+        return std::max<int64_t>(m_parent.m_system.Timing().GetDowncount(), 0);
     }
 
     uint64_t GetCNTPCT() override

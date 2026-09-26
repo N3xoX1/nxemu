@@ -7,6 +7,7 @@
 #include "yuzu_audio_core/audio_core.h"
 #include "yuzu_common/hardware_properties.h"
 #include "core/core.h"
+#include "os_settings.h"
 #include "core/core_timing.h"
 #include "core/cpu_manager.h"
 #include "core/debugger/debugger.h"
@@ -63,7 +64,7 @@ struct System::Impl {
 
     void Initialize(System& system)
     {
-        is_multicore = true; // osSettings.use_multi_core;
+        is_multicore = osSettings.use_multi_core;
 
 #ifdef _WIN32
         const std::chrono::nanoseconds timer_resolution = Common::Windows::SetCurrentTimerResolutionToMaximum();

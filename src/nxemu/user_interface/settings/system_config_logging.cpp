@@ -2,11 +2,13 @@
 #include "system_config.h"
 #include "system_config_logging.h"
 #include <nxemu-core/settings/identifiers.h>
+#include <nxemu-os/os_settings_identifiers.h>
 
 namespace
 {
     static ConfigSetting loggingSettings[] = {
         ConfigSetting(ConfigSetting::CheckBox, "ShowLogConsole", true, NXCoreSetting::ShowLogConsole),
+        ConfigSetting(ConfigSetting::CheckBox, "UseMultiCore", false, NXOsSetting::UseMultiCore),
         ConfigSetting(ConfigSetting::InputText, "LogFilter", true, NXCoreSetting::LogFilter),
     };
 }

@@ -59,7 +59,7 @@ bool SystemConfigGeneral::PageNavChangeTo(const std::string & /*pageName*/, SCIT
 
 void SystemConfigGeneral::PageNavCreatedPage(const std::string & pageName, SCITER_ELEMENT page)
 {
-    if (pageName == "Logging")
+    if (pageName == "Debug")
     {
         m_systemConfigLogging.reset(new SystemConfigLogging(m_sciterUI, m_config, m_window, page));
     }
