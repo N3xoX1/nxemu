@@ -15,8 +15,6 @@ Pool::Pool(size_t object_size, size_t initial_pool_size)
 }
 
 Pool::~Pool() {
-    std::free(current_slab);
-
     for (char* slab : slabs) {
         std::free(slab);
     }
@@ -24,8 +22,14 @@ Pool::~Pool() {
 
 void* Pool::Alloc() {
     if (remaining == 0) {
-        slabs.push_back(current_slab);
-        AllocateNewSlab();
+        ++current_slab_index;
+        if (current_slab_index == slabs.size()) {
+            AllocateNewSlab();
+        } else {
+            current_slab = slabs[current_slab_index];
+            current_ptr = current_slab;
+            remaining = slab_size;
+        }
     }
 
     void* ret = static_cast<void*>(current_ptr);
@@ -35,8 +39,17 @@ void* Pool::Alloc() {
     return ret;
 }
 
+void Pool::Reset() {
+    current_slab_index = 0;
+    current_slab = slabs.front();
+    current_ptr = current_slab;
+    remaining = slab_size;
+}
+
 void Pool::AllocateNewSlab() {
     current_slab = static_cast<char*>(std::malloc(object_size * slab_size));
+    slabs.push_back(current_slab);
+    current_slab_index = slabs.size() - 1;
     current_ptr = current_slab;
     remaining = slab_size;
 }
