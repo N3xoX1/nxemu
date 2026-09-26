@@ -140,7 +140,7 @@ public:
         return CheckMemoryAccess(vaddr, 16, CpuDebugWatchpointType::Write) && m_memory.WriteExclusive128(vaddr, value[1], value[0], expected[1], expected[0]);
     }
 
-    void InterpreterFallback(uint64_t /*pc*/, uint64_t /*num_instructions*/) override
+    void InterpreterFallback(uint64_t /*pc*/, std::size_t /*num_instructions*/) override
     {
         g_notify->BreakPoint(__FILE__, __LINE__);
     }

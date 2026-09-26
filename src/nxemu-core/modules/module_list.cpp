@@ -31,7 +31,14 @@ void ModuleList::AddModuleFromDir(const Path & dir)
         } while (dirFinder.FindNext(foundDir));
     }
 
-    PathFinder fileFinder(Path(dir.GetDriveDirectory().c_str(), "*.dll"));
+#if defined(_WIN32)
+    constexpr const char * modulePattern = "*.dll";
+#elif defined(__APPLE__)
+    constexpr const char * modulePattern = "*.dylib";
+#else
+    constexpr const char * modulePattern = "*.so";
+#endif
+    PathFinder fileFinder(Path(dir.GetDriveDirectory().c_str(), modulePattern));
     Path foundFile;
     if (fileFinder.FindFirst(foundFile))
     {

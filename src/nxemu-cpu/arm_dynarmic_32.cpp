@@ -520,7 +520,7 @@ void ArmDynarmic32::ClearInstructionCache()
     m_jit->ClearCache();
 }
 
-void ArmDynarmic32::InvalidateCacheRange(u64 addr, std::size_t size)
+void ArmDynarmic32::InvalidateCacheRange(uint64_t addr, uint64_t size)
 {
     m_jit->InvalidateCacheRange(static_cast<u32>(addr), size);
 }

@@ -429,7 +429,7 @@ std::size_t HLERequestContext::WriteBufferB(const void* buffer, std::size_t size
         size = buffer_size; // TODO(bunnei): This needs to be HW tested
     }
 
-    memory.WriteBlock(BufferDescriptorB()[buffer_index].Address(), buffer, size);
+    memory.WriteBlock(Common::ProcessAddress{BufferDescriptorB()[buffer_index].Address()}, buffer, size);
     return size;
 }
 
@@ -446,7 +446,7 @@ std::size_t HLERequestContext::WriteBufferC(const void* buffer, std::size_t size
         size = buffer_size; // TODO(bunnei): This needs to be HW tested
     }
 
-    memory.WriteBlock(BufferDescriptorC()[buffer_index].Address(), buffer, size);
+    memory.WriteBlock(Common::ProcessAddress{BufferDescriptorC()[buffer_index].Address()}, buffer, size);
     return size;
 }
 
