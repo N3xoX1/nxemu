@@ -24,13 +24,13 @@ import androidx.core.content.ContextCompat
 import androidx.window.layout.WindowMetricsCalculator
 import kotlin.math.max
 import kotlin.math.min
+import org.nxemu.NXUISetting
+import org.nxemu.NativeLibrary
 import org.nxemu.features.input.NativeInput
 import org.nxemu.R
 import org.nxemu.features.input.model.NativeAnalog
 import org.nxemu.features.input.model.NativeButton
 import org.nxemu.features.input.model.NpadStyleIndex
-import org.nxemu.features.settings.model.BooleanSetting
-import org.nxemu.features.settings.model.IntSetting
 import org.nxemu.overlay.model.OverlayControl
 import org.nxemu.overlay.model.OverlayControlData
 import org.nxemu.overlay.model.OverlayLayout
@@ -119,7 +119,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
         }
 
         for (dpad in overlayDpads) {
-            if (!dpad.updateStatus(event, BooleanSetting.DPAD_SLIDE.getBoolean())) {
+            if (!dpad.updateStatus(event, NativeLibrary.getSettingBool(NXUISetting.DpadSlide))) {
                 continue
             }
             NativeInput.onOverlayButtonEvent(
@@ -169,7 +169,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
             invalidate()
         }
 
-        if (!BooleanSetting.TOUCHSCREEN.getBoolean()) {
+        if (!NativeLibrary.getSettingBool(NXUISetting.Touchscreen)) {
             return true
         }
 
@@ -206,7 +206,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
     }
 
     private fun playHaptics(event: MotionEvent) {
-        if (BooleanSetting.HAPTIC_FEEDBACK.getBoolean()) {
+        if (NativeLibrary.getSettingBool(NXUISetting.HapticFeedback)) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN,
                 MotionEvent.ACTION_POINTER_DOWN ->
@@ -601,7 +601,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
         overlayJoysticks.clear()
 
         // Add all the enabled overlay items back to the HashSet.
-        if (BooleanSetting.SHOW_INPUT_OVERLAY.getBoolean()) {
+        if (NativeLibrary.getSettingBool(NXUISetting.ShowInputOverlay)) {
             addOverlayControls(layout)
         }
         invalidate()
@@ -857,7 +857,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
                 else -> 0.11f
             }
-            scale *= (IntSetting.OVERLAY_SCALE.getInt() + 50).toFloat()
+            scale *= (NativeLibrary.getSettingInt(NXUISetting.OverlayScale) + 50).toFloat()
             scale /= 100f
 
             // Initialize the InputOverlayDrawableButton.
@@ -896,7 +896,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
                 drawableX - (width / 2),
                 drawableY - (height / 2)
             )
-            overlayDrawable.setOpacity(IntSetting.OVERLAY_OPACITY.getInt() * 255 / 100)
+            overlayDrawable.setOpacity(NativeLibrary.getSettingInt(NXUISetting.OverlayOpacity) * 255 / 100)
             return overlayDrawable
         }
 
@@ -924,7 +924,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
             // Decide scale based on button ID and user preference
             var scale = 0.25f
-            scale *= (IntSetting.OVERLAY_SCALE.getInt() + 50).toFloat()
+            scale *= (NativeLibrary.getSettingInt(NXUISetting.OverlayScale) + 50).toFloat()
             scale /= 100f
 
             // Initialize the InputOverlayDrawableDpad.
@@ -963,7 +963,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
             // Need to set the image's position
             overlayDrawable.setPosition(drawableX - (width / 2), drawableY - (height / 2))
-            overlayDrawable.setOpacity(IntSetting.OVERLAY_OPACITY.getInt() * 255 / 100)
+            overlayDrawable.setOpacity(NativeLibrary.getSettingInt(NXUISetting.OverlayOpacity) * 255 / 100)
             return overlayDrawable
         }
 
@@ -997,7 +997,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
             // Decide scale based on user preference
             var scale = 0.3f
-            scale *= (IntSetting.OVERLAY_SCALE.getInt() + 50).toFloat()
+            scale *= (NativeLibrary.getSettingInt(NXUISetting.OverlayScale) + 50).toFloat()
             scale /= 100f
 
             // Initialize the InputOverlayDrawableJoystick.
@@ -1042,7 +1042,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
             // Need to set the image's position
             overlayDrawable.setPosition(drawableX, drawableY)
-            overlayDrawable.setOpacity(IntSetting.OVERLAY_OPACITY.getInt() * 255 / 100)
+            overlayDrawable.setOpacity(NativeLibrary.getSettingInt(NXUISetting.OverlayOpacity) * 255 / 100)
             return overlayDrawable
         }
     }

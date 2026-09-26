@@ -2,4 +2,7 @@
 <resources>
     <string name="app_name">NxEmu</string>
     <string name="loading">Loading...</string>
+    <string name="emulation_exit">Exit emulation</string>
+    <string name="lock_drawer">Lock drawer</string>
+    <string name="unlock_drawer">Unlock drawer</string>
 </resources>
