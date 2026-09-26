@@ -1424,6 +1424,13 @@ void KProcess::LogBacktrace(ICpuCore & cpuCore)
     cpuCore.GetContext(ctx);
 
     LOG_ERROR(Core_ARM, "Backtrace, sp={:016X}, pc={:016X}", ctx.sp, ctx.pc);
+    LOG_ERROR(Core_ARM,
+              "Registers: x0={:016X} x1={:016X} x2={:016X} x3={:016X} x4={:016X} x5={:016X} x6={:016X} x7={:016X}",
+              ctx.r[0], ctx.r[1], ctx.r[2], ctx.r[3], ctx.r[4], ctx.r[5], ctx.r[6], ctx.r[7]);
+    LOG_ERROR(Core_ARM,
+              "Registers: x8={:016X} x9={:016X} x10={:016X} x11={:016X} x12={:016X} x13={:016X} x14={:016X} x15={:016X}",
+              ctx.r[8], ctx.r[9], ctx.r[10], ctx.r[11], ctx.r[12], ctx.r[13], ctx.r[14], ctx.r[15]);
+    LOG_ERROR(Core_ARM, "Registers: fp={:016X} lr={:016X} pstate={:08X}", ctx.fp, ctx.lr, ctx.pstate);
     LOG_ERROR(Core_ARM, "{:20}{:20}{:20}{:20}{}", "Module Name", "Address", "Original Address", "Offset", "Symbol");
     LOG_ERROR(Core_ARM, "");
     const auto backtrace = Core::GetBacktraceFromContext(this, ctx);
