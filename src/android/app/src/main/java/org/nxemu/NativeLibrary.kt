@@ -35,6 +35,7 @@ object NativeLibrary {
     external fun getSettingString(setting: String): String
     external fun getSettingBool(setting: String): Boolean
     external fun setSettingString(setting: String, value: String)
+    external fun setSettingBool(setting: String, value: Boolean)
     external fun getSettingInt(setting: String): Int
     external fun setSettingInt(setting: String, value: Int)
     external fun saveSettings()

@@ -27,6 +27,16 @@ class NxEmuBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun getSettingBool(setting: String): Boolean {
+        return NativeLibrary.getSettingBool(setting)
+    }
+
+    @JavascriptInterface
+    fun setSettingBool(setting: String, value: Boolean) {
+        NativeLibrary.setSettingBool(setting, value)
+    }
+
+    @JavascriptInterface
     fun getSettingInt(setting: String): Int {
         return NativeLibrary.getSettingInt(setting)
     }

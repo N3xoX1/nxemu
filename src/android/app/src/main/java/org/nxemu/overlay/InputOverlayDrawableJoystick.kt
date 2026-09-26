@@ -13,10 +13,11 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import org.nxemu.NXUISetting
+import org.nxemu.NativeLibrary
 import org.nxemu.features.input.NativeInput.ButtonState
 import org.nxemu.features.input.model.NativeAnalog
 import org.nxemu.features.input.model.NativeButton
-import org.nxemu.features.settings.model.BooleanSetting
 
 /**
  * Custom [BitmapDrawable] that is capable
@@ -126,7 +127,7 @@ class InputOverlayDrawableJoystick(
             pressedState = true
             outerBitmap.alpha = 0
             boundsBoxBitmap.alpha = opacity
-            if (BooleanSetting.JOYSTICK_REL_CENTER.getBoolean()) {
+            if (NativeLibrary.getSettingBool(NXUISetting.JoystickRelCenter)) {
                 virtBounds.offset(
                     xPosition - virtBounds.centerX(),
                     yPosition - virtBounds.centerY()

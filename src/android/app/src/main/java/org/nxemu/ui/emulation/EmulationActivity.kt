@@ -11,8 +11,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
+import android.view.Gravity
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
@@ -20,14 +23,18 @@ import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import org.nxemu.NXCoreSetting
+import org.nxemu.NXUISetting
 import org.nxemu.NativeLibrary
 import org.nxemu.R
 import org.nxemu.overlay.InputOverlay
 import org.nxemu.overlay.model.OverlayLayout
+import org.nxemu.utils.NativeConfig
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.util.Locale
@@ -50,6 +57,8 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var showFpsText: TextView
     private lateinit var showDeviceText: TextView
     private lateinit var surfaceInputOverlay: InputOverlay
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var lockDrawerItem: TextView
     private lateinit var overlayAppVersion: String
     private lateinit var overlayPhoneModel: String
     private lateinit var overlaySoc: String
@@ -79,11 +88,27 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceInputOverlay = findViewById(R.id.surface_input_overlay)
         surfaceInputOverlay.setZOrderMediaOverlay(true)
         surfaceInputOverlay.holder.setFormat(PixelFormat.TRANSLUCENT)
+        drawerLayout = findViewById(R.id.drawer_layout)
+        lockDrawerItem = findViewById(R.id.menu_lock_drawer)
+        setupInGameDrawer()
         updateInputOverlayLayout()
         cacheDeviceOverlayInfo()
 
         NativeLibrary.addSettingChangedListener(settingChangedListener)
         hideLoadingIfFirstFrame()
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (drawerLayout.isDrawerOpen(Gravity.START)) {
+                        drawerLayout.closeDrawer(Gravity.START)
+                    } else {
+                        drawerLayout.openDrawer(Gravity.START)
+                    }
+                }
+            },
+        )
 
         val path = intent.getStringExtra(EXTRA_GAME_PATH)
         if (path.isNullOrEmpty()) {
@@ -103,6 +128,78 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private fun setupInGameDrawer() {
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+        drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                releaseOverlayTouches()
+                if (slideOffset > 0f) {
+                    surfaceInputOverlay.visibility = View.INVISIBLE
+                }
+            }
+
+            override fun onDrawerOpened(drawerView: View) {
+                drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+                findViewById<View>(R.id.in_game_menu).requestFocus()
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                drawerLayout.setDrawerLockMode(savedDrawerLockMode())
+                if (loadingIndicator.visibility != View.VISIBLE) {
+                    surfaceInputOverlay.visibility = View.VISIBLE
+                }
+            }
+        })
+        lockDrawerItem.setOnClickListener { toggleDrawerLock() }
+        findViewById<View>(R.id.menu_exit).setOnClickListener {
+            drawerLayout.closeDrawers()
+            finish()
+        }
+        updateLockDrawerLabel()
+    }
+
+    private fun releaseOverlayTouches() {
+        val event = MotionEvent.obtain(
+            SystemClock.uptimeMillis(),
+            SystemClock.uptimeMillis(),
+            MotionEvent.ACTION_UP,
+            0f,
+            0f,
+            0,
+        )
+        surfaceInputOverlay.dispatchTouchEvent(event)
+        event.recycle()
+    }
+
+    private fun savedDrawerLockMode(): Int {
+        val mode = NativeLibrary.getSettingInt(NXUISetting.LockDrawer)
+        return if (mode == DrawerLayout.LOCK_MODE_LOCKED_CLOSED) {
+            DrawerLayout.LOCK_MODE_LOCKED_CLOSED
+        } else {
+            DrawerLayout.LOCK_MODE_UNLOCKED
+        }
+    }
+
+    private fun toggleDrawerLock() {
+        val mode = if (savedDrawerLockMode() == DrawerLayout.LOCK_MODE_UNLOCKED) {
+            DrawerLayout.LOCK_MODE_LOCKED_CLOSED
+        } else {
+            DrawerLayout.LOCK_MODE_UNLOCKED
+        }
+        NativeLibrary.setSettingInt(NXUISetting.LockDrawer, mode)
+        updateLockDrawerLabel()
+        NativeConfig.saveGlobalConfig()
+    }
+
+    private fun updateLockDrawerLabel() {
+        lockDrawerItem.text = getString(
+            if (savedDrawerLockMode() == DrawerLayout.LOCK_MODE_LOCKED_CLOSED) {
+                R.string.unlock_drawer
+            } else {
+                R.string.lock_drawer
+            },
+        )
+    }
     private fun hideSystemBars() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -115,7 +212,10 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             stopAnimatedDrawables()
             loadingIndicator.visibility = View.GONE
             startPerfOverlay()
-            surfaceInputOverlay.visibility = View.VISIBLE
+            if (!drawerLayout.isDrawerOpen(Gravity.START)) {
+                surfaceInputOverlay.visibility = View.VISIBLE
+            }
+            drawerLayout.setDrawerLockMode(savedDrawerLockMode())
             updateInputOverlayLayout()
             surfaceInputOverlay.refreshControls()
         }

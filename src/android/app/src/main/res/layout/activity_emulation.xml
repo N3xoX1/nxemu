@@ -1,140 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black">
-
-    <SurfaceView
-        android:id="@+id/emulation_surface"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:keepScreenOn="true" />
-
-    <org.nxemu.overlay.InputOverlay
-        android:id="@+id/surface_input_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:defaultFocusHighlightEnabled="false"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:visibility="invisible" />
+    android:keepScreenOn="true">
 
     <FrameLayout
-        android:id="@+id/loading_indicator"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="@android:color/black">
 
-        <ImageView
-            android:id="@+id/loading_corner_logo"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:layout_gravity="top|start"
-            android:adjustViewBounds="true"
-            android:contentDescription="@null"
-            android:padding="8dp"
-            android:scaleType="fitStart"
-            android:visibility="gone" />
+        <SurfaceView
+            android:id="@+id/emulation_surface"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:keepScreenOn="true" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <org.nxemu.overlay.InputOverlay
+            android:id="@+id/surface_input_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:layout_gravity="center"
-            android:background="@drawable/emulation_loading_card"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="20dp">
+            android:defaultFocusHighlightEnabled="false"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:visibility="invisible" />
+
+        <FrameLayout
+            android:id="@+id/loading_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
             <ImageView
-                android:id="@+id/loading_image"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:contentDescription="@string/app_name"
-                android:scaleType="fitCenter"
-                android:src="@mipmap/ic_launcher" />
+                android:id="@+id/loading_corner_logo"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_gravity="top|start"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:padding="8dp"
+                android:scaleType="fitStart"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:orientation="vertical">
+                android:layout_gravity="center"
+                android:background="@drawable/emulation_loading_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="24dp"
+                android:paddingVertical="20dp">
 
-                <TextView
-                    android:id="@+id/loading_title"
+                <ImageView
+                    android:id="@+id/loading_image"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:contentDescription="@string/app_name"
+                    android:scaleType="fitCenter"
+                    android:src="@mipmap/ic_launcher" />
+
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:ellipsize="marquee"
-                    android:maxWidth="280dp"
-                    android:singleLine="true"
-                    android:textColor="@android:color/white"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
+                    android:layout_marginStart="16dp"
+                    android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/loading_text"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/loading"
-                    android:textColor="#B3FFFFFF"
-                    android:textSize="14sp" />
+                    <TextView
+                        android:id="@+id/loading_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="marquee"
+                        android:maxWidth="280dp"
+                        android:singleLine="true"
+                        android:textColor="@android:color/white"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
 
-                <ProgressBar
-                    android:id="@+id/loading_progress"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="200dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:indeterminate="true" />
+                    <TextView
+                        android:id="@+id/loading_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/loading"
+                        android:textColor="#B3FFFFFF"
+                        android:textSize="14sp" />
+
+                    <ProgressBar
+                        android:id="@+id/loading_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="200dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:indeterminate="true" />
+                </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
 
-        <ImageView
-            android:id="@+id/loading_corner_banner"
-            android:layout_width="wrap_content"
-            android:layout_height="64dp"
-            android:layout_gravity="bottom|end"
-            android:adjustViewBounds="true"
-            android:contentDescription="@null"
-            android:maxWidth="186dp"
-            android:padding="6dp"
-            android:scaleType="fitEnd"
-            android:visibility="gone" />
+            <ImageView
+                android:id="@+id/loading_corner_banner"
+                android:layout_width="wrap_content"
+                android:layout_height="64dp"
+                android:layout_gravity="bottom|end"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:maxWidth="186dp"
+                android:padding="6dp"
+                android:scaleType="fitEnd"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/overlay_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="20dp"
+            android:paddingTop="4dp">
+
+            <TextView
+                android:id="@+id/show_fps_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:clickable="false"
+                android:focusable="false"
+                android:shadowColor="@android:color/black"
+                android:shadowRadius="3"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/show_device_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:clickable="false"
+                android:focusable="false"
+                android:gravity="end"
+                android:shadowColor="@android:color/black"
+                android:shadowRadius="3"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </FrameLayout>
     </FrameLayout>
 
-    <FrameLayout
-        android:id="@+id/overlay_container"
-        android:layout_width="match_parent"
+    <LinearLayout
+        android:id="@+id/in_game_menu"
+        android:layout_width="280dp"
         android:layout_height="match_parent"
-        android:layout_marginHorizontal="20dp"
-        android:paddingTop="4dp">
+        android:layout_gravity="start"
+        android:background="#F0121212"
+        android:clickable="true"
+        android:elevation="16dp"
+        android:focusable="true"
+        android:orientation="vertical"
+        android:paddingTop="24dp">
+        <TextView
+            android:id="@+id/menu_lock_drawer"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="@string/lock_drawer"
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
 
         <TextView
-            android:id="@+id/show_fps_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|start"
-            android:clickable="false"
-            android:focusable="false"
-            android:shadowColor="@android:color/black"
-            android:shadowRadius="3"
+            android:id="@+id/menu_exit"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="@string/emulation_exit"
             android:textColor="@android:color/white"
-            android:textSize="12sp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/show_device_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
-            android:clickable="false"
-            android:focusable="false"
-            android:gravity="end"
-            android:shadowColor="@android:color/black"
-            android:shadowRadius="3"
-            android:textColor="@android:color/white"
-            android:textSize="12sp"
-            android:visibility="gone" />
-    </FrameLayout>
-</FrameLayout>
+            android:textSize="16sp" />
+    </LinearLayout>
+</androidx.drawerlayout.widget.DrawerLayout>
