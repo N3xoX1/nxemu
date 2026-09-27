@@ -310,7 +310,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
         }
 
         for (joystick in overlayJoysticks) {
-            when (event.action) {
+            when (event.action and MotionEvent.ACTION_MASK) {
                 MotionEvent.ACTION_DOWN,
                 MotionEvent.ACTION_POINTER_DOWN -> if (joystickBeingConfigured == null &&
                     joystick.bounds.contains(fingerPositionX, fingerPositionY)
@@ -600,8 +600,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
         overlayDpads.clear()
         overlayJoysticks.clear()
 
-        // Add all the enabled overlay items back to the HashSet.
-        if (NativeLibrary.getSettingBool(NXUISetting.ShowInputOverlay)) {
+        if (inEditMode || NativeLibrary.getSettingBool(NXUISetting.ShowInputOverlay)) {
             addOverlayControls(layout)
         }
         invalidate()
@@ -624,6 +623,14 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
 
     fun setIsInEditMode(editMode: Boolean) {
         inEditMode = editMode
+        if (!editMode) {
+            buttonBeingConfigured = null
+            dpadBeingConfigured = null
+            joystickBeingConfigured = null
+        }
+        if (isLaidOut) {
+            refreshControls()
+        }
     }
 
     /**
@@ -659,6 +666,9 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
     }
 
     fun resetLayoutVisibilityAndPlacement() {
+        buttonBeingConfigured = null
+        dpadBeingConfigured = null
+        joystickBeingConfigured = null
         defaultOverlayPositionByLayout(layout)
 
         val overlayControlData = NativeConfig.getOverlayControlData()

@@ -732,11 +732,14 @@ function formatGameFolder(uri) {
 
 function renderSettingsSummary() {
   const meta = document.getElementById('gameFoldersMeta');
-  if (!meta) return;
-  const n = getConfiguredFolders().length;
-  if (n === 0) meta.textContent = 'None added';
-  else if (n === 1) meta.textContent = '1 folder';
-  else meta.textContent = n + ' folders';
+  if (meta) {
+    const n = getConfiguredFolders().length;
+    if (n === 0) meta.textContent = 'None added';
+    else if (n === 1) meta.textContent = '1 folder';
+    else meta.textContent = n + ' folders';
+  }
+  renderThemeSummary();
+  renderOverlaySummary();
 }
 
 function getThemeMode() {
@@ -756,6 +759,16 @@ function themeModeLabel(mode) {
 function renderThemeSummary() {
   const meta = document.getElementById('themeModeMeta');
   if (meta) meta.textContent = themeModeLabel(getThemeMode());
+}
+
+function renderOverlaySummary() {
+  const meta = document.getElementById('overlayShowMeta');
+  if (!meta) return;
+  let shown = true;
+  try {
+    shown = NxEmu.getSettingBool('nxui:ShowInputOverlay');
+  } catch (e) {}
+  meta.textContent = 'Show overlay: ' + (shown ? 'Yes' : 'No');
 }
 
 function renderThemeSettings() {
@@ -778,6 +791,37 @@ function setToggle(id, on) {
   if (!el) return;
   el.classList.toggle('on', !!on);
 }
+
+function renderOverlaySettings() {
+  setToggle('overlayShow', NxEmu.getSettingBool('nxui:ShowInputOverlay'));
+  const scale = NxEmu.getSettingInt('nxui:OverlayScale');
+  const opacity = NxEmu.getSettingInt('nxui:OverlayOpacity');
+  const scaleEl = document.getElementById('overlayScale');
+  const opacityEl = document.getElementById('overlayOpacity');
+  if (scaleEl) scaleEl.value = scale;
+  if (opacityEl) opacityEl.value = opacity;
+  const scaleValue = document.getElementById('overlayScaleValue');
+  const opacityValue = document.getElementById('overlayOpacityValue');
+  if (scaleValue) scaleValue.textContent = scale + '%';
+  if (opacityValue) opacityValue.textContent = opacity + '%';
+}
+
+function toggleOverlayBool(key, toggleId) {
+  const next = !NxEmu.getSettingBool(key);
+  NxEmu.setSettingBool(key, next);
+  NxEmu.saveSettings();
+  setToggle(toggleId, next);
+  if (key === 'nxui:ShowInputOverlay') renderOverlaySummary();
+}
+
+function setOverlayInt(key, value, labelId) {
+  const n = parseInt(value, 10);
+  NxEmu.setSettingInt(key, n);
+  NxEmu.saveSettings();
+  const label = document.getElementById(labelId);
+  if (label) label.textContent = n + '%';
+}
+
 function renderGameFolders() {
   const list = document.getElementById('folderList');
   const empty = document.getElementById('noFolders');
@@ -820,6 +864,7 @@ function showPage(page) {
   document.getElementById(page).style.display = '';
   if (page === 'gameFolders') renderGameFolders();
   if (page === 'settingsPage') renderSettingsSummary();
+  if (page === 'overlaySettings') renderOverlaySettings();
   if (page === 'themeSettings') renderThemeSettings();
   if (page === 'gamesPage' && libraryDirty) refreshGameList();
 }
@@ -853,6 +898,13 @@ function showPage(page) {
         <div class="setting-info">
           <div class="setting-label">Game folders</div>
           <div id="gameFoldersMeta" class="setting-sub">None added</div>
+        </div>
+        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="settings-item" onclick="navigate('overlaySettings')">
+        <div class="setting-info">
+          <div class="setting-label">On screen controller</div>
+          <div id="overlayShowMeta" class="setting-sub"></div>
         </div>
         <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </div>
@@ -893,6 +945,41 @@ function showPage(page) {
       </div>
     </div>
   </div>
+  <div id="overlaySettings" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="page-title">On screen controller</div>
+    </div>
+    <div class="settings-list">
+      <div class="settings-item" onclick="toggleOverlayBool('nxui:ShowInputOverlay', 'overlayShow')">
+        <div class="setting-info">
+          <div class="setting-label">Show overlay</div>
+        </div>
+        <button id="overlayShow" class="settings-toggle" type="button" aria-label="Show overlay"></button>
+      </div>
+      <div class="settings-item setting-item-static">
+        <div class="setting-info" style="flex:1">
+          <div class="setting-label">Scale <span id="overlayScaleValue">50%</span></div>
+          <input id="overlayScale" class="settings-range" type="range" min="0" max="150" value="50" oninput="setOverlayInt('nxui:OverlayScale', this.value, 'overlayScaleValue')">
+        </div>
+      </div>
+      <div class="settings-item setting-item-static">
+        <div class="setting-info" style="flex:1">
+          <div class="setting-label">Opacity <span id="overlayOpacityValue">100%</span></div>
+          <input id="overlayOpacity" class="settings-range" type="range" min="0" max="100" value="100" oninput="setOverlayInt('nxui:OverlayOpacity', this.value, 'overlayOpacityValue')">
+        </div>
+      </div>
+      <div class="settings-item" onclick="NxEmu.editOverlayLayout()">
+        <div class="setting-info">
+          <div class="setting-label">Edit overlay layout</div>
+          <div class="setting-sub">Drag buttons to reposition</div>
+        </div>
+        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </div>
+  </div>
   <div id="gameFolders" class="page" style="display:none">
     <div class="topbar-back">
       <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
@@ -912,6 +999,7 @@ function showPage(page) {
   </div>
 <script>
 applyTheme();
+renderSettingsSummary();
 refreshGameList();
 </script>
 </body>

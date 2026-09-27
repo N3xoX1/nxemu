@@ -19,6 +19,7 @@ import org.json.JSONObject
 import org.nxemu.NXUISetting
 import org.nxemu.NativeLibrary
 import org.nxemu.ui.emulation.EmulationActivity
+import org.nxemu.ui.settings.OverlayLayoutActivity
 import org.nxemu.utils.ThemeHelper
 
 class MainActivity : ComponentActivity() {
@@ -109,6 +110,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         emulationLaunchPending = false
+    }
+
+    fun editOverlayLayout() {
+        startActivity(Intent(this, OverlayLayoutActivity::class.java))
     }
 
     override fun onDestroy() {

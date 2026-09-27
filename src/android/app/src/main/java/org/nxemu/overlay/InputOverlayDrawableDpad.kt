@@ -218,7 +218,7 @@ class InputOverlayDrawableDpad(
         val fingerPositionX = event.getX(pointerIndex).toInt()
         val fingerPositionY = event.getY(pointerIndex).toInt()
 
-        when (event.action) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 previousTouchX = fingerPositionX
                 previousTouchY = fingerPositionY
