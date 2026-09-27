@@ -226,7 +226,9 @@ private:
             Optimization::DeadCodeElimination(ir_block);
         }
         Optimization::IdentityRemovalPass(ir_block);
-        Optimization::VerificationPass(ir_block);
+        if (!conf.HasOptimization(OptimizationFlag::DisableVerification)) {
+            Optimization::VerificationPass(ir_block);
+        }
         return emitter.Emit(ir_block);
     }
 

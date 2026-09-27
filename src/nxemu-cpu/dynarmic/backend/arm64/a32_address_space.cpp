@@ -176,7 +176,9 @@ IR::Block A32AddressSpace::GenerateIR(IR::LocationDescriptor descriptor) const {
         Optimization::DeadCodeElimination(ir_block);
     }
     Optimization::IdentityRemovalPass(ir_block);
-    Optimization::VerificationPass(ir_block);
+    if (!conf.HasOptimization(OptimizationFlag::DisableVerification)) {
+        Optimization::VerificationPass(ir_block);
+    }
 
     return ir_block;
 }
