@@ -9,6 +9,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #endif
 
 #ifdef _WIN32
@@ -611,6 +614,29 @@ void Path::SetToModuleDirectory()
         }
 
         bufferSize *= 2;
+        buffPath.resize(bufferSize);
+    }
+#elif defined(__APPLE__)
+    uint32_t bufferSize = 4096;
+    std::vector<char> buffPath(bufferSize);
+
+    while (true)
+    {
+        uint32_t requiredSize = bufferSize;
+        if (_NSGetExecutablePath(buffPath.data(), &requiredSize) == 0)
+        {
+            m_path = buffPath.data();
+            SetNameExtension("");
+            return;
+        }
+
+        if (requiredSize <= bufferSize)
+        {
+            m_path = "";
+            return;
+        }
+
+        bufferSize = requiredSize;
         buffPath.resize(bufferSize);
     }
 #else

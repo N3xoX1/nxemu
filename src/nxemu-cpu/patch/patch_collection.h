@@ -1,7 +1,7 @@
 #pragma once
 #include <nxemu-module-spec/cpu.h>
 
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+#if defined(NXEMU_HAS_NCE)
 #include "nce/patcher.h"
 #include <vector>
 #endif
@@ -25,7 +25,7 @@ private:
     ISystemModules & m_modules;
     bool m_is_application;
     int32_t m_module_patcher_indices[13];
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+#if defined(NXEMU_HAS_NCE)
     std::vector<Core::NCE::Patcher> m_patchers;
 #endif
 };

@@ -1,3 +1,7 @@
+if(APPLE)
+    enable_language(OBJC)
+endif()
+
 add_library(discord-rpc STATIC
     src/discord_rpc.cpp
     src/rpc_connection.cpp

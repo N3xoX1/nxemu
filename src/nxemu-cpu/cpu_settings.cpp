@@ -49,7 +49,7 @@ public:
 };
 
 static CpuSetting settings[] = {
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
+#if defined(NXEMU_HAS_NCE)
     {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Nce},
 #else
     {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Dynarmic},
@@ -120,7 +120,11 @@ bool IsFastmemEnabled()
 void UpdateNceEnabled()
 {
     const bool has_39bit = g_settings->GetBool(NXCoreSetting::Has39BitAddressSpace);
+#if defined(NXEMU_HAS_NCE)
     const bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
+#else
+    const bool is_nce = false;
+#endif
     if (is_nce && !IsFastmemEnabled())
     {
         LOG_WARNING(Common, "Fastmem is required to natively execute code in a performant manner, falling back to Dynarmic");
@@ -236,6 +240,14 @@ void SetupCpuSetting(void)
             }
         }
     }
+
+#if !defined(NXEMU_HAS_NCE)
+    if (cpuSettings.cpu_backend == CpuBackend::Nce)
+    {
+        LOG_WARNING(Common, "NCE is unavailable on this host; using Dynarmic");
+        cpuSettings.cpu_backend = CpuBackend::Dynarmic;
+    }
+#endif
 
     for (const CpuSetting & cpuSetting : settings)
     {

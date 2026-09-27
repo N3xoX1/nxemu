@@ -329,8 +329,27 @@ target_include_directories(video_core PRIVATE ${CMAKE_SOURCE_DIR}/src/nxemu-vide
 target_link_libraries(video_core PUBLIC common nxemu_core yuzu_common)
 target_link_libraries(video_core PUBLIC glad shader_recompiler stb::headers bc_decoder stb_dxt)
 
-if (YUZU_USE_BUNDLED_FFMPEG AND NOT (WIN32 OR ANDROID))
+if (YUZU_USE_BUNDLED_FFMPEG AND NOT (WIN32 OR ANDROID OR APPLE))
     add_dependencies(video_core ffmpeg-build)
+endif()
+
+if(APPLE AND NOT FFmpeg_LIBRARIES)
+    set(_ffmpeg_macos_root "${CMAKE_SOURCE_DIR}/external/ffmpeg/lib/macos-arm64")
+    set(_ffmpeg_macos_libs
+        "${_ffmpeg_macos_root}/libavfilter.a"
+        "${_ffmpeg_macos_root}/libavcodec.a"
+        "${_ffmpeg_macos_root}/libswscale.a"
+        "${_ffmpeg_macos_root}/libavutil.a"
+    )
+
+    foreach(_ffmpeg_lib IN LISTS _ffmpeg_macos_libs)
+        if(NOT EXISTS "${_ffmpeg_lib}")
+            message(FATAL_ERROR "Missing FFmpeg macOS arm64 library: ${_ffmpeg_lib}")
+        endif()
+    endforeach()
+
+    set(FFmpeg_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/ffmpeg/include")
+    set(FFmpeg_LIBRARIES ${_ffmpeg_macos_libs})
 endif()
 
 if(NOT FFmpeg_INCLUDE_DIR)

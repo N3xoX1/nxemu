@@ -160,7 +160,9 @@ Result GetThreadContext3(Core::System& system, u64 out_context, Handle thread_ha
     R_TRY(thread->GetThreadContext3(std::addressof(context)));
 
     // Copy the thread context to user space.
-    R_UNLESS(GetCurrentMemory(kernel).WriteBlock(out_context, std::addressof(context), sizeof(context)), ResultInvalidPointer);
+    R_UNLESS(GetCurrentMemory(kernel).WriteBlock(Common::ProcessAddress{out_context},
+                                                   std::addressof(context), sizeof(context)),
+             ResultInvalidPointer);
     R_SUCCEED();
 }
 
