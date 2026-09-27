@@ -115,14 +115,14 @@ private:
         u32_le kind{};        // -1 is default
         NvCore::NvMap::Handle::Id handle;
         u32_le page_size{}; // 0 means don't care
-        s64_le buffer_offset{};
+        u64_le buffer_offset{};
         u64_le mapping_size{};
-        s64_le offset{};
+        u64_le offset{};
     };
     static_assert(sizeof(IoctlMapBufferEx) == 40, "IoctlMapBufferEx is incorrect size");
 
     struct IoctlUnmapBuffer {
-        s64_le offset{};
+        u64_le offset{};
     };
     static_assert(sizeof(IoctlUnmapBuffer) == 8, "IoctlUnmapBuffer is incorrect size");
 
@@ -152,7 +152,7 @@ private:
     NvResult GetVARegions1(IoctlGetVaRegions& params);
     NvResult GetVARegions3(IoctlGetVaRegions& params, std::span<VaRegion> regions);
 
-    void FreeMappingLocked(u64 offset);
+    bool FreeMappingLocked(u64 offset);
 
     Module& module;
 
@@ -165,8 +165,9 @@ private:
         u64 offset;
         u64 size;
         bool fixed;
-        bool big_page; // Only valid if fixed == false
+        bool big_page; // Effective page-table granularity used by this mapping
         bool sparse_alloc;
+        std::list<std::shared_ptr<Mapping>>::iterator allocation_entry{};
 
         Mapping(NvCore::NvMap::Handle::Id handle_, DAddr ptr_, u64 offset_, u64 size_, bool fixed_,
                 bool big_page_, bool sparse_alloc_)
@@ -174,13 +175,38 @@ private:
               big_page(big_page_), sparse_alloc(sparse_alloc_) {}
     };
 
+    struct SparsePin {
+        NvCore::NvMap* nvmap;
+        NvCore::NvMap::Handle::Id handle;
+
+        SparsePin(NvCore::NvMap& nvmap_, NvCore::NvMap::Handle::Id handle_)
+            : nvmap(&nvmap_), handle(handle_) {}
+        ~SparsePin() {
+            if (nvmap && handle) {
+                nvmap->UnpinHandle(handle);
+            }
+        }
+
+        SparsePin(const SparsePin&) = delete;
+        SparsePin& operator=(const SparsePin&) = delete;
+    };
+
+    struct SparseMapping {
+        u64 size;
+        std::shared_ptr<SparsePin> pin;
+    };
+
     struct Allocation {
         u64 size;
         std::list<std::shared_ptr<Mapping>> mappings;
+        std::map<u64, SparseMapping> sparse_mappings;
         u32 page_size;
         bool sparse;
         bool big_pages;
     };
+
+    std::size_t ReplaceSparseOwnershipLocked(Allocation& allocation, u64 start, u64 size,
+                                             std::shared_ptr<SparsePin> new_pin);
 
     std::map<u64, std::shared_ptr<Mapping>>
         mapping_map; //!< This maps the base addresses of mapped buffers to their total sizes and
@@ -215,6 +241,7 @@ private:
         bool initialised{};
     } vm;
     uint32_t gmmu;
+    bool has_bound_channels{};
 };
 
 } // namespace Service::Nvidia::Devices

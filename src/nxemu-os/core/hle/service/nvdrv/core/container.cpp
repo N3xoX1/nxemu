@@ -36,13 +36,15 @@ struct ContainerImpl
         video{video_}, 
         file{core, video_}, 
         manager{video_}, 
-        device_file_data{}
+        device_file_data{},
+        zbc_state{}
     {
     }
     IVideo & video;
     NvMap file;
     SyncpointManager manager;
     Container::Host1xDeviceFileData device_file_data;
+    Container::ZbcState zbc_state;
     std::deque<Session> sessions;
     size_t new_ids{};
     std::deque<size_t> id_pool;
@@ -189,6 +191,16 @@ Container::Host1xDeviceFileData & Container::Host1xDeviceFile()
 const Container::Host1xDeviceFileData & Container::Host1xDeviceFile() const
 {
     return impl->device_file_data;
+}
+
+Container::ZbcState & Container::Zbc()
+{
+    return impl->zbc_state;
+}
+
+const Container::ZbcState & Container::Zbc() const
+{
+    return impl->zbc_state;
 }
 
 SyncpointManager & Container::GetSyncpointManager()

@@ -213,10 +213,13 @@ private:
         Free = 0,
         Reserved = 1,
         Mapped = 2,
+        // Big-table slot backed by small PTEs. Uses the spare value in the existing 2-bit tag.
+        SmallPages = 3,
     };
 
     std::vector<u64> entries;
     std::vector<u64> big_entries;
+    void PrepareSmallPageMapping(GPUVAddr gpu_addr, size_t size);
 
     template <EntryType entry_type>
     GPUVAddr PageTableOp(GPUVAddr gpu_addr, [[maybe_unused]] DAddr dev_addr, size_t size,

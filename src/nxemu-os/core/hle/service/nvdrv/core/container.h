@@ -4,8 +4,10 @@
 
 #pragma once
 
+#include <array>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include "yuzu_common/nvdata.h"
@@ -74,9 +76,35 @@ public:
         u32 vic_next_id{};
     };
 
+    struct ZbcColorEntry {
+        std::array<u32, 4> color_ds{};
+        std::array<u32, 4> color_l2{};
+        u32 format{};
+        u32 ref_cnt{};
+    };
+
+    struct ZbcDepthEntry {
+        u32 depth{};
+        u32 format{};
+        u32 ref_cnt{};
+    };
+
+    struct ZbcState {
+        static constexpr u32 TableSize = 15;
+
+        std::mutex mutex;
+        std::array<ZbcColorEntry, TableSize> color_table{};
+        std::array<ZbcDepthEntry, TableSize> depth_table{};
+        u32 max_used_color_index{};
+        u32 max_used_depth_index{};
+    };
+
     Host1xDeviceFileData& Host1xDeviceFile();
 
     const Host1xDeviceFileData& Host1xDeviceFile() const;
+
+    ZbcState& Zbc();
+    const ZbcState& Zbc() const;
 
 private:
     std::unique_ptr<ContainerImpl> impl;

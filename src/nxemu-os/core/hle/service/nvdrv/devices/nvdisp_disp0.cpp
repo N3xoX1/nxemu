@@ -80,9 +80,19 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
         });
 
         for (size_t i = 0; i < layer.acquire_fence.num_fences; i++) {
+            const auto& fence = layer.acquire_fence.fences[i];
+            if (fence.id < 0) {
+                continue;
+            }
+            if (static_cast<u32>(fence.id) >= MaxSyncPoints) {
+                LOG_WARNING(Service_NVDRV, "Ignoring invalid display acquire fence id={} value={}",
+                            fence.id, fence.value);
+                continue;
+            }
+
             output_fences.emplace_back(VideoNvFence{
-                .id = layer.acquire_fence.fences[i].id,
-                .value = layer.acquire_fence.fences[i].value
+                .id = fence.id,
+                .value = fence.value,
             });
         }
     }

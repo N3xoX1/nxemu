@@ -73,6 +73,8 @@ public:
         bool allocated{}; //!< If the handle has been allocated with `Alloc`
         bool in_heap{};
         NvCore::SessionId session_id{};
+        Kernel::KProcess* owner_process{}; //!< Process whose page table owns the CPU-side lock
+        bool device_address_space_locked{}; //!< Whether IocAlloc marked the range DeviceShared
 
         DAddr d_address{}; //!< The memory location in the device's AS that this handle corresponds
                            //!< to, this can also be in the nvdrv tmem
@@ -112,7 +114,6 @@ public:
         u64 address;       //!< Address the handle referred to before deletion
         u64 size;          //!< Page-aligned handle size
         bool was_uncached; //!< If the handle was allocated as uncached
-        bool can_unlock;   //!< If the address region is ready to be unlocked
     };
 
     explicit NvMap(Container& core, IVideo & video);
@@ -181,6 +182,12 @@ private:
      * @return If the handle was removed from the map
      */
     bool TryRemoveHandle(const Handle& handle_description);
+
+    /**
+     * @brief Releases the device mapping/CPU DeviceShared lock when the final reference is gone.
+     * @note handle_description.mutex MUST be locked when calling this.
+     */
+    bool FinalizeHandleLocked(Handle& handle_description);
 
     Container& core;
 };
