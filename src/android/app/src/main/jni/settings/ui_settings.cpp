@@ -9,7 +9,9 @@ namespace
 {
     enum class SettingType
     {
+        String,
         int32,
+        Bool,
         StringList,
     };
 
@@ -26,6 +28,8 @@ namespace
     class UISetting
     {
     public:
+        UISetting(const char * id, const char * key, std::string * value, const char * defaultValue);
+        UISetting(const char * id, const char * key, bool * value, bool defaultValue);
         UISetting(const char * id, const char * key, int32_t * value, int32_t defaultValue);
         UISetting(const char * id, const char * key, ThemeMode * value, ThemeMode defaultValue);
         UISetting(const char * id, const char * key, Stringlist * value);
@@ -35,18 +39,27 @@ namespace
         SettingType settingType;
         union
         {
+            std::string * string;
+            bool * boolean;
             int32_t * int32;
             Stringlist * string_list;
         } setting;
         union
         {
+            const char * default_string;
             const int32_t default_int32;
+            const bool default_bool;
         };
     };
 
     static UISetting settings[] = {
         {NXUISetting::GameDirectories, "GameDirectories", &uiSettings.gameDirectories},
+        {NXUISetting::ShowInputOverlay, "ShowInputOverlay", &uiSettings.showInputOverlay, true},
+        {NXUISetting::OverlayScale, "OverlayScale", &uiSettings.overlayScale, 50},
+        {NXUISetting::OverlayOpacity, "OverlayOpacity", &uiSettings.overlayOpacity, 100},
+        {NXUISetting::OverlayControlData, "OverlayControlData", &uiSettings.overlayControlData, ""},
         {NXUISetting::ThemeMode, "ThemeMode", &uiSettings.themeMode, ThemeMode::FollowSystem},
+        {NXUISetting::LockDrawer, "LockDrawer", &uiSettings.lockDrawer, false},
     };
 
     void UISettingChanged(const char * setting, void * /*userData*/);
@@ -64,6 +77,12 @@ void SetupUISetting()
     {
         switch (setting.settingType)
         {
+        case SettingType::String:
+            *(setting.setting.string) = setting.default_string;
+            break;
+        case SettingType::Bool:
+            *(setting.setting.boolean) = setting.default_bool;
+            break;
         case SettingType::int32:
             *(setting.setting.int32) = setting.default_int32;
             break;
@@ -81,10 +100,22 @@ void SetupUISetting()
         JsonValue value = JsonGetNestedValue(section, setting.json_key);
         switch (setting.settingType)
         {
+        case SettingType::String:
+            if (value.isString())
+            {
+                *(setting.setting.string) = value.asString();
+            }
+            break;
         case SettingType::int32:
             if (value.isInt())
             {
                 *(setting.setting.int32) = (int32_t)value.asInt64();
+            }
+            break;
+        case SettingType::Bool:
+            if (value.isBool())
+            {
+                *(setting.setting.boolean) = value.asBool();
             }
             break;
         case SettingType::StringList:
@@ -116,6 +147,14 @@ void SetupUISetting()
                 settingsStore.SetDefaultString(setting.identifier, "");
                 settingsStore.SetString(setting.identifier, setting.setting.string_list != nullptr ? SerializeStringList(*setting.setting.string_list).c_str() : "");
                 break;
+            case SettingType::String:
+                settingsStore.SetDefaultString(setting.identifier, setting.default_string);
+                settingsStore.SetString(setting.identifier, setting.setting.string != nullptr ? setting.setting.string->c_str() : setting.default_string);
+                break;
+            case SettingType::Bool:
+                settingsStore.SetDefaultBool(setting.identifier, setting.default_bool);
+                settingsStore.SetBool(setting.identifier, setting.setting.boolean != nullptr ? *setting.setting.boolean : setting.default_bool);
+                break;
             default:
                 g_notify->BreakPoint(__FILE__, __LINE__);
             }
@@ -143,6 +182,18 @@ void SaveUISetting()
                 JsonSetNestedValue(json, setting.json_key, std::move(jsonList));
             }
             break;
+        case SettingType::String:
+            if (strcmp(setting.setting.string->c_str(), setting.default_string) != 0)
+            {
+                JsonSetNestedValue(json, setting.json_key, JsonValue(*setting.setting.string));
+            }
+            break;
+        case SettingType::Bool:
+            if (*setting.setting.boolean != setting.default_bool)
+            {
+                JsonSetNestedValue(json, setting.json_key, JsonValue(*setting.setting.boolean));
+            }
+            break;
         case SettingType::int32:
             if (*setting.setting.int32 != setting.default_int32)
             {
@@ -161,6 +212,15 @@ void SaveUISetting()
 
 namespace
 {
+    UISetting::UISetting(const char * id, const char * key, std::string * value, const char * defaultValue) :
+        identifier(id),
+        json_key(key),
+        settingType(SettingType::String),
+        default_string(defaultValue)
+    {
+        setting.string = value;
+    }
+
     UISetting::UISetting(const char * id, const char * key, int32_t * value, int32_t defaultValue) :
         identifier(id),
         json_key(key),
@@ -175,10 +235,20 @@ namespace
     {
     }
 
+    UISetting::UISetting(const char * id, const char * key, bool * value, bool defaultValue) :
+        identifier(id),
+        json_key(key),
+        settingType(SettingType::Bool),
+        default_bool(defaultValue)
+    {
+        setting.boolean = value;
+    }
+
     UISetting::UISetting(const char * id, const char * key, Stringlist * value) :
         identifier(id),
         json_key(key),
-        settingType(SettingType::StringList)
+        settingType(SettingType::StringList),
+        default_string(nullptr)
     {
         setting.string_list = value;
     }
@@ -222,6 +292,18 @@ namespace
                             }
                         }
                     }
+                }
+                break;
+            case SettingType::String:
+                if (uiSetting.setting.string != nullptr)
+                {
+                    *uiSetting.setting.string = settingsStore.GetString(setting);
+                }
+                break;
+            case SettingType::Bool:
+                if (uiSetting.setting.boolean != nullptr)
+                {
+                    *uiSetting.setting.boolean = settingsStore.GetBool(setting);
                 }
                 break;
             default:

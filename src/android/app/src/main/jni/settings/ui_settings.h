@@ -15,7 +15,12 @@ enum class ThemeMode : int32_t
 struct UISettings
 {
     Stringlist gameDirectories;
+    bool showInputOverlay;
+    int32_t overlayScale;
+    int32_t overlayOpacity;
+    std::string overlayControlData;
     ThemeMode themeMode;
+    bool lockDrawer;
 };
 
 extern UISettings uiSettings;

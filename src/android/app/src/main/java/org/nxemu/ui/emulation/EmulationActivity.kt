@@ -144,7 +144,13 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
 
             override fun onDrawerClosed(drawerView: View) {
-                drawerLayout.setDrawerLockMode(savedDrawerLockMode())
+                drawerLayout.setDrawerLockMode(
+                    if (surfaceInputOverlay.isInEditMode()) {
+                        DrawerLayout.LOCK_MODE_LOCKED_CLOSED
+                    } else {
+                        savedDrawerLockMode()
+                    },
+                )
                 if (loadingIndicator.visibility != View.VISIBLE) {
                     surfaceInputOverlay.visibility = View.VISIBLE
                 }
@@ -172,8 +178,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun savedDrawerLockMode(): Int {
-        val mode = NativeLibrary.getSettingInt(NXUISetting.LockDrawer)
-        return if (mode == DrawerLayout.LOCK_MODE_LOCKED_CLOSED) {
+        return if (NativeLibrary.getSettingBool(NXUISetting.LockDrawer)) {
             DrawerLayout.LOCK_MODE_LOCKED_CLOSED
         } else {
             DrawerLayout.LOCK_MODE_UNLOCKED
@@ -181,12 +186,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun toggleDrawerLock() {
-        val mode = if (savedDrawerLockMode() == DrawerLayout.LOCK_MODE_UNLOCKED) {
-            DrawerLayout.LOCK_MODE_LOCKED_CLOSED
-        } else {
-            DrawerLayout.LOCK_MODE_UNLOCKED
-        }
-        NativeLibrary.setSettingInt(NXUISetting.LockDrawer, mode)
+        NativeLibrary.setSettingBool(NXUISetting.LockDrawer, !NativeLibrary.getSettingBool(NXUISetting.LockDrawer))
         updateLockDrawerLabel()
         NativeConfig.saveGlobalConfig()
     }

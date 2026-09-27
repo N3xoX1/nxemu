@@ -47,6 +47,11 @@ class NxEmuBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun editOverlayLayout() {
+        activity.runOnUiThread { activity.editOverlayLayout() }
+    }
+
+    @JavascriptInterface
     fun isDarkTheme(): Boolean {
         return ThemeHelper.isDark(activity)
     }

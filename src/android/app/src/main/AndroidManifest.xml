@@ -29,6 +29,12 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.NxEmu" />
+        <activity
+            android:name="org.nxemu.ui.settings.OverlayLayoutActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.NxEmu" />
     </application>
 
 </manifest>
