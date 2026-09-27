@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <span>
 #include <vector>
 #include <boost/container/small_vector.hpp>
@@ -147,8 +148,17 @@ public:
 private:
     static constexpr u32 non_puller_methods = 0x40;
     static constexpr u32 max_subchannels = 8;
+    enum class MemoryOperationSyncState : u8 {
+        None,
+        Skip,
+        Armed,
+    };
+
     bool Step();
     void SynchronizeMemoryOperations();
+    void ArmMemoryOperationSync();
+    void WaitForArmedMemoryOperationSync();
+    bool CanSkipCleanMemoryOperationSync(const CommandListHeader& header) const;
     void ProcessCommands(std::span<const CommandHeader> commands);
 
     void SetState(const CommandHeader& command_header);
@@ -175,6 +185,8 @@ private:
 
     DmaState dma_state{};
     bool dma_increment_once{};
+    MemoryOperationSyncState memory_operation_sync_state{MemoryOperationSyncState::None};
+    std::atomic<bool> memory_operation_sync_ready{};
 
     const bool ib_enable{true}; ///< IB mode enabled
 

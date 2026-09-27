@@ -41,6 +41,16 @@ void DmaPusher::DispatchCalls()
             break;
         }
     }
+
+    if (memory_operation_sync_state == MemoryOperationSyncState::Armed)
+    {
+        WaitForArmedMemoryOperationSync();
+    }
+    else
+    {
+        memory_operation_sync_state = MemoryOperationSyncState::None;
+    }
+
     gpu.FlushCommands();
     gpu.OnCommandListEnd();
 }
@@ -75,9 +85,27 @@ bool DmaPusher::Step()
     dma_state.dma_get = header.Address();
 
     // SYNC_WAIT applies to the current GP entry, including zero-length entries.
-    if (header.sync && Settings::IsSyncMemoryOperationsEnabled())
+    if (header.sync)
     {
-        SynchronizeMemoryOperations();
+        switch (memory_operation_sync_state)
+        {
+        case MemoryOperationSyncState::Skip:
+            memory_operation_sync_state = MemoryOperationSyncState::None;
+            break;
+        case MemoryOperationSyncState::Armed:
+            WaitForArmedMemoryOperationSync();
+            break;
+        case MemoryOperationSyncState::None:
+            if (Settings::IsGpuCommandSynchronizationEnabled())
+            {
+                SynchronizeMemoryOperations();
+            }
+            break;
+        }
+    }
+    else
+    {
+        ASSERT(memory_operation_sync_state == MemoryOperationSyncState::None);
     }
 
     if (header.size > 0 && Settings::IsGPULevelHigh() &&
@@ -104,6 +132,26 @@ bool DmaPusher::Step()
         }
     }
 
+    // Prepare a following SYNC_WAIT at the current GP-entry boundary. Clean pushbuffers can be
+    // fetched directly because DmaPusher already processes GP entries in order.
+    const std::size_t next_entry_index = dma_pushbuffer_subindex + 1;
+    if (next_entry_index < command_list_size && Settings::IsGpuCommandSynchronizationEnabled())
+    {
+        const CommandListHeader & next_header = command_list.command_lists[next_entry_index];
+        if (next_header.sync)
+        {
+            ASSERT(memory_operation_sync_state == MemoryOperationSyncState::None);
+            if (CanSkipCleanMemoryOperationSync(next_header))
+            {
+                memory_operation_sync_state = MemoryOperationSyncState::Skip;
+            }
+            else
+            {
+                ArmMemoryOperationSync();
+            }
+        }
+    }
+
     if (++dma_pushbuffer_subindex >= command_list_size)
     {
         dma_pushbuffer.pop();
@@ -117,6 +165,38 @@ void DmaPusher::SynchronizeMemoryOperations()
 {
     ASSERT(rasterizer != nullptr);
     rasterizer->WaitForFence();
+}
+
+void DmaPusher::ArmMemoryOperationSync()
+{
+    ASSERT(rasterizer != nullptr);
+    ASSERT(memory_operation_sync_state == MemoryOperationSyncState::None);
+
+    memory_operation_sync_ready.store(false, std::memory_order_relaxed);
+    memory_operation_sync_state = MemoryOperationSyncState::Armed;
+    rasterizer->SignalMemoryOperationFence([this]() {
+        memory_operation_sync_ready.store(true, std::memory_order_release);
+        memory_operation_sync_ready.notify_one();
+    });
+}
+
+void DmaPusher::WaitForArmedMemoryOperationSync()
+{
+    ASSERT(memory_operation_sync_state == MemoryOperationSyncState::Armed);
+
+    memory_operation_sync_ready.wait(false, std::memory_order_acquire);
+    memory_operation_sync_state = MemoryOperationSyncState::None;
+}
+
+bool DmaPusher::CanSkipCleanMemoryOperationSync(const CommandListHeader & header) const
+{
+    // The actual fetch must still resolve writes that can appear after this look-ahead probe.
+    if (!Settings::UseSafeDMAReads() || header.size == 0 || header.conditional_fetch)
+    {
+        return false;
+    }
+
+    return !memory_manager.IsMemoryDirty(header.Address(), header.size * sizeof(u32));
 }
 
 void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)

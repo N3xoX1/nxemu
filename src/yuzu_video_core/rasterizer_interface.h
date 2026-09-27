@@ -68,6 +68,9 @@ public:
     /// Signal a GPU based semaphore as a fence
     virtual void SignalFence(std::function<void()>&& func) = 0;
 
+    /// Arm an explicit memory-operation synchronization fence without blocking the DMA pusher.
+    virtual void SignalMemoryOperationFence(std::function<void()>&& func) = 0;
+
     /// Signal a fence and wait for its deferred synchronization operations to complete.
     virtual void WaitForFence() = 0;
 

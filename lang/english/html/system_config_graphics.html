@@ -71,8 +71,8 @@
         <div class="right"><ComboBox id="DMAAccuracy" tooltip="Controls the DMA read mode.\nUnsafe is faster, while Safe is more stable and can fix issues in some games.\nDefault follows the GPU Accuracy setting."/></div>
       </div>
       <div class="form-row checkbox-row">
-        <div class="left"><label for="SyncMemoryOperations">Sync Memory Operations</label></div>
-        <div class="right"><input type="checkbox" id="SyncMemoryOperations" tooltip="Ensures data consistency between compute and memory operations.\nThis option fixes issues in games, but may degrade performance.\nUnreal Engine 4 games often see the most significant changes thereof."></div>
+        <div class="left"><label for="GpuCommandSynchronization">GPU Command Synchronization</label></div>
+        <div class="right"><input type="checkbox" id="GpuCommandSynchronization" tooltip="Preserves guest-requested GPFIFO command ordering.\nClean command buffers avoid unnecessary GPU stalls, while command buffers that may depend on GPU-written memory are synchronized conservatively.\nDisabling this option ignores these guest synchronization requests and may cause graphical issues, hangs, or crashes."></div>
       </div>
       <div class="form-row">
         <div class="left"><label for="AnisotropicFiltering">Anisotropic Filtering:</label></div>

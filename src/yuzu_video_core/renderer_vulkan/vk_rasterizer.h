@@ -107,6 +107,7 @@ public:
     void UnmapMemory(DAddr addr, u64 size) override;
     void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size) override;
     void SignalFence(std::function<void()>&& func) override;
+    void SignalMemoryOperationFence(std::function<void()>&& func) override;
     void WaitForFence() override;
     void SyncOperation(std::function<void()>&& func) override;
     void SignalSyncPoint(u32 value) override;

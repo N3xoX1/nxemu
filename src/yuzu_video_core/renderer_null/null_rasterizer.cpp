@@ -66,6 +66,9 @@ void RasterizerNull::ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size) {}
 void RasterizerNull::SignalFence(std::function<void()>&& func) {
     func();
 }
+void RasterizerNull::SignalMemoryOperationFence(std::function<void()>&& func) {
+    func();
+}
 void RasterizerNull::WaitForFence() {}
 void RasterizerNull::SyncOperation(std::function<void()>&& func) {
     func();

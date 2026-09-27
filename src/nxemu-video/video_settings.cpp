@@ -16,7 +16,7 @@ namespace
 {
 // Configuration storage stays on the settings thread; the GPU reads these snapshots.
 std::atomic<int32_t> runtime_dma_accuracy{0};
-std::atomic<bool> runtime_sync_memory_operations{true};
+std::atomic<bool> runtime_gpu_command_synchronization{true};
 }
 
 namespace Settings
@@ -54,9 +54,9 @@ bool UseSafeDMAReads()
     return accuracy == 0 ? IsGPULevelHigh() : accuracy == 2;
 }
 
-bool IsSyncMemoryOperationsEnabled()
+bool IsGpuCommandSynchronizationEnabled()
 {
-    return runtime_sync_memory_operations.load(std::memory_order_relaxed);
+    return runtime_gpu_command_synchronization.load(std::memory_order_relaxed);
 }
 
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info)
@@ -243,7 +243,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Automatic},
 #endif
     {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2},
-    {NXVideoSetting::SyncMemoryOperations, "video", "sync_memory_operations", &videoSettings.sync_memory_operations, true},
+    {NXVideoSetting::GpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, true},
     {NXVideoSetting::VSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu},
 #ifdef _WIN32
@@ -345,9 +345,9 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
             runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
             return;
         }
-        if (strcmp(setting, NXVideoSetting::SyncMemoryOperations) == 0)
+        if (strcmp(setting, NXVideoSetting::GpuCommandSynchronization) == 0)
         {
-            runtime_sync_memory_operations.store(videoSettings.sync_memory_operations, std::memory_order_relaxed);
+            runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
             return;
         }
     }
@@ -618,7 +618,7 @@ void SetupVideoSetting(void)
         g_settings->RegisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
     }
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
-    runtime_sync_memory_operations.store(videoSettings.sync_memory_operations, std::memory_order_relaxed);
+    runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();
     Settings::UpdateGPUAccuracy();
 }
