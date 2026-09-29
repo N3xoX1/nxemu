@@ -682,8 +682,15 @@ bool SciterMainWindow::Show()
     if (interfacePtr)
     {
         m_romBrowser = std::static_pointer_cast<IRomBrowser>(interfacePtr);
-        m_romBrowser->SetMainWindow(this, &m_modules.Modules());
-        m_romBrowser->PopulateAsync();
+        if (m_modules.IsValid())
+        {
+            m_romBrowser->SetMainWindow(this, &m_modules.Modules());
+            m_romBrowser->PopulateAsync();
+        }
+        else
+        {
+            m_romBrowser->SetMainWindow(this, nullptr);
+        }
     }
 
     if (!uiSettings.hasBrokenVulkan)
@@ -729,11 +736,21 @@ void SciterMainWindow::LoadGame(const char * path, int32_t program_index, Applic
     std::deque<std::vector<uint8_t>> pendingUserChannel = std::move(m_pendingUserChannel);
     m_pendingUserChannel.clear();
 
+    if (m_romBrowser)
+    {
+        m_romBrowser->StopScan();
+        m_romBrowser->SetMainWindow(this, nullptr);
+    }
+
     m_modules.Setup(*this);
     if (!m_modules.IsValid())
     {
         Notification::GetInstance().DisplayError("Required modules failed to load.", "Error loading file");
         return;
+    }
+    if (m_romBrowser)
+    {
+        m_romBrowser->SetMainWindow(this, &m_modules.Modules());
     }
     RegisterApplets();
     RegisterSystemCallbacks();
@@ -1128,6 +1145,10 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
         if (impl->m_reloadingGame)
         {
             return;
+        }
+        if (impl->m_romBrowser && impl->m_modules.IsValid())
+        {
+            impl->m_romBrowser->PopulateAsync();
         }
         impl->m_rootElement.PostEvent(EVENT_EMULATION_STOPPED);
     }
