@@ -244,11 +244,18 @@ Result IApplicationFunctions::GetDisplayVersion(Out<DisplayVersion> out_display_
     R_SUCCEED();
 }
 
-Result IApplicationFunctions::ExtendSaveData(Out<u64> out_required_size, SaveDataType type, Common::UUID user_id, u64 normal_size, u64 journal_size)
+Result IApplicationFunctions::ExtendSaveData(Out<u64> out_required_size,
+                                              SaveDataSizeRequest request, u64 normal_size,
+                                              u64 journal_size)
 {
-    LOG_DEBUG(Service_AM, "called with type={} user_id={} normal={:#x} journal={:#x}", static_cast<u8>(type), user_id.FormattedString(), normal_size, journal_size);
+    LOG_DEBUG(Service_AM, "called with type={} user_id={} normal={:#x} journal={:#x}",
+              static_cast<u8>(request.type), request.user_id.FormattedString(), normal_size,
+              journal_size);
 
-    UNIMPLEMENTED();
+    ISaveDataControllerPtr(system.GetSystemloader().FileSystemController().OpenSaveDataController())
+        ->WriteSaveDataSize(request.type, m_applet->program_id, request.user_id.AsU128(),
+                            {normal_size, journal_size});
+
     // The following value is used to indicate the amount of space remaining on failure
     // due to running out of space. Since we always succeed, this should be 0.
     *out_required_size = 0;
@@ -256,11 +263,19 @@ Result IApplicationFunctions::ExtendSaveData(Out<u64> out_required_size, SaveDat
     R_SUCCEED();
 }
 
-Result IApplicationFunctions::GetSaveDataSize(Out<u64> out_normal_size, Out<u64> out_journal_size, SaveDataType type, Common::UUID user_id)
+Result IApplicationFunctions::GetSaveDataSize(Out<u64> out_normal_size,
+                                               Out<u64> out_journal_size,
+                                               SaveDataSizeRequest request)
 {
-    LOG_DEBUG(Service_AM, "called with type={} user_id={}", type, user_id.FormattedString());
+    LOG_DEBUG(Service_AM, "called with type={} user_id={}", static_cast<u8>(request.type),
+              request.user_id.FormattedString());
 
-    UNIMPLEMENTED();
+    const auto size =
+        ISaveDataControllerPtr(system.GetSystemloader().FileSystemController().OpenSaveDataController())
+            ->ReadSaveDataSize(request.type, m_applet->program_id, request.user_id.AsU128());
+
+    *out_normal_size = size.normal;
+    *out_journal_size = size.journal;
     R_SUCCEED();
 }
 
@@ -285,7 +300,17 @@ Result IApplicationFunctions::GetSaveDataSizeMax(Out<u64> out_max_normal_size,
 Result IApplicationFunctions::GetCacheStorageMax(Out<u32> out_cache_storage_index_max, Out<u64> out_max_journal_size)
 {
     LOG_DEBUG(Service_AM, "called");
-    UNIMPLEMENTED();
+
+    ISystemloader& loader = system.GetSystemloader();
+    IFileSysNACPPtr metadata(loader.GetPMControlMetadata(m_applet->program_id));
+    if (!metadata)
+    {
+        metadata = loader.GetPMControlMetadata(FileSys::GetUpdateTitleID(m_applet->program_id));
+    }
+    R_UNLESS(metadata, FileSys::ResultTargetNotFound);
+
+    *out_cache_storage_index_max = static_cast<u32>(metadata->GetCacheStorageMaxIndex());
+    *out_max_journal_size = metadata->GetCacheStorageDataAndJournalMaxSize();
 
     R_SUCCEED();
 }

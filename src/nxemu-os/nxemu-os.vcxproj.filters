@@ -897,13 +897,25 @@
     <ClInclude Include="core\hle\service\am\applet_manager.h">
       <Filter>Header Files\core\hle\service\am</Filter>
     </ClInclude>
-    <ClInclude Include="core\hle\service\am\applet_message_queue.h">
+    <ClInclude Include="core\hle\service\am\event_observer.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\hid_registration.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\process_holder.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\window_system.h">
       <Filter>Header Files\core\hle\service\am</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\display_layer_manager.h">
       <Filter>Header Files\core\hle\service\am</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\library_applet_storage.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\lifecycle_manager.h">
       <Filter>Header Files\core\hle\service\am</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\process.h">
@@ -934,6 +946,9 @@
       <Filter>Header Files\core\hle\service\am\frontend</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\service\all_system_applet_proxies_service.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\applet_alternative_functions.h">
       <Filter>Header Files\core\hle\service\am\service</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\service\applet_common_functions.h">
@@ -990,6 +1005,12 @@
     <ClInclude Include="core\hle\service\am\service\lock_accessor.h">
       <Filter>Header Files\core\hle\service\am\service</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\overlay_applet_proxy.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\overlay_functions.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
     <ClInclude Include="core\hle\service\am\service\process_winding_controller.h">
       <Filter>Header Files\core\hle\service\am\service</Filter>
     </ClInclude>
@@ -1003,6 +1024,9 @@
       <Filter>Header Files\core\hle\service\am\service</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\service\system_applet_proxy.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\system_process_common_functions.h">
       <Filter>Header Files\core\hle\service\am\service</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\service\window_controller.h">
@@ -2467,19 +2491,28 @@
     <ClCompile Include="core\hle\service\am\applet_data_broker.cpp">
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
-    <ClCompile Include="core\hle\service\am\applet_message_queue.cpp">
-      <Filter>Source Files\core\hle\service\am</Filter>
-    </ClCompile>
     <ClCompile Include="core\hle\service\am\display_layer_manager.cpp">
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\library_applet_storage.cpp">
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
+    <ClCompile Include="core\hle\service\am\lifecycle_manager.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
     <ClCompile Include="core\hle\service\am\applet_manager.cpp">
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
+    <ClCompile Include="core\hle\service\am\event_observer.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\window_system.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
     <ClCompile Include="core\hle\service\am\process.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\process_holder.cpp">
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\applet.cpp">
@@ -2504,6 +2537,9 @@
       <Filter>Source Files\core\hle\service\am\frontend</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\service\all_system_applet_proxies_service.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\applet_alternative_functions.cpp">
       <Filter>Source Files\core\hle\service\am\service</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\service\applet_common_functions.cpp">
@@ -2551,6 +2587,12 @@
     <ClCompile Include="core\hle\service\am\service\lock_accessor.cpp">
       <Filter>Source Files\core\hle\service\am\service</Filter>
     </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\overlay_applet_proxy.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\overlay_functions.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
     <ClCompile Include="core\hle\service\am\service\process_winding_controller.cpp">
       <Filter>Source Files\core\hle\service\am\service</Filter>
     </ClCompile>
@@ -2561,6 +2603,9 @@
       <Filter>Source Files\core\hle\service\am\service</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\service\system_applet_proxy.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\system_process_common_functions.cpp">
       <Filter>Source Files\core\hle\service\am\service</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\service\library_applet_creator.cpp">

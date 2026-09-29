@@ -58,10 +58,12 @@ public:
     }
 
     bool IsCompleted() const {
+        std::scoped_lock lk{lock};
         return is_completed;
     }
 
-    void SignalCompletion();
+    void SetCallerApplet(std::weak_ptr<Applet> caller, std::weak_ptr<Applet> child);
+    void SignalCompletion(bool notify_window_system = true);
 
 private:
     Core::System& system;
@@ -73,8 +75,10 @@ private:
     AppletStorageChannel interactive_out_data;
     Event state_changed_event;
 
-    std::mutex lock;
+    mutable std::mutex lock;
     bool is_completed;
+    std::weak_ptr<Applet> caller_applet{};
+    std::weak_ptr<Applet> child_applet{};
 };
 
 } // namespace Service::AM

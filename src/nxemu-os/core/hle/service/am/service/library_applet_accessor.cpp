@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/hle/service/am/applet_data_broker.h"
+#include "core/hle/service/am/am_results.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/am/service/library_applet_accessor.h"
 #include "core/hle/service/am/service/storage.h"
+#include "core/hle/service/am/window_system.h"
 #include "core/hle/service/cmif_serialization.h"
 
 namespace Service::AM {
@@ -37,6 +39,7 @@ ILibraryAppletAccessor::ILibraryAppletAccessor(Core::System& system_,
         {120, nullptr, "GetLibraryAppletInfo"},
         {150, nullptr, "RequestForAppletToGetForeground"},
         {160, D<&ILibraryAppletAccessor::GetIndirectLayerConsumerHandle>, "GetIndirectLayerConsumerHandle"},
+        {170, D<&ILibraryAppletAccessor::Unknown170>, "Unknown170"}, //22.0.0+
     };
     // clang-format on
 
@@ -58,10 +61,10 @@ Result ILibraryAppletAccessor::IsCompleted(Out<bool> out_is_completed) {
     R_SUCCEED();
 }
 
-Result ILibraryAppletAccessor::GetResult(Out<Result> out_result) {
+Result ILibraryAppletAccessor::GetResult() {
     LOG_DEBUG(Service_AM, "called");
-    *out_result = m_applet->terminate_result;
-    R_SUCCEED();
+    std::scoped_lock lk{m_applet->lock};
+    R_RETURN(m_applet->terminate_result);
 }
 
 Result ILibraryAppletAccessor::PresetLibraryAppletGpuTimeSliceZero() {
@@ -80,22 +83,39 @@ Result ILibraryAppletAccessor::Unknown90(u64 arg0, u64 arg1, u64 arg2, u64 arg3)
 
 Result ILibraryAppletAccessor::Start() {
     LOG_DEBUG(Service_AM, "called");
+
     m_applet->process->Run();
+    system.GetAppletManager().GetWindowSystem().NotifyAppletStarted(*m_applet);
     FrontendExecute();
     R_SUCCEED();
 }
 
 Result ILibraryAppletAccessor::RequestExit() {
     LOG_DEBUG(Service_AM, "called");
-    m_applet->message_queue.RequestExit();
+    {
+        std::scoped_lock lk{m_applet->lock};
+        m_applet->lifecycle_manager.RequestExit();
+        m_applet->SetInteractibleLocked(m_applet->is_pad_interactible,
+                                        m_applet->is_touch_interactible);
+        m_applet->UpdateSuspensionStateLocked(true);
+    }
+    system.GetAppletManager().GetWindowSystem().NotifyAppletStateChanged();
     FrontendRequestExit();
     R_SUCCEED();
 }
 
 Result ILibraryAppletAccessor::Terminate() {
     LOG_DEBUG(Service_AM, "called");
+    {
+        std::scoped_lock lk{m_applet->lock};
+        m_applet->terminate_result = AM::ResultLibraryAppletTerminated;
+    }
     m_applet->process->Terminate();
+    system.GetAppletManager().GetWindowSystem().NotifyAppletStopped(*m_applet);
     FrontendRequestExit();
+    if (m_applet->frontend) {
+        m_broker->SignalCompletion();
+    }
     R_SUCCEED();
 }
 
@@ -141,6 +161,12 @@ Result ILibraryAppletAccessor::GetIndirectLayerConsumerHandle(Out<u64> out_handl
     // We require a non-zero handle to be valid. Using 0xdeadbeef allows us to trace if this is
     // actually used anywhere
     *out_handle = 0xdeadbeef;
+    R_SUCCEED();
+}
+
+Result ILibraryAppletAccessor::Unknown170(OutCopyHandle<Kernel::KReadableEvent> out_event) {
+    LOG_WARNING(Service_AM, "(STUBBED) called");
+    *out_event = m_applet->unknown_event.GetHandle();
     R_SUCCEED();
 }
 

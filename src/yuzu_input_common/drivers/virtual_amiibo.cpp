@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <algorithm>
 #include <cstring>
 #include <fmt/format.h>
 
@@ -206,7 +207,7 @@ VirtualAmiibo::Info VirtualAmiibo::LoadAmiibo(std::span<u8> data) {
     case AmiiboSize:
     case AmiiboSizeWithoutPassword:
     case AmiiboSizeWithSignature:
-        nfc_data.resize(AmiiboSize);
+        nfc_data.assign(AmiiboSize, 0);
         status.tag_type = 1U << 1;
         status.uuid_length = 7;
         break;
@@ -223,7 +224,8 @@ VirtualAmiibo::Info VirtualAmiibo::LoadAmiibo(std::span<u8> data) {
     status.protocol = 1;
     state = State::TagNearby;
     status.state = Common::Input::NfcState::NewAmiibo,
-    memcpy(nfc_data.data(), data.data(), data.size_bytes());
+    // Keep the tag buffer bounded; shorter files remain zero-padded.
+    memcpy(nfc_data.data(), data.data(), std::min(nfc_data.size(), data.size_bytes()));
     memcpy(status.uuid.data(), nfc_data.data(), status.uuid_length);
     SetNfc(identifier, status);
     return Info::Success;

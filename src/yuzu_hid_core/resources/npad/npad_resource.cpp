@@ -288,6 +288,7 @@ Result NPadResource::GetMaskedSupportedNpadStyleSet(NpadStyleSet& out_style_set,
                (uint32_t)NpadStyleSet::SystemExt | (uint32_t)NpadStyleSet::System);
         break;
     case NpadRevision::Revision3:
+    case NpadRevision::Revision5:
         mask = (NpadStyleSet)((uint32_t)NpadStyleSet::Fullkey | (uint32_t)NpadStyleSet::Handheld |
                (uint32_t)NpadStyleSet::JoyDual | (uint32_t)NpadStyleSet::JoyLeft |
                (uint32_t)NpadStyleSet::JoyRight | (uint32_t)NpadStyleSet::Gc |
@@ -338,6 +339,7 @@ Result NPadResource::GetAvailableStyleset(NpadStyleSet& out_style_set, u64 aruid
                (uint32_t)NpadStyleSet::SystemExt | (uint32_t)NpadStyleSet::System);
         break;
     case NpadRevision::Revision3:
+    case NpadRevision::Revision5:
         mask = (NpadStyleSet)((uint32_t)NpadStyleSet::Fullkey | (uint32_t)NpadStyleSet::Handheld |
                (uint32_t)NpadStyleSet::JoyDual | (uint32_t)NpadStyleSet::JoyLeft |
                (uint32_t)NpadStyleSet::JoyRight | (uint32_t)NpadStyleSet::Gc |

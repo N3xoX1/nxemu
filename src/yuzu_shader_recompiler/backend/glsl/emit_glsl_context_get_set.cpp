@@ -426,6 +426,10 @@ void EmitInvocationInfo(EmitContext& ctx, IR::Inst& inst) {
     case Stage::TessellationEval:
         ctx.AddU32("{}=uint(gl_PatchVerticesIn)<<16;", inst);
         break;
+    case Stage::Geometry:
+        ctx.AddU32("{}=uint({}<<16);", inst,
+                   InputTopologyVertices::vertices(ctx.runtime_info.input_topology));
+        break;
     default:
         LOG_WARNING(Shader, "(STUBBED) called");
         ctx.AddU32("{}=uint(0x00ff0000);", inst);

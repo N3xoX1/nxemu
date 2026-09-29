@@ -6,7 +6,9 @@
 #include "core/core.h"
 #include "core/hle/service/am/am_results.h"
 #include "core/hle/service/am/applet_data_broker.h"
+#include "core/hle/service/am/applet.h"
 #include "core/hle/service/am/applet_manager.h"
+#include "core/hle/service/am/window_system.h"
 
 namespace Service::AM {
 
@@ -49,7 +51,16 @@ AppletDataBroker::AppletDataBroker(Core::System& system_)
 
 AppletDataBroker::~AppletDataBroker() = default;
 
-void AppletDataBroker::SignalCompletion() {
+
+void AppletDataBroker::SetCallerApplet(std::weak_ptr<Applet> caller, std::weak_ptr<Applet> child) {
+    std::scoped_lock lk{lock};
+    caller_applet = std::move(caller);
+    child_applet = std::move(child);
+}
+
+void AppletDataBroker::SignalCompletion(bool notify_window_system) {
+    std::weak_ptr<Applet> caller_applet_copy;
+    std::weak_ptr<Applet> child_applet_copy;
     {
         std::scoped_lock lk{lock};
 
@@ -59,9 +70,26 @@ void AppletDataBroker::SignalCompletion() {
 
         is_completed = true;
         state_changed_event.Signal();
+        caller_applet_copy = caller_applet;
+        child_applet_copy = child_applet;
     }
 
-    system.GetAppletManager().FocusStateChanged();
+    const auto child = child_applet_copy.lock();
+
+    if (auto caller = caller_applet_copy.lock(); caller) {
+        std::scoped_lock caller_lk{caller->lock};
+        if (child) {
+            caller->child_applets.remove(child);
+        }
+    }
+
+    if (notify_window_system) {
+        if (child) {
+            system.GetAppletManager().GetWindowSystem().NotifyAppletStopped(*child);
+        } else {
+            system.GetAppletManager().GetWindowSystem().NotifyAppletStateChanged();
+        }
+    }
 }
 
 } // namespace Service::AM

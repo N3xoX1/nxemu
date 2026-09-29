@@ -45,7 +45,7 @@ void TranslatorVisitor::ISBERD(u64 insn) {
     if (isberd.shift != Shift::Default) {
         throw NotImplementedException("Shift {}", isberd.shift.Value());
     }
-    LOG_WARNING(Shader, "(STUBBED) called");
+    LOG_DEBUG(Shader, "ISBERD: using offset propagation approximation");
     X(isberd.dest_reg, X(isberd.src_reg));
 }
 

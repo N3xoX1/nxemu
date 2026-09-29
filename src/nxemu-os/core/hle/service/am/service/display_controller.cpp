@@ -5,6 +5,7 @@
 #include "core/hle/service/am/applet.h"
 #include "core/hle/service/am/service/display_controller.h"
 #include "core/hle/service/cmif_serialization.h"
+#include "core/hle/service/vi/shared_buffer_manager.h"
 
 namespace Service::AM {
 
@@ -61,16 +62,16 @@ Result IDisplayController::TakeScreenShotOfOwnLayer(bool unknown0, s32 fbshare_l
 }
 
 Result IDisplayController::ClearCaptureBuffer(bool unknown0, s32 fbshare_layer_index, u32 color) {
-    LOG_WARNING(Service_AM, "(STUBBED) called, unknown0={} fbshare_layer_index={} color={:#x}",
-                unknown0, fbshare_layer_index, color);
-    R_SUCCEED();
+    LOG_DEBUG(Service_AM, "called, unknown0={} fbshare_layer_index={} color={:#x}", unknown0,
+              fbshare_layer_index, color);
+    R_RETURN(applet->display_layer_manager.ClearAppletCaptureBuffer(fbshare_layer_index, color));
 }
 
 Result IDisplayController::AcquireLastForegroundCaptureSharedBuffer(
     Out<bool> out_was_written, Out<s32> out_fbshare_layer_index) {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
-    R_RETURN(applet->display_layer_manager.WriteAppletCaptureBuffer(out_was_written,
-                                                                    out_fbshare_layer_index));
+    LOG_DEBUG(Service_AM, "called");
+    R_RETURN(applet->display_layer_manager.WriteAppletCaptureBuffer(
+        out_was_written, out_fbshare_layer_index, VI::CaptureKind::LastForeground));
 }
 
 Result IDisplayController::ReleaseLastForegroundCaptureSharedBuffer() {
@@ -80,9 +81,9 @@ Result IDisplayController::ReleaseLastForegroundCaptureSharedBuffer() {
 
 Result IDisplayController::AcquireCallerAppletCaptureSharedBuffer(
     Out<bool> out_was_written, Out<s32> out_fbshare_layer_index) {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
-    R_RETURN(applet->display_layer_manager.WriteAppletCaptureBuffer(out_was_written,
-                                                                    out_fbshare_layer_index));
+    LOG_DEBUG(Service_AM, "called");
+    R_RETURN(applet->display_layer_manager.WriteAppletCaptureBuffer(
+        out_was_written, out_fbshare_layer_index, VI::CaptureKind::CallerApplet));
 }
 
 Result IDisplayController::ReleaseCallerAppletCaptureSharedBuffer() {
@@ -92,9 +93,9 @@ Result IDisplayController::ReleaseCallerAppletCaptureSharedBuffer() {
 
 Result IDisplayController::AcquireLastApplicationCaptureSharedBuffer(
     Out<bool> out_was_written, Out<s32> out_fbshare_layer_index) {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
-    R_RETURN(applet->display_layer_manager.WriteAppletCaptureBuffer(out_was_written,
-                                                                    out_fbshare_layer_index));
+    LOG_DEBUG(Service_AM, "called");
+    R_RETURN(applet->display_layer_manager.WriteAppletCaptureBuffer(
+        out_was_written, out_fbshare_layer_index, VI::CaptureKind::LastApplication));
 }
 
 Result IDisplayController::ReleaseLastApplicationCaptureSharedBuffer() {

@@ -11,6 +11,7 @@ namespace Service::AM {
 
 struct Applet;
 class ILibraryAppletAccessor;
+class IStorage;
 
 class IProcessWindingController final : public ServiceFramework<IProcessWindingController> {
 public:
@@ -21,6 +22,8 @@ private:
     Result GetLaunchReason(Out<AppletProcessLaunchReason> out_launch_reason);
     Result OpenCallingLibraryApplet(
         Out<SharedPointer<ILibraryAppletAccessor>> out_calling_library_applet);
+    Result PushContext(SharedPointer<IStorage> context);
+    Result PopContext(Out<SharedPointer<IStorage>> out_context);
 
     const std::shared_ptr<Applet> m_applet;
 };

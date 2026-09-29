@@ -43,6 +43,13 @@ enum class AccessLogMode : u32 {
     SdCard,
 };
 
+struct CreateSaveDataFileSystemRequest {
+    SaveDataAttribute attribute;
+    FileSys::SaveDataCreationInfo creation_info;
+    FileSys::SaveDataMetaInfo meta_info;
+};
+static_assert(sizeof(CreateSaveDataFileSystemRequest) == 0x90);
+
 class FSP_SRV final : public ServiceFramework<FSP_SRV> {
 public:
     explicit FSP_SRV(Core::System & system_);
@@ -53,7 +60,7 @@ private:
     Result OpenFileSystemWithPatch(OutInterface<IFileSystem> out_interface, FileSystemProxyType type, u64 open_program_id);
     Result OpenSdCardFileSystem(OutInterface<IFileSystem> out_interface);
     Result IsExFatSupported(Out<bool> out_is_supported);
-    Result CreateSaveDataFileSystem(FileSys::SaveDataCreationInfo save_create_struct, SaveDataAttribute save_struct, u128 uid);
+    Result CreateSaveDataFileSystem(CreateSaveDataFileSystemRequest request);
     Result CreateSaveDataFileSystemBySystemSaveDataId(SaveDataAttribute save_struct, FileSys::SaveDataCreationInfo save_create_struct);
     Result OpenSaveDataFileSystem(OutInterface<IFileSystem> out_interface, SaveDataSpaceId space_id, SaveDataAttribute attribute);
     Result OpenSaveDataFileSystemBySystemSaveDataId(OutInterface<IFileSystem> out_interface, SaveDataSpaceId space_id, SaveDataAttribute attribute);

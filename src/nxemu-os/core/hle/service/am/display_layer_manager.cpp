@@ -142,10 +142,17 @@ bool DisplayLayerManager::GetWindowVisibility() const {
 }
 
 Result DisplayLayerManager::WriteAppletCaptureBuffer(bool* out_was_written,
-                                                     s32* out_fbshare_layer_index) {
+                                                     s32* out_fbshare_layer_index,
+                                                     VI::CaptureKind kind) {
     R_UNLESS(m_buffer_sharing_enabled, VI::ResultPermissionDenied);
     R_RETURN(m_display_service->GetContainer()->GetSharedBufferManager()->WriteAppletCaptureBuffer(
-        out_was_written, out_fbshare_layer_index));
+        out_was_written, out_fbshare_layer_index, kind));
+}
+
+Result DisplayLayerManager::ClearAppletCaptureBuffer(s32 fbshare_layer_index, u32 color) {
+    R_UNLESS(m_buffer_sharing_enabled, VI::ResultPermissionDenied);
+    R_RETURN(m_display_service->GetContainer()->GetSharedBufferManager()->ClearAppletCaptureBuffer(
+        fbshare_layer_index, color));
 }
 
 } // namespace Service::AM

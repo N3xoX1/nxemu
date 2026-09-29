@@ -362,7 +362,7 @@ bool VfsDirectory::DeleteSubdirectoryRecursive(std::string_view name) {
 
     bool success = true;
     for (const auto& file : dir->GetFiles()) {
-        if (!DeleteFile(file->GetName())) {
+        if (!dir->DeleteFile(file->GetName())) {
             success = false;
         }
     }
@@ -371,6 +371,10 @@ bool VfsDirectory::DeleteSubdirectoryRecursive(std::string_view name) {
         if (!dir->DeleteSubdirectoryRecursive(sdir->GetName())) {
             success = false;
         }
+    }
+
+    if (success && !DeleteSubdirectory(name)) {
+        success = false;
     }
 
     return success;

@@ -40,7 +40,7 @@
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\external\boost\stage\lib\libboost_context-vc143-mt-s-x64-1_87.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\external\boost\stage\lib\libboost_context-vc143-mt-sgd-x64-1_87.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies>ntdll.lib;Iphlpapi.lib;winmm.lib;ksuser.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ntdll.lib;Iphlpapi.lib;winmm.lib;ksuser.lib;crypt32.lib;secur32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -330,10 +330,13 @@
     <ClCompile Include="core\hle\service\am\applet.cpp" />
     <ClCompile Include="core\hle\service\am\applet_data_broker.cpp" />
     <ClCompile Include="core\hle\service\am\applet_manager.cpp" />
-    <ClCompile Include="core\hle\service\am\applet_message_queue.cpp" />
+    <ClCompile Include="core\hle\service\am\event_observer.cpp" />
+    <ClCompile Include="core\hle\service\am\window_system.cpp" />
     <ClCompile Include="core\hle\service\am\display_layer_manager.cpp" />
     <ClCompile Include="core\hle\service\am\library_applet_storage.cpp" />
+    <ClCompile Include="core\hle\service\am\lifecycle_manager.cpp" />
     <ClCompile Include="core\hle\service\am\process.cpp" />
+    <ClCompile Include="core\hle\service\am\process_holder.cpp" />
     <ClCompile Include="core\hle\service\am\frontend\applets.cpp" />
     <ClCompile Include="core\hle\service\am\frontend\applet_cabinet.cpp" />
     <ClCompile Include="core\hle\service\am\frontend\applet_controller.cpp" />
@@ -341,6 +344,7 @@
     <ClCompile Include="core\hle\service\am\frontend\applet_general.cpp" />
     <ClCompile Include="core\hle\service\am\frontend\applet_profile_select.cpp" />
     <ClCompile Include="core\hle\service\am\service\all_system_applet_proxies_service.cpp" />
+    <ClCompile Include="core\hle\service\am\service\applet_alternative_functions.cpp" />
     <ClCompile Include="core\hle\service\am\service\applet_common_functions.cpp" />
     <ClCompile Include="core\hle\service\am\service\application_accessor.cpp" />
     <ClCompile Include="core\hle\service\am\service\application_creator.cpp" />
@@ -359,11 +363,14 @@
     <ClCompile Include="core\hle\service\am\service\library_applet_proxy.cpp" />
     <ClCompile Include="core\hle\service\am\service\library_applet_self_accessor.cpp" />
     <ClCompile Include="core\hle\service\am\service\lock_accessor.cpp" />
+    <ClCompile Include="core\hle\service\am\service\overlay_applet_proxy.cpp" />
+    <ClCompile Include="core\hle\service\am\service\overlay_functions.cpp" />
     <ClCompile Include="core\hle\service\am\service\process_winding_controller.cpp" />
     <ClCompile Include="core\hle\service\am\service\self_controller.cpp" />
     <ClCompile Include="core\hle\service\am\service\storage.cpp" />
     <ClCompile Include="core\hle\service\am\service\storage_accessor.cpp" />
     <ClCompile Include="core\hle\service\am\service\system_applet_proxy.cpp" />
+    <ClCompile Include="core\hle\service\am\service\system_process_common_functions.cpp" />
     <ClCompile Include="core\hle\service\am\service\window_controller.cpp" />
     <ClCompile Include="core\hle\service\aoc\addon_content_manager.cpp" />
     <ClCompile Include="core\hle\service\aoc\purchase_event_manager.cpp" />
@@ -816,9 +823,13 @@
     <ClInclude Include="core\hle\service\am\applet.h" />
     <ClInclude Include="core\hle\service\am\applet_data_broker.h" />
     <ClInclude Include="core\hle\service\am\applet_manager.h" />
-    <ClInclude Include="core\hle\service\am\applet_message_queue.h" />
+    <ClInclude Include="core\hle\service\am\event_observer.h" />
+    <ClInclude Include="core\hle\service\am\hid_registration.h" />
+    <ClInclude Include="core\hle\service\am\process_holder.h" />
+    <ClInclude Include="core\hle\service\am\window_system.h" />
     <ClInclude Include="core\hle\service\am\display_layer_manager.h" />
     <ClInclude Include="core\hle\service\am\library_applet_storage.h" />
+    <ClInclude Include="core\hle\service\am\lifecycle_manager.h" />
     <ClInclude Include="core\hle\service\am\process.h" />
     <ClInclude Include="core\hle\service\am\frontend\applets.h" />
     <ClInclude Include="core\hle\service\am\frontend\applet_cabinet.h" />
@@ -829,6 +840,7 @@
     <ClInclude Include="core\hle\service\am\frontend\applet_software_keyboard_types.h" />
     <ClInclude Include="core\hle\service\am\frontend\applet_web_browser_types.h" />
     <ClInclude Include="core\hle\service\am\service\all_system_applet_proxies_service.h" />
+    <ClInclude Include="core\hle\service\am\service\applet_alternative_functions.h" />
     <ClInclude Include="core\hle\service\am\service\applet_common_functions.h" />
     <ClInclude Include="core\hle\service\am\service\application_accessor.h" />
     <ClInclude Include="core\hle\service\am\service\application_creator.h" />
@@ -847,11 +859,14 @@
     <ClInclude Include="core\hle\service\am\service\library_applet_proxy.h" />
     <ClInclude Include="core\hle\service\am\service\library_applet_self_accessor.h" />
     <ClInclude Include="core\hle\service\am\service\lock_accessor.h" />
+    <ClInclude Include="core\hle\service\am\service\overlay_applet_proxy.h" />
+    <ClInclude Include="core\hle\service\am\service\overlay_functions.h" />
     <ClInclude Include="core\hle\service\am\service\process_winding_controller.h" />
     <ClInclude Include="core\hle\service\am\service\self_controller.h" />
     <ClInclude Include="core\hle\service\am\service\storage.h" />
     <ClInclude Include="core\hle\service\am\service\storage_accessor.h" />
     <ClInclude Include="core\hle\service\am\service\system_applet_proxy.h" />
+    <ClInclude Include="core\hle\service\am\service\system_process_common_functions.h" />
     <ClInclude Include="core\hle\service\am\service\window_controller.h" />
     <ClInclude Include="core\hle\service\aoc\addon_content_manager.h" />
     <ClInclude Include="core\hle\service\aoc\purchase_event_manager.h" />

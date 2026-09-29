@@ -119,6 +119,12 @@ public:
         R_RETURN(this->DoCleanDirectoryRecursively(path));
     }
 
+    Result GetFileTimeStampRaw(VirtualFileTimeStampRaw* out, const Path& path)
+    {
+        R_UNLESS(out != nullptr, ResultNullptrArgument);
+        R_RETURN(this->DoGetFileTimeStampRaw(out, path));
+    }
+
     Result QueryEntry(char * dst, size_t dst_size, const char * src, size_t src_size, QueryId query, const Path & path)
     {
         R_RETURN(this->DoQueryEntry(dst, dst_size, src, src_size, query, path));
@@ -161,14 +167,12 @@ private:
 
     Result DoDeleteDirectory(const Path & path)
     {
-        UNIMPLEMENTED();
-        R_SUCCEED();
+        R_RETURN(backend.DeleteDirectory(path.GetString()));
     }
 
     Result DoDeleteDirectoryRecursively(const Path & path)
     {
-        UNIMPLEMENTED();
-        R_SUCCEED();
+        R_RETURN(backend.DeleteDirectoryRecursively(path.GetString()));
     }
 
     Result DoRenameFile(const Path& old_path, const Path & new_path)
@@ -178,8 +182,7 @@ private:
 
     Result DoRenameDirectory(const Path& old_path, const Path & new_path)
     {
-        UNIMPLEMENTED();
-        R_SUCCEED();
+        R_RETURN(backend.RenameDirectory(old_path.GetString(), new_path.GetString()));
     }
 
     Result DoGetEntryType(DirectoryEntryType* out, const Path & path)
@@ -217,8 +220,12 @@ private:
 
     Result DoCleanDirectoryRecursively(const Path & path)
     {
-        UNIMPLEMENTED();
-        R_SUCCEED();
+        R_RETURN(backend.CleanDirectoryRecursively(path.GetString()));
+    }
+
+    Result DoGetFileTimeStampRaw(VirtualFileTimeStampRaw* out, const Path& path)
+    {
+        R_RETURN(backend.GetFileTimeStampRaw(out, path.GetString()));
     }
 
     Result DoQueryEntry(char * dst, size_t dst_size, const char * src, size_t src_size, QueryId query, const Path & path)

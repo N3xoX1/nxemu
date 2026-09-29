@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <cstring>
+
 #include "core/core_timing.h"
 #include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/am/applet_data_broker.h"
@@ -14,6 +17,8 @@
 #include "core/hle/service/ns/application_manager_interface.h"
 #include "core/hle/service/ns/service_getter_interface.h"
 #include "core/hle/service/sm/sm.h"
+#include <nxemu-module-spec/system_loader.h>
+#include <yuzu_common/fs/filesystem_interfaces.h>
 
 namespace Service::AM {
 
@@ -151,20 +156,34 @@ Result ILibraryAppletSelfAccessor::CanUseApplicationCore(Out<bool> out_can_use_a
 Result ILibraryAppletSelfAccessor::GetMainAppletApplicationControlProperty(
     OutLargeData<std::array<u8, 0x4000>, BufferAttr_HipcMapAlias> out_nacp) {
     LOG_WARNING(Service_AM, "(STUBBED) called");
-    UNIMPLEMENTED();
-    R_SUCCEED();
+
+    const auto application = GetCallerIdentity(*m_applet);
+    std::vector<u8> nacp;
+    const auto result = system.GetARPManager().GetControlProperty(&nacp, application.application_id);
+
+    if (R_SUCCEEDED(result)) {
+        std::memcpy(out_nacp->data(), nacp.data(), (std::min)(nacp.size(), out_nacp->size()));
+    }
+
+    R_RETURN(result);
 }
 
 Result ILibraryAppletSelfAccessor::GetMainAppletStorageId(Out<StorageId> out_storage_id) {
     LOG_INFO(Service_AM, "(STUBBED) called");
-    UNIMPLEMENTED();
+    *out_storage_id = StorageId::NandUser;
     R_SUCCEED();
 }
 
 Result ILibraryAppletSelfAccessor::ExitProcessAndReturn() {
     LOG_INFO(Service_AM, "called");
-    system.GetAppletManager().TerminateAndRemoveApplet(m_applet->aruid);
-    m_broker->SignalCompletion();
+
+    if (const auto caller_applet = m_applet->caller_applet.lock(); caller_applet) {
+        m_applet->process->Terminate();
+    } else {
+        system.GetUserChannel() = m_applet->user_channel_launch_parameter;
+        system.ExecuteProgram(0);
+    }
+
     R_SUCCEED();
 }
 
@@ -213,7 +232,31 @@ Result ILibraryAppletSelfAccessor::ReportVisibleErrorWithErrorContext(
 
 Result ILibraryAppletSelfAccessor::GetMainAppletApplicationDesiredLanguage(
     Out<u64> out_desired_language) {
-    UNIMPLEMENTED();
+    const auto application = GetCallerIdentity(*m_applet);
+    LOG_DEBUG(Service_AM, "called");
+
+    u32 supported_languages = 0;
+
+    ISystemloader& loader = system.GetSystemloader();
+    IFileSysNACPPtr metadata(loader.GetPMControlMetadata(application.application_id));
+    if (!metadata) {
+        metadata = loader.GetPMControlMetadata(application.application_id | 0x800);
+    }
+    if (metadata) {
+        supported_languages = metadata->GetSupportedLanguages();
+    }
+
+    auto& service_manager = system.ServiceManager();
+    auto ns_am2 = service_manager.GetService<NS::IServiceGetterInterface>("ns:am2");
+
+    std::shared_ptr<NS::IApplicationManagerInterface> app_man;
+    R_TRY(ns_am2->GetApplicationManagerInterface(&app_man));
+
+    NS::ApplicationLanguage desired_language{};
+    R_TRY(app_man->GetApplicationDesiredLanguage(&desired_language, supported_languages));
+    R_TRY(app_man->ConvertApplicationLanguageToLanguageCode(out_desired_language, desired_language));
+
+    LOG_DEBUG(Service_AM, "got desired_language={:016X}", *out_desired_language);
     R_SUCCEED();
 }
 

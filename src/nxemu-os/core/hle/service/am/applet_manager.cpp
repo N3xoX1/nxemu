@@ -9,10 +9,12 @@
 #include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/am/applet_data_broker.h"
 #include "core/hle/service/am/applet_manager.h"
+#include "core/hle/service/am/event_observer.h"
 #include "core/hle/service/am/frontend/applet_cabinet.h"
 #include "core/hle/service/am/frontend/applet_controller.h"
 #include "core/hle/service/am/frontend/applet_software_keyboard_types.h"
 #include "core/hle/service/am/service/storage.h"
+#include "core/hle/service/am/window_system.h"
 
 extern IModuleSettings * g_settings;
 
@@ -137,50 +139,50 @@ void PushInShowSoftwareKeyboard(Core::System& system, AppletStorageChannel& chan
 
 } // namespace
 
-AppletManager::AppletManager(Core::System& system) : m_system(system) {}
+AppletManager::AppletManager(Core::System& system)
+    : m_system(system), m_window_system(std::make_unique<WindowSystem>(system)) {}
+
 AppletManager::~AppletManager() {
     this->Reset();
 }
 
-void AppletManager::InsertApplet(std::shared_ptr<Applet> applet) {
-    std::scoped_lock lk{m_lock};
-
-    m_applets.emplace(applet->aruid, std::move(applet));
+void AppletManager::EnsureEventObserver() {
+    std::scoped_lock lk{m_event_observer_mutex};
+    if (!m_event_observer) {
+        m_event_observer = std::make_unique<EventObserver>(m_system, *m_window_system);
+    }
 }
 
-void AppletManager::TerminateAndRemoveApplet(AppletResourceUserId aruid) {
-    std::shared_ptr<Applet> applet;
-    bool should_stop = false;
-    {
-        std::scoped_lock lk{m_lock};
+void AppletManager::InsertApplet(std::shared_ptr<Applet> applet) {
+    EnsureEventObserver();
+    const bool is_application = applet->type == AppletType::Application;
+    m_window_system->TrackApplet(std::move(applet), is_application);
+}
 
-        const auto it = m_applets.find(aruid);
-        if (it == m_applets.end()) {
-            return;
-        }
-
-        applet = it->second;
-        m_applets.erase(it);
-
-        should_stop = m_applets.empty();
+void AppletManager::NotifyAppletStarted(AppletResourceUserId aruid) {
+    const auto applet = m_window_system->GetByAppletResourceUserId(aruid);
+    if (applet) {
+        m_window_system->NotifyAppletStarted(*applet);
     }
+}
 
-    // Terminate process.
-    applet->process->Terminate();
-
-    // If there were no applets left, stop emulation.
-    if (should_stop) {
-        m_system.Exit();
+bool AppletManager::EnsureHidRegistered(AppletResourceUserId aruid) {
+    const auto applet = m_window_system->GetByAppletResourceUserId(aruid);
+    if (!applet) {
+        return false;
     }
+    std::scoped_lock lk{applet->lock};
+    return applet->hid_registration.EnsureRegistered();
 }
 
 void AppletManager::CreateAndInsertByFrontendAppletParameters(
-    AppletResourceUserId aruid, const FrontendAppletParameters& params) {
-    // TODO: this should be run inside AM so that the events will have a parent process
-    // TODO: have am create the guest process
-    auto applet = std::make_shared<Applet>(m_system, std::make_unique<Process>(m_system));
+    AppletResourceUserId aruid, const FrontendAppletParameters& params,
+    Kernel::KProcess* lifecycle_process) {
+    auto applet = std::make_shared<Applet>(
+        m_system, std::make_unique<Process>(m_system), params.applet_id == AppletId::Application,
+        lifecycle_process);
 
-    applet->aruid = aruid;
+    applet->SetAppletResourceUserId(aruid);
     applet->program_id = params.program_id;
     applet->applet_id = params.applet_id;
     applet->type = params.applet_type;
@@ -236,60 +238,62 @@ void AppletManager::CreateAndInsertByFrontendAppletParameters(
         break;
     }
 
-    // Applet was started by frontend, so it is foreground.
-    applet->message_queue.PushMessage(AppletMessage::ChangeIntoForeground);
-    applet->message_queue.PushMessage(AppletMessage::FocusStateChanged);
-    applet->focus_state = FocusState::InFocus;
+    applet->lifecycle_manager.SetFocusState(FocusState::InFocus);
+    if (applet->applet_id == AppletId::QLaunch) {
+        applet->lifecycle_manager.SetFocusHandlingMode(false);
+        applet->lifecycle_manager.SetOutOfFocusSuspendingEnabled(false);
+    }
 
-    this->InsertApplet(std::move(applet));
+    const bool is_application = applet->applet_id != AppletId::QLaunch;
+    EnsureEventObserver();
+    m_window_system->TrackApplet(applet, is_application);
+    if (applet->applet_id == AppletId::QLaunch) {
+        m_window_system->RequestHomeMenuToGetForeground();
+    } else {
+        m_window_system->RequestApplicationToGetForeground();
+    }
 }
 
 std::shared_ptr<Applet> AppletManager::GetByAppletResourceUserId(AppletResourceUserId aruid) const {
-    std::scoped_lock lk{m_lock};
+    return m_window_system->GetByAppletResourceUserId(aruid);
+}
 
-    if (const auto it = m_applets.find(aruid); it != m_applets.end()) {
-        return it->second;
-    }
+std::shared_ptr<Applet> AppletManager::GetApplicationApplet() const {
+    return m_window_system->GetApplicationApplet();
+}
 
-    return {};
+void AppletManager::StopEventObserver() {
+    std::scoped_lock lk{m_event_observer_mutex};
+    m_event_observer.reset();
 }
 
 void AppletManager::Reset() {
-    std::scoped_lock lk{m_lock};
-
-    m_applets.clear();
+    StopEventObserver();
+    m_window_system->Reset();
 }
 
 void AppletManager::RequestExit() {
-    std::scoped_lock lk{m_lock};
-
-    for (const auto& [aruid, applet] : m_applets) {
-        applet->message_queue.RequestExit();
-    }
+    m_window_system->OnExitRequested();
 }
 
 void AppletManager::RequestResume() {
-    std::scoped_lock lk{m_lock};
-
-    for (const auto& [aruid, applet] : m_applets) {
-        applet->message_queue.RequestResume();
-    }
+    m_window_system->OnResumeRequested();
 }
 
 void AppletManager::OperationModeChanged() {
-    std::scoped_lock lk{m_lock};
-
-    for (const auto& [aruid, applet] : m_applets) {
-        applet->message_queue.OperationModeChanged();
-    }
+    m_window_system->OnOperationModeChanged();
 }
 
 void AppletManager::FocusStateChanged() {
-    std::scoped_lock lk{m_lock};
+    m_window_system->Update();
+}
 
-    for (const auto& [aruid, applet] : m_applets) {
-        applet->message_queue.FocusStateChanged();
-    }
+WindowSystem& AppletManager::GetWindowSystem() {
+    return *m_window_system;
+}
+
+const WindowSystem& AppletManager::GetWindowSystem() const {
+    return *m_window_system;
 }
 
 } // namespace Service::AM

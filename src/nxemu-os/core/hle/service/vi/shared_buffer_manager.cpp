@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <cstring>
 #include <random>
 
 #include "core/core.h"
@@ -35,13 +37,13 @@ Result AllocateSharedBufferMemory(std::unique_ptr<Kernel::KPageGroup>* out_page_
         Kernel::KMemoryManager::EncodeOption(Kernel::KMemoryManager::Pool::Secure,
                                              Kernel::KMemoryManager::Direction::FromBack)));
 
-    // Fill the output data with red.
+    // Initialize the shared buffer to transparent black.
     for (auto& block : *pg) {
         u32* start = system.DeviceMemory().GetPointer<u32>(block.GetAddress());
         u32* end = system.DeviceMemory().GetPointer<u32>(block.GetAddress() + block.GetSize());
 
         for (; start < end; start++) {
-            *start = 0xFF0000FF;
+            *start = 0x00000000;
         }
     }
 
@@ -162,6 +164,9 @@ constexpr u32 SharedBufferBlockLinearWidth = 1280;
 constexpr u32 SharedBufferBlockLinearHeight = 768;
 constexpr u32 SharedBufferBlockLinearStride =
     SharedBufferBlockLinearWidth * SharedBufferBlockLinearBpp;
+
+constexpr u32 SharedBufferNumCaptureSlots = 3;
+constexpr u32 SharedBufferSlotsPerSession = 2;
 constexpr u32 SharedBufferNumSlots = 7;
 
 constexpr u32 SharedBufferWidth = 1280;
@@ -186,7 +191,48 @@ constexpr SharedMemoryPoolLayout SharedBufferPoolLayout = [] {
     return layout;
 }();
 
-void MakeGraphicBuffer(android::BufferQueueProducer& producer, u32 slot, u32 handle) {
+constexpr u32 GetCaptureSlot(CaptureKind kind) {
+    return static_cast<u32>(kind);
+}
+static_assert(static_cast<u32>(CaptureKind::CallerApplet) + 1 == SharedBufferNumCaptureSlots);
+
+constexpr u32 GetPresentationSlot(u32 producer_slot) {
+    return SharedBufferNumCaptureSlots + producer_slot;
+}
+
+constexpr u32 ColorOpaqueBlackRgba32 = 0xFF000000;
+
+template <typename F>
+void ForEachPoolChunk(Core::System& system, Kernel::KPageGroup& page_group, u64 offset, u64 size,
+                      F&& writer) {
+    const u64 range_end = offset + size;
+    u64 pool_pos = 0;
+
+    for (auto& block : page_group) {
+        const u64 block_begin = pool_pos;
+        const u64 block_end = block_begin + block.GetSize();
+        pool_pos = block_end;
+
+        if (block_end <= offset) {
+            continue;
+        }
+        if (block_begin >= range_end) {
+            break;
+        }
+
+        const u64 chunk_begin = (std::max)(block_begin, offset);
+        const u64 chunk_end = (std::min)(block_end, range_end);
+        const u64 chunk_size = chunk_end - chunk_begin;
+        u8* const dst = system.DeviceMemory().GetPointer<u8>(block.GetAddress()) +
+                        (chunk_begin - block_begin);
+
+        writer(dst, chunk_begin - offset, chunk_size);
+        system.GetVideo().InvalidateMemory(dst, chunk_size);
+    }
+}
+
+void MakeGraphicBuffer(android::BufferQueueProducer& producer, u32 producer_slot, u32 pool_slot,
+                       u32 handle) {
     auto buffer = std::make_shared<android::NvGraphicBuffer>();
     buffer->width = SharedBufferWidth;
     buffer->height = SharedBufferHeight;
@@ -194,8 +240,8 @@ void MakeGraphicBuffer(android::BufferQueueProducer& producer, u32 slot, u32 han
     buffer->format = SharedBufferBlockLinearFormat;
     buffer->external_format = SharedBufferBlockLinearFormat;
     buffer->buffer_id = handle;
-    buffer->offset = slot * SharedBufferSlotSize;
-    ASSERT(producer.SetPreallocatedBuffer(slot, buffer) == android::Status::NoError);
+    buffer->offset = pool_slot * SharedBufferSlotSize;
+    ASSERT(producer.SetPreallocatedBuffer(producer_slot, buffer) == android::Status::NoError);
 }
 
 } // namespace
@@ -225,6 +271,15 @@ Result SharedBufferManager::CreateSession(Kernel::KProcess* owner_process, u64* 
 
         // Record display id.
         m_display_id = display_id;
+
+        // Capture slots start as opaque black, matching Eden/Horizon transition-buffer behavior.
+        for (u32 slot = 0; slot < SharedBufferNumCaptureSlots; slot++) {
+            ForEachPoolChunk(m_system, *m_buffer_page_group, u64{slot} * SharedBufferSlotSize,
+                             SharedBufferSlotSize, [](u8* dst, u64, u64 length) {
+                                 std::fill_n(reinterpret_cast<u32*>(dst), length / sizeof(u32),
+                                             ColorOpaqueBlackRgba32);
+                             });
+        }
     }
 
     // Map into process.
@@ -255,8 +310,9 @@ Result SharedBufferManager::CreateSession(Kernel::KProcess* owner_process, u64* 
     // Get the producer and set preallocated buffers.
     std::shared_ptr<android::BufferQueueProducer> producer;
     R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), session.layer_id));
-    MakeGraphicBuffer(*producer, 0, session.buffer_nvmap_handle);
-    MakeGraphicBuffer(*producer, 1, session.buffer_nvmap_handle);
+    for (u32 i = 0; i < SharedBufferSlotsPerSession; i++) {
+        MakeGraphicBuffer(*producer, i, GetPresentationSlot(i), session.buffer_nvmap_handle);
+    }
 
     // Assign outputs.
     *out_buffer_id = m_buffer_id;
@@ -331,8 +387,9 @@ Result SharedBufferManager::AcquireSharedFrameBuffer(android::Fence* out_fence,
              VI::ResultOperationFailed);
 
     // Assign remaining outputs.
-    *out_target_slot = slot;
-    out_slot_indexes = {0, 1, -1, -1};
+    *out_target_slot = static_cast<s64>(GetPresentationSlot(static_cast<u32>(slot)));
+    out_slot_indexes = {static_cast<s32>(GetPresentationSlot(0)),
+                        static_cast<s32>(GetPresentationSlot(1)), -1, -1};
 
     // We succeeded.
     R_SUCCEED();
@@ -346,14 +403,18 @@ Result SharedBufferManager::PresentSharedFrameBuffer(android::Fence fence,
     std::shared_ptr<android::BufferQueueProducer> producer;
     R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), layer_id));
 
+    const s64 producer_slot = slot - static_cast<s64>(SharedBufferNumCaptureSlots);
+    R_UNLESS(producer_slot >= 0 && producer_slot < SharedBufferSlotsPerSession,
+             VI::ResultOperationFailed);
+
     // Request to queue the buffer.
     std::shared_ptr<android::GraphicBuffer> buffer;
-    R_UNLESS(producer->RequestBuffer(static_cast<s32>(slot), std::addressof(buffer)) ==
+    R_UNLESS(producer->RequestBuffer(static_cast<s32>(producer_slot), std::addressof(buffer)) ==
                  android::Status::NoError,
              VI::ResultOperationFailed);
 
     ON_RESULT_FAILURE {
-        producer->CancelBuffer(static_cast<s32>(slot), fence);
+        producer->CancelBuffer(static_cast<s32>(producer_slot), fence);
     };
 
     // Queue the buffer to the producer.
@@ -363,7 +424,7 @@ Result SharedBufferManager::PresentSharedFrameBuffer(android::Fence fence,
     input.fence = fence;
     input.transform = static_cast<android::NativeWindowTransform>(transform);
     input.swap_interval = swap_interval;
-    R_UNLESS(producer->QueueBuffer(static_cast<s32>(slot), input, std::addressof(output)) ==
+    R_UNLESS(producer->QueueBuffer(static_cast<s32>(producer_slot), input, std::addressof(output)) ==
                  android::Status::NoError,
              VI::ResultOperationFailed);
 
@@ -376,8 +437,12 @@ Result SharedBufferManager::CancelSharedFrameBuffer(u64 layer_id, s64 slot) {
     std::shared_ptr<android::BufferQueueProducer> producer;
     R_TRY(m_container.GetLayerProducerHandle(std::addressof(producer), layer_id));
 
+    const s64 producer_slot = slot - static_cast<s64>(SharedBufferNumCaptureSlots);
+    R_UNLESS(producer_slot >= 0 && producer_slot < SharedBufferSlotsPerSession,
+             VI::ResultOperationFailed);
+
     // Cancel.
-    producer->CancelBuffer(static_cast<s32>(slot), android::Fence::NoFence());
+    producer->CancelBuffer(static_cast<s32>(producer_slot), android::Fence::NoFence());
 
     // We succeeded.
     R_SUCCEED();
@@ -396,40 +461,50 @@ Result SharedBufferManager::GetSharedFrameBufferAcquirableEvent(Kernel::KReadabl
     R_SUCCEED();
 }
 
-Result SharedBufferManager::WriteAppletCaptureBuffer(bool * out_was_written, s32 * out_layer_index)
-{
+Result SharedBufferManager::WriteAppletCaptureBuffer(bool* out_was_written, s32* out_layer_index,
+                                                       CaptureKind kind) {
+    std::scoped_lock lk{m_guard};
     R_UNLESS(m_buffer_page_group != nullptr, VI::ResultNotFound);
 
-    IVideo & video = m_system.GetVideo();
+    IVideo& video = m_system.GetVideo();
     const uint32_t capture_size = video.GetAppletCaptureBuffer(nullptr, 0);
+    const u32 slot = GetCaptureSlot(kind);
+
+    if (capture_size < SharedBufferSlotSize) {
+        *out_was_written = false;
+        *out_layer_index = static_cast<s32>(slot);
+        R_SUCCEED();
+    }
+
     std::vector<u8> capture_buffer(capture_size);
     video.GetAppletCaptureBuffer(capture_buffer.data(), capture_size);
 
-    s64 e = -1280 * 768 * 4;
-    for (auto & block : *m_buffer_page_group)
-    {
-        u8 * const block_start = m_system.DeviceMemory().GetPointer<u8>(block.GetAddress());
-        u8 * const block_end = m_system.DeviceMemory().GetPointer<u8>(block.GetAddress() + block.GetSize());
-        if (block_start == nullptr || block_end == nullptr || block_end <= block_start)
-        {
-            continue;
-        }
-
-        for (u8 * start = block_start; start < block_end; start++)
-        {
-            *start = 0;
-            if (e >= 0 && e < static_cast<s64>(capture_buffer.size()))
-            {
-                *start = capture_buffer[e];
-            }
-            e++;
-        }
-
-        video.InvalidateMemory(block_start, static_cast<uint64_t>(block_end - block_start));
-    }
+    ForEachPoolChunk(m_system, *m_buffer_page_group, u64{slot} * SharedBufferSlotSize,
+                     SharedBufferSlotSize, [&](u8* dst, u64 src_offset, u64 length) {
+                         std::memcpy(dst, capture_buffer.data() + src_offset, length);
+                     });
 
     *out_was_written = true;
-    *out_layer_index = 1;
+    *out_layer_index = static_cast<s32>(slot);
+    R_SUCCEED();
+}
+
+Result SharedBufferManager::ClearAppletCaptureBuffer(s32 layer_index, u32 color) {
+    std::scoped_lock lk{m_guard};
+    R_UNLESS(m_buffer_page_group != nullptr, VI::ResultNotFound);
+
+    if (layer_index < 0 || layer_index >= static_cast<s32>(SharedBufferNumCaptureSlots)) {
+        LOG_WARNING(Service_VI, "Couldn't clear non-capture slot {}", layer_index);
+        R_SUCCEED();
+    }
+
+    ForEachPoolChunk(m_system, *m_buffer_page_group,
+                     u64{static_cast<u32>(layer_index)} * SharedBufferSlotSize,
+                     SharedBufferSlotSize, [&](u8* dst, u64, u64 length) {
+                         ASSERT(length % sizeof(u32) == 0);
+                         std::fill_n(reinterpret_cast<u32*>(dst), length / sizeof(u32), color);
+                     });
+
     R_SUCCEED();
 }
 

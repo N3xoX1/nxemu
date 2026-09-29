@@ -29,6 +29,7 @@
 #include "core/hle/service/ipc_helpers.h"
 #include "core/file_sys/errors.h"
 #include <nxemu-module-spec/system_loader.h>
+#include <yuzu_common/fs/filesystem_interfaces.h>
 
 namespace
 {
@@ -195,9 +196,31 @@ Result FSP_SRV::SetCurrentProcess(ClientProcessId pid)
 
 Result FSP_SRV::OpenFileSystemWithPatch(OutInterface<IFileSystem> out_interface, FileSystemProxyType type, u64 open_program_id)
 {
-    LOG_ERROR(Service_FS, "(STUBBED) called with type={}, program_id={:016X}", type, open_program_id);
+    LOG_DEBUG(Service_FS, "called with type={}, program_id={:016X}", type, open_program_id);
 
-    UNIMPLEMENTED();
+    R_UNLESS(type == FileSystemProxyType::Manual, FileSys::ResultTargetNotFound);
+
+    IVirtualFilePtr manual_romfs(romfs_controller->OpenRomFS(
+        open_program_id, StorageId::None, LoaderContentRecordType::HtmlDocument));
+
+    IVirtualFilePtr patched_romfs;
+    if (manual_romfs) {
+        patched_romfs = IVirtualFilePtr(romfs_controller->PatchBaseNca(
+            open_program_id, StorageId::None, LoaderContentRecordType::HtmlDocument, *manual_romfs));
+    } else {
+        // Some loaded game images expose their manual directly instead of through the content provider.
+        IRomInfoPtr loaded_rom(system.GetSystemloader().LoadedRomInfo());
+        if (loaded_rom) {
+            patched_romfs = IVirtualFilePtr(loaded_rom->ReadManualRomFS());
+        }
+    }
+    R_UNLESS(patched_romfs, FileSys::ResultTargetNotFound);
+
+    IVirtualDirectoryPtr extracted_romfs(patched_romfs->ExtractRomFS());
+    R_UNLESS(extracted_romfs, FileSys::ResultTargetNotFound);
+
+    *out_interface = std::make_shared<IFileSystem>(
+        system, std::move(extracted_romfs), SizeGetter::FromStorageId(fsc, StorageId::NandUser));
     R_SUCCEED();
 }
 
@@ -214,11 +237,14 @@ Result FSP_SRV::OpenSdCardFileSystem(OutInterface<IFileSystem> out_interface)
     R_SUCCEED();
 }
 
-Result FSP_SRV::CreateSaveDataFileSystem(FileSys::SaveDataCreationInfo save_create_struct, SaveDataAttribute save_struct, u128 uid) 
+Result FSP_SRV::CreateSaveDataFileSystem(CreateSaveDataFileSystemRequest request)
 {
-    LOG_DEBUG(Service_FS, "called save_struct = {}, uid = {:016X}{:016X}", DebugInfo(save_struct), uid[1], uid[0]);
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    LOG_DEBUG(Service_FS, "called save_struct = {}", DebugInfo(request.attribute));
+
+    IVirtualDirectoryPtr save_data_dir;
+    R_RETURN(save_data_controller->CreateSaveData(save_data_dir.GetAddressForSet(), request.creation_info.space_id, request.attribute)
+                 ? ResultSuccess
+                 : FileSys::ResultTargetNotFound);
 }
 
 Result FSP_SRV::CreateSaveDataFileSystemBySystemSaveDataId(SaveDataAttribute save_struct, FileSys::SaveDataCreationInfo save_create_struct)
@@ -410,7 +436,27 @@ Result FSP_SRV::OpenPatchDataStorageByCurrentProcess(OutInterface<IStorage> out_
 Result FSP_SRV::OpenDataStorageWithProgramIndex(OutInterface<IStorage> out_interface, u8 program_index)
 {
     LOG_DEBUG(Service_FS, "called, program_index={}", program_index);
-    UNIMPLEMENTED();
+
+    constexpr u64 BaseTitleIdMask = 0xFFFFFFFFFFFFE000ULL;
+    const u64 target_program_id = (program_id & BaseTitleIdMask) + program_index;
+
+    IVirtualFilePtr base_romfs(romfs_controller->OpenRomFS(
+        target_program_id, StorageId::None, LoaderContentRecordType::Program));
+    if (!base_romfs)
+    {
+        LOG_ERROR(Service_FS, "Could not open storage with program_index={}", program_index);
+        R_RETURN(ResultUnknown);
+    }
+
+    IVirtualFilePtr patched_romfs(romfs_controller->PatchBaseNca(
+        target_program_id, StorageId::None, LoaderContentRecordType::Program, *base_romfs));
+    if (!patched_romfs)
+    {
+        LOG_ERROR(Service_FS, "Could not patch storage with program_index={}", program_index);
+        R_RETURN(ResultUnknown);
+    }
+
+    *out_interface = std::make_shared<IStorage>(system, std::move(patched_romfs));
     R_SUCCEED();
 }
 

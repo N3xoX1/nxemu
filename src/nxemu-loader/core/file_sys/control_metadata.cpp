@@ -164,6 +164,16 @@ u32 NACP::GetParentalControlFlag() const
     return raw.parental_control;
 }
 
+uint16_t NACP::GetCacheStorageMaxIndex() const
+{
+    return raw.cache_storage_max_index;
+}
+
+uint64_t NACP::GetCacheStorageDataAndJournalMaxSize() const
+{
+    return raw.cache_storage_data_and_journal_max_size;
+}
+
 std::vector<u8> NACP::GetRawBytes() const
 {
     std::vector<u8> out(sizeof(RawNACP));

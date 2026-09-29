@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <array>
+#include "core/core.h"
+#include "core/hle/service/am/applet_manager.h"
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
@@ -196,6 +198,9 @@ IHidServer::~IHidServer() = default;
 
 Result IHidServer::CreateAppletResource(OutInterface<IAppletResource> out_applet_resource,
                                         ClientAppletResourceUserId aruid) {
+    // AM can be created before HID is published in NXEmu. Retry its deferred registration
+    // here, with HID available, before allocating the applet's shared memory.
+    system.GetAppletManager().EnsureHidRegistered(aruid.pid);
     const auto result = GetResourceManager()->CreateAppletResource(aruid.pid);
 
     LOG_DEBUG(Service_HID, "called, applet_resource_user_id={}, result=0x{:X}", aruid.pid,

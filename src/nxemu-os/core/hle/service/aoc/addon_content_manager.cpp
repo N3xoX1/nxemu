@@ -169,8 +169,9 @@ Result IAddOnContentManager::GetAddOnContentBaseId(Out<u64> out_title_id,
 }
 
 Result IAddOnContentManager::PrepareAddOnContent(s32 addon_index, ClientProcessId process_id) {
-    LOG_WARNING(Service_AOC, "(STUBBED) called with addon_index={}, process_id={}", addon_index,
-                process_id.pid);
+    // Add-on content is already registered with the HLE content provider before it is exposed
+    // through Count/ListAddOnContent, so there is no additional preparation step to perform here.
+    LOG_TRACE(Service_AOC, "called with addon_index={}, process_id={}", addon_index, process_id.pid);
 
     R_SUCCEED();
 }

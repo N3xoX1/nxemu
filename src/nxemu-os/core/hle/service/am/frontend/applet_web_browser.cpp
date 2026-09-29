@@ -479,18 +479,95 @@ void WebBrowser::ExtractOfflineRomFS()
 
 void WebBrowser::WebBrowserExit(WebExitReason exit_reason, std::string last_url)
 {
-    if ((web_arg_header.shim_kind == ShimKind::Share && web_applet_version >= WebAppletVersion::Version196608) || (web_arg_header.shim_kind == ShimKind::Web && web_applet_version >= WebAppletVersion::Version524288))
+    const bool use_tlv_output =
+        (web_arg_header.shim_kind == ShimKind::Share &&
+         web_applet_version >= WebAppletVersion::Version196608) ||
+        (web_arg_header.shim_kind == ShimKind::Web &&
+         web_applet_version >= WebAppletVersion::Version524288);
+
+    if (use_tlv_output)
     {
-        // TODO: Push Output TLVs instead of a WebCommonReturnValue
+        // Share on 3.0.0+ and Web on 8.0.0+ return a 0x2000-byte TLV storage.
+        // TLVs follow the header without alignment padding.
+        constexpr std::size_t tlv_storage_size = 0x2000;
+        std::vector<u8> out_data(tlv_storage_size, 0);
+        std::size_t current_offset = sizeof(WebArgHeader);
+        u16 tlv_count = 0;
+
+        const auto append_tlv = [&](WebArgOutputTLVType type, const void * data,
+                                    std::size_t data_size) -> bool
+        {
+            if (data_size > 0xFFFF ||
+                current_offset + sizeof(WebArgOutputTLV) + data_size > out_data.size())
+            {
+                return false;
+            }
+
+            WebArgOutputTLV tlv{};
+            tlv.output_tlv_type = type;
+            tlv.arg_data_size = static_cast<u16>(data_size);
+            std::memcpy(out_data.data() + current_offset, &tlv, sizeof(tlv));
+            current_offset += sizeof(tlv);
+
+            if (data_size != 0)
+            {
+                std::memcpy(out_data.data() + current_offset, data, data_size);
+                current_offset += data_size;
+            }
+
+            ++tlv_count;
+            return true;
+        };
+
+        const u32 exit_reason_value = static_cast<u32>(exit_reason);
+        const bool exit_reason_written =
+            append_tlv(WebArgOutputTLVType::ShareExitReason, &exit_reason_value,
+                       sizeof(exit_reason_value));
+        ASSERT(exit_reason_written);
+
+        if (!last_url.empty())
+        {
+            constexpr std::size_t max_last_url_size = 0x1000;
+            const std::size_t copied_url_size =
+                (std::min)(last_url.size(), max_last_url_size - 1);
+            std::vector<char> last_url_data(copied_url_size + 1, '\0');
+            std::memcpy(last_url_data.data(), last_url.data(), copied_url_size);
+
+            const bool last_url_written =
+                append_tlv(WebArgOutputTLVType::LastURL, last_url_data.data(),
+                           last_url_data.size());
+            const u64 last_url_size = static_cast<u64>(last_url_data.size());
+            const bool last_url_size_written =
+                append_tlv(WebArgOutputTLVType::LastURLSize, &last_url_size,
+                           sizeof(last_url_size));
+            ASSERT(last_url_written && last_url_size_written);
+        }
+
+        WebArgHeader out_header{};
+        out_header.total_tlv_entries = tlv_count;
+        out_header.shim_kind = web_arg_header.shim_kind;
+        std::memcpy(out_data.data(), &out_header, sizeof(out_header));
+
+        LOG_DEBUG(Service_AM,
+                  "Web TLV return: exit_reason={}, last_url={}, tlv_count={}",
+                  exit_reason, last_url, tlv_count);
+
+        complete = true;
+        PushOutData(std::make_shared<IStorage>(system, std::move(out_data)));
+        Exit();
+        return;
     }
 
-    WebCommonReturnValue web_common_return_value;
+    WebCommonReturnValue web_common_return_value{};
 
     web_common_return_value.exit_reason = exit_reason;
-    std::memcpy(&web_common_return_value.last_url, last_url.data(), last_url.size());
-    web_common_return_value.last_url_size = last_url.size();
+    const std::size_t copied_url_size =
+        (std::min)(last_url.size(), web_common_return_value.last_url.size() - 1);
+    std::memcpy(web_common_return_value.last_url.data(), last_url.data(), copied_url_size);
+    web_common_return_value.last_url_size = copied_url_size + 1;
 
-    LOG_DEBUG(Service_AM, "WebCommonReturnValue: exit_reason={}, last_url={}, last_url_size={}", exit_reason, last_url, last_url.size());
+    LOG_DEBUG(Service_AM, "WebCommonReturnValue: exit_reason={}, last_url={}, last_url_size={}",
+              exit_reason, last_url, web_common_return_value.last_url_size);
 
     complete = true;
     std::vector<u8> out_data(sizeof(WebCommonReturnValue));
@@ -620,13 +697,17 @@ void WebBrowser::ExecuteOffline()
     // TODO (Morph): Implement WebSession.
     if (applet_mode == LibraryAppletMode::AllForegroundInitiallyHidden) 
     {
-        LOG_WARNING(Service_AM, "WebSession is not implemented");
+        // Complete this unsupported mode so the caller does not remain suspended.
+        LOG_WARNING(Service_AM,
+                    "WebSession is not implemented; completing OfflineWeb applet gracefully");
+        WebBrowserExit(WebExitReason::EndButtonPressed);
         return;
     }
 
     const auto main_url = GetMainURL(Common::FS::PathToUTF8String(offline_document));
+    const bool needs_extraction = !Common::FS::Exists(main_url);
 
-    if (!Common::FS::Exists(main_url)) 
+    if (needs_extraction)
     {
         offline_romfs = GetOfflineRomFS(system, title_id, nca_type);
 
@@ -641,7 +722,8 @@ void WebBrowser::ExecuteOffline()
     LOG_INFO(Service_AM, "Opening offline document at {}", Common::FS::PathToUTF8String(offline_document));
 
     const std::string local_path_utf8 = Common::FS::PathToUTF8String(offline_document);
-    frontend.OpenLocalWebPage(local_path_utf8.c_str(), this, ExtractRom, this, OpenWebPage);
+    frontend.OpenLocalWebPage(local_path_utf8.c_str(), this,
+                              needs_extraction ? ExtractRom : nullptr, this, OpenWebPage);
 }
 
 void WebBrowser::ExecuteShare()
@@ -653,7 +735,9 @@ void WebBrowser::ExecuteShare()
 void WebBrowser::ExecuteWeb()
 {
     LOG_INFO(Service_AM, "Opening external URL at {}", external_url);
-    UNIMPLEMENTED();
+
+    // Ensure the applet completes even if the host browser cannot open the URL.
+    frontend.OpenExternalWebPage(external_url.c_str(), this, OpenWebPage);
 }
 
 void WebBrowser::ExecuteWifi()

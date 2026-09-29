@@ -61,12 +61,6 @@ enum class ScreenshotPermission : u32 {
     Disable = 2,
 };
 
-struct FocusHandlingMode {
-    bool notify;
-    bool background;
-    bool suspend;
-};
-
 enum class IdleTimeDetectionExtension : u32 {
     Disabled = 0,
     Extended = 1,

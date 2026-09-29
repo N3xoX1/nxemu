@@ -24,6 +24,13 @@ public:
     ~IApplicationFunctions() override;
 
 private:
+    struct SaveDataSizeRequest {
+        SaveDataType type;
+        INSERT_PADDING_BYTES(7);
+        Common::UUID user_id;
+    };
+    static_assert(sizeof(SaveDataSizeRequest) == 0x18);
+
     Result PopLaunchParameter(Out<SharedPointer<IStorage>> out_storage,
                               LaunchParameterKind launch_parameter_kind);
     Result CreateApplicationAndRequestToStart(u64 application_id);
@@ -31,10 +38,10 @@ private:
     Result GetDesiredLanguage(Out<u64> out_language_code);
     Result SetTerminateResult(Result terminate_result);
     Result GetDisplayVersion(Out<DisplayVersion> out_display_version);
-    Result ExtendSaveData(Out<u64> out_required_size, SaveDataType type,
-                          Common::UUID user_id, u64 normal_size, u64 journal_size);
+    Result ExtendSaveData(Out<u64> out_required_size, SaveDataSizeRequest request,
+                          u64 normal_size, u64 journal_size);
     Result GetSaveDataSize(Out<u64> out_normal_size, Out<u64> out_journal_size,
-                           SaveDataType type, Common::UUID user_id);
+                           SaveDataSizeRequest request);
     Result CreateCacheStorage(Out<u32> out_target_media, Out<u64> out_required_size, u16 index,
                               u64 normal_size, u64 journal_size);
     Result GetSaveDataSizeMax(Out<u64> out_max_normal_size, Out<u64> out_max_journal_size);

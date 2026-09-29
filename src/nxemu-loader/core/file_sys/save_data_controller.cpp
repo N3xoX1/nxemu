@@ -117,6 +117,18 @@ bool SaveDataControllerPtr::CreateSaveData(IVirtualDirectory ** out_save_data, S
     return created;
 }
 
+SaveDataSize SaveDataControllerPtr::ReadSaveDataSize(SaveDataType type, uint64_t title_id,
+                                                     u128 user_id)
+{
+    return m_saveDataController->ReadSaveDataSize(type, title_id, user_id);
+}
+
+void SaveDataControllerPtr::WriteSaveDataSize(SaveDataType type, uint64_t title_id,
+                                              u128 user_id, SaveDataSize new_value)
+{
+    m_saveDataController->WriteSaveDataSize(type, title_id, user_id, new_value);
+}
+
 void SaveDataControllerPtr::Release()
 {
     delete this;
