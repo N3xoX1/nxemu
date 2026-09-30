@@ -756,7 +756,8 @@ Result NcaFileSystemDriver::CreatePatchMetaStorage(
     ASSERT(Common::IsAligned<s64>(patch_info.aes_ctr_ex_size, NcaHeader::XtsBlockSize));
 
     // Validate patch info extents.
-    R_UNLESS(patch_info.aes_ctr_ex_size >= 0 && patch_info.HasAesCtrExTable(),
+    R_UNLESS(patch_info.aes_ctr_ex_size >= 0 &&
+                 (patch_info.aes_ctr_ex_size > 0 || patch_info.indirect_offset == 0),
              ResultInvalidNcaPatchInfoAesCtrExSize);
     R_UNLESS(patch_info.indirect_size > 0 && patch_info.HasIndirectTable(),
              ResultInvalidNcaPatchInfoIndirectSize);
