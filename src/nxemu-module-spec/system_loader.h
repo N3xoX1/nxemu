@@ -268,6 +268,8 @@ nxinterface IFileSysNACP
 {
     virtual uint32_t GetSupportedLanguages() const = 0;
     virtual uint32_t GetParentalControlFlag() const = 0;
+    virtual uint16_t GetCacheStorageMaxIndex() const = 0;
+    virtual uint64_t GetCacheStorageDataAndJournalMaxSize() const = 0;
     virtual bool GetUserAccountSwitchLock() const = 0;
     virtual bool GetRatingAge(uint8_t * buffer, uint32_t bufferSize) const = 0;
     virtual const char * GetVersionString() const = 0;
@@ -291,6 +293,8 @@ nxinterface IFileSysRegisteredCache
 nxinterface ISaveDataController
 {
     virtual bool CreateSaveData(IVirtualDirectory** out_save_data, SaveDataSpaceId space, const SaveDataAttribute & attribute) = 0;
+    virtual SaveDataSize ReadSaveDataSize(SaveDataType type, uint64_t title_id, uint64_t user_id_high, uint64_t user_id_low) = 0;
+    virtual void WriteSaveDataSize(SaveDataType type, uint64_t title_id, uint64_t user_id_high, uint64_t user_id_low, SaveDataSize new_value) = 0;
     virtual void Release() = 0;
 };
 

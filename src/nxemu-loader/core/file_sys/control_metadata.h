@@ -118,6 +118,8 @@ public:
     //IFileSysNACP
     uint32_t GetSupportedLanguages() const override;
     uint32_t GetParentalControlFlag() const override;
+    uint16_t GetCacheStorageMaxIndex() const override;
+    uint64_t GetCacheStorageDataAndJournalMaxSize() const override;
     bool GetUserAccountSwitchLock() const override;
     bool GetRatingAge(uint8_t* buffer, uint32_t bufferSize) const override;
     const char * GetVersionString() const override;

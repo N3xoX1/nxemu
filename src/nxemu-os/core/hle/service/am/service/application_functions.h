@@ -24,19 +24,22 @@ public:
     ~IApplicationFunctions() override;
 
 private:
-    Result PopLaunchParameter(Out<SharedPointer<IStorage>> out_storage,
-                              LaunchParameterKind launch_parameter_kind);
+    struct SaveDataSizeRequest {
+        SaveDataType type;
+        INSERT_PADDING_BYTES(7);
+        Common::UUID user_id;
+    };
+    static_assert(sizeof(SaveDataSizeRequest) == 0x18);
+
+    Result PopLaunchParameter(Out<SharedPointer<IStorage>> out_storage, LaunchParameterKind launch_parameter_kind);
     Result CreateApplicationAndRequestToStart(u64 application_id);
     Result EnsureSaveData(Out<u64> out_size, Common::UUID user_id);
     Result GetDesiredLanguage(Out<u64> out_language_code);
     Result SetTerminateResult(Result terminate_result);
     Result GetDisplayVersion(Out<DisplayVersion> out_display_version);
-    Result ExtendSaveData(Out<u64> out_required_size, SaveDataType type,
-                          Common::UUID user_id, u64 normal_size, u64 journal_size);
-    Result GetSaveDataSize(Out<u64> out_normal_size, Out<u64> out_journal_size,
-                           SaveDataType type, Common::UUID user_id);
-    Result CreateCacheStorage(Out<u32> out_target_media, Out<u64> out_required_size, u16 index,
-                              u64 normal_size, u64 journal_size);
+    Result ExtendSaveData(Out<u64> out_required_size, SaveDataSizeRequest request, u64 normal_size, u64 journal_size);
+    Result GetSaveDataSize(Out<u64> out_normal_size, Out<u64> out_journal_size, SaveDataSizeRequest request);
+    Result CreateCacheStorage(Out<u32> out_target_media, Out<u64> out_required_size, u16 index, u64 normal_size, u64 journal_size);
     Result GetSaveDataSizeMax(Out<u64> out_max_normal_size, Out<u64> out_max_journal_size);
     Result GetCacheStorageMax(Out<u32> out_cache_storage_index_max, Out<u64> out_max_journal_size);
     Result BeginBlockingHomeButtonShortAndLongPressed(s64 unused);
@@ -46,26 +49,15 @@ private:
     Result NotifyRunning(Out<bool> out_became_running);
     Result GetPseudoDeviceId(Out<Common::UUID> out_pseudo_device_id);
     Result IsGamePlayRecordingSupported(Out<bool> out_is_game_play_recording_supported);
-    Result InitializeGamePlayRecording(
-        u64 transfer_memory_size, InCopyHandle<Kernel::KTransferMemory> transfer_memory_handle);
+    Result InitializeGamePlayRecording(u64 transfer_memory_size, InCopyHandle<Kernel::KTransferMemory> transfer_memory_handle);
     Result SetMediaPlaybackStateForApplication(bool enabled);
     Result SetGamePlayRecordingState(GamePlayRecordingState game_play_recording_state);
     Result EnableApplicationCrashReport(bool enabled);
-    Result InitializeApplicationCopyrightFrameBuffer(
-        s32 width, s32 height, u64 transfer_memory_size,
-        InCopyHandle<Kernel::KTransferMemory> transfer_memory_handle);
-    Result SetApplicationCopyrightImage(
-        s32 x, s32 y, s32 width, s32 height, WindowOriginMode window_origin_mode,
-        InBuffer<BufferAttr_HipcMapTransferAllowsNonSecure | BufferAttr_HipcMapAlias> image_data);
+    Result InitializeApplicationCopyrightFrameBuffer(s32 width, s32 height, u64 transfer_memory_size, InCopyHandle<Kernel::KTransferMemory> transfer_memory_handle);
+    Result SetApplicationCopyrightImage(s32 x, s32 y, s32 width, s32 height, WindowOriginMode window_origin_mode, InBuffer<BufferAttr_HipcMapTransferAllowsNonSecure | BufferAttr_HipcMapAlias> image_data);
     Result SetApplicationCopyrightVisibility(bool visible);
-    Result QueryApplicationPlayStatistics(
-        Out<s32> out_entries,
-        OutArray<ApplicationPlayStatistics, BufferAttr_HipcMapAlias> out_play_statistics,
-        InArray<u64, BufferAttr_HipcMapAlias> application_ids);
-    Result QueryApplicationPlayStatisticsByUid(
-        Out<s32> out_entries,
-        OutArray<ApplicationPlayStatistics, BufferAttr_HipcMapAlias> out_play_statistics,
-        Common::UUID user_id, InArray<u64, BufferAttr_HipcMapAlias> application_ids);
+    Result QueryApplicationPlayStatistics(Out<s32> out_entries, OutArray<ApplicationPlayStatistics, BufferAttr_HipcMapAlias> out_play_statistics, InArray<u64, BufferAttr_HipcMapAlias> application_ids);
+    Result QueryApplicationPlayStatisticsByUid(Out<s32> out_entries, OutArray<ApplicationPlayStatistics, BufferAttr_HipcMapAlias> out_play_statistics, Common::UUID user_id, InArray<u64, BufferAttr_HipcMapAlias> application_ids);
     Result ExecuteProgram(ProgramSpecifyKind kind, u64 value);
     Result ClearUserChannel();
     Result UnpopToUserChannel(SharedPointer<IStorage> storage);

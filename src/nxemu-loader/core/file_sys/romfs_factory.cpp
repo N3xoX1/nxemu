@@ -108,7 +108,7 @@ IVirtualFile * RomFsControllerImpl::PatchBaseNca(uint64_t title_id, StorageId st
     std::shared_ptr<FileSys::NCA> base = m_factory->GetEntry(title_id, storage_id, type);
     const FileSys::PatchManager pm(title_id, m_loader.GetFileSystemController(), m_loader.GetContentProvider());
     FileSys::VirtualFile vf_romfs = std::make_shared<VfsVirtualFile>(base_romfs.Duplicate());
-    FileSys::VirtualFile patched_romfs = pm.PatchRomFS(base.get(), vf_romfs, LoaderContentRecordType::Data);
+    FileSys::VirtualFile patched_romfs = pm.PatchRomFS(base.get(), vf_romfs, type);
     return std::make_unique<VirtualFileImpl>(patched_romfs).release();
 }
 
