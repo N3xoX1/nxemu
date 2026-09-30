@@ -193,7 +193,7 @@ void PutConfig(JsonValue& target, const PerformanceCaptureConfig& c) {
     target["resolution_factor"] = JsonValue(static_cast<double>(c.resolution_factor));
     target["cpu_options_mask"] = JsonValue(static_cast<uint64_t>(c.cpu_options_mask));
     target["nce_enabled"] = JsonValue(c.nce_enabled);
-    target["sync_memory_operations"] = JsonValue(c.sync_memory_operations);
+    target["gpu_command_synchronization"] = JsonValue(c.gpu_command_synchronization);
     target["use_speed_limit"] = JsonValue(c.use_speed_limit);
     target["use_multi_core"] = JsonValue(c.use_multi_core);
     target["async_gpu"] = JsonValue(c.async_gpu);
@@ -293,7 +293,7 @@ bool PerformanceCapture::Stop(const std::function<std::chrono::microseconds()>& 
             stopped - data.start).count());
         const double seconds = static_cast<double>(duration_ns) / 1e9;
         JsonValue root(JsonValueType::Object);
-        root["format_version"] = JsonValue(int64_t{7});
+        root["format_version"] = JsonValue(int64_t{8});
         root["title_id"] = JsonValue(fmt::format("{:016X}", title));
         root["started_utc"] = JsonValue(started_utc);
         root["duration_seconds"] = JsonValue(seconds);

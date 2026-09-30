@@ -40,7 +40,7 @@ struct PerformanceCaptureConfig
     float resolution_factor{1.0f};
     uint64_t cpu_options_mask{};
     bool nce_enabled{};
-    bool sync_memory_operations{};
+    bool gpu_command_synchronization{};
     bool use_speed_limit{};
     bool use_multi_core{};
     bool async_gpu{};

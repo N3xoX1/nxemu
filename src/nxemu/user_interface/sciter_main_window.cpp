@@ -95,7 +95,7 @@ constexpr const char* PerformanceCaptureSettings[] = {
     NXVideoSetting::ResolutionUpFactor,
     NXVideoSetting::ScalingFilter,
     NXVideoSetting::ShaderBackend,
-    NXVideoSetting::SyncMemoryOperations,
+    NXVideoSetting::GpuCommandSynchronization,
     NXVideoSetting::SyncToFramerateOfVideoPlayback,
     NXVideoSetting::UseAsynchronousGPUEmulation,
     NXVideoSetting::UseAsynchronousShaderBuilding,
@@ -2035,7 +2035,7 @@ void SciterMainWindow::OnTogglePerformanceCapture()
                                    << index;
     }
     config.nce_enabled = settings.GetBool(NXCpuSetting::NceEnabled);
-    config.sync_memory_operations = settings.GetBool(NXVideoSetting::SyncMemoryOperations);
+    config.gpu_command_synchronization = settings.GetBool(NXVideoSetting::GpuCommandSynchronization);
     config.use_speed_limit = settings.GetBool(NXOsSetting::UseSpeedLimit);
     config.use_multi_core = settings.GetBool(NXOsSetting::UseMultiCore);
     config.async_gpu = settings.GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
