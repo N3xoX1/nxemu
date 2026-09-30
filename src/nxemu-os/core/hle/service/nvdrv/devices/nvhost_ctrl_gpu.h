@@ -12,13 +12,17 @@
 
 namespace Service::Nvidia {
 class EventInterface;
+namespace NvCore {
+class Container;
 }
+} // namespace Service::Nvidia
 
 namespace Service::Nvidia::Devices {
 
 class nvhost_ctrl_gpu final : public nvdevice {
 public:
-    explicit nvhost_ctrl_gpu(Core::System& system_, EventInterface& events_interface_);
+    explicit nvhost_ctrl_gpu(Core::System& system_, EventInterface& events_interface_,
+                             NvCore::Container& core_);
     ~nvhost_ctrl_gpu() override;
 
     NvResult Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> input,
@@ -184,6 +188,7 @@ private:
     NvResult GetGpuTime(IoctlGetGpuTime& params);
 
     EventInterface& events_interface;
+    NvCore::Container& core;
 
     // Events
     Kernel::KEvent* error_notifier_event;

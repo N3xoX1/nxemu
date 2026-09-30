@@ -1,19 +1,22 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <cstring>
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
 #include "core/core.h"
 #include "core/core_timing.h"
+#include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/devices/ioctl_serialization.h"
 #include "core/hle/service/nvdrv/devices/nvhost_ctrl_gpu.h"
 #include "core/hle/service/nvdrv/nvdrv.h"
 
 namespace Service::Nvidia::Devices {
 
-nvhost_ctrl_gpu::nvhost_ctrl_gpu(Core::System& system_, EventInterface& events_interface_)
-    : nvdevice{system_}, events_interface{events_interface_} {
+nvhost_ctrl_gpu::nvhost_ctrl_gpu(Core::System& system_, EventInterface& events_interface_,
+                                 NvCore::Container& core_)
+    : nvdevice{system_}, events_interface{events_interface_}, core{core_} {
     error_notifier_event = events_interface.CreateEvent("CtrlGpuErrorNotifier");
     unknown_event = events_interface.CreateEvent("CtrlGpuUnknownEvent");
 }
@@ -248,14 +251,96 @@ NvResult nvhost_ctrl_gpu::ZCullGetInfo(IoctlNvgpuGpuZcullGetInfoArgs& params) {
 }
 
 NvResult nvhost_ctrl_gpu::ZBCSetTable(IoctlZbcSetTable& params) {
-    LOG_WARNING(Service_NVDRV, "(STUBBED) called");
-    // TODO(ogniK): What does this even actually do?
-    return NvResult::Success;
+    LOG_DEBUG(Service_NVDRV, "called, type={}, format={:#x}", params.type, params.format);
+
+    auto& zbc = core.Zbc();
+    std::scoped_lock lk{zbc.mutex};
+
+    switch (static_cast<u32>(params.type)) {
+    case 1: {
+        for (u32 i = 0; i < zbc.max_used_color_index; ++i) {
+            auto& entry = zbc.color_table[i];
+            if (entry.ref_cnt == 0 || entry.format != params.format ||
+                !std::equal(entry.color_ds.begin(), entry.color_ds.end(), params.color_ds)) {
+                continue;
+            }
+
+            if (!std::equal(entry.color_l2.begin(), entry.color_l2.end(), params.color_l2)) {
+                return NvResult::BadParameter;
+            }
+
+            ++entry.ref_cnt;
+            return NvResult::Success;
+        }
+
+        if (zbc.max_used_color_index >= NvCore::Container::ZbcState::TableSize) {
+            return NvResult::InsufficientMemory;
+        }
+
+        auto& entry = zbc.color_table[zbc.max_used_color_index++];
+        std::copy_n(params.color_ds, entry.color_ds.size(), entry.color_ds.begin());
+        std::copy_n(params.color_l2, entry.color_l2.size(), entry.color_l2.begin());
+        entry.format = params.format;
+        entry.ref_cnt = 1;
+        return NvResult::Success;
+    }
+    case 2: {
+        for (u32 i = 0; i < zbc.max_used_depth_index; ++i) {
+            auto& entry = zbc.depth_table[i];
+            if (entry.ref_cnt != 0 && entry.depth == params.depth && entry.format == params.format) {
+                ++entry.ref_cnt;
+                return NvResult::Success;
+            }
+        }
+
+        if (zbc.max_used_depth_index >= NvCore::Container::ZbcState::TableSize) {
+            return NvResult::InsufficientMemory;
+        }
+
+        auto& entry = zbc.depth_table[zbc.max_used_depth_index++];
+        entry.depth = params.depth;
+        entry.format = params.format;
+        entry.ref_cnt = 1;
+        return NvResult::Success;
+    }
+    default:
+        return NvResult::BadParameter;
+    }
 }
 
 NvResult nvhost_ctrl_gpu::ZBCQueryTable(IoctlZbcQueryTable& params) {
-    LOG_WARNING(Service_NVDRV, "(STUBBED) called");
-    return NvResult::Success;
+    LOG_DEBUG(Service_NVDRV, "called, type={}, index={}", params.type, params.index_size);
+
+    auto& zbc = core.Zbc();
+    std::scoped_lock lk{zbc.mutex};
+    const u32 type = params.type;
+    const u32 index = params.index_size;
+
+    if (type == 0) {
+        params.index_size = NvCore::Container::ZbcState::TableSize;
+        return NvResult::Success;
+    }
+    if (index >= NvCore::Container::ZbcState::TableSize) {
+        return NvResult::BadParameter;
+    }
+
+    if (type == 1) {
+        const auto& entry = zbc.color_table[index];
+        std::copy_n(entry.color_ds.begin(), entry.color_ds.size(), params.color_ds);
+        std::copy_n(entry.color_l2.begin(), entry.color_l2.size(), params.color_l2);
+        params.format = entry.format;
+        params.ref_cnt = entry.ref_cnt;
+        return NvResult::Success;
+    }
+    if (type == 2) {
+        const auto& entry = zbc.depth_table[index];
+        params.depth = entry.depth;
+        params.format = entry.format;
+        params.ref_cnt = entry.ref_cnt;
+        return NvResult::Success;
+    }
+
+    return NvResult::BadParameter;
 }
 
 NvResult nvhost_ctrl_gpu::FlushL2(IoctlFlushL2& params) {

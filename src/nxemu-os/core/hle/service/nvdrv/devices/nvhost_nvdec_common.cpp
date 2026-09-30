@@ -141,7 +141,7 @@ NvResult nvhost_nvdec_common::GetSyncpoint(IoctlGetSyncpoint& params)
 
 NvResult nvhost_nvdec_common::GetWaitbase(IoctlGetWaitbase& params)
 {
-    LOG_CRITICAL(Service_NVDRV, "called WAITBASE");
+    LOG_DEBUG(Service_NVDRV, "called WAITBASE");
     params.value = 0; // Seems to be hard coded at 0
     return NvResult::Success;
 }
@@ -172,7 +172,8 @@ NvResult nvhost_nvdec_common::UnmapBuffer(IoctlMapBuffer& params, std::span<MapB
 
 NvResult nvhost_nvdec_common::SetSubmitTimeout(u32 timeout)
 {
-    LOG_WARNING(Service_NVDRV, "(STUBBED) called");
+    submit_timeout = timeout;
+    LOG_DEBUG(Service_NVDRV, "called, timeout=0x{:X}", timeout);
     return NvResult::Success;
 }
 

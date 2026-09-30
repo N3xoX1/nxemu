@@ -54,6 +54,22 @@ public:
         return GetValueInternal(new_address);
     }
 
+    [[nodiscard]] bool IsRangeValue(KeyTBase address, KeyTBase address_end, ValueT value) const {
+        const KeyT new_address = static_cast<KeyT>(address);
+        const KeyT new_address_end = static_cast<KeyT>(address_end);
+        if (new_address < 0 || new_address_end < new_address) {
+            return false;
+        }
+
+        const auto it = GetFirstElementBeforeOrOn(new_address);
+        if (it == container.end() || it->second != value) {
+            return false;
+        }
+
+        const auto it_end = std::next(it);
+        return it_end == container.end() || it_end->first >= new_address_end;
+    }
+
 private:
     using MapType = std::map<KeyT, ValueT>;
     using IteratorType = typename MapType::iterator;

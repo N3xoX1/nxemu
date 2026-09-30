@@ -59,14 +59,19 @@ public:
     void WaitHost(u32 syncpoint_id, u32 expected_value);
 
     bool IsReadyGuest(u32 syncpoint_id, u32 expected_value) const {
-        return syncpoints_guest[syncpoint_id].load(std::memory_order_acquire) >= expected_value;
+        return HasReached(syncpoints_guest[syncpoint_id].load(std::memory_order_acquire), expected_value);
     }
 
     bool IsReadyHost(u32 syncpoint_id, u32 expected_value) const {
-        return syncpoints_host[syncpoint_id].load(std::memory_order_acquire) >= expected_value;
+        return HasReached(syncpoints_host[syncpoint_id].load(std::memory_order_acquire), expected_value);
     }
 
 private:
+    // Syncpoint fences use modulo-2^32 ordering within a half-counter range.
+    static bool HasReached(u32 value, u32 threshold) {
+        return static_cast<s32>(value - threshold) >= 0;
+    }
+
     void Increment(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv,
                    std::list<RegisteredAction>& action_storage);
 
