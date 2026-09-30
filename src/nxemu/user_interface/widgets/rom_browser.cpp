@@ -136,6 +136,7 @@ private:
     RomEntrys m_roms;
     std::unique_ptr<RomListWorker> m_currentWorker;
     bool m_updatingUI;
+    bool m_contextMenuHandlerAttached;
     static RomBrowsers m_instances;
 };
 
@@ -144,6 +145,7 @@ WidgetRomBrowser::RomBrowsers WidgetRomBrowser::m_instances;
 WidgetRomBrowser::WidgetRomBrowser(ISciterUI & sciterUI) :
     m_sciterUI(sciterUI),
     m_updatingUI(false),
+    m_contextMenuHandlerAttached(false),
     m_baseElement(nullptr),
     m_window(nullptr),
     m_modules(nullptr)
@@ -236,13 +238,38 @@ bool WidgetRomBrowser::RenderUI()
     return false;
 }
 
-bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t event_code, uint64_t /*reason*/)
+bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t /*reason*/)
 {
     if (event_code == EVENT_UPDATE_LIST && !m_updatingUI)
     {
         m_updatingUI = true;
         m_rootElement.SetTimer(250, (uint32_t *)TIMER_UPDATE_UI);
         return false;
+    }
+
+    if (event_code == (uint32_t)SciterBehaviorEvent::MenuItemClick)
+    {
+        std::string itemId = GetContextMenuItemId(element);
+        if (itemId.empty())
+        {
+            itemId = GetContextMenuItemId(source);
+        }
+        if (itemId.empty())
+        {
+            return false;
+        }
+
+        SciterElement card = FindRomCard(source);
+        if (!card.IsValid())
+        {
+            card = FindRomCard(element);
+        }
+        if (card.IsValid())
+        {
+            SelectRomCard(card);
+            m_contextMenuPath = card.GetAttribute("data-path");
+        }
+        return HandleContextMenuCommand(itemId);
     }
 
     if (event_code == (uint32_t)SciterBehaviorEvent::ContextMenuRequest)
@@ -297,7 +324,7 @@ bool WidgetRomBrowser::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
         }
         return true;
     }
-    return HandleContextMenuCommand(GetContextMenuItemId(source));
+    return false;
 }
 
 void WidgetRomBrowser::SelectRomCard(const SciterElement & card)
@@ -386,7 +413,7 @@ bool WidgetRomBrowser::HandleContextMenuCommand(const std::string & itemId)
     }
     if (path.empty())
     {
-        return true;
+        return false;
     }
 
     if (itemId == "romStartGame")
@@ -506,7 +533,7 @@ void WidgetRomBrowser::SetMainWindow(SciterMainWindow * window, ISystemModules *
 
 void WidgetRomBrowser::AttachContextMenuHandlers()
 {
-    if (!m_rootElement.IsValid())
+    if (!m_rootElement.IsValid() || m_contextMenuHandlerAttached)
     {
         return;
     }
@@ -527,19 +554,8 @@ void WidgetRomBrowser::AttachContextMenuHandlers()
         return;
     }
 
+    m_contextMenuHandlerAttached = true;
     m_sciterUI.AttachHandler(contextMenu, IID_EVENTSINK, (IEventSink *)this);
-    m_sciterUI.AttachHandler(contextMenu, IID_ICLICKSINK, (IClickSink *)this);
-
-    SciterElement propertiesItem = contextMenu.GetElementByID("romProperties");
-    if (!propertiesItem.IsValid())
-    {
-        propertiesItem = contextMenu.FindFirst("li#romProperties");
-    }
-    if (propertiesItem.IsValid())
-    {
-        m_sciterUI.AttachHandler(propertiesItem, IID_ICLICKSINK, (IClickSink *)this);
-        m_sciterUI.AttachHandler(propertiesItem, IID_EVENTSINK, (IEventSink *)this);
-    }
 }
 
 void WidgetRomBrowser::ClearItems()

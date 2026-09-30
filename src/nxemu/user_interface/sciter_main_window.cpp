@@ -665,13 +665,6 @@ bool SciterMainWindow::Show()
     {
         m_sciterUI.AttachHandler(volumePopup, IID_EVENTSINK, (IEventSink *)this);
     }
-    SciterElement romContextMenu(m_rootElement.GetElementByID("RomCardContextMenu"));
-    if (romContextMenu.IsValid())
-    {
-        m_sciterUI.AttachHandler(romContextMenu, IID_ICLICKSINK, (IClickSink *)this);
-        m_sciterUI.AttachHandler(romContextMenu, IID_EVENTSINK, (IEventSink *)this);
-    }
-
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
     m_rootElement.SetTimer(25, (uint32_t *)TIMER_UPDATE_INPUT);
 
