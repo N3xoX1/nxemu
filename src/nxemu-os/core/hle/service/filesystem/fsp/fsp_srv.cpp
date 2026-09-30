@@ -8,13 +8,8 @@
 #include <utility>
 #include <vector>
 
-#include "yuzu_common/yuzu_assert.h"
-#include "yuzu_common/common_types.h"
-#include "yuzu_common/hex_util.h"
-#include "yuzu_common/logging/log.h"
-#include "yuzu_common/settings.h"
-#include "yuzu_common/string_util.h"
 #include "core/core.h"
+#include "core/file_sys/errors.h"
 #include "core/hle/result.h"
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/filesystem/filesystem.h"
@@ -22,25 +17,32 @@
 #include "core/hle/service/filesystem/fsp/fs_i_multi_commit_manager.h"
 #include "core/hle/service/filesystem/fsp/fs_i_save_data_info_reader.h"
 #include "core/hle/service/filesystem/fsp/fs_i_storage.h"
-#include "core/hle/service/filesystem/fsp/fsp_types.h"
 #include "core/hle/service/filesystem/fsp/fsp_srv.h"
+#include "core/hle/service/filesystem/fsp/fsp_types.h"
 #include "core/hle/service/filesystem/fsp/save_data_transfer_prohibiter.h"
 #include "core/hle/service/hle_ipc.h"
 #include "core/hle/service/ipc_helpers.h"
-#include "core/file_sys/errors.h"
+#include "yuzu_common/common_types.h"
+#include "yuzu_common/hex_util.h"
+#include "yuzu_common/logging/log.h"
+#include "yuzu_common/settings.h"
+#include "yuzu_common/string_util.h"
+#include "yuzu_common/yuzu_assert.h"
 #include <nxemu-module-spec/system_loader.h>
+#include <yuzu_common/fs/filesystem_interfaces.h>
 
 namespace
 {
-    std::string DebugInfo(const SaveDataAttribute& attr) 
-    {
-        return fmt::format("[title_id={:016X}, user_id={:016X}{:016X}, save_id={:016X}, type={:02X}, rank={}, index={}]", attr.program_id, attr.user_id[1], attr.user_id[0], attr.system_save_data_id, static_cast<u8>(attr.type), static_cast<u8>(attr.rank), attr.index);
-    }
+std::string DebugInfo(const SaveDataAttribute & attr)
+{
+    return fmt::format("[title_id={:016X}, user_id={:016X}{:016X}, save_id={:016X}, type={:02X}, rank={}, index={}]", attr.program_id, attr.user_id[1], attr.user_id[0], attr.system_save_data_id, static_cast<u8>(attr.type), static_cast<u8>(attr.rank), attr.index);
+}
 } // namespace
 
-namespace Service::FileSystem {
+namespace Service::FileSystem
+{
 
-FSP_SRV::FSP_SRV(Core::System & system_) : 
+FSP_SRV::FSP_SRV(Core::System & system_) :
     ServiceFramework(system_, "fsp-srv"),
     fsc(system_.GetSystemloader().FileSystemController())
 {
@@ -195,9 +197,31 @@ Result FSP_SRV::SetCurrentProcess(ClientProcessId pid)
 
 Result FSP_SRV::OpenFileSystemWithPatch(OutInterface<IFileSystem> out_interface, FileSystemProxyType type, u64 open_program_id)
 {
-    LOG_ERROR(Service_FS, "(STUBBED) called with type={}, program_id={:016X}", type, open_program_id);
+    LOG_DEBUG(Service_FS, "called with type={}, program_id={:016X}", type, open_program_id);
 
-    UNIMPLEMENTED();
+    R_UNLESS(type == FileSystemProxyType::Manual, FileSys::ResultTargetNotFound);
+
+    IVirtualFilePtr manual_romfs(romfs_controller->OpenRomFS(open_program_id, StorageId::None, LoaderContentRecordType::HtmlDocument));
+
+    IVirtualFilePtr patched_romfs;
+    if (manual_romfs)
+    {
+        patched_romfs = IVirtualFilePtr(romfs_controller->PatchBaseNca(open_program_id, StorageId::None, LoaderContentRecordType::HtmlDocument, *manual_romfs));
+    }
+    else
+    {
+        IRomInfoPtr loaded_rom(system.GetSystemloader().LoadedRomInfo());
+        if (loaded_rom)
+        {
+            patched_romfs = IVirtualFilePtr(loaded_rom->ReadManualRomFS());
+        }
+    }
+    R_UNLESS(patched_romfs, FileSys::ResultTargetNotFound);
+
+    IVirtualDirectoryPtr extracted_romfs(patched_romfs->ExtractRomFS());
+    R_UNLESS(extracted_romfs, FileSys::ResultTargetNotFound);
+
+    *out_interface = std::make_shared<IFileSystem>(system, std::move(extracted_romfs), SizeGetter::FromStorageId(fsc, StorageId::NandUser));
     R_SUCCEED();
 }
 
@@ -214,11 +238,12 @@ Result FSP_SRV::OpenSdCardFileSystem(OutInterface<IFileSystem> out_interface)
     R_SUCCEED();
 }
 
-Result FSP_SRV::CreateSaveDataFileSystem(FileSys::SaveDataCreationInfo save_create_struct, SaveDataAttribute save_struct, u128 uid) 
+Result FSP_SRV::CreateSaveDataFileSystem(CreateSaveDataFileSystemRequest request)
 {
-    LOG_DEBUG(Service_FS, "called save_struct = {}, uid = {:016X}{:016X}", DebugInfo(save_struct), uid[1], uid[0]);
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    LOG_DEBUG(Service_FS, "called save_struct = {}", DebugInfo(request.attribute));
+
+    IVirtualDirectoryPtr save_data_dir;
+    R_RETURN(save_data_controller->CreateSaveData(save_data_dir.GetAddressForSet(), request.creation_info.space_id, request.attribute) ? ResultSuccess : FileSys::ResultTargetNotFound);
 }
 
 Result FSP_SRV::CreateSaveDataFileSystemBySystemSaveDataId(SaveDataAttribute save_struct, FileSys::SaveDataCreationInfo save_create_struct)
@@ -229,7 +254,8 @@ Result FSP_SRV::CreateSaveDataFileSystemBySystemSaveDataId(SaveDataAttribute sav
     R_RETURN(save_data_controller->CreateSaveData(save_data_dir.GetAddressForSet(), SaveDataSpaceId::System, save_struct) ? ResultSuccess : FileSys::ResultTargetNotFound);
 }
 
-Result FSP_SRV::IsExFatSupported(Out<bool> out_is_supported) {
+Result FSP_SRV::IsExFatSupported(Out<bool> out_is_supported)
+{
     LOG_WARNING(Service_FS, "(STUBBED) called");
 
     *out_is_supported = true;
@@ -337,10 +363,10 @@ Result FSP_SRV::ReadSaveDataFileSystemExtraData(OutBuffer<BufferAttr_HipcMapAlia
     R_SUCCEED();
 }
 
-Result FSP_SRV::ReadSaveDataFileSystemExtraDataBySaveDataAttribute(OutBuffer<BufferAttr_HipcMapAlias> out_buffer, SaveDataSpaceId space_id,SaveDataAttribute attribute)
+Result FSP_SRV::ReadSaveDataFileSystemExtraDataBySaveDataAttribute(OutBuffer<BufferAttr_HipcMapAlias> out_buffer, SaveDataSpaceId space_id, SaveDataAttribute attribute)
 {
     // Stub, backend needs an impl to read/write the SaveDataExtraData
-    LOG_WARNING(Service_FS,"(STUBBED) called, space_id={}, attribute.program_id={:016X}\nattribute.user_id={:016X}{:016X}, attribute.save_id={:016X}\nattribute.type={}, attribute.rank={}, attribute.index={}", space_id, attribute.program_id, attribute.user_id[1], attribute.user_id[0], attribute.system_save_data_id, attribute.type, attribute.rank, attribute.index);
+    LOG_WARNING(Service_FS, "(STUBBED) called, space_id={}, attribute.program_id={:016X}\nattribute.user_id={:016X}{:016X}, attribute.save_id={:016X}\nattribute.type={}, attribute.rank={}, attribute.index={}", space_id, attribute.program_id, attribute.user_id[1], attribute.user_id[0], attribute.system_save_data_id, attribute.type, attribute.rank, attribute.index);
     std::memset(out_buffer.data(), 0, out_buffer.size());
     R_SUCCEED();
 }
@@ -367,7 +393,7 @@ Result FSP_SRV::OpenDataStorageByCurrentProcess(OutInterface<IStorage> out_inter
     if (!romfs)
     {
         IVirtualFilePtr current_romfs(romfs_controller->OpenRomFSCurrentProcess());
-        if (!current_romfs) 
+        if (!current_romfs)
         {
             // TODO (bunnei): Find the right error code to use here
             LOG_CRITICAL(Service_FS, "No file system interface available!");
@@ -387,7 +413,7 @@ Result FSP_SRV::OpenDataStorageByDataId(OutInterface<IStorage> out_interface, St
     {
         ISystemloader & loader = system.GetSystemloader();
         IVirtualFile * archive = loader.SynthesizeSystemArchive(title_id);
-        if (archive != nullptr) 
+        if (archive != nullptr)
         {
             *out_interface = std::make_shared<IStorage>(system, IVirtualFilePtr(archive));
             R_SUCCEED();
@@ -410,7 +436,25 @@ Result FSP_SRV::OpenPatchDataStorageByCurrentProcess(OutInterface<IStorage> out_
 Result FSP_SRV::OpenDataStorageWithProgramIndex(OutInterface<IStorage> out_interface, u8 program_index)
 {
     LOG_DEBUG(Service_FS, "called, program_index={}", program_index);
-    UNIMPLEMENTED();
+
+    constexpr u64 BaseTitleIdMask = 0xFFFFFFFFFFFFE000ULL;
+    const u64 target_program_id = (program_id & BaseTitleIdMask) + program_index;
+
+    IVirtualFilePtr base_romfs(romfs_controller->OpenRomFS(target_program_id, StorageId::None, LoaderContentRecordType::Program));
+    if (!base_romfs)
+    {
+        LOG_ERROR(Service_FS, "Could not open storage with program_index={}", program_index);
+        R_RETURN(ResultUnknown);
+    }
+
+    IVirtualFilePtr patched_romfs(romfs_controller->PatchBaseNca(target_program_id, StorageId::None, LoaderContentRecordType::Program, *base_romfs));
+    if (!patched_romfs)
+    {
+        LOG_ERROR(Service_FS, "Could not patch storage with program_index={}", program_index);
+        R_RETURN(ResultUnknown);
+    }
+
+    *out_interface = std::make_shared<IStorage>(system, std::move(patched_romfs));
     R_SUCCEED();
 }
 
@@ -439,8 +483,8 @@ Result FSP_SRV::OutputAccessLogToSdCard(InBuffer<BufferAttr_HipcMapAlias> log_me
 {
     LOG_DEBUG(Service_FS, "called");
 
-    auto log = Common::StringFromFixedZeroTerminatedBuffer(reinterpret_cast<const char*>(log_message_buffer.data()), log_message_buffer.size());
-    //reporter.SaveFSAccessLog(log);
+    // std::string log = Common::StringFromFixedZeroTerminatedBuffer(reinterpret_cast<const char *>(log_message_buffer.data()), log_message_buffer.size());
+    // reporter.SaveFSAccessLog(log);
 
     R_SUCCEED();
 }
