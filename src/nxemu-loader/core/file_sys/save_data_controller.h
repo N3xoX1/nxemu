@@ -46,6 +46,8 @@ public:
 
     // ISaveDataController
     bool CreateSaveData(IVirtualDirectory ** out_save_data, SaveDataSpaceId space, const SaveDataAttribute & attribute) override;
+    SaveDataSize ReadSaveDataSize(SaveDataType type, uint64_t title_id, uint64_t user_id_high, uint64_t user_id_low) override;
+    void WriteSaveDataSize(SaveDataType type, uint64_t title_id, uint64_t user_id_high, uint64_t user_id_low, SaveDataSize new_value) override;
     void Release() override;
 
 private:
