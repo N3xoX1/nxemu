@@ -7,6 +7,7 @@
 #include "yuzu_shader_recompiler/backend/glasm/glasm_emit_context.h"
 #include "yuzu_shader_recompiler/frontend/ir/value.h"
 #include "yuzu_shader_recompiler/profile.h"
+#include "yuzu_shader_recompiler/runtime_info.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 
 namespace Shader::Backend::GLASM {
@@ -405,6 +406,10 @@ void EmitInvocationInfo(EmitContext& ctx, IR::Inst& inst) {
     case Stage::TessellationControl:
     case Stage::TessellationEval:
         ctx.Add("SHL.U {}.x,primitive.vertexcount,16;", inst);
+        break;
+    case Stage::Geometry:
+        ctx.Add("SHL.U {}.x,{},16;", inst,
+                InputTopologyVertices::vertices(ctx.runtime_info.input_topology));
         break;
     default:
         LOG_WARNING(Shader, "(STUBBED) called");

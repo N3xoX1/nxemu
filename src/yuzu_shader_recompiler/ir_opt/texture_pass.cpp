@@ -182,6 +182,67 @@ std::optional<ConstBufferAddr> Track(const IR::Value& value, Environment& env) {
         value, [&env](const IR::Inst* inst) { return TryGetConstBuffer(inst, env); });
 }
 
+std::optional<ConstBufferAddr> TrackLocalLoad(const IR::Value& value, const IR::Block* block,
+                                           Environment& env) {
+    if (value.IsImmediate()) {
+        return std::nullopt;
+    }
+
+    const IR::Inst* const load{value.InstRecursive()};
+    if (load->GetOpcode() != IR::Opcode::LoadLocal) {
+        return std::nullopt;
+    }
+
+    const IR::Value load_offset{load->Arg(0)};
+    if (!load_offset.IsImmediate()) {
+        return std::nullopt;
+    }
+
+    const IR::Inst* matching_write{};
+    bool found_load{};
+    for (const IR::Inst& candidate : block->Instructions()) {
+        if (&candidate == load) {
+            found_load = true;
+            break;
+        }
+        if (candidate.GetOpcode() != IR::Opcode::WriteLocal) {
+            continue;
+        }
+
+        const IR::Value write_offset{candidate.Arg(0)};
+        // A dynamic local-memory write may alias the immediate slot loaded below.
+        // Without memory SSA, leave this handle unresolved instead of guessing.
+        if (!write_offset.IsImmediate()) {
+            return std::nullopt;
+        }
+        if (write_offset.U32() != load_offset.U32()) {
+            continue;
+        }
+
+        // Keep this fallback limited to a single store before the load in this block.
+        if (matching_write != nullptr) {
+            return std::nullopt;
+        }
+        matching_write = &candidate;
+    }
+
+    if (!found_load || matching_write == nullptr) {
+        return std::nullopt;
+    }
+    const IR::Value stored_value{matching_write->Arg(1)};
+    if (stored_value.IsImmediate()) {
+        return std::nullopt;
+    }
+    const IR::Inst* const source{stored_value.InstRecursive()};
+    // The general breadth-first tracker may find a cbuf anywhere in an expression,
+    // including a partial store, an address calculation or a modified handle. Only
+    // forward a scalar cbuf load (possibly through identities) whose value is unchanged.
+    if (source->GetOpcode() != IR::Opcode::GetCbufU32) {
+        return std::nullopt;
+    }
+    return TryGetConstBuffer(source, env);
+}
+
 std::optional<u32> TryGetConstant(IR::Value& value, Environment& env) {
     const IR::Inst* inst = value.InstRecursive();
     if (inst->GetOpcode() != IR::Opcode::GetCbufU32) {
@@ -330,7 +391,10 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
 TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
-        const std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
+        std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
+        if (!track_addr) {
+            track_addr = TrackLocalLoad(inst.Arg(0), block, env);
+        }
         if (!track_addr) {
             throw NotImplementedException("Failed to track bindless texture constant buffer");
         }
