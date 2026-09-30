@@ -65,8 +65,7 @@ bool NPadData::IsNpadIdTypeSupported(NpadIdType npad_id) const {
 }
 
 void NPadData::SetNpadSystemCommonPolicy(bool is_full_policy) {
-    supported_npad_style_set = (NpadStyleSet)((uint32_t)NpadStyleSet::Fullkey | (uint32_t)NpadStyleSet::JoyDual |
-                               (uint32_t)NpadStyleSet::SystemExt | (uint32_t)NpadStyleSet::System);
+    supported_npad_style_set = NpadStyleSet::All;
     handheld_activation_mode = NpadHandheldActivationMode::Dual;
 
     status.is_supported_styleset_set.Assign(true);
