@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <map>
+#include <memory>
 #include <mutex>
 
 #include "core/hle/service/am/applet.h"
@@ -13,6 +13,9 @@ class System;
 }
 
 namespace Service::AM {
+
+class EventObserver;
+class WindowSystem;
 
 enum class LaunchType {
     FrontendInitiated,
@@ -34,12 +37,16 @@ public:
     ~AppletManager();
 
     void InsertApplet(std::shared_ptr<Applet> applet);
-    void TerminateAndRemoveApplet(AppletResourceUserId aruid);
+    void NotifyAppletStarted(AppletResourceUserId aruid);
+    bool EnsureHidRegistered(AppletResourceUserId aruid);
 
     void CreateAndInsertByFrontendAppletParameters(AppletResourceUserId aruid,
-                                                   const FrontendAppletParameters& params);
+                                                   const FrontendAppletParameters& params,
+                                                   Kernel::KProcess* lifecycle_process = nullptr);
     std::shared_ptr<Applet> GetByAppletResourceUserId(AppletResourceUserId aruid) const;
+    std::shared_ptr<Applet> GetApplicationApplet() const;
 
+    void StopEventObserver();
     void Reset();
 
     void RequestExit();
@@ -47,11 +54,17 @@ public:
     void OperationModeChanged();
     void FocusStateChanged();
 
+    WindowSystem& GetWindowSystem();
+    const WindowSystem& GetWindowSystem() const;
+
 private:
+    void EnsureEventObserver();
+
     Core::System& m_system;
 
-    mutable std::mutex m_lock{};
-    std::map<AppletResourceUserId, std::shared_ptr<Applet>> m_applets{};
+    std::unique_ptr<WindowSystem> m_window_system;
+    std::mutex m_event_observer_mutex;
+    std::unique_ptr<EventObserver> m_event_observer;
 
     // AudioController state goes here
 };

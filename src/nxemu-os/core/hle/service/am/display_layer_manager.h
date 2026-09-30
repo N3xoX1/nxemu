@@ -18,6 +18,7 @@ class KProcess;
 }
 
 namespace Service::VI {
+enum class CaptureKind : u32;
 class IApplicationDisplayService;
 class IManagerDisplayService;
 } // namespace Service::VI
@@ -43,7 +44,9 @@ public:
     void SetWindowVisibility(bool visible);
     bool GetWindowVisibility() const;
 
-    Result WriteAppletCaptureBuffer(bool* out_was_written, s32* out_fbshare_layer_index);
+    Result WriteAppletCaptureBuffer(bool* out_was_written, s32* out_fbshare_layer_index,
+                                    VI::CaptureKind kind);
+    Result ClearAppletCaptureBuffer(s32 fbshare_layer_index, u32 color);
 
 private:
     Kernel::KProcess* m_process{};

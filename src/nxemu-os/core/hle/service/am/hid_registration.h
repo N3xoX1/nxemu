@@ -5,6 +5,8 @@
 
 #include <memory>
 
+#include "yuzu_common/common_types.h"
+
 namespace Core {
 class System;
 }
@@ -15,17 +17,27 @@ class IHidServer;
 
 namespace Service::AM {
 
-class Process;
-
 class HidRegistration {
 public:
-    explicit HidRegistration(Core::System& system, Process& process);
+    explicit HidRegistration(Core::System& system);
     ~HidRegistration();
 
-    void EnableAppletToGetInput(bool enable);
+    // After publication, the owning applet's lock serializes registration and input updates.
+    void SetAppletResourceUserId(u64 aruid);
+    bool EnsureRegistered();
+    void EnableAppletToGetInput(bool enable_pad, bool enable_touch);
 
 private:
-    Process& m_process;
+    void ApplyInputState();
+    void Unregister();
+
+    Core::System& m_system;
+    u64 m_aruid{};
+    bool m_registered{};
+    bool m_input_state_set{};
+    bool m_input_state_applied{};
+    bool m_pad_enabled{};
+    bool m_touch_enabled{};
     std::shared_ptr<Service::HID::IHidServer> m_hid_server;
 };
 

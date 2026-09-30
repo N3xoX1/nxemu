@@ -3,6 +3,7 @@
 
 #include <array>
 #include <atomic>
+#include <optional>
 
 #include "yuzu_audio_core/audio_core.h"
 #include "yuzu_common/hardware_properties.h"
@@ -23,6 +24,8 @@
 #include "core/hle/service/apm/apm_controller.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/glue/glue_manager.h"
+#include "core/hle/service/kernel_helpers.h"
+#include "core/hle/service/os/event.h"
 #include "core/hle/service/services.h"
 #include "core/internal_network/network.h"
 #include "core/perf_stats.h"
@@ -201,8 +204,15 @@ struct System::Impl {
         Network::CancelPendingSocketOperations();
         kernel.SuspendEmulation(true);
         kernel.CloseServices();
+        applet_manager.StopEventObserver();
         kernel.ShutdownCores();
         applet_manager.Reset();
+        {
+            std::scoped_lock lk{general_channel_mutex};
+            general_channel.clear();
+            general_channel_event.reset();
+            general_channel_context.reset();
+        }
         services.reset();
         service_manager.reset();
         core_timing.ClearPendingEvents();
@@ -290,6 +300,17 @@ struct System::Impl {
         gpu_dirty_memory_managers;
 
     std::deque<std::vector<u8>> user_channel;
+    std::vector<std::vector<u8>> general_channel;
+    std::mutex general_channel_mutex;
+    std::optional<Service::KernelHelpers::ServiceContext> general_channel_context;
+    std::optional<Service::Event> general_channel_event;
+
+    void EnsureGeneralChannelInitialized(System& system) {
+        if (!general_channel_event) {
+            general_channel_context.emplace(system, "GeneralChannel");
+            general_channel_event.emplace(*general_channel_context);
+        }
+    }
 
     Kernel::KProcess * current_process{nullptr};
 };
@@ -719,6 +740,36 @@ void System::ExecuteProgram(std::size_t program_index)
 std::deque<std::vector<u8>> & System::GetUserChannel()
 {
     return impl->user_channel;
+}
+
+void System::PushGeneralChannelData(std::vector<u8>&& data) {
+    std::scoped_lock lk{impl->general_channel_mutex};
+    impl->EnsureGeneralChannelInitialized(*this);
+    const bool was_empty = impl->general_channel.empty();
+    impl->general_channel.push_back(std::move(data));
+    if (was_empty) {
+        impl->general_channel_event->Signal();
+    }
+}
+
+bool System::TryPopGeneralChannel(std::vector<u8>& out_data) {
+    std::scoped_lock lk{impl->general_channel_mutex};
+    if (!impl->general_channel_event || impl->general_channel.empty()) {
+        return false;
+    }
+
+    out_data = std::move(impl->general_channel.back());
+    impl->general_channel.pop_back();
+    if (impl->general_channel.empty()) {
+        impl->general_channel_event->Clear();
+    }
+    return true;
+}
+
+Service::Event& System::GetGeneralChannelEvent() {
+    std::scoped_lock lk{impl->general_channel_mutex};
+    impl->EnsureGeneralChannelInitialized(*this);
+    return *impl->general_channel_event;
 }
 
 void System::RegisterExitCallback(::ExitCallback callback, void * userData)

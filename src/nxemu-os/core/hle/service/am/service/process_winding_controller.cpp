@@ -4,6 +4,7 @@
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/am/service/library_applet_accessor.h"
 #include "core/hle/service/am/service/process_winding_controller.h"
+#include "core/hle/service/am/service/storage.h"
 #include "core/hle/service/cmif_serialization.h"
 
 namespace Service::AM {
@@ -15,8 +16,8 @@ IProcessWindingController::IProcessWindingController(Core::System& system_,
     static const FunctionInfo functions[] = {
         {0, D<&IProcessWindingController::GetLaunchReason>, "GetLaunchReason"},
         {11, D<&IProcessWindingController::OpenCallingLibraryApplet>, "OpenCallingLibraryApplet"},
-        {21, nullptr, "PushContext"},
-        {22, nullptr, "PopContext"},
+        {21, D<&IProcessWindingController::PushContext>, "PushContext"},
+        {22, D<&IProcessWindingController::PopContext>, "PopContext"},
         {23, nullptr, "CancelWindingReservation"},
         {30, nullptr, "WindAndDoReserved"},
         {40, nullptr, "ReserveToStartAndWaitAndUnwindThis"},
@@ -48,6 +49,25 @@ Result IProcessWindingController::OpenCallingLibraryApplet(
 
     *out_calling_library_applet = std::make_shared<ILibraryAppletAccessor>(
         system, m_applet->caller_applet_broker, caller_applet);
+    R_SUCCEED();
+}
+
+Result IProcessWindingController::PushContext(SharedPointer<IStorage> context) {
+    LOG_INFO(Service_AM, "called");
+    m_applet->context_stack.push(context);
+    R_SUCCEED();
+}
+
+Result IProcessWindingController::PopContext(Out<SharedPointer<IStorage>> out_context) {
+    LOG_INFO(Service_AM, "called");
+
+    if (m_applet->context_stack.empty()) {
+        LOG_ERROR(Service_AM, "Context stack is empty");
+        R_THROW(ResultUnknown);
+    }
+
+    *out_context = m_applet->context_stack.top();
+    m_applet->context_stack.pop();
     R_SUCCEED();
 }
 

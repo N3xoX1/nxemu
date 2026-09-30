@@ -22,9 +22,6 @@
     <Filter Include="Source Files\core\hle">
       <UniqueIdentifier>{d932bd7a-4b45-52a3-b751-05ddbb018f3c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\core\arm">
-      <UniqueIdentifier>{30c901f0-88be-a1e4-0e80-047d0b05a5ad}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\core\hle\kernel">
       <UniqueIdentifier>{2c6e3276-2119-3f6f-8a89-0ade38033635}</UniqueIdentifier>
     </Filter>
@@ -895,9 +892,6 @@
       <Filter>Header Files\core\hle\service\am</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\applet_manager.h">
-      <Filter>Header Files\core\hle\service\am</Filter>
-    </ClInclude>
-    <ClInclude Include="core\hle\service\am\applet_message_queue.h">
       <Filter>Header Files\core\hle\service\am</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\am\display_layer_manager.h">
@@ -2124,6 +2118,33 @@
     <ClInclude Include="default_profile_image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\service\am\event_observer.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\hid_registration.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\lifecycle_manager.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\process_holder.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\window_system.h">
+      <Filter>Header Files\core\hle\service\am</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\applet_alternative_functions.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\overlay_applet_proxy.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\overlay_functions.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\am\service\system_process_common_functions.h">
+      <Filter>Header Files\core\hle\service\am\service</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.h.in">
@@ -2465,9 +2486,6 @@
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\applet_data_broker.cpp">
-      <Filter>Source Files\core\hle\service\am</Filter>
-    </ClCompile>
-    <ClCompile Include="core\hle\service\am\applet_message_queue.cpp">
       <Filter>Source Files\core\hle\service\am</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\am\display_layer_manager.cpp">
@@ -3540,6 +3558,30 @@
     </ClCompile>
     <ClCompile Include="default_profile_image.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\event_observer.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\lifecycle_manager.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\process_holder.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\window_system.cpp">
+      <Filter>Source Files\core\hle\service\am</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\applet_alternative_functions.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\overlay_applet_proxy.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\overlay_functions.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\am\service\system_process_common_functions.cpp">
+      <Filter>Source Files\core\hle\service\am\service</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
