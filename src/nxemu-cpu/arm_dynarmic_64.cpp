@@ -261,9 +261,19 @@ public:
         }
     }
 
-    bool CheckMemoryAccess(uint64_t /*addr*/, uint64_t /*size*/, CpuDebugWatchpointType /*type*/)
+    bool CheckMemoryAccess(uint64_t addr, uint64_t size, CpuDebugWatchpointType /*type*/)
     {
         if (!m_check_memory_access)
+        {
+            return true;
+        }
+        if (!m_memory.IsValidVirtualAddressRange(addr, size))
+        {
+            LOG_CRITICAL(Core_ARM, "Stopping execution due to unmapped memory access at {:#x}", addr);
+            m_parent.m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::PrefetchAbort));
+            return false;
+        }
+        if (!m_debugger_enabled)
         {
             return true;
         }
