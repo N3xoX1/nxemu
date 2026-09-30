@@ -88,10 +88,11 @@ NCA::NCA(VirtualFile file_, const NCA * base_nca) :
         }
 
         const auto & patch_info = header_reader.GetPatchInfo();
-        if (patch_info.HasIndirectTable() && patch_info.HasAesCtrExTable())
+        if (patch_info.HasIndirectTable() &&
+            (patch_info.HasAesCtrExTable() || header_reader.ExistsPatchMetaHashLayer()))
         {
-            // Decrypted BKTR updates retain both patch metadata tables even though their
-            // encryption type is None. Use the BKTR structure itself to identify updates.
+            // Decrypted BKTR updates can omit the AES-CTR-EX table when the indirect
+            // metadata is protected by a patch metadata-hash layer.
             is_update = true;
         }
     }
