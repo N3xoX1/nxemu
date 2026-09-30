@@ -20,9 +20,19 @@ private:
         Unknown = 3,
     };
 
+    enum class BatteryVoltageState : u32 {
+        NeedsShutdown = 0,
+        NeedsSleep = 1,
+        NoPerformanceBoost = 2,
+        Normal = 3,
+    };
+
     void GetBatteryChargePercentage(HLERequestContext& ctx);
     void GetChargerType(HLERequestContext& ctx);
     void OpenSession(HLERequestContext& ctx);
+    void GetBatteryVoltageState(HLERequestContext& ctx);
+    void GetBatteryAgePercentage(HLERequestContext& ctx);
+    void GetBatteryChargeInfoFields(HLERequestContext& ctx);
 
     u32 battery_charge_percentage{100};
     ChargerType charger_type{ChargerType::RegularCharger};

@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+#include <optional>
+#include <vector>
+
 #include "yuzu_common/string_util.h"
 
 #include "core/core.h"
@@ -41,6 +45,8 @@ enum class IoMode : u32 {
 enum class OptionType : u32 {
     DoNotCloseSocket = 0,
     GetServerCertChain = 1,
+    SkipDefaultVerify = 2,
+    EnableAlpn = 3,
 };
 
 // This is nn::ssl::sf::SslVersion
@@ -61,6 +67,17 @@ struct SslContextSharedData {
     u32 connection_count = 0;
 };
 
+std::optional<std::vector<CaCertificateId>> ReadCertificateIds(HLERequestContext& ctx) {
+    const auto bytes = ctx.ReadBuffer();
+    if (bytes.empty() || bytes.size() % sizeof(CaCertificateId) != 0) {
+        return std::nullopt;
+    }
+
+    std::vector<CaCertificateId> ids(bytes.size() / sizeof(CaCertificateId));
+    std::memcpy(ids.data(), bytes.data(), bytes.size());
+    return ids;
+}
+
 class ISslConnection final : public ServiceFramework<ISslConnection> {
 public:
     explicit ISslConnection(Core::System& system_in, SslVersion ssl_version_in,
@@ -74,10 +91,10 @@ public:
             {1, &ISslConnection::SetHostName, "SetHostName"},
             {2, &ISslConnection::SetVerifyOption, "SetVerifyOption"},
             {3, &ISslConnection::SetIoMode, "SetIoMode"},
-            {4, nullptr, "GetSocketDescriptor"},
-            {5, nullptr, "GetHostName"},
-            {6, nullptr, "GetVerifyOption"},
-            {7, nullptr, "GetIoMode"},
+            {4, &ISslConnection::GetSocketDescriptor, "GetSocketDescriptor"},
+            {5, &ISslConnection::GetHostName, "GetHostName"},
+            {6, &ISslConnection::GetVerifyOption, "GetVerifyOption"},
+            {7, &ISslConnection::GetIoMode, "GetIoMode"},
             {8, &ISslConnection::DoHandshake, "DoHandshake"},
             {9, &ISslConnection::DoHandshakeGetServerCert, "DoHandshakeGetServerCert"},
             {10, &ISslConnection::Read, "Read"},
@@ -88,12 +105,12 @@ public:
             {15, nullptr, "GetVerifyCertError"},
             {16, nullptr, "GetNeededServerCertBufferSize"},
             {17, &ISslConnection::SetSessionCacheMode, "SetSessionCacheMode"},
-            {18, nullptr, "GetSessionCacheMode"},
+            {18, &ISslConnection::GetSessionCacheMode, "GetSessionCacheMode"},
             {19, nullptr, "FlushSessionCache"},
             {20, nullptr, "SetRenegotiationMode"},
             {21, nullptr, "GetRenegotiationMode"},
             {22, &ISslConnection::SetOption, "SetOption"},
-            {23, nullptr, "GetOption"},
+            {23, &ISslConnection::GetOption, "GetOption"},
             {24, nullptr, "GetVerifyCertErrors"},
             {25, nullptr, "GetCipherInfo"},
             {26, nullptr, "SetNextAlpnProto"},
@@ -113,23 +130,18 @@ public:
 
         RegisterHandlers(functions);
 
+        backend->SetVerifyOption(verify_option);
         shared_data->connection_count++;
     }
 
     ~ISslConnection() {
         shared_data->connection_count--;
         if (fd_to_close.has_value()) {
-            const s32 fd = *fd_to_close;
-            if (!do_not_close_socket) {
-                LOG_ERROR(Service_SSL,
-                          "do_not_close_socket was changed after setting socket; is this right?");
-            } else {
-                auto bsd = system.ServiceManager().GetService<Service::Sockets::BSD>("bsd:u");
-                if (bsd) {
-                    auto err = bsd->CloseImpl(fd);
-                    if (err != Service::Sockets::Errno::SUCCESS) {
-                        LOG_ERROR(Service_SSL, "Failed to close duplicated socket: {}", err);
-                    }
+            auto bsd = system.ServiceManager().GetService<Service::Sockets::BSD>("bsd:u");
+            if (bsd) {
+                const auto err = bsd->CloseImpl(*fd_to_close);
+                if (err != Service::Sockets::Errno::SUCCESS) {
+                    LOG_ERROR(Service_SSL, "Failed to close internal duplicated socket: {}", err);
                 }
             }
         }
@@ -139,74 +151,126 @@ private:
     SslVersion ssl_version;
     std::shared_ptr<SslContextSharedData> shared_data;
     std::unique_ptr<SSLConnectionBackend> backend;
-    std::optional<int> fd_to_close;
+    std::optional<s32> fd_to_close;
+    std::optional<s32> input_fd;
+    std::string host_name;
+    u32 verify_option = 3;
+    IoMode io_mode = IoMode::Blocking;
+    u32 session_cache_mode = 0;
     bool do_not_close_socket = false;
     bool get_server_cert_chain = false;
+    bool skip_default_verify = false;
+    bool enable_alpn = false;
     std::shared_ptr<Network::SocketBase> socket;
     bool did_handshake = false;
 
     Result SetSocketDescriptorImpl(s32* out_fd, s32 fd) {
         LOG_DEBUG(Service_SSL, "called, fd={}", fd);
-        ASSERT(!did_handshake);
+        if (input_fd.has_value()) {
+            return ResultAlreadyInUse;
+        }
+        if (did_handshake) {
+            return ResultAlreadyInUse;
+        }
+
         auto bsd = system.ServiceManager().GetService<Service::Sockets::BSD>("bsd:u");
         ASSERT_OR_EXECUTE(bsd, { return ResultInternalError; });
 
-        // Based on https://switchbrew.org/wiki/SSL_services#SetSocketDescriptor
-        if (do_not_close_socket) {
-            auto res = bsd->DuplicateSocketImpl(fd);
-            if (!res.has_value()) {
-                LOG_ERROR(Service_SSL, "Failed to duplicate socket with fd {}", fd);
-                return ResultInvalidSocket;
-            }
-            fd = *res;
-            fd_to_close = fd;
-            *out_fd = fd;
-        } else {
-            *out_fd = -1;
-        }
-        std::optional<std::shared_ptr<Network::SocketBase>> sock = bsd->GetSocket(fd);
-        if (!sock.has_value()) {
-            LOG_ERROR(Service_SSL, "invalid socket fd {}", fd);
+        // Keep an internal duplicate; return the original descriptor unless DoNotCloseSocket is set.
+        auto duplicate = bsd->DuplicateSocketImpl(fd);
+        if (!duplicate.has_value()) {
+            LOG_ERROR(Service_SSL, "Failed to duplicate socket with fd {}", fd);
             return ResultInvalidSocket;
         }
-        socket = std::move(*sock);
+
+        const s32 internal_fd = *duplicate;
+        const auto sock = bsd->GetSocket(internal_fd);
+        if (!sock.has_value()) {
+            (void)bsd->CloseImpl(internal_fd);
+            LOG_ERROR(Service_SSL, "Invalid duplicated socket fd {}", internal_fd);
+            return ResultInvalidSocket;
+        }
+
+        input_fd = fd;
+        fd_to_close = internal_fd;
+        socket = *sock;
         backend->SetSocket(socket);
+        *out_fd = do_not_close_socket ? -1 : fd;
         return ResultSuccess;
     }
 
     Result SetHostNameImpl(const std::string& hostname) {
         LOG_DEBUG(Service_SSL, "called. hostname={}", hostname);
-        ASSERT(!did_handshake);
-        return backend->SetHostName(hostname);
+        if (did_handshake) {
+            return ResultAlreadyInUse;
+        }
+        const Result res = backend->SetHostName(hostname);
+        if (res == ResultSuccess) {
+            host_name = hostname;
+        }
+        return res;
     }
 
     Result SetVerifyOptionImpl(u32 option) {
-        ASSERT(!did_handshake);
-        LOG_WARNING(Service_SSL, "(STUBBED) called. option={}", option);
+        if (did_handshake) {
+            return ResultAlreadyInUse;
+        }
+        constexpr u32 default_verify = VerifyOptionPeerCa | VerifyOptionHostName;
+        // Horizon 5+ requires both checks unless the guest explicitly opts out.
+        if ((option & default_verify) != default_verify && !skip_default_verify) {
+            return ResultInvalidOption;
+        }
+        // Schannel ignores HostName when peer-CA validation is disabled.
+        if ((option & VerifyOptionHostName) != 0 && (option & VerifyOptionPeerCa) == 0) {
+            return ResultInvalidOption;
+        }
+        verify_option = option;
+        backend->SetVerifyOption(option);
+        LOG_DEBUG(Service_SSL, "SetVerifyOption option={}", option);
         return ResultSuccess;
     }
 
     Result SetIoModeImpl(u32 input_mode) {
-        auto mode = static_cast<IoMode>(input_mode);
-        ASSERT(mode == IoMode::Blocking || mode == IoMode::NonBlocking);
+        const auto mode = static_cast<IoMode>(input_mode);
+        if (mode != IoMode::Blocking && mode != IoMode::NonBlocking) {
+            return ResultInvalidOption;
+        }
         ASSERT_OR_EXECUTE(socket, { return ResultNoSocket; });
 
         const bool non_block = mode == IoMode::NonBlocking;
         const Network::Errno error = socket->SetNonBlock(non_block);
         if (error != Network::Errno::SUCCESS) {
             LOG_ERROR(Service_SSL, "Failed to set native socket non-block flag to {}", non_block);
+            return ResultInternalError;
         }
+        io_mode = mode;
         return ResultSuccess;
     }
 
     Result SetSessionCacheModeImpl(u32 mode) {
-        ASSERT(!did_handshake);
-        LOG_WARNING(Service_SSL, "(STUBBED) called. value={}", mode);
+        ASSERT_OR_EXECUTE(socket, { return ResultNoSocket; });
+        if (did_handshake) {
+            return ResultAlreadyInUse;
+        }
+        if (mode > 2) {
+            return ResultInvalidOption;
+        }
+        session_cache_mode = mode;
         return ResultSuccess;
     }
 
     Result DoHandshakeImpl() {
-        ASSERT_OR_EXECUTE(!did_handshake && socket, { return ResultNoSocket; });
+        if (!socket) {
+            return ResultNoSocket;
+        }
+        if (did_handshake) {
+            return ResultAlreadyInUse;
+        }
+        if ((verify_option & VerifyOptionHostName) != 0 && host_name.empty()) {
+            LOG_ERROR(Service_SSL, "Hostname verification requested without a hostname");
+            return ResultInvalidOption;
+        }
+
         Result res = backend->DoHandshake();
         did_handshake = res.IsSuccess();
         return res;
@@ -261,8 +325,8 @@ private:
     }
 
     Result PendingImpl(s32* out_pending) {
-        LOG_WARNING(Service_SSL, "(STUBBED) called.");
-        *out_pending = 0;
+        ASSERT_OR_EXECUTE(socket, { return ResultNoSocket; });
+        *out_pending = backend->Pending();
         return ResultSuccess;
     }
 
@@ -299,6 +363,40 @@ private:
         rb.Push(res);
     }
 
+    void GetSocketDescriptor(HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        if (!input_fd.has_value()) {
+            rb.Push(ResultNoSocket);
+            rb.Push<s32>(-1);
+            return;
+        }
+        rb.Push(ResultSuccess);
+        rb.Push<s32>(*input_fd);
+    }
+
+    void GetHostName(HLERequestContext& ctx) {
+        const size_t write_size = (std::min)(host_name.size(), ctx.GetWriteBufferSize());
+        if (write_size != 0) {
+            ctx.WriteBuffer(std::span<const u8>{reinterpret_cast<const u8*>(host_name.data()),
+                                                write_size});
+        }
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(ResultSuccess);
+        rb.Push(static_cast<u32>(host_name.size()));
+    }
+
+    void GetVerifyOption(HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(ResultSuccess);
+        rb.Push(verify_option);
+    }
+
+    void GetIoMode(HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(ResultSuccess);
+        rb.PushEnum(io_mode);
+    }
+
     void DoHandshake(HLERequestContext& ctx) {
         const Result res = DoHandshakeImpl();
         IPC::ResponseBuilder rb{ctx, 2};
@@ -314,14 +412,19 @@ private:
 
         Result res = DoHandshakeImpl();
         OutputParameters out{};
-        if (res == ResultSuccess) {
+        if (res == ResultSuccess && (verify_option & VerifyOptionPeerCa) != 0) {
             std::vector<std::vector<u8>> certs;
             res = backend->GetServerCerts(&certs);
             if (res == ResultSuccess) {
                 const std::vector<u8> certs_buf = SerializeServerCerts(certs);
-                ctx.WriteBuffer(certs_buf);
-                out.certs_count = static_cast<u32>(certs.size());
+                out.certs_count = get_server_cert_chain ? static_cast<u32>(certs.size())
+                                                        : static_cast<u32>(!certs.empty());
                 out.certs_size = static_cast<u32>(certs_buf.size());
+                if (certs_buf.size() > ctx.GetWriteBufferSize()) {
+                    res = ResultCertBufferTooSmall;
+                } else if (!certs_buf.empty()) {
+                    ctx.WriteBuffer(certs_buf);
+                }
             }
         }
         IPC::ResponseBuilder rb{ctx, 4};
@@ -366,30 +469,87 @@ private:
         rb.Push(res);
     }
 
+    void GetSessionCacheMode(HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        if (!socket) {
+            rb.Push(ResultNoSocket);
+            rb.Push<u32>(0);
+            return;
+        }
+        rb.Push(ResultSuccess);
+        rb.Push(session_cache_mode);
+    }
+
+    Result SetOptionImpl(OptionType option, bool value) {
+        switch (option) {
+        case OptionType::DoNotCloseSocket:
+            if (input_fd.has_value()) {
+                return ResultAlreadyInUse;
+            }
+            do_not_close_socket = value;
+            break;
+        case OptionType::GetServerCertChain:
+            get_server_cert_chain = value;
+            break;
+        case OptionType::SkipDefaultVerify:
+            skip_default_verify = value;
+            break;
+        case OptionType::EnableAlpn:
+            enable_alpn = value;
+            break;
+        default:
+            LOG_WARNING(Service_SSL, "Unknown SSL option={}", option);
+            return ResultInvalidOption;
+        }
+        return ResultSuccess;
+    }
+
+    Result GetOptionImpl(OptionType option, bool* out_value) const {
+        switch (option) {
+        case OptionType::DoNotCloseSocket:
+            *out_value = do_not_close_socket;
+            break;
+        case OptionType::GetServerCertChain:
+            *out_value = get_server_cert_chain;
+            break;
+        case OptionType::SkipDefaultVerify:
+            *out_value = skip_default_verify;
+            break;
+        case OptionType::EnableAlpn:
+            *out_value = enable_alpn;
+            break;
+        default:
+            LOG_WARNING(Service_SSL, "Unknown SSL option={}", option);
+            return ResultInvalidOption;
+        }
+        return ResultSuccess;
+    }
+
     void SetOption(HLERequestContext& ctx) {
         struct Parameters {
+            u8 value;
+            INSERT_PADDING_BYTES(3);
             OptionType option;
-            s32 value;
         };
         static_assert(sizeof(Parameters) == 0x8, "Parameters is an invalid size");
 
         IPC::RequestParser rp{ctx};
         const auto parameters = rp.PopRaw<Parameters>();
-
-        switch (parameters.option) {
-        case OptionType::DoNotCloseSocket:
-            do_not_close_socket = static_cast<bool>(parameters.value);
-            break;
-        case OptionType::GetServerCertChain:
-            get_server_cert_chain = static_cast<bool>(parameters.value);
-            break;
-        default:
-            LOG_WARNING(Service_SSL, "Unknown option={}, value={}", parameters.option,
-                        parameters.value);
-        }
+        const Result res = SetOptionImpl(parameters.option, parameters.value != 0);
 
         IPC::ResponseBuilder rb{ctx, 2};
-        rb.Push(ResultSuccess);
+        rb.Push(res);
+    }
+
+    void GetOption(HLERequestContext& ctx) {
+        IPC::RequestParser rp{ctx};
+        const auto option = rp.PopEnum<OptionType>();
+        bool value = false;
+        const Result res = GetOptionImpl(option, &value);
+
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(res);
+        rb.Push<u8>(value ? 1 : 0);
     }
 };
 
@@ -496,14 +656,14 @@ private:
 
 class ISslService final : public ServiceFramework<ISslService> {
 public:
-    explicit ISslService(Core::System& system_)
-        : ServiceFramework{system_, "ssl"} {
+    explicit ISslService(Core::System& system_, std::shared_ptr<CertStore> cert_store_)
+        : ServiceFramework{system_, "ssl"}, cert_store{std::move(cert_store_)} {
         // clang-format off
         static const FunctionInfo functions[] = {
             {0, &ISslService::CreateContext, "CreateContext"},
             {1, nullptr, "GetContextCount"},
-            {2, nullptr, "GetCertificates"},
-            {3, nullptr, "GetCertificateBufSize"},
+            {2, &ISslService::GetCertificates, "GetCertificates"},
+            {3, &ISslService::GetCertificateBufSize, "GetCertificateBufSize"},
             {4, nullptr, "DebugIoctl"},
             {5, &ISslService::SetInterfaceVersion, "SetInterfaceVersion"},
             {6, nullptr, "FlushSessionCache"},
@@ -519,6 +679,50 @@ public:
     }
 
 private:
+    std::shared_ptr<CertStore> cert_store;
+
+    void GetCertificates(HLERequestContext& ctx) {
+        const auto ids = ReadCertificateIds(ctx);
+        if (!ids.has_value()) {
+            IPC::ResponseBuilder rb{ctx, 3};
+            rb.Push(ResultInvalidOption);
+            rb.Push<u32>(0);
+            return;
+        }
+
+        u32 required_size{};
+        u32 num_entries{};
+        Result res = cert_store->GetCertificateBufSize(&required_size, &num_entries, *ids);
+        if (res == ResultSuccess && required_size > ctx.GetWriteBufferSize()) {
+            res = ResultInvalidCertBufSize;
+        }
+
+        if (res == ResultSuccess) {
+            std::vector<u8> output(required_size);
+            res = cert_store->GetCertificates(&num_entries, output, *ids);
+            if (res == ResultSuccess && !output.empty()) {
+                ctx.WriteBuffer(output);
+            }
+        }
+
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(res);
+        rb.Push(num_entries);
+    }
+
+    void GetCertificateBufSize(HLERequestContext& ctx) {
+        const auto ids = ReadCertificateIds(ctx);
+        u32 required_size{};
+        u32 num_entries{};
+        const Result res = ids.has_value()
+                               ? cert_store->GetCertificateBufSize(&required_size, &num_entries, *ids)
+                               : ResultInvalidOption;
+
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(res);
+        rb.Push(required_size);
+    }
+
     void CreateContext(HLERequestContext& ctx) {
         struct Parameters {
             SslVersion ssl_version;
@@ -551,13 +755,13 @@ private:
 
 class ISslServiceForSystem final : public ServiceFramework<ISslServiceForSystem> {
 public:
-    explicit ISslServiceForSystem(Core::System& system_)
-        : ServiceFramework{system_, "ssl:s"} {
+    explicit ISslServiceForSystem(Core::System& system_, std::shared_ptr<CertStore> cert_store_)
+        : ServiceFramework{system_, "ssl:s"}, cert_store{std::move(cert_store_)} {
         static const FunctionInfo functions[] = {
             {0, &ISslServiceForSystem::CreateContext, "CreateContext"},
             {1, nullptr, "GetContextCount"},
-            {2, nullptr, "GetCertificates"},
-            {3, nullptr, "GetCertificateBufSize"},
+            {2, &ISslServiceForSystem::GetCertificates, "GetCertificates"},
+            {3, &ISslServiceForSystem::GetCertificateBufSize, "GetCertificateBufSize"},
             {4, nullptr, "DebugIoctl"},
             {5, &ISslServiceForSystem::SetInterfaceVersion, "SetInterfaceVersion"},
             {6, nullptr, "FlushSessionCache"},
@@ -577,6 +781,48 @@ public:
     }
 
 private:
+    std::shared_ptr<CertStore> cert_store;
+
+    void GetCertificates(HLERequestContext& ctx) {
+        const auto ids = ReadCertificateIds(ctx);
+        if (!ids.has_value()) {
+            IPC::ResponseBuilder rb{ctx, 3};
+            rb.Push(ResultInvalidOption);
+            rb.Push<u32>(0);
+            return;
+        }
+
+        u32 required_size{};
+        u32 num_entries{};
+        Result res = cert_store->GetCertificateBufSize(&required_size, &num_entries, *ids);
+        if (res == ResultSuccess && required_size > ctx.GetWriteBufferSize()) {
+            res = ResultInvalidCertBufSize;
+        }
+        if (res == ResultSuccess) {
+            std::vector<u8> output(required_size);
+            res = cert_store->GetCertificates(&num_entries, output, *ids);
+            if (res == ResultSuccess && !output.empty()) {
+                ctx.WriteBuffer(output);
+            }
+        }
+
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(res);
+        rb.Push(num_entries);
+    }
+
+    void GetCertificateBufSize(HLERequestContext& ctx) {
+        const auto ids = ReadCertificateIds(ctx);
+        u32 required_size{};
+        u32 num_entries{};
+        const Result res = ids.has_value()
+                               ? cert_store->GetCertificateBufSize(&required_size, &num_entries, *ids)
+                               : ResultInvalidOption;
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(res);
+        rb.Push(required_size);
+    }
+
     void CreateContext(HLERequestContext& ctx) {
         struct Parameters {
             SslVersion ssl_version;
@@ -619,8 +865,11 @@ private:
 void LoopProcess(Core::System& system) {
     auto server_manager = std::make_unique<ServerManager>(system);
 
-    server_manager->RegisterNamedService("ssl", std::make_shared<ISslService>(system));
-    server_manager->RegisterNamedService("ssl:s", std::make_shared<ISslServiceForSystem>(system));
+    auto cert_store = std::make_shared<CertStore>(system);
+    server_manager->RegisterNamedService("ssl",
+                                         std::make_shared<ISslService>(system, cert_store));
+    server_manager->RegisterNamedService(
+        "ssl:s", std::make_shared<ISslServiceForSystem>(system, std::move(cert_store)));
     ServerManager::RunServer(std::move(server_manager));
 }
 

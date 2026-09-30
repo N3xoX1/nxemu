@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -38,6 +41,24 @@
 
 namespace Service::NFC
 {
+namespace
+{
+bool IsPlainAmiiboValid(const NFP::NTAG215File& data)
+{
+    constexpr u8 CascadeTag = 0x88;
+    const bool valid_uuid =
+        (CascadeTag ^ data.uid.part1[0] ^ data.uid.part1[1] ^ data.uid.part1[2]) ==
+            data.uid.crc_check1 &&
+        (data.uid.part2[0] ^ data.uid.part2[1] ^ data.uid.part2[2] ^ data.uid.nintendo_id) ==
+            data.uid_crc_check2;
+
+    return valid_uuid && data.static_lock == 0xE00F &&
+           data.compatibility_container == 0xEEFF10F1U &&
+           data.model_info.tag_type == NFC::PackedTagType::Type2 &&
+           (data.dynamic_lock & 0xFFFFFF) == 0x0F0001U && data.CFG0 == 0x04000000U &&
+           data.CFG1 == 0x5F;
+}
+} // namespace
 NfcDevice::NfcDevice(NpadIdType npad_id_, Core::System & system_,
                      KernelHelpers::ServiceContext & service_context_,
                      Kernel::KEvent * availability_change_event_) :
@@ -143,6 +164,25 @@ bool NfcDevice::LoadNfcTag(u8 protocol, u8 tag_type, u8 uuid_length, UniqueSeria
         return false;
     }
 
+    if (tag_type == static_cast<u8>(TagType::Type2))
+    {
+        std::vector<u8> data{};
+        if (npad_device->ReadAmiiboData(data) && data.size() >= sizeof(NFP::NTAG215File))
+        {
+            NFP::NTAG215File plain_tag{};
+            memcpy(&plain_tag, data.data(), sizeof(plain_tag));
+            if (IsPlainAmiiboValid(plain_tag))
+            {
+                uuid = {};
+                memcpy(uuid.data(), plain_tag.uid.part1.data(), plain_tag.uid.part1.size());
+                memcpy(uuid.data() + plain_tag.uid.part1.size(), plain_tag.uid.part2.data(),
+                       plain_tag.uid.part2.size());
+                uuid[6] = plain_tag.uid.nintendo_id;
+                uuid_length = sizeof(NFP::NtagTagUuid);
+            }
+        }
+    }
+
     real_tag_info = {
         .uuid = uuid,
         .uuid_length = uuid_length,
@@ -165,7 +205,22 @@ bool NfcDevice::LoadAmiiboData()
         return false;
     }
 
-    UNIMPLEMENTED();
+    if (data.size() < sizeof(NFP::NTAG215File))
+    {
+        LOG_ERROR(Service_NFC, "Not an amiibo, size={}", data.size());
+        return false;
+    }
+
+    memcpy(&tag_data, data.data(), sizeof(tag_data));
+
+    if (!IsPlainAmiiboValid(tag_data))
+    {
+        LOG_ERROR(Service_NFC, "Only plain amiibo dumps are supported");
+        tag_data = {};
+        return false;
+    }
+
+    LOG_INFO(Service_NFP, "Using plain amiibo");
     return true;
 }
 
@@ -179,6 +234,9 @@ void NfcDevice::CloseNfcTag()
     }
 
     device_state = DeviceState::TagRemoved;
+    mount_target = NFP::MountTarget::None;
+    is_data_moddified = false;
+    is_app_area_open = false;
     encrypted_tag_data = {};
     tag_data = {};
     activate_event->GetReadableEvent().Clear();
@@ -198,6 +256,9 @@ Kernel::KReadableEvent & NfcDevice::GetDeactivateEvent() const
 void NfcDevice::Initialize()
 {
     device_state = npad_device->HasNfc() ? DeviceState::Initialized : DeviceState::Unavailable;
+    mount_target = NFP::MountTarget::None;
+    is_data_moddified = false;
+    is_app_area_open = false;
     encrypted_tag_data = {};
     tag_data = {};
 
@@ -446,6 +507,12 @@ Result NfcDevice::Mount(NFP::ModelType model_type, NFP::MountTarget mount_target
         return ResultInvalidArgument;
     }
 
+    if (mount_target_ != NFP::MountTarget::Rom && mount_target_ != NFP::MountTarget::Ram &&
+        mount_target_ != NFP::MountTarget::All)
+    {
+        return ResultInvalidArgument;
+    }
+
     if (device_state != DeviceState::TagFound)
     {
         LOG_ERROR(Service_NFP, "Wrong device state {}", device_state);
@@ -454,11 +521,41 @@ Result NfcDevice::Mount(NFP::ModelType model_type, NFP::MountTarget mount_target
 
     if (!LoadAmiiboData())
     {
-        LOG_ERROR(Service_NFP, "Not an amiibo");
+        LOG_ERROR(Service_NFP, "Not a plain amiibo");
         return ResultInvalidTagType;
     }
 
-    UNIMPLEMENTED();
+    if (tag_data.settings.settings.amiibo_initialized && !tag_data.owner_mii.IsValid())
+    {
+        LOG_ERROR(Service_NFP, "Invalid mii data");
+        is_corrupted = true;
+    }
+
+    device_state = DeviceState::TagMounted;
+    mount_target = mount_target_;
+    is_data_moddified = false;
+    is_app_area_open = false;
+
+    const bool create_backup =
+        mount_target == NFP::MountTarget::All || mount_target == NFP::MountTarget::Ram ||
+        (mount_target == NFP::MountTarget::Rom &&
+         HasBackup(real_tag_info.uuid, real_tag_info.uuid_length).IsError());
+    if (!is_corrupted && create_backup)
+    {
+        std::array<u8, sizeof(NFP::NTAG215File)> data{};
+        memcpy(data.data(), &tag_data, sizeof(tag_data));
+        WriteBackupData(real_tag_info.uuid, real_tag_info.uuid_length, data);
+    }
+
+    if (is_corrupted && mount_target != NFP::MountTarget::Rom)
+    {
+        const bool has_backup =
+            HasBackup(real_tag_info.uuid, real_tag_info.uuid_length).IsSuccess();
+        device_state = DeviceState::TagFound;
+        mount_target = NFP::MountTarget::None;
+        return has_backup ? ResultCorruptedDataWithBackup : ResultCorruptedData;
+    }
+
     return ResultSuccess;
 }
 
@@ -477,7 +574,12 @@ Result NfcDevice::Unmount()
     // Save data before unloading the amiibo
     if (is_data_moddified)
     {
-        Flush();
+        // Preserve the mounted tag if saving fails.
+        const Result result = Flush();
+        if (result.IsError())
+        {
+            return result;
+        }
     }
 
     device_state = DeviceState::TagFound;
@@ -505,6 +607,8 @@ Result NfcDevice::Flush()
         return ResultWrongDeviceState;
     }
 
+    // Restore tag data on failure so a retry does not increment the write counter twice.
+    const auto pending_tag_data = tag_data;
     auto & settings = tag_data.settings;
 
     const auto & current_date = GetAmiiboDate(GetCurrentPosixTime());
@@ -517,8 +621,14 @@ Result NfcDevice::Flush()
     tag_data.write_counter++;
 
     const auto result = FlushWithBreak(NFP::BreakType::Normal);
-
-    is_data_moddified = false;
+    if (result.IsSuccess())
+    {
+        is_data_moddified = false;
+    }
+    else
+    {
+        tag_data = pending_tag_data;
+    }
 
     return result;
 }
@@ -541,24 +651,94 @@ Result NfcDevice::FlushDebug()
         return ResultWrongDeviceState;
     }
 
+    const auto pending_tag_data = tag_data;
     tag_data.write_counter++;
 
     const auto result = FlushWithBreak(NFP::BreakType::Normal);
-
-    is_data_moddified = false;
+    if (result.IsSuccess())
+    {
+        is_data_moddified = false;
+    }
+    else
+    {
+        tag_data = pending_tag_data;
+    }
 
     return result;
 }
 
 Result NfcDevice::FlushWithBreak(NFP::BreakType break_type)
 {
-    UNIMPLEMENTED();
+    if (break_type != NFP::BreakType::Normal)
+    {
+        LOG_ERROR(Service_NFC, "Break type not implemented {}", break_type);
+        return ResultWrongDeviceState;
+    }
+
+    std::vector<u8> data(sizeof(NFP::NTAG215File));
+    memcpy(data.data(), &tag_data, sizeof(tag_data));
+
+    if (!npad_device->WriteNfc(data))
+    {
+        LOG_ERROR(Service_NFP, "Error writing amiibo data");
+        return ResultWriteAmiiboFailed;
+    }
+
+    WriteBackupData(real_tag_info.uuid, real_tag_info.uuid_length, data);
     return ResultSuccess;
 }
 
 Result NfcDevice::Restore()
 {
-    UNIMPLEMENTED();
+    if (device_state != DeviceState::TagFound)
+    {
+        LOG_ERROR(Service_NFP, "Wrong device state {}", device_state);
+        if (device_state == DeviceState::TagRemoved)
+        {
+            return ResultTagRemoved;
+        }
+        return ResultWrongDeviceState;
+    }
+
+    std::array<u8, sizeof(NFP::NTAG215File)> data{};
+    Result result = ReadBackupData(real_tag_info.uuid, real_tag_info.uuid_length, data);
+    if (result.IsError())
+    {
+        return result;
+    }
+
+    NFP::NTAG215File temporary_tag_data{};
+    memcpy(&temporary_tag_data, data.data(), sizeof(temporary_tag_data));
+
+    if (!IsPlainAmiiboValid(temporary_tag_data))
+    {
+        return ResultInvalidTagType;
+    }
+
+    // Repair invalid backup data before restoring it.
+    const bool repair_mii = temporary_tag_data.settings.settings.amiibo_initialized &&
+                            !temporary_tag_data.owner_mii.IsValid();
+    if (repair_mii)
+    {
+        LOG_WARNING(Service_NFP, "Regenerating invalid amiibo Mii data");
+        Mii::StoreData new_mii{};
+        new_mii.BuildRandom(Mii::Age::All, Mii::Gender::All, Mii::Race::All);
+        new_mii.SetNickname({u'y', u'u', u'z', u'u', u'\0'});
+        temporary_tag_data.owner_mii.BuildFromStoreData(new_mii);
+        temporary_tag_data.mii_extension.SetFromStoreData(new_mii);
+    }
+
+    tag_data = temporary_tag_data;
+    if (repair_mii)
+    {
+        // Recalculate the CRC after changing the Mii data.
+        UpdateRegisterInfoCrc();
+    }
+    is_app_area_open = false;
+    device_state = DeviceState::TagMounted;
+    mount_target = NFP::MountTarget::All;
+    is_data_moddified = true;
+
     return ResultSuccess;
 }
 
@@ -604,7 +784,7 @@ Result NfcDevice::GetModelInfo(NFP::ModelInfo & model_info) const
         return ResultWrongDeviceState;
     }
 
-    const auto & model_info_data = encrypted_tag_data.user_memory.model_info;
+    const auto & model_info_data = tag_data.model_info;
 
     model_info = {
         .character_id = model_info_data.character_id,

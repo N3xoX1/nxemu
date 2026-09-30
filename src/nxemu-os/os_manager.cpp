@@ -275,7 +275,8 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
         .previous_program_index = m_previousProgramIndex,
     };
     params.program_id = metaData.GetTitleID();
-    m_coreSystem.GetAppletManager().CreateAndInsertByFrontendAppletParameters(m_applicationProcess->GetProcessId(), params);
+    m_coreSystem.GetAppletManager().CreateAndInsertByFrontendAppletParameters(
+        m_applicationProcess->GetProcessId(), params, m_applicationProcess);
 
     m_programIndex = 0;
     m_previousProgramIndex = -1;
@@ -290,6 +291,7 @@ void OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uin
 {
     m_coreSystem.AddGlueRegistrationForProcess(*m_applicationProcess, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
     m_applicationProcess->Run(priority, stackSize);
+    m_coreSystem.GetAppletManager().NotifyAppletStarted(m_applicationProcess->GetProcessId());
 }
 
 bool OSManager::LoadModule(const IModuleInfo & module, uint64_t baseAddress)

@@ -22,6 +22,7 @@ private:
     void GetHostByNameRequestWithOptions(HLERequestContext& ctx);
     void GetAddrInfoRequest(HLERequestContext& ctx);
     void GetAddrInfoRequestWithOptions(HLERequestContext& ctx);
+    void GetNameInfoRequest(HLERequestContext& ctx);
     void ResolverSetOptionRequest(HLERequestContext& ctx);
 };
 
