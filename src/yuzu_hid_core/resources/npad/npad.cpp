@@ -152,19 +152,31 @@ void NPad::ControllerUpdate(ControllerTriggerType type, std::size_t controller_i
         case ControllerTriggerType::Connected:
         case ControllerTriggerType::Disconnected:
             if (is_connected == controller.is_connected) {
-                return;
+                continue;
             }
             UpdateControllerAt(data->aruid, npad_type, npad_id, is_connected);
             break;
         case ControllerTriggerType::Battery: {
             if (!controller.device->IsConnected()) {
-                return;
+                continue;
             }
             if (auto* shared_memory = controller.shared_memory; shared_memory) {
                 const auto& battery_level = controller.device->GetBattery();
                 shared_memory->battery_level_dual = battery_level.dual.battery_level;
                 shared_memory->battery_level_left = battery_level.left.battery_level;
                 shared_memory->battery_level_right = battery_level.right.battery_level;
+                shared_memory->system_properties.is_charging_joy_dual.Assign(
+                    battery_level.dual.is_charging);
+                shared_memory->system_properties.is_powered_joy_dual.Assign(
+                    battery_level.dual.is_powered);
+                shared_memory->system_properties.is_charging_joy_left.Assign(
+                    battery_level.left.is_charging);
+                shared_memory->system_properties.is_powered_joy_left.Assign(
+                    battery_level.left.is_powered);
+                shared_memory->system_properties.is_charging_joy_right.Assign(
+                    battery_level.right.is_charging);
+                shared_memory->system_properties.is_powered_joy_right.Assign(
+                    battery_level.right.is_powered);
             } else {
                 LOG_WARNING(Service_HID, "shared_memory is null {}", controller_idx);
             }
@@ -223,6 +235,8 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
         shared_memory->system_properties.use_minus.Assign(1);
         shared_memory->system_properties.is_charging_joy_dual.Assign(
             battery_level.dual.is_charging);
+        shared_memory->system_properties.is_powered_joy_dual.Assign(
+            battery_level.dual.is_powered);
         shared_memory->applet_footer_type = AppletFooterUiType::SwitchProController;
         shared_memory->sixaxis_fullkey_properties.is_newly_assigned.Assign(1);
         break;
@@ -232,6 +246,9 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
         shared_memory->fullkey_color.fullkey = body_colors.fullkey;
         shared_memory->joycon_color.left = body_colors.left;
         shared_memory->joycon_color.right = body_colors.right;
+        shared_memory->battery_level_dual = battery_level.dual.battery_level;
+        shared_memory->battery_level_left = battery_level.left.battery_level;
+        shared_memory->battery_level_right = battery_level.right.battery_level;
         shared_memory->style_tag.handheld.Assign(1);
         shared_memory->device_type.handheld_left.Assign(1);
         shared_memory->device_type.handheld_right.Assign(1);
@@ -241,10 +258,16 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
         shared_memory->system_properties.use_directional_buttons.Assign(1);
         shared_memory->system_properties.is_charging_joy_dual.Assign(
             battery_level.left.is_charging);
+        shared_memory->system_properties.is_powered_joy_dual.Assign(
+            battery_level.left.is_powered);
         shared_memory->system_properties.is_charging_joy_left.Assign(
             battery_level.left.is_charging);
+        shared_memory->system_properties.is_powered_joy_left.Assign(
+            battery_level.left.is_powered);
         shared_memory->system_properties.is_charging_joy_right.Assign(
             battery_level.right.is_charging);
+        shared_memory->system_properties.is_powered_joy_right.Assign(
+            battery_level.right.is_powered);
         shared_memory->assignment_mode = NpadJoyAssignmentMode::Dual;
         shared_memory->applet_footer_type = AppletFooterUiType::HandheldJoyConLeftJoyConRight;
         shared_memory->sixaxis_handheld_properties.is_newly_assigned.Assign(1);
@@ -260,6 +283,8 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
             shared_memory->system_properties.use_minus.Assign(1);
             shared_memory->system_properties.is_charging_joy_left.Assign(
                 battery_level.left.is_charging);
+            shared_memory->system_properties.is_powered_joy_left.Assign(
+                battery_level.left.is_powered);
             shared_memory->sixaxis_dual_left_properties.is_newly_assigned.Assign(1);
         }
         if (controller.is_dual_right_connected) {
@@ -269,6 +294,8 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
             shared_memory->system_properties.use_plus.Assign(1);
             shared_memory->system_properties.is_charging_joy_right.Assign(
                 battery_level.right.is_charging);
+            shared_memory->system_properties.is_powered_joy_right.Assign(
+                battery_level.right.is_powered);
             shared_memory->sixaxis_dual_right_properties.is_newly_assigned.Assign(1);
         }
         shared_memory->system_properties.use_directional_buttons.Assign(1);
@@ -281,18 +308,24 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
             shared_memory->battery_level_dual = battery_level.left.battery_level;
             shared_memory->system_properties.is_charging_joy_dual.Assign(
                 battery_level.left.is_charging);
+            shared_memory->system_properties.is_powered_joy_dual.Assign(
+                battery_level.left.is_powered);
         } else if (controller.is_dual_left_connected) {
             shared_memory->applet_footer_type = AppletFooterUiType::JoyDualLeftOnly;
             shared_memory->fullkey_color.fullkey = body_colors.left;
             shared_memory->battery_level_dual = battery_level.left.battery_level;
             shared_memory->system_properties.is_charging_joy_dual.Assign(
                 battery_level.left.is_charging);
+            shared_memory->system_properties.is_powered_joy_dual.Assign(
+                battery_level.left.is_powered);
         } else {
             shared_memory->applet_footer_type = AppletFooterUiType::JoyDualRightOnly;
             shared_memory->fullkey_color.fullkey = body_colors.right;
             shared_memory->battery_level_dual = battery_level.right.battery_level;
             shared_memory->system_properties.is_charging_joy_dual.Assign(
                 battery_level.right.is_charging);
+            shared_memory->system_properties.is_powered_joy_dual.Assign(
+                battery_level.right.is_powered);
         }
         break;
     case NpadStyleIndex::JoyconLeft:
@@ -307,6 +340,8 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
         shared_memory->system_properties.use_minus.Assign(1);
         shared_memory->system_properties.is_charging_joy_left.Assign(
             battery_level.left.is_charging);
+        shared_memory->system_properties.is_powered_joy_left.Assign(
+            battery_level.left.is_powered);
         shared_memory->applet_footer_type = AppletFooterUiType::JoyLeftHorizontal;
         shared_memory->sixaxis_left_properties.is_newly_assigned.Assign(1);
         break;
@@ -322,6 +357,8 @@ void NPad::InitNewlyAddedController(u64 aruid, NpadIdType npad_id) {
         shared_memory->system_properties.use_plus.Assign(1);
         shared_memory->system_properties.is_charging_joy_right.Assign(
             battery_level.right.is_charging);
+        shared_memory->system_properties.is_powered_joy_right.Assign(
+            battery_level.right.is_powered);
         shared_memory->applet_footer_type = AppletFooterUiType::JoyRightHorizontal;
         shared_memory->sixaxis_right_properties.is_newly_assigned.Assign(1);
         break;
@@ -476,6 +513,34 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
         return;
     }
 
+    using CommonStateLifo = Lifo<NPadGenericState, HidEntryCount>;
+    const auto write_empty_common_state = [](CommonStateLifo& lifo) {
+        NPadGenericState state{};
+        state.sampling_number = lifo.ReadCurrentEntry().state.sampling_number + 1;
+        lifo.WriteNextEntry(state);
+    };
+    const auto write_unused_common_states = [&](NpadInternalState& npad,
+                                                 const CommonStateLifo* active_lifo) {
+        if (active_lifo != &npad.fullkey_lifo) {
+            write_empty_common_state(npad.fullkey_lifo);
+        }
+        if (active_lifo != &npad.handheld_lifo) {
+            write_empty_common_state(npad.handheld_lifo);
+        }
+        if (active_lifo != &npad.joy_dual_lifo) {
+            write_empty_common_state(npad.joy_dual_lifo);
+        }
+        if (active_lifo != &npad.joy_left_lifo) {
+            write_empty_common_state(npad.joy_left_lifo);
+        }
+        if (active_lifo != &npad.joy_right_lifo) {
+            write_empty_common_state(npad.joy_right_lifo);
+        }
+        if (active_lifo != &npad.palma_lifo) {
+            write_empty_common_state(npad.palma_lifo);
+        }
+    };
+
     std::scoped_lock lock{*applet_resource_holder.shared_mutex};
     for (std::size_t aruid_index = 0; aruid_index < AruidIndexMax; ++aruid_index) {
         const auto* data = applet_resource_holder.applet_resource->GetAruidDataByIndex(aruid_index);
@@ -500,16 +565,17 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
 
             const auto& controller_type = controller.device->GetNpadStyleIndex();
 
-            if (controller_type == NpadStyleIndex::None ||
-                !controller.device->IsConnected()) {
-                continue;
-            }
-
             if (!data->flag.enable_pad_input) {
                 continue;
             }
 
             if (!controller.is_active) {
+                continue;
+            }
+
+            if (controller_type == NpadStyleIndex::None ||
+                !controller.device->IsConnected()) {
+                write_unused_common_states(*npad, nullptr);
                 continue;
             }
 
@@ -522,6 +588,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
             // activate any controllers.
             libnx_state.connection_status.raw = 0;
             libnx_state.connection_status.is_connected.Assign(1);
+            CommonStateLifo* active_lifo = nullptr;
             switch (controller_type) {
             case NpadStyleIndex::None:
                 ASSERT(false);
@@ -531,6 +598,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
             case NpadStyleIndex::SNES:
             case NpadStyleIndex::N64:
             case NpadStyleIndex::SegaGenesis:
+                active_lifo = &npad->fullkey_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 pad_state.connection_status.is_wired.Assign(1);
@@ -541,6 +609,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
                 npad->fullkey_lifo.WriteNextEntry(pad_state);
                 break;
             case NpadStyleIndex::Handheld:
+                active_lifo = &npad->handheld_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 pad_state.connection_status.is_wired.Assign(1);
@@ -559,6 +628,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
                 npad->handheld_lifo.WriteNextEntry(pad_state);
                 break;
             case NpadStyleIndex::JoyconDual:
+                active_lifo = &npad->joy_dual_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 if (controller.is_dual_left_connected) {
@@ -575,6 +645,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
                 npad->joy_dual_lifo.WriteNextEntry(pad_state);
                 break;
             case NpadStyleIndex::JoyconLeft:
+                active_lifo = &npad->joy_left_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 pad_state.connection_status.is_left_connected.Assign(1);
@@ -585,6 +656,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
                 npad->joy_left_lifo.WriteNextEntry(pad_state);
                 break;
             case NpadStyleIndex::JoyconRight:
+                active_lifo = &npad->joy_right_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 pad_state.connection_status.is_right_connected.Assign(1);
@@ -595,6 +667,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
                 npad->joy_right_lifo.WriteNextEntry(pad_state);
                 break;
             case NpadStyleIndex::GameCube:
+                active_lifo = &npad->fullkey_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 pad_state.connection_status.is_wired.Assign(1);
@@ -608,6 +681,7 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
                 npad->gc_trigger_lifo.WriteNextEntry(trigger_state);
                 break;
             case NpadStyleIndex::Pokeball:
+                active_lifo = &npad->palma_lifo;
                 pad_state.connection_status.raw = 0;
                 pad_state.connection_status.is_connected.Assign(1);
                 pad_state.sampling_number =
@@ -624,6 +698,8 @@ void NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
             libnx_state.sampling_number =
                 npad->system_ext_lifo.ReadCurrentEntry().state.sampling_number + 1;
             npad->system_ext_lifo.WriteNextEntry(libnx_state);
+
+            write_unused_common_states(*npad, active_lifo);
 
             press_state |= static_cast<u64>(pad_state.npad_buttons.raw);
         }
@@ -1098,10 +1174,12 @@ Result NPad::RegisterAppletResourceUserId(u64 aruid) {
 void NPad::UnregisterAppletResourceUserId(u64 aruid) {
     // TODO: Remove this once abstract pad is emulated properly
     const auto aruid_index = npad_resource.GetIndexFromAruid(aruid);
-    for (auto& controller : controller_data[aruid_index]) {
-        controller.is_active = false;
-        controller.is_connected = false;
-        controller.shared_memory = nullptr;
+    if (aruid_index < AruidIndexMax) {
+        for (auto& controller : controller_data[aruid_index]) {
+            controller.is_active = false;
+            controller.is_connected = false;
+            controller.shared_memory = nullptr;
+        }
     }
 
     npad_resource.UnregisterAppletResourceUserId(aruid);
@@ -1217,11 +1295,11 @@ const Core::HID::SixAxisSensorProperties& NPad::GetSixaxisProperties(
 
 AppletDetailedUiType NPad::GetAppletDetailedUiType(NpadIdType npad_id) {
     const auto aruid = applet_resource_holder.applet_resource->GetActiveAruid();
-    const auto& shared_memory = GetControllerFromNpadIdType(aruid, npad_id).shared_memory;
+    const auto* shared_memory = GetControllerFromNpadIdType(aruid, npad_id).shared_memory;
 
     return {
         .ui_variant = 0,
-        .footer = shared_memory->applet_footer_type,
+        .footer = shared_memory ? shared_memory->applet_footer_type : AppletFooterUiType::None,
     };
 }
 
@@ -1280,7 +1358,7 @@ std::vector<NpadVibrationBase*> NPad::GetAllVibrationDevices() {
     for (auto& abstract_pad : abstracted_pads) {
         auto* left_device = abstract_pad.GetVibrationDevice(Core::HID::DeviceIndex::Left);
         auto* right_device = abstract_pad.GetVibrationDevice(Core::HID::DeviceIndex::Right);
-        auto* n64_device = abstract_pad.GetGCVibrationDevice();
+        auto* n64_device = abstract_pad.GetN64VibrationDevice();
         auto* gc_device = abstract_pad.GetGCVibrationDevice();
 
         if (left_device != nullptr) {
