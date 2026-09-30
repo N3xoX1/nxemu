@@ -131,6 +131,9 @@ public:
      */
     Result GetEntryType(FileSys::DirectoryEntryType * out_entry_type, const std::string & path) const;
 
+    Result GetFileTimeStampRaw(VirtualFileTimeStampRaw* out_file_time_stamp_raw,
+                               const std::string& path) const;
+
 private:
     IVirtualDirectoryPtr backing;
 };
