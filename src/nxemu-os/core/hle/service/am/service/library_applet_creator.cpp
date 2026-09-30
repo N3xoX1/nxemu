@@ -9,6 +9,7 @@
 #include "core/hle/service/am/service/library_applet_accessor.h"
 #include "core/hle/service/am/service/library_applet_creator.h"
 #include "core/hle/service/am/service/storage.h"
+#include "core/hle/service/am/window_system.h"
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/sm/sm.h"
 #include "os_settings.h"
@@ -108,33 +109,22 @@ std::shared_ptr<ILibraryAppletAccessor> CreateGuestApplet(Core::System & system,
         return {};
     }
 
-    const auto applet = std::make_shared<Applet>(system, std::move(process));
+    const auto applet = std::make_shared<Applet>(system, std::move(process), false);
     applet->program_id = program_id;
     applet->applet_id = applet_id;
     applet->type = AppletType::LibraryApplet;
     applet->library_applet_mode = mode;
 
-    // Set focus state
-    switch (mode) {
-    case LibraryAppletMode::AllForeground:
-    case LibraryAppletMode::NoUi:
-    case LibraryAppletMode::PartialForeground:
-    case LibraryAppletMode::PartialForegroundIndirectDisplay:
-        applet->hid_registration.EnableAppletToGetInput(true);
-        applet->focus_state = FocusState::InFocus;
-        applet->message_queue.PushMessage(AppletMessage::ChangeIntoForeground);
-        break;
-    case LibraryAppletMode::AllForegroundInitiallyHidden:
-        applet->hid_registration.EnableAppletToGetInput(false);
-        applet->focus_state = FocusState::NotInFocus;
-        applet->display_layer_manager.SetWindowVisibility(false);
-        applet->message_queue.PushMessage(AppletMessage::ChangeIntoBackground);
-        break;
-    }
+    applet->window_visible = mode != LibraryAppletMode::AllForegroundInitiallyHidden;
 
     auto broker = std::make_shared<AppletDataBroker>(system);
     applet->caller_applet = caller_applet;
     applet->caller_applet_broker = broker;
+    broker->SetCallerApplet(caller_applet, applet);
+    {
+        std::scoped_lock lk{caller_applet->lock};
+        caller_applet->child_applets.push_back(applet);
+    }
 
     system.GetAppletManager().InsertApplet(applet);
 
@@ -146,16 +136,23 @@ std::shared_ptr<ILibraryAppletAccessor> CreateFrontendApplet(Core::System & syst
     const auto program_id = static_cast<u64>(AppletIdToProgramId(applet_id));
 
     auto process = std::make_unique<Process>(system);
-    auto applet = std::make_shared<Applet>(system, std::move(process));
+    auto applet = std::make_shared<Applet>(system, std::move(process), false);
     applet->program_id = program_id;
     applet->applet_id = applet_id;
     applet->type = AppletType::LibraryApplet;
     applet->library_applet_mode = mode;
+    applet->window_visible = mode != LibraryAppletMode::AllForegroundInitiallyHidden;
 
     auto storage = std::make_shared<AppletDataBroker>(system);
     applet->caller_applet = caller_applet;
     applet->caller_applet_broker = storage;
+    storage->SetCallerApplet(caller_applet, applet);
     applet->frontend = system.GetFrontendAppletHolder().GetApplet(applet, applet_id, mode);
+    {
+        std::scoped_lock lk{caller_applet->lock};
+        caller_applet->child_applets.push_back(applet);
+    }
+    system.GetAppletManager().GetWindowSystem().NotifyAppletStateChanged();
 
     return std::make_shared<ILibraryAppletAccessor>(system, storage, applet);
 }
@@ -187,6 +184,10 @@ Result ILibraryAppletCreator::CreateLibraryApplet(Out<SharedPointer<ILibraryAppl
     if (ShouldCreateGuestApplet(applet_id))
     {
         library_applet = CreateGuestApplet(system, m_applet, applet_id, library_applet_mode);
+        if (!library_applet && applet_id == AppletId::OfflineWeb)
+        {
+            LOG_INFO(Service_AM, "OfflineWeb LLE unavailable, falling back to HLE");
+        }
     }
     if (!library_applet)
     {

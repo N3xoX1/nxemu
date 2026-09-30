@@ -21,7 +21,7 @@ public:
 private:
     Result GetAppletStateChangedEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result IsCompleted(Out<bool> out_is_completed);
-    Result GetResult(Out<Result> out_result);
+    Result GetResult();
     Result PresetLibraryAppletGpuTimeSliceZero();
     Result Unknown90(u64 arg0, u64 arg1, u64 arg2, u64 arg3);
     Result Start();
@@ -34,6 +34,7 @@ private:
     Result GetPopOutDataEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result GetPopInteractiveOutDataEvent(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result GetIndirectLayerConsumerHandle(Out<u64> out_handle);
+    Result Unknown170(OutCopyHandle<Kernel::KReadableEvent> out_event);
 
     void FrontendExecute();
     void FrontendExecuteInteractive();

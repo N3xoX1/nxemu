@@ -6,6 +6,10 @@
 #include "core/hle/service/cmif_types.h"
 #include "core/hle/service/service.h"
 
+namespace Kernel {
+class KReadableEvent;
+}
+
 namespace Service::AM {
 
 struct Applet;
@@ -22,6 +26,7 @@ private:
     Result SetCpuBoostRequestPriority(s32 priority);
     Result GetCurrentApplicationId(Out<u64> out_application_id);
     Result SetGpuTimeSliceBoost(s64 time_span);
+    Result GetGpuErrorEventForApplet(OutCopyHandle<Kernel::KReadableEvent> out_event);
     Result Unknown350(Out<u16> out_unknown);
 
     const std::shared_ptr<Applet> applet;

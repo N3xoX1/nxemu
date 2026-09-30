@@ -51,6 +51,13 @@ static_assert(sizeof(SharedMemoryPoolLayout) == 0x188, "SharedMemoryPoolLayout h
 
 struct SharedBufferSession;
 
+enum class CaptureKind : u32
+{
+    LastApplication,
+    LastForeground,
+    CallerApplet,
+};
+
 class SharedBufferManager final
 {
 public:
@@ -66,7 +73,8 @@ public:
     Result CancelSharedFrameBuffer(u64 layer_id, s64 slot);
     Result GetSharedFrameBufferAcquirableEvent(Kernel::KReadableEvent ** out_event, u64 layer_id);
 
-    Result WriteAppletCaptureBuffer(bool * out_was_written, s32 * out_layer_index);
+    Result WriteAppletCaptureBuffer(bool * out_was_written, s32 * out_layer_index, CaptureKind kind);
+    Result ClearAppletCaptureBuffer(s32 layer_index, u32 color);
 
 private:
     u64 m_next_buffer_id = 1;

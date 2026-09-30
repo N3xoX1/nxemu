@@ -1,26 +1,29 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "core/core.h"
 #include "core/hle/result.h"
+#include "core/hle/service/am/am_results.h"
 #include "core/hle/service/am/applet_manager.h"
+#include "core/hle/service/am/window_system.h"
 #include "core/hle/service/am/service/home_menu_functions.h"
+#include "core/hle/service/am/service/storage.h"
 #include "core/hle/service/cmif_serialization.h"
 
 namespace Service::AM {
 
 IHomeMenuFunctions::IHomeMenuFunctions(Core::System& system_, std::shared_ptr<Applet> applet)
-    : ServiceFramework{system_, "IHomeMenuFunctions"}, m_applet{std::move(applet)},
-      m_context{system, "IHomeMenuFunctions"}, m_pop_from_general_channel_event{m_context} {
+    : ServiceFramework{system_, "IHomeMenuFunctions"}, m_applet{std::move(applet)} {
     // clang-format off
     static const FunctionInfo functions[] = {
         {10, D<&IHomeMenuFunctions::RequestToGetForeground>, "RequestToGetForeground"},
         {11, D<&IHomeMenuFunctions::LockForeground>, "LockForeground"},
         {12, D<&IHomeMenuFunctions::UnlockForeground>, "UnlockForeground"},
-        {20, nullptr, "PopFromGeneralChannel"},
+        {20, D<&IHomeMenuFunctions::PopFromGeneralChannel>, "PopFromGeneralChannel"},
         {21, D<&IHomeMenuFunctions::GetPopFromGeneralChannelEvent>, "GetPopFromGeneralChannelEvent"},
         {30, nullptr, "GetHomeButtonWriterLockAccessor"},
         {31, nullptr, "GetWriterLockAccessorEx"},
-        {40, nullptr, "IsSleepEnabled"},
+        {40, D<&IHomeMenuFunctions::IsSleepEnabled>, "IsSleepEnabled"},
         {41, D<&IHomeMenuFunctions::IsRebootEnabled>, "IsRebootEnabled"},
         {50, nullptr, "LaunchSystemApplet"},
         {51, nullptr, "LaunchStarter"},
@@ -37,7 +40,8 @@ IHomeMenuFunctions::IHomeMenuFunctions(Core::System& system_, std::shared_ptr<Ap
 IHomeMenuFunctions::~IHomeMenuFunctions() = default;
 
 Result IHomeMenuFunctions::RequestToGetForeground() {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
+    LOG_INFO(Service_AM, "called");
+    system.GetAppletManager().GetWindowSystem().RequestHomeMenuToGetForeground();
     R_SUCCEED();
 }
 
@@ -51,10 +55,28 @@ Result IHomeMenuFunctions::UnlockForeground() {
     R_SUCCEED();
 }
 
+Result IHomeMenuFunctions::PopFromGeneralChannel(Out<SharedPointer<IStorage>> out_storage) {
+    LOG_DEBUG(Service_AM, "called");
+
+    std::vector<u8> data;
+    if (!system.TryPopGeneralChannel(data)) {
+        R_THROW(AM::ResultNoDataInChannel);
+    }
+
+    *out_storage = std::make_shared<IStorage>(system, std::move(data));
+    R_SUCCEED();
+}
+
 Result IHomeMenuFunctions::GetPopFromGeneralChannelEvent(
     OutCopyHandle<Kernel::KReadableEvent> out_event) {
     LOG_INFO(Service_AM, "called");
-    *out_event = m_pop_from_general_channel_event.GetHandle();
+    *out_event = system.GetGeneralChannelEvent().GetHandle();
+    R_SUCCEED();
+}
+
+Result IHomeMenuFunctions::IsSleepEnabled(Out<bool> out_is_sleep_enabled) {
+    LOG_INFO(Service_AM, "called");
+    *out_is_sleep_enabled = false;
     R_SUCCEED();
 }
 

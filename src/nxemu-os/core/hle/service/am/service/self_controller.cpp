@@ -3,6 +3,7 @@
 
 #include "yuzu_common/logging/log.h"
 #include "core/hle/result.h"
+#include "core/hle/kernel/k_process.h"
 #include "core/hle/service/am/am_results.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/am/service/self_controller.h"
@@ -67,6 +68,8 @@ ISelfController::ISelfController(Core::System& system_, std::shared_ptr<Applet> 
         {110, nullptr, "SetApplicationAlbumUserData"},
         {120, D<&ISelfController::SaveCurrentScreenshot>, "SaveCurrentScreenshot"},
         {130, D<&ISelfController::SetRecordVolumeMuted>, "SetRecordVolumeMuted"},
+        {230, D<&ISelfController::Unknown230>, "Unknown230"},
+        {240, D<&ISelfController::Unknown240>, "Unknown240"},
         {1000, nullptr, "GetDebugStorageChannel"},
     };
     // clang-format on
@@ -86,8 +89,7 @@ ISelfController::~ISelfController() {
 Result ISelfController::Exit() {
     LOG_DEBUG(Service_AM, "called");
 
-    // TODO
-    system.Exit();
+    m_process->Terminate();
 
     R_SUCCEED();
 }
@@ -95,7 +97,14 @@ Result ISelfController::Exit() {
 Result ISelfController::LockExit() {
     LOG_DEBUG(Service_AM, "called");
 
-    system.SetExitLocked(true);
+    std::scoped_lock lk{m_applet->lock};
+
+    if (m_applet->lifecycle_manager.GetExitRequested()) {
+        m_process->Terminate();
+    } else {
+        m_applet->exit_locked = true;
+        system.SetExitLocked(true);
+    }
 
     R_SUCCEED();
 }
@@ -103,10 +112,13 @@ Result ISelfController::LockExit() {
 Result ISelfController::UnlockExit() {
     LOG_DEBUG(Service_AM, "called");
 
+    std::scoped_lock lk{m_applet->lock};
+
+    m_applet->exit_locked = false;
     system.SetExitLocked(false);
 
-    if (system.GetExitRequested()) {
-        system.Exit();
+    if (m_applet->lifecycle_manager.GetExitRequested()) {
+        m_process->Terminate();
     }
 
     R_SUCCEED();
@@ -155,7 +167,7 @@ Result ISelfController::SetOperationModeChangedNotification(bool enabled) {
     LOG_INFO(Service_AM, "called, enabled={}", enabled);
 
     std::scoped_lock lk{m_applet->lock};
-    m_applet->operation_mode_changed_notification_enabled = enabled;
+    m_applet->lifecycle_manager.SetOperationModeChangedNotificationEnabled(enabled);
 
     R_SUCCEED();
 }
@@ -164,17 +176,18 @@ Result ISelfController::SetPerformanceModeChangedNotification(bool enabled) {
     LOG_INFO(Service_AM, "called, enabled={}", enabled);
 
     std::scoped_lock lk{m_applet->lock};
-    m_applet->performance_mode_changed_notification_enabled = enabled;
+    m_applet->lifecycle_manager.SetPerformanceModeChangedNotificationEnabled(enabled);
 
     R_SUCCEED();
 }
 
 Result ISelfController::SetFocusHandlingMode(bool notify, bool background, bool suspend) {
-    LOG_WARNING(Service_AM, "(STUBBED) called, notify={} background={} suspend={}", notify,
-                background, suspend);
+    LOG_INFO(Service_AM, "called, notify={} background={} suspend={}", notify, background, suspend);
 
     std::scoped_lock lk{m_applet->lock};
-    m_applet->focus_handling_mode = {notify, background, suspend};
+    m_applet->lifecycle_manager.SetFocusStateChangedNotificationEnabled(notify);
+    m_applet->lifecycle_manager.SetFocusHandlingMode(suspend);
+    m_applet->UpdateSuspensionStateLocked(true);
 
     R_SUCCEED();
 }
@@ -183,7 +196,7 @@ Result ISelfController::SetRestartMessageEnabled(bool enabled) {
     LOG_INFO(Service_AM, "called, enabled={}", enabled);
 
     std::scoped_lock lk{m_applet->lock};
-    m_applet->restart_message_enabled = enabled;
+    m_applet->lifecycle_manager.SetResumeNotificationEnabled(enabled);
 
     R_SUCCEED();
 }
@@ -202,7 +215,8 @@ Result ISelfController::SetOutOfFocusSuspendingEnabled(bool enabled) {
     LOG_INFO(Service_AM, "called, enabled={}", enabled);
 
     std::scoped_lock lk{m_applet->lock};
-    m_applet->out_of_focus_suspension_enabled = enabled;
+    m_applet->lifecycle_manager.SetOutOfFocusSuspendingEnabled(enabled);
+    m_applet->UpdateSuspensionStateLocked(false);
 
     R_SUCCEED();
 }
@@ -414,6 +428,20 @@ Result ISelfController::SetRecordVolumeMuted(bool muted) {
 
     std::scoped_lock lk{m_applet->lock};
     m_applet->record_volume_muted = muted;
+
+    R_SUCCEED();
+}
+
+Result ISelfController::Unknown230(u32 in_val, Out<u16> out_val) {
+    LOG_WARNING(Service_AM, "(STUBBED) called, in_val={}", in_val);
+
+    *out_val = 0;
+
+    R_SUCCEED();
+}
+
+Result ISelfController::Unknown240(u32 in_val) {
+    LOG_WARNING(Service_AM, "(STUBBED) called, in_val={}", in_val);
 
     R_SUCCEED();
 }

@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/hle/result.h"
+#include "core/hle/kernel/k_process.h"
 #include "core/hle/service/am/am_types.h"
 #include "core/hle/service/am/applet.h"
 #include "core/hle/service/am/applet_data_broker.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/service/application_accessor.h"
+#include "core/hle/service/am/window_system.h"
 #include "core/hle/service/am/service/library_applet_accessor.h"
 #include "core/hle/service/am/service/storage.h"
 #include "core/hle/service/cmif_serialization.h"
@@ -54,24 +56,46 @@ IApplicationAccessor::~IApplicationAccessor() = default;
 Result IApplicationAccessor::Start() {
     LOG_INFO(Service_AM, "called");
     m_applet->process->Run();
+    system.GetAppletManager().GetWindowSystem().NotifyAppletStarted(*m_applet);
     R_SUCCEED();
 }
 
 Result IApplicationAccessor::RequestExit() {
     LOG_INFO(Service_AM, "called");
-    m_applet->message_queue.RequestExit();
+
+    bool notify_state_changed = false;
+    {
+        std::scoped_lock lk{m_applet->lock};
+        if (m_applet->exit_locked) {
+            m_applet->lifecycle_manager.RequestExit();
+            m_applet->SetInteractibleLocked(m_applet->is_pad_interactible,
+                                            m_applet->is_touch_interactible);
+            m_applet->UpdateSuspensionStateLocked(true);
+            notify_state_changed = true;
+        } else if (m_applet->lifecycle_process != nullptr) {
+            m_applet->lifecycle_process->Terminate();
+        } else {
+            m_applet->process->Terminate();
+        }
+    }
+
+    if (notify_state_changed) {
+        system.GetAppletManager().GetWindowSystem().NotifyAppletStateChanged();
+    }
     R_SUCCEED();
 }
 
 Result IApplicationAccessor::Terminate() {
     LOG_INFO(Service_AM, "called");
     m_applet->process->Terminate();
+    system.GetAppletManager().GetWindowSystem().NotifyAppletStopped(*m_applet);
     R_SUCCEED();
 }
 
 Result IApplicationAccessor::GetResult() {
     LOG_INFO(Service_AM, "called");
-    R_SUCCEED();
+    std::scoped_lock lk{m_applet->lock};
+    R_RETURN(m_applet->terminate_result);
 }
 
 Result IApplicationAccessor::GetAppletStateChangedEvent(
@@ -114,8 +138,9 @@ Result IApplicationAccessor::GetCurrentLibraryApplet(
 }
 
 Result IApplicationAccessor::RequestForApplicationToGetForeground() {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
-    R_THROW(ResultUnknown);
+    LOG_INFO(Service_AM, "called");
+    system.GetAppletManager().GetWindowSystem().RequestApplicationToGetForeground();
+    R_SUCCEED();
 }
 
 Result IApplicationAccessor::CheckRightsEnvironmentAvailable(Out<bool> out_is_available) {

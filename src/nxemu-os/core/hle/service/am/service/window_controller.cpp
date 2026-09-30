@@ -4,6 +4,7 @@
 #include "core/hle/service/am/applet.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/service/window_controller.h"
+#include "core/hle/service/am/window_system.h"
 #include "core/hle/service/cmif_serialization.h"
 
 namespace Service::AM {
@@ -63,17 +64,9 @@ Result IWindowController::RejectToChangeIntoBackground() {
 }
 
 Result IWindowController::SetAppletWindowVisibility(bool visible) {
-    m_applet->display_layer_manager.SetWindowVisibility(visible);
-    m_applet->hid_registration.EnableAppletToGetInput(visible);
+    LOG_DEBUG(Service_AM, "called, visible={}", visible);
 
-    if (visible) {
-        m_applet->message_queue.PushMessage(AppletMessage::ChangeIntoForeground);
-        m_applet->focus_state = FocusState::InFocus;
-    } else {
-        m_applet->focus_state = FocusState::NotInFocus;
-    }
-
-    m_applet->message_queue.PushMessage(AppletMessage::FocusStateChanged);
+    system.GetAppletManager().GetWindowSystem().RequestAppletVisibilityState(*m_applet, visible);
 
     R_SUCCEED();
 }

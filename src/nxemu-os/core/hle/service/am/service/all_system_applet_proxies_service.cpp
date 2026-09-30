@@ -4,8 +4,11 @@
 #include "core/core.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/service/all_system_applet_proxies_service.h"
+#include "core/hle/service/am/service/applet_alternative_functions.h"
 #include "core/hle/service/am/service/application_proxy.h"
 #include "core/hle/service/am/service/library_applet_proxy.h"
+#include "core/hle/service/am/service/overlay_applet_proxy.h"
+#include "core/hle/service/am/service/system_process_common_functions.h"
 #include "core/hle/service/am/service/system_applet_proxy.h"
 #include "core/hle/service/cmif_serialization.h"
 
@@ -16,12 +19,15 @@ IAllSystemAppletProxiesService::IAllSystemAppletProxiesService(Core::System& sys
     // clang-format off
     static const FunctionInfo functions[] = {
         {100, D<&IAllSystemAppletProxiesService::OpenSystemAppletProxy>, "OpenSystemAppletProxy"},
+        {110, D<&IAllSystemAppletProxiesService::OpenSystemAppletProxyEx>, "OpenSystemAppletProxyEx"},
         {200, D<&IAllSystemAppletProxiesService::OpenLibraryAppletProxyOld>, "OpenLibraryAppletProxyOld"},
         {201, D<&IAllSystemAppletProxiesService::OpenLibraryAppletProxy>, "OpenLibraryAppletProxy"},
-        {300, nullptr, "OpenOverlayAppletProxy"},
+        {300, D<&IAllSystemAppletProxiesService::OpenOverlayAppletProxy>, "OpenOverlayAppletProxy"},
         {350, D<&IAllSystemAppletProxiesService::OpenSystemApplicationProxy>, "OpenSystemApplicationProxy"},
         {400, nullptr, "CreateSelfLibraryAppletCreatorForDevelop"},
         {410, nullptr, "GetSystemAppletControllerForDebug"},
+        {450, D<&IAllSystemAppletProxiesService::GetSystemProcessCommonFunctions>, "GetSystemProcessCommonFunctions"},
+        {460, D<&IAllSystemAppletProxiesService::GetAppletAlternativeFunctions>, "GetAppletAlternativeFunctions"},
         {1000, nullptr, "GetDebugFunctions"},
     };
     // clang-format on
@@ -44,6 +50,44 @@ Result IAllSystemAppletProxiesService::OpenSystemAppletProxy(
         UNIMPLEMENTED();
         R_THROW(ResultUnknown);
     }
+}
+
+Result IAllSystemAppletProxiesService::OpenSystemAppletProxyEx(
+    Out<SharedPointer<ISystemAppletProxy>> out_system_applet_proxy, ClientProcessId pid,
+    InCopyHandle<Kernel::KProcess> process_handle,
+    InLargeData<AppletAttribute, BufferAttr_HipcMapAlias> attribute) {
+    LOG_DEBUG(Service_AM, "called");
+    (void)attribute;
+    R_RETURN(this->OpenSystemAppletProxy(out_system_applet_proxy, pid, process_handle));
+}
+
+Result IAllSystemAppletProxiesService::OpenOverlayAppletProxy(
+    Out<SharedPointer<IOverlayAppletProxy>> out_overlay_applet_proxy, ClientProcessId pid,
+    InCopyHandle<Kernel::KProcess> process_handle) {
+    LOG_DEBUG(Service_AM, "called");
+
+    if (const auto applet = this->GetAppletFromProcessId(pid); applet) {
+        *out_overlay_applet_proxy =
+            std::make_shared<IOverlayAppletProxy>(system, applet, process_handle.Get());
+        R_SUCCEED();
+    } else {
+        UNIMPLEMENTED();
+        R_THROW(ResultUnknown);
+    }
+}
+
+Result IAllSystemAppletProxiesService::GetSystemProcessCommonFunctions(
+    Out<SharedPointer<ISystemProcessCommonFunctions>> out_system_process_common_functions) {
+    LOG_DEBUG(Service_AM, "called");
+    *out_system_process_common_functions = std::make_shared<ISystemProcessCommonFunctions>(system);
+    R_SUCCEED();
+}
+
+Result IAllSystemAppletProxiesService::GetAppletAlternativeFunctions(
+    Out<SharedPointer<IAppletAlternativeFunctions>> out_applet_alternative_functions) {
+    LOG_DEBUG(Service_AM, "called");
+    *out_applet_alternative_functions = std::make_shared<IAppletAlternativeFunctions>(system);
+    R_SUCCEED();
 }
 
 Result IAllSystemAppletProxiesService::OpenSystemApplicationProxy(

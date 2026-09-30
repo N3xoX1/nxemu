@@ -34,6 +34,7 @@ IAppletCommonFunctions::IAppletCommonFunctions(Core::System& system_,
         {300, D<&IAppletCommonFunctions::GetCurrentApplicationId>, "GetCurrentApplicationId"},
         {320, D<&IAppletCommonFunctions::SetGpuTimeSliceBoost>, "SetGpuTimeSliceBoost"},
         {350, D<&IAppletCommonFunctions::Unknown350>, "Unknown350"},
+        {370, D<&IAppletCommonFunctions::GetGpuErrorEventForApplet>, "GetGpuErrorEventForApplet"}, //22.0.0+
     };
     // clang-format on
 
@@ -79,6 +80,13 @@ Result IAppletCommonFunctions::GetCurrentApplicationId(Out<u64> out_application_
 
 Result IAppletCommonFunctions::SetGpuTimeSliceBoost(s64 time_span) {
     LOG_WARNING(Service_AM, "(STUBBED) called, time_span={}", time_span);
+    R_SUCCEED();
+}
+
+Result IAppletCommonFunctions::GetGpuErrorEventForApplet(
+    OutCopyHandle<Kernel::KReadableEvent> out_event) {
+    LOG_DEBUG(Service_AM, "called");
+    *out_event = applet->gpu_error_detected_event.GetHandle();
     R_SUCCEED();
 }
 
