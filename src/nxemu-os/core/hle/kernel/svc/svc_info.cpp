@@ -262,8 +262,46 @@ Result GetInfo(Core::System& system, u64* result, InfoType info_id_type, Handle 
 
 Result GetSystemInfo(Core::System& system, uint64_t* out, SystemInfoType info_type, Handle handle,
                      uint64_t info_subtype) {
-    UNIMPLEMENTED();
-    R_THROW(ResultNotImplemented);
+    const u32 info_id = static_cast<u32>(info_type);
+
+    R_UNLESS(info_id <= 2, ResultInvalidEnumValue);
+    R_UNLESS(handle == 0, ResultInvalidHandle);
+
+    if (info_id < 2) {
+        R_UNLESS(info_subtype <= 3, ResultInvalidCombination);
+
+        auto& memory_manager = system.Kernel().MemoryManager();
+        const auto pool = static_cast<KMemoryManager::Pool>(info_subtype);
+
+        switch (info_type) {
+        case SystemInfoType::TotalPhysicalMemorySize:
+            *out = memory_manager.GetSize(pool);
+            break;
+        case SystemInfoType::UsedPhysicalMemorySize:
+            *out = memory_manager.GetSize(pool) - memory_manager.GetFreeSize(pool);
+            break;
+        default:
+            R_THROW(ResultInvalidEnumValue);
+        }
+    } else {
+        R_UNLESS(info_subtype <= 1, ResultInvalidCombination);
+
+        constexpr u64 PrivilegedProcessLowestId = 1;
+        constexpr u64 PrivilegedProcessHighestId = 8;
+
+        switch (info_subtype) {
+        case 0:
+            *out = PrivilegedProcessLowestId;
+            break;
+        case 1:
+            *out = PrivilegedProcessHighestId;
+            break;
+        default:
+            R_THROW(ResultInvalidCombination);
+        }
+    }
+
+    R_SUCCEED();
 }
 
 Result GetInfo64(Core::System& system, uint64_t* out, InfoType info_type, Handle handle,
