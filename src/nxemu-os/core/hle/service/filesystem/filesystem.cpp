@@ -27,6 +27,18 @@ static IVirtualDirectoryPtr GetDirectoryRelativeWrapped(const IVirtualDirectoryP
     return IVirtualDirectoryPtr(base->GetDirectoryRelative(dir_name.c_str()));
 }
 
+static std::string_view GetGuestParentPath(std::string_view path)
+{
+    const auto name_index = path.find_last_of("\\/");
+    return name_index == std::string_view::npos ? std::string_view{} : path.substr(0, name_index);
+}
+
+static std::string_view GetGuestFilename(std::string_view path)
+{
+    const auto name_index = path.find_last_of("\\/");
+    return name_index == std::string_view::npos ? path : path.substr(name_index + 1);
+}
+
 VfsDirectoryServiceWrapper::VfsDirectoryServiceWrapper(IVirtualDirectoryPtr && backing_) : 
     backing(std::move(backing_)) 
 {
@@ -115,6 +127,77 @@ Result VfsDirectoryServiceWrapper::CreateDirectory(const std::string& path_) con
     return ResultSuccess;
 }
 
+Result VfsDirectoryServiceWrapper::DeleteDirectory(const std::string& path_) const
+{
+    std::string path(Common::FS::SanitizePath(path_));
+    const auto dirname = GetGuestFilename(path);
+    IVirtualDirectoryPtr dir = GetDirectoryRelativeWrapped(backing, GetGuestParentPath(path));
+    IVirtualDirectoryPtr target;
+    if (!dirname.empty() && dir)
+    {
+        target = IVirtualDirectoryPtr(dir->GetSubdirectory(std::string(dirname).c_str()));
+    }
+    if (!target)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+
+    IVirtualFileListPtr files(target->GetFiles());
+    IVirtualDirectoryListPtr subdirectories(target->GetSubdirectories());
+    if ((files && files->GetSize() != 0) || (subdirectories && subdirectories->GetSize() != 0))
+    {
+        return ResultUnknown;
+    }
+
+    if (!dir->DeleteSubdirectory(std::string(dirname).c_str()))
+    {
+        return ResultUnknown;
+    }
+    return ResultSuccess;
+}
+
+Result VfsDirectoryServiceWrapper::DeleteDirectoryRecursively(const std::string& path_) const
+{
+    std::string path(Common::FS::SanitizePath(path_));
+    const auto dirname = GetGuestFilename(path);
+    IVirtualDirectoryPtr dir = GetDirectoryRelativeWrapped(backing, GetGuestParentPath(path));
+    IVirtualDirectoryPtr target;
+    if (!dirname.empty() && dir)
+    {
+        target = IVirtualDirectoryPtr(dir->GetSubdirectory(std::string(dirname).c_str()));
+    }
+    if (!target)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+    if (!dir->DeleteSubdirectoryRecursive(std::string(dirname).c_str()))
+    {
+        return ResultUnknown;
+    }
+    return ResultSuccess;
+}
+
+Result VfsDirectoryServiceWrapper::CleanDirectoryRecursively(const std::string& path_) const
+{
+    std::string path(Common::FS::SanitizePath(path_));
+    const auto dirname = GetGuestFilename(path);
+    IVirtualDirectoryPtr dir = GetDirectoryRelativeWrapped(backing, GetGuestParentPath(path));
+    IVirtualDirectoryPtr target;
+    if (!dirname.empty() && dir)
+    {
+        target = IVirtualDirectoryPtr(dir->GetSubdirectory(std::string(dirname).c_str()));
+    }
+    if (!target)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+    if (!dir->CleanSubdirectoryRecursive(std::string(dirname).c_str()))
+    {
+        return ResultUnknown;
+    }
+    return ResultSuccess;
+}
+
 Result VfsDirectoryServiceWrapper::RenameFile(const std::string & src_path_, const std::string & dest_path_) const
 {
     std::string src_path(Common::FS::SanitizePath(src_path_));
@@ -162,6 +245,21 @@ Result VfsDirectoryServiceWrapper::RenameFile(const std::string & src_path_, con
     if (!src_dir || !src_dir->DeleteFile(src_filename.c_str()))
     {
         // TODO(DarkLordZach): Find a better error code for this
+        return ResultUnknown;
+    }
+    return ResultSuccess;
+}
+
+Result VfsDirectoryServiceWrapper::RenameDirectory(const std::string& src_path_, const std::string& dest_path_) const
+{
+    std::string src_path(Common::FS::SanitizePath(src_path_));
+    std::string dest_path(Common::FS::SanitizePath(dest_path_));
+    if (!GetDirectoryRelativeWrapped(backing, src_path))
+    {
+        return FileSys::ResultPathNotFound;
+    }
+    if (!backing->RenameDirectory(src_path.c_str(), dest_path.c_str()))
+    {
         return ResultUnknown;
     }
     return ResultSuccess;
@@ -237,6 +335,27 @@ Result VfsDirectoryServiceWrapper::GetEntryType(FileSys::DirectoryEntryType * ou
         return ResultSuccess;
     }
     return FileSys::ResultPathNotFound;
+}
+
+Result VfsDirectoryServiceWrapper::GetFileTimeStampRaw(VirtualFileTimeStampRaw* out_file_time_stamp_raw, const std::string& path) const
+{
+    IVirtualDirectoryPtr dir = GetDirectoryRelativeWrapped(backing, Common::FS::GetParentPath(path));
+    if (!dir)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+
+    FileSys::DirectoryEntryType entry_type;
+    if (GetEntryType(&entry_type, path) != ResultSuccess)
+    {
+        return FileSys::ResultPathNotFound;
+    }
+
+    if (!dir->GetFileTimeStamp(out_file_time_stamp_raw, std::string(Common::FS::GetFilename(path)).c_str()))
+    {
+        return ResultUnknown;
+    }
+    return ResultSuccess;
 }
 
 void LoopProcess(Core::System & system)

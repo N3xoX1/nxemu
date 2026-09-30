@@ -22,7 +22,7 @@ IFileSystem::IFileSystem(Core::System & system_, IVirtualDirectoryPtr && dir_, S
         {3, D<&IFileSystem::DeleteDirectory>, "DeleteDirectory"},
         {4, D<&IFileSystem::DeleteDirectoryRecursively>, "DeleteDirectoryRecursively"},
         {5, D<&IFileSystem::RenameFile>, "RenameFile"},
-        {6, nullptr, "RenameDirectory"},
+        {6, D<&IFileSystem::RenameDirectory>, "RenameDirectory"},
         {7, D<&IFileSystem::GetEntryType>, "GetEntryType"},
         {8, D<&IFileSystem::OpenFile>, "OpenFile"},
         {9, D<&IFileSystem::OpenDirectory>, "OpenDirectory"},
@@ -30,7 +30,7 @@ IFileSystem::IFileSystem(Core::System & system_, IVirtualDirectoryPtr && dir_, S
         {11, D<&IFileSystem::GetFreeSpaceSize>, "GetFreeSpaceSize"},
         {12, D<&IFileSystem::GetTotalSpaceSize>, "GetTotalSpaceSize"},
         {13, D<&IFileSystem::CleanDirectoryRecursively>, "CleanDirectoryRecursively"},
-        {14, nullptr, "GetFileTimeStampRaw"},
+        {14, D<&IFileSystem::GetFileTimeStampRaw>, "GetFileTimeStampRaw"},
         {15, nullptr, "QueryEntry"},
         {16, D<&IFileSystem::GetFileSystemAttribute>, "GetFileSystemAttribute"},
     };
@@ -62,24 +62,21 @@ Result IFileSystem::DeleteDirectory(const InLargeData<FileSys::Sf::Path, BufferA
 {
     LOG_DEBUG(Service_FS, "called. directory={}", path->str);
 
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    R_RETURN(backend->DeleteDirectory(FileSys::Path(path->str)));
 }
 
 Result IFileSystem::DeleteDirectoryRecursively(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. directory={}", path->str);
 
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    R_RETURN(backend->DeleteDirectoryRecursively(FileSys::Path(path->str)));
 }
 
 Result IFileSystem::CleanDirectoryRecursively(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. Directory: {}", path->str);
 
-    UNIMPLEMENTED();
-    R_SUCCEED();
+    R_RETURN(backend->CleanDirectoryRecursively(FileSys::Path(path->str)));
 }
 
 Result IFileSystem::RenameFile(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> old_path, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> new_path)
@@ -87,6 +84,13 @@ Result IFileSystem::RenameFile(const InLargeData<FileSys::Sf::Path, BufferAttr_H
     LOG_DEBUG(Service_FS, "called. file '{}' to file '{}'", old_path->str, new_path->str);
 
     R_RETURN(backend->RenameFile(FileSys::Path(old_path->str), FileSys::Path(new_path->str)));
+}
+
+Result IFileSystem::RenameDirectory(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> old_path, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> new_path)
+{
+    LOG_DEBUG(Service_FS, "called. directory '{}' to directory '{}'", old_path->str, new_path->str);
+
+    R_RETURN(backend->RenameDirectory(FileSys::Path(old_path->str), FileSys::Path(new_path->str)));
 }
 
 Result IFileSystem::OpenFile(OutInterface<IFile> out_interface, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path, u32 mode)
@@ -143,6 +147,13 @@ Result IFileSystem::GetTotalSpaceSize(Out<s64> out_size, const InLargeData<FileS
 
     *out_size = static_cast<s64>(size_getter.get_total_size());
     R_SUCCEED();
+}
+
+Result IFileSystem::GetFileTimeStampRaw(Out<VirtualFileTimeStampRaw> out_timestamp, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
+{
+    LOG_DEBUG(Service_FS, "called. file={}", path->str);
+
+    R_RETURN(backend->GetFileTimeStampRaw(out_timestamp.Get(), FileSys::Path(path->str)));
 }
 
 Result IFileSystem::GetFileSystemAttribute(Out<FileSys::FileSystemAttribute> out_attribute)
