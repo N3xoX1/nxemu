@@ -1237,15 +1237,22 @@ Errno BSD::CloseImpl(s32 fd) {
         return Errno::SUCCESS;
     }
 
-    const Errno bsd_errno = Translate(file_descriptors[fd]->socket->Close());
-    if (bsd_errno != Errno::SUCCESS) {
-        return bsd_errno;
+    // Keep the socket open while another descriptor or SSL reference still owns it.
+    const auto& socket = file_descriptors[fd]->socket;
+    const auto descriptor_count = std::count_if(
+        file_descriptors.begin(), file_descriptors.end(),
+        [&socket](const auto& descriptor) { return descriptor && descriptor->socket == socket; });
+    if (descriptor_count == 1) {
+        const Errno bsd_errno = Translate(socket->Close());
+        if (bsd_errno != Errno::SUCCESS) {
+            return bsd_errno;
+        }
     }
 
     LOG_INFO(Service, "Close socket fd={}", fd);
 
     file_descriptors[fd].reset();
-    return bsd_errno;
+    return Errno::SUCCESS;
 }
 
 Expected<s32, Errno> BSD::DuplicateSocketImpl(s32 fd) {

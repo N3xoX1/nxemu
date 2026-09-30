@@ -18,6 +18,7 @@ public:
 
 private:
     void ConvertCurrentObjectToDomain(HLERequestContext& ctx);
+    void CopyFromCurrentDomain(HLERequestContext& ctx);
     void CloneCurrentObject(HLERequestContext& ctx);
     void CloneCurrentObjectEx(HLERequestContext& ctx);
     void QueryPointerBufferSize(HLERequestContext& ctx);

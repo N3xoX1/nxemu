@@ -36,13 +36,13 @@ SFDNSRES::SFDNSRES(Core::System& system_) : ServiceFramework{system_, "sfdnsres"
         {4, nullptr, "GetHostStringErrorRequest"},
         {5, &SFDNSRES::GetGaiStringErrorRequest, "GetGaiStringErrorRequest"},
         {6, &SFDNSRES::GetAddrInfoRequest, "GetAddrInfoRequest"},
-        {7, nullptr, "GetNameInfoRequest"},
+        {7, &SFDNSRES::GetNameInfoRequest, "GetNameInfoRequest"},
         {8, nullptr, "RequestCancelHandleRequest"},
         {9, nullptr, "CancelRequest"},
         {10, &SFDNSRES::GetHostByNameRequestWithOptions, "GetHostByNameRequestWithOptions"},
         {11, nullptr, "GetHostByAddrRequestWithOptions"},
         {12, &SFDNSRES::GetAddrInfoRequestWithOptions, "GetAddrInfoRequestWithOptions"},
-        {13, nullptr, "GetNameInfoRequestWithOptions"},
+        {13, &SFDNSRES::GetNameInfoRequest, "GetNameInfoRequestWithOptions"},
         {14, &SFDNSRES::ResolverSetOptionRequest, "ResolverSetOptionRequest"},
         {15, nullptr, "ResolverGetOptionRequest"},
     };
@@ -365,6 +365,86 @@ void SFDNSRES::GetAddrInfoRequestWithOptions(HLERequestContext& ctx) {
         .gai_error = emu_gai_err,
         .netdb_error = GetAddrInfoErrorToNetDbError(emu_gai_err),
         .bsd_errno = GetAddrInfoErrorToErrno(emu_gai_err),
+    });
+}
+
+void SFDNSRES::GetNameInfoRequest(HLERequestContext& ctx) {
+    struct InputParameters {
+        u32 flags;
+        u32 cancel_handle;
+        u64 pid_placeholder;
+    };
+    static_assert(sizeof(InputParameters) == 0x10);
+
+    constexpr u32 NiNameRequired = 0x04;
+
+    IPC::RequestParser rp{ctx};
+    const auto parameters = rp.PopRaw<InputParameters>();
+
+    LOG_DEBUG(Service,
+              "GetNameInfoRequest: flags={:#x}, cancel_handle={}, pid_placeholder={}",
+              parameters.flags, parameters.cancel_handle, parameters.pid_placeholder);
+
+    GetAddrInfoError gai_error = GetAddrInfoError::SUCCESS;
+    std::string host;
+    std::string service;
+
+    const bool wants_host = ctx.CanWriteBuffer(0) && ctx.GetWriteBufferSize(0) != 0;
+    const bool wants_service = ctx.CanWriteBuffer(1) && ctx.GetWriteBufferSize(1) != 0;
+
+    // Commands 7 and 13 share this fallback; it does not use resolver options.
+    const auto input_buffer = ctx.ReadBuffer(0);
+    if (input_buffer.size() < sizeof(SockAddrIn)) {
+        LOG_WARNING(Service, "GetNameInfoRequest: sockaddr buffer is too small ({})",
+                    input_buffer.size());
+        gai_error = GetAddrInfoError::FAMILY;
+    } else {
+        SockAddrIn guest_address{};
+        std::memcpy(&guest_address, input_buffer.data(), sizeof(guest_address));
+
+        if (guest_address.family != static_cast<u8>(Domain::INET)) {
+            LOG_WARNING(Service, "GetNameInfoRequest: unsupported address family={}",
+                        guest_address.family);
+            gai_error = GetAddrInfoError::FAMILY;
+        } else if (wants_host && (parameters.flags & NiNameRequired) != 0) {
+            // Reverse DNS is unsupported, so NI_NAMEREQD returns NONAME.
+            gai_error = GetAddrInfoError::NONAME;
+        } else {
+            host = Network::IPv4AddressToString(guest_address.ip);
+            const u16 port = static_cast<u16>((guest_address.portno >> 8) |
+                                              (guest_address.portno << 8));
+            service = std::to_string(port);
+
+            // HOS reports EAI_MEMORY when either IPv4 output buffer is too small.
+            if ((wants_host && ctx.GetWriteBufferSize(0) < host.size() + 1) ||
+                (wants_service && ctx.GetWriteBufferSize(1) < service.size() + 1)) {
+                gai_error = GetAddrInfoError::MEMORY;
+            }
+        }
+    }
+
+    if (gai_error == GetAddrInfoError::SUCCESS) {
+        if (wants_host) {
+            host.push_back('\0');
+            ctx.WriteBuffer(host, 0);
+        }
+        if (wants_service) {
+            service.push_back('\0');
+            ctx.WriteBuffer(service, 1);
+        }
+    }
+
+    struct OutputParameters {
+        Errno bsd_errno;
+        GetAddrInfoError gai_error;
+    };
+    static_assert(sizeof(OutputParameters) == 0x8);
+
+    IPC::ResponseBuilder rb{ctx, 4};
+    rb.Push(ResultSuccess);
+    rb.PushRaw(OutputParameters{
+        .bsd_errno = GetAddrInfoErrorToErrno(gai_error),
+        .gai_error = gai_error,
     });
 }
 

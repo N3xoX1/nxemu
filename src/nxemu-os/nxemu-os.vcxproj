@@ -40,7 +40,7 @@
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\external\boost\stage\lib\libboost_context-vc143-mt-s-x64-1_87.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\external\boost\stage\lib\libboost_context-vc143-mt-sgd-x64-1_87.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies>ntdll.lib;Iphlpapi.lib;winmm.lib;ksuser.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ntdll.lib;Iphlpapi.lib;winmm.lib;ksuser.lib;crypt32.lib;secur32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

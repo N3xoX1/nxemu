@@ -15,6 +15,9 @@
 
 namespace Service::SM {
 
+constexpr Result ResultTargetNotDomain{ErrorModule::HIPC, 491};
+constexpr Result ResultDomainObjectNotFound{ErrorModule::HIPC, 492};
+
 void Controller::ConvertCurrentObjectToDomain(HLERequestContext& ctx) {
     ASSERT_MSG(!ctx.GetManager()->IsDomain(), "Session is already a domain");
     LOG_DEBUG(Service, "called, server_session={}", ctx.Session()->GetId());
@@ -23,6 +26,38 @@ void Controller::ConvertCurrentObjectToDomain(HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(ResultSuccess);
     rb.Push<u32>(1); // Converted sessions start with 1 request handler
+}
+
+void Controller::CopyFromCurrentDomain(HLERequestContext& ctx) {
+    LOG_DEBUG(Service, "called");
+
+    auto manager = ctx.GetManager();
+    if (!manager->IsDomain()) {
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(ResultTargetNotDomain);
+        return;
+    }
+
+    IPC::RequestParser rp{ctx};
+    const u32 object_id = rp.PopRaw<u32>();
+    if (object_id == 0 || object_id > manager->DomainHandlerCount()) {
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(ResultDomainObjectNotFound);
+        return;
+    }
+
+    auto object = manager->DomainHandler(object_id - 1).lock();
+    if (!object) {
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(ResultDomainObjectNotFound);
+        return;
+    }
+
+    // The copied handle is a regular session rooted at the selected domain object.
+    ctx.AddMoveInterface(std::move(object));
+
+    IPC::ResponseBuilder rb{ctx, 2, 0, 1, IPC::ResponseBuilder::Flags::AlwaysMoveHandles};
+    rb.Push(ResultSuccess);
 }
 
 void Controller::CloneCurrentObject(HLERequestContext& ctx) {
@@ -68,18 +103,21 @@ void Controller::CloneCurrentObjectEx(HLERequestContext& ctx) {
 }
 
 void Controller::QueryPointerBufferSize(HLERequestContext& ctx) {
-    LOG_WARNING(Service, "(STUBBED) called");
+    LOG_DEBUG(Service, "called");
+
+    // HLE services share a process, so report the standard 32 KiB pointer buffer.
+    constexpr u16 pointer_buffer_size = 0x8000;
 
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(ResultSuccess);
-    rb.Push<u16>(0x8000);
+    rb.Push<u16>(pointer_buffer_size);
 }
 
 // https://switchbrew.org/wiki/IPC_Marshalling
 Controller::Controller(Core::System& system_) : ServiceFramework{system_, "IpcController"} {
     static const FunctionInfo functions[] = {
         {0, &Controller::ConvertCurrentObjectToDomain, "ConvertCurrentObjectToDomain"},
-        {1, nullptr, "CopyFromCurrentDomain"},
+        {1, &Controller::CopyFromCurrentDomain, "CopyFromCurrentDomain"},
         {2, &Controller::CloneCurrentObject, "CloneCurrentObject"},
         {3, &Controller::QueryPointerBufferSize, "QueryPointerBufferSize"},
         {4, &Controller::CloneCurrentObjectEx, "CloneCurrentObjectEx"},

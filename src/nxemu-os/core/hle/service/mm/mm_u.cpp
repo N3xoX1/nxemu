@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <vector>
+
 #include "yuzu_common/logging/log.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/mm/mm_u.h"
@@ -8,6 +10,28 @@
 #include "core/hle/service/sm/sm.h"
 
 namespace Service::MM {
+
+namespace {
+
+struct Session {
+    u32 module{};
+    u32 request_id{};
+    u32 requested_clock_rate{};
+    bool has_active_request{};
+
+    void SetAndWait(u32 clock_rate) {
+        if (clock_rate == 0 || (clock_rate & 0x80000000U) != 0) {
+            requested_clock_rate = 0;
+            has_active_request = false;
+            return;
+        }
+
+        requested_clock_rate = clock_rate;
+        has_active_request = true;
+    }
+};
+
+} // namespace
 
 class MM_U final : public ServiceFramework<MM_U> {
 public:
@@ -29,15 +53,80 @@ public:
     }
 
 private:
+    Session* FindSessionByModule(u32 module) {
+        for (auto& session : sessions) {
+            if (session.module == module) {
+                return &session;
+            }
+        }
+        return nullptr;
+    }
+
+    Session* FindSessionById(u32 request_id) {
+        for (auto& session : sessions) {
+            if (session.request_id == request_id) {
+                return &session;
+            }
+        }
+        return nullptr;
+    }
+
+    u32 RegisterSession(u32 module) {
+        const u32 request_id = next_request_id++;
+        sessions.push_back(Session{module, request_id});
+        return request_id;
+    }
+
+    u32 GetEffectiveClockRate(u32 module) const {
+        u32 clock_rate{};
+        for (const auto& session : sessions) {
+            if (session.module == module && session.has_active_request &&
+                session.requested_clock_rate > clock_rate) {
+                clock_rate = session.requested_clock_rate;
+            }
+        }
+        return clock_rate;
+    }
+
+    void RemoveSessionByModule(u32 module) {
+        for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+            if (it->module == module) {
+                sessions.erase(it);
+                return;
+            }
+        }
+    }
+
+    void RemoveSessionById(u32 request_id) {
+        for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+            if (it->request_id == request_id) {
+                sessions.erase(it);
+                return;
+            }
+        }
+    }
+
     void InitializeOld(HLERequestContext& ctx) {
-        LOG_WARNING(Service_MM, "(STUBBED) called");
+        IPC::RequestParser rp{ctx};
+        const u32 module = rp.Pop<u32>();
+        const u32 priority = rp.Pop<u32>();
+        const bool is_auto_clear_event = rp.Pop<u32>() != 0;
+        const u32 request_id = RegisterSession(module);
+
+        LOG_DEBUG(Service_MM,
+                  "called, module=0x{:X}, priority=0x{:X}, auto_clear={}, request_id=0x{:X}",
+                  module, priority, is_auto_clear_event, request_id);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
     }
 
     void FinalizeOld(HLERequestContext& ctx) {
-        LOG_WARNING(Service_MM, "(STUBBED) called");
+        IPC::RequestParser rp{ctx};
+        const u32 module = rp.Pop<u32>();
+        RemoveSessionByModule(module);
+
+        LOG_DEBUG(Service_MM, "called, module=0x{:X}", module);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
@@ -45,33 +134,57 @@ private:
 
     void SetAndWaitOld(HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        min = rp.Pop<u32>();
-        max = rp.Pop<u32>();
-        LOG_DEBUG(Service_MM, "(STUBBED) called, min=0x{:X}, max=0x{:X}", min, max);
+        const u32 module = rp.Pop<u32>();
+        const u32 requested_clock_rate = rp.Pop<u32>();
+        const s32 timeout = rp.Pop<s32>();
 
-        current = min;
+        if (auto* session = FindSessionByModule(module); session != nullptr) {
+            session->SetAndWait(requested_clock_rate);
+        }
+
+        const u32 actual_clock_rate = GetEffectiveClockRate(module);
+        LOG_TRACE(Service_MM,
+                  "called, module=0x{:X}, requested=0x{:X}, actual={}, timeout={}", module,
+                  requested_clock_rate, actual_clock_rate, timeout);
+
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
     }
 
     void GetOld(HLERequestContext& ctx) {
-        LOG_DEBUG(Service_MM, "(STUBBED) called");
+        IPC::RequestParser rp{ctx};
+        const u32 module = rp.Pop<u32>();
+        const u32 actual_clock_rate = GetEffectiveClockRate(module);
+
+        LOG_TRACE(Service_MM, "called, module=0x{:X}, actual={}", module, actual_clock_rate);
 
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(ResultSuccess);
-        rb.Push(current);
+        rb.Push(actual_clock_rate);
     }
 
     void Initialize(HLERequestContext& ctx) {
-        LOG_WARNING(Service_MM, "(STUBBED) called");
+        IPC::RequestParser rp{ctx};
+        const u32 module = rp.Pop<u32>();
+        const u32 priority = rp.Pop<u32>();
+        const bool is_auto_clear_event = rp.Pop<u32>() != 0;
+        const u32 request_id = RegisterSession(module);
+
+        LOG_DEBUG(Service_MM,
+                  "called, module=0x{:X}, priority=0x{:X}, auto_clear={}, request_id=0x{:X}",
+                  module, priority, is_auto_clear_event, request_id);
 
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(ResultSuccess);
-        rb.Push<u32>(id); // Any non zero value
+        rb.Push(request_id);
     }
 
     void Finalize(HLERequestContext& ctx) {
-        LOG_WARNING(Service_MM, "(STUBBED) called");
+        IPC::RequestParser rp{ctx};
+        const u32 request_id = rp.Pop<u32>();
+        RemoveSessionById(request_id);
+
+        LOG_DEBUG(Service_MM, "called, request_id=0x{:X}", request_id);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
@@ -79,29 +192,52 @@ private:
 
     void SetAndWait(HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        u32 input_id = rp.Pop<u32>();
-        min = rp.Pop<u32>();
-        max = rp.Pop<u32>();
-        LOG_DEBUG(Service_MM, "(STUBBED) called, input_id=0x{:X}, min=0x{:X}, max=0x{:X}", input_id,
-                  min, max);
+        const u32 request_id = rp.Pop<u32>();
+        const u32 requested_clock_rate = rp.Pop<u32>();
+        const s32 timeout = rp.Pop<s32>();
 
-        current = min;
+        u32 actual_clock_rate{};
+        u32 module{};
+        bool found{};
+        if (auto* session = FindSessionById(request_id); session != nullptr) {
+            session->SetAndWait(requested_clock_rate);
+            module = session->module;
+            actual_clock_rate = GetEffectiveClockRate(module);
+            found = true;
+        }
+
+        LOG_TRACE(Service_MM,
+                  "called, request_id=0x{:X}, module=0x{:X}, requested=0x{:X}, actual={}, timeout={}, "
+                  "found={}",
+                  request_id, module, requested_clock_rate, actual_clock_rate, timeout, found);
+
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
     }
 
     void Get(HLERequestContext& ctx) {
-        LOG_DEBUG(Service_MM, "(STUBBED) called");
+        IPC::RequestParser rp{ctx};
+        const u32 request_id = rp.Pop<u32>();
+
+        u32 actual_clock_rate{};
+        u32 module{};
+        bool found{};
+        if (const auto* session = FindSessionById(request_id); session != nullptr) {
+            module = session->module;
+            actual_clock_rate = GetEffectiveClockRate(module);
+            found = true;
+        }
+
+        LOG_TRACE(Service_MM, "called, request_id=0x{:X}, module=0x{:X}, actual={}, found={}",
+                  request_id, module, actual_clock_rate, found);
 
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(ResultSuccess);
-        rb.Push(current);
+        rb.Push(actual_clock_rate);
     }
 
-    u32 min{0};
-    u32 max{0};
-    u32 current{0};
-    u32 id{1};
+    std::vector<Session> sessions;
+    u32 next_request_id{1};
 };
 
 void LoopProcess(Core::System& system) {

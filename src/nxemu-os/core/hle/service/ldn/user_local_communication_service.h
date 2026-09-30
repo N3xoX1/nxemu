@@ -71,6 +71,8 @@ private:
 
     Result AddAcceptFilterEntry(MacAddress mac_address);
 
+    Result ClearAcceptFilter();
+
     Result OpenStation();
 
     Result CloseStation();
