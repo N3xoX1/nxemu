@@ -24,6 +24,9 @@ public:
                          NvCore::Container& core);
     ~nvhost_ctrl() override;
 
+    std::optional<SyncpointWaitParams> GetSyncpointWait(
+        Ioctl command, std::span<const u8> input) const override;
+
     NvResult Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> input,
                     std::span<u8> output) override;
     NvResult Ioctl2(DeviceFD fd, Ioctl command, std::span<const u8> input,
@@ -185,6 +188,11 @@ private:
     static_assert(sizeof(IocCtrlEventUnregisterBatchParams) == 8,
                   "IocCtrlEventKill is incorrect size");
 
+    NvResult IocSyncptRead(IocSyncptReadParams& params);
+    NvResult IocSyncptIncr(IocSyncptIncrParams& params);
+    NvResult IocSyncptWait(IocSyncptWaitParams& params);
+    NvResult IocSyncptWaitEx(IocSyncptWaitexParams& params);
+    NvResult IocSyncptReadMax(IocSyncptReadMaxParams& params);
     NvResult NvOsGetConfigU32(IocGetConfigParams& params);
     NvResult IocCtrlEventRegister(IocCtrlEventRegisterParams& params);
     NvResult IocCtrlEventUnregister(IocCtrlEventUnregisterParams& params);

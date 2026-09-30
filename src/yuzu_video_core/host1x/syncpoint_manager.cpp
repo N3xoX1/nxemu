@@ -10,19 +10,19 @@ namespace Host1x {
 uint32_t SyncpointManager::RegisterAction(
     std::atomic<u32>& syncpoint, std::list<RegisteredAction>& action_storage, u32 expected_value,
     std::function<void()>&& action) {
-    if (syncpoint.load(std::memory_order_acquire) >= expected_value) {
+    if (HasReached(syncpoint.load(std::memory_order_acquire), expected_value)) {
         action();
         return {};
     }
 
     std::unique_lock lk(guard);
-    if (syncpoint.load(std::memory_order_relaxed) >= expected_value) {
+    if (HasReached(syncpoint.load(std::memory_order_relaxed), expected_value)) {
         action();
         return {};
     }
     auto it = action_storage.begin();
     while (it != action_storage.end()) {
-        if (it->expected_value >= expected_value) {
+        if (HasReached(it->expected_value, expected_value)) {
             break;
         }
         ++it;
@@ -67,14 +67,15 @@ void SyncpointManager::WaitHost(u32 syncpoint_id, u32 expected_value) {
     Wait(syncpoints_host[syncpoint_id], wait_host_cv, expected_value);
 }
 
+
 void SyncpointManager::Increment(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv,
                                  std::list<RegisteredAction>& action_storage) {
-    auto new_value{syncpoint.fetch_add(1, std::memory_order_acq_rel) + 1};
-
+    // CPU ioctl increments can race GPU increments; order values with callback dispatch.
     std::unique_lock lk(guard);
+    const auto new_value{syncpoint.fetch_add(1, std::memory_order_acq_rel) + 1};
     auto it = action_storage.begin();
     while (it != action_storage.end()) {
-        if (it->expected_value > new_value) {
+        if (!HasReached(new_value, it->expected_value)) {
             break;
         }
         it->action();
@@ -85,7 +86,9 @@ void SyncpointManager::Increment(std::atomic<u32>& syncpoint, std::condition_var
 
 void SyncpointManager::Wait(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv,
                             u32 expected_value) {
-    const auto pred = [&]() { return syncpoint.load(std::memory_order_acquire) >= expected_value; };
+    const auto pred = [&]() {
+        return HasReached(syncpoint.load(std::memory_order_acquire), expected_value);
+    };
     if (pred()) {
         return;
     }
@@ -93,6 +96,7 @@ void SyncpointManager::Wait(std::atomic<u32>& syncpoint, std::condition_variable
     std::unique_lock lk(guard);
     wait_cv.wait(lk, pred);
 }
+
 
 } // namespace Host1x
 

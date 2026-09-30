@@ -131,6 +131,8 @@ NvResult nvhost_gpu::Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> inpu
             return WrapFixed(this, &nvhost_gpu::SetErrorNotifier, input, output);
         case 0xd:
             return WrapFixed(this, &nvhost_gpu::SetChannelPriority, input, output);
+        case 0x18:
+            return WrapFixed(this, &nvhost_gpu::AllocGPFIFOEx, input, output, fd);
         case 0x1a:
             return WrapFixed(this, &nvhost_gpu::AllocGPFIFOEx2, input, output, fd);
         case 0x1b:
@@ -183,6 +185,7 @@ void nvhost_gpu::OnOpen(NvCore::SessionId session_id, DeviceFD fd) {
 
 void nvhost_gpu::OnClose(DeviceFD fd) {
     sessions.erase(fd);
+    error_notifier_enabled = false;
 }
 
 NvResult nvhost_gpu::SetNVMAPfd(IoctlSetNvmapFD& params) {
@@ -212,26 +215,44 @@ NvResult nvhost_gpu::ZCullBind(IoctlZCullBind& params) {
 }
 
 NvResult nvhost_gpu::SetErrorNotifier(IoctlSetErrorNotifier& params) {
-    LOG_WARNING(Service_NVDRV, "(STUBBED) called, offset={:X}, size={:X}, mem={:X}", params.offset,
-                params.size, params.mem);
+    error_notifier_enabled = params.mem != 0;
+    LOG_DEBUG(Service_NVDRV, "called, enabled={}, offset={:X}, size={:X}",
+              error_notifier_enabled, params.offset, params.size);
     return NvResult::Success;
 }
 
 NvResult nvhost_gpu::SetChannelPriority(IoctlChannelSetPriority& params) {
+    u32 timeslice{};
+    switch (static_cast<ChannelPriority>(params.priority)) {
+    case ChannelPriority::Low:
+        timeslice = 1300;
+        break;
+    case ChannelPriority::Medium:
+        timeslice = 2600;
+        break;
+    case ChannelPriority::High:
+        timeslice = 5200;
+        break;
+    default:
+        return NvResult::BadParameter;
+    }
+
     channel_priority = params.priority;
-    LOG_DEBUG(Service_NVDRV, "(STUBBED) called, priority={:X}", channel_priority);
+    channel_timeslice = timeslice;
+    LOG_DEBUG(Service_NVDRV, "called, priority={:X}, timeslice={}", channel_priority,
+              channel_timeslice);
     return NvResult::Success;
 }
 
-NvResult nvhost_gpu::AllocGPFIFOEx2(IoctlAllocGpfifoEx2& params, DeviceFD fd) {
-    LOG_WARNING(Service_NVDRV,
-                "(STUBBED) called, num_entries={:X}, flags={:X}, unk0={:X}, "
-                "unk1={:X}, unk2={:X}, unk3={:X}",
-                params.num_entries, params.flags, params.unk0, params.unk1, params.unk2,
-                params.unk3);
+NvResult nvhost_gpu::AllocGPFIFOEx(IoctlAllocGpfifoEx& params, DeviceFD fd) {
+    LOG_DEBUG(Service_NVDRV,
+              "called, num_entries={:X}, num_jobs={:X}, flags={:X}, reserved1={:X}, "
+              "reserved2={:X}, reserved3={:X}",
+              params.num_entries, params.num_jobs, params.flags, params.reserved[0],
+              params.reserved[1], params.reserved[2]);
 
     if (channel_state->Initialized()) {
-        LOG_CRITICAL(Service_NVDRV, "Already allocated!");
+        LOG_DEBUG(Service_NVDRV, "Channel already initialized; returning AlreadyAllocated");
         return NvResult::AlreadyAllocated;
     }
 
@@ -244,6 +265,10 @@ NvResult nvhost_gpu::AllocGPFIFOEx2(IoctlAllocGpfifoEx2& params, DeviceFD fd) {
     params.fence_out = syncpoint_manager.GetSyncpointFence(channel_syncpoint);
 
     return NvResult::Success;
+}
+
+NvResult nvhost_gpu::AllocGPFIFOEx2(IoctlAllocGpfifoEx& params, DeviceFD fd) {
+    return AllocGPFIFOEx(params, fd);
 }
 
 NvResult nvhost_gpu::AllocateObjectContext(IoctlAllocObjCtx& params) {
@@ -308,6 +333,9 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
 
     if (flags.fence_wait.Value()) {
         if (flags.increment_value.Value()) {
+            return NvResult::BadParameter;
+        }
+        if (params.fence.id < 0 || static_cast<u32>(params.fence.id) >= MaxSyncPoints) {
             return NvResult::BadParameter;
         }
 
@@ -394,14 +422,18 @@ NvResult nvhost_gpu::GetWaitbase(IoctlGetWaitbase& params) {
 NvResult nvhost_gpu::ChannelSetTimeout(IoctlChannelSetTimeout& params) {
     LOG_INFO(Service_NVDRV, "called, timeout=0x{:X}", params.timeout);
 
+    channel_timeout = params.timeout;
     return NvResult::Success;
 }
 
 NvResult nvhost_gpu::ChannelSetTimeslice(IoctlSetTimeslice& params) {
     LOG_INFO(Service_NVDRV, "called, timeslice=0x{:X}", params.timeslice);
 
-    channel_timeslice = params.timeslice;
+    if (params.timeslice < 1000 || params.timeslice > 50000) {
+        return NvResult::BadParameter;
+    }
 
+    channel_timeslice = params.timeslice;
     return NvResult::Success;
 }
 

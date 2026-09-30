@@ -43,6 +43,18 @@ NvResult nvmap::Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> input,
             return WrapFixed(this, &nvmap::IocParam, input, output);
         case 0xe:
             return WrapFixed(this, &nvmap::IocGetId, input, output);
+        case 0x2:  // CLAIM
+        case 0x6:  // MMAP
+        case 0x7:  // WRITE
+        case 0x8:  // READ
+        case 0xa:  // PIN_MULT
+        case 0xb:  // UNPIN_MULT
+        case 0xc:  // CACHE
+        case 0xd:  // GET_IVC_ID
+        case 0xf:  // FROM_IVC_ID
+        case 0x10: // SET_ALLOCATION_TAG_LABEL
+        case 0x11: // RESERVE
+            return NvResult::NotSupported;
         default:
             break;
         }
@@ -136,6 +148,11 @@ NvResult nvmap::IocAlloc(IocAllocParams& params, DeviceFD fd) {
                                              handle_description->size,
                                              Kernel::KMemoryPermission::None, true, false)
                .IsSuccess());
+    {
+        std::scoped_lock lock(handle_description->mutex);
+        handle_description->owner_process = process;
+        handle_description->device_address_space_locked = true;
+    }
     return result;
 }
 
@@ -240,12 +257,6 @@ NvResult nvmap::IocFree(IocFreeParams& params, DeviceFD fd) {
     }
 
     if (auto freeInfo{file.FreeHandle(params.handle, false)}) {
-        auto process = container.GetSession(sessions[fd])->process;
-        if (freeInfo->can_unlock) {
-            ASSERT(process->GetKPageTable()
-                       .UnlockForDeviceAddressSpace(freeInfo->address, freeInfo->size)
-                       .IsSuccess());
-        }
         params.address = freeInfo->address;
         params.size = static_cast<u32>(freeInfo->size);
         params.flags.raw = 0;

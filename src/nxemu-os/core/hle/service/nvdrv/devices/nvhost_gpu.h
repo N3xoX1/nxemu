@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <atomic>
+#include <array>
 #include <boost/container/small_vector.hpp>
 #include <memory>
 #include <vector>
@@ -90,6 +92,10 @@ class nvhost_as_gpu;
 class nvmap;
 class nvhost_gpu final : public nvdevice {
 public:
+    nvhost_gpu* AsGpuChannel() override {
+        return this;
+    }
+
     explicit nvhost_gpu(Core::System& system_, EventInterface& events_interface_,
                         NvCore::Container& core);
     ~nvhost_gpu() override;
@@ -108,6 +114,12 @@ public:
 
 private:
     friend class nvhost_as_gpu;
+
+    enum class ChannelPriority : u32 {
+        Low = 0x32,
+        Medium = 0x64,
+        High = 0x96,
+    };
     enum class CtxObjects : u32_le {
         Ctx2D = 0x902D,
         Ctx3D = 0xB197,
@@ -148,7 +160,7 @@ private:
     struct IoctlSetErrorNotifier {
         u64_le offset{};
         u64_le size{};
-        u32_le mem{}; // nvmap object handle
+        u32_le mem{}; // 0 disables the notifier; non-zero enables it
         INSERT_PADDING_WORDS(1);
     };
     static_assert(sizeof(IoctlSetErrorNotifier) == 24, "IoctlSetErrorNotifier is incorrect size");
@@ -180,27 +192,13 @@ private:
                   "IoctlGetErrorNotification is incorrect size");
 
     struct IoctlAllocGpfifoEx {
-        u32_le num_entries{};
-        u32_le flags{};
-        u32_le unk0{};
-        u32_le unk1{};
-        u32_le unk2{};
-        u32_le unk3{};
-        u32_le unk4{};
-        u32_le unk5{};
+        u32_le num_entries{}; // in
+        u32_le num_jobs{};    // in
+        u32_le flags{};       // in
+        NvFence fence_out{};  // out
+        std::array<u32_le, 3> reserved{};
     };
     static_assert(sizeof(IoctlAllocGpfifoEx) == 32, "IoctlAllocGpfifoEx is incorrect size");
-
-    struct IoctlAllocGpfifoEx2 {
-        u32_le num_entries{}; // in
-        u32_le flags{};       // in
-        u32_le unk0{};        // in (1 works)
-        NvFence fence_out{};  // out
-        u32_le unk1{};        // in
-        u32_le unk2{};        // in
-        u32_le unk3{};        // in
-    };
-    static_assert(sizeof(IoctlAllocGpfifoEx2) == 32, "IoctlAllocGpfifoEx2 is incorrect size");
 
     struct IoctlAllocObjCtx {
         u32_le class_num{}; // 0x902D=2d, 0xB197=3d, 0xB1C0=compute, 0xA140=kepler, 0xB0B5=DMA,
@@ -236,7 +234,9 @@ private:
     u64_le user_data{};
     IoctlZCullBind zcull_params{};
     u32_le channel_priority{};
+    u32_le channel_timeout{};
     u32_le channel_timeslice{};
+    bool error_notifier_enabled{};
 
     NvResult SetNVMAPfd(IoctlSetNvmapFD& params);
     NvResult SetClientData(IoctlClientData& params);
@@ -244,7 +244,8 @@ private:
     NvResult ZCullBind(IoctlZCullBind& params);
     NvResult SetErrorNotifier(IoctlSetErrorNotifier& params);
     NvResult SetChannelPriority(IoctlChannelSetPriority& params);
-    NvResult AllocGPFIFOEx2(IoctlAllocGpfifoEx2& params, DeviceFD fd);
+    NvResult AllocGPFIFOEx(IoctlAllocGpfifoEx& params, DeviceFD fd);
+    NvResult AllocGPFIFOEx2(IoctlAllocGpfifoEx& params, DeviceFD fd);
     NvResult AllocateObjectContext(IoctlAllocObjCtx& params);
 
     NvResult SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandList&& entries);
@@ -264,6 +265,7 @@ private:
     NvCore::SyncpointManager& syncpoint_manager;
     NvCore::NvMap& nvmap;
     IChannelStatePtr channel_state;
+    std::atomic_bool address_space_bound{};
     std::unordered_map<DeviceFD, NvCore::SessionId> sessions;
     u32 channel_syncpoint;
     std::mutex channel_mutex;
