@@ -113,6 +113,7 @@ private:
 
     // IRomBrowser
     void PopulateAsync() override;
+    void StopScan() override;
     void SetMainWindow(SciterMainWindow * window, ISystemModules * modules) override;
     void ClearItems() override;
 
@@ -524,6 +525,11 @@ void WidgetRomBrowser::PopulateAsync()
     }
 }
 
+void WidgetRomBrowser::StopScan()
+{
+    m_currentWorker.reset();
+}
+
 void WidgetRomBrowser::SetMainWindow(SciterMainWindow * window, ISystemModules * modules)
 {
     m_modules = modules;
@@ -560,7 +566,7 @@ void WidgetRomBrowser::AttachContextMenuHandlers()
 
 void WidgetRomBrowser::ClearItems()
 {
-    m_currentWorker->Stop();
+    StopScan();
     std::lock_guard<std::mutex> lock(m_romsMutex);
     m_roms.clear();
 }
