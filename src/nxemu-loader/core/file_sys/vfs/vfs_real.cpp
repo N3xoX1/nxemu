@@ -495,7 +495,7 @@ VirtualFile RealVfsDirectory::CreateFile(std::string_view name) {
 
 bool RealVfsDirectory::DeleteSubdirectory(std::string_view name) {
     const std::string subdir_path = (path + '/').append(name);
-    return base.DeleteDirectory(subdir_path);
+    return FS::RemoveDir(subdir_path);
 }
 
 bool RealVfsDirectory::DeleteFile(std::string_view name) {
@@ -505,7 +505,7 @@ bool RealVfsDirectory::DeleteFile(std::string_view name) {
 
 bool RealVfsDirectory::Rename(std::string_view name) {
     const std::string new_name = (parent_path + '/').append(name);
-    return base.MoveFile(path, new_name) != nullptr;
+    return FS::RenameDir(path, new_name);
 }
 
 std::string RealVfsDirectory::GetFullPath() const {

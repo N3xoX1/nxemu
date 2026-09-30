@@ -179,6 +179,15 @@ struct SaveDataSize {
 };
 static_assert(sizeof(SaveDataSize) == 0x10, "SaveDataSize has invalid size.");
 
+struct VirtualFileTimeStampRaw {
+    uint64_t created{};
+    uint64_t modified{};
+    uint64_t accessed{};
+    uint8_t is_valid{};
+    uint8_t padding[7]{};
+};
+static_assert(sizeof(VirtualFileTimeStampRaw) == 0x20);
+
 nxinterface IVirtualFile;
 nxinterface IVirtualDirectoryList;
 nxinterface IVirtualFileList;
@@ -196,6 +205,11 @@ nxinterface IVirtualDirectory
     virtual IVirtualFile * GetFileRelative(const char * relative_path) const = 0;
     virtual IVirtualFile * OpenFile(const char * path, VirtualFileOpenMode perms) = 0;
     virtual bool DeleteFile(const char * name) const = 0;
+    virtual bool DeleteSubdirectory(const char * name) const = 0;
+    virtual bool DeleteSubdirectoryRecursive(const char * name) const = 0;
+    virtual bool CleanSubdirectoryRecursive(const char * name) const = 0;
+    virtual bool RenameDirectory(const char * old_path, const char * new_path) const = 0;
+    virtual bool GetFileTimeStamp(VirtualFileTimeStampRaw * out, const char * path) const = 0;
     virtual const char * GetName() const = 0;
     virtual void Release() = 0;
 };

@@ -1,6 +1,8 @@
 #include "vfs_types.h"
 #include "core/file_sys/romfs.h"
 #include "core/file_sys/savedata_factory.h"
+#include "core/file_sys/vfs/vfs.h"
+#include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/yuzu_assert.h>
 
 VirtualDirectoryListImpl::VirtualDirectoryListImpl(std::vector<FileSys::VirtualDir> && directories) :
@@ -166,6 +168,60 @@ bool VirtualDirectoryImpl::DeleteFile(const char * name) const
         return false;
     }
     return m_directory->DeleteFile(name);
+}
+
+bool VirtualDirectoryImpl::DeleteSubdirectory(const char * name) const
+{
+    return m_directory && m_directory->DeleteSubdirectory(name);
+}
+
+bool VirtualDirectoryImpl::DeleteSubdirectoryRecursive(const char * name) const
+{
+    return m_directory && m_directory->DeleteSubdirectoryRecursive(name);
+}
+
+bool VirtualDirectoryImpl::CleanSubdirectoryRecursive(const char * name) const
+{
+    return m_directory && m_directory->CleanSubdirectoryRecursive(name);
+}
+
+bool VirtualDirectoryImpl::RenameDirectory(const char * old_path, const char * new_path) const
+{
+    if (!m_directory)
+    {
+        return false;
+    }
+
+    const auto source = m_directory->GetDirectoryRelative(old_path);
+    if (!source || m_directory->GetDirectoryRelative(new_path))
+    {
+        return false;
+    }
+
+    if (Common::FS::GetParentPath(old_path) != Common::FS::GetParentPath(new_path))
+    {
+        return false;
+    }
+
+    return source->Rename(Common::FS::GetFilename(new_path));
+}
+
+bool VirtualDirectoryImpl::GetFileTimeStamp(VirtualFileTimeStampRaw * out, const char * path) const
+{
+    if (!m_directory || out == nullptr)
+    {
+        return false;
+    }
+
+    const auto timestamp = m_directory->GetFileTimeStamp(path);
+    *out = {
+        .created = timestamp.created,
+        .modified = timestamp.modified,
+        .accessed = timestamp.accessed,
+        .is_valid = static_cast<uint8_t>(timestamp.created != 0 || timestamp.modified != 0 ||
+                                         timestamp.accessed != 0),
+    };
+    return true;
 }
 
 const char * VirtualDirectoryImpl::GetName() const
