@@ -79,6 +79,11 @@ public:
     IVirtualFile * GetFileRelative(const char * relative_path) const override;
     IVirtualFile * OpenFile(const char * path, VirtualFileOpenMode perms) override;
     bool DeleteFile(const char * name) const override;
+    bool DeleteSubdirectory(const char * name) const override;
+    bool DeleteSubdirectoryRecursive(const char * name) const override;
+    bool CleanSubdirectoryRecursive(const char * name) const override;
+    bool RenameDirectory(const char * old_path, const char * new_path) const override;
+    bool GetFileTimeStamp(VirtualFileTimeStampRaw * out, const char * path) const override;
     const char * GetName() const override;
     void Release() override;
 
