@@ -15,6 +15,7 @@ import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -34,6 +35,7 @@ import org.nxemu.NativeLibrary
 import org.nxemu.R
 import org.nxemu.overlay.InputOverlay
 import org.nxemu.overlay.model.OverlayLayout
+import org.nxemu.utils.InputHandler
 import org.nxemu.utils.NativeConfig
 import org.json.JSONObject
 import java.nio.ByteBuffer
@@ -126,6 +128,29 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (hasFocus) {
             hideSystemBars()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        InputHandler.updateControllerData()
+        if (::surfaceInputOverlay.isInitialized && !surfaceInputOverlay.isInEditMode()) {
+            updateInputOverlayLayout()
+            surfaceInputOverlay.refreshControls()
+        }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (InputHandler.dispatchKeyEvent(event)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (InputHandler.dispatchGenericMotionEvent(event)) {
+            return true
+        }
+        return super.dispatchGenericMotionEvent(event)
     }
 
     private fun setupInGameDrawer() {

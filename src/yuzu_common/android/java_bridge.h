@@ -56,4 +56,12 @@ jobject ToJBoolean(JNIEnv* env, bool value);
 
 jmethodID GetIntegerIntValue();
 
+jmethodID GetNxInputDeviceGetName();
+jmethodID GetNxInputDeviceGetGUID();
+jmethodID GetNxInputDeviceGetPort();
+jmethodID GetNxInputDeviceGetSupportsVibration();
+jmethodID GetNxInputDeviceVibrate();
+jmethodID GetNxInputDeviceGetAxes();
+jmethodID GetNxInputDeviceHasKeys();
+
 #endif

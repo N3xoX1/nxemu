@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -740,6 +740,17 @@ function renderSettingsSummary() {
   }
   renderThemeSummary();
   renderOverlaySummary();
+  renderControllersSummary();
+}
+
+function renderControllersSummary() {
+  const meta = document.getElementById('controllersMeta');
+  if (!meta) return;
+  var count = 0;
+  for (var player = 0; player < 8; player++) {
+    if (NxEmu.isControllerConnected(player)) count++;
+  }
+  meta.textContent = count === 0 ? 'Connected: none' : 'Connected: ' + count;
 }
 
 function getThemeMode() {
@@ -859,6 +870,298 @@ function removeGameFolder(uri) {
   NxEmu.saveSettings();
 }
 
+var controllerPlayerIndex = 0;
+var controllerFilterIndex = 0;
+var BTN = { A: 0, B: 1, X: 2, Y: 3, LStick: 4, RStick: 5, L: 6, R: 7, ZL: 8, ZR: 9, Plus: 10, Minus: 11, DLeft: 12, DUp: 13, DRight: 14, DDown: 15, SLLeft: 16, SRLeft: 17, Home: 18, Capture: 19, SLRight: 20, SRRight: 21 };
+var STICK = { L: 0, R: 1 };
+
+function controllerStyleName(style) {
+  if (style === 3) return 'Pro Controller';
+  if (style === 4) return 'Handheld';
+  if (style === 5) return 'Dual Joycons';
+  if (style === 6) return 'Left Joycon';
+  if (style === 7) return 'Right Joycon';
+  if (style === 8) return 'GameCube Controller';
+  if (style === 0) return 'None';
+  return 'Unknown';
+}
+
+function controllerChevron() {
+  return '<svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
+}
+
+function parseJsonArray(text) {
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function openControllerPlayer(index) {
+  controllerPlayerIndex = index;
+  controllerFilterIndex = 0;
+  navigate('controllerPlayer');
+}
+
+function renderControllerPages() {
+  const listPage = document.getElementById('controllerSettings');
+  const playerPage = document.getElementById('controllerPlayer');
+  if (listPage && listPage.style.display !== 'none') renderControllerSettings();
+  if (playerPage && playerPage.style.display !== 'none') renderControllerPlayer();
+}
+
+function renderControllerSettings() {
+  const list = document.getElementById('controllerList');
+  if (!list) return;
+  list.innerHTML = '';
+  for (var player = 0; player < 8; player++) {
+    const connected = NxEmu.isControllerConnected(player);
+    const styleName = controllerStyleName(NxEmu.getControllerStyle(player));
+    const item = document.createElement('div');
+    item.className = 'settings-item';
+    item.innerHTML =
+      '<div class="setting-info">' +
+      '<div class="setting-label">Controller ' + (player + 1) + '</div>' +
+      '<div class="setting-sub">' + escapeHtml(connected ? ('Connected - ' + styleName) : 'Disconnected') + '</div>' +
+      '</div>' + controllerChevron();
+    item.addEventListener('click', openControllerPlayer.bind(null, player));
+    list.appendChild(item);
+  }
+}
+
+function appendControllerHeader(list, title) {
+  const header = document.createElement('div');
+  header.className = 'settings-header';
+  header.textContent = title;
+  list.appendChild(header);
+}
+
+function appendControllerSwitch(list, title, checked, onClick) {
+  const item = document.createElement('div');
+  item.className = 'settings-item';
+  item.innerHTML =
+    '<div class="setting-info"><div class="setting-label">' + escapeHtml(title) + '</div></div>' +
+    '<button class="settings-toggle' + (checked ? ' on' : '') + '" type="button" aria-label="' + escapeHtml(title) + '"></button>';
+  item.addEventListener('click', onClick);
+  list.appendChild(item);
+}
+
+function appendControllerRow(list, title, subtitle, onClick) {
+  const item = document.createElement('div');
+  item.className = 'settings-item';
+  item.innerHTML =
+    '<div class="setting-info">' +
+    '<div class="setting-label">' + escapeHtml(title) + '</div>' +
+    (subtitle ? '<div class="setting-sub">' + escapeHtml(subtitle) + '</div>' : '') +
+    '</div>' + controllerChevron();
+  item.addEventListener('click', onClick);
+  list.appendChild(item);
+}
+
+function appendControllerMap(list, title, mapId) {
+  const subtitle = mapId.indexOf('button:') === 0
+    ? NxEmu.getButtonBinding(controllerPlayerIndex, parseInt(mapId.slice(7), 10))
+    : NxEmu.getStickBinding(controllerPlayerIndex, stickIdFromMap(mapId), stickPartFromMap(mapId));
+  appendControllerRow(list, title, subtitle, function () {
+    NxEmu.beginControllerMap(controllerPlayerIndex, mapId, title, controllerFilterIndex);
+  });
+}
+
+function stickIdFromMap(mapId) {
+  return parseInt(mapId.split(':')[1], 10);
+}
+
+function stickPartFromMap(mapId) {
+  const parts = mapId.split(':');
+  return parts[0] === 'modifier' ? 'modifier' : parts[2];
+}
+
+function appendControllerSlider(list, title, stick, key, min, max) {
+  const value = NxEmu.getStickValue(controllerPlayerIndex, stick, key);
+  const item = document.createElement('div');
+  item.className = 'settings-item setting-item-static';
+  item.innerHTML =
+    '<div class="setting-info" style="flex:1">' +
+    '<div class="setting-label">' + escapeHtml(title) + ' <span class="slider-value">' + Math.round(value * 100) + '%</span></div>' +
+    '<input class="settings-range" type="range" min="' + min + '" max="' + max + '" step="0.01" value="' + value + '">' +
+    '</div>';
+  const input = item.querySelector('input');
+  const label = item.querySelector('.slider-value');
+  input.addEventListener('input', function () {
+    const next = parseFloat(input.value);
+    if (label) label.textContent = Math.round(next * 100) + '%';
+    NxEmu.setStickValue(controllerPlayerIndex, stick, key, next);
+  });
+  list.appendChild(item);
+}
+
+function appendStickDirections(list, stick) {
+  appendControllerMap(list, 'Up', 'analog:' + stick + ':up');
+  appendControllerMap(list, 'Down', 'analog:' + stick + ':down');
+  appendControllerMap(list, 'Left', 'analog:' + stick + ':left');
+  appendControllerMap(list, 'Right', 'analog:' + stick + ':right');
+}
+
+function appendStickExtras(list, stick) {
+  if (NxEmu.isControllerStick(controllerPlayerIndex, stick)) {
+    appendControllerSlider(list, 'Range', stick, 'range', 0.25, 1.5);
+    appendControllerSlider(list, 'Deadzone', stick, 'deadzone', 0, 1);
+  } else {
+    appendControllerMap(list, 'Modifier', 'modifier:' + stick);
+    appendControllerSlider(list, 'Modifier range', stick, 'modifier_scale', 0, 1);
+  }
+}
+
+function appendButtons(list, buttons) {
+  buttons.forEach(function (button) {
+    appendControllerMap(list, button[0], 'button:' + button[1]);
+  });
+}
+
+function renderControllerPlayer() {
+  const title = document.getElementById('controllerPlayerTitle');
+  const list = document.getElementById('controllerPlayerList');
+  if (!list) return;
+  const player = controllerPlayerIndex;
+  const style = NxEmu.getControllerStyle(player);
+  const filters = parseJsonArray(NxEmu.getControllerFilterNames());
+  if (controllerFilterIndex >= filters.length) controllerFilterIndex = 0;
+  if (title) title.textContent = 'Controller ' + (player + 1);
+  list.innerHTML = '';
+
+  appendControllerSwitch(list, 'Connected', NxEmu.isControllerConnected(player), function () {
+    NxEmu.setControllerConnected(player, !NxEmu.isControllerConnected(player));
+    renderControllerPlayer();
+  });
+  appendControllerRow(list, 'Controller type', controllerStyleName(style), openControllerStyles);
+  appendControllerRow(list, 'Auto-map a controller', 'Select a device to attempt auto-mapping', openAutoMap);
+  appendControllerRow(list, 'Input mapping filter', filters[controllerFilterIndex] || 'Unknown', openControllerFilter);
+  appendControllerRow(list, 'Reset to default', '', confirmResetController);
+
+  const full = style === 3 || style === 4 || style === 5;
+  const left = style === 6;
+  const right = style === 7;
+  const gamecube = style === 8;
+  if (full) {
+    appendControllerHeader(list, 'Buttons');
+    appendButtons(list, [['A', BTN.A], ['B', BTN.B], ['X', BTN.X], ['Y', BTN.Y], ['Plus', BTN.Plus], ['Minus', BTN.Minus], ['Home', BTN.Home], ['Capture', BTN.Capture]]);
+  } else if (left) {
+    appendControllerHeader(list, 'Buttons');
+    appendButtons(list, [['Minus', BTN.Minus], ['Capture', BTN.Capture]]);
+  } else if (right) {
+    appendControllerHeader(list, 'Buttons');
+    appendButtons(list, [['A', BTN.A], ['B', BTN.B], ['X', BTN.X], ['Y', BTN.Y], ['Plus', BTN.Plus], ['Home', BTN.Home]]);
+  } else if (gamecube) {
+    appendControllerHeader(list, 'Buttons');
+    appendButtons(list, [['A', BTN.A], ['B', BTN.B], ['X', BTN.X], ['Y', BTN.Y], ['Start/Pause', BTN.Plus]]);
+  }
+
+  if (full || left) {
+    appendControllerHeader(list, 'D-Pad');
+    appendButtons(list, [['Up', BTN.DUp], ['Down', BTN.DDown], ['Left', BTN.DLeft], ['Right', BTN.DRight]]);
+  }
+
+  if (full || left) {
+    appendControllerHeader(list, 'Left stick');
+    appendStickDirections(list, STICK.L);
+    appendButtons(list, [['Pressed', BTN.LStick]]);
+    appendStickExtras(list, STICK.L);
+  } else if (gamecube) {
+    appendControllerHeader(list, 'Control stick');
+    appendStickDirections(list, STICK.L);
+    appendStickExtras(list, STICK.L);
+  }
+
+  if (full || right) {
+    appendControllerHeader(list, 'Right stick');
+    appendStickDirections(list, STICK.R);
+    appendButtons(list, [['Pressed', BTN.RStick]]);
+    appendStickExtras(list, STICK.R);
+  } else if (gamecube) {
+    appendControllerHeader(list, 'C-Stick');
+    appendStickDirections(list, STICK.R);
+    appendStickExtras(list, STICK.R);
+  }
+
+  if (style === 3 || style === 4) {
+    appendControllerHeader(list, 'Triggers');
+    appendButtons(list, [['L', BTN.L], ['R', BTN.R], ['ZL', BTN.ZL], ['ZR', BTN.ZR]]);
+  } else if (style === 5) {
+    appendControllerHeader(list, 'Triggers');
+    appendButtons(list, [['L', BTN.L], ['R', BTN.R], ['ZL', BTN.ZL], ['ZR', BTN.ZR], ['Left SL', BTN.SLLeft], ['Left SR', BTN.SRLeft], ['Right SL', BTN.SLRight], ['Right SR', BTN.SRRight]]);
+  } else if (left) {
+    appendControllerHeader(list, 'Triggers');
+    appendButtons(list, [['L', BTN.L], ['ZL', BTN.ZL], ['Left SL', BTN.SLLeft], ['Left SR', BTN.SRLeft]]);
+  } else if (right) {
+    appendControllerHeader(list, 'Triggers');
+    appendButtons(list, [['R', BTN.R], ['ZR', BTN.ZR], ['Right SL', BTN.SLRight], ['Right SR', BTN.SRRight]]);
+  } else if (gamecube) {
+    appendControllerHeader(list, 'Triggers');
+    appendButtons(list, [['Z', BTN.R], ['L', BTN.ZL], ['R', BTN.ZR]]);
+  }
+}
+
+function openControllerChoices(title, items, onPick, emptyText) {
+  const choiceList = document.getElementById('controllerChoiceList');
+  document.getElementById('controllerChoicesTitle').textContent = title;
+  if (choiceList) choiceList.style.display = '';
+  choiceList.innerHTML = '';
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'settings-header';
+    empty.textContent = emptyText || '';
+    choiceList.appendChild(empty);
+  }
+  items.forEach(function (item, index) {
+    const row = document.createElement('div');
+    row.className = 'settings-item';
+    row.innerHTML = '<div class="setting-info"><div class="setting-label">' + escapeHtml(item.label) + '</div></div>' + controllerChevron();
+    row.addEventListener('click', function () { onPick(item, index); });
+    choiceList.appendChild(row);
+  });
+  const page = document.getElementById('controllerChoices');
+  if (page.style.display === 'none') navigate('controllerChoices');
+}
+
+function openControllerStyles() {
+  const styles = parseJsonArray(NxEmu.getSupportedControllerStyles(controllerPlayerIndex));
+  openControllerChoices('Controller type', styles.map(function (id) {
+    return { label: controllerStyleName(id), id: id };
+  }), function (item) {
+    NxEmu.setControllerStyle(controllerPlayerIndex, item.id);
+    goBack();
+  });
+}
+
+function openAutoMap() {
+  const names = parseJsonArray(NxEmu.getAutoMapControllerNames());
+  openControllerChoices('Auto-map a controller', names.map(function (name) {
+    return { label: name };
+  }), function (item, index) {
+    NxEmu.autoMapController(controllerPlayerIndex, index);
+    alert('Ran auto-mapping against ' + item.label);
+    goBack();
+  }, 'No controllers found');
+}
+
+function openControllerFilter() {
+  const names = parseJsonArray(NxEmu.getControllerFilterNames());
+  openControllerChoices('Input mapping filter', names.map(function (name) {
+    return { label: name };
+  }), function (item, index) {
+    controllerFilterIndex = index;
+    goBack();
+  }, 'No controllers found');
+}
+
+function confirmResetController() {
+  if (!confirm("Reset this player to defaults?")) return;
+  NxEmu.resetControllerMappings(controllerPlayerIndex);
+  renderControllerPlayer();
+}
+
 function showPage(page) {
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById(page).style.display = '';
@@ -866,6 +1169,8 @@ function showPage(page) {
   if (page === 'settingsPage') renderSettingsSummary();
   if (page === 'overlaySettings') renderOverlaySettings();
   if (page === 'themeSettings') renderThemeSettings();
+  if (page === 'controllerSettings') renderControllerSettings();
+  if (page === 'controllerPlayer') renderControllerPlayer();
   if (page === 'gamesPage' && libraryDirty) refreshGameList();
 }
 </script>
@@ -908,6 +1213,13 @@ function showPage(page) {
         </div>
         <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </div>
+      <div class="settings-item" onclick="navigate('controllerSettings')">
+        <div class="setting-info">
+          <div class="setting-label">Controllers</div>
+          <div id="controllersMeta" class="setting-sub" style="white-space:pre-line"></div>
+        </div>
+        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
       <div class="settings-item" onclick="navigate('themeSettings')">
         <div class="setting-info">
           <div class="setting-label">Theme</div>
@@ -916,6 +1228,33 @@ function showPage(page) {
         <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
+  </div>
+  <div id="controllerSettings" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="page-title">Controllers</div>
+    </div>
+    <div id="controllerList" class="settings-list"></div>
+  </div>
+  <div id="controllerPlayer" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div id="controllerPlayerTitle" class="page-title">Controller</div>
+    </div>
+    <div id="controllerPlayerList" class="settings-list"></div>
+  </div>
+  <div id="controllerChoices" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div id="controllerChoicesTitle" class="page-title">Controller</div>
+    </div>
+    <div id="controllerChoiceList" class="settings-list"></div>
   </div>
   <div id="themeSettings" class="page" style="display:none">
     <div class="topbar-back">

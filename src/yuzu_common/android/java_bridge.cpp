@@ -27,6 +27,14 @@ jclass g_boolean_class = nullptr;
 jmethodID g_boolean_ctor = nullptr;
 jmethodID g_boolean_boolean_value = nullptr;
 
+jmethodID g_nx_input_device_get_name = nullptr;
+jmethodID g_nx_input_device_get_guid = nullptr;
+jmethodID g_nx_input_device_get_port = nullptr;
+jmethodID g_nx_input_device_get_supports_vibration = nullptr;
+jmethodID g_nx_input_device_vibrate = nullptr;
+jmethodID g_nx_input_device_get_axes = nullptr;
+jmethodID g_nx_input_device_has_keys = nullptr;
+
 void ClearPendingJniException(JNIEnv * env)
 {
     if (env->ExceptionCheck())
@@ -82,9 +90,37 @@ void InitJavaBoxCache(JNIEnv * env)
     }
 }
 
+void InitInputDeviceCache(JNIEnv * env)
+{
+    jclass local = env->FindClass("org/nxemu/features/input/NxEmuInputDevice");
+    if (local == nullptr)
+    {
+        LOG_ERROR(Common, "Java bridge failed to resolve NxEmuInputDevice");
+        ClearPendingJniException(env);
+        return;
+    }
+    g_nx_input_device_get_name = env->GetMethodID(local, "getName", "()Ljava/lang/String;");
+    g_nx_input_device_get_guid = env->GetMethodID(local, "getGUID", "()Ljava/lang/String;");
+    g_nx_input_device_get_port = env->GetMethodID(local, "getPort", "()I");
+    g_nx_input_device_get_supports_vibration =
+        env->GetMethodID(local, "getSupportsVibration", "()Z");
+    g_nx_input_device_vibrate = env->GetMethodID(local, "vibrate", "(F)V");
+    g_nx_input_device_get_axes = env->GetMethodID(local, "getAxes", "()[Ljava/lang/Integer;");
+    g_nx_input_device_has_keys = env->GetMethodID(local, "hasKeys", "([I)[Z");
+    env->DeleteLocalRef(local);
+    if (!g_nx_input_device_get_name || !g_nx_input_device_get_guid ||
+        !g_nx_input_device_get_port || !g_nx_input_device_get_supports_vibration ||
+        !g_nx_input_device_vibrate || !g_nx_input_device_get_axes || !g_nx_input_device_has_keys)
+    {
+        LOG_ERROR(Common, "Java bridge failed to resolve NxEmuInputDevice members");
+        ClearPendingJniException(env);
+    }
+}
+
 void InitJniCaches(JNIEnv * env)
 {
     InitJavaBoxCache(env);
+    InitInputDeviceCache(env);
     if (g_double_class != nullptr)
     {
         g_jni_caches_initialized = true;
@@ -258,4 +294,39 @@ jobject ToJBoolean(JNIEnv * env, bool value)
 jmethodID GetIntegerIntValue()
 {
     return g_integer_int_value;
+}
+
+jmethodID GetNxInputDeviceGetName()
+{
+    return g_nx_input_device_get_name;
+}
+
+jmethodID GetNxInputDeviceGetGUID()
+{
+    return g_nx_input_device_get_guid;
+}
+
+jmethodID GetNxInputDeviceGetPort()
+{
+    return g_nx_input_device_get_port;
+}
+
+jmethodID GetNxInputDeviceGetSupportsVibration()
+{
+    return g_nx_input_device_get_supports_vibration;
+}
+
+jmethodID GetNxInputDeviceVibrate()
+{
+    return g_nx_input_device_vibrate;
+}
+
+jmethodID GetNxInputDeviceGetAxes()
+{
+    return g_nx_input_device_get_axes;
+}
+
+jmethodID GetNxInputDeviceHasKeys()
+{
+    return g_nx_input_device_has_keys;
 }

@@ -690,6 +690,9 @@ nxinterface IOperatingSystem
     virtual void RegisterHostThread() = 0;
     virtual IParamPackageList * GetInputDevices() const = 0;
     virtual IEmulatedController & GetEmulatedController(NpadIdType index) = 0;
+    virtual void AndroidRegisterController(void * j_input_device) = 0;
+    virtual void SetButtonState(const char * guid, int32_t port, int32_t button_id, bool pressed) = 0;
+    virtual void SetAxisPosition(const char * guid, int32_t port, int32_t axis_id, float value) = 0;
     virtual ButtonNames GetButtonName(const IParamPackage & param)  const = 0;
     virtual bool IsController(const IParamPackage & params)  const = 0;
     virtual NpadStyleSet GetSupportedStyleTag() const = 0;

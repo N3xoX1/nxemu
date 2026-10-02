@@ -19,5 +19,6 @@ class NxEmuApplication : Application() {
         )
         GpuDriverHelper.initializeDriverParameters()
         NativeLibrary.restorePersistedGameDirectoryAccess()
+        org.nxemu.utils.InputHandler.updateControllerData()
     }
 }
