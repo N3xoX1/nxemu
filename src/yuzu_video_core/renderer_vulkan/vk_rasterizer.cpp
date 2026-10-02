@@ -534,6 +534,20 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
     if (addr == 0 || size == 0) {
         return;
     }
+    PERF_CAPTURE_SCOPE(gpu.PerformanceCaptureState(), flush_region_call);
+    if (auto w = PERF_CAPTURE_WRITE(gpu.PerformanceCaptureState())) {
+        w.Add(PerformanceCounter::flush_region_requests);
+        w.Add(PerformanceCounter::flush_region_requested_bytes, size);
+        if (True(which & VideoCommon::CacheType::BufferCache)) {
+            w.Add(PerformanceCounter::buffer_download_requests);
+            w.Add(PerformanceCounter::buffer_download_requested_bytes, size);
+        }
+        if (True(which & VideoCommon::CacheType::TextureCache)) {
+            w.Add(PerformanceCounter::texture_download_requests);
+            w.Add(PerformanceCounter::texture_download_requested_bytes, size);
+        }
+        if (True(which & VideoCommon::CacheType::QueryCache)) w.Add(PerformanceCounter::query_flush_requests);
+    }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.DownloadMemory(addr, size);

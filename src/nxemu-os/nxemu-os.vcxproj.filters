@@ -558,6 +558,12 @@
     <ClInclude Include="core\core_timing.h">
       <Filter>Header Files\core</Filter>
     </ClInclude>
+    <ClInclude Include="core\shared_cpu_clock.h">
+      <Filter>Header Files\core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle_execution_time.h">
+      <Filter>Header Files\core</Filter>
+    </ClInclude>
     <ClInclude Include="core\device_memory.h">
       <Filter>Header Files\core</Filter>
     </ClInclude>
@@ -765,6 +771,9 @@
     <ClInclude Include="core\hle\kernel\k_session_request.h">
       <Filter>Header Files\core\hle\kernel</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\kernel\ipc_wait_token.h">
+      <Filter>Header Files\core\hle\kernel</Filter>
+    </ClInclude>
     <ClInclude Include="core\hle\kernel\initial_process.h">
       <Filter>Header Files\core\hle\kernel</Filter>
     </ClInclude>
@@ -829,6 +838,9 @@
       <Filter>Header Files\core\hle\kernel\board\nintendo\nx</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\hle_ipc.h">
+      <Filter>Header Files\core\hle\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ipc_reply_transaction.h">
       <Filter>Header Files\core\hle\service</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\ipc_helpers.h">
@@ -2156,6 +2168,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="core\core_timing.cpp">
+      <Filter>Source Files\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle_execution_time.cpp">
       <Filter>Source Files\core</Filter>
     </ClCompile>
     <ClCompile Include="core\device_memory.cpp">

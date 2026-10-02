@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <atomic>
 #include "dynarmic/interface/A64/a64.h"
 #include <yuzu_common/hardware_properties.h>
 #include <nxemu-module-spec/cpu.h>
@@ -38,6 +39,7 @@ public:
     void SignalInterrupt(IKernelThread * thread) override;
 
     void Release() override;
+    bool GetRunDiagnostics(CpuRunDiagnostics & out) const override;
 
 private:
     ArmDynarmic64() = delete;
@@ -59,4 +61,9 @@ private:
     uint32_t m_svc;
     IKernelProcess & m_process;
     uint32_t m_coreIndex;
+    bool m_cpu_hle_synchronization{};
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    std::atomic<uint64_t> m_diagnostic_interrupt_ns{};
+    uint64_t m_diagnostic_guest_ticks{};
+#endif
 };

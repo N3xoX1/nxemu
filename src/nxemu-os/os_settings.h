@@ -57,6 +57,7 @@ struct OSSettings
     s32 current_user;
     DockedMode use_docked_mode;
     bool use_multi_core;
+    bool cpu_hle_synchronization;
     bool use_speed_limit;
     u16 speed_limit;
 

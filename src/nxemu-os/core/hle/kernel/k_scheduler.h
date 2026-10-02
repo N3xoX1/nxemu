@@ -137,13 +137,14 @@ private:
 
 private:
     friend class KScopedDisableDispatch;
+    friend class KernelStateSnapshot;
 
     struct SchedulingState {
         std::atomic<bool> needs_scheduling{false};
         bool interrupt_task_runnable{false};
         bool should_count_idle{false};
         u64 idle_count{0};
-        KThread* highest_priority_thread{nullptr};
+        std::atomic<KThread*> highest_priority_thread{nullptr};
         void* idle_thread_stack{nullptr};
         std::atomic<KThread*> prev_thread{nullptr};
         KInterruptTaskManager* interrupt_task_manager{nullptr};

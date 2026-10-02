@@ -45,6 +45,9 @@ struct A64JitState {
     u32 guest_MXCSR = 0x00001f80;
     u32 asimd_MXCSR = 0x00009fc0;
     volatile u32 halt_reason = 0;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    u32 diagnostic_guest_entered = 0;
+#endif
 
     // Exclusive state
     static constexpr u64 RESERVATION_GRANULE_MASK = 0xFFFF'FFFF'FFFF'FFF0ull;

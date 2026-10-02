@@ -332,6 +332,12 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     jne(return_to_caller_mxcsr_already_exited, T_NEAR);
 
     SwitchMxcsrOnEntry();
+    // One marker per RunCode entry, after the pending-interrupt check. This
+    // distinguishes a guest execution boundary from compilation-only returns.
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (cb.diagnostic_guest_entry_offset >= 0)
+        mov(dword[r15 + cb.diagnostic_guest_entry_offset], 1);
+#endif
     jmp(rbx);
 
     align();
@@ -354,6 +360,10 @@ void BlockOfCode::GenRunCode(std::function<void(BlockOfCode&)> rcp) {
     or_(dword[r15 + jsi.offsetof_halt_reason], static_cast<u32>(HaltReason::Step));
 
     SwitchMxcsrOnEntry();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    if (cb.diagnostic_guest_entry_offset >= 0)
+        mov(dword[r15 + cb.diagnostic_guest_entry_offset], 1);
+#endif
     jmp(ABI_PARAM2);
 
     // Dispatcher loop

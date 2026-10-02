@@ -1109,6 +1109,15 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
         // Ensure we aren't already servicing a request.
         R_UNLESS(m_current_request == nullptr, ResultNotFound);
 
+        // A cancelled sync client may have reused its TLS for another request.
+        // Discard stale HLE requests before reading that command buffer.
+        while (out_context && !m_request_list.empty()) {
+            auto& pending = m_request_list.front();
+            if (pending.GetEvent() || pending.IsClientWaitCurrent()) break;
+            m_request_list.pop_front();
+            pending.Close();
+        }
+
         // Ensure we have a request to service.
         R_UNLESS(!m_request_list.empty(), ResultNotFound);
 
@@ -1118,7 +1127,10 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
 
         // Get the thread for the request.
         client_thread = request->GetThread();
-        R_UNLESS(client_thread != nullptr, ResultSessionClosed);
+        if (!client_thread) {
+            request->Close();
+            R_RETURN(ResultSessionClosed);
+        }
 
         // Open the client thread.
         client_thread->Open();
@@ -1141,18 +1153,23 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
 
     if (out_context != nullptr)
     {
-        // HLE request.
-        if (!client_message)
-        {
-            client_message = client_thread->GetTlsAddress().GetValue();
+        // Keep the client's wait/process alive while copying its command.
+        // Cancellation after dequeue must not let us parse reused TLS, and an
+        // asynchronous request may outlive the thread that submitted it.
+        KScopedSchedulerLock sl{m_kernel};
+        if (request->CanPublishHleReply() && m_kernel.System().IsPoweredOn()) {
+            if (!client_message) client_message = client_thread->GetTlsAddress().GetValue();
+            auto& memory = client_thread->GetOwnerKProcess()->GetCoreMemory();
+            auto* cmd_buf = reinterpret_cast<u32*>(memory.GetPointer(client_message));
+            *out_context = std::make_shared<Service::HLERequestContext>(m_kernel, memory, this,
+                                                                      client_thread, client_message);
+            (*out_context)->SetSessionRequestManager(manager);
+            result = (*out_context)->PopulateFromIncomingCommandBuffer(cmd_buf);
+            R_SUCCEED_IF(R_SUCCEEDED(result));
+            out_context->reset();
+        } else {
+            result = ResultCancelled;
         }
-        Core::Memory::Memory & memory{client_thread->GetOwnerKProcess()->GetCoreMemory()};
-        u32* cmd_buf{reinterpret_cast<u32*>(memory.GetPointer(client_message))};
-        *out_context = std::make_shared<Service::HLERequestContext>(m_kernel, memory, this, client_thread);
-        (*out_context)->SetSessionRequestManager(manager);
-        (*out_context)->PopulateFromIncomingCommandBuffer(cmd_buf);
-        // We succeeded.
-        R_SUCCEED();
     } else {
         result = ReceiveMessage(m_kernel, recv_list_broken, server_message, server_buffer_size,
                                 server_message_paddr, *client_thread, client_message,
@@ -1183,12 +1200,13 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
 
             // Get the event to check whether the request is async.
             if (KEvent* event = request->GetEvent(); event != nullptr) {
+                KScopedSchedulerLock sl{m_kernel};
                 // The client sent an async request.
                 KProcess* client = client_thread->GetOwnerKProcess();
                 auto& client_pt = client->GetKPageTable();
 
                 // Send the async result.
-                if (R_FAILED(result_for_client)) {
+                if (R_FAILED(result_for_client) && !client_thread->IsTerminationRequested()) {
                     ReplyAsyncError(client, client_message, client_buffer_size, result_for_client);
                 }
 
@@ -1202,7 +1220,7 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
                 // End the client thread's wait.
                 KScopedSchedulerLock sl(m_kernel);
 
-                if (!client_thread->IsTerminationRequested()) {
+                if (request->IsClientWaitCurrent()) {
                     client_thread->EndWait(result_for_client);
                 }
             }
@@ -1220,7 +1238,8 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
 }
 
 Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buffer_size,
-                                 KPhysicalAddress server_message_paddr, bool is_hle) {
+                                 KPhysicalAddress server_message_paddr, bool is_hle,
+                                 Service::HLERequestContext* context) {
     // Lock the session.
     KScopedLightLock lk{m_lock};
 
@@ -1251,6 +1270,9 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
     KThread* client_thread = request->GetThread();
     KEvent* event = request->GetEvent();
 
+    std::optional<KScopedSchedulerLock> hle_reply_lock;
+    if (is_hle) hle_reply_lock.emplace(m_kernel);
+
     // Check whether we're closed.
     const bool closed = (client_thread == nullptr || m_parent->IsClientClosed());
 
@@ -1258,8 +1280,14 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
     if (!closed) {
         // If we're not closed, send the reply.
         if (is_hle) {
-            // HLE servers write directly to a pointer to the thread command buffer. Therefore
-            // the reply has already been written in this case.
+            // Publish the HLE response as part of the reply transaction while
+            // retaining the request and protecting against session closure.
+            if (m_kernel.System().IsPoweredOn() && request->CanPublishHleReply()) {
+                ASSERT(context != nullptr);
+                result = context->WriteToOutgoingCommandBuffer();
+            } else {
+                result = ResultCancelled;
+            }
         } else {
             result = SendMessage(m_kernel, server_message, server_buffer_size, server_message_paddr,
                                  *client_thread, client_message, client_buffer_size, this, request);
@@ -1301,7 +1329,7 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
             KProcessPageTable* client_page_table = std::addressof(client_process->GetKPageTable());
 
             // If we need to, reply with an async error.
-            if (R_FAILED(client_result)) {
+            if (R_FAILED(client_result) && !client_thread->IsTerminationRequested()) {
                 ReplyAsyncError(client_process, client_message, client_buffer_size, client_result);
             }
 
@@ -1315,7 +1343,17 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
             // End the client thread's wait.
             KScopedSchedulerLock sl{m_kernel};
 
-            if (!client_thread->IsTerminationRequested()) {
+            if (request->IsClientWaitCurrent()) {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+                const auto core = client_thread->GetActiveCore();
+                const auto* peer = core >= 0 ? m_kernel.Scheduler(core).GetSchedulerCurrentThread() : nullptr;
+                client_thread->RecordDiagnosticEvent({KThread::DiagnosticNowNs(), 4ULL,
+                    {reinterpret_cast<u64>(this), peer ? peer->GetThreadId() : 0,
+                     peer ? static_cast<u64>(peer->GetPriority()) : 0,
+                     peer ? peer->diagnostic_svc_count.load(std::memory_order_relaxed) : 0,
+                     peer ? peer->diagnostic_svc_id.load(std::memory_order_relaxed) : 0,
+                     peer ? peer->diagnostic_svc_arg0.load(std::memory_order_relaxed) : 0}});
+#endif
                 client_thread->EndWait(client_result);
             }
         }
@@ -1354,8 +1392,13 @@ Result KServerSession::OnRequest(KSessionRequest* request) {
         R_SUCCEED_IF(request->GetEvent() != nullptr);
 
         // This is a synchronous request, so we should wait for our request to complete.
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        GetCurrentThread(m_kernel).RecordDiagnosticEvent({KThread::DiagnosticNowNs(), 3,
+            {reinterpret_cast<u64>(this)}});
+#endif
         GetCurrentThread(m_kernel).SetWaitReasonForDebugging(ThreadWaitReasonForDebugging::IPC);
         GetCurrentThread(m_kernel).BeginWait(std::addressof(wait_queue));
+        request->CaptureClientWait();
     }
 
     return GetCurrentThread(m_kernel).GetWaitResult();
@@ -1422,9 +1465,13 @@ void KServerSession::CleanupRequests() {
         // If there's a client thread, update it.
         if (client_thread != nullptr) {
             if (event != nullptr) {
-                // We need to reply async.
-                ReplyAsyncError(client_process, client_message, client_buffer_size,
-                                (R_SUCCEEDED(result) ? ResultSessionClosed : result));
+                // The request retains its event/process, but termination may
+                // already have invalidated the client command buffer.
+                KScopedSchedulerLock sl{m_kernel};
+                if (!client_thread->IsTerminationRequested()) {
+                    ReplyAsyncError(client_process, client_message, client_buffer_size,
+                                    (R_SUCCEEDED(result) ? ResultSessionClosed : result));
+                }
 
                 // Unlock the client buffer.
                 // NOTE: Nintendo does not check the result of this.
@@ -1436,7 +1483,7 @@ void KServerSession::CleanupRequests() {
                 // End the client thread's wait.
                 KScopedSchedulerLock sl{m_kernel};
 
-                if (!client_thread->IsTerminationRequested()) {
+                if (request->IsClientWaitCurrent()) {
                     client_thread->EndWait(ResultSessionClosed);
                 }
             }
@@ -1513,6 +1560,11 @@ void KServerSession::OnClientClosed() {
 
         // If we need to, reply.
         if (event != nullptr && !cur_request) {
+            // Keep termination and response-buffer publication ordered, as in
+            // SendReply/CleanupRequests. A terminated client may have already
+            // invalidated its asynchronous command buffer.
+            KScopedSchedulerLock sl{m_kernel};
+
             // There must be no mappings.
             ASSERT(request->GetSendCount() == 0);
             ASSERT(request->GetReceiveCount() == 0);
@@ -1523,8 +1575,10 @@ void KServerSession::OnClientClosed() {
             auto& client_pt = client_process->GetKPageTable();
 
             // Reply to the request.
-            ReplyAsyncError(client_process, request->GetAddress(), request->GetSize(),
-                            ResultSessionClosed);
+            if (!thread->IsTerminationRequested()) {
+                ReplyAsyncError(client_process, request->GetAddress(), request->GetSize(),
+                                ResultSessionClosed);
+            }
 
             // Unlock the buffer.
             // NOTE: Nintendo does not check the result of this.

@@ -5,9 +5,12 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/scope_exit.h"
 #include "core/core.h"
 #include "core/hle/ipc.h"
 #include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/k_thread.h"
+#include "core/hle/kernel/global_scheduler_context.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/service.h"
 #include "core/hle/service/sm/sm.h"
@@ -114,6 +117,25 @@ Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
                                                HLERequestContext& ctx) {
     const auto guard = LockService();
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    Kernel::KThread::DiagnosticEvent diagnostic;
+    diagnostic.time_ns = Kernel::KThread::DiagnosticNowNs();
+    diagnostic.kind = 7;
+    u64 service_hash = 14695981039346656037ULL;
+    for (const unsigned char ch : service_name)
+        service_hash = (service_hash ^ ch) * 1099511628211ULL;
+    diagnostic.values = {ctx.GetCommand(), reinterpret_cast<u64>(&session),
+                         static_cast<u64>(ctx.GetCommandType()), ctx.CanReadBuffer() ? ctx.GetReadBufferSize() : 0,
+                         ctx.CanWriteBuffer() ? ctx.GetWriteBufferSize() : 0, u64(system.Kernel().CurrentScheduler() != nullptr),
+                         service_hash};
+    ctx.GetThread().RecordDiagnosticEvent(diagnostic);
+#endif
+    ctx.SetCompletionTime(0);
+    const auto work = system.Kernel().GlobalSchedulerContext().BeginHle();
+    const auto finish_work = [&] {
+        ctx.SetCompletionTime(system.Kernel().GlobalSchedulerContext().EndHle(work));
+    };
+    auto complete_work = SCOPE_GUARD { finish_work(); };
     Result result = ResultSuccess;
 
     switch (ctx.GetCommandType()) {
@@ -144,12 +166,15 @@ Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
         break;
     }
 
-    // If emulation was shutdown, we are closing service threads, do not write the response back to
-    // memory that may be shutting down as well.
-    if (system.IsPoweredOn()) {
-        ctx.WriteToOutgoingCommandBuffer();
-    }
-
+    finish_work();
+    complete_work.Cancel();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    diagnostic.time_ns = Kernel::KThread::DiagnosticNowNs();
+    diagnostic.kind = 8;
+    diagnostic.values[2] = result.raw;
+    diagnostic.values[3] = u64(ctx.GetIsDeferred());
+    ctx.GetThread().RecordDiagnosticEvent(diagnostic);
+#endif
     return result;
 }
 

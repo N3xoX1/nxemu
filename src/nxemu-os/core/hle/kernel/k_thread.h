@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <chrono>
 #include <mutex>
 #include <span>
 #include <string>
@@ -29,6 +30,7 @@
 #include "core/hle/kernel/svc_common.h"
 #include "core/hle/kernel/svc_types.h"
 #include "core/hle/result.h"
+#include "core/hle_execution_time.h"
 
 namespace Common
 {
@@ -141,9 +143,53 @@ class KThread final :
 private:
     friend class KScheduler;
     friend class KProcess;
+    friend class KernelStateSnapshot;
 
 public:
     static constexpr s32 DefaultThreadPriority = 44;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    // Diagnostic samples only; these fields never participate in scheduling.
+    std::atomic<u64> diagnostic_svc_count{};
+    std::atomic<u32> diagnostic_svc_id{};
+    std::atomic<u64> diagnostic_svc_arg0{};
+    std::atomic<u64> diagnostic_svc_arg1{};
+    std::atomic<bool> diagnostic_in_svc{};
+    struct DiagnosticEvent
+    {
+        u64 time_ns{}, kind{};
+        std::array<u64, 8> values{};
+        CpuRunDiagnostics jit{};
+    };
+    static u64 DiagnosticNowNs()
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+    // Bounded history, emitted only by Dump Kernel State. No log I/O on the hot path.
+    void RecordDiagnosticEvent(const DiagnosticEvent& event)
+    {
+        std::scoped_lock lock{diagnostic_event_guard};
+        if (diagnostic_events.size() < 256)
+            diagnostic_events.push_back(event);
+        else
+            diagnostic_events[diagnostic_event_count % diagnostic_events.size()] = event;
+        ++diagnostic_event_count;
+    }
+    std::mutex diagnostic_event_guard;
+    std::vector<DiagnosticEvent> diagnostic_events;
+    u64 diagnostic_event_count{};
+#endif
+    // Owned by this fiber, including suspension and migration between host threads.
+    Core::Timing::HleExecutionTime hle_execution;
+    void SuspendHleExecution() {
+        if (hle_execution.IsCollecting())
+            hle_execution.Suspend(Core::Timing::ReadNativeThreadTimeNs());
+    }
+    void ResumeHleExecution() {
+        if (hle_execution.IsCollecting())
+            hle_execution.Resume(Core::Timing::ReadNativeThreadTimeNs());
+    }
+
     static constexpr s32 IdleThreadPriority = Svc::LowestThreadPriority + 1;
     static constexpr s32 DummyThreadPriority = Svc::LowestThreadPriority + 2;
 
@@ -718,6 +764,7 @@ public:
     }
 
     void BeginWait(KThreadQueue * queue);
+    u64 GetWaitGeneration() const { return m_wait_generation; }
     void NotifyAvailable(KSynchronizationObject * signaled_object, Result wait_result);
     void EndWait(Result wait_result);
     void CancelWait(Result wait_result, bool cancel_timer_task);
@@ -991,6 +1038,7 @@ private:
     s64 m_schedule_count{};
     s64 m_last_scheduled_tick{};
     std::array<QueueEntry, Hardware::NUM_CPU_CORES> m_per_core_priority_queue_entry{};
+    u64 m_wait_generation{}; // Protected by the scheduler lock.
     KThreadQueue * m_wait_queue{};
     LockWithPriorityInheritanceInfoList m_held_lock_info_list{};
     LockWithPriorityInheritanceInfo * m_waiting_lock_info{};

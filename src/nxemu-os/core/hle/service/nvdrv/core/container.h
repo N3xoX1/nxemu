@@ -34,13 +34,13 @@ struct SessionId {
 };
 
 struct Session {
-    Session(SessionId id_, Kernel::KProcess* process_, Core::Asid asid_);
+    Session(SessionId id_, Kernel::KProcess* process_, Core::Asid asid_, IVideo& video_);
     ~Session();
 
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
-    Session(Session&&) = default;
-    Session& operator=(Session&&) = default;
+    Session(Session&&) = delete;
+    Session& operator=(Session&&) = delete;
 
     SessionId id;
     Kernel::KProcess* process;
@@ -49,6 +49,7 @@ struct Session {
     std::unique_ptr<HeapMapper> mapper{};
     bool is_active{};
     s32 ref_count{};
+    IVideo& video;
 };
 
 class Container {
@@ -60,6 +61,7 @@ public:
     void CloseSession(SessionId id);
 
     Session* GetSession(SessionId id);
+    std::shared_ptr<Session> GetSessionReference(SessionId id);
 
     NvMap& GetNvMapFile();
 

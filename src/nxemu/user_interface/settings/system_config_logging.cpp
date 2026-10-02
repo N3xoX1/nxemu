@@ -9,6 +9,7 @@ namespace
     static ConfigSetting loggingSettings[] = {
         ConfigSetting(ConfigSetting::CheckBox, "ShowLogConsole", true, NXCoreSetting::ShowLogConsole),
         ConfigSetting(ConfigSetting::CheckBox, "UseMultiCore", false, NXOsSetting::UseMultiCore),
+        ConfigSetting(ConfigSetting::CheckBox, "CpuHleSynchronization", false, NXOsSetting::CpuHleSynchronization),
         ConfigSetting(ConfigSetting::InputText, "LogFilter", true, NXCoreSetting::LogFilter),
     };
 }

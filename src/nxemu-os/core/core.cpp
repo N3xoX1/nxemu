@@ -3,6 +3,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdlib>
 #include <optional>
 
 #include "yuzu_audio_core/audio_core.h"
@@ -68,6 +69,8 @@ struct System::Impl {
     void Initialize(System& system)
     {
         is_multicore = osSettings.use_multi_core;
+        cpu_hle_requested = osSettings.cpu_hle_synchronization;
+        cpu_hle_initialized_guest64 = cpu_hle_guest64;
 
 #ifdef _WIN32
         const std::chrono::nanoseconds timer_resolution = Common::Windows::SetCurrentTimerResolutionToMaximum();
@@ -76,7 +79,7 @@ struct System::Impl {
 #endif
 
         core_timing.SetMulticore(is_multicore);
-        core_timing.Initialize([&system]() { system.RegisterHostThread(); });
+        core_timing.Initialize([&system]() { system.RegisterHostThread(); }, cpu_hle_guest64);
 
         // Create default implementations of applets if one is not provided.
         frontend_applets.SetDefaultAppletsIfMissing();
@@ -91,10 +94,10 @@ struct System::Impl {
 
     void ReinitializeIfNecessary(System & system)
     {
-        const bool must_reinitialize = false;
-        //    is_multicore != osSettings.use_multi_core ||
-        //    extended_memory_layout != (Settings::values.memory_layout_mode.GetValue() !=
-        //                               Settings::MemoryLayout::Memory_4Gb);
+        const bool must_reinitialize = is_multicore != osSettings.use_multi_core ||
+            cpu_hle_requested != osSettings.cpu_hle_synchronization ||
+            cpu_hle_initialized_guest64 != cpu_hle_guest64 ||
+            core_timing.CpuHleSynchronizationFailed();
 
         if (!must_reinitialize)
         {
@@ -102,10 +105,6 @@ struct System::Impl {
         }
 
         LOG_DEBUG(Kernel, "Re-initializing");
-
-        // is_multicore = osSettings.use_multi_core;
-        // extended_memory_layout =
-        //     Settings::values.memory_layout_mode.GetValue() != Settings::MemoryLayout::Memory_4Gb;
 
         Initialize(system);
     }
@@ -160,10 +159,11 @@ struct System::Impl {
         return nvdec_active;
     }
 
-    void InitializeKernel(System & system, uint64_t titleID)
+    void InitializeKernel(System & system, uint64_t titleID, bool is_64_bit)
     {
         LOG_DEBUG(Core, "initialized OK");
 
+        cpu_hle_guest64 = is_64_bit;
         // Setting changes may require a full system reinitialization (e.g., disabling multicore).
         ReinitializeIfNecessary(system);
 
@@ -180,7 +180,7 @@ struct System::Impl {
         exit_locked = false;
         exit_requested = false;
 
-        perf_stats = std::make_unique<PerfStats>(titleID);
+        perf_stats = std::make_unique<PerfStats>(titleID, modules.OperatingSystem().GetPerformanceCaptureSharedState());
 
         // Reset counters and set time origin to current frame
         GetAndResetPerfStats();
@@ -217,6 +217,10 @@ struct System::Impl {
         service_manager.reset();
         core_timing.ClearPendingEvents();
         audio_core.reset();
+        if (modules.OperatingSystem().IsPerformanceCaptureActive()) {
+            modules.OperatingSystem().InvalidatePerformanceCapture(PerformanceInvalidation::Shutdown);
+            modules.OperatingSystem().StopPerformanceCapture(nullptr, 0);
+        }
         perf_stats.reset();
         cpu_manager.Shutdown();
         kernel.Shutdown();
@@ -288,6 +292,8 @@ struct System::Impl {
     Core::SpeedLimiter speed_limiter;
 
     bool is_multicore{};
+    bool cpu_hle_requested{};
+    bool cpu_hle_guest64{true}, cpu_hle_initialized_guest64{true};
     bool is_async_gpu{};
 
     ::ExecuteProgramCallback execute_program_callback{};
@@ -332,9 +338,9 @@ const CpuManager & System::GetCpuManager() const
     return impl->cpu_manager;
 }
 
-void System::InitializeKernel(uint64_t titleID)
+void System::InitializeKernel(uint64_t titleID, bool is_64_bit)
 {
-    impl->InitializeKernel(*this, titleID);
+    impl->InitializeKernel(*this, titleID, is_64_bit);
 }
 
 void System::Initialize() {

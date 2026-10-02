@@ -8,6 +8,7 @@
 #include <boost/range/algorithm_ext/erase.hpp>
 
 #include "yuzu_common/yuzu_assert.h"
+#include "yuzu_common/scope_exit.h"
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/guest_memory.h"
@@ -23,6 +24,8 @@
 #include "core/hle/service/hle_ipc.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/memory.h"
+#include "core/core.h"
+#include "core/core_timing.h"
 
 namespace Service {
 
@@ -127,12 +130,35 @@ Result SessionRequestManager::HandleDomainSyncRequest(Kernel::KServerSession* se
 
 HLERequestContext::HLERequestContext(Kernel::KernelCore& kernel_, Core::Memory::Memory& memory_,
                                      Kernel::KServerSession* server_session_,
-                                     Kernel::KThread* thread_)
-    : server_session(server_session_), thread(thread_), kernel{kernel_}, memory{memory_} {
+                                     Kernel::KThread* thread_, u64 command_buffer_address_)
+    : server_session(server_session_), thread(thread_),
+      command_buffer_address(command_buffer_address_), kernel{kernel_}, memory{memory_} {
+    // A service may retain a request after the client closes its session.
+    thread->Open();
+    defer_response_buffers = kernel.System().CoreTiming().CpuHleSynchronizationEnabled();
     cmd_buf[0] = 0;
 }
 
-HLERequestContext::~HLERequestContext() = default;
+HLERequestContext::~HLERequestContext() {
+    ClearOutgoingObjects();
+    thread->Close();
+}
+
+void HLERequestContext::AddCopyObject(Kernel::KAutoObject* object) {
+    // Retain copied objects until reply publication or request cancellation.
+    if (object) object->Open();
+    outgoing_copy_objects.emplace_back(object);
+}
+
+// ResponseBuilder may reset handles after a handler has already written its
+// response buffers. Those buffers belong to the request and survive this reset.
+void HLERequestContext::ClearOutgoingObjects() {
+    for (auto* object : outgoing_move_objects) if (object) object->Close();
+    for (auto* object : outgoing_copy_objects) if (object) object->Close();
+    outgoing_move_objects.clear();
+    outgoing_copy_objects.clear();
+    outgoing_domain_objects.clear();
+}
 
 void HLERequestContext::ParseCommandBuffer(u32_le* src_cmdbuf, bool incoming) {
     IPC::RequestParser rp(src_cmdbuf);
@@ -275,10 +301,13 @@ Result HLERequestContext::WriteToOutgoingCommandBuffer() {
     auto& owner_process = *thread->GetOwnerKProcess();
     auto& handle_table = owner_process.GetHandleTable();
 
+    IpcHandleRollback rollback{handle_table, outgoing_copy_objects.size() + outgoing_move_objects.size()};
+
     for (auto& object : outgoing_copy_objects) {
         Handle handle{};
         if (object) {
             R_TRY(handle_table.Add(&handle, object));
+            rollback.Track(handle);
         }
         cmd_buf[current_offset++] = handle;
     }
@@ -286,9 +315,7 @@ Result HLERequestContext::WriteToOutgoingCommandBuffer() {
         Handle handle{};
         if (object) {
             R_TRY(handle_table.Add(&handle, object));
-
-            // Close our reference to the object, as it is being moved to the caller.
-            object->Close();
+            rollback.Track(handle);
         }
         cmd_buf[current_offset++] = handle;
     }
@@ -309,7 +336,12 @@ Result HLERequestContext::WriteToOutgoingCommandBuffer() {
     }
 
     // Copy the translated command buffer back into the thread's command buffer area.
-    memory.WriteBlock(thread->GetTlsAddress(), cmd_buf.data(), write_size * sizeof(u32));
+    response_writes.PublishTo([&](u64 address, std::span<const u8> data) {
+        memory.WriteBlock(Common::ProcessAddress{address}, data.data(), data.size());
+    });
+    memory.WriteBlock(command_buffer_address, cmd_buf.data(), write_size * sizeof(u32));
+    rollback.Commit();
+    ClearOutgoingObjects();
 
     return ResultSuccess;
 }
@@ -429,7 +461,9 @@ std::size_t HLERequestContext::WriteBufferB(const void* buffer, std::size_t size
         size = buffer_size; // TODO(bunnei): This needs to be HW tested
     }
 
-    memory.WriteBlock(Common::ProcessAddress{BufferDescriptorB()[buffer_index].Address()}, buffer, size);
+    const auto address = BufferDescriptorB()[buffer_index].Address();
+    if (defer_response_buffers) response_writes.Add(address, buffer, size);
+    else memory.WriteBlock(Common::ProcessAddress{address}, buffer, size);
     return size;
 }
 
@@ -446,7 +480,33 @@ std::size_t HLERequestContext::WriteBufferC(const void* buffer, std::size_t size
         size = buffer_size; // TODO(bunnei): This needs to be HW tested
     }
 
-    memory.WriteBlock(Common::ProcessAddress{BufferDescriptorC()[buffer_index].Address()}, buffer, size);
+    const auto address = BufferDescriptorC()[buffer_index].Address();
+    if (defer_response_buffers) response_writes.Add(address, buffer, size);
+    else memory.WriteBlock(Common::ProcessAddress{address}, buffer, size);
+    return size;
+}
+
+std::size_t HLERequestContext::WriteBuffer(Common::ScratchBuffer<u8>&& buffer, std::size_t index) const {
+    if (BufferDescriptorB().size() > index && BufferDescriptorB()[index].Size())
+        return WriteBufferB(std::move(buffer), index);
+    return WriteBufferC(std::move(buffer), index);
+}
+
+std::size_t HLERequestContext::WriteBufferB(Common::ScratchBuffer<u8>&& buffer, std::size_t index) const {
+    if (index >= BufferDescriptorB().size() || buffer.size() == 0) return 0;
+    buffer.resize_destructive(std::min(buffer.size(), static_cast<size_t>(BufferDescriptorB()[index].Size())));
+    const auto size = buffer.size();
+    if (defer_response_buffers) response_writes.Add(BufferDescriptorB()[index].Address(), std::move(buffer));
+    else memory.WriteBlock(Common::ProcessAddress{BufferDescriptorB()[index].Address()}, buffer.data(), size);
+    return size;
+}
+
+std::size_t HLERequestContext::WriteBufferC(Common::ScratchBuffer<u8>&& buffer, std::size_t index) const {
+    if (index >= BufferDescriptorC().size() || buffer.size() == 0) return 0;
+    buffer.resize_destructive(std::min(buffer.size(), static_cast<size_t>(BufferDescriptorC()[index].Size())));
+    const auto size = buffer.size();
+    if (defer_response_buffers) response_writes.Add(BufferDescriptorC()[index].Address(), std::move(buffer));
+    else memory.WriteBlock(Common::ProcessAddress{BufferDescriptorC()[index].Address()}, buffer.data(), size);
     return size;
 }
 

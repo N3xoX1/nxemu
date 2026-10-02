@@ -12,6 +12,7 @@ struct EventType;
 namespace Kernel {
 
 class KHardwareTimer : /* public KInterruptTask, */ public KHardwareTimerBase {
+    friend class KernelStateSnapshot;
 public:
     explicit KHardwareTimer(KernelCore& kernel) : KHardwareTimerBase{kernel} {}
 

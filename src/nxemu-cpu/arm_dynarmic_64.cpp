@@ -4,6 +4,10 @@
 #include "cpu_settings.h"
 #include <array>
 #include <limits>
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+#include <chrono>
+#endif
+#include "yuzu_common/scope_exit.h"
 #include <yuzu_common/logging/log.h>
 #include "arm_dynarmic.h"
 #include "arm_dynarmic_64.h"
@@ -64,6 +68,10 @@ public:
             CheckMemoryAccess(vaddr, 8, CpuDebugWatchpointType::Read);
         }
         return m_memory.Read64(vaddr);
+    }
+    void OnCompilation(bool compiling) override
+    {
+        m_system.Timing().CpuCompilation(m_parent.m_coreIndex, compiling);
     }
     std::optional<u32> MemoryReadCode(uint64_t vaddr) override
     {
@@ -165,6 +173,15 @@ public:
 
     void InstructionCacheOperationRaised(Dynarmic::A64::InstructionCacheOperation op, uint64_t value) override
     {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        // Bound the trace per core; cache maintenance may occur in guest loops.
+        if (m_diagnostic_cache_operations++ < 32)
+        {
+            LOG_INFO(Core_ARM, "BootTrace ICache core={} op={} address={:#x} pc={:#x}",
+                     m_parent.m_coreIndex, static_cast<uint32_t>(op), value,
+                     m_parent.m_jit->GetPC());
+        }
+#endif
         InvalidateCodePageCache();
         switch (op)
         {
@@ -223,6 +240,9 @@ public:
 
     void AddTicks(uint64_t ticks) override
     {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        m_parent.m_diagnostic_guest_ticks += ticks;
+#endif
         ASSERT_MSG(!m_parent.m_uses_wall_clock, "Dynarmic ticking disabled");
 
         uint64_t amortized_ticks = ticks / Hardware::NUM_CPU_CORES;
@@ -261,9 +281,19 @@ public:
         }
     }
 
-    bool CheckMemoryAccess(uint64_t /*addr*/, uint64_t /*size*/, CpuDebugWatchpointType /*type*/)
+    bool CheckMemoryAccess(uint64_t addr, uint64_t size, CpuDebugWatchpointType /*type*/)
     {
         if (!m_check_memory_access)
+        {
+            return true;
+        }
+        if (!m_memory.IsValidVirtualAddressRange(addr, size))
+        {
+            LOG_CRITICAL(Core_ARM, "Stopping execution due to unmapped memory access at {:#x}", addr);
+            m_parent.m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::PrefetchAbort));
+            return false;
+        }
+        if (!m_debugger_enabled)
         {
             return true;
         }
@@ -284,6 +314,9 @@ public:
 
     std::array<u32, CODE_PAGE_SIZE / sizeof(u32)> m_cached_code_page{};
     uint64_t m_last_code_page = INVALID_CODE_PAGE;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    uint64_t m_diagnostic_cache_operations{};
+#endif
 
     ArmDynarmic64 & m_parent;
     IMemory & m_memory;
@@ -305,6 +338,7 @@ ArmDynarmic64::ArmDynarmic64(ICoreSystem & system, bool uses_wall_clock, IKernel
     m_process(process),
     m_coreIndex(core_index)
 {
+    m_cpu_hle_synchronization = m_uses_wall_clock && m_system.Timing().CpuHleSynchronizationEnabled();
     m_jit = MakeJit(process);
     ScopedJitExecution::RegisterHandler();
 }
@@ -355,6 +389,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     // Timing
     config.wall_clock_cntpct = m_uses_wall_clock;
     config.enable_cycle_counting = !m_uses_wall_clock;
+    config.notify_compilation = m_cpu_hle_synchronization;
 
     // Code cache size
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
@@ -486,18 +521,52 @@ ProcessorArchitecture ArmDynarmic64::GetArchitecture() const
 
 CpuHaltReason ArmDynarmic64::RunThread(IKernelThread * thread)
 {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    m_diagnostic_guest_ticks = 0;
+#endif
     ScopedJitExecution sj(thread->GetOwnerProcess());
 
     m_jit->ClearExclusiveState();
-    return TranslateHaltReason(m_jit->Run());
+    const auto result = [&] {
+        if (m_cpu_hle_synchronization) m_system.Timing().BeginCpuRun(m_coreIndex);
+        SCOPE_EXIT {
+            if (m_cpu_hle_synchronization) m_system.Timing().EndCpuRun(m_coreIndex);
+        };
+        return m_jit->Run();
+    }();
+    return TranslateHaltReason(result);
+}
+
+bool ArmDynarmic64::GetRunDiagnostics(CpuRunDiagnostics & out) const
+{
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION && (defined(_M_X64) || defined(ARCHITECTURE_x86_64))
+    const auto stats = m_jit->GetRunDiagnostics();
+    out = {stats.compile_ns, stats.translate_ns, stats.optimize_ns, stats.emit_ns,
+           stats.compiled_blocks, m_diagnostic_interrupt_ns.load(std::memory_order_relaxed),
+           stats.halt_before_lookup, stats.halt_before_entry, m_diagnostic_guest_ticks,
+           static_cast<uint32_t>(!m_uses_wall_clock), stats.guest_entered};
+    return true;
+#else
+    return false;
+#endif
 }
 
 CpuHaltReason ArmDynarmic64::StepThread(IKernelThread * thread)
 {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    m_diagnostic_guest_ticks = 0;
+#endif
     ScopedJitExecution sj(thread->GetOwnerProcess());
 
     m_jit->ClearExclusiveState();
-    return TranslateHaltReason(m_jit->Step());
+    const auto result = [&] {
+        if (m_cpu_hle_synchronization) m_system.Timing().BeginCpuRun(m_coreIndex);
+        SCOPE_EXIT {
+            if (m_cpu_hle_synchronization) m_system.Timing().EndCpuRun(m_coreIndex);
+        };
+        return m_jit->Step();
+    }();
+    return TranslateHaltReason(result);
 }
 
 void ArmDynarmic64::LockThread(IKernelThread * /*thread*/)
@@ -602,6 +671,10 @@ void ArmDynarmic64::SetWatchpointArray(const CpuDebugWatchpoint * watchpoints, u
 
 void ArmDynarmic64::SignalInterrupt(IKernelThread * /*thread*/)
 {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    m_diagnostic_interrupt_ns.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
+#endif
     m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::BreakLoop));
 }
 

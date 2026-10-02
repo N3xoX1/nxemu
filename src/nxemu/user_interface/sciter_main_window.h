@@ -4,9 +4,11 @@
 #include "startup_checks.h"
 #include "user_interface/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
+#include <chrono>
 #include <deque>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <nxemu-core/modules/system_modules.h>
@@ -51,6 +53,8 @@ class SciterMainWindow :
         ExitApplication,
         PauseOrContinueEmulation,
         StopEmulation,
+        TogglePerformanceCapture,
+        DumpKernelState,
         OpenControllersDialog,
         OpenSystemConfiguration,
         InstallFirmwareFromFile,
@@ -119,6 +123,7 @@ private:
     void SetCaption(const std::string & caption);
     static void EmulationRunning(const char * setting, void * userData);
     static void EmulationStateChanged(const char * setting, void * userData);
+    void OnEmulationStateChanged(int32_t state);
     static void GameFileChanged(const char * setting, void * userData);
     static void GameNameChanged(const char * setting, void * userData);
     static void DisplayedFramesChanged(const char * setting, void * userData);
@@ -155,6 +160,9 @@ private:
     void OnRecetGame(uint32_t fileIndex);
     void OnToggleDockedMode();
     void OnToggleSpeedLimit();
+    static void PerformanceCaptureSettingChanged(const char*, void* userData);
+    void OnTogglePerformanceCapture();
+    void UpdatePerformanceCaptureCaption();
     void OnToggleStartGamesInFullscreen();
     void OnToggleStartGamesWithUiHidden();
     void OnAbout();
@@ -224,12 +232,19 @@ private:
     ISciterUI & m_sciterUI;
     ISciterWindow * m_window;
     SciterElement m_rootElement;
+    std::mutex m_emulationStateMutex;
+    std::deque<int32_t> m_emulationStateUpdates;
     SystemModules m_modules;
     std::vector<VkDeviceRecord> m_vkDeviceRecords;
     std::shared_ptr<IMenuBar> m_menuBar;
     std::shared_ptr<IRomBrowser> m_romBrowser;
     void * m_renderWindow;
     std::string m_windowTitle;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    std::string m_baseCaption;
+    bool m_benchmarkRunning{};
+    bool m_benchmarkSaveFailed{};
+#endif
     std::unique_ptr<SystemConfig> m_systemConfig;
     std::unique_ptr<GameConfig> m_gameConfig;
     std::string m_pendingGameConfigPath;

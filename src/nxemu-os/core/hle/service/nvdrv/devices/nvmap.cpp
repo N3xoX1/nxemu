@@ -142,7 +142,8 @@ NvResult nvmap::IocAlloc(IocAllocParams& params, DeviceFD fd) {
         return result;
     }
     bool is_out_io{};
-    auto process = container.GetSession(sessions[fd])->process;
+    const auto owner_session = container.GetSessionReference(sessions[fd]);
+    auto process = owner_session->process;
     ASSERT(process->GetKPageTable()
                .LockForMapDeviceAddressSpace(&is_out_io, handle_description->address,
                                              handle_description->size,
@@ -150,6 +151,7 @@ NvResult nvmap::IocAlloc(IocAllocParams& params, DeviceFD fd) {
                .IsSuccess());
     {
         std::scoped_lock lock(handle_description->mutex);
+        handle_description->owner_session = owner_session;
         handle_description->owner_process = process;
         handle_description->device_address_space_locked = true;
     }

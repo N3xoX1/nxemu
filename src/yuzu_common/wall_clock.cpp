@@ -22,17 +22,17 @@ public:
 
     std::chrono::nanoseconds GetTimeNS() const override {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch());
+            std::chrono::steady_clock::now().time_since_epoch());
     }
 
     std::chrono::microseconds GetTimeUS() const override {
         return std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch());
+            std::chrono::steady_clock::now().time_since_epoch());
     }
 
     std::chrono::milliseconds GetTimeMS() const override {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch());
+            std::chrono::steady_clock::now().time_since_epoch());
     }
 
     s64 GetCNTPCT() const override {

@@ -13,6 +13,7 @@
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/kernel/k_thread.h"
 #include "core/hle/kernel/slab_helpers.h"
+#include "core/hle/kernel/ipc_wait_token.h"
 
 namespace Kernel {
 
@@ -186,6 +187,7 @@ public:
         m_event = event;
         m_address = address;
         m_size = size;
+        m_wait_generation = 0;
 
         m_thread->Open();
         if (m_event != nullptr) {
@@ -214,6 +216,17 @@ public:
     void SetServerProcess(KProcess* process) {
         m_server = process;
         m_server->Open();
+    }
+
+    // Called immediately after BeginWait, while holding the scheduler lock.
+    void CaptureClientWait() { m_wait_generation = m_thread->GetWaitGeneration(); }
+    bool IsClientWaitCurrent() const {
+        return m_thread && CanCompleteIpcWait(m_wait_generation, m_thread->GetWaitGeneration(),
+            m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested());
+    }
+    bool CanPublishHleReply() const {
+        return m_thread && CanPublishIpcReply(m_wait_generation, m_thread->GetWaitGeneration(),
+            m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested(), m_event != nullptr);
     }
 
     void ClearThread() {
@@ -308,6 +321,7 @@ private:
     KThread* m_thread{};
     KProcess* m_server{};
     KEvent* m_event{};
+    u64 m_wait_generation{};
     uintptr_t m_address{};
     size_t m_size{};
 };

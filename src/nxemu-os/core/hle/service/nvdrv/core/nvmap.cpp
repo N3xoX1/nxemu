@@ -123,7 +123,8 @@ void NvMap::UnmapHandle(Handle & handle_description)
         return;
     }
     const VAddr vaddress = handle_description.address;
-    auto * session = core.GetSession(handle_description.session_id);
+    const auto& session = handle_description.owner_session;
+    ASSERT(session != nullptr);
     session->mapper->Unmap(vaddress, map_size);
     handle_description.d_address = 0;
     handle_description.in_heap = false;
@@ -268,7 +269,8 @@ DAddr NvMap::PinHandle(NvMap::Handle::Id handle, bool low_area_pin)
         using namespace std::placeholders;
         // If not then allocate some space and map it
         DAddr address{};
-        auto * session = core.GetSession(handle_description->session_id);
+        const auto& session = handle_description->owner_session;
+        ASSERT(session != nullptr);
         const VAddr vaddress = handle_description->address;
         const size_t map_size = handle_description->aligned_size;
         if (session->has_preallocated_area && session->mapper->IsInBounds(vaddress, map_size))
@@ -405,7 +407,7 @@ std::optional<NvMap::FreeInfo> NvMap::FreeHandle(Handle::Id handle, bool interna
     return freeInfo;
 }
 
-void NvMap::UnmapAllHandles(NvCore::SessionId session_id)
+void NvMap::UnmapAllHandles(const std::shared_ptr<NvCore::Session>& session)
 {
     auto handles_copy = [&] {
         std::scoped_lock lk{handles_lock};
@@ -416,7 +418,7 @@ void NvMap::UnmapAllHandles(NvCore::SessionId session_id)
     {
         {
             std::scoped_lock lk{handle->mutex};
-            if (handle->session_id.id != session_id.id || handle->dupes <= 0)
+            if (handle->owner_session != session || handle->dupes <= 0)
             {
                 continue;
             }
@@ -426,4 +428,3 @@ void NvMap::UnmapAllHandles(NvCore::SessionId session_id)
 }
 
 } // namespace Service::Nvidia::NvCore
-    
