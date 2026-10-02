@@ -65,6 +65,18 @@ void NVDRV::ServiceError(HLERequestContext& ctx, NvResult result) {
     rb.PushEnum(result);
 }
 
+void NVDRV::PrepareOutputBuffer(HLERequestContext& ctx, Common::ScratchBuffer<u8>& buffer,
+                               size_t index) {
+    const auto size = ctx.GetWriteBufferSize(index);
+    if (ctx.ResponseBuffersDeferred() && size && !output_pool)
+        output_pool = std::make_shared<IpcResponseBufferPool>();
+    if (ctx.ResponseBuffersDeferred() && size > buffer.capacity()) {
+        buffer = output_pool->Acquire(size);
+    } else {
+        buffer.resize_destructive(size);
+    }
+}
+
 void NVDRV::Ioctl1(HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
     const auto fd = rp.Pop<DeviceFD>();
@@ -88,7 +100,7 @@ void NVDRV::Ioctl1(HLERequestContext& ctx) {
     }
 
     // Deferred requests keep their first input snapshot and their original deadline.
-    output_buffer.resize_destructive(ctx.GetWriteBufferSize(0));
+    PrepareOutputBuffer(ctx, output_buffer, 0);
     const auto input_buffer = pending == deferred_ioctls.end()
                                   ? ctx.ReadBuffer(0)
                                   : std::span<const u8>{pending->second.input};
@@ -110,7 +122,7 @@ void NVDRV::Ioctl1(HLERequestContext& ctx) {
     }
 
     if (command.is_out != 0) {
-        ctx.WriteBuffer(std::move(output_buffer));
+        ctx.WriteBufferPooled(std::move(output_buffer), 0, output_pool);
     }
 
     IPC::ResponseBuilder rb{ctx, 3};
@@ -132,12 +144,12 @@ void NVDRV::Ioctl2(HLERequestContext& ctx) {
 
     const auto input_buffer = ctx.ReadBuffer(0);
     const auto input_inlined_buffer = ctx.ReadBuffer(1);
-    output_buffer.resize_destructive(ctx.GetWriteBufferSize(0));
+    PrepareOutputBuffer(ctx, output_buffer, 0);
 
     const auto nv_result =
         nvdrv->Ioctl2(fd, command, input_buffer, input_inlined_buffer, output_buffer);
     if (command.is_out != 0) {
-        ctx.WriteBuffer(std::move(output_buffer));
+        ctx.WriteBufferPooled(std::move(output_buffer), 0, output_pool);
     }
 
     IPC::ResponseBuilder rb{ctx, 3};
@@ -158,14 +170,14 @@ void NVDRV::Ioctl3(HLERequestContext& ctx) {
     }
 
     const auto input_buffer = ctx.ReadBuffer(0);
-    output_buffer.resize_destructive(ctx.GetWriteBufferSize(0));
-    inline_output_buffer.resize_destructive(ctx.GetWriteBufferSize(1));
+    PrepareOutputBuffer(ctx, output_buffer, 0);
+    PrepareOutputBuffer(ctx, inline_output_buffer, 1);
 
     const auto nv_result =
         nvdrv->Ioctl3(fd, command, input_buffer, output_buffer, inline_output_buffer);
     if (command.is_out != 0) {
-        ctx.WriteBuffer(std::move(output_buffer), 0);
-        ctx.WriteBuffer(std::move(inline_output_buffer), 1);
+        ctx.WriteBufferPooled(std::move(output_buffer), 0, output_pool);
+        ctx.WriteBufferPooled(std::move(inline_output_buffer), 1, output_pool);
     }
 
     IPC::ResponseBuilder rb{ctx, 3};

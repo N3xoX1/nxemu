@@ -91,6 +91,9 @@ public:
         std::scoped_lock lock{writers};
         const auto now = Now();
         sequence.fetch_add(1, std::memory_order_acq_rel);
+        // Pair relaxed payload stores with the reader's acquire fence, so a
+        // reader observing a new field also observes the odd sequence.
+        std::atomic_thread_fence(std::memory_order_release);
         auto& slot = slots.at(core);
         const auto host = HostNow();
         const bool participates = active.load(std::memory_order_relaxed) & (1U << core);
@@ -109,6 +112,7 @@ public:
         std::scoped_lock lock{writers};
         const auto now = Now();
         sequence.fetch_add(1, std::memory_order_acq_rel);
+        std::atomic_thread_fence(std::memory_order_release);
         auto& slot = slots.at(core);
         const auto host = HostNow();
         Accumulate(slot, host);
@@ -125,6 +129,7 @@ public:
         const auto now = Now();
         const auto host = HostNow();
         sequence.fetch_add(1, std::memory_order_acq_rel);
+        std::atomic_thread_fence(std::memory_order_release);
         idle_base.store(now, std::memory_order_relaxed);
         idle_anchor.store(host, std::memory_order_relaxed);
         pace_base.store(now, std::memory_order_relaxed);
@@ -142,11 +147,13 @@ public:
     // Apply one scheduler snapshot after migrations. A CPU leaves only after
     // its JIT run has also returned; a newly ready CPU starts at common time.
     void SetRunnableMask(u32 mask) {
+        if (runnable.load(std::memory_order_relaxed) == mask) return;
         std::scoped_lock lock{writers};
         if (runnable.load(std::memory_order_relaxed) == mask) return;
         const auto now = Now();
         const auto host = HostNow();
         sequence.fetch_add(1, std::memory_order_acq_rel);
+        std::atomic_thread_fence(std::memory_order_release);
         const auto previous = active.load(std::memory_order_relaxed);
         for (u32 core = 0; core < slots.size(); ++core) {
             if (!(mask & (1U << core)) || (previous & (1U << core))) continue;
@@ -167,6 +174,7 @@ public:
         if (!(running.load(std::memory_order_relaxed) & (1U << core))) return;
         Now();
         sequence.fetch_add(1, std::memory_order_acq_rel);
+        std::atomic_thread_fence(std::memory_order_release);
         auto& slot = slots.at(core);
         const auto host = HostNow();
         Accumulate(slot, host);

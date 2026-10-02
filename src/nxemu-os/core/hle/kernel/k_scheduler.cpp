@@ -373,13 +373,15 @@ u64 KScheduler::UpdateHighestPriorityThreadsImpl(KernelCore & kernel)
         idle_cores &= ~(1ULL << core_id);
     }
 
-    u32 runnable_mask{};
-    for (u32 core = 0; core < Hardware::NUM_CPU_CORES; ++core) {
-        const auto* thread = top_threads[core];
-        if (thread && thread->GetOwnerKProcess() && thread->GetOwnerKProcess()->Is64Bit())
-            runnable_mask |= 1U << core;
+    if (kernel.System().CoreTiming().CpuHleSynchronizationEnabled()) {
+        u32 runnable_mask{};
+        for (u32 core = 0; core < Hardware::NUM_CPU_CORES; ++core) {
+            const auto* thread = top_threads[core];
+            if (thread && thread->GetOwnerKProcess() && thread->GetOwnerKProcess()->Is64Bit())
+                runnable_mask |= 1U << core;
+        }
+        kernel.System().CoreTiming().SetCpuRunnableMask(runnable_mask);
     }
-    kernel.System().CoreTiming().SetCpuRunnableMask(runnable_mask);
 
     // HACK: any waiting dummy threads can wake up now.
     kernel.GlobalSchedulerContext().WakeupWaitingDummyThreads();
