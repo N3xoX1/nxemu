@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <mutex>
 #include <span>
 
@@ -1003,18 +1004,29 @@ bool Memory::IsValidVirtualAddress(const Common::ProcessAddress vaddr) const
 
 bool Memory::IsValidVirtualAddressRange(uint64_t base, uint64_t size) const
 {
-    Common::ProcessAddress end = base + size;
+    if (size == 0)
+    {
+        return true;
+    }
+    if (size - 1 > std::numeric_limits<uint64_t>::max() - base)
+    {
+        return false;
+    }
+
+    const Common::ProcessAddress last_page = Common::AlignDown(base + size - 1, YUZU_PAGESIZE);
     Common::ProcessAddress page = Common::AlignDown(base, YUZU_PAGESIZE);
 
-    for (; page < end; page += YUZU_PAGESIZE)
+    for (;; page += YUZU_PAGESIZE)
     {
         if (!IsValidVirtualAddress(page))
         {
             return false;
         }
+        if (page == last_page)
+        {
+            return true;
+        }
     }
-
-    return true;
 }
 
 u8* Memory::GetPointer(Common::ProcessAddress vaddr)
@@ -1094,7 +1106,7 @@ bool Memory::WriteExclusive64(uint64_t addr, uint64_t data, uint64_t expected)
 
 bool Memory::WriteExclusive128(uint64_t addr, uint64_t dataHi, uint64_t dataLow, uint64_t expectedHi, uint64_t expectedLow)
 {
-    return impl->WriteExclusive128(addr, u128{dataHi, dataLow}, u128{expectedHi, expectedLow});
+    return impl->WriteExclusive128(addr, u128{dataLow, dataHi}, u128{expectedLow, expectedHi});
 }
 
 std::string Memory::ReadCString(Common::ProcessAddress vaddr, std::size_t max_length)

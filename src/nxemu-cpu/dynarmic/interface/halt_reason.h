@@ -10,6 +10,7 @@
 namespace Dynarmic {
 
 enum class HaltReason : std::uint32_t {
+    None = 0,
     Step = 0x00000001,
     CacheInvalidation = 0x00000002,
     MemoryAbort = 0x00000004,

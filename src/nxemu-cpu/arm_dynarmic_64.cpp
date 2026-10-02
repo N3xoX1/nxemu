@@ -35,33 +35,33 @@ public:
 
     uint8_t MemoryRead8(uint64_t vaddr) override
     {
-        if (m_check_memory_access)
+        if (m_check_memory_access && !CheckMemoryAccess(vaddr, 1, CpuDebugWatchpointType::Read))
         {
-            CheckMemoryAccess(vaddr, 1, CpuDebugWatchpointType::Read);        
+            return 0;
         }
         return m_memory.Read8(vaddr);
     }
     uint16_t MemoryRead16(uint64_t vaddr) override
     {
-        if (m_check_memory_access)
+        if (m_check_memory_access && !CheckMemoryAccess(vaddr, 2, CpuDebugWatchpointType::Read))
         {
-            CheckMemoryAccess(vaddr, 2, CpuDebugWatchpointType::Read);
+            return 0;
         }
         return m_memory.Read16(vaddr);
     }
     uint32_t MemoryRead32(uint64_t vaddr) override
     {
-        if (m_check_memory_access)
+        if (m_check_memory_access && !CheckMemoryAccess(vaddr, 4, CpuDebugWatchpointType::Read))
         {
-            CheckMemoryAccess(vaddr, 4, CpuDebugWatchpointType::Read);
+            return 0;
         }
         return m_memory.Read32(vaddr);
     }
     uint64_t MemoryRead64(uint64_t vaddr) override
     {
-        if (m_check_memory_access)
+        if (m_check_memory_access && !CheckMemoryAccess(vaddr, 8, CpuDebugWatchpointType::Read))
         {
-            CheckMemoryAccess(vaddr, 8, CpuDebugWatchpointType::Read);
+            return 0;
         }
         return m_memory.Read64(vaddr);
     }
@@ -91,9 +91,9 @@ public:
     }
     Vector MemoryRead128(uint64_t vaddr) override
     {
-        if (m_check_memory_access)
+        if (m_check_memory_access && !CheckMemoryAccess(vaddr, 16, CpuDebugWatchpointType::Read))
         {
-            CheckMemoryAccess(vaddr, 16, CpuDebugWatchpointType::Read);
+            return {};
         }
         return {m_memory.Read64(vaddr), m_memory.Read64(vaddr + 8)};
     }
@@ -261,9 +261,19 @@ public:
         }
     }
 
-    bool CheckMemoryAccess(uint64_t /*addr*/, uint64_t /*size*/, CpuDebugWatchpointType /*type*/)
+    bool CheckMemoryAccess(uint64_t addr, uint64_t size, CpuDebugWatchpointType /*type*/)
     {
         if (!m_check_memory_access)
+        {
+            return true;
+        }
+        if (!m_memory.IsValidVirtualAddressRange(addr, size))
+        {
+            LOG_CRITICAL(Core_ARM, "Stopping execution due to unmapped memory access at {:#x}", addr);
+            m_parent.m_jit->HaltExecution(TranslateDynarmicHaltReason(CpuHaltReason::DataAbort));
+            return false;
+        }
+        if (!m_debugger_enabled)
         {
             return true;
         }
@@ -364,10 +374,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
 #endif
 
     // Allow memory fault handling to work
-    if (m_system.DebuggerEnabled())
-    {
-        config.check_halt_on_memory_access = true;
-    }
+    config.check_halt_on_memory_access = m_cb->m_check_memory_access;
 
 #if !defined(NDEBUG)
     config.optimizations &= ~Dynarmic::OptimizationFlag::DisableVerification;
@@ -421,10 +428,6 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
         if (!cpuSettings.cpuopt_recompile_exclusives)
         {
             config.recompile_on_exclusive_fastmem_failure = false;
-        }
-        if (!cpuSettings.cpuopt_ignore_memory_aborts)
-        {
-            config.check_halt_on_memory_access = true;
         }
     }
     else

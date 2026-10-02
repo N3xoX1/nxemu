@@ -7,6 +7,7 @@ Dynarmic::HaltReason TranslateDynarmicHaltReason(CpuHaltReason hr)
 {
     switch (hr)
     {
+    case CpuHaltReason::None: return Dynarmic::HaltReason::None;
     case CpuHaltReason::StepThread: return Dynarmic::HaltReason::Step;
     case CpuHaltReason::CacheInvalidation: return Dynarmic::HaltReason::CacheInvalidation;
     case CpuHaltReason::DataAbort: return Dynarmic::HaltReason::MemoryAbort;
@@ -25,6 +26,7 @@ CpuHaltReason TranslateHaltReason(Dynarmic::HaltReason hr)
 {
     switch (hr)
     {
+    case Dynarmic::HaltReason::None: return CpuHaltReason::None;
     case Dynarmic::HaltReason::Step: return CpuHaltReason::StepThread;
     case Dynarmic::HaltReason::CacheInvalidation: return CpuHaltReason::CacheInvalidation;
     case Dynarmic::HaltReason::MemoryAbort: return CpuHaltReason::DataAbort;
@@ -34,7 +36,13 @@ CpuHaltReason TranslateHaltReason(Dynarmic::HaltReason hr)
     case Dynarmic::HaltReason::UserDefined6: return CpuHaltReason::PrefetchAbort;
     case Dynarmic::HaltReason::UserDefined2and3: return CpuHaltReason::SupervisorCallBreakLoop;
     case Dynarmic::HaltReason::UserDefined2and6: return CpuHaltReason::PrefetchAbortBreakLoop;
-    default: break;
+    default:
+        // Preserve a data abort if an interrupt or step also fired.
+        if (Dynarmic::Has(hr, Dynarmic::HaltReason::MemoryAbort))
+        {
+            return CpuHaltReason::DataAbort;
+        }
+        break;
     }
     UNIMPLEMENTED();
     return CpuHaltReason::StepThread;
