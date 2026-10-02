@@ -84,17 +84,7 @@ Result WaitSynchronization(Core::System& system, int32_t* out_index, u64 user_ha
         }
     };
 
-    // Convert the timeout from nanoseconds to ticks.
-    s64 timeout;
-    if (timeout_ns > 0) {
-        u64 ticks = kernel.HardwareTimer().GetTick();
-        ticks += timeout_ns;
-        ticks += 2;
-
-        timeout = ticks;
-    } else {
-        timeout = timeout_ns;
-    }
+    const s64 timeout = kernel.HardwareTimer().GetTimeoutDeadlineNs(timeout_ns);
 
     // Wait on the objects.
     Result res = KSynchronizationObject::Wait(kernel, out_index, objs.data(), num_handles, timeout);

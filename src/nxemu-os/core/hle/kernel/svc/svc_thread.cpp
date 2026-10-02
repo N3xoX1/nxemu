@@ -111,19 +111,7 @@ void SleepThread(Core::System& system, s64 ns) {
 
     // When the input tick is positive, sleep.
     if (ns > 0) {
-        // Convert the timeout from nanoseconds to ticks.
-        // NOTE: Nintendo does not use this conversion logic in WaitSynchronization...
-        s64 timeout;
-
-        const s64 offset_tick(ns);
-        if (offset_tick > 0) {
-            timeout = kernel.HardwareTimer().GetTick() + offset_tick + 2;
-            if (timeout <= 0) {
-                timeout = std::numeric_limits<s64>::max();
-            }
-        } else {
-            timeout = std::numeric_limits<s64>::max();
-        }
+        const s64 timeout = kernel.HardwareTimer().GetTimeoutDeadlineNs(ns);
 
         // Sleep.
         // NOTE: Nintendo does not check the result of this sleep.

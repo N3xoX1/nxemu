@@ -53,22 +53,7 @@ Result ReplyAndReceiveImpl(KernelCore& kernel, int32_t* out_index, uintptr_t mes
 
     // Receive a message.
     {
-        // Convert the timeout from nanoseconds to ticks.
-        // NOTE: Nintendo does not use this conversion logic in WaitSynchronization...
-        s64 timeout;
-        if (timeout_ns > 0) {
-            const s64 offset_tick(timeout_ns);
-            if (offset_tick > 0) {
-                timeout = kernel.HardwareTimer().GetTick() + offset_tick + 2;
-                if (timeout <= 0) {
-                    timeout = std::numeric_limits<s64>::max();
-                }
-            } else {
-                timeout = std::numeric_limits<s64>::max();
-            }
-        } else {
-            timeout = timeout_ns;
-        }
+        const s64 timeout = kernel.HardwareTimer().GetTimeoutDeadlineNs(timeout_ns);
 
         // Wait for a message.
         while (true) {
