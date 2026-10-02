@@ -620,6 +620,7 @@
     <ClInclude Include="core\hle\kernel\memory_types.h" />
     <ClInclude Include="core\hle\kernel\k_light_client_session.h" />
     <ClInclude Include="core\hle\kernel\k_session_request.h" />
+    <ClInclude Include="core\hle\kernel\ipc_wait_token.h" />
     <ClInclude Include="core\hle\kernel\initial_process.h" />
     <ClInclude Include="core\hle\kernel\k_address_arbiter.h" />
     <ClInclude Include="core\hle\kernel\k_dynamic_page_manager.h" />
@@ -714,6 +715,7 @@
     <ClInclude Include="core\hle\service\hid\irs.h" />
     <ClInclude Include="core\hle\service\hid\xcd.h" />
     <ClInclude Include="core\hle\service\hle_ipc.h" />
+    <ClInclude Include="core\hle\service\ipc_reply_transaction.h" />
     <ClInclude Include="core\hle\service\ipc_helpers.h" />
     <ClInclude Include="core\hle\service\ldn\lan_discovery.h" />
     <ClInclude Include="core\hle\service\ldn\ldn.h" />

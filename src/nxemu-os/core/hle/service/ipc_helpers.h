@@ -75,6 +75,7 @@ public:
           num_handles_to_copy(num_handles_to_copy_),
           num_objects_to_move(num_objects_to_move_), kernel{ctx.kernel} {
 
+        ctx.ClearOutgoingObjects();
         memset(cmdbuf, 0, sizeof(u32) * IPC::COMMAND_BUFFER_LENGTH);
 
         IPC::CommandHeader header{};
