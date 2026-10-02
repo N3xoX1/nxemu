@@ -143,3 +143,19 @@ html > header > window-buttons > window-button[role="window-minimize"]
 {
   foreground-image: url(icon:window-minimize);
 }
+
+/* macOS uses the native AppKit title bar instead of Sciter window chrome. */
+html[data-platform="macos"]
+{
+  border: none;
+}
+
+html[data-platform="macos"] > header
+{
+  display: none;
+}
+
+html[data-platform="macos"][window-state="maximized"]
+{
+  border: none;
+}

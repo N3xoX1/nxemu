@@ -24,6 +24,17 @@ InputConfig::InputConfig(ISciterUI & SciterUI, SystemModules & modules) :
 
 InputConfig::~InputConfig()
 {
+    if (m_pageNav)
+    {
+        m_pageNav->RemoveSink(this);
+    }
+    if (m_window != nullptr)
+    {
+        m_window->OnCloseSinkRemove(this);
+        m_window->OnDestroySinkRemove(this);
+        m_window->Destroy();
+        m_window = nullptr;
+    }
     ShutdownPlayers();
     if (m_inputDeviceList != nullptr)
     {
@@ -156,6 +167,11 @@ void InputConfig::OnWindowDestroy(HWINDOW hWnd)
     if (m_window == nullptr || hWnd != m_window->GetHandle())
     {
         return;
+    }
+    if (m_pageNav)
+    {
+        m_pageNav->RemoveSink(this);
+        m_pageNav.reset();
     }
     ShutdownPlayers();
     if (m_inputDeviceList != nullptr)

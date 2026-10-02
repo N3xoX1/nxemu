@@ -9,6 +9,7 @@
 #include "yuzu_common/thread.h"
 #ifdef __APPLE__
 #include <mach/mach.h>
+#include <pthread/qos.h>
 #elif defined(_WIN32)
 #include <windows.h>
 #include "yuzu_common/string_util.h"
@@ -56,6 +57,31 @@ void SetCurrentThreadPriority(ThreadPriority new_priority) {
         break;
     }
     SetThreadPriority(handle, windows_priority);
+}
+
+#elif defined(__APPLE__)
+
+void SetCurrentThreadPriority(ThreadPriority new_priority) {
+    qos_class_t qos_class = QOS_CLASS_DEFAULT;
+    switch (new_priority) {
+    case ThreadPriority::Low:
+        qos_class = QOS_CLASS_UTILITY;
+        break;
+    case ThreadPriority::Normal:
+        qos_class = QOS_CLASS_DEFAULT;
+        break;
+    case ThreadPriority::High:
+        qos_class = QOS_CLASS_USER_INITIATED;
+        break;
+    case ThreadPriority::VeryHigh:
+    case ThreadPriority::Critical:
+        qos_class = QOS_CLASS_USER_INTERACTIVE;
+        break;
+    }
+
+    if (const int result = pthread_set_qos_class_self_np(qos_class, 0); result != 0) {
+        LOG_ERROR(Common, "Failed to set thread QoS class: {}", result);
+    }
 }
 
 #else

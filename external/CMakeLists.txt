@@ -3,14 +3,46 @@ if (NOT TARGET fmt::fmt)
     add_subdirectory(fmt)
 endif()
 
-# AppleClang 21 rejects the consteval path used by the bundled fmt 10.x.
-# fmt 10.1.1 controls the constructor qualifier with FMT_CONSTEVAL; the newer
-# FMT_USE_CONSTEVAL switch does not exist in this bundled version. Define
-# FMT_CONSTEVAL to an empty replacement on the affected toolchain, matching
-# the upstream workaround for fmt 10.x on AppleClang 21.
-if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND
-   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
-    target_compile_definitions(fmt PUBLIC FMT_CONSTEVAL=)
+# macOS controller adapters are bundled against the application deployment target.
+if(APPLE)
+    option(ENABLE_LIBUSB "Enable direct GameCube USB adapter input" ON)
+    if(ENABLE_LIBUSB AND NOT TARGET libusb::usb)
+        set(_nxemu_usb "${CMAKE_CURRENT_SOURCE_DIR}/libusb/libusb")
+        add_library(nxemu_libusb STATIC
+            ${_nxemu_usb}/core.c
+            ${_nxemu_usb}/descriptor.c
+            ${_nxemu_usb}/hotplug.c
+            ${_nxemu_usb}/io.c
+            ${_nxemu_usb}/strerror.c
+            ${_nxemu_usb}/sync.c
+            ${_nxemu_usb}/os/events_posix.c
+            ${_nxemu_usb}/os/threads_posix.c
+            ${_nxemu_usb}/os/darwin_usb.c)
+        target_include_directories(nxemu_libusb PUBLIC "${_nxemu_usb}"
+            PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libusb/Xcode")
+        target_compile_options(nxemu_libusb PRIVATE -fvisibility=hidden)
+        target_link_libraries(nxemu_libusb PRIVATE Threads::Threads
+            "-framework IOKit" "-framework CoreFoundation" "-framework Security")
+        add_library(libusb::usb ALIAS nxemu_libusb)
+        unset(_nxemu_usb)
+    endif()
+endif()
+
+# Keep macOS controller support self-contained in the application bundle.
+if(APPLE AND ENABLE_SDL2 AND NOT TARGET SDL2::SDL2)
+    set(SDL_SHARED OFF CACHE BOOL "Build shared SDL" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "Build static SDL" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "Build SDL test library" FORCE)
+    set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
+    set(SDL2_DISABLE_INSTALL ON CACHE BOOL "Disable SDL installation" FORCE)
+    # SDL's bundled checks use an older minimum; CMake 4 requires at least 3.5.
+    set(_nxemu_saved_policy_minimum "${CMAKE_POLICY_VERSION_MINIMUM}")
+    if(NOT CMAKE_POLICY_VERSION_MINIMUM OR CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS "3.5")
+        set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
+    endif()
+    add_subdirectory(sdl)
+    set(CMAKE_POLICY_VERSION_MINIMUM "${_nxemu_saved_policy_minimum}")
+    unset(_nxemu_saved_policy_minimum)
 endif()
 
 # Boost
@@ -182,6 +214,45 @@ if(NOT TARGET tsl::robin_map)
     add_library(robin_map INTERFACE)
     add_library(tsl::robin_map ALIAS robin_map)
     target_include_directories(robin_map INTERFACE "${CMAKE_SOURCE_DIR}/external/robin-map/include")
+endif()
+
+# MoltenVK runtime (macOS)
+if(APPLE)
+    include(ExternalProject)
+
+    find_program(NXEMU_XCODEBUILD xcodebuild REQUIRED)
+    execute_process(COMMAND "${NXEMU_XCODEBUILD}" -version
+        RESULT_VARIABLE _nxemu_xcode_result OUTPUT_QUIET ERROR_VARIABLE _nxemu_xcode_error)
+    if(NOT _nxemu_xcode_result EQUAL 0)
+        message(FATAL_ERROR
+            "Building MoltenVK requires full Xcode, not only Command Line Tools. "
+            "Select Xcode with xcode-select. ${_nxemu_xcode_error}")
+    endif()
+
+    set(_nxemu_moltenvk_root "${CMAKE_BINARY_DIR}/external/moltenvk")
+    set(_nxemu_moltenvk_source "${_nxemu_moltenvk_root}/src")
+    set(_nxemu_moltenvk_runtime
+        "${_nxemu_moltenvk_source}/MoltenVK/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
+
+    ExternalProject_Add(nxemu_moltenvk
+        GIT_REPOSITORY "https://github.com/V380-Ori/Ryujinx.MoltenVK.git"
+        GIT_TAG "45f9b641e45f1d150f3521d74808477add9e975b"
+        GIT_SHALLOW FALSE
+        GIT_SUBMODULES_RECURSE TRUE
+        UPDATE_COMMAND ""
+        SOURCE_DIR "${_nxemu_moltenvk_source}"
+        CONFIGURE_COMMAND ""
+        BUILD_IN_SOURCE TRUE
+        BUILD_COMMAND /bin/sh -c
+            "cd MoltenVK && (git apply --reverse --check ../000*.patch || git apply --verbose ../000*.patch) && ./fetchDependencies --macos && make macos"
+        BUILD_BYPRODUCTS "${_nxemu_moltenvk_runtime}"
+        INSTALL_COMMAND ""
+    )
+
+    set(NXEMU_MOLTENVK_RUNTIME "${_nxemu_moltenvk_runtime}" CACHE INTERNAL "" FORCE)
+    unset(_nxemu_moltenvk_root)
+    unset(_nxemu_moltenvk_source)
+    unset(_nxemu_moltenvk_runtime)
 endif()
 
 # sciter

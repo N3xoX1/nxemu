@@ -10,6 +10,9 @@
 #include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"
+#ifdef __APPLE__
+#include "user_interface/render_window_macos.h"
+#endif
 #include <common/path.h>
 #include <common/shell_open.h>
 #include <common/std_string.h>
@@ -364,6 +367,16 @@ const std::string * SciterMainWindow::MenuIconSvg(GuiAction action)
 
 SciterMainWindow::~SciterMainWindow()
 {
+    if (m_window != nullptr)
+    {
+        m_window->OnCloseSinkRemove(this);
+        m_window->OnDestroySinkRemove(this);
+        if (m_menuBar)
+        {
+            m_menuBar->RemoveSink(this);
+        }
+    }
+
     Notification::GetInstance().ClearSciterContext();
     m_ProfileSelect.Detach();
     m_WebBrowser.DetachWindow();
@@ -388,19 +401,45 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::EnableDiscordPresence, SciterMainWindow::SettingChanged, this);
 
+    if (m_rootElement.IsValid())
+    {
+        m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
+    }
     if (m_firmwareInstallThread.joinable())
     {
         m_firmwareInstallThread.join();
     }
     m_systemConfig.reset(nullptr);
     m_inputConfig.reset(nullptr);
+    m_gameConfig.reset(nullptr);
+    m_aboutDialog.reset(nullptr);
 
     settings.SetBool(NXCoreSetting::ShuttingDown, true);
     if (m_romBrowser)
     {
+        // Stop launches a fresh library scan. A native close has already
+        // cleared m_rootElement, but that worker must still be joined before
+        // its loader module is destroyed.
+        m_romBrowser->StopScan();
+        m_romBrowser->SetMainWindow(nullptr, nullptr);
+    }
+    if (m_romBrowser && m_rootElement.IsValid())
+    {
         m_romBrowser->ClearItems();
     }
     m_modules.ShutDown();
+#ifdef __APPLE__
+    NxEmuMacOSDestroyRenderView(m_renderWindow);
+    m_renderWindow = nullptr;
+#endif
+    if (m_window != nullptr)
+    {
+        // File -> Exit stops the loop without a native close notification. Close
+        // while this owner is alive, so shutdown cannot dispatch into dead sinks.
+        m_window->Destroy();
+        m_window = nullptr;
+        m_rootElement = {};
+    }
 }
 
 void SciterMainWindow::RegisterApplets()
@@ -615,11 +654,20 @@ bool SciterMainWindow::Show()
         WINDOW_WIDTH = 760,
     };
 
-    if (!m_sciterUI.WindowCreate(nullptr, "main_window.html", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_MAIN | SUIW_HIDDEN, m_window))
+#ifdef __APPLE__
+    constexpr const char * mainDocument = "main_window_macos.html";
+#else
+    constexpr const char * mainDocument = "main_window.html";
+#endif
+    if (!m_sciterUI.WindowCreate(nullptr, mainDocument, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SUIW_MAIN | SUIW_HIDDEN, m_window))
     {
         return false;
     }
     m_rootElement = m_window->GetRootElement();
+#ifdef __APPLE__
+    NxEmuMacOSApplyWindowStyle(m_window->GetHandle());
+    m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
+#endif
     m_sciterUI.AttachHandler(m_rootElement, IID_IKEYSINK, (IKeySink *)this);
     m_sciterUI.AttachHandler(m_rootElement, IID_EVENTSINK, (IEventSink *)this);
     m_window->OnCloseSinkAdd(this);
@@ -654,7 +702,12 @@ bool SciterMainWindow::Show()
     UpdateDiscordPresence();
 
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("dockedMode"), IID_ICLICKSINK, (IClickSink *)this);
+#ifdef _WIN32
+    // NXEmu's OpenGL context implementation uses WGL. Other platforms
+    // currently provide Vulkan contexts only.
+    SciterElement(m_rootElement.GetElementByID("renderer")).AddClassName("interactive");
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("renderer"), IID_ICLICKSINK, (IClickSink *)this);
+#endif
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("gpuCommandSynchronization"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volume"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volumePopupBtn"), IID_ICLICKSINK, (IClickSink *)this);
@@ -734,6 +787,12 @@ void SciterMainWindow::LoadGame(const char * path, int32_t program_index, Applic
         m_romBrowser->SetMainWindow(this, nullptr);
     }
 
+    // Configuration pages retain controller and loader interfaces from the
+    // current modules. Retire them before Setup replaces those modules, even
+    // when a game is launched while a child window is still open.
+    m_inputConfig.reset();
+    m_systemConfig.reset();
+    m_gameConfig.reset();
     m_modules.Setup(*this);
     if (!m_modules.IsValid())
     {
@@ -893,6 +952,9 @@ void SciterMainWindow::CreateRenderWindow()
     m_renderWindow = CreateWindowExW(0, L"Static", L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                      rect.left, rect.top, width, height, (HWND)m_window->GetHandle(), nullptr, GetModuleHandle(nullptr), nullptr);
     ShowWindow((HWND)m_renderWindow, SW_HIDE);
+#elif defined(__APPLE__)
+    m_renderWindow = NxEmuMacOSCreateRenderView(m_window->GetHandle());
+    NxEmuMacOSLayoutRenderView(m_renderWindow, rect.left, rect.top, width, height);
 #else
     (void)width;
     (void)height;
@@ -1031,6 +1093,8 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
         {
 #ifdef _WIN32
             DestroyWindow((HWND)impl->m_renderWindow);
+#elif defined(__APPLE__)
+            NxEmuMacOSDestroyRenderView(impl->m_renderWindow);
 #endif
             impl->m_renderWindow = nullptr;
         }
@@ -1071,6 +1135,8 @@ void SciterMainWindow::ShowPanel(Panel panel)
     }
 #ifdef _WIN32
     ShowWindow((HWND)m_renderWindow, panel == Panel::Renderer ? SW_SHOW : SW_HIDE);
+#elif defined(__APPLE__)
+    NxEmuMacOSSetRenderViewVisible(m_renderWindow, panel == Panel::Renderer);
 #endif
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
 }
@@ -1849,12 +1915,13 @@ void SciterMainWindow::OnRecetGame(uint32_t fileIndex)
 
 void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
-    m_ProfileSelect.Detach();
+    m_ProfileSelect.DetachAfterWindowDestroyed();
     m_WebBrowser.DetachWindow();
     if (m_rootElement.IsValid())
     {
         m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
     }
+    m_window = nullptr;
     m_rootElement = {};
     m_sciterUI.Stop();
 }
@@ -1961,7 +2028,11 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
 
 void * SciterMainWindow::RenderSurface() const
 {
+#ifdef __APPLE__
+    return NxEmuMacOSGetRenderSurface(m_renderWindow);
+#else
     return m_renderWindow;
+#endif
 }
 
 float SciterMainWindow::PixelRatio() const
@@ -2000,6 +2071,9 @@ float SciterMainWindow::PixelRatio() const
             return static_cast<float>(dpi) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
         }
     }
+#endif
+#ifdef __APPLE__
+    return NxEmuMacOSWindowScale(m_window != nullptr ? m_window->GetHandle() : nullptr);
 #endif
     return 1.0f;
 }
@@ -2118,6 +2192,8 @@ void SciterMainWindow::LayoutRenderWindow()
     uint32_t height = rect.bottom - rect.top;
 #ifdef _WIN32
     MoveWindow((HWND)m_renderWindow, rect.left, rect.top, width, height, false);
+#elif defined(__APPLE__)
+    NxEmuMacOSLayoutRenderView(m_renderWindow, rect.left, rect.top, width, height);
 #else
     (void)width;
     (void)height;
@@ -2400,6 +2476,7 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
     }
     else if (element == rootElement.GetElementByID("renderer"))
     {
+#ifdef _WIN32
         SettingsStore & settings = SettingsStore::GetInstance();
         RendererBackend graphicsAPI = (RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI);
         if (graphicsAPI == RendererBackend::Vulkan)
@@ -2417,6 +2494,7 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
         {
             m_modules.FlushSettings();
         }
+#endif
     }
     else if (source == rootElement.GetElementByID("gpuCommandSynchronization"))
     {

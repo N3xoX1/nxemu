@@ -15,7 +15,14 @@ AboutDialog::AboutDialog(ISciterUI & sciterUI) :
 {
 }
 
-AboutDialog::~AboutDialog() = default;
+AboutDialog::~AboutDialog()
+{
+    if (m_window != nullptr)
+    {
+        m_window->OnDestroySinkRemove(this);
+        m_window->Destroy();
+    }
+}
 
 void AboutDialog::Display(void * parentWindow)
 {

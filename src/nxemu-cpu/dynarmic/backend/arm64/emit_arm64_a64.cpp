@@ -10,6 +10,7 @@
 #include "dynarmic/backend/arm64/abi.h"
 #include "dynarmic/backend/arm64/emit_arm64.h"
 #include "dynarmic/backend/arm64/emit_context.h"
+#include "dynarmic/backend/arm64/fpsr_manager.h"
 #include "dynarmic/backend/arm64/reg_alloc.h"
 #include "dynarmic/interface/halt_reason.h"
 #include "dynarmic/ir/basic_block.h"
@@ -278,6 +279,7 @@ void EmitIR<IR::Opcode::A64GetFPCR>(oaknut::CodeGenerator& code, EmitContext& ct
 
 template<>
 void EmitIR<IR::Opcode::A64GetFPSR>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
+    ctx.fpsr.Spill();
     auto Wresult = ctx.reg_alloc.WriteW(inst);
     RegAlloc::Realize(Wresult);
 

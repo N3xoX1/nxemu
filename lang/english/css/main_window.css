@@ -46,7 +46,7 @@
 }
 
 #StatusBar #volume:hover,
-#StatusBar #renderer:hover,
+#StatusBar #renderer.interactive:hover,
 #StatusBar #dockedMode:hover,
 #StatusBar #gpuCommandSynchronization:hover,
 #StatusBar #volumePopupBtn:hover

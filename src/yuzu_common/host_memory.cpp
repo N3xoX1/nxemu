@@ -9,7 +9,7 @@
 #include <windows.h>
 #include "yuzu_common/dynamic_library.h"
 
-#elif defined(__linux__) || defined(__FreeBSD__) // ^^^ Windows ^^^ vvv Linux vvv
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__) // ^^^ Windows ^^^ vvv POSIX vvv
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -17,8 +17,13 @@
 #include <boost/icl/interval_set.hpp>
 #include <fcntl.h>
 #include <sys/mman.h>
+#if defined(__linux__)
 #include <sys/random.h>
+#endif
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <stdlib.h>
+#endif
 #if defined(__ANDROID__)
 #include <sys/syscall.h>
 #endif
@@ -27,9 +32,13 @@
 #ifndef MAP_NORESERVE
 #define MAP_NORESERVE 0
 #endif
+#if defined(__APPLE__) && !defined(MAP_ANONYMOUS)
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
-#endif // ^^^ Linux ^^^
+#endif // ^^^ POSIX ^^^
 
+#include <cstdio>
 #include <mutex>
 #include <random>
 
@@ -41,8 +50,21 @@
 
 namespace Common {
 
-constexpr size_t PageAlignment = 0x1000;
+constexpr size_t GuestPageSize = 0x1000;
 constexpr size_t HugePageSize = 0x200000;
+
+static size_t GetHostPageSize() {
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+    static const size_t host_page_size = [] {
+        const long value = sysconf(_SC_PAGESIZE);
+        ASSERT_MSG(value > 0, "sysconf(_SC_PAGESIZE) failed");
+        return static_cast<size_t>(value);
+    }();
+    return host_page_size;
+#else
+    return GuestPageSize;
+#endif
+}
 
 #ifdef _WIN32
 
@@ -367,9 +389,16 @@ private:
     std::unordered_map<size_t, size_t> placeholder_host_pointers; ///< Placeholder backing offset
 };
 
-#elif defined(__linux__) || defined(__FreeBSD__) // ^^^ Windows ^^^ vvv Linux vvv
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__) // ^^^ Windows ^^^ vvv POSIX vvv
 
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
+#if defined(__APPLE__)
+
+static void* ChooseVirtualBase(size_t virtual_size) {
+    return mmap(nullptr, virtual_size, PROT_READ | PROT_WRITE,
+                MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+}
+
+#elif defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
 
 static void* ChooseVirtualBase(size_t virtual_size) {
     constexpr uintptr_t Map39BitSize = (1ULL << 39);
@@ -444,21 +473,39 @@ public:
             }
         };
 
-        long page_size = sysconf(_SC_PAGESIZE);
-        if (page_size != 0x1000) {
-            LOG_CRITICAL(HW_Memory, "page size {:#x} is incompatible with 4K paging", page_size);
+#if !defined(__APPLE__)
+        if (host_page_size != GuestPageSize) {
+            LOG_CRITICAL(HW_Memory, "page size {:#x} is incompatible with 4K paging",
+                         host_page_size);
             throw std::bad_alloc{};
         }
+#endif
 
         // Backing memory initialization
 #if defined(__FreeBSD__) && __FreeBSD__ < 13
         // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
         fd = shm_open(SHM_ANON, O_RDWR, 0600);
+#elif defined(__APPLE__)
+        // Keep a shared backing store for the page-table path without exposing
+        // a 4 KiB fastmem arena on 16 KiB hosts.
+        for (int attempt = 0; attempt < 16; ++attempt) {
+            char name[32];
+            std::snprintf(name, sizeof(name), "/nxemu-%08x%08x", arc4random(), arc4random());
+            fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+            if (fd >= 0) {
+                shm_unlink(name);
+                break;
+            }
+            if (errno != EEXIST) {
+                break;
+            }
+        }
 #else
         fd = memfd_create("HostMemory", 0);
 #endif
         if (fd < 0) {
-            LOG_CRITICAL(HW_Memory, "memfd_create failed: {}", strerror(errno));
+            LOG_CRITICAL(HW_Memory, "Failed to create HostMemory backing file: {}",
+                         strerror(errno));
             throw std::bad_alloc{};
         }
 
@@ -477,7 +524,20 @@ public:
             throw std::bad_alloc{};
         }
 
-        // Virtual memory initialization
+#if defined(__APPLE__)
+        if (host_page_size != GuestPageSize) {
+            LOG_INFO(HW_Memory,
+                     "Fastmem disabled: host page size {:#x} does not match guest page size {:#x}; "
+                     "using the page-table memory path",
+                     host_page_size, GuestPageSize);
+            virtual_base = nullptr;
+            good = true;
+            return;
+        }
+#endif
+
+        // Virtual memory initialization. This path is only used when the host can represent
+        // the guest's 4 KiB mappings directly.
         virtual_base = virtual_map_base = static_cast<u8*>(ChooseVirtualBase(virtual_size));
         if (virtual_base == MAP_FAILED) {
             LOG_CRITICAL(HW_Memory, "mmap failed: {}", strerror(errno));
@@ -498,6 +558,9 @@ public:
     void Map(size_t virtual_offset, size_t host_offset, size_t length, MemoryPermission perms) {
         // Intersect the range with our address space.
         AdjustMap(&virtual_offset, &length);
+        if (length == 0) {
+            return;
+        }
 
         // We are removing a placeholder.
         free_manager.AllocateBlock(virtual_base + virtual_offset, length);
@@ -527,6 +590,9 @@ public:
 
         // Intersect the range with our address space.
         AdjustMap(&virtual_offset, &length);
+        if (length == 0) {
+            return;
+        }
 
         // Merge with any adjacent placeholder mappings.
         auto [merged_pointer, merged_size] =
@@ -540,6 +606,9 @@ public:
     void Protect(size_t virtual_offset, size_t length, bool read, bool write, bool execute) {
         // Intersect the range with our address space.
         AdjustMap(&virtual_offset, &length);
+        if (length == 0) {
+            return;
+        }
 
         int flags = PROT_NONE;
         if (read) {
@@ -553,6 +622,7 @@ public:
             flags |= PROT_EXEC;
         }
 #endif
+
         int ret = mprotect(virtual_base + virtual_offset, length, flags);
         ASSERT_MSG(ret == 0, "mprotect failed: {}", strerror(errno));
     }
@@ -576,6 +646,7 @@ public:
 
     const size_t backing_size; ///< Size of the backing memory in bytes
     const size_t virtual_size; ///< Size of the virtual address placeholder in bytes
+    const size_t host_page_size{GetHostPageSize()};
 
     u8* backing_base{reinterpret_cast<u8*>(MAP_FAILED)};
     u8* virtual_base{reinterpret_cast<u8*>(MAP_FAILED)};
@@ -621,11 +692,11 @@ private:
         }
     }
 
-    int fd{-1}; // memfd file descriptor, -1 is the error value of memfd_create
+    int fd{-1}; // Shared backing file descriptor; -1 means no file.
     FreeRegionManager free_manager{};
 };
 
-#else // ^^^ Linux ^^^ vvv Generic vvv
+#else // ^^^ POSIX ^^^ vvv Generic vvv
 
 class HostMemory::Impl {
 public:
@@ -659,8 +730,9 @@ HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_)
         // Try to allocate a fastmem arena.
         // The implementation will fail with std::bad_alloc on errors.
         impl =
-            std::make_unique<HostMemory::Impl>(AlignUp(backing_size, PageAlignment),
-                                               AlignUp(virtual_size, PageAlignment) + HugePageSize);
+            std::make_unique<HostMemory::Impl>(AlignUp(backing_size, GetHostPageSize()),
+                                               AlignUp(virtual_size, GetHostPageSize()) +
+                                                   HugePageSize);
         backing_base = impl->backing_base;
         virtual_base = impl->virtual_base;
 
@@ -688,9 +760,9 @@ HostMemory& HostMemory::operator=(HostMemory&&) noexcept = default;
 
 void HostMemory::Map(size_t virtual_offset, size_t host_offset, size_t length,
                      MemoryPermission perms, bool separate_heap) {
-    ASSERT(virtual_offset % PageAlignment == 0);
-    ASSERT(host_offset % PageAlignment == 0);
-    ASSERT(length % PageAlignment == 0);
+    ASSERT(virtual_offset % GuestPageSize == 0);
+    ASSERT(host_offset % GuestPageSize == 0);
+    ASSERT(length % GuestPageSize == 0);
     ASSERT(virtual_offset + length <= virtual_size);
     ASSERT(host_offset + length <= backing_size);
     if (length == 0 || !virtual_base || !impl) {
@@ -700,8 +772,8 @@ void HostMemory::Map(size_t virtual_offset, size_t host_offset, size_t length,
 }
 
 void HostMemory::Unmap(size_t virtual_offset, size_t length, bool separate_heap) {
-    ASSERT(virtual_offset % PageAlignment == 0);
-    ASSERT(length % PageAlignment == 0);
+    ASSERT(virtual_offset % GuestPageSize == 0);
+    ASSERT(length % GuestPageSize == 0);
     ASSERT(virtual_offset + length <= virtual_size);
     if (length == 0 || !virtual_base || !impl) {
         return;
@@ -710,8 +782,8 @@ void HostMemory::Unmap(size_t virtual_offset, size_t length, bool separate_heap)
 }
 
 void HostMemory::Protect(size_t virtual_offset, size_t length, MemoryPermission perm) {
-    ASSERT(virtual_offset % PageAlignment == 0);
-    ASSERT(length % PageAlignment == 0);
+    ASSERT(virtual_offset % GuestPageSize == 0);
+    ASSERT(length % GuestPageSize == 0);
     ASSERT(virtual_offset + length <= virtual_size);
     if (length == 0 || !virtual_base || !impl) {
         return;

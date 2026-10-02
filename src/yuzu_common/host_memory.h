@@ -66,7 +66,8 @@ public:
     }
 
     bool IsInVirtualRange(void* address) const noexcept {
-        return address >= virtual_base && address < virtual_base + virtual_size;
+        return virtual_base != nullptr && address >= virtual_base &&
+               address < virtual_base + virtual_size;
     }
 
 private:

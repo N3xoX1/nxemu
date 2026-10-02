@@ -21,6 +21,14 @@
 #include <vector>
 #endif
 
+#ifdef __APPLE__
+namespace MacOSFileDialogs
+{
+bool FileSelect(const char * initialDir, const char * fileFilter, Path & selected);
+Path BrowseForDirectory(const char * title);
+} // namespace MacOSFileDialogs
+#endif
+
 bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilter, bool fileMustExist, Path & selected)
 {
 #ifdef _WIN32
@@ -59,6 +67,10 @@ bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilt
     }
     selected = Path(stdstr().FromUTF16(fileName.data()).c_str());
     return true;
+#elif defined(__APPLE__)
+    (void)hwndOwner;
+    (void)fileMustExist;
+    return MacOSFileDialogs::FileSelect(initialDir, fileFilter, selected);
 #else
     return false;
 #endif
@@ -444,6 +456,9 @@ Path BrowseForDirectory(void * parentWindow, const char * title)
     {
         CoUninitialize();
     }
+#elif defined(__APPLE__)
+    (void)parentWindow;
+    selected = MacOSFileDialogs::BrowseForDirectory(title);
 #elif defined(__linux__)
     const std::string folder = PickDirectory(parentWindow, title);
     if (!folder.empty())

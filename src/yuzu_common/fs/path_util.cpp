@@ -106,6 +106,13 @@ public:
 #else
         const fs::path exe_dir = GetExeDirectory();
         yuzu_path = exe_dir.empty() ? fs::path{} : exe_dir / PORTABLE_DIR;
+#ifdef __APPLE__
+        // A portable user directory belongs beside the .app, outside its signed
+        // contents. This also preserves data from a previous raw executable.
+        if (exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents") {
+            yuzu_path = exe_dir.parent_path().parent_path().parent_path() / PORTABLE_DIR;
+        }
+#endif
         if (!IsDir(yuzu_path)) {
             yuzu_path = GetCurrentDir() / PORTABLE_DIR;
         }

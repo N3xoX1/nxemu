@@ -34,6 +34,35 @@ SystemConfig::SystemConfig(ISciterUI & SciterUI, SystemModules & modules, std::v
 
 SystemConfig::~SystemConfig()
 {
+    if (m_pageNav)
+    {
+        m_pageNav->RemoveSink(this);
+    }
+    if (m_window != nullptr)
+    {
+        m_window->OnDestroySinkRemove(this);
+        m_window->Destroy();
+    }
+}
+
+void SystemConfig::OnWindowDestroy(HWINDOW hWnd)
+{
+    if (m_window == nullptr || m_window->GetHandle() != hWnd)
+    {
+        return;
+    }
+    m_window = nullptr;
+    if (m_pageNav)
+    {
+        m_pageNav->RemoveSink(this);
+        m_pageNav.reset();
+    }
+    m_systemConfigGraphics.reset();
+    m_systemConfigAudio.reset();
+    m_systemConfigGeneral.reset();
+    m_systemConfigGameBrowser.reset();
+    m_systemConfigProfiles.reset();
+    m_systemConfigSystemTab.reset();
 }
 
 void SystemConfig::Display(void * parentWindow, const char * startPage)
@@ -57,6 +86,7 @@ void SystemConfig::Display(void * parentWindow, const char * startPage)
     {
         return;
     }
+    m_window->OnDestroySinkAdd(this);
     SciterElement root(m_window->GetRootElement());
     if (root.IsValid())
     {
@@ -408,7 +438,9 @@ void SystemConfig::InitializeTranslations()
     }
 
     m_settingTranslations.insert({ TranslationType::RendererBackend, {
+#ifdef _WIN32
         {(uint32_t)RendererBackend::OpenGL, "OpenGL"},
+#endif
         {(uint32_t)RendererBackend::Vulkan, "Vulkan"},
         {(uint32_t)RendererBackend::Null, "Null"},
     }});

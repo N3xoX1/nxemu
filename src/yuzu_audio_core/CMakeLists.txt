@@ -18,6 +18,12 @@ list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/oboe_sink\\.cpp$")
 
 add_library(yuzu_audio_core STATIC ${YUZU_AUDIO_CORE_SOURCES})
 
+if(APPLE AND ENABLE_SDL2)
+    target_sources(yuzu_audio_core PRIVATE sink/sdl2_sink.cpp)
+    target_compile_definitions(yuzu_audio_core PRIVATE HAVE_SDL2)
+    target_link_libraries(yuzu_audio_core PRIVATE SDL2::SDL2)
+endif()
+
 target_include_directories(yuzu_audio_core PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/nxemu-os

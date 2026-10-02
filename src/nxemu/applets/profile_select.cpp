@@ -52,6 +52,22 @@ void ProfileSelectApplet::Detach()
     m_parameters = {};
 }
 
+void ProfileSelectApplet::DetachAfterWindowDestroyed()
+{
+    m_sciterUI = nullptr;
+    m_modules = nullptr;
+    m_rootElement = {};
+    m_parentHwnd = nullptr;
+    m_window = nullptr;
+    m_dialogOpen = false;
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_pending = false;
+    m_userData = nullptr;
+    m_finished = nullptr;
+    m_parameters = {};
+}
+
 void ProfileSelectApplet::Close()
 {
     ProfileSelectFinishedFn finished = nullptr;
