@@ -244,7 +244,7 @@ void DeviceMemoryManager<Traits>::Free(DAddr start, size_t size)
 template <typename Traits>
 void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size_t size, Asid asid, bool track)
 {
-    IMemory * process_memory = registered_processes[asid.id];
+    IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
     std::scoped_lock lk(mapping_guard);
@@ -315,7 +315,7 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
 template <typename Traits>
 void DeviceMemoryManager<Traits>::TrackContinuityImpl(DAddr address, VAddr virtual_address, size_t size, Asid asid)
 {
-    IMemory * process_memory = registered_processes[asid.id];
+    IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
     uintptr_t last_ptr = 0;
@@ -536,6 +536,7 @@ void DeviceMemoryManager<Traits>::WriteBlockUnsafe(DAddr address, const void* sr
 template <typename Traits>
 Asid DeviceMemoryManager<Traits>::RegisterProcess(IMemory * memory_device_inter)
 {
+    std::scoped_lock lk(process_guard);
     size_t new_id{};
     if (!id_pool.empty())
     {
@@ -554,8 +555,18 @@ Asid DeviceMemoryManager<Traits>::RegisterProcess(IMemory * memory_device_inter)
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UnregisterProcess(Asid asid)
 {
+    std::scoped_lock lk(process_guard);
     registered_processes[asid.id] = nullptr;
     id_pool.push_front(asid.id);
+}
+
+template <typename Traits>
+IMemory* DeviceMemoryManager<Traits>::GetRegisteredProcess(Asid asid)
+{
+    // A session's last allocation can be released on the compositor/GPU thread.
+    // Protect the registry and recycled IDs against concurrent registration.
+    std::scoped_lock lk(process_guard);
+    return asid.id < registered_processes.size() ? registered_processes[asid.id] : nullptr;
 }
 
 template <typename Traits>
@@ -572,7 +583,7 @@ void DeviceMemoryManager<Traits>::UpdatePagesCachedCount(DAddr addr, size_t size
     const size_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
     size_t page = addr >> DEVICE_PAGEBITS;
     auto [asid, base_vaddress] = ExtractCPUBacking(page);
-    auto* memory_device_inter = registered_processes[asid.id];
+    auto* memory_device_inter = GetRegisteredProcess(asid);
     const auto release_pending = [&]
     {
         if (uncache_bytes > 0)
@@ -608,7 +619,8 @@ void DeviceMemoryManager<Traits>::UpdatePagesCachedCount(DAddr addr, size_t size
         if (asid.id != asid_2.id) [[unlikely]]
         {
             release_pending();
-            memory_device_inter = registered_processes[asid_2.id];
+            memory_device_inter = GetRegisteredProcess(asid_2);
+            asid = asid_2;
         }
 
         if (vpage != old_vpage + 1) [[unlikely]]

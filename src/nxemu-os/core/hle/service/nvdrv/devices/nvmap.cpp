@@ -32,9 +32,9 @@ NvResult nvmap::Ioctl1(DeviceFD fd, Ioctl command, std::span<const u8> input,
     case 0x1:
         switch (command.cmd) {
         case 0x1:
-            return WrapFixed(this, &nvmap::IocCreate, input, output);
+            return WrapFixed(this, &nvmap::IocCreate, input, output, fd);
         case 0x3:
-            return WrapFixed(this, &nvmap::IocFromId, input, output);
+            return WrapFixed(this, &nvmap::IocFromId, input, output, fd);
         case 0x4:
             return WrapFixed(this, &nvmap::IocAlloc, input, output, fd);
         case 0x5:
@@ -80,7 +80,7 @@ NvResult nvmap::Ioctl3(DeviceFD fd, Ioctl command, std::span<const u8> input, st
 }
 
 void nvmap::OnOpen(NvCore::SessionId session_id, DeviceFD fd) {
-    sessions[fd] = session_id;
+    sessions[fd] = container.GetSessionReference(session_id);
 }
 void nvmap::OnClose(DeviceFD fd) {
     auto it = sessions.find(fd);
@@ -89,12 +89,19 @@ void nvmap::OnClose(DeviceFD fd) {
     }
 }
 
-NvResult nvmap::IocCreate(IocCreateParams& params) {
+std::shared_ptr<NvCore::Session> nvmap::GetSessionReference(DeviceFD fd) {
+    const auto it = sessions.find(fd);
+    if (it == sessions.end()) return nullptr;
+    return it->second.lock();
+}
+
+NvResult nvmap::IocCreate(IocCreateParams& params, DeviceFD fd) {
     LOG_DEBUG(Service_NVDRV, "called, size=0x{:08X}", params.size);
 
     std::shared_ptr<NvCore::NvMap::Handle> handle_description{};
     auto result =
-        file.CreateHandle(Common::AlignUp(params.size, YUZU_PAGESIZE), handle_description);
+        file.CreateHandle(Common::AlignUp(params.size, YUZU_PAGESIZE), handle_description,
+                          GetSessionReference(fd));
     if (result != NvResult::Success) {
         LOG_CRITICAL(Service_NVDRV, "Failed to create Object");
         return result;
@@ -130,30 +137,11 @@ NvResult nvmap::IocAlloc(IocAllocParams& params, DeviceFD fd) {
         return NvResult::BadValue;
     }
 
-    if (handle_description->allocated) {
-        LOG_CRITICAL(Service_NVDRV, "Object is already allocated, handle={:08X}", params.handle);
-        return NvResult::InsufficientMemory;
-    }
-
     const auto result = handle_description->Alloc(params.flags, params.align, params.kind,
-                                                  params.address, sessions[fd]);
+                                                  params.address, GetSessionReference(fd));
     if (result != NvResult::Success) {
         LOG_CRITICAL(Service_NVDRV, "Object failed to allocate, handle={:08X}", params.handle);
-        return result;
-    }
-    bool is_out_io{};
-    const auto owner_session = container.GetSessionReference(sessions[fd]);
-    auto process = owner_session->process;
-    ASSERT(process->GetKPageTable()
-               .LockForMapDeviceAddressSpace(&is_out_io, handle_description->address,
-                                             handle_description->size,
-                                             Kernel::KMemoryPermission::None, true, false)
-               .IsSuccess());
-    {
-        std::scoped_lock lock(handle_description->mutex);
-        handle_description->owner_session = owner_session;
-        handle_description->owner_process = process;
-        handle_description->device_address_space_locked = true;
+        return result == NvResult::AccessDenied ? NvResult::InsufficientMemory : result;
     }
     return result;
 }
@@ -178,13 +166,13 @@ NvResult nvmap::IocGetId(IocGetIdParams& params) {
     return NvResult::Success;
 }
 
-NvResult nvmap::IocFromId(IocFromIdParams& params) {
+NvResult nvmap::IocFromId(IocFromIdParams& params, DeviceFD fd) {
     LOG_DEBUG(Service_NVDRV, "called, id:{}", params.id);
 
     // Handles and IDs are always the same value in nvmap however IDs can be used globally given the
     // right permissions.
-    // Since we don't plan on ever supporting multiprocess we can skip implementing handle refs and
-    // so this function just does simple validation and passes through the handle id.
+    // Track each session's guest references separately so closing one session preserves imports
+    // and emulator-internal references owned elsewhere.
     if (!params.id) {
         LOG_CRITICAL(Service_NVDRV, "Zero Id is invalid!");
         return NvResult::BadValue;
@@ -196,7 +184,7 @@ NvResult nvmap::IocFromId(IocFromIdParams& params) {
         return NvResult::BadValue;
     }
 
-    auto result = handle_description->Duplicate(false);
+    auto result = handle_description->Duplicate(false, GetSessionReference(fd));
     if (result != NvResult::Success) {
         LOG_CRITICAL(Service_NVDRV, "Could not duplicate handle!");
         return result;
@@ -221,6 +209,7 @@ NvResult nvmap::IocParam(IocParamParams& params) {
         return NvResult::BadValue;
     }
 
+    std::scoped_lock lock(handle_description->mutex);
     switch (params.param) {
     case HandleParameterType::Size:
         params.result = static_cast<u32_le>(handle_description->orig_size);
@@ -258,7 +247,7 @@ NvResult nvmap::IocFree(IocFreeParams& params, DeviceFD fd) {
         return NvResult::Success;
     }
 
-    if (auto freeInfo{file.FreeHandle(params.handle, false)}) {
+    if (auto freeInfo{file.FreeHandle(params.handle, false, GetSessionReference(fd))}) {
         params.address = freeInfo->address;
         params.size = static_cast<u32>(freeInfo->size);
         params.flags.raw = 0;

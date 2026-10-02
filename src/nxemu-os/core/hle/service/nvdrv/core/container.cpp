@@ -159,27 +159,33 @@ SessionId Container::OpenSession(Kernel::KProcess * process)
 
 void Container::CloseSession(SessionId session_id)
 {
-    std::scoped_lock lk(impl->session_guard);
-    const auto session = impl->sessions[session_id.id];
-    if (--session->ref_count > 0)
+    std::shared_ptr<Session> session;
     {
-        return;
+        std::scoped_lock lk(impl->session_guard);
+        if (session_id.id >= impl->sessions.size() || !impl->sessions[session_id.id]) {
+            return;
+        }
+        session = impl->sessions[session_id.id];
+        if (--session->ref_count > 0) {
+            return;
+        }
+        {
+            std::scoped_lock session_lock(session->nvmap_mutex);
+            session->is_active.store(false, std::memory_order_release);
+        }
+        impl->sessions[session_id.id].reset();
+        impl->id_pool.emplace_front(session_id.id);
     }
-    impl->file.UnmapAllHandles(impl->sessions[session_id.id]);
-    session->is_active = false;
-    impl->sessions[session_id.id].reset();
-    impl->id_pool.emplace_front(session_id.id);
-}
-
-Session * Container::GetSession(SessionId session_id)
-{
-    std::atomic_thread_fence(std::memory_order_acquire);
-    return impl->sessions[session_id.id].get();
+    // Cleanup can wait on handle/page-table locks. Do not retain the container lock.
+    impl->file.UnmapAllHandles(session);
 }
 
 std::shared_ptr<Session> Container::GetSessionReference(SessionId session_id) {
     std::scoped_lock lk{impl->session_guard};
-    return impl->sessions[session_id.id];
+    if (session_id.id >= impl->sessions.size()) return nullptr;
+    const auto& session = impl->sessions[session_id.id];
+    if (!session || !session->is_active.load(std::memory_order_acquire)) return nullptr;
+    return session;
 }
 
 NvMap & Container::GetNvMapFile()

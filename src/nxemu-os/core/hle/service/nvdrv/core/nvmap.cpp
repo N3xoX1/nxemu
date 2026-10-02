@@ -26,8 +26,11 @@ NvMap::Handle::Handle(u64 size_, Id id_) :
 }
 
 NvResult NvMap::Handle::Alloc(Flags pFlags, u32 pAlign, u8 pKind, u64 pAddress,
-                              NvCore::SessionId pSessionId)
+                              const std::shared_ptr<Session>& session)
 {
+    if (!session) return NvResult::InvalidState;
+    std::scoped_lock session_lock(session->nvmap_mutex);
+    if (!session->is_active.load(std::memory_order_acquire)) return NvResult::InvalidState;
     std::scoped_lock lock(mutex);
     // Handles cannot be allocated twice
     if (allocated)
@@ -35,10 +38,20 @@ NvResult NvMap::Handle::Alloc(Flags pFlags, u32 pAlign, u8 pKind, u64 pAddress,
         return NvResult::AccessDenied;
     }
 
+    if (!guest_refs.contains(session.get())) return NvResult::BadValue;
+    const u64 allocation_size = Common::AlignUp(size, YUZU_PAGESIZE);
+    bool is_out_io{};
+    if (!session->process->GetKPageTable()
+             .LockForMapDeviceAddressSpace(&is_out_io, pAddress, allocation_size,
+                                           Kernel::KMemoryPermission::None, true, false)
+             .IsSuccess()) {
+        return NvResult::InsufficientMemory;
+    }
+
     flags = pFlags;
     kind = pKind;
     align = pAlign < YUZU_PAGESIZE ? YUZU_PAGESIZE : pAlign;
-    session_id = pSessionId;
+    session_id = session->id;
 
     // This flag is only applicable for handles with an address passed
     if (pAddress)
@@ -51,31 +64,39 @@ NvResult NvMap::Handle::Alloc(Flags pFlags, u32 pAlign, u8 pKind, u64 pAddress,
                      "Mapping nvmap handles without a CPU side address is unimplemented!");
     }
 
-    size = Common::AlignUp(size, YUZU_PAGESIZE);
+    size = allocation_size;
     aligned_size = Common::AlignUp(size, align);
     address = pAddress;
+    owner_session = session;
+    owner_process = session->process;
+    device_address_space_locked = true;
     allocated = true;
 
     return NvResult::Success;
 }
 
-NvResult NvMap::Handle::Duplicate(bool internal_session)
+NvResult NvMap::Handle::Duplicate(bool internal_session, const std::shared_ptr<Session>& session)
 {
+    std::unique_lock<std::mutex> session_lock;
+    if (!internal_session) {
+        if (!session) return NvResult::InvalidState;
+        session_lock = std::unique_lock(session->nvmap_mutex);
+        if (!session->is_active.load(std::memory_order_acquire)) return NvResult::InvalidState;
+    }
     std::scoped_lock lock(mutex);
     // Unallocated handles cannot be duplicated as duplication requires memory accounting (in HOS)
-    if (!allocated) [[unlikely]]
+    if (!allocated || (dupes == 0 && internal_dupes == 0)) [[unlikely]]
     {
         return NvResult::BadValue;
     }
 
-    // If we internally use FromId the duplication tracking of handles won't work accurately due to
-    // us not implementing per-process handle refs.
     if (internal_session)
     {
         internal_dupes++;
     }
     else
     {
+        ++guest_refs[session.get()];
         dupes++;
     }
 
@@ -184,15 +205,20 @@ bool NvMap::FinalizeHandleLocked(Handle& handle_description)
     return TryRemoveHandle(handle_description);
 }
 
-NvResult NvMap::CreateHandle(u64 size, std::shared_ptr<NvMap::Handle> & result_out)
+NvResult NvMap::CreateHandle(u64 size, std::shared_ptr<NvMap::Handle> & result_out,
+                              const std::shared_ptr<Session>& session)
 {
     if (!size) [[unlikely]]
     {
         return NvResult::BadValue;
     }
 
+    if (!session) return NvResult::InvalidState;
+    std::scoped_lock session_lock(session->nvmap_mutex);
+    if (!session->is_active.load(std::memory_order_acquire)) return NvResult::InvalidState;
     u32 id{next_handle_id.fetch_add(HandleIdIncrement, std::memory_order_relaxed)};
     auto handle_description{std::make_shared<Handle>(size, id)};
+    handle_description->guest_refs.emplace(session.get(), 1);
     AddHandle(handle_description);
 
     result_out = handle_description;
@@ -214,15 +240,10 @@ std::shared_ptr<NvMap::Handle> NvMap::GetHandle(Handle::Id handle)
 
 DAddr NvMap::GetHandleAddress(Handle::Id handle)
 {
-    std::scoped_lock lock(handles_lock);
-    try
-    {
-        return handles.at(handle)->d_address;
-    }
-    catch (std::out_of_range &)
-    {
-        return 0;
-    }
+    const auto description = GetHandle(handle);
+    if (!description) return 0;
+    std::scoped_lock lock(description->mutex);
+    return description->d_address;
 }
 
 DAddr NvMap::PinHandle(NvMap::Handle::Id handle, bool low_area_pin)
@@ -234,6 +255,10 @@ DAddr NvMap::PinHandle(NvMap::Handle::Id handle, bool low_area_pin)
     }
 
     std::scoped_lock lock(handle_description->mutex);
+    if (!handle_description->allocated || !handle_description->owner_session ||
+        (handle_description->dupes == 0 && handle_description->internal_dupes == 0)) {
+        return 0;
+    }
     const auto map_low_area = [&] {
         if (handle_description->pin_virt_address == 0)
         {
@@ -357,7 +382,8 @@ void NvMap::DuplicateHandle(Handle::Id handle, bool internal_session)
     }
 }
 
-std::optional<NvMap::FreeInfo> NvMap::FreeHandle(Handle::Id handle, bool internal_session)
+std::optional<NvMap::FreeInfo> NvMap::FreeHandle(Handle::Id handle, bool internal_session,
+                                                const std::shared_ptr<Session>& session)
 {
     auto handle_description{GetHandle(handle)};
     if (!handle_description)
@@ -369,17 +395,16 @@ std::optional<NvMap::FreeInfo> NvMap::FreeHandle(Handle::Id handle, bool interna
 
     if (internal_session)
     {
-        if (--handle_description->internal_dupes < 0)
-        {
-            LOG_WARNING(Service_NVDRV, "Internal duplicate count imbalance detected!");
-        }
+        if (handle_description->internal_dupes == 0) return std::nullopt;
+        --handle_description->internal_dupes;
     }
     else
     {
-        if (--handle_description->dupes < 0)
-        {
-            LOG_WARNING(Service_NVDRV, "User duplicate count imbalance detected!");
-        }
+        if (!session) return std::nullopt;
+        const auto it = handle_description->guest_refs.find(session.get());
+        if (it == handle_description->guest_refs.end()) return std::nullopt;
+        if (--it->second == 0) handle_description->guest_refs.erase(it);
+        --handle_description->dupes;
     }
 
     const FreeInfo freeInfo = {
@@ -416,14 +441,12 @@ void NvMap::UnmapAllHandles(const std::shared_ptr<NvCore::Session>& session)
 
     for (auto & [id, handle] : handles_copy)
     {
-        {
-            std::scoped_lock lk{handle->mutex};
-            if (handle->owner_session != session || handle->dupes <= 0)
-            {
-                continue;
-            }
-        }
-        FreeHandle(id, false);
+        std::scoped_lock lk{handle->mutex};
+        const auto it = handle->guest_refs.find(session.get());
+        if (it == handle->guest_refs.end()) continue;
+        handle->dupes -= it->second;
+        handle->guest_refs.erase(it);
+        FinalizeHandleLocked(*handle);
     }
 }
 

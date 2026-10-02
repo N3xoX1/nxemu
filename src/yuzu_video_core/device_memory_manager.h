@@ -158,6 +158,8 @@ private:
 
     std::deque<size_t> id_pool;
     std::deque<IMemory*> registered_processes;
+    std::mutex process_guard;
+    IMemory* GetRegisteredProcess(Asid asid);
 
     // Memory protection management
 

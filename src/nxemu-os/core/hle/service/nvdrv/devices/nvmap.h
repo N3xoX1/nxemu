@@ -99,10 +99,10 @@ public:
     };
     static_assert(sizeof(IocGetIdParams) == 8, "IocGetIdParams has wrong size");
 
-    NvResult IocCreate(IocCreateParams& params);
+    NvResult IocCreate(IocCreateParams& params, DeviceFD fd);
     NvResult IocAlloc(IocAllocParams& params, DeviceFD fd);
     NvResult IocGetId(IocGetIdParams& params);
-    NvResult IocFromId(IocFromIdParams& params);
+    NvResult IocFromId(IocFromIdParams& params, DeviceFD fd);
     NvResult IocParam(IocParamParams& params);
     NvResult IocFree(IocFreeParams& params, DeviceFD fd);
 
@@ -115,7 +115,8 @@ private:
 
     NvCore::Container& container;
     NvCore::NvMap& file;
-    std::unordered_map<DeviceFD, NvCore::SessionId> sessions;
+    std::unordered_map<DeviceFD, std::weak_ptr<NvCore::Session>> sessions;
+    std::shared_ptr<NvCore::Session> GetSessionReference(DeviceFD fd);
 };
 
 } // namespace Service::Nvidia::Devices
