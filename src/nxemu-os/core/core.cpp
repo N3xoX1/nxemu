@@ -69,6 +69,15 @@ struct System::Impl {
 
     void Initialize(System& system)
     {
+        ConfigureRuntime(system);
+
+        // These objects outlive individual games and runtime setting changes.
+        frontend_applets.SetDefaultAppletsIfMissing();
+        input_subsystem->Initialize();
+    }
+
+    void ConfigureRuntime(System& system)
+    {
         is_multicore = osSettings.use_multi_core;
         cpu_hle_requested = osSettings.cpu_hle_synchronization;
         cpu_hle_initialized_supported = CpuHleSupported();
@@ -82,32 +91,28 @@ struct System::Impl {
         core_timing.SetMulticore(is_multicore);
         core_timing.Initialize([&system]() { system.RegisterHostThread(); }, cpu_hle_initialized_supported);
 
-        // Create default implementations of applets if one is not provided.
-        frontend_applets.SetDefaultAppletsIfMissing();
-
         is_async_gpu = g_settings->GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
 
         kernel.SetMulticore(is_multicore);
         cpu_manager.SetMulticore(is_multicore);
         cpu_manager.SetAsyncGpu(is_async_gpu);
-        input_subsystem->Initialize();
     }
 
-    void ReinitializeIfNecessary(System & system)
+    void ReconfigureIfNecessary(System & system)
     {
-        const bool must_reinitialize = is_multicore != osSettings.use_multi_core ||
+        const bool must_reconfigure = is_multicore != osSettings.use_multi_core ||
             cpu_hle_requested != osSettings.cpu_hle_synchronization ||
-            cpu_hle_initialized_supported != CpuHleSupported() ||
+            (cpu_hle_requested && cpu_hle_initialized_supported != CpuHleSupported()) ||
             core_timing.CpuHleSynchronizationFailed();
 
-        if (!must_reinitialize)
+        if (!must_reconfigure)
         {
             return;
         }
 
-        LOG_DEBUG(Kernel, "Re-initializing");
+        LOG_DEBUG(Kernel, "Reconfiguring runtime timing and CPU settings");
 
-        Initialize(system);
+        ConfigureRuntime(system);
     }
 
     bool CpuHleSupported() const
@@ -175,8 +180,9 @@ struct System::Impl {
         LOG_DEBUG(Core, "initialized OK");
 
         cpu_hle_guest64 = is_64_bit;
-        // Setting changes may require a full system reinitialization (e.g., disabling multicore).
-        ReinitializeIfNecessary(system);
+        // Reconfigure timing before creating guest threads. Input factories and
+        // frontend applets remain the instances registered during OS startup.
+        ReconfigureIfNecessary(system);
 
         kernel.Initialize();
         cpu_manager.Initialize();
