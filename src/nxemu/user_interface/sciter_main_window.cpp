@@ -388,7 +388,6 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXUISetting::HideMouseOnInactivity, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::EnableDiscordPresence, SciterMainWindow::SettingChanged, this);
 
-    m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
     if (m_firmwareInstallThread.joinable())
     {
         m_firmwareInstallThread.join();
@@ -1852,6 +1851,11 @@ void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
     m_ProfileSelect.Detach();
     m_WebBrowser.DetachWindow();
+    if (m_rootElement.IsValid())
+    {
+        m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
+    }
+    m_rootElement = {};
     m_sciterUI.Stop();
 }
 
