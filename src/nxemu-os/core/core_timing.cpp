@@ -5,8 +5,12 @@
 #include <mutex>
 #include <string>
 #include <tuple>
+#include "core/hle_execution_time.h"
+#include "os_settings.h"
 
 #ifdef _WIN32
+#include <Windows.h>
+#undef CreateEvent
 #include "yuzu_common/windows/timer_resolution.h"
 #endif
 
@@ -16,10 +20,42 @@
 
 #include "core/core_timing.h"
 #include "core/hardware_properties.h"
+#include "yuzu_common/logging/log.h"
 
 namespace Core::Timing {
 
 constexpr s64 MAX_SLICE_LENGTH = 10000;
+
+#ifdef _WIN32
+// Short HLE completion deadlines must not keep HostTiming on a CPU while
+// waiting. Both an earlier event and shutdown interrupt this one-shot wait.
+class CoreTiming::WindowsTimerWait {
+public:
+    WindowsTimerWait() {
+        timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+            TIMER_MODIFY_STATE | SYNCHRONIZE);
+        wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    }
+    ~WindowsTimerWait() {
+        if (timer) CloseHandle(timer);
+        if (wake) CloseHandle(wake);
+    }
+    bool IsValid() const { return timer && wake; }
+    void Notify() { SetEvent(wake); }
+    bool WaitForNotification() { return WaitForSingleObject(wake, INFINITE) == WAIT_OBJECT_0; }
+    bool Wait(s64 ns) {
+        // Round up to the API's 100 ns units. The caller always rechecks the
+        // emulated clock; a host timeout alone never makes an event due.
+        LARGE_INTEGER due{.QuadPart = -(ns / 100 + (ns % 100 != 0))};
+        if (!SetWaitableTimerEx(timer, &due, 0, nullptr, nullptr, nullptr, 0)) return false;
+        const HANDLE handles[]{wake, timer};
+        return WaitForMultipleObjects(2, handles, FALSE, INFINITE) != WAIT_FAILED;
+    }
+private:
+    HANDLE timer{}, wake{};
+};
+#endif
+
 
 std::shared_ptr<EventType> CreateEvent(std::string name, TimedCallback&& callback) {
     return std::make_shared<EventType>(std::move(callback), std::move(name));
@@ -57,12 +93,36 @@ void CoreTiming::ThreadEntry(CoreTiming& instance) {
     instance.ThreadLoop();
 }
 
-void CoreTiming::Initialize(std::function<void()>&& on_thread_init_) {
+void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle) {
     Reset();
     on_thread_init = std::move(on_thread_init_);
     event_fifo_id = 0;
     shutting_down = false;
     cpu_ticks = 0;
+    fallback_time_offset_ns.store(0, std::memory_order_relaxed);
+    cpu_hle_failed.store(false, std::memory_order_relaxed);
+    bool supported = false;
+    bool counter_supported = false;
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
+    if (osSettings.cpu_hle_synchronization && allow_cpu_hle && is_multicore)
+        counter_supported = ReadNativeThreadTimeNs().has_value();
+    supported = osSettings.cpu_hle_synchronization && allow_cpu_hle && is_multicore && counter_supported;
+#endif
+#ifdef _WIN32
+    if (supported) {
+        windows_timer_wait = std::make_unique<WindowsTimerWait>();
+        if (!windows_timer_wait->IsValid()) {
+            windows_timer_wait.reset();
+            supported = false;
+            LOG_WARNING(Core, "High-resolution timer unavailable; using normal timing");
+        }
+    }
+#endif
+    cpu_hle_enabled.store(osSettings.cpu_hle_synchronization && supported, std::memory_order_release);
+    shared_clock.Reset(clock.get());
+    if (osSettings.cpu_hle_synchronization && !supported)
+        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64={}, thread_counter={}); using normal timing", is_multicore, allow_cpu_hle, counter_supported);
+    LOG_INFO(Core, "CPU/HLE synchronization: {} (multicore={}, guest64={})", CpuHleSynchronizationEnabled(), is_multicore, allow_cpu_hle);
     if (is_multicore) {
         timer_thread = std::make_unique<std::jthread>(ThreadEntry, std::ref(*this));
     }
@@ -71,12 +131,16 @@ void CoreTiming::Initialize(std::function<void()>&& on_thread_init_) {
 void CoreTiming::ClearPendingEvents() {
     std::scoped_lock lock{advance_lock, basic_lock};
     event_queue.clear();
-    event.Set();
+    NotifyEvent();
 }
 
 void CoreTiming::Pause(bool is_paused) {
+    if (CpuHleSynchronizationEnabled()) shared_clock.Pause(is_paused);
     paused = is_paused;
     pause_event.Set();
+#ifdef _WIN32
+    if (windows_timer_wait) windows_timer_wait->Notify();
+#endif
 
     if (!is_paused) {
         pause_end_time = GetGlobalTimeNs().count();
@@ -93,7 +157,7 @@ void CoreTiming::SyncPause(bool is_paused) {
         if (!is_paused) {
             pause_event.Set();
         }
-        event.Set();
+        NotifyEvent();
         while (paused_set != is_paused)
             ;
     }
@@ -122,7 +186,7 @@ void CoreTiming::ScheduleEvent(std::chrono::nanoseconds ns_into_future,
         (*h).handle = h;
     }
 
-    event.Set();
+    NotifyEvent();
 }
 
 void CoreTiming::ScheduleLoopingEvent(std::chrono::nanoseconds start_time,
@@ -138,7 +202,7 @@ void CoreTiming::ScheduleLoopingEvent(std::chrono::nanoseconds start_time,
         (*h).handle = h;
     }
 
-    event.Set();
+    NotifyEvent();
 }
 
 void CoreTiming::UnscheduleEvent(const std::shared_ptr<EventType>& event_type,
@@ -181,14 +245,20 @@ void CoreTiming::ResetTicks() {
 }
 
 u64 CoreTiming::GetClockTicks() const {
+    if (CpuHleSynchronizationEnabled()) return Common::WallClock::NSToCNTPCT(shared_clock.Now());
     if (is_multicore) [[likely]] {
+        if (fallback_time_offset_ns.load(std::memory_order_acquire))
+            return Common::WallClock::NSToCNTPCT(GetGlobalTimeNs().count());
         return clock->GetCNTPCT();
     }
     return Common::WallClock::CPUTickToCNTPCT(cpu_ticks);
 }
 
 u64 CoreTiming::GetGPUTicks() const {
+    if (CpuHleSynchronizationEnabled()) return Common::WallClock::NSToGPUTick(shared_clock.Now());
     if (is_multicore) [[likely]] {
+        if (fallback_time_offset_ns.load(std::memory_order_acquire))
+            return Common::WallClock::NSToGPUTick(GetGlobalTimeNs().count());
         return clock->GetGPUTick();
     }
     return Common::WallClock::CPUTickToGPUTick(cpu_ticks);
@@ -266,7 +336,30 @@ void CoreTiming::ThreadLoop() {
 #ifdef _WIN32
                     while (!paused && !event.IsSet() && wait_time > 0) {
                         wait_time = *next_time - GetGlobalTimeNs().count();
-                        if (wait_time >= timer_resolution_ns) {
+                        if (wait_time <= 0) break;
+                        if (CpuHleSynchronizationEnabled() && windows_timer_wait) {
+                            // Serialize the snapshot with compilation-end notification
+                            // so resuming a frozen CPU cannot miss this wakeup.
+                            bool blocked;
+                            {
+                                std::scoped_lock lock{compilation_wait_guard};
+                                blocked = shared_clock.CompilationBlocks(*next_time);
+                                waiting_for_compilation = blocked;
+                            }
+                            bool ok;
+                            if (blocked) {
+                                ok = windows_timer_wait->WaitForNotification();
+                            } else {
+                                ok = windows_timer_wait->Wait(wait_time);
+                            }
+                            {
+                                std::scoped_lock lock{compilation_wait_guard};
+                                waiting_for_compilation = false;
+                            }
+                            if (!ok) {
+                                DisableCpuHleSynchronization("high-resolution timer wait failed");
+                            }
+                        } else if (wait_time >= timer_resolution_ns) {
                             Common::Windows::SleepForOneTick();
                         } else {
 #if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
@@ -302,23 +395,31 @@ void CoreTiming::Reset() {
     paused = true;
     shutting_down = true;
     pause_event.Set();
-    event.Set();
+    NotifyEvent();
     if (timer_thread) {
         timer_thread->join();
     }
     timer_thread.reset();
+#ifdef _WIN32
+    windows_timer_wait.reset();
+#endif
     has_started = false;
 }
 
 std::chrono::nanoseconds CoreTiming::GetGlobalTimeNs() const {
+    if (CpuHleSynchronizationEnabled()) return std::chrono::nanoseconds{shared_clock.Now()};
     if (is_multicore) [[likely]] {
-        return clock->GetTimeNS();
+        const auto offset = fallback_time_offset_ns.load(std::memory_order_acquire);
+        return clock->GetTimeNS() + std::chrono::nanoseconds{offset};
     }
     return std::chrono::nanoseconds{Common::WallClock::CPUTickToNS(cpu_ticks)};
 }
 
 std::chrono::microseconds CoreTiming::GetGlobalTimeUs() const {
+    if (CpuHleSynchronizationEnabled()) return std::chrono::duration_cast<std::chrono::microseconds>(GetGlobalTimeNs());
     if (is_multicore) [[likely]] {
+        if (fallback_time_offset_ns.load(std::memory_order_acquire))
+            return std::chrono::duration_cast<std::chrono::microseconds>(GetGlobalTimeNs());
         return clock->GetTimeUS();
     }
     return std::chrono::microseconds{Common::WallClock::CPUTickToUS(cpu_ticks)};
@@ -329,5 +430,53 @@ void CoreTiming::SetTimerResolutionNs(std::chrono::nanoseconds ns) {
     timer_resolution_ns = ns.count();
 }
 #endif
+
+bool CoreTiming::CpuHleSynchronizationEnabled() const {
+    return cpu_hle_enabled.load(std::memory_order_acquire);
+}
+
+void CoreTiming::DisableCpuHleSynchronization(const char* reason) {
+    std::scoped_lock lock{cpu_hle_transition_guard};
+    if (!CpuHleSynchronizationEnabled()) return;
+    // Freeze publication before changing clocks, preserving the event timeline.
+    // All three components consult this session-wide switch; no partial mode.
+    shared_clock.Pause(true);
+    const auto now = static_cast<s64>(shared_clock.Now());
+    fallback_time_offset_ns.store(now - clock->GetTimeNS().count(), std::memory_order_release);
+    cpu_hle_enabled.store(false, std::memory_order_release);
+    cpu_hle_failed.store(true, std::memory_order_release);
+    NotifyEvent();
+    LOG_ERROR(Core, "CPU/HLE synchronization disabled: {}; normal timing resumed for this session", reason);
+}
+
+void CoreTiming::NotifyEvent() {
+    event.Set();
+#ifdef _WIN32
+    if (windows_timer_wait) windows_timer_wait->Notify();
+#endif
+}
+
+void CoreTiming::CpuCompilation(uint32_t core, bool compiling) {
+    if (!CpuHleSynchronizationEnabled()) return;
+    shared_clock.Compile(core, compiling);
+#ifdef _WIN32
+    if (!compiling) {
+        std::scoped_lock lock{compilation_wait_guard};
+        if (waiting_for_compilation) NotifyEvent();
+    }
+#endif
+}
+
+void CoreTiming::SetCpuRunnableMask(u32 mask) {
+    if (CpuHleSynchronizationEnabled()) shared_clock.SetRunnableMask(mask);
+}
+
+void CoreTiming::BeginCpuRun(uint32_t core) {
+    if (CpuHleSynchronizationEnabled()) shared_clock.Begin(core);
+}
+
+void CoreTiming::EndCpuRun(uint32_t core) {
+    if (CpuHleSynchronizationEnabled()) shared_clock.End(core);
+}
 
 } // namespace Core::Timing

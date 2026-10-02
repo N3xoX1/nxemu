@@ -63,6 +63,10 @@ nxinterface ICoreTiming
     virtual void AddTicks(uint64_t ticks) = 0;
     virtual int64_t GetDowncount() const = 0;
     virtual uint64_t GetClockTicks() const = 0;
+    virtual void BeginCpuRun(uint32_t core) = 0;
+    virtual void EndCpuRun(uint32_t core) = 0;
+    virtual bool CpuHleSynchronizationEnabled() const = 0;
+    virtual void CpuCompilation(uint32_t core, bool compiling) = 0;
 };
 
 nxinterface ICoreSystem

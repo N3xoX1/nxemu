@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <mutex>
+#include <algorithm>
+#include <limits>
+#include "core/hle_execution_time.h"
+#include "core/core_timing.h"
+
 
 #include "yuzu_common/yuzu_assert.h"
 #include "core/core.h"
@@ -10,12 +15,48 @@
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/physical_core.h"
 
+
 namespace Kernel {
 
 GlobalSchedulerContext::GlobalSchedulerContext(KernelCore& kernel)
-    : m_kernel{kernel}, m_scheduler_lock{kernel} {}
+    : m_kernel{kernel}, m_scheduler_lock{kernel} {
+
+}
 
 GlobalSchedulerContext::~GlobalSchedulerContext() = default;
+
+GlobalSchedulerContext::HleWork GlobalSchedulerContext::BeginHle() {
+    auto& timing = m_kernel.System().CoreTiming();
+    if (!timing.CpuHleSynchronizationEnabled()) return {};
+    KScopedSchedulerLock lock{m_kernel};
+    auto& thread = GetCurrentThread(m_kernel);
+    // A nested service call is already charged to its enclosing handler.
+    if (thread.hle_execution.IsCollecting()) return {};
+    const auto actor = thread.GetThreadId();
+    const auto start = std::max(m_hle_available[actor],
+        static_cast<u64>(timing.GetGlobalTimeNs().count()));
+    ASSERT(!thread.hle_execution.IsCollecting());
+    thread.hle_execution.Begin(Core::Timing::ReadNativeThreadTimeNs());
+    return {actor, start, &thread};
+}
+
+u64 GlobalSchedulerContext::EndHle(const HleWork& work) {
+    if (!work.executing_thread) return 0;
+    const auto elapsed = work.executing_thread->hle_execution.Finish(Core::Timing::ReadNativeThreadTimeNs());
+    KScopedSchedulerLock lock{m_kernel};
+    auto& timing = m_kernel.System().CoreTiming();
+    if (!timing.CpuHleSynchronizationEnabled()) return 0;
+    if (!elapsed) {
+        // A missing CPU-time sample cannot become free work or blocked wall time.
+        timing.DisableCpuHleSynchronization();
+        return 0;
+    }
+    constexpr auto limit = static_cast<u64>(std::numeric_limits<s64>::max());
+    const auto start = std::min(work.virtual_start, limit);
+    auto& available = m_hle_available[work.actor];
+    available = std::max(available, start + std::min(*elapsed, limit - start));
+    return available;
+}
 
 void GlobalSchedulerContext::AddThread(KThread* thread) {
     std::scoped_lock lock{m_global_list_guard};

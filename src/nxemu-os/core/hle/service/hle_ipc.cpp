@@ -27,6 +27,7 @@
 #include "core/hle/service/ipc_helpers.h"
 #include "core/memory.h"
 #include "core/core.h"
+#include "core/core_timing.h"
 
 namespace Service {
 
@@ -139,6 +140,7 @@ HLERequestContext::HLERequestContext(Kernel::KernelCore& kernel_, Core::Memory::
     thread->Open();
     server_session->Open();
     session_request->Open();
+    defer_response_buffers = kernel.System().CoreTiming().CpuHleSynchronizationEnabled();
     cmd_buf[0] = 0;
 }
 

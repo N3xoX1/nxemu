@@ -270,6 +270,7 @@
     <ClCompile Include="emu_thread.cpp" />
     <ClCompile Include="nxemu-os.cpp" />
     <ClCompile Include="core\core_timing.cpp" />
+    <ClCompile Include="core\hle_execution_time.cpp" />
     <ClCompile Include="core\device_memory.cpp" />
     <ClCompile Include="core\cpu_manager.cpp" />
     <ClCompile Include="core\memory.cpp" />
@@ -530,6 +531,8 @@
     <ClInclude Include="core\constants.h" />
     <ClInclude Include="core\core.h" />
     <ClInclude Include="core\core_timing.h" />
+    <ClInclude Include="core\shared_cpu_clock.h" />
+    <ClInclude Include="core\hle_execution_time.h" />
     <ClInclude Include="core\cpu_manager.h" />
     <ClInclude Include="core\debugger\debugger.h" />
     <ClInclude Include="core\device_memory.h" />
