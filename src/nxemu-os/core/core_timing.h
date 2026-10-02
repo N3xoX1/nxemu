@@ -166,14 +166,14 @@ private:
     std::atomic<bool> cpu_hle_failed{};
     std::atomic<s64> fallback_time_offset_ns{};
     std::mutex cpu_hle_transition_guard;
+    std::mutex compilation_wait_guard;
+    bool waiting_for_compilation{};
 
     s64 global_timer = 0;
 
 #ifdef _WIN32
     class WindowsTimerWait;
     std::unique_ptr<WindowsTimerWait> windows_timer_wait;
-    std::mutex compilation_wait_guard;
-    bool waiting_for_compilation{};
     s64 timer_resolution_ns{1'000'000};
 #endif
 

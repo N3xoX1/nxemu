@@ -103,11 +103,9 @@ void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_
     cpu_hle_failed.store(false, std::memory_order_relaxed);
     bool supported = false;
     bool counter_supported = false;
-#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
     if (osSettings.cpu_hle_synchronization && allow_cpu_hle && is_multicore)
         counter_supported = ReadNativeThreadTimeNs().has_value();
     supported = osSettings.cpu_hle_synchronization && allow_cpu_hle && is_multicore && counter_supported;
-#endif
 #ifdef _WIN32
     if (supported) {
         windows_timer_wait = std::make_unique<WindowsTimerWait>();
@@ -121,8 +119,8 @@ void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_
     cpu_hle_enabled.store(osSettings.cpu_hle_synchronization && supported, std::memory_order_release);
     shared_clock.Reset(clock.get());
     if (osSettings.cpu_hle_synchronization && !supported)
-        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64={}, thread_counter={}); using normal timing", is_multicore, allow_cpu_hle, counter_supported);
-    LOG_INFO(Core, "CPU/HLE synchronization: {} (multicore={}, guest64={})", CpuHleSynchronizationEnabled(), is_multicore, allow_cpu_hle);
+        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64_dynarmic={}, thread_counter={}); using normal timing", is_multicore, allow_cpu_hle, counter_supported);
+    LOG_INFO(Core, "CPU/HLE synchronization: {} (multicore={}, guest64_dynarmic={})", CpuHleSynchronizationEnabled(), is_multicore, allow_cpu_hle);
     if (is_multicore) {
         timer_thread = std::make_unique<std::jthread>(ThreadEntry, std::ref(*this));
     }
@@ -374,7 +372,21 @@ void CoreTiming::ThreadLoop() {
                         event.Reset();
                     }
 #else
-                    event.WaitFor(std::chrono::nanoseconds(wait_time));
+                    // Use the same frozen-clock predicate and wake handshake as
+                    // Windows. A deadline cannot expire while a participant is
+                    // compiling; wait for a transition instead of polling it.
+                    bool blocked = false;
+                    if (CpuHleSynchronizationEnabled()) {
+                        std::scoped_lock lock{compilation_wait_guard};
+                        blocked = shared_clock.CompilationBlocks(*next_time);
+                        waiting_for_compilation = blocked;
+                    }
+                    if (blocked) event.Wait();
+                    else event.WaitFor(std::chrono::nanoseconds(wait_time));
+                    if (blocked) {
+                        std::scoped_lock lock{compilation_wait_guard};
+                        waiting_for_compilation = false;
+                    }
 #endif
                 }
             } else {
@@ -459,12 +471,10 @@ void CoreTiming::NotifyEvent() {
 void CoreTiming::CpuCompilation(uint32_t core, bool compiling) {
     if (!CpuHleSynchronizationEnabled()) return;
     shared_clock.Compile(core, compiling);
-#ifdef _WIN32
     if (!compiling) {
         std::scoped_lock lock{compilation_wait_guard};
         if (waiting_for_compilation) NotifyEvent();
     }
-#endif
 }
 
 void CoreTiming::SetCpuRunnableMask(u32 mask) {

@@ -147,6 +147,9 @@ public:
     static constexpr s32 DefaultThreadPriority = 44;
     // Owned by this fiber, including suspension and migration between host threads.
     Core::Timing::HleExecutionTime hle_execution;
+    // Serialized by the scheduler lock; dies with the actor instead of leaving
+    // an entry indexed by a monotonically increasing thread id.
+    u64 hle_available_time{};
     void SuspendHleExecution() {
         if (hle_execution.IsCollecting())
             hle_execution.Suspend(Core::Timing::ReadNativeThreadTimeNs());
