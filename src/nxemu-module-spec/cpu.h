@@ -49,6 +49,8 @@ enum class CpuHaltReason
     InstructionBreakpoint,
     PrefetchAbort,
     PrefetchAbortBreakLoop,
+    // A cycle-counted CPU run can exhaust its budget without an exceptional halt.
+    None,
 };
 
 struct CpuDebugWatchpoint
