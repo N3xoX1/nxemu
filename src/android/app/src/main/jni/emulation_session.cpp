@@ -357,3 +357,21 @@ int EmulationSession::GetStyleIndex(int player_index)
     const NpadIdType npad_id = player_index == 8 ? NpadIdType::Handheld : (NpadIdType)player_index;
     return (int)os.GetEmulatedController(npad_id).GetNpadStyleIndex();
 }
+
+IOperatingSystem * EmulationSession::OperatingSystem()
+{
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return nullptr;
+    }
+    return &m_system_modules->Modules().OperatingSystem();
+}
+
+SystemModules * EmulationSession::Modules()
+{
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return nullptr;
+    }
+    return m_system_modules.get();
+}

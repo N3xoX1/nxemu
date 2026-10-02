@@ -6,6 +6,7 @@
 #include <string>
 
 #include <nxemu-core/modules/system_modules.h>
+#include <nxemu-module-spec/operating_system.h>
 #include "android_render_window.h"
 
 struct ANativeWindow;
@@ -35,6 +36,9 @@ public:
 
     ANativeWindow * NativeWindow() const;
     float PixelRatio() const;
+
+    IOperatingSystem * OperatingSystem();
+    SystemModules * Modules();
 
 private:
     EmulationSession() = default;

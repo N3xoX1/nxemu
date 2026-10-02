@@ -16,9 +16,13 @@
 #include "yuzu_common/string_util.h"
 #include "yuzu_hid_core/frontend/emulated_controller.h"
 #include "yuzu_hid_core/hid_core.h"
+#include "yuzu_input_common/drivers/android.h"
 #include "yuzu_input_common/drivers/keyboard.h"
 #include "yuzu_input_common/drivers/virtual_gamepad.h"
 #include "yuzu_input_common/main.h"
+#ifdef ANDROID
+#include <jni.h>
+#endif
 #include <nxemu-core/settings/identifiers.h>
 #include <filesystem>
 
@@ -387,6 +391,55 @@ IParamPackageList * OSManager::GetInputDevices() const
 IEmulatedController & OSManager::GetEmulatedController(NpadIdType index)
 {
     return *m_coreSystem.HIDCore().GetEmulatedController(index);
+}
+
+void OSManager::AndroidRegisterController(void * j_input_device)
+{
+#ifdef ANDROID
+    if (j_input_device == nullptr)
+    {
+        return;
+    }
+    InputCommon::Android * android = m_coreSystem.InputSubsystem()->GetAndroid();
+    if (android != nullptr)
+    {
+        android->RegisterController((jobject)j_input_device);
+    }
+#else
+    (void)j_input_device;
+#endif
+}
+
+void OSManager::SetButtonState(const char * guid, int32_t port, int32_t button_id, bool pressed)
+{
+#ifdef ANDROID
+    InputCommon::Android * android = m_coreSystem.InputSubsystem()->GetAndroid();
+    if (android != nullptr && guid != nullptr)
+    {
+        android->SetButtonState(guid, static_cast<size_t>(port), button_id, pressed);
+    }
+#else
+    (void)guid;
+    (void)port;
+    (void)button_id;
+    (void)pressed;
+#endif
+}
+
+void OSManager::SetAxisPosition(const char * guid, int32_t port, int32_t axis_id, float value)
+{
+#ifdef ANDROID
+    InputCommon::Android * android = m_coreSystem.InputSubsystem()->GetAndroid();
+    if (android != nullptr && guid != nullptr)
+    {
+        android->SetAxisPosition(guid, static_cast<size_t>(port), axis_id, value);
+    }
+#else
+    (void)guid;
+    (void)port;
+    (void)axis_id;
+    (void)value;
+#endif
 }
 
 ButtonNames OSManager::GetButtonName(const IParamPackage& param) const

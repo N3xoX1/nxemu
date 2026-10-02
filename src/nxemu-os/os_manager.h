@@ -36,6 +36,9 @@ public:
     void RegisterHostThread() override;
     IParamPackageList * GetInputDevices() const override;
     IEmulatedController & GetEmulatedController(NpadIdType index) override;
+    void AndroidRegisterController(void * j_input_device) override;
+    void SetButtonState(const char * guid, int32_t port, int32_t button_id, bool pressed) override;
+    void SetAxisPosition(const char * guid, int32_t port, int32_t axis_id, float value) override;
     ButtonNames GetButtonName(const IParamPackage & param) const override;
     bool IsController(const IParamPackage& params) const override;
     NpadStyleSet GetSupportedStyleTag() const override;

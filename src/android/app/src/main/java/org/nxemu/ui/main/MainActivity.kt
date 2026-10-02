@@ -1,11 +1,11 @@
 package org.nxemu.ui.main
 
 import android.content.Intent
-import android.content.res.Configuration
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
@@ -19,11 +19,14 @@ import org.json.JSONObject
 import org.nxemu.NXUISetting
 import org.nxemu.NativeLibrary
 import org.nxemu.ui.emulation.EmulationActivity
+import org.nxemu.ui.settings.InputMappingSession
 import org.nxemu.ui.settings.OverlayLayoutActivity
+import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
 
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
+    private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
     private val settingChangedForwarder: (String) -> Unit = { setting ->
         runOnUiThread {
@@ -72,6 +75,20 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
 
+                override fun onJsAlert(
+                    view: WebView?,
+                    url: String?,
+                    message: String?,
+                    result: JsResult,
+                ): Boolean {
+                    android.app.AlertDialog.Builder(this@MainActivity)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                        .setOnCancelListener { result.confirm() }
+                        .show()
+                    return true
+                }
+
                 override fun onJsConfirm(
                     view: WebView?,
                     url: String?,
@@ -93,6 +110,10 @@ class MainActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    if (inputMapping.isShowing()) {
+                        inputMapping.dismiss()
+                        return
+                    }
                     webView.evaluateJavascript("handleAndroidBack()") { result ->
                         if (result != "true" && result != "\"true\"") {
                             finish()
@@ -110,6 +131,46 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         emulationLaunchPending = false
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (inputMapping.onKey(event)) {
+            return true
+        }
+        if (InputHandler.dispatchKeyEvent(event)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (inputMapping.onMotion(event)) {
+            return true
+        }
+        if (InputHandler.dispatchGenericMotionEvent(event)) {
+            return true
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    fun beginControllerMap(playerIndex: Int, mapId: String, title: String, filterIndex: Int) {
+        runOnUiThread {
+            inputMapping.begin(playerIndex, mapId, title, filterIndex)
+        }
+    }
+
+    fun refreshControllerPages() {
+        if (!::webView.isInitialized || isDestroyed) {
+            return
+        }
+        webView.post {
+            if (!isDestroyed) {
+                webView.evaluateJavascript(
+                    "typeof renderControllerPages==='function'&&renderControllerPages()",
+                    null,
+                )
+            }
+        }
     }
 
     fun editOverlayLayout() {

@@ -2,6 +2,21 @@
 <resources>
     <string name="app_name">NxEmu</string>
     <string name="loading">Loading...</string>
+    <string name="not_set">Not set</string>
+    <string name="unknown">Unknown</string>
+    <string name="invalid">Invalid</string>
+    <string name="unused">Unused</string>
+    <string name="up">Up</string>
+    <string name="down">Down</string>
+    <string name="left">Left</string>
+    <string name="right">Right</string>
+    <string name="qualified_hat">%1$s%2$s%3$sHat %4$s</string>
+    <string name="qualified_button_stick_axis">%1$s%2$s%3$sAxis %4$s</string>
+    <string name="qualified_button">%1$s%2$s%3$sButton %4$s</string>
+    <string name="qualified_axis">Axis %1$s%2$s</string>
+    <string name="map_control">Map to %1$s</string>
+    <string name="stick_map_description">Move a stick left and then up or press a button</string>
+    <string name="button_map_description">Press a button or move a trigger/stick</string>
     <string name="emulation_done">Done</string>
     <string name="emulation_touch_overlay_reset">Reset overlay</string>
     <string name="emulation_exit">Exit emulation</string>
