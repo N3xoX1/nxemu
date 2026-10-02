@@ -62,6 +62,13 @@ public:
     void UnregisterDummyThreadForWakeup(KThread* thread);
     void RegisterDummyThreadForWakeup(KThread* thread);
     void WakeupWaitingDummyThreads();
+    struct HleWork {
+        u64 virtual_start{};
+        KThread* executing_thread{};
+    };
+    HleWork BeginHle();
+    u64 EndHle(const HleWork& work);
+
 
     LockType& SchedulerLock() {
         return m_scheduler_lock;
@@ -83,6 +90,7 @@ private:
     /// Lists all thread ids that aren't deleted/etc.
     std::vector<KThread*> m_thread_list;
     std::mutex m_global_list_guard;
+
 };
 
 } // namespace Kernel

@@ -4,9 +4,11 @@
 #include "yuzu_common/scope_exit.h"
 
 #include "core/core.h"
+#include "core/core_timing.h"
 #include "core/hle/kernel/k_client_port.h"
 #include "core/hle/kernel/k_client_session.h"
 #include "core/hle/kernel/k_event.h"
+#include "core/hle/kernel/global_scheduler_context.h"
 #include "core/hle/kernel/k_object_name.h"
 #include "core/hle/kernel/k_port.h"
 #include "core/hle/kernel/k_server_port.h"
@@ -78,6 +80,10 @@ ServerManager::ServerManager(Core::System& system) : m_system{system}, m_selecti
     // Register event.
     Kernel::KEvent::Register(system.Kernel(), m_wakeup_event);
 
+    m_shutdown_event = Kernel::KEvent::Create(system.Kernel());
+    m_shutdown_event->Initialize(nullptr);
+    Kernel::KEvent::Register(system.Kernel(), m_shutdown_event);
+
     // Link to holder.
     m_wakeup_holder.emplace(std::addressof(m_wakeup_event->GetReadableEvent()));
     m_wakeup_holder->LinkToMultiWait(std::addressof(m_deferred_list));
@@ -86,6 +92,7 @@ ServerManager::ServerManager(Core::System& system) : m_system{system}, m_selecti
 ServerManager::~ServerManager() {
     // Signal stop.
     m_stop_source.request_stop();
+    m_shutdown_event->Signal();
     m_wakeup_event->Signal();
 
     // Wait for processing to stop.
@@ -111,6 +118,9 @@ ServerManager::~ServerManager() {
     // Close wakeup event.
     m_wakeup_event->GetReadableEvent().Close();
     m_wakeup_event->Close();
+
+    m_shutdown_event->GetReadableEvent().Close();
+    m_shutdown_event->Close();
 
     if (m_deferral_event) {
         m_deferral_event->GetReadableEvent().Close();
@@ -347,6 +357,12 @@ Result ServerManager::OnSessionEvent(Session* session) {
     auto* server_session = static_cast<Kernel::KServerSession*>(session->GetNativeHandle());
     res = server_session->ReceiveRequestHLE(&session->GetContext(), session->GetManager());
 
+    // The signaled queue can become empty when all sync clients cancelled.
+    if (res == Kernel::ResultNotFound) {
+        this->LinkToDeferredList(session);
+        R_SUCCEED();
+    }
+
     // If the session has been closed, we're done.
     if (res == Kernel::ResultSessionClosed) {
         this->DestroySession(session);
@@ -397,8 +413,25 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
         R_SUCCEED();
     }
 
+    if (m_system.CoreTiming().CpuHleSynchronizationEnabled()) {
+        // Retain the request/context until completion. The reply transaction
+        // handles synchronous clients, asynchronous events and session closure.
+        const auto deadline = session->GetContext()->GetCompletionTime();
+        while (!m_stop_source.stop_requested() &&
+               m_system.CoreTiming().CpuHleSynchronizationEnabled() && deadline >
+               static_cast<u64>(m_system.CoreTiming().GetGlobalTimeNs().count())) {
+            s32 index{};
+            Kernel::KSynchronizationObject* objects[]{std::addressof(m_shutdown_event->GetReadableEvent())};
+            const auto wait = Kernel::KSynchronizationObject::Wait(m_system.Kernel(),
+                std::addressof(index), objects, 1, static_cast<s64>(deadline));
+            if (wait == Kernel::ResultTerminationRequested) R_SUCCEED();
+            ASSERT(wait == ResultSuccess || wait == Kernel::ResultTimedOut || wait == Kernel::ResultCancelled);
+        }
+        R_SUCCEED_IF(m_stop_source.stop_requested());
+    }
     // Send the reply.
-    res = server_session->SendReplyHLE();
+    res = server_session->SendReplyHLE(*session->GetContext());
+    session->GetContext().reset();
 
     // If the session has been closed, we're done.
     if (res == Kernel::ResultSessionClosed || service_res == IPC::ResultSessionClosed) {

@@ -19,6 +19,7 @@
 #include "core/hle/ipc.h"
 #include "core/hle/kernel/k_handle_table.h"
 #include "core/hle/kernel/svc_common.h"
+#include "core/hle/service/ipc_reply_transaction.h"
 
 union Result;
 
@@ -41,6 +42,7 @@ class KernelCore;
 class KHandleTable;
 class KProcess;
 class KServerSession;
+class KSessionRequest;
 template <typename T>
 class KScopedAutoObject;
 class KThread;
@@ -138,6 +140,14 @@ public:
         domain_handlers.emplace_back(std::move(handler));
     }
 
+    void ReserveDomainHandlers(std::size_t extra) {
+        const auto required = domain_handlers.size() + extra;
+        if (required > domain_handlers.capacity()) {
+            const auto doubled = domain_handlers.capacity() * 2;
+            domain_handlers.reserve(required > doubled ? required : doubled);
+        }
+    }
+
     void SetSessionHandler(SessionRequestHandlerPtr&& handler) {
         session_handler = std::move(handler);
     }
@@ -182,8 +192,11 @@ private:
 class HLERequestContext {
 public:
     explicit HLERequestContext(Kernel::KernelCore& kernel, Core::Memory::Memory& memory,
-                               Kernel::KServerSession* session, Kernel::KThread* thread);
+                               Kernel::KServerSession* session, Kernel::KThread* thread,
+                               u64 command_buffer_address, Kernel::KSessionRequest* request);
     ~HLERequestContext();
+    HLERequestContext(const HLERequestContext&) = delete;
+    HLERequestContext& operator=(const HLERequestContext&) = delete;
 
     /// Returns a pointer to the IPC command buffer for this request.
     [[nodiscard]] u32* CommandBuffer() {
@@ -303,6 +316,13 @@ public:
         }
     }
 
+    std::size_t WriteBuffer(Common::ScratchBuffer<u8>&& buffer, std::size_t index = 0) const;
+    std::size_t WriteBufferPooled(Common::ScratchBuffer<u8>&& buffer, std::size_t index,
+                                const std::shared_ptr<IpcResponseBufferPool>& pool) const;
+    bool ResponseBuffersDeferred() const { return defer_response_buffers; }
+    std::size_t WriteBufferB(Common::ScratchBuffer<u8>&& buffer, std::size_t index = 0) const;
+    std::size_t WriteBufferC(Common::ScratchBuffer<u8>&& buffer, std::size_t index = 0) const;
+
     /// Helper function to get the size of the input buffer
     [[nodiscard]] std::size_t GetReadBufferSize(std::size_t buffer_index = 0) const;
 
@@ -341,9 +361,7 @@ public:
 
     void AddMoveInterface(SessionRequestHandlerPtr s);
 
-    void AddCopyObject(Kernel::KAutoObject* object) {
-        outgoing_copy_objects.emplace_back(object);
-    }
+    void AddCopyObject(Kernel::KAutoObject* object);
 
     void AddDomainObject(SessionRequestHandlerPtr object) {
         outgoing_domain_objects.emplace_back(std::move(object));
@@ -388,16 +406,26 @@ public:
     void SetIsDeferred(bool is_deferred_ = true) {
         is_deferred = is_deferred_;
     }
+    void SetCompletionTime(u64 value) { completion_time = value; }
+    u64 GetCompletionTime() const { return completion_time; }
 
 private:
     friend class IPC::ResponseBuilder;
 
     void ParseCommandBuffer(u32_le* src_cmdbuf, bool incoming);
+    void ClearOutgoingObjects();
+    std::size_t WriteResponseBuffer(u64 address, const void* buffer, std::size_t size) const;
 
     std::array<u32, IPC::COMMAND_BUFFER_LENGTH> cmd_buf;
     Kernel::KServerSession* server_session{};
     Kernel::KHandleTable* client_handle_table{};
     Kernel::KThread* thread{};
+    Kernel::KSessionRequest* session_request{};
+    u64 command_buffer_address{};
+    u64 completion_time{};
+    bool defer_response_buffers{};
+    mutable IpcResponseWrites response_writes;
+    mutable bool response_write_failed{};
 
     std::vector<Handle> incoming_move_handles;
     std::vector<Handle> incoming_copy_handles;

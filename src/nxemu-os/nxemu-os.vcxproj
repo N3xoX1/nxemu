@@ -270,6 +270,7 @@
     <ClCompile Include="emu_thread.cpp" />
     <ClCompile Include="nxemu-os.cpp" />
     <ClCompile Include="core\core_timing.cpp" />
+    <ClCompile Include="core\hle_execution_time.cpp" />
     <ClCompile Include="core\device_memory.cpp" />
     <ClCompile Include="core\cpu_manager.cpp" />
     <ClCompile Include="core\memory.cpp" />
@@ -530,6 +531,8 @@
     <ClInclude Include="core\constants.h" />
     <ClInclude Include="core\core.h" />
     <ClInclude Include="core\core_timing.h" />
+    <ClInclude Include="core\shared_cpu_clock.h" />
+    <ClInclude Include="core\hle_execution_time.h" />
     <ClInclude Include="core\cpu_manager.h" />
     <ClInclude Include="core\debugger\debugger.h" />
     <ClInclude Include="core\device_memory.h" />
@@ -620,6 +623,7 @@
     <ClInclude Include="core\hle\kernel\memory_types.h" />
     <ClInclude Include="core\hle\kernel\k_light_client_session.h" />
     <ClInclude Include="core\hle\kernel\k_session_request.h" />
+    <ClInclude Include="core\hle\kernel\ipc_wait_token.h" />
     <ClInclude Include="core\hle\kernel\initial_process.h" />
     <ClInclude Include="core\hle\kernel\k_address_arbiter.h" />
     <ClInclude Include="core\hle\kernel\k_dynamic_page_manager.h" />
@@ -714,6 +718,7 @@
     <ClInclude Include="core\hle\service\hid\irs.h" />
     <ClInclude Include="core\hle\service\hid\xcd.h" />
     <ClInclude Include="core\hle\service\hle_ipc.h" />
+    <ClInclude Include="core\hle\service\ipc_reply_transaction.h" />
     <ClInclude Include="core\hle\service\ipc_helpers.h" />
     <ClInclude Include="core\hle\service\ldn\lan_discovery.h" />
     <ClInclude Include="core\hle\service\ldn\ldn.h" />
