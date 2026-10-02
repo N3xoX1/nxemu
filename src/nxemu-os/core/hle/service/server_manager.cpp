@@ -4,9 +4,11 @@
 #include "yuzu_common/scope_exit.h"
 
 #include "core/core.h"
+#include "core/core_timing.h"
 #include "core/hle/kernel/k_client_port.h"
 #include "core/hle/kernel/k_client_session.h"
 #include "core/hle/kernel/k_event.h"
+#include "core/hle/kernel/global_scheduler_context.h"
 #include "core/hle/kernel/k_object_name.h"
 #include "core/hle/kernel/k_port.h"
 #include "core/hle/kernel/k_server_port.h"
@@ -403,6 +405,23 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
         R_SUCCEED();
     }
 
+    if (m_system.CoreTiming().CpuHleSynchronizationEnabled()) {
+        // Retain the request/context until completion. The reply transaction
+        // handles synchronous clients, asynchronous events and session closure.
+        const auto deadline = session->GetContext()->GetCompletionTime();
+        while (!m_stop_source.stop_requested() &&
+               m_system.CoreTiming().CpuHleSynchronizationEnabled() && deadline >
+               static_cast<u64>(m_system.CoreTiming().GetGlobalTimeNs().count())) {
+            s32 index{};
+            Kernel::KSynchronizationObject* objects[]{std::addressof(m_wakeup_event->GetReadableEvent())};
+            const auto wait = Kernel::KSynchronizationObject::Wait(m_system.Kernel(),
+                std::addressof(index), objects, 1, static_cast<s64>(deadline));
+            if (wait == Kernel::ResultTerminationRequested) R_SUCCEED();
+            if (wait == ResultSuccess && !m_stop_source.stop_requested()) m_wakeup_event->Clear();
+            ASSERT(wait == ResultSuccess || wait == Kernel::ResultTimedOut || wait == Kernel::ResultCancelled);
+        }
+        R_SUCCEED_IF(m_stop_source.stop_requested());
+    }
     // Send the reply.
     res = server_session->SendReplyHLE(*session->GetContext());
     session->GetContext().reset();

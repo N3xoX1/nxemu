@@ -153,7 +153,7 @@ public:
     System(System &&) = delete;
     System & operator=(System &&) = delete;
 
-    void InitializeKernel(uint64_t titleID);
+    void InitializeKernel(uint64_t titleID, bool is_64_bit = true);
 
     /**
      * Initializes the system

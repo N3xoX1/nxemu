@@ -19,6 +19,7 @@
 #include "yuzu_common/wall_clock.h"
 
 #include <nxemu-module-spec/cpu.h>
+#include "core/shared_cpu_clock.h"
 
 namespace Core::Timing {
 
@@ -72,7 +73,7 @@ public:
 
     /// CoreTiming begins at the boundary of timing slice -1. An initial call to Advance() is
     /// required to end slice - 1 and start slice 0 before the first cycle of code is executed.
-    void Initialize(std::function<void()>&& on_thread_init_);
+    void Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle = true);
 
     /// Clear all pending events. This should ONLY be done on exit.
     void ClearPendingEvents();
@@ -126,6 +127,13 @@ public:
 
     /// Returns the current CNTPCT tick value.
     uint64_t GetClockTicks() const override;
+    void BeginCpuRun(uint32_t core) override;
+    void EndCpuRun(uint32_t core) override;
+    bool CpuHleSynchronizationEnabled() const override;
+    void CpuCompilation(uint32_t core, bool compiling) override;
+    void SetCpuRunnableMask(u32 mask);
+    void DisableCpuHleSynchronization(const char* reason = "execution-time measurement failed");
+    bool CpuHleSynchronizationFailed() const { return cpu_hle_failed.load(std::memory_order_acquire); }
 
     /// Returns the current GPU tick value.
     u64 GetGPUTicks() const;
@@ -148,14 +156,24 @@ private:
 
     static void ThreadEntry(CoreTiming& instance);
     void ThreadLoop();
+    void NotifyEvent();
 
     void Reset();
 
     std::unique_ptr<Common::WallClock> clock;
+    SharedCpuClock shared_clock;
+    std::atomic<bool> cpu_hle_enabled{};
+    std::atomic<bool> cpu_hle_failed{};
+    std::atomic<s64> fallback_time_offset_ns{};
+    std::mutex cpu_hle_transition_guard;
 
     s64 global_timer = 0;
 
 #ifdef _WIN32
+    class WindowsTimerWait;
+    std::unique_ptr<WindowsTimerWait> windows_timer_wait;
+    std::mutex compilation_wait_guard;
+    bool waiting_for_compilation{};
     s64 timer_resolution_ns{1'000'000};
 #endif
 

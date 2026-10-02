@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <atomic>
 #include "dynarmic/interface/A64/a64.h"
 #include <yuzu_common/hardware_properties.h>
 #include <nxemu-module-spec/cpu.h>
@@ -59,4 +60,5 @@ private:
     uint32_t m_svc;
     IKernelProcess & m_process;
     uint32_t m_coreIndex;
+    bool m_cpu_hle_synchronization{};
 };
