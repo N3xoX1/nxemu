@@ -516,6 +516,19 @@ target_include_directories(nxemu-cpu PRIVATE
     ${CMAKE_SOURCE_DIR}/external/xbyak
 )
 
+# Optimize the x64 JIT together at link time in native MSVC Release builds.
+# Keep other compilers, architectures and configurations on their existing path.
+if(ARCHITECTURE_x86_64 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    get_target_property(_nxemu_jit_sources nxemu-cpu SOURCES)
+    foreach(_nxemu_jit_source IN LISTS _nxemu_jit_sources)
+        if(_nxemu_jit_source MATCHES "^dynarmic/(backend/x64|frontend/A64|ir|common)/.*[.]cpp$")
+            set_property(SOURCE ${_nxemu_jit_source} APPEND PROPERTY
+                COMPILE_OPTIONS "$<$<CONFIG:Release>:/GL>")
+        endif()
+    endforeach()
+    target_link_options(nxemu-cpu PRIVATE "$<$<CONFIG:Release>:/LTCG>")
+endif()
+
 target_link_libraries(nxemu-cpu PRIVATE
     common
     fmt
