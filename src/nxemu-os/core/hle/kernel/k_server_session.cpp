@@ -1162,7 +1162,7 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
             auto& memory = client_thread->GetOwnerKProcess()->GetCoreMemory();
             auto* cmd_buf = reinterpret_cast<u32*>(memory.GetPointer(client_message));
             *out_context = std::make_shared<Service::HLERequestContext>(m_kernel, memory, this,
-                                                                      client_thread, client_message);
+                                                                      client_thread, client_message, request);
             (*out_context)->SetSessionRequestManager(manager);
             result = (*out_context)->PopulateFromIncomingCommandBuffer(cmd_buf);
             R_SUCCEED_IF(R_SUCCEEDED(result));
@@ -1195,6 +1195,10 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
         {
             // After we reply, close our reference to the request.
             SCOPE_EXIT {
+                {
+                    KScopedSchedulerLock sl{m_kernel};
+                    request->MarkCompleted();
+                }
                 request->Close();
             };
 
@@ -1206,12 +1210,13 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
                 auto& client_pt = client->GetKPageTable();
 
                 // Send the async result.
-                if (R_FAILED(result_for_client) && !client_thread->IsTerminationRequested()) {
+                if (R_FAILED(result_for_client) && request->CanPublishHleReply()) {
                     ReplyAsyncError(client, client_message, client_buffer_size, result_for_client);
                 }
 
                 // Unlock the client buffer.
                 // NOTE: Nintendo does not check the result of this.
+                request->MarkCompleted();
                 client_pt.UnlockForIpcUserBuffer(client_message, client_buffer_size);
 
                 // Signal the event.
@@ -1221,6 +1226,7 @@ Result KServerSession::ReceiveRequest(uintptr_t server_message, uintptr_t server
                 KScopedSchedulerLock sl(m_kernel);
 
                 if (request->IsClientWaitCurrent()) {
+                    request->MarkCompleted();
                     client_thread->EndWait(result_for_client);
                 }
             }
@@ -1261,6 +1267,10 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
 
     // Close reference to the request once we're done processing it.
     SCOPE_EXIT {
+        {
+            KScopedSchedulerLock sl{m_kernel};
+            request->MarkCompleted();
+        }
         request->Close();
     };
 
@@ -1324,17 +1334,19 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
     // If there's a client thread, update it.
     if (client_thread != nullptr) {
         if (event != nullptr) {
+            KScopedSchedulerLock sl{m_kernel};
             // Get the client process/page table.
             KProcess* client_process = client_thread->GetOwnerKProcess();
             KProcessPageTable* client_page_table = std::addressof(client_process->GetKPageTable());
 
             // If we need to, reply with an async error.
-            if (R_FAILED(client_result) && !client_thread->IsTerminationRequested()) {
+            if (R_FAILED(client_result) && request->CanPublishHleReply()) {
                 ReplyAsyncError(client_process, client_message, client_buffer_size, client_result);
             }
 
             // Unlock the client buffer.
             // NOTE: Nintendo does not check the result of this.
+            request->MarkCompleted();
             client_page_table->UnlockForIpcUserBuffer(client_message, client_buffer_size);
 
             // Signal the event.
@@ -1344,6 +1356,7 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
             KScopedSchedulerLock sl{m_kernel};
 
             if (request->IsClientWaitCurrent()) {
+                request->MarkCompleted();
                 client_thread->EndWait(client_result);
             }
         }
@@ -1430,6 +1443,10 @@ void KServerSession::CleanupRequests() {
 
         // Close a reference to the request once it's cleaned up.
         SCOPE_EXIT {
+            {
+                KScopedSchedulerLock sl{m_kernel};
+                request->MarkCompleted();
+            }
             request->Close();
         };
 
@@ -1451,16 +1468,16 @@ void KServerSession::CleanupRequests() {
         // If there's a client thread, update it.
         if (client_thread != nullptr) {
             if (event != nullptr) {
-                // The request retains its event/process, but termination may
-                // already have invalidated the client command buffer.
+                // The locked buffer and event outlive the submitting thread.
                 KScopedSchedulerLock sl{m_kernel};
-                if (!client_thread->IsTerminationRequested()) {
+                if (request->CanPublishHleReply()) {
                     ReplyAsyncError(client_process, client_message, client_buffer_size,
                                     (R_SUCCEEDED(result) ? ResultSessionClosed : result));
                 }
 
                 // Unlock the client buffer.
                 // NOTE: Nintendo does not check the result of this.
+                request->MarkCompleted();
                 client_page_table->UnlockForIpcUserBuffer(client_message, client_buffer_size);
 
                 // Signal the event.
@@ -1470,6 +1487,7 @@ void KServerSession::CleanupRequests() {
                 KScopedSchedulerLock sl{m_kernel};
 
                 if (request->IsClientWaitCurrent()) {
+                    request->MarkCompleted();
                     client_thread->EndWait(ResultSessionClosed);
                 }
             }
@@ -1505,7 +1523,7 @@ void KServerSession::OnClientClosed() {
                 event = request->GetEvent();
 
                 // If the thread is terminating, handle that.
-                if (thread->IsTerminationRequested()) {
+                if (event == nullptr && thread->IsTerminationRequested()) {
                     request->ClearThread();
                     request->ClearEvent();
                     terminate = true;
@@ -1533,6 +1551,10 @@ void KServerSession::OnClientClosed() {
 
         // Ensure that we close the request when done.
         SCOPE_EXIT {
+            {
+                KScopedSchedulerLock sl{m_kernel};
+                if (!cur_request) request->MarkCompleted();
+            }
             request->Close();
         };
 
@@ -1546,9 +1568,7 @@ void KServerSession::OnClientClosed() {
 
         // If we need to, reply.
         if (event != nullptr && !cur_request) {
-            // Keep termination and response-buffer publication ordered, as in
-            // SendReply/CleanupRequests. A terminated client may have already
-            // invalidated its asynchronous command buffer.
+            // Process termination cancels publication; thread exit alone does not.
             KScopedSchedulerLock sl{m_kernel};
 
             // There must be no mappings.
@@ -1561,13 +1581,14 @@ void KServerSession::OnClientClosed() {
             auto& client_pt = client_process->GetKPageTable();
 
             // Reply to the request.
-            if (!thread->IsTerminationRequested()) {
+            if (request->CanPublishHleReply()) {
                 ReplyAsyncError(client_process, request->GetAddress(), request->GetSize(),
                                 ResultSessionClosed);
             }
 
             // Unlock the buffer.
             // NOTE: Nintendo does not check the result of this.
+            request->MarkCompleted();
             client_pt.UnlockForIpcUserBuffer(request->GetAddress(), request->GetSize());
 
             // Signal the event.

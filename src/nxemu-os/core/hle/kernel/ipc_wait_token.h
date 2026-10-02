@@ -10,8 +10,9 @@ constexpr bool CanCompleteIpcWait(u64 request_generation, u64 current_generation
     return waiting && !terminating && request_generation == current_generation;
 }
 constexpr bool CanPublishIpcReply(u64 request_generation, u64 current_generation,
-                                 bool waiting, bool terminating, bool asynchronous) {
-    return !terminating && (asynchronous ||
+                                 bool waiting, bool terminating, bool asynchronous,
+                                 bool process_terminating) {
+    return !process_terminating && (asynchronous ||
         CanCompleteIpcWait(request_generation, current_generation, waiting, terminating));
 }
 } // namespace Kernel

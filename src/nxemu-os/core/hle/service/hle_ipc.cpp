@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <sstream>
 
 #include <boost/range/algorithm_ext/erase.hpp>
@@ -17,6 +18,7 @@
 #include "core/hle/kernel/k_auto_object.h"
 #include "core/hle/kernel/k_handle_table.h"
 #include "core/hle/kernel/k_process.h"
+#include "core/hle/kernel/k_session.h"
 #include "core/hle/kernel/k_server_port.h"
 #include "core/hle/kernel/k_server_session.h"
 #include "core/hle/kernel/k_thread.h"
@@ -129,17 +131,22 @@ Result SessionRequestManager::HandleDomainSyncRequest(Kernel::KServerSession* se
 
 HLERequestContext::HLERequestContext(Kernel::KernelCore& kernel_, Core::Memory::Memory& memory_,
                                      Kernel::KServerSession* server_session_,
-                                     Kernel::KThread* thread_, u64 command_buffer_address_)
+                                     Kernel::KThread* thread_, u64 command_buffer_address_,
+                                     Kernel::KSessionRequest* request_)
     : server_session(server_session_), thread(thread_),
-      command_buffer_address(command_buffer_address_), kernel{kernel_}, memory{memory_} {
+      session_request(request_), command_buffer_address(command_buffer_address_), kernel{kernel_}, memory{memory_} {
     // A service may retain a request after the client closes its session.
     thread->Open();
+    server_session->Open();
+    session_request->Open();
     cmd_buf[0] = 0;
 }
 
 HLERequestContext::~HLERequestContext() {
     ClearOutgoingObjects();
+    session_request->Close();
     thread->Close();
+    server_session->Close();
 }
 
 void HLERequestContext::AddCopyObject(Kernel::KAutoObject* object) {
@@ -461,7 +468,7 @@ std::size_t HLERequestContext::WriteBufferB(const void* buffer, std::size_t size
 
     const auto address = BufferDescriptorB()[buffer_index].Address();
     if (defer_response_buffers) response_writes.Add(address, buffer, size);
-    else memory.WriteBlock(Common::ProcessAddress{address}, buffer, size);
+    else return WriteResponseBuffer(address, buffer, size);
     return size;
 }
 
@@ -480,7 +487,7 @@ std::size_t HLERequestContext::WriteBufferC(const void* buffer, std::size_t size
 
     const auto address = BufferDescriptorC()[buffer_index].Address();
     if (defer_response_buffers) response_writes.Add(address, buffer, size);
-    else memory.WriteBlock(Common::ProcessAddress{address}, buffer, size);
+    else return WriteResponseBuffer(address, buffer, size);
     return size;
 }
 
@@ -495,7 +502,7 @@ std::size_t HLERequestContext::WriteBufferB(Common::ScratchBuffer<u8>&& buffer, 
     buffer.resize_destructive(std::min(buffer.size(), static_cast<size_t>(BufferDescriptorB()[index].Size())));
     const auto size = buffer.size();
     if (defer_response_buffers) response_writes.Add(BufferDescriptorB()[index].Address(), std::move(buffer));
-    else memory.WriteBlock(Common::ProcessAddress{BufferDescriptorB()[index].Address()}, buffer.data(), size);
+    else return WriteResponseBuffer(BufferDescriptorB()[index].Address(), buffer.data(), size);
     return size;
 }
 
@@ -504,8 +511,31 @@ std::size_t HLERequestContext::WriteBufferC(Common::ScratchBuffer<u8>&& buffer, 
     buffer.resize_destructive(std::min(buffer.size(), static_cast<size_t>(BufferDescriptorC()[index].Size())));
     const auto size = buffer.size();
     if (defer_response_buffers) response_writes.Add(BufferDescriptorC()[index].Address(), std::move(buffer));
-    else memory.WriteBlock(Common::ProcessAddress{BufferDescriptorC()[index].Address()}, buffer.data(), size);
+    else return WriteResponseBuffer(BufferDescriptorC()[index].Address(), buffer.data(), size);
     return size;
+}
+
+std::size_t HLERequestContext::WriteResponseBuffer(u64 address, const void* buffer,
+                                                 std::size_t size) const {
+    // Direct writes must obey cancellation too, independently of CPU/HLE timing.
+    // Bound each critical section without adding a staging copy to this path.
+    constexpr std::size_t MaxCopySize = 64 * 1024;
+    if (size > std::numeric_limits<u64>::max() - address) return 0;
+    const auto* source = static_cast<const u8*>(buffer);
+    std::size_t written = 0;
+    while (written < size) {
+        Kernel::KScopedSchedulerLock sl{kernel};
+        if (!kernel.System().IsPoweredOn() || server_session->GetParent()->IsClientClosed() ||
+            !session_request->CanPublishHleReply()) {
+            break;
+        }
+        const auto amount = std::min(size - written, MaxCopySize);
+        if (!memory.WriteBlock(Common::ProcessAddress{address + written}, source + written, amount)) {
+            break;
+        }
+        written += amount;
+    }
+    return written;
 }
 
 std::size_t HLERequestContext::GetReadBufferSize(std::size_t buffer_index) const {

@@ -188,6 +188,7 @@ public:
         m_address = address;
         m_size = size;
         m_wait_generation = 0;
+        m_completed = false;
 
         m_thread->Open();
         if (m_event != nullptr) {
@@ -225,9 +226,16 @@ public:
             m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested());
     }
     bool CanPublishHleReply() const {
-        return m_thread && CanPublishIpcReply(m_wait_generation, m_thread->GetWaitGeneration(),
-            m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested(), m_event != nullptr);
+        if (!m_thread || m_completed) return false;
+        const auto* process = m_thread->GetOwnerKProcess();
+        if (!process) return false;
+        const auto state = process->GetState();
+        return CanPublishIpcReply(m_wait_generation, m_thread->GetWaitGeneration(),
+            m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested(),
+            m_event != nullptr, state == KProcess::State::Terminating || state == KProcess::State::Terminated);
     }
+    // Read and written under the scheduler lock, including retained HLE contexts.
+    void MarkCompleted() { m_completed = true; }
 
     void ClearThread() {
         m_thread = nullptr;
@@ -322,6 +330,7 @@ private:
     KProcess* m_server{};
     KEvent* m_event{};
     u64 m_wait_generation{};
+    bool m_completed{};
     uintptr_t m_address{};
     size_t m_size{};
 };

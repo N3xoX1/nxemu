@@ -42,6 +42,7 @@ class KernelCore;
 class KHandleTable;
 class KProcess;
 class KServerSession;
+class KSessionRequest;
 template <typename T>
 class KScopedAutoObject;
 class KThread;
@@ -184,7 +185,7 @@ class HLERequestContext {
 public:
     explicit HLERequestContext(Kernel::KernelCore& kernel, Core::Memory::Memory& memory,
                                Kernel::KServerSession* session, Kernel::KThread* thread,
-                               u64 command_buffer_address);
+                               u64 command_buffer_address, Kernel::KSessionRequest* request);
     ~HLERequestContext();
     HLERequestContext(const HLERequestContext&) = delete;
     HLERequestContext& operator=(const HLERequestContext&) = delete;
@@ -400,11 +401,13 @@ private:
 
     void ParseCommandBuffer(u32_le* src_cmdbuf, bool incoming);
     void ClearOutgoingObjects();
+    std::size_t WriteResponseBuffer(u64 address, const void* buffer, std::size_t size) const;
 
     std::array<u32, IPC::COMMAND_BUFFER_LENGTH> cmd_buf;
     Kernel::KServerSession* server_session{};
     Kernel::KHandleTable* client_handle_table{};
     Kernel::KThread* thread{};
+    Kernel::KSessionRequest* session_request{};
     u64 command_buffer_address{};
     bool defer_response_buffers{};
     mutable IpcResponseWrites response_writes;
