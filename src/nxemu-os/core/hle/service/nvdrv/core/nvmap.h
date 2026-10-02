@@ -73,6 +73,7 @@ public:
         bool allocated{}; //!< If the handle has been allocated with `Alloc`
         bool in_heap{};
         NvCore::SessionId session_id{};
+        std::shared_ptr<NvCore::Session> owner_session;
         Kernel::KProcess* owner_process{}; //!< Process whose page table owns the CPU-side lock
         bool device_address_space_locked{}; //!< Whether IocAlloc marked the range DeviceShared
 
@@ -153,7 +154,7 @@ public:
      */
     std::optional<FreeInfo> FreeHandle(Handle::Id handle, bool internal_session);
 
-    void UnmapAllHandles(NvCore::SessionId session_id);
+    void UnmapAllHandles(const std::shared_ptr<NvCore::Session>& session);
 
 private:
     std::list<std::shared_ptr<Handle>> unmap_queue{};
