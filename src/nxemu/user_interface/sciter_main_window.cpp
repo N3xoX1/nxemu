@@ -665,7 +665,11 @@ bool SciterMainWindow::Show()
         m_sciterUI.AttachHandler(volumePopup, IID_EVENTSINK, (IEventSink *)this);
     }
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
-    m_rootElement.SetTimer(25, (uint32_t *)TIMER_UPDATE_INPUT);
+    // Sciter has one timer slot per element. Keep input on the persistent
+    // contents element so status and deferred root timers cannot replace it.
+    m_inputTimerElement = mainContents;
+    m_sciterUI.AttachHandler(m_inputTimerElement, IID_ITIMERSINK, (ITimerSink *)this);
+    m_inputTimerElement.SetTimer(25, (uint32_t *)TIMER_UPDATE_INPUT);
 
     ShowPanel(Panel::RomBrowser);
 
@@ -1851,6 +1855,11 @@ void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
     m_ProfileSelect.Detach();
     m_WebBrowser.DetachWindow();
+    if (m_inputTimerElement.IsValid())
+    {
+        m_inputTimerElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INPUT);
+        m_inputTimerElement = {};
+    }
     if (m_rootElement.IsValid())
     {
         m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_INSTALL_FIRMWARE);
