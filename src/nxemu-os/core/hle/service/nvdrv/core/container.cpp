@@ -18,17 +18,29 @@
 namespace Service::Nvidia::NvCore
 {
 
-Session::Session(SessionId id_, Kernel::KProcess * process_, Core::Asid asid_) :
+Session::Session(SessionId id_, Kernel::KProcess * process_, Core::Asid asid_, IVideo& video_) :
     id{id_},
     process{process_},
     asid{asid_},
     has_preallocated_area{},
     mapper{},
-    is_active{}
+    is_active{}, video{video_}
 {
+    process->Open();
 }
 
-Session::~Session() = default;
+Session::~Session() {
+    // Nvmap allocations can outlive the last device FD, e.g. a retained
+    // compositor framebuffer. Keep their mapper, ASID and process together.
+    if (mapper) {
+        const auto region_start = mapper->GetRegionStart();
+        const auto region_size = mapper->GetRegionSize();
+        mapper.reset();
+        video.Host1xFree(region_start, region_size);
+    }
+    video.Host1xUnregisterProcess(asid.id);
+    process->Close();
+}
 
 struct ContainerImpl
 {
@@ -45,7 +57,7 @@ struct ContainerImpl
     SyncpointManager manager;
     Container::Host1xDeviceFileData device_file_data;
     Container::ZbcState zbc_state;
-    std::deque<Session> sessions;
+    std::deque<std::shared_ptr<Session>> sessions;
     size_t new_ids{};
     std::deque<size_t> id_pool;
     std::mutex session_guard;
@@ -65,14 +77,14 @@ SessionId Container::OpenSession(Kernel::KProcess * process)
     std::scoped_lock lk(impl->session_guard);
     for (auto & session : impl->sessions)
     {
-        if (!session.is_active)
+        if (!session || !session->is_active)
         {
             continue;
         }
-        if (session.process == process)
+        if (session->process == process)
         {
-            session.ref_count++;
-            return session.id;
+            session->ref_count++;
+            return session->id;
         }
     }
     size_t new_id{};
@@ -82,14 +94,14 @@ SessionId Container::OpenSession(Kernel::KProcess * process)
     {
         new_id = impl->id_pool.front();
         impl->id_pool.pop_front();
-        impl->sessions[new_id] = Session{SessionId{new_id}, process, asid};
+        impl->sessions[new_id] = std::make_shared<Session>(SessionId{new_id}, process, asid, impl->video);
     }
     else
     {
         new_id = impl->new_ids++;
-        impl->sessions.emplace_back(SessionId{new_id}, process, asid);
+        impl->sessions.emplace_back(std::make_shared<Session>(SessionId{new_id}, process, asid, impl->video));
     }
-    auto & session = impl->sessions[new_id];
+    auto & session = *impl->sessions[new_id];
     session.is_active = true;
     session.ref_count = 1;
     // Optimization
@@ -148,29 +160,26 @@ SessionId Container::OpenSession(Kernel::KProcess * process)
 void Container::CloseSession(SessionId session_id)
 {
     std::scoped_lock lk(impl->session_guard);
-    auto & session = impl->sessions[session_id.id];
-    if (--session.ref_count > 0)
+    const auto session = impl->sessions[session_id.id];
+    if (--session->ref_count > 0)
     {
         return;
     }
-    impl->file.UnmapAllHandles(session_id);
-    if (session.has_preallocated_area)
-    {
-        const DAddr region_start = session.mapper->GetRegionStart();
-        const size_t region_size = session.mapper->GetRegionSize();
-        session.mapper.reset();
-        impl->video.Host1xFree(region_start, region_size);
-        session.has_preallocated_area = false;
-    }
-    session.is_active = false;
-    impl->video.Host1xUnregisterProcess(impl->sessions[session_id.id].asid.id);
+    impl->file.UnmapAllHandles(impl->sessions[session_id.id]);
+    session->is_active = false;
+    impl->sessions[session_id.id].reset();
     impl->id_pool.emplace_front(session_id.id);
 }
 
 Session * Container::GetSession(SessionId session_id)
 {
     std::atomic_thread_fence(std::memory_order_acquire);
-    return &impl->sessions[session_id.id];
+    return impl->sessions[session_id.id].get();
+}
+
+std::shared_ptr<Session> Container::GetSessionReference(SessionId session_id) {
+    std::scoped_lock lk{impl->session_guard};
+    return impl->sessions[session_id.id];
 }
 
 NvMap & Container::GetNvMapFile()
