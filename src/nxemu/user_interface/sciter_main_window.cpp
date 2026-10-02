@@ -1079,7 +1079,18 @@ void SciterMainWindow::ShowPanel(Panel panel)
 void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * userData)
 {
     SciterMainWindow * impl = (SciterMainWindow *)userData;
-    EmulationState state = (EmulationState)SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState);
+    const auto state = SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState);
+    // Notifications also originate on the emulation control thread. DOM and
+    // window updates must run on the UI thread, which may be waiting for that
+    // control thread to finish pausing or stopping.
+    std::scoped_lock lock{impl->m_emulationStateMutex};
+    impl->m_emulationStateUpdates.push_back(state);
+}
+
+void SciterMainWindow::OnEmulationStateChanged(int32_t value)
+{
+    SciterMainWindow * impl = this;
+    const auto state = static_cast<EmulationState>(value);
 
     if (state == EmulationState::RomLoaded)
     {
@@ -2527,6 +2538,17 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
 
 bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
 {
+    // The input timer keeps running while loading, paused and stopped. Drain
+    // notifications in order without holding the queue lock during UI calls.
+    std::deque<int32_t> state_updates;
+    {
+        std::scoped_lock lock{m_emulationStateMutex};
+        state_updates.swap(m_emulationStateUpdates);
+    }
+    for (const auto state : state_updates)
+    {
+        OnEmulationStateChanged(state);
+    }
     if (timerId == (uint32_t *)TIMER_UPDATE_UI)
     {
         SciterElement mainContents(m_rootElement.GetElementByID("MainContents"));
