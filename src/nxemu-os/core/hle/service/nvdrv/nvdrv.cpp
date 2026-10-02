@@ -109,6 +109,10 @@ Module::Module(Core::System& system, Kernel::KEvent* deferral_event_)
 }
 
 Module::~Module() {
+    // Devices use the event interface and service context during destruction.
+    // Destroy them while those dependencies and the nvmap container are alive.
+    open_files.clear();
+    retained_nvmap_pins.clear();
     deferral_event->Close();
 }
 

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deque>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -17,6 +18,7 @@ namespace Service::Nvidia {
 namespace NvCore {
 class Container;
 class NvMap;
+struct Session;
 } // namespace NvCore
 
 namespace Devices {
@@ -127,7 +129,7 @@ protected:
     NvCore::NvMap& nvmap;
     NvCore::ChannelType channel_type;
     std::array<u32, MaxSyncPoints> device_syncpoints{};
-    std::unordered_map<DeviceFD, NvCore::SessionId> sessions;
+    std::unordered_map<DeviceFD, std::weak_ptr<NvCore::Session>> sessions;
 };
 }; // namespace Devices
 } // namespace Service::Nvidia

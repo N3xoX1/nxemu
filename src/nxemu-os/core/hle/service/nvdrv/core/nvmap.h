@@ -47,6 +47,8 @@ public:
 
         s32 dupes{1};          //!< How many guest references there are to this handle
         s32 internal_dupes{0}; //!< How many emulator-internal references there are to this handle
+        // Non-owning keys; session closure removes all matching guest references.
+        std::unordered_map<const Session*, s32> guest_refs;
 
         using Id = u32;
         Id id; //!< A globally unique identifier for this handle
@@ -73,6 +75,7 @@ public:
         bool allocated{}; //!< If the handle has been allocated with `Alloc`
         bool in_heap{};
         NvCore::SessionId session_id{};
+        std::shared_ptr<NvCore::Session> owner_session;
         Kernel::KProcess* owner_process{}; //!< Process whose page table owns the CPU-side lock
         bool device_address_space_locked{}; //!< Whether IocAlloc marked the range DeviceShared
 
@@ -86,12 +89,13 @@ public:
          * if a 0 address is passed
          */
         [[nodiscard]] NvResult Alloc(Flags pFlags, u32 pAlign, u8 pKind, u64 pAddress,
-                                     NvCore::SessionId pSessionId);
+                                     const std::shared_ptr<Session>& session);
 
         /**
          * @brief Increases the dupe counter of the handle for the given session
          */
-        [[nodiscard]] NvResult Duplicate(bool internal_session);
+        [[nodiscard]] NvResult Duplicate(bool internal_session,
+                                         const std::shared_ptr<Session>& session = {});
 
         /**
          * @brief Obtains a pointer to the handle's memory and marks the handle it as having been
@@ -121,7 +125,8 @@ public:
     /**
      * @brief Creates an unallocated handle of the given size
      */
-    [[nodiscard]] NvResult CreateHandle(u64 size, std::shared_ptr<NvMap::Handle>& result_out);
+    [[nodiscard]] NvResult CreateHandle(u64 size, std::shared_ptr<NvMap::Handle>& result_out,
+                                        const std::shared_ptr<Session>& session);
 
     std::shared_ptr<Handle> GetHandle(Handle::Id handle);
 
@@ -151,9 +156,10 @@ public:
      * @note If a handle has no dupes left and has no other users a FreeInfo struct will be returned
      * describing the prior state of the handle
      */
-    std::optional<FreeInfo> FreeHandle(Handle::Id handle, bool internal_session);
+    std::optional<FreeInfo> FreeHandle(Handle::Id handle, bool internal_session,
+                                      const std::shared_ptr<Session>& session = {});
 
-    void UnmapAllHandles(NvCore::SessionId session_id);
+    void UnmapAllHandles(const std::shared_ptr<NvCore::Session>& session);
 
 private:
     std::list<std::shared_ptr<Handle>> unmap_queue{};

@@ -102,7 +102,12 @@ NvResult nvhost_nvdec_common::Submit(IoctlSubmit& params, std::span<u8> data, De
     offset += SliceVectors(data, fence_thresholds, params.fence_count, offset);
 
     IVideo & video = system.GetVideo();
-    auto * session = core.GetSession(sessions[fd]);
+    const auto it = sessions.find(fd);
+    if (it == sessions.end()) return NvResult::InvalidState;
+    const auto session = it->second.lock();
+    if (!session || !session->is_active.load(std::memory_order_acquire)) {
+        return NvResult::InvalidState;
+    }
 
     if (video.UseNvdec())
     {

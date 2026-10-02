@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <array>
 #include <deque>
 #include <memory>
@@ -34,21 +35,23 @@ struct SessionId {
 };
 
 struct Session {
-    Session(SessionId id_, Kernel::KProcess* process_, Core::Asid asid_);
+    Session(SessionId id_, Kernel::KProcess* process_, Core::Asid asid_, IVideo& video_);
     ~Session();
 
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
-    Session(Session&&) = default;
-    Session& operator=(Session&&) = default;
+    Session(Session&&) = delete;
+    Session& operator=(Session&&) = delete;
 
     SessionId id;
     Kernel::KProcess* process;
     Core::Asid asid;
     bool has_preallocated_area{};
     std::unique_ptr<HeapMapper> mapper{};
-    bool is_active{};
+    std::atomic_bool is_active{};
+    std::mutex nvmap_mutex; //!< Serializes guest reference creation with session closure.
     s32 ref_count{};
+    IVideo& video;
 };
 
 class Container {
@@ -59,7 +62,7 @@ public:
     SessionId OpenSession(Kernel::KProcess* process);
     void CloseSession(SessionId id);
 
-    Session* GetSession(SessionId id);
+    std::shared_ptr<Session> GetSessionReference(SessionId id);
 
     NvMap& GetNvMapFile();
 

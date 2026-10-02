@@ -81,7 +81,7 @@ void nvhost_nvdec::OnOpen(NvCore::SessionId session_id, DeviceFD fd)
 {
     LOG_INFO(Service_NVDRV, "NVDEC video stream started");
     system.SetNVDECActive(true);
-    sessions[fd] = session_id;
+    sessions[fd] = core.GetSessionReference(session_id);
 }
 
 void nvhost_nvdec::OnClose(DeviceFD fd)

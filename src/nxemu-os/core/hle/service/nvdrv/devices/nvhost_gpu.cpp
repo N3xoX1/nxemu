@@ -180,7 +180,7 @@ NvResult nvhost_gpu::Ioctl3(DeviceFD fd, Ioctl command, std::span<const u8> inpu
 }
 
 void nvhost_gpu::OnOpen(NvCore::SessionId session_id, DeviceFD fd) {
-    sessions[fd] = session_id;
+    sessions[fd] = core.GetSessionReference(session_id);
 }
 
 void nvhost_gpu::OnClose(DeviceFD fd) {
@@ -256,10 +256,9 @@ NvResult nvhost_gpu::AllocGPFIFOEx(IoctlAllocGpfifoEx& params, DeviceFD fd) {
         return NvResult::AlreadyAllocated;
     }
 
-    u64 program_id{};
-    if (auto* const session = core.GetSession(sessions[fd]); session != nullptr) {
-        program_id = session->process->GetProgramId();
-    }
+    const auto session = GetSessionReference(fd);
+    if (!session) return NvResult::InvalidState;
+    const u64 program_id = session->process->GetProgramId();
 
     channel_state->Init(program_id);
     params.fence_out = syncpoint_manager.GetSyncpointFence(channel_syncpoint);
@@ -367,16 +366,12 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
     return NvResult::Success;
 }
 
-IMemory& nvhost_gpu::GetSessionMemory(DeviceFD fd) {
-    if (const auto it = sessions.find(fd); it != sessions.end()) {
-        if (auto* const session = core.GetSession(it->second);
-            session != nullptr && session->process != nullptr) {
-            return session->process->GetMemory();
-        }
-    }
-
-    LOG_ERROR(Service_NVDRV, "No session for fd={}, falling back to application memory", fd);
-    return system.ApplicationMemory();
+std::shared_ptr<NvCore::Session> nvhost_gpu::GetSessionReference(DeviceFD fd) {
+    const auto it = sessions.find(fd);
+    if (it == sessions.end()) return nullptr;
+    const auto session = it->second.lock();
+    if (!session || !session->is_active.load(std::memory_order_acquire)) return nullptr;
+    return session;
 }
 
 NvResult nvhost_gpu::SubmitGPFIFOBase1(IoctlSubmitGpfifo& params,
@@ -389,8 +384,10 @@ NvResult nvhost_gpu::SubmitGPFIFOBase1(IoctlSubmitGpfifo& params,
 
     Tegra::CommandList entries(params.num_entries);
     if (kickoff) {
-        GetSessionMemory(fd).ReadBlock(params.address, entries.command_lists.data(),
-                                       params.num_entries * sizeof(Tegra::CommandListHeader));
+        const auto session = GetSessionReference(fd);
+        if (!session) return NvResult::InvalidState;
+        session->process->GetMemory().ReadBlock(params.address, entries.command_lists.data(),
+                                               params.num_entries * sizeof(Tegra::CommandListHeader));
     } else {
         std::memcpy(entries.command_lists.data(), commands.data(),
                     params.num_entries * sizeof(Tegra::CommandListHeader));

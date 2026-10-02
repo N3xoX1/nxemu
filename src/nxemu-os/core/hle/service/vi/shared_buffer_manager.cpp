@@ -86,13 +86,14 @@ Result MapSharedBufferIntoProcessAddressSpace(Common::ProcessAddress* out_map_ad
     R_SUCCEED();
 }
 
-Result CreateNvMapHandle(u32* out_nv_map_handle, Nvidia::Devices::nvmap& nvmap, u32 size) {
+Result CreateNvMapHandle(u32* out_nv_map_handle, Nvidia::Devices::nvmap& nvmap, u32 size,
+                         Nvidia::DeviceFD nvmap_fd) {
     // Create a handle.
     Nvidia::Devices::nvmap::IocCreateParams create_params{
         .size = size,
         .handle = 0,
     };
-    R_UNLESS(nvmap.IocCreate(create_params) == Nvidia::NvResult::Success,
+    R_UNLESS(nvmap.IocCreate(create_params, nvmap_fd) == Nvidia::NvResult::Success,
              VI::ResultOperationFailed);
 
     // Assign the output handle.
@@ -139,7 +140,7 @@ Result AllocateHandleForBuffer(u32* out_handle, Nvidia::Module& nvdrv, Nvidia::D
     ASSERT(nvmap != nullptr);
 
     // Create a handle.
-    R_TRY(CreateNvMapHandle(out_handle, *nvmap, size));
+    R_TRY(CreateNvMapHandle(out_handle, *nvmap, size, nvmap_fd));
 
     // Ensure we maintain a clean state on failure.
     ON_RESULT_FAILURE {

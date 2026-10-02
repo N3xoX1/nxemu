@@ -249,7 +249,7 @@ private:
     NvResult AllocateObjectContext(IoctlAllocObjCtx& params);
 
     NvResult SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandList&& entries);
-    IMemory& GetSessionMemory(DeviceFD fd);
+    std::shared_ptr<NvCore::Session> GetSessionReference(DeviceFD fd);
     NvResult SubmitGPFIFOBase1(IoctlSubmitGpfifo& params,
                                std::span<Tegra::CommandListHeader> commands, DeviceFD fd,
                                bool kickoff = false);
@@ -266,7 +266,7 @@ private:
     NvCore::NvMap& nvmap;
     IChannelStatePtr channel_state;
     std::atomic_bool address_space_bound{};
-    std::unordered_map<DeviceFD, NvCore::SessionId> sessions;
+    std::unordered_map<DeviceFD, std::weak_ptr<NvCore::Session>> sessions;
     u32 channel_syncpoint;
     std::mutex channel_mutex;
 
