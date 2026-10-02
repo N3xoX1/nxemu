@@ -3,6 +3,8 @@
 #include <limits>
 #include <thread>
 #include <system_error>
+#include <chrono>
+#include "core/thread_time_validation.h"
 #if defined(_WIN32) && (defined(_M_X64) || defined(ARCHITECTURE_x86_64))
 #include <Windows.h>
 #undef CreateEvent
@@ -90,7 +92,12 @@ std::optional<u64> ReadNativeThreadTimeNs() {
     const auto seconds = ticks / frequency;
     if (seconds > ((std::numeric_limits<u64>::max)() - fraction) / 1'000'000'000)
         return std::nullopt;
-    return seconds * 1'000'000'000 + fraction;
+    const auto cpu = seconds * 1'000'000'000 + fraction;
+    const auto wall = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+    thread_local ThreadTimeValidation validation;
+    if (!validation.Observe(cpu, wall)) return std::nullopt;
+    return cpu;
 #elif defined(CLOCK_THREAD_CPUTIME_ID)
     timespec time{};
     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time) != 0) return std::nullopt;
