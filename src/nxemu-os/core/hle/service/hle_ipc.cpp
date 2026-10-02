@@ -302,6 +302,7 @@ Result HLERequestContext::PopulateFromIncomingCommandBuffer(u32_le* src_cmdbuf) 
 }
 
 Result HLERequestContext::WriteToOutgoingCommandBuffer() {
+    R_UNLESS(!response_write_failed, Kernel::ResultInvalidCurrentMemory);
     auto current_offset = handles_offset;
     auto& owner_process = *thread->GetOwnerKProcess();
     auto& handle_table = owner_process.GetHandleTable();
@@ -328,12 +329,16 @@ Result HLERequestContext::WriteToOutgoingCommandBuffer() {
     // Write the domain objects to the command buffer, these go after the raw untranslated data.
     // TODO(Subv): This completely ignores C buffers.
 
-    if (GetManager()->IsDomain()) {
+    const auto request_manager = GetManager();
+    if (request_manager->IsDomain()) {
+        // Allocate before exposing IDs. Handlers enter the domain only after
+        // every memory write succeeds; the scheduler lock serializes clones.
+        request_manager->ReserveDomainHandlers(outgoing_domain_objects.size());
+        auto domain_count = request_manager->DomainHandlerCount();
         current_offset = domain_offset - static_cast<u32>(outgoing_domain_objects.size());
         for (auto& object : outgoing_domain_objects) {
             if (object) {
-                GetManager()->AppendDomainHandler(std::move(object));
-                cmd_buf[current_offset++] = static_cast<u32_le>(GetManager()->DomainHandlerCount());
+                cmd_buf[current_offset++] = static_cast<u32_le>(++domain_count);
             } else {
                 cmd_buf[current_offset++] = 0;
             }
@@ -341,11 +346,16 @@ Result HLERequestContext::WriteToOutgoingCommandBuffer() {
     }
 
     // Copy the translated command buffer back into the thread's command buffer area.
-    response_writes.PublishTo([&](u64 address, std::span<const u8> data) {
-        memory.WriteBlock(Common::ProcessAddress{address}, data.data(), data.size());
-    });
-    memory.WriteBlock(Common::ProcessAddress{command_buffer_address}, cmd_buf.data(),
-                      write_size * sizeof(u32));
+    R_UNLESS(response_writes.PublishTo([&](u64 address, std::span<const u8> data) {
+        return memory.WriteBlock(Common::ProcessAddress{address}, data.data(), data.size());
+    }), Kernel::ResultInvalidCurrentMemory);
+    R_UNLESS(memory.WriteBlock(Common::ProcessAddress{command_buffer_address}, cmd_buf.data(),
+                              write_size * sizeof(u32)), Kernel::ResultInvalidCurrentMemory);
+    if (request_manager->IsDomain()) {
+        for (auto& object : outgoing_domain_objects) {
+            if (object) request_manager->AppendDomainHandler(std::move(object));
+        }
+    }
     rollback.Commit();
     ClearOutgoingObjects();
 
@@ -442,16 +452,14 @@ std::size_t HLERequestContext::WriteBuffer(const void* buffer, std::size_t size,
             BufferDescriptorB().size() > buffer_index &&
                 BufferDescriptorB()[buffer_index].Size() >= size,
             { return 0; }, "BufferDescriptorB is invalid, index={}, size={}", buffer_index, size);
-        WriteBufferB(buffer, size, buffer_index);
+        return WriteBufferB(buffer, size, buffer_index);
     } else {
         ASSERT_OR_EXECUTE_MSG(
             BufferDescriptorC().size() > buffer_index &&
                 BufferDescriptorC()[buffer_index].Size() >= size,
             { return 0; }, "BufferDescriptorC is invalid, index={}, size={}", buffer_index, size);
-        WriteBufferC(buffer, size, buffer_index);
+        return WriteBufferC(buffer, size, buffer_index);
     }
-
-    return size;
 }
 
 std::size_t HLERequestContext::WriteBufferB(const void* buffer, std::size_t size,
@@ -507,6 +515,19 @@ std::size_t HLERequestContext::WriteBufferB(Common::ScratchBuffer<u8>&& buffer, 
     return size;
 }
 
+std::size_t HLERequestContext::WriteBufferPooled(Common::ScratchBuffer<u8>&& buffer,
+    std::size_t index, const std::shared_ptr<IpcResponseBufferPool>& pool) const {
+    if (!defer_response_buffers) return WriteBuffer(std::move(buffer), index);
+    const bool is_b = BufferDescriptorB().size() > index && BufferDescriptorB()[index].Size();
+    if (!is_b && index >= BufferDescriptorC().size()) return 0;
+    const auto size = std::min(buffer.size(), GetWriteBufferSize(index));
+    if (!size) return 0;
+    buffer.resize_destructive(size);
+    const auto address = is_b ? BufferDescriptorB()[index].Address() : BufferDescriptorC()[index].Address();
+    response_writes.Add(address, std::move(buffer), pool);
+    return size;
+}
+
 std::size_t HLERequestContext::WriteBufferC(Common::ScratchBuffer<u8>&& buffer, std::size_t index) const {
     if (index >= BufferDescriptorC().size() || buffer.size() == 0) return 0;
     buffer.resize_destructive(std::min(buffer.size(), static_cast<size_t>(BufferDescriptorC()[index].Size())));
@@ -521,7 +542,10 @@ std::size_t HLERequestContext::WriteResponseBuffer(u64 address, const void* buff
     // Direct writes must obey cancellation too, independently of CPU/HLE timing.
     // Bound each critical section without adding a staging copy to this path.
     constexpr std::size_t MaxCopySize = 64 * 1024;
-    if (size > std::numeric_limits<u64>::max() - address) return 0;
+    if (size > std::numeric_limits<u64>::max() - address) {
+        response_write_failed = true;
+        return 0;
+    }
     const auto* source = static_cast<const u8*>(buffer);
     std::size_t written = 0;
     while (written < size) {
@@ -536,6 +560,7 @@ std::size_t HLERequestContext::WriteResponseBuffer(u64 address, const void* buff
         }
         written += amount;
     }
+    response_write_failed |= written != size;
     return written;
 }
 
