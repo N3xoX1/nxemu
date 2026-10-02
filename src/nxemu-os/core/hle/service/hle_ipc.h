@@ -140,6 +140,14 @@ public:
         domain_handlers.emplace_back(std::move(handler));
     }
 
+    void ReserveDomainHandlers(std::size_t extra) {
+        const auto required = domain_handlers.size() + extra;
+        if (required > domain_handlers.capacity()) {
+            const auto doubled = domain_handlers.capacity() * 2;
+            domain_handlers.reserve(required > doubled ? required : doubled);
+        }
+    }
+
     void SetSessionHandler(SessionRequestHandlerPtr&& handler) {
         session_handler = std::move(handler);
     }
@@ -309,6 +317,9 @@ public:
     }
 
     std::size_t WriteBuffer(Common::ScratchBuffer<u8>&& buffer, std::size_t index = 0) const;
+    std::size_t WriteBufferPooled(Common::ScratchBuffer<u8>&& buffer, std::size_t index,
+                                const std::shared_ptr<IpcResponseBufferPool>& pool) const;
+    bool ResponseBuffersDeferred() const { return defer_response_buffers; }
     std::size_t WriteBufferB(Common::ScratchBuffer<u8>&& buffer, std::size_t index = 0) const;
     std::size_t WriteBufferC(Common::ScratchBuffer<u8>&& buffer, std::size_t index = 0) const;
 
@@ -414,6 +425,7 @@ private:
     u64 completion_time{};
     bool defer_response_buffers{};
     mutable IpcResponseWrites response_writes;
+    mutable bool response_write_failed{};
 
     std::vector<Handle> incoming_move_handles;
     std::vector<Handle> incoming_copy_handles;
