@@ -1079,6 +1079,13 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
 {
     SciterMainWindow * impl = (SciterMainWindow *)userData;
     const auto state = SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState);
+    // Capture the reload disposition before deferring the notification: the
+    // next LoadGame may clear the flag before the UI timer drains the queue.
+    if (state == static_cast<int32_t>(EmulationState::Stopped) &&
+        impl->m_reloadingGame.load(std::memory_order_relaxed))
+    {
+        return;
+    }
     // Notifications also originate on the emulation control thread. DOM and
     // window updates must run on the UI thread, which may be waiting for that
     // control thread to finish pausing or stopping.

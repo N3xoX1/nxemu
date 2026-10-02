@@ -4,6 +4,7 @@
 #include "startup_checks.h"
 #include "user_interface/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
+#include <atomic>
 #include <deque>
 #include <map>
 #include <memory>
@@ -247,7 +248,7 @@ private:
     bool m_useSpeedLimit;
     uint32_t m_speedLimit;
     bool m_emulationRunning;
-    bool m_reloadingGame;
+    std::atomic<bool> m_reloadingGame;
     bool m_pendingStartInFullscreen;
     bool m_pendingStartWithUiHidden;
     std::map<std::string, std::string> m_menuIconSvgs;
