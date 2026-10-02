@@ -710,6 +710,13 @@ Result KThread::SetCoreMask(s32 core_id, u64 v_affinity_mask) {
                     // Wait until the thread isn't pinned any more.
                     m_pinned_waiter_list.push_back(GetCurrentThread(m_kernel));
                     GetCurrentThread(m_kernel).BeginWait(std::addressof(wait_queue));
+                } else if (!m_kernel.IsMulticore() && m_kernel.CurrentScheduler() != nullptr &&
+                           thread_core != static_cast<s32>(m_kernel.CurrentPhysicalCoreIndex())) {
+                    // SC preemption saves/unlocks a thread's context but leaves the virtual
+                    // scheduler's current pointer in place. The inactive virtual core is already
+                    // quiescent; waiting for its scheduler to run would block the sole CPU thread.
+                    std::unique_lock context_lock{m_context_guard, std::try_to_lock};
+                    retry_update = !context_lock.owns_lock();
                 } else {
                     // If the thread isn't pinned, release the scheduler lock and retry until it's
                     // not current.
