@@ -165,7 +165,6 @@ void PhysicalCore::RunThread(Kernel::KThread * thread)
     }
 }
 
-
 void PhysicalCore::LoadContext(const KThread * thread)
 {
     auto * const process = thread->GetOwnerKProcess();

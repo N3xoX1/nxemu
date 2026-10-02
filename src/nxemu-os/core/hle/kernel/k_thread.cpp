@@ -690,11 +690,19 @@ Result KThread::SetCoreMask(s32 core_id, u64 v_affinity_mask) {
             // Check if the thread is currently running.
             bool thread_is_current{};
             s32 thread_core;
-            for (thread_core = 0; thread_core < static_cast<s32>(Hardware::NUM_CPU_CORES);
-                 ++thread_core) {
-                if (m_kernel.Scheduler(thread_core).GetSchedulerCurrentThread() == this) {
-                    thread_is_current = true;
-                    break;
+            if (!m_kernel.IsMulticore() && m_kernel.CurrentScheduler() != nullptr &&
+                this == GetCurrentThreadPointer(m_kernel)) {
+                // In SC, inactive schedulers may still reference the caller after preemption.
+                // Only its executing core matters; it already owns its context lock there.
+                thread_core = static_cast<s32>(m_kernel.CurrentPhysicalCoreIndex());
+                thread_is_current = true;
+            } else {
+                for (thread_core = 0; thread_core < static_cast<s32>(Hardware::NUM_CPU_CORES);
+                     ++thread_core) {
+                    if (m_kernel.Scheduler(thread_core).GetSchedulerCurrentThread() == this) {
+                        thread_is_current = true;
+                        break;
+                    }
                 }
             }
 
