@@ -77,6 +77,7 @@ void SystemConfigAudio::SetupAudioPage(SciterElement page)
 {
     m_audioPage = page;
     m_config.SetupPage(page, audioSettings, sizeof(audioSettings) / sizeof(audioSettings[0]));
+    updateVolumeDisplay();
     if (!m_modules.IsValid())
     {
         return;
