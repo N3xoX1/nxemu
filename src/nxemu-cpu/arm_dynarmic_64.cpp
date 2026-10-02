@@ -627,3 +627,15 @@ void ArmDynarmic64::Release()
 {
     delete this;
 }
+
+#if defined(__linux__) && !defined(__ANDROID__)
+ScopedJitExecution::ScopedJitExecution(IKernelProcess * /*process*/)
+{
+}
+
+ScopedJitExecution::~ScopedJitExecution() = default;
+
+void ScopedJitExecution::RegisterHandler()
+{
+}
+#endif
