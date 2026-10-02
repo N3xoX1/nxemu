@@ -5,9 +5,11 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/scope_exit.h"
 #include "core/core.h"
 #include "core/hle/ipc.h"
 #include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/k_thread.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/service.h"
 #include "core/hle/service/sm/sm.h"
@@ -142,12 +144,6 @@ Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
 
         UNIMPLEMENTED_MSG("command_type={}", ctx.GetCommandType());
         break;
-    }
-
-    // If emulation was shutdown, we are closing service threads, do not write the response back to
-    // memory that may be shutting down as well.
-    if (system.IsPoweredOn()) {
-        ctx.WriteToOutgoingCommandBuffer();
     }
 
     return result;

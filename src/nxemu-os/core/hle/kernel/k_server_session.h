@@ -51,14 +51,15 @@ public:
 
     Result OnRequest(KSessionRequest* request);
     Result SendReply(uintptr_t server_message, uintptr_t server_buffer_size,
-                     KPhysicalAddress server_message_paddr, bool is_hle = false);
+                     KPhysicalAddress server_message_paddr, bool is_hle = false,
+                     Service::HLERequestContext* context = nullptr);
     Result ReceiveRequest(uintptr_t server_message, uintptr_t server_buffer_size,
                           KPhysicalAddress server_message_paddr,
                           std::shared_ptr<Service::HLERequestContext>* out_context = nullptr,
                           std::weak_ptr<Service::SessionRequestManager> manager = {});
 
-    Result SendReplyHLE() {
-        R_RETURN(this->SendReply(0, 0, 0, true));
+    Result SendReplyHLE(Service::HLERequestContext& context) {
+        R_RETURN(this->SendReply(0, 0, 0, true, std::addressof(context)));
     }
 
     Result ReceiveRequestHLE(std::shared_ptr<Service::HLERequestContext>* out_context,

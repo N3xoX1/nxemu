@@ -1348,6 +1348,7 @@ void KThread::DummyThreadEndWait() {
 }
 
 void KThread::BeginWait(KThreadQueue* queue) {
+    ++m_wait_generation;
     // Set our state as waiting.
     this->SetState(ThreadState::Waiting);
 
