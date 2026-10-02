@@ -554,6 +554,15 @@ void KScheduler::ScheduleImplFiber()
         // retry.
         if (m_state.needs_scheduling.load(std::memory_order_seq_cst))
         {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+            if (m_kernel.IsMulticore())
+            {
+                const auto* selected = m_state.highest_priority_thread.load(std::memory_order_acquire);
+                highest_priority_thread->RecordDiagnosticEvent({KThread::DiagnosticNowNs(), 10,
+                    {static_cast<u64>(m_core_id), cur_thread ? cur_thread->GetThreadId() : 0,
+                     highest_priority_thread->GetThreadId(), reinterpret_cast<u64>(selected)}});
+            }
+#endif
             // Our switch failed.
             // We should unlock the thread context, and then retry.
             highest_priority_thread->m_context_guard.unlock();

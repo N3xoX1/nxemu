@@ -122,7 +122,7 @@ try :
                                                     : vk::DebugUtilsMessenger{}),
     surface(CreateSurface(instance, render_window.GetWindowInfo())),
     device(CreateDevice(instance, dld, *surface)), memory_allocator(device), state_tracker(),
-    scheduler(device, state_tracker),
+    scheduler(device, state_tracker, gpu_.PerformanceCaptureState()),
     swapchain(*surface, device, scheduler, render_window.GetFramebufferLayout().width,
               render_window.GetFramebufferLayout().height),
     present_manager(instance, render_window, device, memory_allocator, scheduler, swapchain,
@@ -143,6 +143,11 @@ try :
         turbo_mode.emplace(instance, dld);
         scheduler.RegisterOnSubmit([this] { turbo_mode->QueueSubmitted(); });
     }
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    const std::string model{device.GetModelName()};
+    const std::string driver = device.GetDriverName() + " " + std::to_string(device.GetDriverVersion());
+    gpu.SetPerformanceCaptureDevice(model.c_str(), driver.c_str());
+#endif
     InitializeWatermark();
     Report();
 }
@@ -175,6 +180,7 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
 
     if (!render_window.IsShown())
     {
+        PERF_CAPTURE_INVALIDATE(gpu.PerformanceCaptureState(), PerformanceInvalidation::Hidden);
         return;
     }
 

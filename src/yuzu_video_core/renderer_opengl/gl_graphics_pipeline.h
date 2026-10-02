@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <nxemu-module-spec/performance_capture.h>
 
 #include <array>
 #include <cstring>
@@ -78,7 +79,7 @@ public:
                               std::array<std::string, 5> sources,
                               std::array<std::vector<u32>, 5> sources_spirv,
                               const std::array<const Shader::Info*, 5>& infos,
-                              const GraphicsPipelineKey& key_, bool force_context_flush = false);
+                              const GraphicsPipelineKey& key_, PerformanceCaptureSharedState& capture_, bool force_context_flush = false);
 
     void Configure(bool is_indexed) {
         configure_func(this, is_indexed);
@@ -126,6 +127,7 @@ private:
 
     void WaitForBuild();
 
+    PerformanceCaptureSharedState& capture;
     TextureCache& texture_cache;
     BufferCache& buffer_cache;
     Tegra::MemoryManager* gpu_memory;

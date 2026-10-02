@@ -10,6 +10,7 @@
 namespace Kernel {
 
 class KHardwareTimerBase {
+    friend class KernelStateSnapshot;
 public:
     explicit KHardwareTimerBase(KernelCore& kernel) : m_kernel{kernel} {}
 

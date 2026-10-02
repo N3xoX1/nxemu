@@ -717,6 +717,17 @@ Result KThread::SetCoreMask(s32 core_id, u64 v_affinity_mask) {
                     // quiescent; waiting for its scheduler to run would block the sole CPU thread.
                     std::unique_lock context_lock{m_context_guard, std::try_to_lock};
                     retry_update = !context_lock.owns_lock();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+                    if (!retry_update)
+                    {
+                        this->RecordDiagnosticEvent({DiagnosticNowNs(), 9,
+                            {GetCurrentThread(m_kernel).GetThreadId(), static_cast<u64>(thread_core),
+                             m_kernel.CurrentPhysicalCoreIndex(), p_affinity_mask}});
+                        LOG_INFO(Kernel, "BootTrace SC quiescent migration caller={} target={} old_core={} cpu_core={} affinity={:#x}",
+                                 GetCurrentThread(m_kernel).GetThreadId(), this->GetThreadId(),
+                                 thread_core, m_kernel.CurrentPhysicalCoreIndex(), p_affinity_mask);
+                    }
+#endif
                 } else {
                     // If the thread isn't pinned, release the scheduler lock and retry until it's
                     // not current.

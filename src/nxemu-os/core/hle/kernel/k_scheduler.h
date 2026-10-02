@@ -137,6 +137,7 @@ private:
 
 private:
     friend class KScopedDisableDispatch;
+    friend class KernelStateSnapshot;
 
     struct SchedulingState {
         std::atomic<bool> needs_scheduling{false};

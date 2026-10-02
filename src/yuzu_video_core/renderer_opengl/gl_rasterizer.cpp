@@ -75,7 +75,7 @@ RasterizerOpenGL::RasterizerOpenGL(Core::Frontend::EmuWindow& emu_window_, Tegra
       buffer_cache_runtime(device, staging_buffer_pool),
       buffer_cache(device_memory_, buffer_cache_runtime),
       shader_cache(device_memory_, emu_window_, device, texture_cache, buffer_cache,
-                   program_manager, state_tracker, gpu.ShaderNotify()),
+                   program_manager, state_tracker, gpu.ShaderNotify(), gpu.PerformanceCaptureState()),
       query_cache(*this, device_memory_), accelerate_dma(buffer_cache, texture_cache),
       fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache),
       blit_image(program_manager_) {}
@@ -478,6 +478,20 @@ void RasterizerOpenGL::FlushAll() {}
 void RasterizerOpenGL::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
     if (addr == 0 || size == 0) {
         return;
+    }
+    PERF_CAPTURE_SCOPE(gpu.PerformanceCaptureState(), flush_region_call);
+    if (auto w = PERF_CAPTURE_WRITE(gpu.PerformanceCaptureState())) {
+        w.Add(PerformanceCounter::flush_region_requests);
+        w.Add(PerformanceCounter::flush_region_requested_bytes, size);
+        if (True(which & VideoCommon::CacheType::BufferCache)) {
+            w.Add(PerformanceCounter::buffer_download_requests);
+            w.Add(PerformanceCounter::buffer_download_requested_bytes, size);
+        }
+        if (True(which & VideoCommon::CacheType::TextureCache)) {
+            w.Add(PerformanceCounter::texture_download_requests);
+            w.Add(PerformanceCounter::texture_download_requested_bytes, size);
+        }
+        if (True(which & VideoCommon::CacheType::QueryCache)) w.Add(PerformanceCounter::query_flush_requests);
     }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};

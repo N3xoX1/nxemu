@@ -117,6 +117,19 @@ Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
                                                HLERequestContext& ctx) {
     const auto guard = LockService();
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    Kernel::KThread::DiagnosticEvent diagnostic;
+    diagnostic.time_ns = Kernel::KThread::DiagnosticNowNs();
+    diagnostic.kind = 7;
+    u64 service_hash = 14695981039346656037ULL;
+    for (const unsigned char ch : service_name)
+        service_hash = (service_hash ^ ch) * 1099511628211ULL;
+    diagnostic.values = {ctx.GetCommand(), reinterpret_cast<u64>(&session),
+                         static_cast<u64>(ctx.GetCommandType()), ctx.CanReadBuffer() ? ctx.GetReadBufferSize() : 0,
+                         ctx.CanWriteBuffer() ? ctx.GetWriteBufferSize() : 0, u64(system.Kernel().CurrentScheduler() != nullptr),
+                         service_hash};
+    ctx.GetThread().RecordDiagnosticEvent(diagnostic);
+#endif
     ctx.SetCompletionTime(0);
     const auto work = system.Kernel().GlobalSchedulerContext().BeginHle();
     const auto finish_work = [&] {
@@ -155,6 +168,13 @@ Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
 
     finish_work();
     complete_work.Cancel();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    diagnostic.time_ns = Kernel::KThread::DiagnosticNowNs();
+    diagnostic.kind = 8;
+    diagnostic.values[2] = result.raw;
+    diagnostic.values[3] = u64(ctx.GetIsDeferred());
+    ctx.GetThread().RecordDiagnosticEvent(diagnostic);
+#endif
     return result;
 }
 

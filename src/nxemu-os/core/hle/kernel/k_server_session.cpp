@@ -1344,6 +1344,16 @@ Result KServerSession::SendReply(uintptr_t server_message, uintptr_t server_buff
             KScopedSchedulerLock sl{m_kernel};
 
             if (request->IsClientWaitCurrent()) {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+                const auto core = client_thread->GetActiveCore();
+                const auto* peer = core >= 0 ? m_kernel.Scheduler(core).GetSchedulerCurrentThread() : nullptr;
+                client_thread->RecordDiagnosticEvent({KThread::DiagnosticNowNs(), 4ULL,
+                    {reinterpret_cast<u64>(this), peer ? peer->GetThreadId() : 0,
+                     peer ? static_cast<u64>(peer->GetPriority()) : 0,
+                     peer ? peer->diagnostic_svc_count.load(std::memory_order_relaxed) : 0,
+                     peer ? peer->diagnostic_svc_id.load(std::memory_order_relaxed) : 0,
+                     peer ? peer->diagnostic_svc_arg0.load(std::memory_order_relaxed) : 0}});
+#endif
                 client_thread->EndWait(client_result);
             }
         }
@@ -1382,6 +1392,10 @@ Result KServerSession::OnRequest(KSessionRequest* request) {
         R_SUCCEED_IF(request->GetEvent() != nullptr);
 
         // This is a synchronous request, so we should wait for our request to complete.
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        GetCurrentThread(m_kernel).RecordDiagnosticEvent({KThread::DiagnosticNowNs(), 3,
+            {reinterpret_cast<u64>(this)}});
+#endif
         GetCurrentThread(m_kernel).SetWaitReasonForDebugging(ThreadWaitReasonForDebugging::IPC);
         GetCurrentThread(m_kernel).BeginWait(std::addressof(wait_queue));
         request->CaptureClientWait();

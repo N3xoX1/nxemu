@@ -29,6 +29,7 @@ static_assert(Svc::HighestThreadPriority <= HighestCoreMigrationAllowedPriority)
 class GlobalSchedulerContext final
 {
     friend class KScheduler;
+    friend class KernelStateSnapshot;
 
 public:
     using LockType = KAbstractSchedulerLock<KScheduler>;

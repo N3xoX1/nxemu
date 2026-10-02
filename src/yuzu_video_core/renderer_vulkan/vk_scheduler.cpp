@@ -35,8 +35,8 @@ void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
     last = nullptr;
 }
 
-Scheduler::Scheduler(const Device& device_, StateTracker& state_tracker_)
-    : device{device_}, state_tracker{state_tracker_},
+Scheduler::Scheduler(const Device& device_, StateTracker& state_tracker_, PerformanceCaptureSharedState& capture_)
+    : device{device_}, state_tracker{state_tracker_}, capture{capture_},
       master_semaphore{std::make_unique<MasterSemaphore>(device)},
       command_pool{std::make_unique<CommandPool>(*master_semaphore, device)} {
     AcquireNewChunk();
@@ -47,6 +47,7 @@ Scheduler::Scheduler(const Device& device_, StateTracker& state_tracker_)
 Scheduler::~Scheduler() = default;
 
 u64 Scheduler::Flush(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
+    PERF_CAPTURE_ADD(capture, scheduler_flushes, 1);
     // When flushing, we only send data to the worker thread; no waiting is necessary.
     const u64 signal_value = SubmitExecution(signal_semaphore, wait_semaphore);
     AllocateNewContext();
@@ -54,6 +55,7 @@ u64 Scheduler::Flush(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
 }
 
 void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
+    PERF_CAPTURE_ADD(capture, scheduler_finishes, 1);
     // When finishing, we need to wait for the submission to have executed on the device.
     const u64 presubmit_tick = CurrentTick();
     SubmitExecution(signal_semaphore, wait_semaphore);
@@ -62,6 +64,7 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore)
 }
 
 void Scheduler::WaitWorker() {
+    PERF_CAPTURE_SCOPE(capture, scheduler_worker_wait_call);
     DispatchWork();
 
     // Ensure the queue is drained.
@@ -213,6 +216,7 @@ void Scheduler::AllocateWorkerCommandBuffer() {
 }
 
 u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
+    PERF_CAPTURE_ADD(capture, scheduler_submissions, 1);
     EndPendingOperations();
     InvalidateState();
 
