@@ -417,11 +417,11 @@ void WriteOutArgument(bool is_domain, CallArguments& args, u8* raw_data, HLERequ
 
             if (size > 0 && ctx.CanWriteBuffer(OutBufferIndex)) {
                 if constexpr (ArgType::Attr & BufferAttr_HipcAutoSelect) {
-                    ctx.WriteBuffer(buffer.data(), size, OutBufferIndex);
+                    ctx.WriteBuffer(std::move(buffer), OutBufferIndex);
                 } else if constexpr (ArgType::Attr & BufferAttr_HipcMapAlias) {
-                    ctx.WriteBufferB(buffer.data(), size, OutBufferIndex);
+                    ctx.WriteBufferB(std::move(buffer), OutBufferIndex);
                 } else /* if (ArgType::Attr & BufferAttr_HipcPointer) */ {
-                    ctx.WriteBufferC(buffer.data(), size, OutBufferIndex);
+                    ctx.WriteBufferC(std::move(buffer), OutBufferIndex);
                 }
             }
 

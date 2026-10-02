@@ -4,9 +4,11 @@
 #include "startup_checks.h"
 #include "user_interface/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
+#include <atomic>
 #include <deque>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <nxemu-core/modules/system_modules.h>
@@ -119,6 +121,7 @@ private:
     void SetCaption(const std::string & caption);
     static void EmulationRunning(const char * setting, void * userData);
     static void EmulationStateChanged(const char * setting, void * userData);
+    void OnEmulationStateChanged(int32_t state);
     static void GameFileChanged(const char * setting, void * userData);
     static void GameNameChanged(const char * setting, void * userData);
     static void DisplayedFramesChanged(const char * setting, void * userData);
@@ -224,6 +227,8 @@ private:
     ISciterUI & m_sciterUI;
     ISciterWindow * m_window;
     SciterElement m_rootElement;
+    std::mutex m_emulationStateMutex;
+    std::deque<int32_t> m_emulationStateUpdates;
     SystemModules m_modules;
     std::vector<VkDeviceRecord> m_vkDeviceRecords;
     std::shared_ptr<IMenuBar> m_menuBar;
@@ -243,7 +248,7 @@ private:
     bool m_useSpeedLimit;
     uint32_t m_speedLimit;
     bool m_emulationRunning;
-    bool m_reloadingGame;
+    std::atomic<bool> m_reloadingGame;
     bool m_pendingStartInFullscreen;
     bool m_pendingStartWithUiHidden;
     std::map<std::string, std::string> m_menuIconSvgs;

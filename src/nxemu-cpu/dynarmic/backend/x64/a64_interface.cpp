@@ -265,6 +265,8 @@ private:
     CodePtr GetBlock(IR::LocationDescriptor current_location) {
         if (auto block = emitter.GetBasicBlock(current_location))
             return block->entrypoint;
+        if (conf.notify_compilation) conf.callbacks->OnCompilation(true);
+        SCOPE_EXIT { if (conf.notify_compilation) conf.callbacks->OnCompilation(false); };
 
         constexpr size_t MINIMUM_REMAINING_CODESIZE = 1 * 1024 * 1024;
         if (block_of_code.SpaceRemaining() < MINIMUM_REMAINING_CODESIZE) {
@@ -298,7 +300,8 @@ private:
         if (!conf.HasOptimization(OptimizationFlag::DisableVerification)) {
             Optimization::VerificationPass(ir_block);
         }
-        return emitter.Emit(ir_block).entrypoint;
+        const auto entrypoint = emitter.Emit(ir_block).entrypoint;
+        return entrypoint;
     }
 
     void PerformRequestedCacheInvalidation(HaltReason hr) {

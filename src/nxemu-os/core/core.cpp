@@ -3,6 +3,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdlib>
 #include <optional>
 
 #include "yuzu_audio_core/audio_core.h"
@@ -34,6 +35,7 @@
 #include "yuzu_input_common/main.h"
 #include "network/network.h"
 #include <nxemu-module-spec/system_loader.h>
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-video/video_settings_identifiers.h>
 
 #ifdef _WIN32
@@ -67,7 +69,18 @@ struct System::Impl {
 
     void Initialize(System& system)
     {
+        ConfigureRuntime(system);
+
+        // These objects outlive individual games and runtime setting changes.
+        frontend_applets.SetDefaultAppletsIfMissing();
+        input_subsystem->Initialize();
+    }
+
+    void ConfigureRuntime(System& system)
+    {
         is_multicore = osSettings.use_multi_core;
+        cpu_hle_requested = osSettings.cpu_hle_synchronization;
+        cpu_hle_initialized_supported = CpuHleSupported();
 
 #ifdef _WIN32
         const std::chrono::nanoseconds timer_resolution = Common::Windows::SetCurrentTimerResolutionToMaximum();
@@ -76,46 +89,48 @@ struct System::Impl {
 #endif
 
         core_timing.SetMulticore(is_multicore);
-        core_timing.Initialize([&system]() { system.RegisterHostThread(); });
-
-        // Create default implementations of applets if one is not provided.
-        frontend_applets.SetDefaultAppletsIfMissing();
+        core_timing.Initialize([&system]() { system.RegisterHostThread(); }, cpu_hle_initialized_supported);
 
         is_async_gpu = g_settings->GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
 
         kernel.SetMulticore(is_multicore);
         cpu_manager.SetMulticore(is_multicore);
         cpu_manager.SetAsyncGpu(is_async_gpu);
-        input_subsystem->Initialize();
     }
 
-    void ReinitializeIfNecessary(System & system)
+    void ReconfigureIfNecessary(System & system)
     {
-        const bool must_reinitialize = false;
-        //    is_multicore != osSettings.use_multi_core ||
-        //    extended_memory_layout != (Settings::values.memory_layout_mode.GetValue() !=
-        //                               Settings::MemoryLayout::Memory_4Gb);
+        const bool must_reconfigure = is_multicore != osSettings.use_multi_core ||
+            cpu_hle_requested != osSettings.cpu_hle_synchronization ||
+            (cpu_hle_requested && cpu_hle_initialized_supported != CpuHleSupported()) ||
+            core_timing.CpuHleSynchronizationFailed();
 
-        if (!must_reinitialize)
+        if (!must_reconfigure)
         {
             return;
         }
 
-        LOG_DEBUG(Kernel, "Re-initializing");
+        LOG_DEBUG(Kernel, "Reconfiguring runtime timing and CPU settings");
 
-        // is_multicore = osSettings.use_multi_core;
-        // extended_memory_layout =
-        //     Settings::values.memory_layout_mode.GetValue() != Settings::MemoryLayout::Memory_4Gb;
+        ConfigureRuntime(system);
+    }
 
-        Initialize(system);
+    bool CpuHleSupported() const
+    {
+        // Native execution has no Dynarmic run/compilation notifications. It
+        // must retain normal timing rather than enable a partial clock model.
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+        if (g_settings->GetBool(NXCpuSetting::NceEnabled)) return false;
+#endif
+        return cpu_hle_guest64;
     }
 
     void Run()
     {
         std::unique_lock<std::mutex> lk(suspend_guard);
 
-        kernel.SuspendEmulation(false);
         core_timing.SyncPause(false);
+        kernel.SuspendEmulation(false);
         is_paused.store(false, std::memory_order_relaxed);
     }
 
@@ -123,8 +138,8 @@ struct System::Impl {
     {
         std::unique_lock<std::mutex> lk(suspend_guard);
 
-        core_timing.SyncPause(true);
         kernel.SuspendEmulation(true);
+        core_timing.SyncPause(true);
         is_paused.store(true, std::memory_order_relaxed);
     }
 
@@ -160,12 +175,14 @@ struct System::Impl {
         return nvdec_active;
     }
 
-    void InitializeKernel(System & system, uint64_t titleID)
+    void InitializeKernel(System & system, uint64_t titleID, bool is_64_bit)
     {
         LOG_DEBUG(Core, "initialized OK");
 
-        // Setting changes may require a full system reinitialization (e.g., disabling multicore).
-        ReinitializeIfNecessary(system);
+        cpu_hle_guest64 = is_64_bit;
+        // Reconfigure timing before creating guest threads. Input factories and
+        // frontend applets remain the instances registered during OS startup.
+        ReconfigureIfNecessary(system);
 
         kernel.Initialize();
         cpu_manager.Initialize();
@@ -288,6 +305,8 @@ struct System::Impl {
     Core::SpeedLimiter speed_limiter;
 
     bool is_multicore{};
+    bool cpu_hle_requested{};
+    bool cpu_hle_guest64{true}, cpu_hle_initialized_supported{true};
     bool is_async_gpu{};
 
     ::ExecuteProgramCallback execute_program_callback{};
@@ -332,9 +351,9 @@ const CpuManager & System::GetCpuManager() const
     return impl->cpu_manager;
 }
 
-void System::InitializeKernel(uint64_t titleID)
+void System::InitializeKernel(uint64_t titleID, bool is_64_bit)
 {
-    impl->InitializeKernel(*this, titleID);
+    impl->InitializeKernel(*this, titleID, is_64_bit);
 }
 
 void System::Initialize() {
