@@ -544,6 +544,10 @@ void A64AddressSpace::EmitPrelude() {
     ProtectCodeMemory();
 }
 
+void A64AddressSpace::NotifyCompilation(bool compiling) {
+    if (conf.notify_compilation) conf.callbacks->OnCompilation(compiling);
+}
+
 EmitConfig A64AddressSpace::GetEmitConfig() {
     return EmitConfig{
         .optimizations = conf.unsafe_optimizations ? conf.optimizations : conf.optimizations & all_safe_optimizations,

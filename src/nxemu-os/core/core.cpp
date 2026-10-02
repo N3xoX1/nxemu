@@ -35,6 +35,7 @@
 #include "yuzu_input_common/main.h"
 #include "network/network.h"
 #include <nxemu-module-spec/system_loader.h>
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-video/video_settings_identifiers.h>
 
 #ifdef _WIN32
@@ -70,7 +71,7 @@ struct System::Impl {
     {
         is_multicore = osSettings.use_multi_core;
         cpu_hle_requested = osSettings.cpu_hle_synchronization;
-        cpu_hle_initialized_guest64 = cpu_hle_guest64;
+        cpu_hle_initialized_supported = CpuHleSupported();
 
 #ifdef _WIN32
         const std::chrono::nanoseconds timer_resolution = Common::Windows::SetCurrentTimerResolutionToMaximum();
@@ -79,7 +80,7 @@ struct System::Impl {
 #endif
 
         core_timing.SetMulticore(is_multicore);
-        core_timing.Initialize([&system]() { system.RegisterHostThread(); }, cpu_hle_guest64);
+        core_timing.Initialize([&system]() { system.RegisterHostThread(); }, cpu_hle_initialized_supported);
 
         // Create default implementations of applets if one is not provided.
         frontend_applets.SetDefaultAppletsIfMissing();
@@ -96,7 +97,7 @@ struct System::Impl {
     {
         const bool must_reinitialize = is_multicore != osSettings.use_multi_core ||
             cpu_hle_requested != osSettings.cpu_hle_synchronization ||
-            cpu_hle_initialized_guest64 != cpu_hle_guest64 ||
+            cpu_hle_initialized_supported != CpuHleSupported() ||
             core_timing.CpuHleSynchronizationFailed();
 
         if (!must_reinitialize)
@@ -109,12 +110,22 @@ struct System::Impl {
         Initialize(system);
     }
 
+    bool CpuHleSupported() const
+    {
+        // Native execution has no Dynarmic run/compilation notifications. It
+        // must retain normal timing rather than enable a partial clock model.
+#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
+        if (g_settings->GetBool(NXCpuSetting::NceEnabled)) return false;
+#endif
+        return cpu_hle_guest64;
+    }
+
     void Run()
     {
         std::unique_lock<std::mutex> lk(suspend_guard);
 
-        kernel.SuspendEmulation(false);
         core_timing.SyncPause(false);
+        kernel.SuspendEmulation(false);
         is_paused.store(false, std::memory_order_relaxed);
     }
 
@@ -122,8 +133,8 @@ struct System::Impl {
     {
         std::unique_lock<std::mutex> lk(suspend_guard);
 
-        core_timing.SyncPause(true);
         kernel.SuspendEmulation(true);
+        core_timing.SyncPause(true);
         is_paused.store(true, std::memory_order_relaxed);
     }
 
@@ -289,7 +300,7 @@ struct System::Impl {
 
     bool is_multicore{};
     bool cpu_hle_requested{};
-    bool cpu_hle_guest64{true}, cpu_hle_initialized_guest64{true};
+    bool cpu_hle_guest64{true}, cpu_hle_initialized_supported{true};
     bool is_async_gpu{};
 
     ::ExecuteProgramCallback execute_program_callback{};

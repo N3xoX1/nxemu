@@ -6,7 +6,6 @@
 #include <atomic>
 #include <set>
 #include <vector>
-#include <unordered_map>
 
 #include "yuzu_common/common_types.h"
 #include "core/hardware_properties.h"
@@ -64,7 +63,7 @@ public:
     void RegisterDummyThreadForWakeup(KThread* thread);
     void WakeupWaitingDummyThreads();
     struct HleWork {
-        u64 actor{}, virtual_start{};
+        u64 virtual_start{};
         KThread* executing_thread{};
     };
     HleWork BeginHle();
@@ -91,7 +90,6 @@ private:
     /// Lists all thread ids that aren't deleted/etc.
     std::vector<KThread*> m_thread_list;
     std::mutex m_global_list_guard;
-    std::unordered_map<u64, u64> m_hle_available; // Protected by the scheduler lock.
 
 };
 

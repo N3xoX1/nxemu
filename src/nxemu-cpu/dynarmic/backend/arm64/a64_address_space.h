@@ -24,6 +24,7 @@ public:
 protected:
     friend class A64Core;
 
+    void NotifyCompilation(bool compiling) override;
     void EmitPrelude();
     EmitConfig GetEmitConfig() override;
     void RegisterNewBasicBlock(const IR::Block& block, const EmittedBlockInfo& block_info) override;

@@ -80,6 +80,10 @@ ServerManager::ServerManager(Core::System& system) : m_system{system}, m_selecti
     // Register event.
     Kernel::KEvent::Register(system.Kernel(), m_wakeup_event);
 
+    m_shutdown_event = Kernel::KEvent::Create(system.Kernel());
+    m_shutdown_event->Initialize(nullptr);
+    Kernel::KEvent::Register(system.Kernel(), m_shutdown_event);
+
     // Link to holder.
     m_wakeup_holder.emplace(std::addressof(m_wakeup_event->GetReadableEvent()));
     m_wakeup_holder->LinkToMultiWait(std::addressof(m_deferred_list));
@@ -88,6 +92,7 @@ ServerManager::ServerManager(Core::System& system) : m_system{system}, m_selecti
 ServerManager::~ServerManager() {
     // Signal stop.
     m_stop_source.request_stop();
+    m_shutdown_event->Signal();
     m_wakeup_event->Signal();
 
     // Wait for processing to stop.
@@ -113,6 +118,9 @@ ServerManager::~ServerManager() {
     // Close wakeup event.
     m_wakeup_event->GetReadableEvent().Close();
     m_wakeup_event->Close();
+
+    m_shutdown_event->GetReadableEvent().Close();
+    m_shutdown_event->Close();
 
     if (m_deferral_event) {
         m_deferral_event->GetReadableEvent().Close();
@@ -413,11 +421,10 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
                m_system.CoreTiming().CpuHleSynchronizationEnabled() && deadline >
                static_cast<u64>(m_system.CoreTiming().GetGlobalTimeNs().count())) {
             s32 index{};
-            Kernel::KSynchronizationObject* objects[]{std::addressof(m_wakeup_event->GetReadableEvent())};
+            Kernel::KSynchronizationObject* objects[]{std::addressof(m_shutdown_event->GetReadableEvent())};
             const auto wait = Kernel::KSynchronizationObject::Wait(m_system.Kernel(),
                 std::addressof(index), objects, 1, static_cast<s64>(deadline));
             if (wait == Kernel::ResultTerminationRequested) R_SUCCEED();
-            if (wait == ResultSuccess && !m_stop_source.stop_requested()) m_wakeup_event->Clear();
             ASSERT(wait == ResultSuccess || wait == Kernel::ResultTimedOut || wait == Kernel::ResultCancelled);
         }
         R_SUCCEED_IF(m_stop_source.stop_requested());

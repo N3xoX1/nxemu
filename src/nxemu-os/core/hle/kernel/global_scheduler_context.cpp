@@ -32,12 +32,11 @@ GlobalSchedulerContext::HleWork GlobalSchedulerContext::BeginHle() {
     auto& thread = GetCurrentThread(m_kernel);
     // A nested service call is already charged to its enclosing handler.
     if (thread.hle_execution.IsCollecting()) return {};
-    const auto actor = thread.GetThreadId();
-    const auto start = std::max(m_hle_available[actor],
+    const auto start = std::max(thread.hle_available_time,
         static_cast<u64>(timing.GetGlobalTimeNs().count()));
     ASSERT(!thread.hle_execution.IsCollecting());
     thread.hle_execution.Begin(Core::Timing::ReadNativeThreadTimeNs());
-    return {actor, start, &thread};
+    return {start, &thread};
 }
 
 u64 GlobalSchedulerContext::EndHle(const HleWork& work) {
@@ -53,7 +52,7 @@ u64 GlobalSchedulerContext::EndHle(const HleWork& work) {
     }
     constexpr auto limit = static_cast<u64>(std::numeric_limits<s64>::max());
     const auto start = std::min(work.virtual_start, limit);
-    auto& available = m_hle_available[work.actor];
+    auto& available = work.executing_thread->hle_available_time;
     available = std::max(available, start + std::min(*elapsed, limit - start));
     return available;
 }
