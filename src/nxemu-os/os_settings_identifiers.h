@@ -9,6 +9,7 @@ namespace NXOsSetting
     constexpr const char * AudioVolume = "nxos:AudioVolume";
     constexpr const char * AudioMuted = "nxos:AudioMuted";
     constexpr const char * SpeedLimit = "nxos:SpeedLimit";
+    constexpr const char * CpuHleSynchronization = "nxos:CpuHleSynchronization";
     constexpr const char * UseMultiCore = "nxos:UseMultiCore";
     constexpr const char * UseSpeedLimit = "nxos:UseSpeedLimit";
     constexpr const char * DockedMode = "nxos:DockedMode";

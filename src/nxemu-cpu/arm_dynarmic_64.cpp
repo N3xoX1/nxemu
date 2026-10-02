@@ -4,6 +4,7 @@
 #include "cpu_settings.h"
 #include <array>
 #include <limits>
+#include "yuzu_common/scope_exit.h"
 #include <yuzu_common/logging/log.h>
 #include "arm_dynarmic.h"
 #include "arm_dynarmic_64.h"
@@ -64,6 +65,10 @@ public:
             CheckMemoryAccess(vaddr, 8, CpuDebugWatchpointType::Read);
         }
         return m_memory.Read64(vaddr);
+    }
+    void OnCompilation(bool compiling) override
+    {
+        m_system.Timing().CpuCompilation(m_parent.m_coreIndex, compiling);
     }
     std::optional<u32> MemoryReadCode(uint64_t vaddr) override
     {
@@ -315,6 +320,7 @@ ArmDynarmic64::ArmDynarmic64(ICoreSystem & system, bool uses_wall_clock, IKernel
     m_process(process),
     m_coreIndex(core_index)
 {
+    m_cpu_hle_synchronization = m_uses_wall_clock && m_system.Timing().CpuHleSynchronizationEnabled();
     m_jit = MakeJit(process);
     ScopedJitExecution::RegisterHandler();
 }
@@ -365,6 +371,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     // Timing
     config.wall_clock_cntpct = m_uses_wall_clock;
     config.enable_cycle_counting = !m_uses_wall_clock;
+    config.notify_compilation = m_cpu_hle_synchronization;
 
     // Code cache size
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
@@ -499,15 +506,30 @@ CpuHaltReason ArmDynarmic64::RunThread(IKernelThread * thread)
     ScopedJitExecution sj(thread->GetOwnerProcess());
 
     m_jit->ClearExclusiveState();
-    return TranslateHaltReason(m_jit->Run());
+    const auto result = [&] {
+        if (m_cpu_hle_synchronization) m_system.Timing().BeginCpuRun(m_coreIndex);
+        SCOPE_EXIT {
+            if (m_cpu_hle_synchronization) m_system.Timing().EndCpuRun(m_coreIndex);
+        };
+        return m_jit->Run();
+    }();
+    return TranslateHaltReason(result);
 }
+
 
 CpuHaltReason ArmDynarmic64::StepThread(IKernelThread * thread)
 {
     ScopedJitExecution sj(thread->GetOwnerProcess());
 
     m_jit->ClearExclusiveState();
-    return TranslateHaltReason(m_jit->Step());
+    const auto result = [&] {
+        if (m_cpu_hle_synchronization) m_system.Timing().BeginCpuRun(m_coreIndex);
+        SCOPE_EXIT {
+            if (m_cpu_hle_synchronization) m_system.Timing().EndCpuRun(m_coreIndex);
+        };
+        return m_jit->Step();
+    }();
+    return TranslateHaltReason(result);
 }
 
 void ArmDynarmic64::LockThread(IKernelThread * /*thread*/)

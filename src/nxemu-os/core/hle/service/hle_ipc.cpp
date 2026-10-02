@@ -25,6 +25,7 @@
 #include "core/hle/service/ipc_helpers.h"
 #include "core/memory.h"
 #include "core/core.h"
+#include "core/core_timing.h"
 
 namespace Service {
 
@@ -134,6 +135,7 @@ HLERequestContext::HLERequestContext(Kernel::KernelCore& kernel_, Core::Memory::
       command_buffer_address(command_buffer_address_), kernel{kernel_}, memory{memory_} {
     // A service may retain a request after the client closes its session.
     thread->Open();
+    defer_response_buffers = kernel.System().CoreTiming().CpuHleSynchronizationEnabled();
     cmd_buf[0] = 0;
 }
 

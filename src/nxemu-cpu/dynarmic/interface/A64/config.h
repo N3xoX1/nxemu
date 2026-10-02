@@ -87,6 +87,8 @@ struct UserCallbacks {
     // All reads through this callback are 4-byte aligned.
     // Memory must be interpreted as little endian.
     virtual std::optional<std::uint32_t> MemoryReadCode(VAddr vaddr) { return MemoryRead32(vaddr); }
+    // Cold compilation must not advance the executing CPU timeline.
+    virtual void OnCompilation(bool) {}
 
     // Reads through these callbacks may not be aligned.
     virtual std::uint8_t MemoryRead8(VAddr vaddr) = 0;
@@ -284,6 +286,7 @@ struct UserConfig {
     /// This option allows you to disable cycle counting. If this is set to false,
     /// AddTicks and GetTicksRemaining are never called, and no cycle counting is done.
     bool enable_cycle_counting = true;
+    bool notify_compilation = false;
 
     // Minimum size is about 8MiB. Maximum size is about 128MiB (arm64 host) or 2GiB (x64 host).
     // Maximum size is limited by the maximum length of a x86_64 / arm64 jump.
