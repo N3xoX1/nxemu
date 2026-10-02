@@ -244,6 +244,8 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         return;
     }
     DAddr cpu_addr = *cpu_addr_opt;
+    impl->device_memory.RegisterFlushCacheRegion(cpu_addr, has_timestamp ? 16 : 4,
+                                                CacheType::QueryCache);
     const size_t new_query_id = streamer->WriteCounter(cpu_addr, has_timestamp, payload, subreport);
     auto* query = streamer->GetQuery(new_query_id);
     if (is_fence) {

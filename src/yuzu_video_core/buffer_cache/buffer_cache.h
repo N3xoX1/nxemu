@@ -1411,6 +1411,7 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
     Buffer& buffer = slot_buffers[buffer_id];
     const auto size = buffer.SizeBytes();
     if (insert) {
+        device_memory.RegisterFlushCacheRegion(buffer.CpuAddr(), size, CacheType::BufferCache);
         total_used_memory += Common::AlignUp(size, 1024);
         buffer.setLRUID(lru_cache.Insert(buffer_id, frame_tick));
     } else {

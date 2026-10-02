@@ -267,6 +267,9 @@
     <ClInclude Include="cache_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="flush_region_cache_filter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="capture.h">
       <Filter>Header Files</Filter>
     </ClInclude>

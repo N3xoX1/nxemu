@@ -39,6 +39,7 @@
     <ClInclude Include="buffer_cache\usage_tracker.h" />
     <ClInclude Include="buffer_cache\word_manager.h" />
     <ClInclude Include="cache_types.h" />
+    <ClInclude Include="flush_region_cache_filter.h" />
     <ClInclude Include="capture.h" />
     <ClInclude Include="cdma_pusher.h" />
     <ClInclude Include="compatible_formats.h" />

@@ -534,6 +534,13 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
     if (addr == 0 || size == 0) {
         return;
     }
+    // Registered pages retain the existing lock/download/fence path.
+    which = device_memory.FilterFlushCaches(addr, size, which);
+    if (False(which & (VideoCommon::CacheType::TextureCache |
+                       VideoCommon::CacheType::BufferCache |
+                       VideoCommon::CacheType::QueryCache))) {
+        return;
+    }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.DownloadMemory(addr, size);
