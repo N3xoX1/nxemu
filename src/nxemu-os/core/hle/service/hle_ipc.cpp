@@ -344,7 +344,8 @@ Result HLERequestContext::WriteToOutgoingCommandBuffer() {
     response_writes.PublishTo([&](u64 address, std::span<const u8> data) {
         memory.WriteBlock(Common::ProcessAddress{address}, data.data(), data.size());
     });
-    memory.WriteBlock(command_buffer_address, cmd_buf.data(), write_size * sizeof(u32));
+    memory.WriteBlock(Common::ProcessAddress{command_buffer_address}, cmd_buf.data(),
+                      write_size * sizeof(u32));
     rollback.Commit();
     ClearOutgoingObjects();
 
