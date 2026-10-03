@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <filesystem>
 #include <string>
 
 #include "yuzu_common/dynamic_library.h"
@@ -10,6 +11,21 @@
 
 namespace Vulkan
 {
+
+#ifdef __APPLE__
+namespace {
+
+std::filesystem::path AppleVulkanLibraryPath()
+{
+    const auto exe_dir = Common::FS::GetExeDirectory();
+    if (exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents") {
+        return exe_dir.parent_path() / "Frameworks/libMoltenVK.dylib";
+    }
+    return exe_dir.empty() ? std::filesystem::path{} : exe_dir / "libMoltenVK.dylib";
+}
+
+} // namespace
+#endif
 
 std::shared_ptr<Common::DynamicLibrary> OpenLibrary([[maybe_unused]] Core::Frontend::GraphicsContext * context)
 {
@@ -30,15 +46,14 @@ std::shared_ptr<Common::DynamicLibrary> OpenLibrary([[maybe_unused]] Core::Front
 #else
     std::shared_ptr<Common::DynamicLibrary> library = std::make_shared<Common::DynamicLibrary>();
 #ifdef __APPLE__
-    const std::filesystem::path libvulkan_filename = Common::FS::GetBundleDirectory() / "Contents/Frameworks/libvulkan.1.dylib";
-    const std::filesystem::path libmoltenvk_filename = Common::FS::GetBundleDirectory() / "Contents/Frameworks/libMoltenVK.dylib";
-    const char * library_paths[] = {std::getenv("LIBVULKAN_PATH"), libvulkan_filename.c_str(), libmoltenvk_filename.c_str()};
-    // Check if a path to a specific Vulkan library has been specified.
-    for (const char * library_path : library_paths)
+    const auto library_path = AppleVulkanLibraryPath();
+    if (!library_path.empty())
     {
-        if (library_path && library->Open(library_path))
+        const std::string path = library_path.string();
+        LOG_DEBUG(Render_Vulkan, "Trying Vulkan library: {}", path);
+        if (library->Open(path.c_str()))
         {
-            break;
+            LOG_INFO(Render_Vulkan, "Loaded Vulkan library: {}", path);
         }
     }
 #else

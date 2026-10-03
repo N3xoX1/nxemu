@@ -20,12 +20,14 @@
 *.o
 
 Thumbs.db
+.DS_Store
 /.vs
 /bin
 /build
 /git.properties
 /ipch
 /modules
+/package
 /src/nxemu-core/version.h
 /src/nxemu-video/version.h
 /src/nxemu-cpu/version.h

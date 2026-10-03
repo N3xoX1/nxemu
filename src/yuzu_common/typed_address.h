@@ -257,7 +257,7 @@ struct fmt::formatter<Common::PhysicalAddress> {
         return ctx.begin();
     }
     template <typename FormatContext>
-    auto format(const Common::PhysicalAddress& addr, FormatContext& ctx) {
+    auto format(const Common::PhysicalAddress& addr, FormatContext& ctx) const {
         return fmt::format_to(ctx.out(), "{:#x}", static_cast<u64>(addr.GetValue()));
     }
 };
@@ -268,7 +268,7 @@ struct fmt::formatter<Common::ProcessAddress> {
         return ctx.begin();
     }
     template <typename FormatContext>
-    auto format(const Common::ProcessAddress& addr, FormatContext& ctx) {
+    auto format(const Common::ProcessAddress& addr, FormatContext& ctx) const {
         return fmt::format_to(ctx.out(), "{:#x}", static_cast<u64>(addr.GetValue()));
     }
 };
@@ -279,7 +279,7 @@ struct fmt::formatter<Common::VirtualAddress> {
         return ctx.begin();
     }
     template <typename FormatContext>
-    auto format(const Common::VirtualAddress& addr, FormatContext& ctx) {
+    auto format(const Common::VirtualAddress& addr, FormatContext& ctx) const {
         return fmt::format_to(ctx.out(), "{:#x}", static_cast<u64>(addr.GetValue()));
     }
 };

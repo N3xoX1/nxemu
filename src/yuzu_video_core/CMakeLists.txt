@@ -334,6 +334,12 @@ if (YUZU_USE_BUNDLED_FFMPEG AND NOT (WIN32 OR ANDROID OR APPLE))
 endif()
 
 if(APPLE AND NOT FFmpeg_LIBRARIES)
+    if(NOT ARCHITECTURE_arm64)
+        message(FATAL_ERROR
+            "Bundled macOS FFmpeg libraries are arm64-only. "
+            "Build with -DCMAKE_OSX_ARCHITECTURES=arm64, or provide "
+            "FFmpeg_INCLUDE_DIR and FFmpeg_LIBRARIES for the target architecture.")
+    endif()
     set(_ffmpeg_macos_root "${CMAKE_SOURCE_DIR}/external/ffmpeg/lib/macos-arm64")
     set(_ffmpeg_macos_libs
         "${_ffmpeg_macos_root}/libavfilter.a"
@@ -389,6 +395,12 @@ endif()
 
 target_include_directories(video_core PRIVATE ${FFmpeg_INCLUDE_DIR})
 target_link_libraries(video_core PRIVATE ${FFmpeg_LIBRARIES})
+if(APPLE)
+    foreach(framework CoreFoundation CoreMedia CoreVideo VideoToolbox)
+        find_library(NXEMU_${framework}_FRAMEWORK ${framework} REQUIRED)
+        target_link_libraries(video_core PRIVATE ${NXEMU_${framework}_FRAMEWORK})
+    endforeach()
+endif()
 target_link_options(video_core PRIVATE ${FFmpeg_LDFLAGS})
 
 add_dependencies(video_core host_shaders)

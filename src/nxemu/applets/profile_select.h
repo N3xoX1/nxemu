@@ -18,6 +18,7 @@ public:
 
     void Attach(ISciterUI & sciterUI, SystemModules & modules, SciterElement rootElement, void * parentHwnd);
     void Detach();
+    void DetachAfterWindowDestroyed();
 
     // IProfileSelectApplet
     void Close() override;

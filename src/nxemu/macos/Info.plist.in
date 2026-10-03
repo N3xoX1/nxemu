@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.nxemu</string>
+    <key>CFBundleIconFile</key>
+    <string>nxemu.icns</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>NxEmu</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
+    <key>CFBundleVersion</key>
+    <string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.games</string>
+    <key>LSSupportsGameMode</key>
+    <true/>
+    <!-- Compatibility with macOS versions using the older Game Mode key. -->
+    <key>GCSupportsGameMode</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>NxEmu uses the microphone for games that request audio input.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Games running in NxEmu may use the local network to communicate with other devices.</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>

@@ -25,11 +25,14 @@ namespace
 constexpr AVPixelFormat PreferredGpuFormat = AV_PIX_FMT_NV12;
 constexpr AVPixelFormat PreferredCpuFormat = AV_PIX_FMT_YUV420P;
 constexpr std::array PreferredGpuDecoders = {
+#ifdef __APPLE__
+    AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
+#endif
     AV_HWDEVICE_TYPE_CUDA,
 #ifdef _WIN32
     AV_HWDEVICE_TYPE_D3D11VA,
     AV_HWDEVICE_TYPE_DXVA2,
-#elif defined(__unix__)
+#elif defined(__unix__) && !defined(__APPLE__)
     AV_HWDEVICE_TYPE_VAAPI,
     AV_HWDEVICE_TYPE_VDPAU,
 #endif
@@ -39,19 +42,28 @@ constexpr std::array PreferredGpuDecoders = {
 
 AVPixelFormat GetGpuFormat(AVCodecContext * codec_context, const AVPixelFormat * pix_fmts)
 {
+    // FFmpeg can change pix_fmt before invoking get_format; retain our selection separately.
+    auto & hw_pix_fmt = *static_cast<AVPixelFormat *>(codec_context->opaque);
     for (const AVPixelFormat * p = pix_fmts; *p != AV_PIX_FMT_NONE; ++p)
     {
-        if (*p == codec_context->pix_fmt)
+        if (*p == hw_pix_fmt)
         {
-            return codec_context->pix_fmt;
+            return hw_pix_fmt;
         }
     }
 
     LOG_INFO(HW_GPU, "Could not find compatible GPU AV format, falling back to CPU");
     av_buffer_unref(&codec_context->hw_device_ctx);
+    hw_pix_fmt = AV_PIX_FMT_NONE;
 
-    codec_context->pix_fmt = PreferredCpuFormat;
-    return codec_context->pix_fmt;
+    for (const AVPixelFormat * p = pix_fmts; *p != AV_PIX_FMT_NONE; ++p)
+    {
+        if (*p == PreferredCpuFormat)
+        {
+            return *p;
+        }
+    }
+    return AV_PIX_FMT_NONE;
 }
 
 std::string AVError(int errnum)
@@ -227,6 +239,8 @@ DecoderContext::~DecoderContext()
 void DecoderContext::InitializeHardwareDecoder(const HardwareContext & context, AVPixelFormat hw_pix_fmt)
 {
     m_codec_context->hw_device_ctx = av_buffer_ref(context.GetBufferRef());
+    m_hw_pix_fmt = hw_pix_fmt;
+    m_codec_context->opaque = &m_hw_pix_fmt;
     m_codec_context->get_format = GetGpuFormat;
     m_codec_context->pix_fmt = hw_pix_fmt;
 }
@@ -278,29 +292,25 @@ std::unique_ptr<Frame> DecoderContext::ReceiveFrame(bool * out_is_interlaced)
         return true;
     };
 
-    if (m_codec_context->hw_device_ctx)
+    if (!ReceiveImpl(dst_frame->GetFrame()))
     {
-        // If we have a hardware context, make a separate frame here to receive the
-        // hardware result before sending it to the output.
-        Frame intermediate_frame;
+        return {};
+    }
 
-        if (!ReceiveImpl(intermediate_frame.GetFrame()))
-        {
-            return {};
-        }
-
+    // get_format may have fallen back to software while receiving this frame.
+    // Transfer only frames that actually own a hardware surface.
+    if (dst_frame->GetFrame()->hw_frames_ctx)
+    {
+        auto hardware_frame = std::move(dst_frame);
+        dst_frame = std::make_unique<Frame>();
         dst_frame->SetFormat(PreferredGpuFormat);
-        const int ret = av_hwframe_transfer_data(dst_frame->GetFrame(), intermediate_frame.GetFrame(), 0);
+        const int ret = av_hwframe_transfer_data(dst_frame->GetFrame(), hardware_frame->GetFrame(), 0);
         if (ret < 0)
         {
             LOG_ERROR(HW_GPU, "av_hwframe_transfer_data error: {}", AVError(ret));
             return {};
         }
-    }
-    else
-    {
-        // Otherwise, decode the frame as normal.
-        if (!ReceiveImpl(dst_frame->GetFrame()))
+        if (av_frame_copy_props(dst_frame->GetFrame(), hardware_frame->GetFrame()) < 0)
         {
             return {};
         }
@@ -414,6 +424,12 @@ bool DecodeApi::Initialize(Tegra::Host1x::NvdecCommon::VideoCodec codec)
 {
     this->Reset();
     m_decoder.emplace(codec);
+    if (!m_decoder->GetCodec())
+    {
+        LOG_ERROR(HW_GPU, "FFmpeg build has no decoder for codec {}", codec);
+        this->Reset();
+        return false;
+    }
     m_decoder_context.emplace(*m_decoder);
 
     // Enable GPU decoding if requested.

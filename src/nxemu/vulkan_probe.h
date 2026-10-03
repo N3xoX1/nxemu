@@ -38,6 +38,9 @@ namespace Vulkan {
 // matching CreateInstance's default in vulkan_instance.h.
 enum class WindowSystemType {
     Headless,
+#ifdef __APPLE__
+    Metal,
+#endif
 };
 
 namespace vk {

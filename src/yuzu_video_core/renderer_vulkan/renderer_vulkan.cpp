@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "frontend/graphics_context.h"
 #include "yuzu_common/logging/log.h"

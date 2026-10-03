@@ -21,7 +21,8 @@ class SystemModules;
 
 class SystemConfig :
     public IPagesSink,
-    public IClickSink
+    public IClickSink,
+    public IWindowDestroySink
 {
 public:
     enum class TranslationType : uint32_t
@@ -70,6 +71,7 @@ public:
 
     //IClickSink
     bool OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t reason) override;
+    void OnWindowDestroy(HWINDOW hWnd) override;
 
 private:
     SystemConfig() = delete;

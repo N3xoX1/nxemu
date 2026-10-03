@@ -5,8 +5,8 @@
 // sandbox. Enough for CheckVulkan (headless OpenLibrary + CreateInstance).
 
 #include <array>
-#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <future>
 #include <optional>
 #include <span>
@@ -22,6 +22,20 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 namespace Vulkan {
+namespace {
+
+#ifdef __APPLE__
+std::filesystem::path AppleVulkanLibraryPath() {
+    const auto exe_dir = Common::FS::GetExeDirectory();
+    if (exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents") {
+        return exe_dir.parent_path() / "Frameworks/libMoltenVK.dylib";
+    }
+    return exe_dir.empty() ? std::filesystem::path{} : exe_dir / "libMoltenVK.dylib";
+}
+#endif
+
+} // namespace
+
 namespace vk {
 namespace {
 
@@ -174,6 +188,11 @@ namespace {
     switch (window_type) {
     case WindowSystemType::Headless:
         break;
+#ifdef __APPLE__
+    case WindowSystemType::Metal:
+        extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+        break;
+#endif
     }
     if (window_type != WindowSystemType::Headless) {
         extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
@@ -223,15 +242,12 @@ std::shared_ptr<Common::DynamicLibrary> OpenLibrary() {
     LOG_DEBUG(Render_Vulkan, "Looking for a Vulkan library");
     auto library = std::make_shared<Common::DynamicLibrary>();
 #ifdef __APPLE__
-    const auto libvulkan_filename =
-        Common::FS::GetBundleDirectory() / "Contents/Frameworks/libvulkan.1.dylib";
-    const auto libmoltenvk_filename =
-        Common::FS::GetBundleDirectory() / "Contents/Frameworks/libMoltenVK.dylib";
-    const char* library_paths[] = {std::getenv("LIBVULKAN_PATH"), libvulkan_filename.c_str(),
-                                   libmoltenvk_filename.c_str()};
-    for (const auto& library_path : library_paths) {
-        if (library_path && library->Open(library_path)) {
-            break;
+    const auto library_path = AppleVulkanLibraryPath();
+    if (!library_path.empty()) {
+        const std::string path = library_path.string();
+        LOG_DEBUG(Render_Vulkan, "Trying Vulkan library: {}", path);
+        if (library->Open(path.c_str())) {
+            LOG_INFO(Render_Vulkan, "Loaded Vulkan library: {}", path);
         }
     }
 #else

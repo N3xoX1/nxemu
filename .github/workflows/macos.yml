@@ -1,0 +1,47 @@
+name: macOS
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        # act uses the current working tree, including uncommitted changes.
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null; then
+            brew install cmake ninja
+          fi
+
+      - name: Build
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: sh src/script/build_macos.sh Release "${NXEMU_BUILD_DIRECTORY:-build}"
+
+      # The disk image preserves the bundle and includes an Applications shortcut.
+      - name: Package
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: sh src/script/package_dmg_macos.sh NxEmu-macos-arm64.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NxEmu-macos-arm64
+          path: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}/package/NxEmu-macos-arm64.dmg
+          if-no-files-found: error

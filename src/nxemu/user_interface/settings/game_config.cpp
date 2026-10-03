@@ -58,7 +58,19 @@ GameConfig::GameConfig(ISciterUI & sciterUI, SystemModules & modules) :
 {
 }
 
-GameConfig::~GameConfig() = default;
+GameConfig::~GameConfig()
+{
+    if (m_window != nullptr)
+    {
+        // Replacing a dialog must retire its callbacks before its owner dies.
+        if (m_revertAddonsOnClose && m_gameConfigAddons)
+        {
+            m_gameConfigAddons->RevertSetting();
+        }
+        m_window->OnDestroySinkRemove(this);
+        m_window->Destroy();
+    }
+}
 
 void GameConfig::Display(void * parentWindow, const char * gamePath)
 {
@@ -273,7 +285,6 @@ bool GameConfig::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint
         if (m_window != nullptr)
         {
             m_window->Destroy();
-            m_window = nullptr;
         }
     }
     return true;

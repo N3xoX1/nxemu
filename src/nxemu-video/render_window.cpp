@@ -310,10 +310,15 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
     window_info.type = Core::Frontend::WindowSystemType::Windows;
 #elif defined(__ANDROID__)
     window_info.type = Core::Frontend::WindowSystemType::Android;
+#elif defined(__APPLE__)
+    window_info.type = Core::Frontend::WindowSystemType::Cocoa;
 #else
     window_info.type = Core::Frontend::WindowSystemType::Headless;
 #endif
     window_info.render_surface = renderWindow.RenderSurface();
+#ifdef __APPLE__
+    window_info.render_surface_scale = renderWindow.PixelRatio();
+#endif
     NotifyClientAreaSizeChanged({0, 0});
     UpdateCurrentFramebufferLayout(640, 480);
 }

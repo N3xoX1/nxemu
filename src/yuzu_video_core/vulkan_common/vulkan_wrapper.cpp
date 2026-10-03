@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -423,7 +424,12 @@ VkResult Free(VkDevice device, VkCommandPool handle, Span<VkCommandBuffer> buffe
 Instance Instance::Create(u32 version, Span<const char*> layers, Span<const char*> extensions,
                           InstanceDispatch& dispatch) {
 #ifdef __APPLE__
-    constexpr VkFlags ci_flags{VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR};
+    const bool enumerate_portability =
+        std::find_if(extensions.begin(), extensions.end(), [](const char* extension) {
+            return std::strcmp(extension, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0;
+        }) != extensions.end();
+    const VkFlags ci_flags =
+        enumerate_portability ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR : 0;
 #else
     constexpr VkFlags ci_flags{};
 #endif

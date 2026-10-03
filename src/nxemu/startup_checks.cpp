@@ -23,6 +23,8 @@
 #include "startup_checks.h"
 #include "vulkan_probe.h"
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/logging/log.h"
+#include "yuzu_common/scope_exit.h"
 
 void CheckVulkan() {
     // Just start the Vulkan loader, this will crash if something is wrong
@@ -482,6 +484,98 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
     if (library != nullptr)
     {
         FreeLibrary(library);
+    }
+#elif defined(__APPLE__)
+    records.clear();
+    try
+    {
+        // Use the same bundled MoltenVK as rendering, with portability enumeration enabled.
+        const auto library = Vulkan::OpenLibrary();
+        Vulkan::vk::InstanceDispatch dispatch;
+        const auto instance = Vulkan::CreateInstance(*library, dispatch, VK_API_VERSION_1_1,
+            renderSurface ? Vulkan::WindowSystemType::Metal : Vulkan::WindowSystemType::Headless);
+
+        u32 count = 0;
+        std::vector<VkPhysicalDevice> devices;
+        VkResult result;
+        do
+        {
+            Vulkan::vk::Check(dispatch.vkEnumeratePhysicalDevices(*instance, &count, nullptr));
+            devices.resize(count);
+            result = dispatch.vkEnumeratePhysicalDevices(*instance, &count, devices.data());
+        } while (result == VK_INCOMPLETE);
+        Vulkan::vk::Check(result);
+        devices.resize(count);
+
+        // Match the renderer's device indices: vendor, discrete GPUs, then descending name.
+        const auto vendor_rank = [](u32 vendor) {
+            return vendor == 0x10de ? 0 : vendor == 0x1002 ? 1 : vendor == 0x8086 ? 2 : 3;
+        };
+        std::stable_sort(devices.begin(), devices.end(), [&](auto lhs, auto rhs) {
+            VkPhysicalDeviceProperties a{}, b{};
+            dispatch.vkGetPhysicalDeviceProperties(lhs, &a);
+            dispatch.vkGetPhysicalDeviceProperties(rhs, &b);
+            if (vendor_rank(a.vendorID) != vendor_rank(b.vendorID))
+                return vendor_rank(a.vendorID) < vendor_rank(b.vendorID);
+            const bool a_discrete = a.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+            const bool b_discrete = b.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+            if (a_discrete != b_discrete)
+                return a_discrete;
+            return std::string_view{a.deviceName} > std::string_view{b.deviceName};
+        });
+
+        const auto get_proc = [&](const char* name) {
+            return dispatch.vkGetInstanceProcAddr(*instance, name);
+        };
+        const auto create_surface = reinterpret_cast<PFN_vkCreateMetalSurfaceEXT>(get_proc("vkCreateMetalSurfaceEXT"));
+        const auto destroy_surface = reinterpret_cast<PFN_vkDestroySurfaceKHR>(get_proc("vkDestroySurfaceKHR"));
+        const auto get_present_modes = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfacePresentModesKHR>(
+            get_proc("vkGetPhysicalDeviceSurfacePresentModesKHR"));
+        VkSurfaceKHR surface = VK_NULL_HANDLE;
+        SCOPE_EXIT {
+            if (surface != VK_NULL_HANDLE && destroy_surface)
+                destroy_surface(*instance, surface, nullptr);
+        };
+        if (renderSurface && create_surface && destroy_surface)
+        {
+            VkMetalSurfaceCreateInfoEXT info{};
+            info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+            info.pLayer = static_cast<const CAMetalLayer*>(renderSurface);
+            const auto status = create_surface(*instance, &info, nullptr, &surface);
+            if (status != VK_SUCCESS)
+                LOG_WARNING(Render_Vulkan, "Device probe could not create a Metal surface: {}", static_cast<int>(status));
+        }
+        records.reserve(devices.size());
+        for (const auto device : devices)
+        {
+            VkPhysicalDeviceProperties properties{};
+            dispatch.vkGetPhysicalDeviceProperties(device, &properties);
+            std::vector<uint32_t> present_modes;
+            if (surface != VK_NULL_HANDLE && get_present_modes)
+            {
+                u32 mode_count = 0;
+                std::vector<VkPresentModeKHR> modes;
+                VkResult status;
+                do
+                {
+                    status = get_present_modes(device, surface, &mode_count, nullptr);
+                    if (status != VK_SUCCESS) break;
+                    modes.resize(mode_count);
+                    status = get_present_modes(device, surface, &mode_count, modes.data());
+                } while (status == VK_INCOMPLETE);
+                if (status == VK_SUCCESS)
+                    present_modes.assign(modes.begin(), modes.begin() + mode_count);
+            }
+            records.emplace_back(properties.deviceName, present_modes, false);
+            LOG_INFO(Render_Vulkan, "Graphics device available: {}", properties.deviceName);
+        }
+        if (records.empty())
+            LOG_WARNING(Render_Vulkan, "MoltenVK reported no physical devices");
+    }
+    catch (const std::exception& e)
+    {
+        records.clear();
+        LOG_ERROR(Render_Vulkan, "Failed to enumerate graphics devices: {}", e.what());
     }
 #else
     (void)renderSurface;

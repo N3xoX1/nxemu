@@ -4,8 +4,12 @@
 #include "user_interface/sciter_main_window.h"
 #include <common/path.h>
 #include <common/std_string.h>
+#include <filesystem>
 #include <memory>
 #include <nxemu-core/app_init.h>
+#ifdef __APPLE__
+#include <nxemu-core/settings/core_settings.h>
+#endif
 #include <nxemu-core/version.h>
 #include <yuzu_common/fs/path_util.h>
 #include <sciter_ui.h>
@@ -96,6 +100,21 @@ static int RunApplication(const char * arg0)
     EnablePerMonitorDpiAwareness();
 #endif
     bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
+
+#ifdef __APPLE__
+    const auto exe_dir = Common::FS::GetExeDirectory();
+    const bool is_bundle = exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents";
+    const bool has_local_runtime = std::filesystem::is_directory(exe_dir / "modules") &&
+                                   std::filesystem::is_directory(exe_dir / "lang");
+    if (res && (is_bundle || has_local_runtime)) {
+        // A bundle must load its matching modules/resources even when reusing a
+        // development config. Keep the stored path values unchanged for raw runs.
+        const auto module_dir = is_bundle ? exe_dir.parent_path() / "Frameworks/modules" : exe_dir / "modules";
+        const auto language_dir = is_bundle ? exe_dir.parent_path() / "Resources/lang" : exe_dir / "lang";
+        coreSettings.moduleDir = Path(module_dir.string(), "");
+        uiSettings.languageDir = Path(language_dir.string(), "");
+    }
+#endif
 
     if (res && StartupChecks(arg0, &has_broken_vulkan, uiSettings.performVulkanCheck)) {
         return 0;

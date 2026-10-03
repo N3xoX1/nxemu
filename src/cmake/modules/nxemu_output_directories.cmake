@@ -8,7 +8,13 @@ function(nxemu_set_app_output target)
 endfunction()
 
 function(nxemu_set_module_output target module_name)
-    set(_out "${CMAKE_SOURCE_DIR}/modules/${NXEMU_PLATFORM_DIR}/${module_name}")
+    if(APPLE)
+        # Keep modules from different build trees/configurations from overwriting
+        # each other. The bundle receives exactly these target files.
+        set(_out "${CMAKE_BINARY_DIR}/modules/${NXEMU_PLATFORM_DIR}/$<CONFIG>/${module_name}")
+    else()
+        set(_out "${CMAKE_SOURCE_DIR}/modules/${NXEMU_PLATFORM_DIR}/${module_name}")
+    endif()
     set_target_properties(${target} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${_out}"
         LIBRARY_OUTPUT_DIRECTORY "${_out}"

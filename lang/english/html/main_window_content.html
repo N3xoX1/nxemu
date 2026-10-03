@@ -1,0 +1,87 @@
+  <header>
+    <window-caption role=window-caption><img src="window-icon-32.png" /><span>NxEmu</span></window-caption>
+    <window-buttons>
+      <window-button role="window-minimize"></window-button>
+      <window-button role="window-maximize"></window-button>
+      <window-button role="window-close"></window-button>
+    </window-buttons>
+  </header>
+  <mainmenu id="MainMenu" />
+  <div id="MainContents">
+    <div id="RomBrowserPanel" class="main-contents-panel">
+      <rombrowser />
+    </div>
+    <div id="LoadingPanel" class="main-contents-panel">
+      <div class="loading-container">
+        <img id="LoadingCornerLogo" />
+        <div class="loading-main">
+          <img id="LoadingGameIcon" alt="" />
+          <div class="loading-text-column">
+            <div id="loadingText" />
+            <div class="loading-progress-wrap">
+              <div class="loading-progress-track">
+                <div id="LoadingProgressFill" class="loading-progress-fill indeterminate"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <img id="LoadingCornerBanner" />
+      </div>
+    </div>
+    <div id="PausePanel" class="main-contents-panel">
+      <div class="pause-panel-container">
+        <div class="pause-panel-title">Paused</div>
+      </div>
+    </div>
+  </div>
+  <div id="StatusBar" >
+    <span id="dockedMode" />
+    <span id="renderer" />
+    <span id="gpuCommandSynchronization" tooltip="Toggle guest-requested GPU command synchronization at runtime." />
+    <span id="volumeAnchor">
+      <span id="volume" />
+      <span id="volumePopupBtn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path d="M104.704 685.248a64 64 0 0 0 90.496 0l316.8-316.8 316.8 316.8a64 64 0 0 0 90.496-90.496L557.248 232.704a64 64 0 0 0-90.496 0L104.704 594.752a64 64 0 0 0 0 90.496"/></svg></span>
+    </span>
+    <div id="StatusText" />
+  </div>
+  <menu.context id="RomCardContextMenu">
+    <li id="romStartGame">
+      <span class="menu-item-glyph menu-item-icon-svg" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </span>
+      <span class="menu-item-label">Start Game</span>
+    </li>
+    <hr />
+    <li id="romOpenSaveData">
+      <span class="menu-item-glyph menu-item-icon-svg" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+      </span>
+      <span class="menu-item-label">Open Save Data Location</span>
+    </li>
+    <li id="romOpenModData">
+      <span class="menu-item-glyph menu-item-icon-svg" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+      </span>
+      <span class="menu-item-label">Open Mod Data Location</span>
+    </li>
+    <hr />
+    <li id="romProperties">
+      <span class="menu-item-glyph menu-item-icon-svg" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.1a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.64.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.25.42.49.42h3.8c.24 0 .44-.18.49-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.24.1.51.01.64-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/>
+        </svg>
+      </span>
+      <span class="menu-item-label">Configure Game</span>
+    </li>
+  </menu>
+  <popup id="VolumePopup">
+    <div>
+      <input type="hslider" min="0" max="200" value="100" id="audioVolume" style="width: 19em" />
+    </div>
+  </popup>

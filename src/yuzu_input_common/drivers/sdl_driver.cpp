@@ -491,7 +491,16 @@ void SDLDriver::PumpEvents() const
 {
     if (initialized)
     {
+#ifdef __APPLE__
+        // Sciter owns the Cocoa event loop; this backend only needs controller
+        // events. Do not let SDL pump native window events in a host frontend.
+        SDL_JoystickUpdate();
+#else
         SDL_PumpEvents();
+#endif
+        // The event watcher already delivered these inputs. Keep motion events
+        // from accumulating in SDL's queue during long sessions.
+        SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_CONTROLLERSENSORUPDATE);
     }
 }
 
@@ -622,9 +631,11 @@ SDLDriver::SDLDriver(std::string input_engine_) :
     // Share the same button mapping with non-Nintendo controllers
     SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
 
-    // Disable hidapi driver for xbox. Already default on Windows, this causes conflict with native
-    // driver on Linux.
+    // Windows and Linux have native Xbox backends. macOS needs HIDAPI for
+    // supported USB Xbox controllers, so retain SDL's platform default there.
+#ifndef __APPLE__
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "0");
+#endif
 
     // If the frontend is going to manage the event loop, then we don't start one here
     start_thread = SDL_WasInit(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0;
@@ -665,7 +676,10 @@ SDLDriver::~SDLDriver()
     initialized = false;
     if (start_thread)
     {
-        vibration_thread.join();
+        if (vibration_thread.joinable())
+        {
+            vibration_thread.join();
+        }
         SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
     }
 }

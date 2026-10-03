@@ -71,6 +71,7 @@ class WidgetRomBrowser :
     public ITimerSink,
     public IClickSink,
     public IDoubleClickSink,
+    public IContextMenuSink,
     public IRomBrowser
 {
     friend class RomListWorker;
@@ -88,6 +89,8 @@ public:
 
     // IClickSink
     bool OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t reason) override;
+
+    bool OnContextMenu(SCITER_ELEMENT element, SCITER_ELEMENT source, int32_t x, int32_t y) override;
 
     // IDoubleClickSink
     bool OnDoubleClick(SCITER_ELEMENT element, SCITER_ELEMENT source) override;
@@ -276,14 +279,30 @@ bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
     if (event_code == (uint32_t)SciterBehaviorEvent::ContextMenuRequest)
     {
         SciterElement card = FindRomCard(source);
+        if (!card.IsValid()) card = FindRomCard(element);
         if (card.IsValid())
         {
-            SelectRomCard(card);
-            m_contextMenuPath = card.GetAttribute("data-path");
+            const auto bounds = card.GetLocation(SciterElement::VIEW_RELATIVE | SciterElement::BORDER_BOX);
+            return OnContextMenu(element, source, bounds.left, bounds.bottom);
         }
         return false;
     }
     return false;
+}
+
+bool WidgetRomBrowser::OnContextMenu(SCITER_ELEMENT element, SCITER_ELEMENT source, int32_t x, int32_t y)
+{
+    SciterElement card = FindRomCard(source);
+    if (!card.IsValid()) card = FindRomCard(element);
+    if (!card.IsValid()) return false;
+    SciterElement menu(m_rootElement.GetRoot().GetElementByID("RomCardContextMenu"));
+    if (!menu.IsValid()) return false;
+    SelectRomCard(card);
+    m_contextMenuPath = card.GetAttribute("data-path");
+    // Placement 7 anchors the top-left at a point in view coordinates. The
+    // macOS backend uses Cocoa's context menu and native cursor coordinates.
+    m_sciterUI.PopupShowAt(menu, {x, y}, 7);
+    return true;
 }
 
 bool WidgetRomBrowser::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
@@ -491,6 +510,7 @@ void WidgetRomBrowser::Attached(SCITER_ELEMENT element, IBaseElement * baseEleme
     m_rootElement = element;
     m_sciterUI.AttachHandler(m_rootElement, IID_EVENTSINK, (IEventSink *)this);
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
+    m_sciterUI.AttachHandler(m_rootElement, IID_ICONTEXTMENUSINK, (IContextMenuSink *)this);
     AttachContextMenuHandlers();
 
     SettingsStore & settings = SettingsStore::GetInstance();
