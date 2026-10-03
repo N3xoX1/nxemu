@@ -75,6 +75,9 @@ private:
 
     // Events
     Kernel::KEvent* m_wakeup_event{};
+    // Manual-reset, signaled only at shutdown. Completion waits must never
+    // consume or clear the selection queue's notification.
+    Kernel::KEvent* m_shutdown_event{};
     Kernel::KEvent* m_deferral_event{};
 
     // Deferred wait list

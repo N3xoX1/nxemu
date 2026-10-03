@@ -135,6 +135,7 @@ void KScheduler::PreemptSingleCore()
 
     auto * thread = GetCurrentThreadPointer(m_kernel);
     auto & previous_scheduler = m_kernel.Scheduler(thread->GetCurrentCore());
+    thread->SuspendHleExecution();
     previous_scheduler.Unload(thread);
 
     Common::Fiber::YieldTo(thread->GetHostContext(), *m_switch_fiber);
@@ -372,6 +373,16 @@ u64 KScheduler::UpdateHighestPriorityThreadsImpl(KernelCore & kernel)
         idle_cores &= ~(1ULL << core_id);
     }
 
+    if (kernel.System().CoreTiming().CpuHleSynchronizationEnabled()) {
+        u32 runnable_mask{};
+        for (u32 core = 0; core < Hardware::NUM_CPU_CORES; ++core) {
+            const auto* thread = top_threads[core];
+            if (thread && thread->GetOwnerKProcess() && thread->GetOwnerKProcess()->Is64Bit())
+                runnable_mask |= 1U << core;
+        }
+        kernel.System().CoreTiming().SetCpuRunnableMask(runnable_mask);
+    }
+
     // HACK: any waiting dummy threads can wake up now.
     kernel.GlobalSchedulerContext().WakeupWaitingDummyThreads();
 
@@ -482,6 +493,7 @@ void KScheduler::ScheduleImpl()
     m_switch_cur_thread = cur_thread;
     m_switch_highest_priority_thread = highest_priority_thread;
     m_switch_from_schedule = true;
+    cur_thread->SuspendHleExecution();
     Common::Fiber::YieldTo(cur_thread->m_host_context, *m_switch_fiber);
 
     // Returning from ScheduleImpl occurs after this thread has been scheduled again.
@@ -569,6 +581,7 @@ void KScheduler::ScheduleImplFiber()
     Reload(highest_priority_thread);
 
     // Reload the host thread.
+    highest_priority_thread->ResumeHleExecution();
     Common::Fiber::YieldTo(m_switch_fiber, *highest_priority_thread->m_host_context);
 }
 

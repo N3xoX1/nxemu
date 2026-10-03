@@ -44,6 +44,8 @@ public:
     void ClearCache();
 
 protected:
+    // Called only after a cache miss, never on a cached block's execution path.
+    virtual void NotifyCompilation(bool) {}
     virtual EmitConfig GetEmitConfig() = 0;
     virtual void RegisterNewBasicBlock(const IR::Block& block, const EmittedBlockInfo& block_info) = 0;
 

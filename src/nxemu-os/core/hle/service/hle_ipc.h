@@ -406,6 +406,8 @@ public:
     void SetIsDeferred(bool is_deferred_ = true) {
         is_deferred = is_deferred_;
     }
+    void SetCompletionTime(u64 value) { completion_time = value; }
+    u64 GetCompletionTime() const { return completion_time; }
 
 private:
     friend class IPC::ResponseBuilder;
@@ -420,6 +422,7 @@ private:
     Kernel::KThread* thread{};
     Kernel::KSessionRequest* session_request{};
     u64 command_buffer_address{};
+    u64 completion_time{};
     bool defer_response_buffers{};
     mutable IpcResponseWrites response_writes;
     mutable bool response_write_failed{};
