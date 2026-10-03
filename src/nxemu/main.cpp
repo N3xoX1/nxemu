@@ -88,7 +88,7 @@ static void EnablePerMonitorDpiAwareness()
 }
 #endif
 
-static int RunApplication(const char * arg0) 
+static int RunApplication(const char * arg0, const char * gamePath = nullptr)
 {
     bool has_broken_vulkan = false;
     bool is_child = false;
@@ -131,6 +131,14 @@ static int RunApplication(const char * arg0)
         RegisterWidgets(*sciterUI);
         SciterMainWindow window(*sciterUI, stdstr_f("NXEmu %s", VER_FILE_VERSION_STR).c_str());
         window.Show();
+#if defined(__linux__)
+        if (gamePath != nullptr && *gamePath != '\0')
+        {
+            window.LoadGame(gamePath);
+        }
+#else
+        (void)gamePath;
+#endif
         sciterUI->Run();
     }
     if (sciterUI != nullptr)
@@ -152,6 +160,10 @@ int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInsta
 #else
 int main(int argc, char * argv[])
 {
+#if defined(__linux__)
+    return RunApplication((argc > 0 && argv[0] != nullptr) ? argv[0] : "nxemu", argc > 1 ? argv[1] : nullptr);
+#else
     return RunApplication((argc > 0 && argv[0] != nullptr) ? argv[0] : "nxemu");
+#endif
 }
 #endif

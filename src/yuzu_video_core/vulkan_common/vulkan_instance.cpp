@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
 #include <future>
 #include <optional>
 #include <span>
@@ -57,9 +58,6 @@ namespace {
         extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
         break;
 #else
-    case Core::Frontend::WindowSystemType::X11:
-        extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-        break;
     case Core::Frontend::WindowSystemType::Wayland:
         extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
         break;

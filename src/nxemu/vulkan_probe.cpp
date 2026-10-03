@@ -192,6 +192,10 @@ namespace {
     case WindowSystemType::Metal:
         extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
         break;
+#elif defined(__linux__)
+    case WindowSystemType::Wayland:
+        extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+        break;
 #endif
     }
     if (window_type != WindowSystemType::Headless) {

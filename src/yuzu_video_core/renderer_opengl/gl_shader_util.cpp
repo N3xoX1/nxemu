@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2014 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
 #include <string_view>
 #include <vector>
 #include <glad/glad.h>

@@ -247,9 +247,9 @@ FormatInfo SurfaceFormat(const Device& device, FormatType format_type, bool with
         switch (videoSettings.astc_recompression) {
         case AstcRecompression::Uncompressed:
             if (is_srgb) {
-                tuple.format = VK_FORMAT_A8B8G8R8_SRGB_PACK32;
+                tuple.format = VK_FORMAT_R8G8B8A8_SRGB;
             } else {
-                tuple.format = VK_FORMAT_A8B8G8R8_UNORM_PACK32;
+                tuple.format = VK_FORMAT_R8G8B8A8_UNORM;
                 tuple.usage |= Storage;
             }
             break;

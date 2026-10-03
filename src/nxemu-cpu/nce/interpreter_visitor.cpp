@@ -5,6 +5,7 @@
 #include "interpreter_visitor.h"
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/logging/log.h"
+#include <atomic>
 
 namespace Core {
 

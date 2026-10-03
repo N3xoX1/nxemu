@@ -21,7 +21,6 @@
 #elif defined(__ANDROID__)
 #define VK_USE_PLATFORM_ANDROID_KHR
 #else
-#define VK_USE_PLATFORM_XLIB_KHR
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #endif
 #include <vulkan/vulkan.h>
@@ -40,6 +39,8 @@ enum class WindowSystemType {
     Headless,
 #ifdef __APPLE__
     Metal,
+#elif defined(__linux__)
+    Wayland,
 #endif
 };
 

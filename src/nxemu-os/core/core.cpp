@@ -249,6 +249,8 @@ struct System::Impl {
     std::atomic<bool> is_shutting_down{};
 
     Timing::CoreTiming core_timing;
+    // Keep socket cancellation resources alive until all kernel/services stop.
+    Network::NetworkInstance network;
     Kernel::KernelCore kernel;
     std::unique_ptr<Core::DeviceMemory> device_memory;
     std::unique_ptr<AudioCore::AudioCore> audio_core;

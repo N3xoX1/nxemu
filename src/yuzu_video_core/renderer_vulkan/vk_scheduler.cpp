@@ -284,7 +284,9 @@ void Scheduler::EndPendingOperations() {
 #else
     // query_cache->DisableStreams();
 #endif
-    query_cache->NotifySegment(false);
+    if (!state.renderpass) {
+        query_cache->NotifySegment(false);
+    }
     EndRenderPass();
 }
 
@@ -292,6 +294,9 @@ void Scheduler::EndRenderPass() {
     if (!state.renderpass) {
         return;
     }
+    // Queries and conditional rendering must finish in the render pass where
+    // they began. The next draw resumes them after selecting its framebuffer.
+    query_cache->NotifySegment(false);
     Record([num_images = num_renderpass_images, images = renderpass_images,
             ranges = renderpass_image_ranges](vk::CommandBuffer cmdbuf) {
         std::array<VkImageMemoryBarrier, 9> barriers;

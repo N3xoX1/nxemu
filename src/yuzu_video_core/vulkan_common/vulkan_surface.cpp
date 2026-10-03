@@ -62,19 +62,6 @@ vk::SurfaceKHR CreateSurface(
         }
     }
 #else
-    if (window_info.type == Core::Frontend::WindowSystemType::X11) {
-        const VkXlibSurfaceCreateInfoKHR xlib_ci{
-            VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR, nullptr, 0,
-            static_cast<Display*>(window_info.display_connection),
-            reinterpret_cast<Window>(window_info.render_surface)};
-        const auto vkCreateXlibSurfaceKHR = reinterpret_cast<PFN_vkCreateXlibSurfaceKHR>(
-            dld.vkGetInstanceProcAddr(*instance, "vkCreateXlibSurfaceKHR"));
-        if (!vkCreateXlibSurfaceKHR ||
-            vkCreateXlibSurfaceKHR(*instance, &xlib_ci, nullptr, &unsafe_surface) != VK_SUCCESS) {
-            LOG_ERROR(Render_Vulkan, "Failed to initialize Xlib surface");
-            throw vk::Exception(VK_ERROR_INITIALIZATION_FAILED);
-        }
-    }
     if (window_info.type == Core::Frontend::WindowSystemType::Wayland) {
         const VkWaylandSurfaceCreateInfoKHR wayland_ci{
             VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR, nullptr, 0,

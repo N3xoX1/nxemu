@@ -102,8 +102,10 @@ Purpose: Called when emulation is stopping
 Input: None
 Output: None
 */
-void CALL EmulationStopping(bool /*wait*/)
+void CALL EmulationStopping(bool wait)
 {
+    if (g_videoManager)
+        g_videoManager->EmulationStopping(wait);
 }
 
 /*

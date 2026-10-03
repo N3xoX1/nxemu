@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_video_core/host1x/ffmpeg/ffmpeg.h"
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
@@ -129,7 +132,6 @@ bool Decoder::SupportsDecodingOnDevice(AVPixelFormat * out_pix_fmt, AVHWDeviceTy
         }
         if ((config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) != 0 && config->device_type == type)
         {
-            LOG_INFO(HW_GPU, "Using {} GPU decoder", av_hwdevice_get_type_name(type));
             *out_pix_fmt = config->pix_fmt;
             return true;
         }
@@ -303,7 +305,34 @@ std::unique_ptr<Frame> DecoderContext::ReceiveFrame(bool * out_is_interlaced)
     {
         auto hardware_frame = std::move(dst_frame);
         dst_frame = std::make_unique<Frame>();
-        dst_frame->SetFormat(PreferredGpuFormat);
+        AVPixelFormat * formats = nullptr;
+        const int formats_result = av_hwframe_transfer_get_formats(
+            hardware_frame->GetFrame()->hw_frames_ctx, AV_HWFRAME_TRANSFER_DIRECTION_FROM,
+            &formats, 0);
+        if (formats_result < 0 || formats == nullptr)
+        {
+            LOG_ERROR(HW_GPU, "Unable to query FFmpeg hardware transfer formats: {}",
+                      AVError(formats_result));
+            return {};
+        }
+        AVPixelFormat transfer_format = AV_PIX_FMT_NONE;
+        for (const AVPixelFormat * f = formats; *f != AV_PIX_FMT_NONE; ++f)
+        {
+            if (*f == PreferredGpuFormat)
+            {
+                transfer_format = PreferredGpuFormat;
+                break;
+            }
+            if (*f == PreferredCpuFormat)
+                transfer_format = PreferredCpuFormat;
+        }
+        av_freep(&formats);
+        if (transfer_format == AV_PIX_FMT_NONE)
+        {
+            LOG_ERROR(HW_GPU, "No supported FFmpeg hardware transfer format (NV12/YUV420P)");
+            return {};
+        }
+        dst_frame->SetFormat(transfer_format);
         const int ret = av_hwframe_transfer_data(dst_frame->GetFrame(), hardware_frame->GetFrame(), 0);
         if (ret < 0)
         {
@@ -313,6 +342,14 @@ std::unique_ptr<Frame> DecoderContext::ReceiveFrame(bool * out_is_interlaced)
         if (av_frame_copy_props(dst_frame->GetFrame(), hardware_frame->GetFrame()) < 0)
         {
             return {};
+        }
+        if (!m_logged_hardware_frame)
+        {
+            const char * format = av_get_pix_fmt_name(
+                static_cast<AVPixelFormat>(hardware_frame->GetFrame()->format));
+            LOG_INFO(HW_GPU, "FFmpeg decoded and transferred a hardware frame ({})",
+                     format ? format : "unknown");
+            m_logged_hardware_frame = true;
         }
     }
 
@@ -439,11 +476,25 @@ bool DecodeApi::Initialize(Tegra::Host1x::NvdecCommon::VideoCodec codec)
         m_hardware_context->InitializeForDecoder(*m_decoder_context, *m_decoder);
     }
 
-    // Open the decoder context.
+    // If hardware open fails, always retry using a fresh software context.
+    const bool attempted_hardware =
+        m_decoder_context->GetCodecContext()->hw_device_ctx != nullptr;
     if (!m_decoder_context->OpenContext(*m_decoder))
     {
-        this->Reset();
-        return false;
+        if (!attempted_hardware)
+        {
+            this->Reset();
+            return false;
+        }
+        LOG_WARNING(HW_GPU, "Hardware decoder failed to open, retrying with FFmpeg software decoder");
+        m_decoder_context.reset();
+        m_hardware_context.reset();
+        m_decoder_context.emplace(*m_decoder);
+        if (!m_decoder_context->OpenContext(*m_decoder))
+        {
+            this->Reset();
+            return false;
+        }
     }
 
     return true;
