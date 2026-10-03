@@ -238,12 +238,14 @@ void PhysicalCore::LogBacktrace()
 void PhysicalCore::Idle()
 {
     std::unique_lock lk{m_guard};
-    m_on_interrupt.wait(lk, [this] { return m_is_interrupted; });
+    m_on_interrupt.wait(lk, [this] {
+        return m_is_interrupted.load(std::memory_order_acquire);
+    });
 }
 
 bool PhysicalCore::IsInterrupted() const
 {
-    return m_is_interrupted;
+    return m_is_interrupted.load(std::memory_order_acquire);
 }
 
 void PhysicalCore::Interrupt()

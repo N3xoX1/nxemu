@@ -209,7 +209,7 @@ void KScheduler::OnThreadStart()
 
 u64 KScheduler::UpdateHighestPriorityThread(KThread * highest_thread)
 {
-    if (KThread * prev_highest_thread = m_state.highest_priority_thread;
+    if (KThread * prev_highest_thread = m_state.highest_priority_thread.load(std::memory_order_acquire);
         prev_highest_thread != highest_thread) [[likely]]
     {
         if (prev_highest_thread != nullptr) [[likely]]
@@ -233,7 +233,7 @@ u64 KScheduler::UpdateHighestPriorityThread(KThread * highest_thread)
             }
         }
 
-        m_state.highest_priority_thread = highest_thread;
+        m_state.highest_priority_thread.store(highest_thread, std::memory_order_release);
         m_state.needs_scheduling = true;
         return (1ULL << m_core_id);
     }
@@ -458,7 +458,7 @@ void KScheduler::ScheduleImpl()
 
     // Load the appropriate thread pointers for scheduling.
     KThread * const cur_thread{GetCurrentThreadPointer(m_kernel)};
-    KThread * highest_priority_thread{m_state.highest_priority_thread};
+    KThread * highest_priority_thread{m_state.highest_priority_thread.load(std::memory_order_acquire)};
 
     // Check whether there are runnable interrupt tasks.
     if (m_state.interrupt_task_runnable)
@@ -562,7 +562,7 @@ void KScheduler::ScheduleImplFiber()
         std::atomic_thread_fence(std::memory_order_seq_cst);
 
         // Refresh the highest priority thread.
-        highest_priority_thread = m_state.highest_priority_thread;
+        highest_priority_thread = m_state.highest_priority_thread.load(std::memory_order_acquire);
     }
 
     // Reload the guest thread context.
@@ -794,18 +794,18 @@ void KScheduler::YieldWithoutCoreMigration(KernelCore & kernel)
     KThread & cur_thread = GetCurrentThread(kernel);
     KProcess & cur_process = GetCurrentProcess(kernel);
 
-    // If the thread's yield count matches, there's nothing for us to do.
-    if (cur_thread.GetYieldScheduleCount() == cur_process.GetScheduledCount())
-    {
-        return;
-    }
-
     // Get a reference to the priority queue.
     auto & priority_queue = GetPriorityQueue(kernel);
 
     // Perform the yield.
     {
         KScopedSchedulerLock sl{kernel};
+
+        // The process count is shared by all cores and changes under this lock.
+        if (cur_thread.GetYieldScheduleCount() == cur_process.GetScheduledCount())
+        {
+            return;
+        }
 
         const auto cur_state = cur_thread.GetRawState();
         if (cur_state == ThreadState::Runnable)
@@ -839,18 +839,18 @@ void KScheduler::YieldWithCoreMigration(KernelCore & kernel)
     KThread & cur_thread = GetCurrentThread(kernel);
     KProcess & cur_process = GetCurrentProcess(kernel);
 
-    // If the thread's yield count matches, there's nothing for us to do.
-    if (cur_thread.GetYieldScheduleCount() == cur_process.GetScheduledCount())
-    {
-        return;
-    }
-
     // Get a reference to the priority queue.
     auto & priority_queue = GetPriorityQueue(kernel);
 
     // Perform the yield.
     {
         KScopedSchedulerLock sl{kernel};
+
+        // The process count is shared by all cores and changes under this lock.
+        if (cur_thread.GetYieldScheduleCount() == cur_process.GetScheduledCount())
+        {
+            return;
+        }
 
         const auto cur_state = cur_thread.GetRawState();
         if (cur_state == ThreadState::Runnable)
@@ -872,7 +872,7 @@ void KScheduler::YieldWithCoreMigration(KernelCore & kernel)
 
                 if (KThread * running_on_suggested_core =
                         (suggested_core >= 0)
-                            ? kernel.Scheduler(suggested_core).m_state.highest_priority_thread
+                            ? kernel.Scheduler(suggested_core).m_state.highest_priority_thread.load(std::memory_order_acquire)
                             : nullptr;
                     running_on_suggested_core != suggested)
                 {
@@ -939,18 +939,18 @@ void KScheduler::YieldToAnyThread(KernelCore & kernel)
     KThread & cur_thread = GetCurrentThread(kernel);
     KProcess & cur_process = GetCurrentProcess(kernel);
 
-    // If the thread's yield count matches, there's nothing for us to do.
-    if (cur_thread.GetYieldScheduleCount() == cur_process.GetScheduledCount())
-    {
-        return;
-    }
-
     // Get a reference to the priority queue.
     auto & priority_queue = GetPriorityQueue(kernel);
 
     // Perform the yield.
     {
         KScopedSchedulerLock sl{kernel};
+
+        // The process count is shared by all cores and changes under this lock.
+        if (cur_thread.GetYieldScheduleCount() == cur_process.GetScheduledCount())
+        {
+            return;
+        }
 
         const auto cur_state = cur_thread.GetRawState();
         if (cur_state == ThreadState::Runnable)
