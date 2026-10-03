@@ -104,6 +104,12 @@ if(UNIX)
     target_compile_definitions(nxemu PRIVATE NXEMU_UNIX=1)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)
+    target_link_libraries(nxemu PRIVATE PkgConfig::DBUS)
+endif()
+
 target_link_libraries(nxemu PRIVATE
     sciterui
     common

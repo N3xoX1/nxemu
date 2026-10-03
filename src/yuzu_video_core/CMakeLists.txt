@@ -358,6 +358,26 @@ if(APPLE AND NOT FFmpeg_LIBRARIES)
     set(FFmpeg_LIBRARIES ${_ffmpeg_macos_libs})
 endif()
 
+# Static link order: dependents before the libraries they use.
+if(NOT FFmpeg_LIBRARIES AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID AND ARCHITECTURE_x86_64)
+    set(_ffmpeg_linux_root "${CMAKE_SOURCE_DIR}/external/ffmpeg/lib/linux-x64")
+    set(_ffmpeg_linux_libs
+        "${_ffmpeg_linux_root}/libavfilter.a"
+        "${_ffmpeg_linux_root}/libavformat.a"
+        "${_ffmpeg_linux_root}/libavcodec.a"
+        "${_ffmpeg_linux_root}/libswscale.a"
+        "${_ffmpeg_linux_root}/libswresample.a"
+        "${_ffmpeg_linux_root}/libavutil.a"
+    )
+    foreach(_ffmpeg_lib IN LISTS _ffmpeg_linux_libs)
+        if(NOT EXISTS "${_ffmpeg_lib}")
+            message(FATAL_ERROR "Missing FFmpeg Linux x64 library: ${_ffmpeg_lib}")
+        endif()
+    endforeach()
+    set(FFmpeg_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/ffmpeg/include")
+    set(FFmpeg_LIBRARIES ${_ffmpeg_linux_libs})
+endif()
+
 if(NOT FFmpeg_INCLUDE_DIR)
     set(FFmpeg_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/ffmpeg/include")
 endif()
