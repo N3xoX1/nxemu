@@ -174,12 +174,12 @@ struct System::Impl {
 
     void SetNVDECActive(bool is_nvdec_active)
     {
-        nvdec_active = is_nvdec_active;
+        nvdec_active.store(is_nvdec_active, std::memory_order_relaxed);
     }
 
     bool GetNVDECActive()
     {
-        return nvdec_active;
+        return nvdec_active.load(std::memory_order_relaxed);
     }
 
     void InitializeKernel(System & system, uint64_t titleID, bool is_64_bit)
@@ -285,7 +285,7 @@ struct System::Impl {
     bool exit_locked = false;
     bool exit_requested = false;
 
-    bool nvdec_active{};
+    std::atomic<bool> nvdec_active{};
 
     Reporter reporter;
     std::array<u8, 0x20> build_id{};

@@ -4,6 +4,8 @@
 #pragma once
 
 #include <memory>
+#include <atomic>
+#include <mutex>
 #include <unordered_map>
 
 #include "yuzu_common/common_types.h"
@@ -46,13 +48,14 @@ private:
     Core::System& m_system;
     Container& m_container;
     std::unordered_map<u64, VsyncManager> m_vsync_managers;
+    std::mutex m_vsync_mutex;
     std::shared_ptr<Core::Timing::EventType> m_event;
     Common::Event m_signal;
     std::jthread m_thread;
 
 private:
-    s32 m_swap_interval = 1;
-    f32 m_compose_speed_scale = 1.0f;
+    std::atomic<s32> m_swap_interval{1};
+    std::atomic<f32> m_compose_speed_scale{1.0f};
 };
 
 } // namespace Service::VI

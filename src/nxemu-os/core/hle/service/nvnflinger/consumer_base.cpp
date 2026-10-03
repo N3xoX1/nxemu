@@ -120,7 +120,8 @@ Status ConsumerBase::AddReleaseFenceLocked(s32 slot,
 }
 
 Status ConsumerBase::ReleaseBufferLocked(s32 slot,
-                                         const std::shared_ptr<GraphicBuffer>& graphic_buffer) {
+                                         const std::shared_ptr<GraphicBuffer>& graphic_buffer,
+                                         bool* has_pending_buffer) {
     // If consumer no longer tracks this graphic_buffer (we received a new
     // buffer on the same slot), the buffer producer is definitely no longer
     // tracking it.
@@ -130,7 +131,14 @@ Status ConsumerBase::ReleaseBufferLocked(s32 slot,
     }
 
     LOG_DEBUG(Service_Nvnflinger, "slot={}", slot);
-    Status err = consumer->ReleaseBuffer(slot, slots[slot].frame_number, slots[slot].fence);
+    const Status err = has_pending_buffer
+                           ? consumer->ReleaseBufferIfNeeded(slot, slots[slot].frame_number,
+                                                            Fence::NoFence(), *has_pending_buffer)
+                           : consumer->ReleaseBuffer(slot, slots[slot].frame_number,
+                                                     slots[slot].fence);
+    if (err == Status::WouldBlock) {
+        return err;
+    }
     if (err == Status::StaleBufferSlot) {
         FreeBufferLocked(slot);
     }

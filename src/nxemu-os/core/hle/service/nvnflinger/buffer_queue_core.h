@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <list>
 #include <memory>
@@ -57,6 +58,8 @@ private:
     std::shared_ptr<IProducerListener> connected_producer_listener;
     BufferQueueDefs::SlotsType slots{};
     std::vector<BufferItem> queue;
+    std::atomic_bool has_queued_buffer{};
+    std::atomic<u32> producers_waiting_for_slot{};
     s32 override_max_buffer_count{};
     std::condition_variable dequeue_condition;
     std::atomic<bool> dequeue_possible{};

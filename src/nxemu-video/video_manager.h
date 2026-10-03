@@ -15,6 +15,7 @@ public:
     ~VideoManager();
 
     void EmulationStarting();
+    void EmulationStopping(bool wait);
 
     // IVideo
     bool Initialize() override;
@@ -35,6 +36,8 @@ public:
     uint64_t Host1xRegisterProcess(IMemory* memory) override;
     void Host1xUnregisterProcess(uint64_t asid) override;
     void RequestComposite(VideoFramebufferConfig * layers, uint32_t layerCount, VideoNvFence * fences, uint32_t fenceCount) override;
+    void WaitForComposite() override;
+    void CancelPendingComposite() override;
     void UpdateFramebufferLayout(uint32_t width, uint32_t height) override;
     IChannelState * AllocateChannel() override;
     void PushGPUEntries(int32_t bindId, const uint64_t * commandList, uint32_t commandListSize, const uint32_t * prefetchCommandlist, uint32_t prefetchCommandlistSize) override;

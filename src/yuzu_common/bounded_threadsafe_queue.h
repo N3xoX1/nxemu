@@ -44,6 +44,28 @@ public:
         Pop<PopMode::WaitWithStopToken>(t, stop_token);
     }
 
+    // An external readiness event can interrupt an empty queue without enqueuing data.
+    template <typename Interrupted>
+    bool PopWait(T& t, std::stop_token stop_token, Interrupted&& interrupted) {
+        const size_t read_index = m_read_index.load(std::memory_order_relaxed);
+        {
+            std::unique_lock lock{consumer_cv_mutex};
+            Common::CondvarWait(consumer_cv, lock, stop_token, [&] {
+                return read_index != m_write_index.load(std::memory_order_acquire) || interrupted();
+            });
+            if (stop_token.stop_requested()) {
+                return false;
+            }
+        }
+        return TryPop(t);
+    }
+
+    void NotifyConsumer() {
+        std::scoped_lock lock{consumer_cv_mutex};
+        consumer_cv.notify_one();
+    }
+
+
     T PopWait() {
         T t{};
         Pop<PopMode::Wait>(t);
@@ -186,6 +208,16 @@ public:
     void PopWait(T& t, std::stop_token stop_token) {
         spsc_queue.PopWait(t, stop_token);
     }
+
+    template <typename Interrupted>
+    bool PopWait(T& t, std::stop_token stop_token, Interrupted&& interrupted) {
+        return spsc_queue.PopWait(t, stop_token, std::forward<Interrupted>(interrupted));
+    }
+
+    void NotifyConsumer() {
+        spsc_queue.NotifyConsumer();
+    }
+
 
     T PopWait() {
         return spsc_queue.PopWait();

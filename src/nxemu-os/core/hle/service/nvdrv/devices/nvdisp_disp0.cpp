@@ -98,9 +98,16 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
     }
 
     system.GetVideo().RequestComposite(output_layers.data(), (uint32_t)output_layers.size(), output_fences.data(), (uint32_t)output_fences.size());
-    system.SpeedLimiter().DoSpeedLimiting(system.CoreTiming().GetGlobalTimeUs());
     system.GetPerfStats().EndSystemFrame();
     system.GetPerfStats().BeginSystemFrame();
+}
+
+void nvdisp_disp0::WaitForComposite() {
+    system.GetVideo().WaitForComposite();
+}
+
+void nvdisp_disp0::CancelPendingComposite() {
+    system.GetVideo().CancelPendingComposite();
 }
 
 Kernel::KEvent* nvdisp_disp0::QueryEvent(u32 event_id) {

@@ -210,7 +210,10 @@ Status BufferQueueProducer::WaitForFreeSlotThenRelock(bool async, s32* found, St
                 return Status::WouldBlock;
             }
 
-            if (!core->WaitForDequeueCondition(lk)) {
+            core->producers_waiting_for_slot.fetch_add(1, std::memory_order_relaxed);
+            const bool wait_result = core->WaitForDequeueCondition(lk);
+            core->producers_waiting_for_slot.fetch_sub(1, std::memory_order_relaxed);
+            if (!wait_result) {
                 // We are no longer running
                 return Status::NoError;
             }
@@ -557,6 +560,7 @@ Status BufferQueueProducer::QueueBuffer(s32 slot, const QueueBufferInput& input,
             }
         }
 
+        core->has_queued_buffer.store(true, std::memory_order_relaxed);
         core->buffer_has_been_queued = true;
         core->SignalDequeueCondition();
         output->Inflate(core->default_width, core->default_height, core->transform_hint,
@@ -744,6 +748,7 @@ Status BufferQueueProducer::Disconnect(NativeWindowApi api) {
         case NativeWindowApi::Camera:
             if (core->connected_api == api) {
                 core->queue.clear();
+                core->has_queued_buffer.store(false, std::memory_order_relaxed);
                 core->FreeAllBuffersLocked();
                 core->connected_producer_listener = nullptr;
                 core->connected_api = NativeWindowApi::NoConnectedApi;

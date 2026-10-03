@@ -15,6 +15,9 @@ class System;
 
 namespace Service::Nvidia {
 class Module;
+namespace Devices {
+class nvdisp_disp0;
+}
 }
 
 // TODO: ISurfaceComposer
@@ -34,7 +37,11 @@ public:
 
     void AddDisplay(u64 display_id);
     void RemoveDisplay(u64 display_id);
-    bool ComposeDisplay(s32* out_swap_interval, f32* out_compose_speed_scale, u64 display_id);
+    bool ComposeDisplay(s32* out_swap_interval, f32* out_compose_speed_scale, u64 display_id,
+                        bool allow_framebuffer_update);
+    bool NeedsFramebufferUpdate(u64 display_id);
+    bool DisplayHasLayers(u64 display_id);
+    void WaitForComposite();
 
     void CreateLayer(s32 consumer_binder_id);
     void DestroyLayer(s32 consumer_binder_id);
@@ -63,6 +70,7 @@ private:
     std::vector<Display> m_displays;
     LayerStack m_layers;
     std::shared_ptr<Nvidia::Module> nvdrv;
+    std::shared_ptr<Nvidia::Devices::nvdisp_disp0> m_nvdisp;
     s32 disp_fd;
     HardwareComposer m_composer;
 };

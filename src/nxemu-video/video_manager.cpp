@@ -14,6 +14,7 @@
 #include "yuzu_video_core/textures/decoders.h"
 #include "yuzu_common/polyfill_thread.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/scope_exit.h"
 #include "nxemu-video/video_settings.h"
 #include <chrono>
 #include <cstring>
@@ -32,24 +33,54 @@ struct VideoManager::Impl
     {
     }
 
-    bool Initialize()
+    ~Impl()
     {
-        m_host1x = std::make_unique<Tegra::Host1x::Host1x>(m_modules.OperatingSystem().DeviceMemory());
-        m_emuWindow = std::make_unique<RenderWindow>(m_window);
-        return true;
+        Shutdown();
     }
-    
-    void EmulationStarting(void)
+
+    void StopInitialization(bool wait = true)
     {
+        m_initStop.request_stop();
+        if (m_gpuCore)
+        {
+            m_gpuCore->NotifyShutdown();
+        }
+        if (!wait)
+        {
+            return;
+        }
+        // The loader captures this and may still access the GPU, window and Host1x.
         if (m_init.valid())
         {
             m_init.wait();
         }
         if (m_gpuCore)
         {
-            m_gpuCore->NotifyShutdown();
-            m_gpuCore = nullptr;
+            m_gpuCore->WaitForComposite();
         }
+    }
+
+    void Shutdown()
+    {
+        StopInitialization();
+        m_gpuCore.reset();
+        m_memoryManagerRegistry.Clear();
+        m_emuWindow.reset();
+        m_host1x.reset();
+    }
+
+    bool Initialize()
+    {
+        m_host1x = std::make_unique<Tegra::Host1x::Host1x>(m_modules.OperatingSystem().DeviceMemory());
+        m_emuWindow = std::make_unique<RenderWindow>(m_window);
+        return true;
+    }
+
+    void EmulationStarting(void)
+    {
+        StopInitialization();
+        m_gpuCore.reset();
+        m_memoryManagerRegistry.Clear();
         g_settings->SetBool(NXCoreSetting::DisplayedFrames, false);
 
         Layout::FramebufferLayout layout;
@@ -65,7 +96,8 @@ struct VideoManager::Impl
         {
             return;
         }
-        m_init = std::async(std::launch::async, [this]() {
+        m_initStop = std::stop_source{};
+        m_init = std::async(std::launch::async, [this, stop_token = m_initStop.get_token()]() {
             const auto notify_disk_cache_progress = [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
                 if (g_settings == nullptr)
                 {
@@ -91,25 +123,19 @@ struct VideoManager::Impl
             };
 
             notify_disk_cache_progress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
-            if (videoSettings.use_disk_shader_cache)
-            {
-                const u64 program_id = m_modules.OperatingSystem().GetProgramId();
-                const std::stop_token stop_token;
-                m_gpuCore->ObtainContext();
-                m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(program_id, stop_token,
-                                                                          notify_disk_cache_progress);
-                m_gpuCore->ReleaseContext();
-            }
-            else
             {
                 m_gpuCore->ObtainContext();
+                SCOPE_EXIT { m_gpuCore->ReleaseContext(); };
+                if (videoSettings.use_disk_shader_cache && !stop_token.stop_requested())
+                {
+                    const u64 program_id = m_modules.OperatingSystem().GetProgramId();
+                    m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(program_id, stop_token,
+                                                                              notify_disk_cache_progress);
+                }
             }
             notify_disk_cache_progress(VideoCore::LoadCallbackStage::Complete, 0, 0);
-            if (!videoSettings.use_disk_shader_cache)
-            {
-                m_gpuCore->ReleaseContext();
-            }
 
+            // Even after cancellation, drain GPU calls before OS shutdown joins their callers.
             m_gpuCore->Start();
         });
     }
@@ -120,6 +146,7 @@ struct VideoManager::Impl
     ISystemModules & m_modules;
     Tegra::MemoryManagerRegistry m_memoryManagerRegistry;
     std::future<void> m_init;
+    std::stop_source m_initStop;
 };
 
 VideoManager::VideoManager(IRenderWindow & window, ISystemModules & modules) :
@@ -127,19 +154,16 @@ VideoManager::VideoManager(IRenderWindow & window, ISystemModules & modules) :
 {
 }
 
-VideoManager::~VideoManager()
-{
-    impl->m_host1x.release();
-    if (impl->m_gpuCore)
-    {
-        impl->m_gpuCore.reset();
-    }
-    impl->m_emuWindow.release();
-}
+VideoManager::~VideoManager() = default;
 
 void VideoManager::EmulationStarting()
 {
     impl->EmulationStarting();
+}
+
+void VideoManager::EmulationStopping(bool wait)
+{
+    impl->StopInitialization(wait);
 }
 
 bool VideoManager::Initialize()
@@ -150,11 +174,7 @@ bool VideoManager::Initialize()
 
 void VideoManager::Shutdown()
 {
-    impl->m_host1x.reset();
-    if (impl->m_gpuCore != nullptr)
-    {
-        impl->m_gpuCore->NotifyShutdown();
-    }
+    impl->Shutdown();
 };
 
 uint32_t VideoManager::AllocAsEx(uint64_t addressSpaceBits, uint64_t splitAddress, uint64_t bigPageBits, uint64_t pageBits)
@@ -287,6 +307,22 @@ void VideoManager::RequestComposite(VideoFramebufferConfig * layers, uint32_t la
         });
     }
     impl->m_gpuCore->RequestComposite(std::move(output_layers), std::move(output_fences));
+}
+
+void VideoManager::WaitForComposite()
+{
+    if (impl->m_gpuCore)
+    {
+        impl->m_gpuCore->WaitForComposite();
+    }
+}
+
+void VideoManager::CancelPendingComposite()
+{
+    if (impl->m_gpuCore)
+    {
+        impl->m_gpuCore->CancelPendingComposite();
+    }
 }
 
 void VideoManager::UpdateFramebufferLayout(uint32_t width, uint32_t height)
