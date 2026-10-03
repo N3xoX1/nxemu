@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <array>
+#include <memory>
+#include <string_view>
 #include <variant>
 #include <vector>
 #include <fmt/printf.h>
