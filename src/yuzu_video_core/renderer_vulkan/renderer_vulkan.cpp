@@ -156,6 +156,8 @@ catch (const vk::Exception & exception)
 RendererVulkan::~RendererVulkan()
 {
     scheduler.RegisterOnSubmit([] {});
+    scheduler.WaitWorker();
+    present_manager.DrainAndStop();
     void(device.GetLogical().WaitIdle());
     CleanupWatermark();
 }

@@ -70,6 +70,9 @@ elseif(APPLE)
         "${NXEMU_SECURITY_FRAMEWORK}"
         "${NXEMU_COREFOUNDATION_FRAMEWORK}"
     )
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(nxemu-os PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
 # Use BSD socket headers and TranslateIPv4(in_addr) path (Linux/macOS/Android).
@@ -80,6 +83,8 @@ endif()
 # 128-bit atomics used by OS networking / room code — need cmpxchg16b on x86_64.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
     target_compile_options(nxemu-os PRIVATE -mcx16)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
     target_link_libraries(nxemu-os PRIVATE atomic)
 endif()
 

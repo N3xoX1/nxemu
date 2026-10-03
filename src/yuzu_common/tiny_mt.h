@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <cstring>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/common_types.h"

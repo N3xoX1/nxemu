@@ -16,6 +16,8 @@ class InputConfig :
     public IPagesSink,
     public IClickSink,
     public IKeySink,
+    public IResizeSink,
+    public ITimerSink,
     public IWindowDestroySink,
     public IWindowCloseSink
 {
@@ -43,6 +45,12 @@ public:
     bool OnKeyUp(SCITER_ELEMENT element, SCITER_ELEMENT item, SciterKeys keyCode, uint32_t keyboardState) override;
     bool OnKeyChar(SCITER_ELEMENT element, SCITER_ELEMENT item, SciterKeys keyCode, uint32_t keyboardState) override;
 
+    // IResizeSink
+    bool OnSizeChanged(SCITER_ELEMENT element) override;
+
+    // ITimerSink
+    bool OnTimer(SCITER_ELEMENT element, uint32_t * timerId) override;
+
     // IWindowDestroySink
     void OnWindowDestroy(HWINDOW hWnd) override;
 
@@ -55,6 +63,8 @@ private:
     InputConfig & operator=(const InputConfig &) = delete;
 
     void ShutdownPlayers();
+
+    uint32_t m_resizeTimerId = 0;
 
     ISciterUI & m_sciterUI;
     SystemModules & m_modules;

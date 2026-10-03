@@ -26,7 +26,7 @@
 enum
 {
     MODULE_LOADER_SPECS_VERSION = 0x0130,
-    MODULE_VIDEO_SPECS_VERSION = 0x0121,
+    MODULE_VIDEO_SPECS_VERSION = 0x0122,
     MODULE_CPU_SPECS_VERSION = 0x011d,
     MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0124,
 };
@@ -228,7 +228,18 @@ nxinterface IRenderWindow
 {
     virtual void * RenderSurface(void) const = 0;
     virtual float PixelRatio(void) const = 0;
+    virtual bool IsVisible(void) const { return true; }
 };
+
+#if defined(__linux__) && !defined(__ANDROID__)
+// Linux RenderSurface() returns this descriptor: Vulkan needs both the display
+// connection and its Wayland surface. Keep them alive until video shutdown.
+struct LinuxRenderSurface
+{
+    void * display;
+    void * window;
+};
+#endif
 
 nxinterface IOperatingSystem;
 nxinterface IVideo;

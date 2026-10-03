@@ -4,6 +4,7 @@
 #include <sciter_handler.h>
 #include <sciter_ui.h>
 #include <common/std_string.h>
+#include <cstdio>
 
 #ifdef WIN32
 #include<Windows.h>
@@ -36,7 +37,7 @@ public:
         m_response = mode == NotificationDialogMode::Query ? NotificationResponse::No : NotificationResponse::Yes;
         m_window = nullptr;
 
-        if (!m_sciterUI.WindowCreate(parentWindow, "notification_dialog.html", 0, 0, 0, 0, SUIW_CHILD, m_window))
+        if (!m_sciterUI.WindowCreate(parentWindow, "notification_dialog.html", 0, 0, 0, 0, SUIW_CHILD | SUIW_HIDDEN, m_window))
         {
             return m_response;
         }
@@ -68,6 +69,7 @@ public:
         m_window->OnDestroySinkAdd(this);
         m_window->FixMinSize();
         m_window->CenterWindow();
+        m_window->Show();
         m_window->RunModal();
 
         return m_response;
@@ -175,6 +177,7 @@ void Notification::DisplayError(const char * message, const char * title) const
 {
     if (m_sciterUI == nullptr || m_parentWindow == nullptr)
     {
+        std::fprintf(stderr, "%s: %s\n", title ? title : "NXEmu", message ? message : "");
         return;
     }
     NotificationWindow dialog(*m_sciterUI);

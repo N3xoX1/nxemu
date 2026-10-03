@@ -206,8 +206,6 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     FlushWork();
     gpu_memory->FlushCaching();
 
-    query_cache.NotifySegment(true);
-
     GraphicsPipeline* const pipeline{pipeline_cache.CurrentGraphicsPipeline()};
     if (!pipeline) {
         return;
@@ -216,6 +214,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->Configure(is_indexed);
+    query_cache.NotifySegment(true);
 
     UpdateDynamicStates();
 
@@ -297,16 +296,12 @@ void RasterizerVulkan::DrawTexture() {
     };
     FlushWork();
 
-    query_cache.NotifySegment(true);
-
     std::scoped_lock l{texture_cache.mutex};
     texture_cache.SynchronizeGraphicsDescriptors();
     texture_cache.UpdateRenderTargets(false);
 
     UpdateDynamicStates();
 
-    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
-                              maxwell3d->regs.zpass_pixel_count_enable);
     const auto& draw_texture_state = maxwell3d->draw_manager->GetDrawTextureState();
     const auto& sampler = texture_cache.GetGraphicsSampler(draw_texture_state.src_sampler);
     const auto& texture = texture_cache.GetImageView(draw_texture_state.src_texture);
@@ -335,18 +330,18 @@ void RasterizerVulkan::DrawTexture() {
                                     .y = ScaleSrc(draw_texture_state.src_y1)}};
     Extent3D src_size = {static_cast<u32>(ScaleSrc(texture.size.width)),
                          static_cast<u32>(ScaleSrc(texture.size.height)), texture.size.depth};
-    blit_image.BlitColor(framebuffer, texture.RenderTarget(), texture.ImageHandle(),
-                         sampler->Handle(), dst_region, src_region, src_size);
+    blit_image.PrepareDrawTexture(framebuffer, texture);
+    query_cache.NotifySegment(true);
+    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
+                              maxwell3d->regs.zpass_pixel_count_enable);
+    blit_image.DrawTexture(framebuffer, texture.RenderTarget(), sampler->Handle(),
+                           dst_region, src_region, src_size);
 }
 
 void RasterizerVulkan::Clear(u32 layer_count) {
 
     FlushWork();
     gpu_memory->FlushCaching();
-
-    query_cache.NotifySegment(true);
-    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
-                              maxwell3d->regs.zpass_pixel_count_enable);
 
     auto& regs = maxwell3d->regs;
     const bool use_color = regs.clear_surface.R || regs.clear_surface.G || regs.clear_surface.B ||
@@ -362,6 +357,9 @@ void RasterizerVulkan::Clear(u32 layer_count) {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
     const VkExtent2D render_area = framebuffer->RenderArea();
     scheduler.RequestRenderpass(framebuffer);
+    query_cache.NotifySegment(true);
+    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
+                              maxwell3d->regs.zpass_pixel_count_enable);
 
     u32 up_scale = 1;
     u32 down_shift = 0;

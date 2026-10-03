@@ -44,10 +44,9 @@ need ninja
 need g++
 need pkg-config
 need curl
-need python3
 
-if ! pkg-config --exists x11 wayland-client dbus-1; then
-    echo "Missing build packages: x11, wayland-client, and dbus-1 development files." >&2
+if ! pkg-config --exists gtk4-wayland wayland-client dbus-1; then
+    echo "Missing build packages: gtk4-wayland, wayland-client, and dbus-1 development files." >&2
     exit 1
 fi
 
@@ -115,26 +114,7 @@ Categories=Game;
 Terminal=false
 EOF
 
-python3 - "$meta/nxemu.png" <<'PY'
-import struct
-import sys
-import zlib
-
-def chunk(tag, data):
-    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-width = height = 48
-rgb = bytes((0x1B, 0x3A, 0x4B))
-raw = b"".join(b"\x00" + rgb * width for _ in range(height))
-png = (
-    b"\x89PNG\r\n\x1a\n"
-    + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    + chunk(b"IDAT", zlib.compress(raw, 9))
-    + chunk(b"IEND", b"")
-)
-with open(sys.argv[1], "wb") as out:
-    out.write(png)
-PY
+cp "$root/lang/english/image/window-icon.png" "$meta/nxemu.png"
 
 rm -rf "$appdir"
 mkdir -p "$appdir"

@@ -306,18 +306,25 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
     m_renderWindow(renderWindow),
     m_firstFrame(false)
 {
+    window_info.render_surface = renderWindow.RenderSurface();
 #if defined(_WIN32)
     window_info.type = Core::Frontend::WindowSystemType::Windows;
 #elif defined(__ANDROID__)
     window_info.type = Core::Frontend::WindowSystemType::Android;
 #elif defined(__APPLE__)
     window_info.type = Core::Frontend::WindowSystemType::Cocoa;
+    window_info.render_surface_scale = renderWindow.PixelRatio();
+#elif defined(__linux__)
+    window_info.type = Core::Frontend::WindowSystemType::Wayland;
+    const auto * surface = static_cast<const LinuxRenderSurface *>(window_info.render_surface);
+    if (surface != nullptr)
+    {
+        window_info.display_connection = surface->display;
+        window_info.render_surface = surface->window;
+        window_info.render_surface_scale = renderWindow.PixelRatio();
+    }
 #else
     window_info.type = Core::Frontend::WindowSystemType::Headless;
-#endif
-    window_info.render_surface = renderWindow.RenderSurface();
-#ifdef __APPLE__
-    window_info.render_surface_scale = renderWindow.PixelRatio();
 #endif
     NotifyClientAreaSizeChanged({0, 0});
     UpdateCurrentFramebufferLayout(640, 480);
@@ -355,5 +362,5 @@ std::unique_ptr<Core::Frontend::GraphicsContext> RenderWindow::CreateSharedConte
 
 bool RenderWindow::IsShown() const
 {
-    return true;
+    return m_renderWindow.IsVisible();
 }
