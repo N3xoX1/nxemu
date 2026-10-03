@@ -224,6 +224,7 @@ private:
     ISciterUI & m_sciterUI;
     ISciterWindow * m_window;
     SciterElement m_rootElement;
+    SciterElement m_inputTimerElement;
     SystemModules m_modules;
     std::vector<VkDeviceRecord> m_vkDeviceRecords;
     std::shared_ptr<IMenuBar> m_menuBar;
