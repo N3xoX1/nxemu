@@ -13,6 +13,7 @@
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/kernel/k_thread.h"
 #include "core/hle/kernel/slab_helpers.h"
+#include "core/hle/kernel/ipc_wait_token.h"
 
 namespace Kernel {
 
@@ -186,6 +187,8 @@ public:
         m_event = event;
         m_address = address;
         m_size = size;
+        m_wait_generation = 0;
+        m_completed = false;
 
         m_thread->Open();
         if (m_event != nullptr) {
@@ -215,6 +218,24 @@ public:
         m_server = process;
         m_server->Open();
     }
+
+    // Called immediately after BeginWait, while holding the scheduler lock.
+    void CaptureClientWait() { m_wait_generation = m_thread->GetWaitGeneration(); }
+    bool IsClientWaitCurrent() const {
+        return m_thread && CanCompleteIpcWait(m_wait_generation, m_thread->GetWaitGeneration(),
+            m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested());
+    }
+    bool CanPublishHleReply() const {
+        if (!m_thread || m_completed) return false;
+        const auto* process = m_thread->GetOwnerKProcess();
+        if (!process) return false;
+        const auto state = process->GetState();
+        return CanPublishIpcReply(m_wait_generation, m_thread->GetWaitGeneration(),
+            m_thread->GetState() == ThreadState::Waiting, m_thread->IsTerminationRequested(),
+            m_event != nullptr, state == KProcess::State::Terminating || state == KProcess::State::Terminated);
+    }
+    // Read and written under the scheduler lock, including retained HLE contexts.
+    void MarkCompleted() { m_completed = true; }
 
     void ClearThread() {
         m_thread = nullptr;
@@ -308,6 +329,8 @@ private:
     KThread* m_thread{};
     KProcess* m_server{};
     KEvent* m_event{};
+    u64 m_wait_generation{};
+    bool m_completed{};
     uintptr_t m_address{};
     size_t m_size{};
 };

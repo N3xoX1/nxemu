@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2021 Skyline Team and Contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <utility>
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/nvdata.h"
 #include "yuzu_common/scope_exit.h"
@@ -109,7 +110,7 @@ void NVDRV::Ioctl1(HLERequestContext& ctx) {
     }
 
     if (command.is_out != 0) {
-        ctx.WriteBuffer(output_buffer);
+        ctx.WriteBuffer(std::move(output_buffer));
     }
 
     IPC::ResponseBuilder rb{ctx, 3};
@@ -136,7 +137,7 @@ void NVDRV::Ioctl2(HLERequestContext& ctx) {
     const auto nv_result =
         nvdrv->Ioctl2(fd, command, input_buffer, input_inlined_buffer, output_buffer);
     if (command.is_out != 0) {
-        ctx.WriteBuffer(output_buffer);
+        ctx.WriteBuffer(std::move(output_buffer));
     }
 
     IPC::ResponseBuilder rb{ctx, 3};
@@ -163,8 +164,8 @@ void NVDRV::Ioctl3(HLERequestContext& ctx) {
     const auto nv_result =
         nvdrv->Ioctl3(fd, command, input_buffer, output_buffer, inline_output_buffer);
     if (command.is_out != 0) {
-        ctx.WriteBuffer(output_buffer, 0);
-        ctx.WriteBuffer(inline_output_buffer, 1);
+        ctx.WriteBuffer(std::move(output_buffer), 0);
+        ctx.WriteBuffer(std::move(inline_output_buffer), 1);
     }
 
     IPC::ResponseBuilder rb{ctx, 3};

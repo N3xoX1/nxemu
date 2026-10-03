@@ -347,6 +347,12 @@ Result ServerManager::OnSessionEvent(Session* session) {
     auto* server_session = static_cast<Kernel::KServerSession*>(session->GetNativeHandle());
     res = server_session->ReceiveRequestHLE(&session->GetContext(), session->GetManager());
 
+    // The signaled queue can become empty when all sync clients cancelled.
+    if (res == Kernel::ResultNotFound) {
+        this->LinkToDeferredList(session);
+        R_SUCCEED();
+    }
+
     // If the session has been closed, we're done.
     if (res == Kernel::ResultSessionClosed) {
         this->DestroySession(session);
@@ -398,7 +404,8 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
     }
 
     // Send the reply.
-    res = server_session->SendReplyHLE();
+    res = server_session->SendReplyHLE(*session->GetContext());
+    session->GetContext().reset();
 
     // If the session has been closed, we're done.
     if (res == Kernel::ResultSessionClosed || service_res == IPC::ResultSessionClosed) {
