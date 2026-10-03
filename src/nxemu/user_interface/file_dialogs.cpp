@@ -29,6 +29,10 @@ Path BrowseForDirectory(const char * title);
 } // namespace MacOSFileDialogs
 #endif
 
+#ifdef __linux__
+namespace { std::string PickLinuxFile(void * owner, const char * initialDir, bool mustExist); }
+#endif
+
 bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilter, bool fileMustExist, Path & selected)
 {
 #ifdef _WIN32
@@ -71,6 +75,12 @@ bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilt
     (void)hwndOwner;
     (void)fileMustExist;
     return MacOSFileDialogs::FileSelect(initialDir, fileFilter, selected);
+#elif defined(__linux__)
+    (void)fileFilter; // The portal's native filter encoding is not the Win32 double-NUL format.
+    const std::string result = PickLinuxFile(hwndOwner, initialDir, fileMustExist);
+    if (result.empty()) return false;
+    selected = Path(result.c_str());
+    return true;
 #else
     return false;
 #endif
@@ -96,6 +106,8 @@ std::string FileUriToPath(const char * uri)
         {
             return {};
         }
+        if (rest.compare(0, slash, "localhost") != 0 || slash != 9)
+            return {}; // Reject remote URIs. The API returns local Path objects.
         rest.erase(0, slash);
     }
 
@@ -110,6 +122,7 @@ std::string FileUriToPath(const char * uri)
             const long value = strtol(hex, &end, 16);
             if (end == hex + 2)
             {
+                if (value == 0) return {};
                 path.push_back(static_cast<char>(value));
                 i += 2;
                 continue;
@@ -209,7 +222,7 @@ struct PortalDirectory
     std::string path;
 };
 
-PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
+PortalDirectory PortalPickPath(void * parentWindow, const char * title, bool directory, bool save)
 {
     DBusError error;
     dbus_error_init(&error);
@@ -235,7 +248,7 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
         "org.freedesktop.portal.Desktop",
         "/org/freedesktop/portal/desktop",
         "org.freedesktop.portal.FileChooser",
-        "OpenFile");
+        save ? "SaveFile" : "OpenFile");
     if (message == nullptr)
     {
         dbus_connection_close(connection);
@@ -248,13 +261,10 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
     snprintf(token, sizeof(token), "nxemu%u_%u", static_cast<unsigned>(getpid()), ++sequence);
     const char * tokenValue = token;
 
-    std::string parent;
-    if (parentWindow != nullptr)
-    {
-        char windowId[64];
-        snprintf(windowId, sizeof(windowId), "x11:0x%lx", static_cast<unsigned long>(reinterpret_cast<uintptr_t>(parentWindow)));
-        parent = windowId;
-    }
+    // A wl_surface* is not an xdg-foreign exported parent identifier.
+    // Until SciterUI provides xdg-foreign export, use an unparented portal dialog.
+    (void)parentWindow;
+    const std::string parent;
     const char * parentValue = parent.c_str();
     const char * titleValue = (title != nullptr && title[0] != '\0') ? title : "Select Directory";
     dbus_bool_t yes = TRUE;
@@ -266,7 +276,8 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
     dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &titleValue);
     dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &options);
     AppendDictEntry(&options, "handle_token", DBUS_TYPE_STRING, "s", &tokenValue);
-    AppendDictEntry(&options, "directory", DBUS_TYPE_BOOLEAN, "b", &yes);
+    if (directory)
+        AppendDictEntry(&options, "directory", DBUS_TYPE_BOOLEAN, "b", &yes);
     AppendDictEntry(&options, "modal", DBUS_TYPE_BOOLEAN, "b", &yes);
     dbus_bool_t no = FALSE;
     AppendDictEntry(&options, "multiple", DBUS_TYPE_BOOLEAN, "b", &no);
@@ -396,9 +407,25 @@ std::string KDialogPickDirectory(const char * title)
     });
 }
 
+std::string PickLinuxFile(void * owner, const char * initialDir, bool mustExist)
+{
+    const auto portal = PortalPickPath(owner, mustExist ? "Select File" : "Save File",
+                                      false, !mustExist);
+    if (portal.status == PortalStatus::Selected)
+        return portal.path;
+    if (portal.status == PortalStatus::Cancelled)
+        return {};
+    if (access("/usr/bin/kdialog", X_OK) != 0)
+        return {};
+    const std::string directory = initialDir && *initialDir ? initialDir :
+        (getenv("HOME") ? getenv("HOME") : "/");
+    return CaptureCommand({"/usr/bin/kdialog", mustExist ? "--getopenfilename" : "--getsavefilename",
+                           directory});
+}
+
 std::string PickDirectory(void * parentWindow, const char * title)
 {
-    const PortalDirectory portal = PortalPickDirectory(parentWindow, title);
+    const PortalDirectory portal = PortalPickPath(parentWindow, title, true, false);
     if (portal.status == PortalStatus::Selected)
     {
         return portal.path;

@@ -4,6 +4,7 @@
 #include <sciter_handler.h>
 #include <sciter_ui.h>
 #include <common/std_string.h>
+#include <cstdio>
 
 #ifdef WIN32
 #include<Windows.h>
@@ -175,6 +176,7 @@ void Notification::DisplayError(const char * message, const char * title) const
 {
     if (m_sciterUI == nullptr || m_parentWindow == nullptr)
     {
+        std::fprintf(stderr, "%s: %s\n", title ? title : "NXEmu", message ? message : "");
         return;
     }
     NotificationWindow dialog(*m_sciterUI);

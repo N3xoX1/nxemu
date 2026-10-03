@@ -15,6 +15,7 @@ public:
     ~VideoManager();
 
     void EmulationStarting();
+    void EmulationStopping(bool wait);
 
     // IVideo
     bool Initialize() override;
