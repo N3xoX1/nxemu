@@ -58,8 +58,7 @@ fi
 
 echo "Configuring ${build_type} (${arch})"
 cmake -S "$root" -B "$build_dir" -G Ninja \
-    -DCMAKE_BUILD_TYPE="$build_type" \
-    -DNXEMU_BUILD_NXEMU_OS=ON
+    -DCMAKE_BUILD_TYPE="$build_type"
 
 echo "Building"
 cmake --build "$build_dir" --parallel

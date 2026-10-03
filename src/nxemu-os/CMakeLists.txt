@@ -1,19 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
 
-# nxemu-os depends on yuzu "core", yuzu_audio_core, src/network, hid_core (which itself
-# links "core"), cubeb, SDL, etc. Host desktop builds may still be incomplete — default OFF.
-# Android and macOS require the OS plugin alongside loader/cpu/video.
-if(ANDROID OR APPLE)
-    set(_NXEMU_OS_BUILD_DEFAULT ON)
-else()
-    set(_NXEMU_OS_BUILD_DEFAULT OFF)
-endif()
-option(NXEMU_BUILD_NXEMU_OS "Build nxemu-os shared library" ${_NXEMU_OS_BUILD_DEFAULT})
-
-if(NOT NXEMU_BUILD_NXEMU_OS)
-    message(STATUS "nxemu-os: skipped (NXEMU_BUILD_NXEMU_OS=OFF)")
-else()
-
 project(nxemu-os LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -100,5 +86,3 @@ endif()
 set_property(TARGET nxemu-os PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 nxemu_set_module_output(nxemu-os operating_system)
-
-endif()
