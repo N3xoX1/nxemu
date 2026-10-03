@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <utility>
+
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
 #include "core/memory/dmnt_cheat_types.h"
