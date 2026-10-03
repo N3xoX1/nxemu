@@ -102,8 +102,12 @@ Purpose: Called when emulation is stopping
 Input: None
 Output: None
 */
-void CALL EmulationStopping(bool /*wait*/)
+void CALL EmulationStopping(bool wait)
 {
+    if (g_videoManager)
+    {
+        g_videoManager->EmulationStopping(wait);
+    }
 }
 
 /*
@@ -139,6 +143,7 @@ void CALL DestroyVideo(IVideo * video)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return;
     }
+    g_videoManager->Shutdown();
     CleanupVideoSetting();
     g_videoManager = nullptr;
 }

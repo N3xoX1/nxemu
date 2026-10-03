@@ -216,6 +216,12 @@ public:
     void RequestComposite(std::vector<Tegra::FramebufferConfig>&& layers,
                           std::vector<Service::Nvidia::NvFence>&& fences);
 
+    void WaitForComposite();
+    void CancelPendingComposite();
+
+    // Called only by the GPU worker, with its graphics context current.
+    void ProcessPendingComposite();
+
     std::vector<u8> GetAppletCaptureBuffer();
 
     /// Performs any additional setup necessary in order to begin GPU emulation.

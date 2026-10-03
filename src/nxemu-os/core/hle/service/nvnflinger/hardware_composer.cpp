@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -47,6 +50,8 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
 
     // Set default speed limit to 100%.
     *out_speed_scale = 1.0f;
+
+    this->ReleaseFramebuffersLocked(display);
 
     // Determine the number of vsync periods to wait before composing again.
     std::optional<s32> swap_interval{};
@@ -117,30 +122,31 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
     const u32 frame_advance = swap_interval.value_or(1);
     m_frame_number += frame_advance;
 
-    // Release any necessary framebuffers.
-    for (auto& [layer_id, framebuffer] : m_framebuffers) {
-        if (framebuffer.release_frame_number > m_frame_number) {
-            // Not yet ready to release this framebuffer.
-            continue;
-        }
-
-        if (!framebuffer.is_acquired) {
-            // Already released.
-            continue;
-        }
-
-        if (const auto layer = display.stack.FindLayer(layer_id); layer != nullptr) {
-            // TODO: support release fence
-            // This is needed to prevent screen tearing
-            layer->buffer_item_consumer->ReleaseBuffer(framebuffer.item, android::Fence::NoFence());
-            framebuffer.is_acquired = false;
-        }
-    }
-
     return frame_advance;
 }
 
-void HardwareComposer::RemoveLayerLocked(Display& display, ConsumerId consumer_id) {
+void HardwareComposer::ReleaseFramebuffersLocked(Display& display) {
+    for (auto& [layer_id, framebuffer] : m_framebuffers) {
+        if (!framebuffer.is_acquired) {
+            continue;
+        }
+
+        const auto layer = display.stack.FindLayer(layer_id);
+        if (!layer) {
+            continue;
+        }
+
+        if (framebuffer.release_frame_number > m_frame_number) {
+            continue;
+        }
+
+        layer->buffer_item_consumer->ReleaseBuffer(framebuffer.item, android::Fence::NoFence());
+        framebuffer.is_acquired = false;
+    }
+}
+
+void HardwareComposer::RemoveLayerLocked(Display& display, ConsumerId consumer_id,
+                                         Nvidia::Devices::nvdisp_disp0& nvdisp) {
     // Check if we are tracking a slot with this consumer_id.
     const auto it = m_framebuffers.find(consumer_id);
     if (it == m_framebuffers.end()) {
@@ -150,6 +156,8 @@ void HardwareComposer::RemoveLayerLocked(Display& display, ConsumerId consumer_i
     // Try to release the buffer item.
     const auto layer = display.stack.FindLayer(consumer_id);
     if (layer && it->second.is_acquired) {
+        // Wait for the renderer before releasing this acquired slot.
+        nvdisp.CancelPendingComposite();
         layer->buffer_item_consumer->ReleaseBuffer(it->second.item, android::Fence::NoFence());
     }
 
@@ -165,8 +173,8 @@ bool HardwareComposer::TryAcquireFramebufferLocked(Layer& layer, Framebuffer& fr
     }
 
     // We succeeded, so set the new release frame info.
-    framebuffer.release_frame_number =
-        NormalizeSwapInterval(nullptr, framebuffer.item.swap_interval);
+    const s32 swap_interval = NormalizeSwapInterval(nullptr, framebuffer.item.swap_interval);
+    framebuffer.release_frame_number = m_frame_number + swap_interval;
     framebuffer.is_acquired = true;
 
     return true;
@@ -187,8 +195,8 @@ HardwareComposer::CacheStatus HardwareComposer::CacheFramebufferLocked(Layer& la
             // We got a new item.
             return CacheStatus::BufferAcquired;
         } else {
-            // We didn't acquire a new item, but we can reuse the slot.
-            return CacheStatus::CachedBufferReused;
+            // The producer may already be writing to the released slot.
+            return CacheStatus::NoBufferAvailable;
         }
     }
 

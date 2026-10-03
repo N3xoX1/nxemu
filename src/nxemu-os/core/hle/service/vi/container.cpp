@@ -248,7 +248,18 @@ Result Container::CloseLayerLocked(u64 layer_id) {
 
 bool Container::ComposeOnDisplay(s32* out_swap_interval, f32* out_compose_speed_scale,
                                  u64 display_id) {
+    {
+        std::scoped_lock lk{m_lock};
+        if (m_is_shut_down || !m_surface_flinger->DisplayHasLayers(display_id)) {
+            return false;
+        }
+    }
+    // Keep the potentially unbounded fence wait outside the VI layer lock.
+    m_surface_flinger->WaitForComposite();
     std::scoped_lock lk{m_lock};
+    if (m_is_shut_down) {
+        return false;
+    }
     return m_surface_flinger->ComposeDisplay(out_swap_interval, out_compose_speed_scale,
                                              display_id);
 }

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -14,6 +17,7 @@
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/cdma_pusher.h"
+#include "yuzu_video_core/composite_request.h"
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/control/scheduler.h"
 #include "yuzu_video_core/dma_pusher.h"
@@ -43,11 +47,15 @@ struct GPU::Impl :
         host1x{host1x_}, use_nvdec{use_nvdec_},
         shader_notify{std::make_unique<VideoCore::ShaderNotify>()},
         is_async{is_async_},
-        gpu_thread{gpu_, is_async_}, scheduler{std::make_unique<Control::Scheduler>(gpu)}
+        scheduler{std::make_unique<Control::Scheduler>(gpu)}, gpu_thread{gpu_, is_async_}
     {
     }
 
-    ~Impl() = default;
+    ~Impl()
+    {
+        NotifyShutdown();
+        composite_requests.Cancel();
+    }
 
     std::shared_ptr<Control::ChannelState> CreateChannel(s32 channel_id)
     {
@@ -128,7 +136,7 @@ struct GPU::Impl :
     {
         std::unique_lock lck{sync_request_mutex};
         const uint64_t fence = last_sync_fence.fetch_add(1, std::memory_order_relaxed) + 1;
-        sync_requests.emplace_back(action);
+        sync_requests.emplace_back(std::forward<Func>(action));
         return fence;
     }
 
@@ -158,10 +166,12 @@ struct GPU::Impl :
         {
             auto request = std::move(sync_requests.front());
             sync_requests.pop_front();
-            sync_request_mutex.unlock();
+            lck.unlock();
             request();
+            // Consume ready frames before later sync operations, including applet capture.
+            ProcessPendingComposite();
             current_sync_fence.fetch_add(1, std::memory_order_release);
-            sync_request_mutex.lock();
+            lck.lock();
             sync_request_cv.notify_all();
         }
     }
@@ -270,9 +280,12 @@ struct GPU::Impl :
 
     void NotifyShutdown()
     {
-        std::unique_lock lk{sync_mutex};
-        shutting_down.store(true, std::memory_order::relaxed);
-        sync_cv.notify_all();
+        {
+            std::unique_lock lk{sync_mutex};
+            shutting_down.store(true, std::memory_order::relaxed);
+            sync_cv.notify_all();
+        }
+        composite_requests.RequestCancel();
     }
 
     [[nodiscard]] bool IsPoweredOn() const
@@ -372,49 +385,65 @@ struct GPU::Impl :
 
     void RequestComposite(std::vector<Tegra::FramebufferConfig> && layers, std::vector<Service::Nvidia::NvFence> && fences)
     {
-        size_t num_fences{fences.size()};
-        size_t current_request_counter{};
-        if (num_fences != 0)
-        {
-            std::unique_lock<std::mutex> lk(request_swap_mutex);
-            if (free_swap_counters.empty())
-            {
-                current_request_counter = request_swap_counters.size();
-                request_swap_counters.emplace_back(num_fences);
-            }
-            else
-            {
-                current_request_counter = free_swap_counters.front();
-                request_swap_counters[current_request_counter] = num_fences;
-                free_swap_counters.pop_front();
-            }
-        }
-        const auto wait_fence =
-            RequestSyncOperation([this, current_request_counter, &layers, &fences, num_fences] {
-                auto & syncpoint_manager = host1x.GetSyncpointManager();
-                if (num_fences == 0)
-                {
-                    renderer->Composite(layers);
-                    return;
-                }
-                const auto executer = [this, current_request_counter, layers_copy = layers]() {
+        composite_requests.Submit(std::move(layers), fences.size(), [&](const auto& request) {
+            (void)RequestSyncOperation(
+                [this, request, composite_fences = std::move(fences)] {
+                    if (composite_fences.empty())
                     {
-                        std::unique_lock<std::mutex> lk(request_swap_mutex);
-                        if (--request_swap_counters[current_request_counter] != 0)
+                        if (request->Signal())
                         {
-                            return;
+                            if (const auto event = gpu_thread.Wakeup().lock())
+                            {
+                                event->NotifyComposite();
+                            }
                         }
-                        free_swap_counters.push_back(current_request_counter);
+                        return;
                     }
-                    renderer->Composite(layers_copy);
-                };
-                for (size_t i = 0; i < num_fences; i++)
-                {
-                    syncpoint_manager.RegisterGuestAction(fences[i].id, fences[i].value, executer);
-                }
-            });
-        gpu_thread.TickGPU();
-        WaitForSyncOperation(wait_fence);
+                    if (request->IsCancelled())
+                    {
+                        return;
+                    }
+                    // Fence callbacks run under the syncpoint guard; only mark readiness and wake.
+                    const auto executer = [weak_request = std::weak_ptr{request}, wakeup = gpu_thread.Wakeup()] {
+                        if (const auto pending = weak_request.lock())
+                        {
+                            if (pending->Signal())
+                            {
+                                if (const auto event = wakeup.lock())
+                                {
+                                    event->NotifyComposite();
+                                }
+                            }
+                        }
+                    };
+                    auto & syncpoint_manager = host1x.GetSyncpointManager();
+                    for (const auto & fence : composite_fences)
+                    {
+                        syncpoint_manager.RegisterGuestAction(fence.id, fence.value, executer);
+                    }
+                });
+            gpu_thread.TickGPU();
+        });
+    }
+
+    void WaitForComposite()
+    {
+        composite_requests.Wait();
+    }
+
+    void CancelPendingComposite()
+    {
+        composite_requests.CancelPending();
+    }
+
+    void ProcessPendingComposite()
+    {
+        if (!gpu_thread.TakeCompositeReady()) {
+            return;
+        }
+        composite_requests.Composite([this](const auto& layers) {
+            renderer->Composite(layers);
+        });
     }
 
     std::vector<u8> GetAppletCaptureBuffer()
@@ -470,7 +499,6 @@ struct GPU::Impl :
 
     const bool is_async;
 
-    VideoCommon::GPUThread::ThreadManager gpu_thread;
     std::unique_ptr<Core::Frontend::GraphicsContext> cpu_context;
 
     std::unique_ptr<Tegra::Control::Scheduler> scheduler;
@@ -478,9 +506,10 @@ struct GPU::Impl :
     Tegra::Control::ChannelState * current_channel;
     s32 bound_channel{-1};
 
-    std::deque<size_t> free_swap_counters;
-    std::deque<size_t> request_swap_counters;
-    std::mutex request_swap_mutex;
+    VideoCommon::CompositeRequestQueue composite_requests;
+
+    // Join the worker before destroying its scheduler, context, or pending requests.
+    VideoCommon::GPUThread::ThreadManager gpu_thread;
 };
 
 GPU::GPU(ISystemModules & modules, Tegra::Host1x::Host1x & host1x, bool is_async, bool use_nvdec) :
@@ -620,6 +649,21 @@ const VideoCore::ShaderNotify & GPU::ShaderNotify() const
 void GPU::RequestComposite(std::vector<Tegra::FramebufferConfig> && layers, std::vector<Service::Nvidia::NvFence> && fences)
 {
     impl->RequestComposite(std::move(layers), std::move(fences));
+}
+
+void GPU::WaitForComposite()
+{
+    impl->WaitForComposite();
+}
+
+void GPU::CancelPendingComposite()
+{
+    impl->CancelPendingComposite();
+}
+
+void GPU::ProcessPendingComposite()
+{
+    impl->ProcessPendingComposite();
 }
 
 std::vector<u8> GPU::GetAppletCaptureBuffer()
