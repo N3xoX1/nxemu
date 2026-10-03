@@ -93,8 +93,10 @@ void CoreTiming::ThreadEntry(CoreTiming& instance) {
     instance.ThreadLoop();
 }
 
-void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle) {
+void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle,
+                            bool native_cpu_clock) {
     Reset();
+    cpu_hle_native_clock.store(native_cpu_clock, std::memory_order_relaxed);
     on_thread_init = std::move(on_thread_init_);
     event_fifo_id = 0;
     shutting_down = false;
@@ -119,8 +121,8 @@ void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_
     cpu_hle_enabled.store(osSettings.cpu_hle_synchronization && supported, std::memory_order_release);
     shared_clock.Reset(clock.get());
     if (osSettings.cpu_hle_synchronization && !supported)
-        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64_dynarmic={}, thread_counter={}); using normal timing", is_multicore, allow_cpu_hle, counter_supported);
-    LOG_INFO(Core, "CPU/HLE synchronization: {} (multicore={}, guest64_dynarmic={})", CpuHleSynchronizationEnabled(), is_multicore, allow_cpu_hle);
+        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64_backend={}, thread_counter={}); using normal timing", is_multicore, allow_cpu_hle, counter_supported);
+    LOG_INFO(Core, "CPU/HLE synchronization: {} (multicore={}, guest64_backend={}, native_cpu_clock={})", CpuHleSynchronizationEnabled(), is_multicore, allow_cpu_hle, native_cpu_clock);
     if (is_multicore) {
         timer_thread = std::make_unique<std::jthread>(ThreadEntry, std::ref(*this));
     }
@@ -133,7 +135,7 @@ void CoreTiming::ClearPendingEvents() {
 }
 
 void CoreTiming::Pause(bool is_paused) {
-    if (CpuHleSynchronizationEnabled()) shared_clock.Pause(is_paused);
+    if (UsesSharedCpuClock()) shared_clock.Pause(is_paused);
     paused = is_paused;
     pause_event.Set();
 #ifdef _WIN32
@@ -243,7 +245,7 @@ void CoreTiming::ResetTicks() {
 }
 
 u64 CoreTiming::GetClockTicks() const {
-    if (CpuHleSynchronizationEnabled()) return Common::WallClock::NSToCNTPCT(shared_clock.Now());
+    if (UsesSharedCpuClock()) return Common::WallClock::NSToCNTPCT(shared_clock.Now());
     if (is_multicore) [[likely]] {
         if (fallback_time_offset_ns.load(std::memory_order_acquire))
             return Common::WallClock::NSToCNTPCT(GetGlobalTimeNs().count());
@@ -253,7 +255,7 @@ u64 CoreTiming::GetClockTicks() const {
 }
 
 u64 CoreTiming::GetGPUTicks() const {
-    if (CpuHleSynchronizationEnabled()) return Common::WallClock::NSToGPUTick(shared_clock.Now());
+    if (UsesSharedCpuClock()) return Common::WallClock::NSToGPUTick(shared_clock.Now());
     if (is_multicore) [[likely]] {
         if (fallback_time_offset_ns.load(std::memory_order_acquire))
             return Common::WallClock::NSToGPUTick(GetGlobalTimeNs().count());
@@ -341,7 +343,7 @@ void CoreTiming::ThreadLoop() {
                             bool blocked;
                             {
                                 std::scoped_lock lock{compilation_wait_guard};
-                                blocked = shared_clock.CompilationBlocks(*next_time);
+                                blocked = UsesSharedCpuClock() && shared_clock.CompilationBlocks(*next_time);
                                 waiting_for_compilation = blocked;
                             }
                             bool ok;
@@ -376,7 +378,7 @@ void CoreTiming::ThreadLoop() {
                     // Windows. A deadline cannot expire while a participant is
                     // compiling; wait for a transition instead of polling it.
                     bool blocked = false;
-                    if (CpuHleSynchronizationEnabled()) {
+                    if (UsesSharedCpuClock()) {
                         std::scoped_lock lock{compilation_wait_guard};
                         blocked = shared_clock.CompilationBlocks(*next_time);
                         waiting_for_compilation = blocked;
@@ -419,7 +421,7 @@ void CoreTiming::Reset() {
 }
 
 std::chrono::nanoseconds CoreTiming::GetGlobalTimeNs() const {
-    if (CpuHleSynchronizationEnabled()) return std::chrono::nanoseconds{shared_clock.Now()};
+    if (UsesSharedCpuClock()) return std::chrono::nanoseconds{shared_clock.Now()};
     if (is_multicore) [[likely]] {
         const auto offset = fallback_time_offset_ns.load(std::memory_order_acquire);
         return clock->GetTimeNS() + std::chrono::nanoseconds{offset};
@@ -428,7 +430,7 @@ std::chrono::nanoseconds CoreTiming::GetGlobalTimeNs() const {
 }
 
 std::chrono::microseconds CoreTiming::GetGlobalTimeUs() const {
-    if (CpuHleSynchronizationEnabled()) return std::chrono::duration_cast<std::chrono::microseconds>(GetGlobalTimeNs());
+    if (UsesSharedCpuClock()) return std::chrono::duration_cast<std::chrono::microseconds>(GetGlobalTimeNs());
     if (is_multicore) [[likely]] {
         if (fallback_time_offset_ns.load(std::memory_order_acquire))
             return std::chrono::duration_cast<std::chrono::microseconds>(GetGlobalTimeNs());
@@ -447,14 +449,20 @@ bool CoreTiming::CpuHleSynchronizationEnabled() const {
     return cpu_hle_enabled.load(std::memory_order_acquire);
 }
 
+bool CoreTiming::UsesSharedCpuClock() const {
+    return !cpu_hle_native_clock.load(std::memory_order_relaxed) && CpuHleSynchronizationEnabled();
+}
+
 void CoreTiming::DisableCpuHleSynchronization(const char* reason) {
     std::scoped_lock lock{cpu_hle_transition_guard};
     if (!CpuHleSynchronizationEnabled()) return;
-    // Freeze publication before changing clocks, preserving the event timeline.
-    // All three components consult this session-wide switch; no partial mode.
-    shared_clock.Pause(true);
-    const auto now = static_cast<s64>(shared_clock.Now());
-    fallback_time_offset_ns.store(now - clock->GetTimeNS().count(), std::memory_order_release);
+    // NCE already uses the native time domain; fallback must not offset its
+    // ticks away from the counter read directly by guest instructions.
+    if (!cpu_hle_native_clock.load(std::memory_order_relaxed)) {
+        shared_clock.Pause(true);
+        const auto now = static_cast<s64>(shared_clock.Now());
+        fallback_time_offset_ns.store(now - clock->GetTimeNS().count(), std::memory_order_release);
+    }
     cpu_hle_enabled.store(false, std::memory_order_release);
     cpu_hle_failed.store(true, std::memory_order_release);
     NotifyEvent();
@@ -469,7 +477,7 @@ void CoreTiming::NotifyEvent() {
 }
 
 void CoreTiming::CpuCompilation(uint32_t core, bool compiling) {
-    if (!CpuHleSynchronizationEnabled()) return;
+    if (!UsesSharedCpuClock()) return;
     shared_clock.Compile(core, compiling);
     if (!compiling) {
         std::scoped_lock lock{compilation_wait_guard};
@@ -478,15 +486,15 @@ void CoreTiming::CpuCompilation(uint32_t core, bool compiling) {
 }
 
 void CoreTiming::SetCpuRunnableMask(u32 mask) {
-    if (CpuHleSynchronizationEnabled()) shared_clock.SetRunnableMask(mask);
+    if (UsesSharedCpuClock()) shared_clock.SetRunnableMask(mask);
 }
 
 void CoreTiming::BeginCpuRun(uint32_t core) {
-    if (CpuHleSynchronizationEnabled()) shared_clock.Begin(core);
+    if (UsesSharedCpuClock()) shared_clock.Begin(core);
 }
 
 void CoreTiming::EndCpuRun(uint32_t core) {
-    if (CpuHleSynchronizationEnabled()) shared_clock.End(core);
+    if (UsesSharedCpuClock()) shared_clock.End(core);
 }
 
 } // namespace Core::Timing

@@ -73,7 +73,10 @@ public:
 
     /// CoreTiming begins at the boundary of timing slice -1. An initial call to Advance() is
     /// required to end slice - 1 and start slice 0 before the first cycle of code is executed.
-    void Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle = true);
+    // NCE reads the native ARM counter directly; its HLE deadlines must use
+    // that same time domain rather than the JIT-adjusted shared CPU clock.
+    void Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle = true,
+                    bool native_cpu_clock = false);
 
     /// Clear all pending events. This should ONLY be done on exit.
     void ClearPendingEvents();
@@ -159,9 +162,11 @@ private:
     void NotifyEvent();
 
     void Reset();
+    bool UsesSharedCpuClock() const;
 
     std::unique_ptr<Common::WallClock> clock;
     SharedCpuClock shared_clock;
+    std::atomic<bool> cpu_hle_native_clock{};
     std::atomic<bool> cpu_hle_enabled{};
     std::atomic<bool> cpu_hle_failed{};
     std::atomic<s64> fallback_time_offset_ns{};

@@ -81,6 +81,7 @@ struct System::Impl {
         is_multicore = osSettings.use_multi_core;
         cpu_hle_requested = osSettings.cpu_hle_synchronization;
         cpu_hle_initialized_supported = CpuHleSupported();
+        cpu_hle_initialized_native_clock = CpuHleUsesNativeClock();
 
 #ifdef _WIN32
         const std::chrono::nanoseconds timer_resolution = Common::Windows::SetCurrentTimerResolutionToMaximum();
@@ -89,7 +90,8 @@ struct System::Impl {
 #endif
 
         core_timing.SetMulticore(is_multicore);
-        core_timing.Initialize([&system]() { system.RegisterHostThread(); }, cpu_hle_initialized_supported);
+        core_timing.Initialize([&system]() { system.RegisterHostThread(); },
+                               cpu_hle_initialized_supported, cpu_hle_initialized_native_clock);
 
         is_async_gpu = g_settings->GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
 
@@ -103,6 +105,7 @@ struct System::Impl {
         const bool must_reconfigure = is_multicore != osSettings.use_multi_core ||
             cpu_hle_requested != osSettings.cpu_hle_synchronization ||
             (cpu_hle_requested && cpu_hle_initialized_supported != CpuHleSupported()) ||
+            (cpu_hle_requested && cpu_hle_initialized_native_clock != CpuHleUsesNativeClock()) ||
             core_timing.CpuHleSynchronizationFailed();
 
         if (!must_reconfigure)
@@ -117,12 +120,16 @@ struct System::Impl {
 
     bool CpuHleSupported() const
     {
-        // Native execution has no Dynarmic run/compilation notifications. It
-        // must retain normal timing rather than enable a partial clock model.
-#if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
-        if (g_settings->GetBool(NXCpuSetting::NceEnabled)) return false;
-#endif
         return cpu_hle_guest64;
+    }
+
+    bool CpuHleUsesNativeClock() const
+    {
+#if (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)) && (defined(__linux__) || defined(__ANDROID__))
+        return cpu_hle_guest64 && g_settings->GetBool(NXCpuSetting::NceEnabled);
+#else
+        return false;
+#endif
     }
 
     void Run()
@@ -307,6 +314,7 @@ struct System::Impl {
     bool is_multicore{};
     bool cpu_hle_requested{};
     bool cpu_hle_guest64{true}, cpu_hle_initialized_supported{true};
+    bool cpu_hle_initialized_native_clock{};
     bool is_async_gpu{};
 
     ::ExecuteProgramCallback execute_program_callback{};
