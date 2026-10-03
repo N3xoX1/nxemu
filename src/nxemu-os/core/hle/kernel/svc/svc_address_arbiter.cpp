@@ -48,21 +48,7 @@ Result WaitForAddress(Core::System& system, u64 address, ArbitrationType arb_typ
     R_UNLESS(Common::IsAligned(address, sizeof(s32)), ResultInvalidAddress);
     R_UNLESS(IsValidArbitrationType(arb_type), ResultInvalidEnumValue);
 
-    // Convert timeout from nanoseconds to ticks.
-    s64 timeout{};
-    if (timeout_ns > 0) {
-        const s64 offset_tick(timeout_ns);
-        if (offset_tick > 0) {
-            timeout = system.Kernel().HardwareTimer().GetTick() + offset_tick + 2;
-            if (timeout <= 0) {
-                timeout = std::numeric_limits<s64>::max();
-            }
-        } else {
-            timeout = std::numeric_limits<s64>::max();
-        }
-    } else {
-        timeout = timeout_ns;
-    }
+    const s64 timeout = system.Kernel().HardwareTimer().GetTimeoutDeadlineNs(timeout_ns);
 
     R_RETURN(
         GetCurrentProcess(system.Kernel()).WaitAddressArbiter(address, arb_type, value, timeout));
