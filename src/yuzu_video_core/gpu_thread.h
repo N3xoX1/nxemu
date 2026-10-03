@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -95,6 +96,13 @@ struct SynchState final {
     u64 last_fence{};
     std::atomic<u64> signaled_fence{};
     std::condition_variable_any cv;
+    std::atomic<bool> composite_ready{};
+
+    void NotifyComposite() {
+        if (!composite_ready.exchange(true, std::memory_order_release)) {
+            queue.NotifyConsumer();
+        }
+    }
 };
 
 /// Class used to manage the GPU thread
@@ -121,6 +129,12 @@ public:
 
     void TickGPU();
 
+    std::weak_ptr<SynchState> Wakeup() const { return state; }
+
+    bool TakeCompositeReady() {
+        return state->composite_ready.exchange(false, std::memory_order_acquire);
+    }
+
 private:
     /// Pushes a command to be executed by the GPU thread
     u64 PushCommand(CommandData&& command_data, bool block = false);
@@ -129,7 +143,7 @@ private:
     const bool is_async;
     VideoCore::RasterizerInterface* rasterizer = nullptr;
 
-    SynchState state;
+    std::shared_ptr<SynchState> state{std::make_shared<SynchState>()};
     std::jthread thread;
 };
 

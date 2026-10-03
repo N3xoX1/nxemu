@@ -23,7 +23,8 @@ public:
 
     u32 ComposeLocked(f32* out_speed_scale, Display& display,
                       Nvidia::Devices::nvdisp_disp0& nvdisp);
-    void RemoveLayerLocked(Display& display, ConsumerId consumer_id);
+    void RemoveLayerLocked(Display& display, ConsumerId consumer_id,
+                           Nvidia::Devices::nvdisp_disp0& nvdisp);
 
 private:
     u64 m_frame_number{0};
@@ -48,6 +49,7 @@ private:
 private:
     bool TryAcquireFramebufferLocked(Layer& layer, Framebuffer& framebuffer);
     CacheStatus CacheFramebufferLocked(Layer& layer, ConsumerId consumer_id);
+    void ReleaseFramebuffersLocked(Display& display);
 };
 
 } // namespace Service::Nvnflinger

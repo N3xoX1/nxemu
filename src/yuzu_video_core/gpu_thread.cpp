@@ -29,30 +29,43 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
 
     while (!stop_token.stop_requested())
     {
-        state.queue.PopWait(next, stop_token);
+        gpu.ProcessPendingComposite();
+        bool has_command;
+        {
+            has_command = state.queue.PopWait(next, stop_token, [&] {
+                return state.composite_ready.load(std::memory_order_acquire);
+            });
+        }
+        if (!has_command && !stop_token.stop_requested()) {
+            gpu.ProcessPendingComposite();
+            continue;
+        }
         if (stop_token.stop_requested())
         {
             break;
         }
-        if (auto * submit_list = std::get_if<SubmitListCommand>(&next.data))
         {
-            scheduler.Push(submit_list->channel, std::move(submit_list->entries));
-        }
-        else if (std::holds_alternative<GPUTickCommand>(next.data))
-        {
-            gpu.TickWork();
-        }
-        else if (const auto * flush = std::get_if<FlushRegionCommand>(&next.data))
-        {
-            rasterizer->FlushRegion(flush->addr, flush->size);
-        }
-        else if (const auto * invalidate = std::get_if<InvalidateRegionCommand>(&next.data))
-        {
-            rasterizer->OnCacheInvalidation(invalidate->addr, invalidate->size);
-        }
-        else
-        {
-            ASSERT(false);
+            if (auto * submit_list = std::get_if<SubmitListCommand>(&next.data))
+            {
+                scheduler.Push(submit_list->channel, std::move(submit_list->entries));
+            }
+            else if (std::holds_alternative<GPUTickCommand>(next.data))
+            {
+                gpu.TickWork();
+            }
+            else if (const auto * flush = std::get_if<FlushRegionCommand>(&next.data))
+            {
+                rasterizer->FlushRegion(flush->addr, flush->size);
+            }
+            else if (const auto * invalidate = std::get_if<InvalidateRegionCommand>(&next.data))
+            {
+                rasterizer->OnCacheInvalidation(invalidate->addr, invalidate->size);
+            }
+            else
+            {
+                ASSERT(false);
+            }
+            gpu.ProcessPendingComposite();
         }
         state.signaled_fence.store(next.fence);
         if (next.block)
@@ -76,7 +89,7 @@ ThreadManager::~ThreadManager() = default;
 void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler)
 {
     rasterizer = renderer.ReadRasterizer();
-    thread = std::jthread(RunThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(scheduler), std::ref(state));
+    thread = std::jthread(RunThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(scheduler), std::ref(*state));
 }
 
 void ThreadManager::SubmitList(s32 channel, Tegra::CommandList && entries)
@@ -125,14 +138,14 @@ u64 ThreadManager::PushCommand(CommandData && command_data, bool block)
         block = true;
     }
 
-    std::unique_lock lk(state.write_lock);
-    const u64 fence{++state.last_fence};
-    state.queue.EmplaceWait(std::move(command_data), fence, block);
+    std::unique_lock lk(state->write_lock);
+    const u64 fence{++state->last_fence};
+    state->queue.EmplaceWait(std::move(command_data), fence, block);
 
     if (block)
     {
-        Common::CondvarWait(state.cv, lk, thread.get_stop_token(), [this, fence] {
-            return fence <= state.signaled_fence.load(std::memory_order_relaxed);
+        Common::CondvarWait(state->cv, lk, thread.get_stop_token(), [this, fence] {
+            return fence <= state->signaled_fence.load(std::memory_order_relaxed);
         });
     }
 

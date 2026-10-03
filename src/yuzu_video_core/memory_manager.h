@@ -265,6 +265,9 @@ public:
     uint32_t AddMemoryManager(std::shared_ptr<Tegra::MemoryManager> & gmmu); 
     std::shared_ptr<Tegra::MemoryManager> GetMemoryManager(uint32_t id);
 
+    // Only after producers and the GPU worker have stopped.
+    void Clear() { m_memoryManagers.clear(); }
+
 private:
     MemoryManagerRegistry(const MemoryManagerRegistry&) = delete;
     MemoryManagerRegistry& operator=(const MemoryManagerRegistry&) = delete;

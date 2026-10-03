@@ -196,6 +196,8 @@ nxinterface IVideo
     virtual void ClearCdmaInstance(uint32_t id) = 0;
     virtual uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) = 0;
     virtual void InvalidateMemory(const uint8_t * pointer, uint64_t size) = 0;
+    virtual void WaitForComposite() = 0;
+    virtual void CancelPendingComposite() = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);
