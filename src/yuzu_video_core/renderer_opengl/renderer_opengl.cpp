@@ -148,6 +148,11 @@ RendererOpenGL::~RendererOpenGL()
 
 void RendererOpenGL::Composite(std::span<const Tegra::FramebufferConfig> framebuffers)
 {
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    auto& capture = gpu.PerformanceCaptureState();
+    if (capture.Epoch() && !render_window.IsShown())
+        capture.Invalidate(PerformanceInvalidation::Hidden);
+#endif
     if (framebuffers.empty())
     {
         return;
@@ -179,6 +184,9 @@ void RendererOpenGL::AddTelemetryFields()
     const char * const gpu_vendor{reinterpret_cast<char const *>(glGetString(GL_VENDOR))};
     const char * const gpu_model{reinterpret_cast<char const *>(glGetString(GL_RENDERER))};
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    gpu.SetPerformanceCaptureDevice(gpu_model ? gpu_model : "", gl_version ? gl_version : "");
+#endif
     LOG_INFO(Render_OpenGL, "GL_VERSION: {}", gl_version);
     LOG_INFO(Render_OpenGL, "GL_VENDOR: {}", gpu_vendor);
     LOG_INFO(Render_OpenGL, "GL_RENDERER: {}", gpu_model);

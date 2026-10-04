@@ -172,10 +172,10 @@ ShaderCache::ShaderCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                          Core::Frontend::EmuWindow& emu_window_, const Device& device_,
                          TextureCache& texture_cache_, BufferCache& buffer_cache_,
                          ProgramManager& program_manager_, StateTracker& state_tracker_,
-                         VideoCore::ShaderNotify& shader_notify_)
+                         VideoCore::ShaderNotify& shader_notify_, PerformanceCaptureSharedState& capture_)
     : VideoCommon::ShaderCache{device_memory_}, emu_window{emu_window_}, device{device_},
       texture_cache{texture_cache_}, buffer_cache{buffer_cache_}, program_manager{program_manager_},
-      state_tracker{state_tracker_}, shader_notify{shader_notify_},
+      state_tracker{state_tracker_}, shader_notify{shader_notify_}, capture{capture_},
       use_asynchronous_shaders{device.UseAsynchronousShaders()},
       strict_context_required{device.StrictContextRequired()},
       profile{
@@ -375,7 +375,10 @@ GraphicsPipeline* ShaderCache::CurrentGraphicsPipelineSlowPath() {
     const auto [pair, is_new]{graphics_cache.try_emplace(graphics_key)};
     auto& pipeline{pair->second};
     if (is_new) {
+        PERF_CAPTURE_ADD(capture, graphics_pipeline_requests, 1);
+        PERF_CAPTURE_SCOPE(capture, pipeline_prepare);
         pipeline = CreateGraphicsPipeline();
+        if (!pipeline) { PERF_CAPTURE_ADD(capture, pipeline_prepare_failures, 1); }
     }
     if (!pipeline) {
         return nullptr;
@@ -394,6 +397,7 @@ GraphicsPipeline* ShaderCache::BuiltPipeline(GraphicsPipeline* pipeline) const n
     // If something is using depth, we can assume that games are not rendering anything which
     // will be used one time.
     if (maxwell3d->regs.zeta_enable) {
+        PERF_CAPTURE_ADD(capture, pipeline_async_skipped_draws, 1);
         return nullptr;
     }
     // If games are using a small index count, we can assume these are full screen quads.
@@ -403,7 +407,8 @@ GraphicsPipeline* ShaderCache::BuiltPipeline(GraphicsPipeline* pipeline) const n
     if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
         return pipeline;
     }
-    return nullptr;
+    PERF_CAPTURE_ADD(capture, pipeline_async_skipped_draws, 1);
+        return nullptr;
 }
 
 ComputePipeline* ShaderCache::CurrentComputePipeline() {
@@ -422,7 +427,10 @@ ComputePipeline* ShaderCache::CurrentComputePipeline() {
     if (!is_new) {
         return pipeline.get();
     }
+    PERF_CAPTURE_ADD(capture, compute_pipeline_requests, 1);
+    PERF_CAPTURE_SCOPE(capture, pipeline_prepare);
     pipeline = CreateComputePipeline(key, shader);
+    if (!pipeline) { PERF_CAPTURE_ADD(capture, pipeline_prepare_failures, 1); }
     return pipeline.get();
 }
 
@@ -545,7 +553,7 @@ std::unique_ptr<GraphicsPipeline> ShaderCache::CreateGraphicsPipeline(
     auto* const thread_worker{use_shader_workers ? workers.get() : nullptr};
     return std::make_unique<GraphicsPipeline>(device, texture_cache, buffer_cache, program_manager,
                                               state_tracker, thread_worker, &shader_notify, sources,
-                                              sources_spirv, infos, key, force_context_flush);
+                                              sources_spirv, infos, key, capture, force_context_flush);
 
 } catch (Shader::Exception& exception) {
     LOG_ERROR(Render_OpenGL, "{}", exception.what());
@@ -601,7 +609,7 @@ std::unique_ptr<ComputePipeline> ShaderCache::CreateComputePipeline(
     }
 
     return std::make_unique<ComputePipeline>(device, texture_cache, buffer_cache, program_manager,
-                                             program.info, code, code_spirv, force_context_flush);
+                                             program.info, code, code_spirv, capture, force_context_flush);
 } catch (Shader::Exception& exception) {
     LOG_ERROR(Render_OpenGL, "{}", exception.what());
     return nullptr;

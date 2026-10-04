@@ -1,5 +1,6 @@
 #pragma once
 #include "base.h"
+#include "performance_capture.h"
 #include <stdint.h>
 
 nxinterface IKernelProcess;
@@ -704,6 +705,12 @@ nxinterface IOperatingSystem
     virtual IParamPackage * GetNextInput() const = 0;
     virtual void PumpInputEvents() const = 0;
     virtual PerfStatsResults GetAndResetPerfStats() = 0;
+    virtual PerformanceCaptureSharedState& GetPerformanceCaptureSharedState() = 0;
+    virtual void SetPerformanceCaptureDevice(const char * model, const char * driver) = 0;
+    virtual bool IsPerformanceCaptureActive() const = 0;
+    virtual bool StartPerformanceCapture(const PerformanceCaptureConfig & config) = 0;
+    virtual bool StopPerformanceCapture(char * output_path, uint32_t output_path_size) = 0;
+    virtual void InvalidatePerformanceCapture(PerformanceInvalidation reason) = 0;
     virtual void SetEmulationPaused(bool paused) = 0;
     virtual bool IsEmulationPaused() const = 0;
     virtual void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) = 0;
@@ -721,6 +728,7 @@ nxinterface IOperatingSystem
     virtual void RegisterExitCallback(ExitCallback callback, void * userData) = 0;
     virtual void ExportUserChannel(UserChannelEntryCallback callback, void * userData) = 0;
     virtual void PushUserChannelEntry(const uint8_t * data, uint32_t size) = 0;
+    virtual void DumpKernelState() = 0;
 };
 
 EXPORT IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules);
