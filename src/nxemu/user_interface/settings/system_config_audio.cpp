@@ -1,6 +1,7 @@
 #include "config_setting.h"
 #include "system_config_audio.h"
 #include "system_config.h"
+#include "user_interface/volume_slider.h"
 #include <common/std_string.h>
 #include <cstring>
 #include <nxemu-core/settings/settings.h>
@@ -27,11 +28,10 @@ void AddDeviceToVector(const char * device, void * userData)
 }
 }
 
-SystemConfigAudio::SystemConfigAudio(ISciterUI & sciterUI, SystemConfig & config, SystemModules & modules, HWINDOW parent, SciterElement page) :
+SystemConfigAudio::SystemConfigAudio(ISciterUI & sciterUI, SystemConfig & config, SystemModules & modules, SciterElement page) :
     m_sciterUI(sciterUI),
     m_modules(modules),
     m_config(config),
-    m_parent(parent),
     m_page(page)
 {
     SciterElement pageNav = page.GetElementByID("AudioTabNav");
@@ -77,7 +77,9 @@ void SystemConfigAudio::SetupAudioPage(SciterElement page)
 {
     m_audioPage = page;
     m_config.SetupPage(page, audioSettings, sizeof(audioSettings) / sizeof(audioSettings[0]));
+    InitializeVolumeSlider(m_sciterUI, page.GetElementByID("audioVolume"));
     updateVolumeDisplay();
+    m_sciterUI.AttachHandler(page.GetElementByID("audioVolume"), IID_EVENTSINK, (IEventSink*)this);
     if (!m_modules.IsValid())
     {
         return;
@@ -114,7 +116,21 @@ void SystemConfigAudio::SetupAudioPage(SciterElement page)
     const char* audioInputDeviceId = settings.GetString(NXOsSetting::AudioInputDeviceId);
     updateAudioDevices(audioSinkId, audioOutputDeviceId, audioInputDeviceId);
     m_sciterUI.AttachHandler(page.GetElementByID("audioOutputEngine"), IID_ISTATECHANGESINK, (IStateChangeSink*)this);
-    m_sciterUI.AttachHandler(page.GetElementByID("audioVolume"), IID_ISTATECHANGESINK, (IStateChangeSink*)this);
+}
+
+bool SystemConfigAudio::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t reason)
+{
+    if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::ValueChanged))
+    {
+        SciterElement slider(m_audioPage.GetElementByID("audioVolume"));
+        if (slider == element || slider == source)
+        {
+            SnapVolumeSliderToNormal(slider, reason);
+            updateVolumeDisplay();
+            return true;
+        }
+    }
+    return false;
 }
 
 bool SystemConfigAudio::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason*/, void * /*data*/)
@@ -137,10 +153,6 @@ bool SystemConfigAudio::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReaso
         const char * audioInputDeviceId = settings.GetDefaultString(NXOsSetting::AudioInputDeviceId);
         updateAudioDevices(audioSinkId, audioOutputDeviceId, audioInputDeviceId);
     }
-    else if (m_page.GetElementByID("audioVolume") == elem)
-    {
-        updateVolumeDisplay();
-    }
     return false;
 }
 
@@ -154,7 +166,7 @@ void SystemConfigAudio::updateVolumeDisplay()
         SciterValue value = audioVolume.GetValue();
         if (value.isInt())
         {
-            stdstr_f text("%d %%", value.GetValueInt());
+            stdstr_f text("%d%%", value.GetValueInt());
             volumeDisplay.SetHTML((const uint8_t*)text.c_str(), text.size());
         }
     }

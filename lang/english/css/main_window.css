@@ -1,3 +1,5 @@
+@import url(volume_slider.css);
+
 #MainContents
 {
   width: 100%%;
@@ -8,12 +10,14 @@
 {
   background: color(color-statusbar-background);
   flow: horizontal;
+  vertical-align: middle;
   color: color(color-ui-text-primary);
   padding: 0.2em 1em;
   border-top: 1px solid color(color-statusbar-border);
   font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.8em;
   font-weight: 100;
+  line-height: 1.2em;
   height: 1.6rem;
 }
 
@@ -22,56 +26,102 @@
   width: *;
   text-align: right;
   display: inline-block;
-  height: 100%%;
+  height: 1.2em;
   padding: 0.2em;
+}
+
+#StatusBar #volumeSeparator
+{
+  display: block;
+  width: 1dip;
+  height: 1.2em;
+  margin: 0 0.6em;
+  vertical-align: middle;
+  background: rgba(239, 240, 241, 0.16);
 }
 
 #StatusBar #volumeAnchor
 {
-  display: inline-block;
+  display: block;
   flow: horizontal;
+  vertical-align: middle;
+  height: *;
+}
+
+#StatusBar #volumeSlider
+{
+  display: block;
+  position: relative;
+  width: max-content;
+  height: max-content;
+  flow: vertical;
   vertical-align: middle;
 }
 
+#StatusBar #audioVolume
+{
+  style-set: volume-slider-control;
+  width: 9em;
+  position: relative;
+  z-index: 1;
+  vertical-align: middle;
+  margin: 3dip 0;
+}
+
+#StatusBar #volumeIcon,
 #StatusBar #volume,
 #StatusBar #renderer,
 #StatusBar #dockedMode,
-#StatusBar #gpuCommandSynchronization,
-#StatusBar #volumePopupBtn
+#StatusBar #gpuCommandSynchronization
 {
   border: 1px solid transparent;
   padding: 0.2em;
-  display: inline-block;
+  display: block;
+  height: 1.2em;
   vertical-align: middle;
 }
 
 #StatusBar #volume:hover,
+#StatusBar #volumeIcon:hover,
 #StatusBar #renderer.interactive:hover,
 #StatusBar #dockedMode:hover,
-#StatusBar #gpuCommandSynchronization:hover,
-#StatusBar #volumePopupBtn:hover
+#StatusBar #gpuCommandSynchronization:hover
 {
   border: 1px solid color(color-statusbar-hover-border);
 }
 
-#StatusBar #volumePopupBtn svg
+#StatusBar #volume
 {
-  width: 1.2em;
-  height: 1.2em;
-  fill: color(color-ui-text-primary);
+  width: max-content;
+  padding: 0.2em 0;
+  white-space: nowrap;
+  text-align: left;
+}
+
+#StatusBar #volumeIcon svg
+{
+  size: 1.2em;
+  display: block;
+  fill: none;
+  stroke: color(color-ui-text-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+#StatusBar #volumeReadout
+{
+  display: block;
+  flow: horizontal;
+  width: 2.8em;
+  height: *;
   vertical-align: middle;
 }
 
-#StatusBar #volumePopupBtn.open svg
+#StatusBar #volumeIcon.muted .sound-waves
 {
-  transform: rotate(180deg);
-}
-
-#VolumePopup
-{
-  background: color(color-statusbar-background);
-  border: 1px solid color(color-statusbar-border);
-  padding: 1em;
+  visibility: hidden;
 }
 
 .main-contents-panel

@@ -1,0 +1,78 @@
+@set volume-slider-control < std-hslider-base
+{
+  :root
+  {
+    height: 4dip;
+    padding: 5dip 6dip;
+    border: none;
+    background: #505a64;
+    background-clip: content-box;
+    background-image: url(stock:block);
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-size: var(slider-position, 0px) 4dip;
+    border-radius: 3dip;
+    fill: #0078d7;
+    foreground: none;
+  }
+
+  :root > knob,
+  :root > .slider
+  {
+    size: 12dip;
+    transform: translate(-50%, 0);
+    padding: 0;
+    border: none;
+    border-radius: 6dip;
+    background: color(color-ui-text-primary);
+    foreground: none;
+  }
+
+  :root:hover > knob,
+  :root:hover > .slider,
+  :root > knob:hover,
+  :root > .slider:hover
+  {
+    background: color(color-ui-text-primary);
+    foreground: none;
+  }
+}
+
+// A fixed native slider uses the same layout and rounding as the volume knob.
+// Only its translucent knob is painted; it cannot receive input.
+@set volume-marker-control < volume-slider-control
+{
+  :root
+  {
+    background: none;
+    background-image: none;
+    fill: none;
+  }
+
+  :root > knob,
+  :root > .slider,
+  :root:hover > knob,
+  :root:hover > .slider,
+  :root > knob:hover,
+  :root > .slider:hover
+  {
+    width: 12dip;
+    height: 18dip;
+    border-radius: 0;
+    background: none;
+    background-image: url(stock:block);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 1dip 18dip;
+    fill: rgba(239, 240, 241, 0.45);
+  }
+}
+
+.volume-normal-marker
+{
+  style-set: volume-marker-control;
+  position: absolute;
+  left: 0;
+  top: 3dip;
+  width: *;
+}

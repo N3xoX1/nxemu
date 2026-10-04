@@ -10,6 +10,7 @@
 #include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"
+#include "user_interface/volume_slider.h"
 #ifdef __APPLE__
 #include "user_interface/render_window_macos.h"
 #endif
@@ -710,13 +711,8 @@ bool SciterMainWindow::Show()
 #endif
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("gpuCommandSynchronization"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volume"), IID_ICLICKSINK, (IClickSink *)this);
-    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volumePopupBtn"), IID_ICLICKSINK, (IClickSink *)this);
-    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("audioVolume"), IID_ISTATECHANGESINK, (IStateChangeSink *)this);
-    SciterElement volumePopup(m_rootElement.GetElementByID("VolumePopup"));
-    if (volumePopup.IsValid())
-    {
-        m_sciterUI.AttachHandler(volumePopup, IID_EVENTSINK, (IEventSink *)this);
-    }
+    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volumeIcon"), IID_ICLICKSINK, (IClickSink *)this);
+    InitializeVolumeSlider(m_sciterUI, m_rootElement.GetElementByID("audioVolume"));
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
     // Sciter has one timer slot per element. Keep input on the persistent
     // contents element so status and deferred root timers cannot replace it.
@@ -931,8 +927,27 @@ void SciterMainWindow::UpdateStatusWidgets()
     if (volume.IsValid())
     {
         bool muted = settings.GetBool(NXOsSetting::AudioMuted);
-        stdstr_f text(muted ? "Vol: Mute" : "Vol: %d %%", settings.GetInt(NXOsSetting::AudioVolume));
+        stdstr_f text("%d%%", settings.GetInt(NXOsSetting::AudioVolume));
         volume.SetHTML((const uint8_t *)text.c_str(), text.size());
+        SciterElement volumeIcon(m_rootElement.GetElementByID("volumeIcon"));
+        if (muted)
+        {
+            volumeIcon.AddClassName("muted");
+        }
+        else
+        {
+            volumeIcon.RemoveClassName("muted");
+        }
+    }
+    SciterElement audioVolume(m_rootElement.GetElementByID("audioVolume"));
+    if (audioVolume.IsValid())
+    {
+        const int32_t configuredVolume = settings.GetInt(NXOsSetting::AudioVolume);
+        const SciterValue displayedVolume = audioVolume.GetValue();
+        if (!displayedVolume.isInt() || displayedVolume.GetValueInt() != configuredVolume)
+        {
+            audioVolume.SetValue(SciterValue(configuredVolume));
+        }
     }
 }
 
@@ -2530,50 +2545,12 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
         settings.SetBool(NXVideoSetting::GpuCommandSynchronization, !enabled);
         UpdateStatusWidgets();
     }
-    else if (source == rootElement.GetElementByID("volume"))
+    else if (element == rootElement.GetElementByID("volume") || element == rootElement.GetElementByID("volumeIcon"))
     {
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetBool(NXOsSetting::AudioMuted, !settings.GetBool(NXOsSetting::AudioMuted));
     }
-    else if (element == rootElement.GetElementByID("volumePopupBtn"))
-    {
-        SciterElement volumePopup(rootElement.GetElementByID("VolumePopup"));
-        if (volumePopup.IsValid())
-        {
-            const bool popupOpen = (volumePopup.GetState() & SciterElement::STATE_POPUP) != 0;
-            if (!popupOpen)
-            {
-                m_sciterUI.PopupShow(rootElement.GetElementByID("VolumePopup"), rootElement.GetElementByID("volumeAnchor"), 8);
-                SciterElement(rootElement.GetElementByID("volumePopupBtn")).AddClassName("open");
-            }
-            else
-            {
-                m_sciterUI.PopupHide(m_rootElement.GetElementByID("VolumePopup"));
-                SciterElement(rootElement.GetElementByID("volumePopupBtn")).RemoveClassName("open");
-            }
-        }
-    }
     return true;
-}
-
-bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason*/, void * /*data*/)
-{
-    SciterElement rootElement(m_window->GetRootElement());
-    if (rootElement.GetElementByID("audioVolume") == elem)
-    {
-        SciterValue value = SciterElement(elem).GetValue();
-        if (value.isInt())
-        {
-            SettingsStore & settings = SettingsStore::GetInstance();
-            settings.SetBool(NXOsSetting::AudioMuted, false);
-            settings.SetInt(NXOsSetting::AudioVolume, value.GetValueInt());
-            if (m_modules.IsValid())
-            {
-                m_modules.FlushSettings();
-            }
-        }
-    }
-    return false;
 }
 
 void SciterMainWindow::SettingChanged(const char * setting, void * userData)
@@ -2704,28 +2681,27 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     return true;
 }
 
-bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t reason)
+bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t reason)
 {
-    if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::PopupDismissed) && m_window != nullptr)
+    if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::ValueChanged))
     {
-        SciterElement rootElement(m_window->GetRootElement());
-        const SciterElement volumePopupRoot = rootElement.GetElementByID("VolumePopup");
-        if (rootElement.IsValid() && volumePopupRoot.IsValid())
+        SciterElement slider(m_rootElement.GetElementByID("audioVolume"));
+        if (slider == element || slider == source)
         {
-            for (SciterElement walk(element); walk.IsValid(); walk = walk.GetParent())
+            SnapVolumeSliderToNormal(slider, reason);
+            const SciterValue value = slider.GetValue();
+            if (value.isInt())
             {
-                if (walk == volumePopupRoot)
+                SettingsStore & settings = SettingsStore::GetInstance();
+                settings.SetBool(NXOsSetting::AudioMuted, false);
+                settings.SetInt(NXOsSetting::AudioVolume, value.GetValueInt());
+                if (m_modules.IsValid())
                 {
-                    SciterElement btn(rootElement.GetElementByID("volumePopupBtn"));
-                    if (btn.IsValid())
-                    {
-                        btn.RemoveClassName("open");
-                    }
-                    break;
+                    m_modules.FlushSettings();
                 }
             }
+            return true;
         }
-        return false;
     }
     if (event_code == EVENT_EMULATION_LOADING)
     {

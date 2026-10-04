@@ -362,7 +362,7 @@ void SystemConfig::PageNavCreatedPage(const std::string & pageName, SCITER_ELEME
 {
     if (pageName == "Audio")
     {
-        m_systemConfigAudio.reset(new SystemConfigAudio(m_sciterUI, *this, m_modules, m_window->GetHandle(), page));
+        m_systemConfigAudio.reset(new SystemConfigAudio(m_sciterUI, *this, m_modules, page));
     }
     else if (pageName == "Graphics")
     {

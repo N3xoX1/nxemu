@@ -3,6 +3,7 @@
     <link href="base.css" rel="stylesheet" type="text/css" />
     <link href="dialog.css" rel="stylesheet" type="text/css" />
     <link href="config.css" rel="stylesheet" type="text/css" />
+    <link href="volume_slider.css" rel="stylesheet" type="text/css" />
     <title>NxEmu Configuration</title>
 <style>
   #MainTabNav {
@@ -72,6 +73,31 @@
   .form-row .right input[type="hslider"]
   {
     width: *;
+  }
+
+  .volume-slider
+  {
+    display: block;
+    position: relative;
+    width: *;
+    flow: vertical;
+  }
+
+  .volume-slider > #audioVolume
+  {
+    style-set: volume-slider-control;
+    position: relative;
+    z-index: 1;
+    margin: 3dip 0;
+  }
+
+  #VolumeDisplay
+  {
+    display: block;
+    width: 5.2em;
+    min-width: 5.2em;
+    white-space: nowrap;
+    text-align: right;
   }
 PageNav.page_tabs {
   display: flex;
