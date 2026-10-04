@@ -1,9 +1,11 @@
 package org.nxemu.ui.main
 
 import android.content.Intent
+import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.webkit.ConsoleMessage
@@ -28,6 +30,22 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
+    private var stickX = 0
+    private var stickY = 0
+    private val stickRepeat = object : Runnable {
+        override fun run() {
+            if (stickX == 0 && stickY == 0) return
+            nudgeBrowserStick()
+            if (::webView.isInitialized && !isDestroyed) {
+                webView.postDelayed(this, STICK_REPEAT_MS)
+            }
+        }
+    }
+    private val inputDeviceListener = object : InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) = refreshConnectedControllers()
+        override fun onInputDeviceRemoved(deviceId: Int) = refreshConnectedControllers()
+        override fun onInputDeviceChanged(deviceId: Int) = refreshConnectedControllers()
+    }
     private val settingChangedForwarder: (String) -> Unit = { setting ->
         runOnUiThread {
             webView.evaluateJavascript(
@@ -137,14 +155,50 @@ class MainActivity : ComponentActivity() {
         if (inputMapping.onKey(event)) {
             return true
         }
+        if (handleBrowserPad(event)) {
+            return true
+        }
         if (InputHandler.dispatchKeyEvent(event)) {
             return true
         }
         return super.dispatchKeyEvent(event)
     }
 
+    private fun handleBrowserPad(event: KeyEvent): Boolean {
+        val script = when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_Y ->
+                browserPadScript(event, repeat = false, "typeof openSettingsFromPad==='function'&&openSettingsFromPad()")
+            KeyEvent.KEYCODE_BUTTON_B ->
+                browserPadScript(event, repeat = false, "typeof goBackFromPad==='function'&&goBackFromPad()")
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER ->
+                browserPadScript(event, repeat = false, "typeof launchSelectedGame==='function'&&launchSelectedGame()")
+            KeyEvent.KEYCODE_DPAD_LEFT ->
+                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('left')")
+            KeyEvent.KEYCODE_DPAD_RIGHT ->
+                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('right')")
+            KeyEvent.KEYCODE_DPAD_UP ->
+                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('up')")
+            KeyEvent.KEYCODE_DPAD_DOWN ->
+                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('down')")
+            else -> return false
+        }
+        if (script.isNotEmpty() && ::webView.isInitialized && !isDestroyed) {
+            webView.evaluateJavascript(script, null)
+        }
+        return true
+    }
+
+    private fun browserPadScript(event: KeyEvent, repeat: Boolean, script: String): String {
+        if (event.action != KeyEvent.ACTION_DOWN) return ""
+        if (!repeat && event.repeatCount != 0) return ""
+        return script
+    }
+
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (inputMapping.onMotion(event)) {
+            return true
+        }
+        if (handleBrowserStick(event)) {
             return true
         }
         if (InputHandler.dispatchGenericMotionEvent(event)) {
@@ -153,6 +207,56 @@ class MainActivity : ComponentActivity() {
         return super.dispatchGenericMotionEvent(event)
     }
 
+    private fun handleBrowserStick(event: MotionEvent): Boolean {
+        val source = event.source
+        val fromStick = source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK ||
+            source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD
+        if (!fromStick) {
+            return false
+        }
+        val x = stickDirection(event.getAxisValue(MotionEvent.AXIS_X))
+        val y = stickDirection(event.getAxisValue(MotionEvent.AXIS_Y))
+        if (x == stickX && y == stickY) {
+            return x != 0 || y != 0
+        }
+        stickX = x
+        stickY = y
+        if (::webView.isInitialized) {
+            webView.removeCallbacks(stickRepeat)
+        }
+        if (x == 0 && y == 0) {
+            return false
+        }
+        nudgeBrowserStick()
+        if (::webView.isInitialized && !isDestroyed) {
+            webView.postDelayed(stickRepeat, STICK_REPEAT_MS)
+        }
+        return true
+    }
+
+    private fun stickDirection(value: Float): Int {
+        return when {
+            value > STICK_DEADZONE -> 1
+            value < -STICK_DEADZONE -> -1
+            else -> 0
+        }
+    }
+
+    private fun nudgeBrowserStick() {
+        if (!::webView.isInitialized || isDestroyed) {
+            return
+        }
+        val moves = buildString {
+            if (stickX < 0) append("moveGameSelection('left');")
+            if (stickX > 0) append("moveGameSelection('right');")
+            if (stickY < 0) append("moveGameSelection('up');")
+            if (stickY > 0) append("moveGameSelection('down');")
+        }
+        if (moves.isEmpty()) {
+            return
+        }
+        webView.evaluateJavascript("if(typeof moveGameSelection==='function'){$moves}", null)
+    }
     fun beginControllerMap(playerIndex: Int, mapId: String, title: String, filterIndex: Int) {
         runOnUiThread {
             inputMapping.begin(playerIndex, mapId, title, filterIndex)
@@ -167,6 +271,20 @@ class MainActivity : ComponentActivity() {
             if (!isDestroyed) {
                 webView.evaluateJavascript(
                     "typeof renderControllerPages==='function'&&renderControllerPages()",
+                    null,
+                )
+            }
+        }
+    }
+
+    private fun refreshConnectedControllers() {
+        if (!::webView.isInitialized || isDestroyed) {
+            return
+        }
+        webView.post {
+            if (!isDestroyed) {
+                webView.evaluateJavascript(
+                    "typeof renderControllersSummary==='function'&&renderControllersSummary()",
                     null,
                 )
             }
@@ -203,5 +321,10 @@ class MainActivity : ComponentActivity() {
             "onGameLibraryPaths($gen, ${JSONObject.quote(json)})",
             null,
         )
+    }
+
+    companion object {
+        private const val STICK_REPEAT_MS = 220L
+        private const val STICK_DEADZONE = 0.5f
     }
 }
