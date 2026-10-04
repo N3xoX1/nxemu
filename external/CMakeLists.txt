@@ -267,5 +267,6 @@ if(APPLE)
     unset(_nxemu_moltenvk_runtime)
 endif()
 
-# sciter
-add_subdirectory(sciterui)
+if(NOT ANDROID)
+    add_subdirectory(sciterui)
+endif()
