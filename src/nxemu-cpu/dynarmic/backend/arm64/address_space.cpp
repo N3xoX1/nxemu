@@ -12,6 +12,7 @@
 #include "dynarmic/common/cast_util.h"
 #include "dynarmic/common/fp/fpcr.h"
 #include "dynarmic/interface/exclusive_monitor.h"
+#include <mcl/scope_exit.hpp>
 
 namespace Dynarmic::Backend::Arm64 {
 
@@ -60,6 +61,8 @@ CodePtr AddressSpace::GetOrEmit(IR::LocationDescriptor descriptor) {
         return block_entry;
     }
 
+    NotifyCompilation(true);
+    SCOPE_EXIT { NotifyCompilation(false); };
     IR::Block ir_block = GenerateIR(descriptor);
     const EmittedBlockInfo block_info = Emit(std::move(ir_block));
     return block_info.entry_point;

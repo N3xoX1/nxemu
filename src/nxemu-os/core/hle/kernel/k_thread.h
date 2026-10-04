@@ -29,6 +29,7 @@
 #include "core/hle/kernel/svc_common.h"
 #include "core/hle/kernel/svc_types.h"
 #include "core/hle/result.h"
+#include "core/hle_execution_time.h"
 
 namespace Common
 {
@@ -144,6 +145,20 @@ private:
 
 public:
     static constexpr s32 DefaultThreadPriority = 44;
+    // Owned by this fiber, including suspension and migration between host threads.
+    Core::Timing::HleExecutionTime hle_execution;
+    // Serialized by the scheduler lock; dies with the actor instead of leaving
+    // an entry indexed by a monotonically increasing thread id.
+    u64 hle_available_time{};
+    void SuspendHleExecution() {
+        if (hle_execution.IsCollecting())
+            hle_execution.Suspend(Core::Timing::ReadNativeThreadTimeNs());
+    }
+    void ResumeHleExecution() {
+        if (hle_execution.IsCollecting())
+            hle_execution.Resume(Core::Timing::ReadNativeThreadTimeNs());
+    }
+
     static constexpr s32 IdleThreadPriority = Svc::LowestThreadPriority + 1;
     static constexpr s32 DummyThreadPriority = Svc::LowestThreadPriority + 2;
 

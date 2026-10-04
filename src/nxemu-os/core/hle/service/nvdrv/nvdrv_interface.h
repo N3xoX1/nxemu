@@ -40,6 +40,7 @@ private:
     void DumpGraphicsMemoryInfo(HLERequestContext& ctx);
 
     void ServiceError(HLERequestContext& ctx, NvResult result);
+    void PrepareOutputBuffer(HLERequestContext& ctx, Common::ScratchBuffer<u8>& buffer, size_t index);
 
     std::shared_ptr<Module> nvdrv;
 
@@ -54,6 +55,7 @@ private:
     NvCore::SessionId session_id{};
     Common::ScratchBuffer<u8> output_buffer;
     Common::ScratchBuffer<u8> inline_output_buffer;
+    std::shared_ptr<IpcResponseBufferPool> output_pool;
 };
 
 } // namespace Service::Nvidia
