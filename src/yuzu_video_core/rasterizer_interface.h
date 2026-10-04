@@ -120,8 +120,10 @@ public:
     /// Unmap memory range
     virtual void UnmapMemory(DAddr addr, u64 size) = 0;
 
-    /// Remap GPU memory range. This means underneath backing memory changed
-    virtual void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size) = 0;
+    /// Invalidate textures before changing GPU backing memory or its layout.
+    /// Preserve their contents when the physical backing keeps its data.
+    virtual void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size,
+                                 bool preserve_contents = false) = 0;
 
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     /// and invalidated
