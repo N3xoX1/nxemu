@@ -279,7 +279,10 @@ std::unique_ptr<Frame> DecoderContext::ReceiveFrame(bool * out_is_interlaced)
     const auto ReceiveImpl = [&](AVFrame * frame) {
         if (const int ret = avcodec_receive_frame(m_codec_context, frame); ret < 0)
         {
-            LOG_ERROR(HW_GPU, "avcodec_receive_frame error: {}", AVError(ret));
+            if (ret != AVERROR_EOF && ret != AVERROR(EAGAIN))
+            {
+                LOG_ERROR(HW_GPU, "avcodec_receive_frame error: {}", AVError(ret));
+            }
             return false;
         }
 
