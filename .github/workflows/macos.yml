@@ -30,6 +30,9 @@ jobs:
           if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null; then
             brew install cmake ninja
           fi
+          if ! command -v glslangValidator >/dev/null; then
+            brew install glslang
+          fi
 
       - name: Build
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}

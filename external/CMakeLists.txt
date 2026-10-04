@@ -167,7 +167,19 @@ endif()
 
 # Opus
 if (NOT TARGET Opus::opus)
+    # AArch64 always provides NEON. Opus 1.5.x does not recognize macOS'
+    # "arm64" processor name as its "aarch64" presume-NEON case, while
+    # runtime CPU capability detection is unavailable on this platform.
+    if (APPLE AND ARCHITECTURE_arm64)
+        set(OPUS_MAY_HAVE_NEON OFF CACHE BOOL "Use runtime NEON detection" FORCE)
+        set(OPUS_PRESUME_NEON ON CACHE BOOL "Assume NEON support" FORCE)
+    endif()
     add_subdirectory(opus)
+    if (APPLE AND ARCHITECTURE_arm64)
+        # Opus also guards NEON declarations with MAY_HAVE, even when presumed.
+        target_compile_definitions(opus PRIVATE
+            OPUS_ARM_MAY_HAVE_NEON OPUS_ARM_MAY_HAVE_NEON_INTR)
+    endif()
 endif()
 
 # Vulkan — headers must come first: VulkanUtilityLibraries runs find_package(VulkanHeaders CONFIG),
