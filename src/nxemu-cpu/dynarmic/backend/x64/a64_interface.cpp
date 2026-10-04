@@ -6,6 +6,9 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+#include <chrono>
+#endif
 
 #include <boost/icl/interval_set.hpp>
 #include <mcl/assert.hpp>
@@ -34,6 +37,9 @@ static RunCodeCallbacks GenRunCodeCallbacks(A64::UserCallbacks* cb, CodePtr (*Lo
         std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::AddTicks>(cb)),
         std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(cb)),
         conf.enable_cycle_counting,
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        static_cast<int>(offsetof(A64JitState, diagnostic_guest_entered)),
+#endif
     };
 }
 
@@ -70,6 +76,11 @@ public:
     HaltReason Run() {
         ASSERT(!is_executing);
         PerformRequestedCacheInvalidation(static_cast<HaltReason>(Atomic::Load(&jit_state.halt_reason)));
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        diagnostics = {};
+        jit_state.diagnostic_guest_entered = 0;
+        diagnostics.halt_before_lookup = Atomic::Load(&jit_state.halt_reason);
+#endif
 
         is_executing = true;
         SCOPE_EXIT {
@@ -89,7 +100,13 @@ public:
             return GetCurrentBlock();
         }();
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        diagnostics.halt_before_entry = Atomic::Load(&jit_state.halt_reason);
+#endif
         const HaltReason hr = block_of_code.RunCode(&jit_state, current_code_ptr);
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        diagnostics.guest_entered = jit_state.diagnostic_guest_entered;
+#endif
 
         PerformRequestedCacheInvalidation(hr);
 
@@ -99,6 +116,10 @@ public:
     HaltReason Step() {
         ASSERT(!is_executing);
         PerformRequestedCacheInvalidation(static_cast<HaltReason>(Atomic::Load(&jit_state.halt_reason)));
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        diagnostics = {};
+        jit_state.diagnostic_guest_entered = 0;
+#endif
 
         is_executing = true;
         SCOPE_EXIT {
@@ -106,6 +127,9 @@ public:
         };
 
         const HaltReason hr = block_of_code.StepCode(&jit_state, GetCurrentSingleStep());
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        diagnostics.guest_entered = jit_state.diagnostic_guest_entered;
+#endif
 
         PerformRequestedCacheInvalidation(hr);
 
@@ -267,6 +291,9 @@ private:
             return block->entrypoint;
         if (conf.notify_compilation) conf.callbacks->OnCompilation(true);
         SCOPE_EXIT { if (conf.notify_compilation) conf.callbacks->OnCompilation(false); };
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        const auto compile_start = std::chrono::steady_clock::now();
+#endif
 
         constexpr size_t MINIMUM_REMAINING_CODESIZE = 1 * 1024 * 1024;
         if (block_of_code.SpaceRemaining() < MINIMUM_REMAINING_CODESIZE) {
@@ -283,6 +310,9 @@ private:
         ir_block.Reset(descriptor);
         A64::Translate(ir_block, descriptor, get_code,
                        {conf.define_unpredictable_behaviour, conf.wall_clock_cntpct});
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        const auto translate_end = std::chrono::steady_clock::now();
+#endif
         Optimization::PolyfillPass(ir_block, polyfill_options);
         Optimization::A64CallbackConfigPass(ir_block, conf);
         Optimization::NamingPass(ir_block);
@@ -300,7 +330,19 @@ private:
         if (!conf.HasOptimization(OptimizationFlag::DisableVerification)) {
             Optimization::VerificationPass(ir_block);
         }
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        const auto optimize_end = std::chrono::steady_clock::now();
+#endif
         const auto entrypoint = emitter.Emit(ir_block).entrypoint;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+        const auto emit_end = std::chrono::steady_clock::now();
+        const auto ns = [](auto elapsed) { return std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count(); };
+        diagnostics.compile_ns += ns(emit_end - compile_start);
+        diagnostics.translate_ns += ns(translate_end - compile_start);
+        diagnostics.optimize_ns += ns(optimize_end - translate_end);
+        diagnostics.emit_ns += ns(emit_end - optimize_end);
+        ++diagnostics.compiled_blocks;
+#endif
         return entrypoint;
     }
 
@@ -327,6 +369,11 @@ private:
     }
 
     bool is_executing = false;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+public:
+    RunDiagnostics diagnostics{};
+private:
+#endif
 
     IR::Block ir_block{IR::LocationDescriptor{0}};
     const UserConfig conf;
@@ -348,6 +395,11 @@ Jit::~Jit() = default;
 HaltReason Jit::Run() {
     return impl->Run();
 }
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+RunDiagnostics Jit::GetRunDiagnostics() const {
+    return impl->diagnostics;
+}
+#endif
 
 HaltReason Jit::Step() {
     return impl->Step();

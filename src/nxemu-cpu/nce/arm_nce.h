@@ -54,6 +54,7 @@ public:
     }
 
     void Release() override;
+    bool GetRunDiagnostics(CpuRunDiagnostics &) const override { return false; }
 
 private:
     // Assembly definitions.

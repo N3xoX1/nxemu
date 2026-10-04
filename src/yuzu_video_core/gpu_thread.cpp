@@ -131,6 +131,7 @@ u64 ThreadManager::PushCommand(CommandData && command_data, bool block)
 
     if (block)
     {
+        PERF_CAPTURE_SCOPE(gpu.PerformanceCaptureState(), gpu_command_wait);
         Common::CondvarWait(state.cv, lk, thread.get_stop_token(), [this, fence] {
             return fence <= state.signaled_fence.load(std::memory_order_relaxed);
         });

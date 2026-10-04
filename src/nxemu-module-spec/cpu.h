@@ -183,6 +183,23 @@ nxinterface IPatchCollection
     virtual void Release() = 0;
 };
 
+// Optional diagnostic result for the most recent RunThread on its owning core.
+// Read only while the caller owns that core's execution context.
+struct CpuRunDiagnostics
+{
+    uint64_t compile_ns{};
+    uint64_t translate_ns{};
+    uint64_t optimize_ns{};
+    uint64_t emit_ns{};
+    uint64_t compiled_blocks{};
+    uint64_t interrupt_ns{};
+    uint32_t halt_before_lookup{};
+    uint32_t halt_before_entry{};
+    uint64_t guest_ticks{};
+    uint32_t guest_ticks_counted{};
+    uint32_t guest_entered{};
+};
+
 nxinterface ICpuCore
 {
     virtual void Initialize() = 0;
@@ -205,6 +222,7 @@ nxinterface ICpuCore
     virtual void SignalInterrupt(IKernelThread * thread) = 0;
     
     virtual void Release() = 0;
+    virtual bool GetRunDiagnostics(CpuRunDiagnostics & out) const = 0;
 };
 
 nxinterface ICpu

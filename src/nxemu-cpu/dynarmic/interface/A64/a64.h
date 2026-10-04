@@ -18,6 +18,14 @@
 namespace Dynarmic {
 namespace A64 {
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+struct RunDiagnostics {
+    std::uint64_t compile_ns{}, translate_ns{}, optimize_ns{}, emit_ns{}, compiled_blocks{};
+    std::uint32_t halt_before_lookup{}, halt_before_entry{};
+    std::uint32_t guest_entered{};
+};
+#endif
+
 class Jit final {
 public:
     explicit Jit(UserConfig conf);
@@ -28,6 +36,9 @@ public:
      * Cannot be recursively called.
      */
     HaltReason Run();
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    RunDiagnostics GetRunDiagnostics() const;
+#endif
 
     /**
      * Step the emulated CPU for one instruction.
