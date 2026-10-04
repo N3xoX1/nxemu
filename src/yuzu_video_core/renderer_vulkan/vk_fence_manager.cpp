@@ -23,6 +23,7 @@ void InnerFence::Queue() {
     }
     // Get the current tick so we can wait for it
     wait_tick = scheduler.CurrentTick();
+    PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), fence_queue_scheduler_flushes, 1);
     scheduler.Flush();
 }
 

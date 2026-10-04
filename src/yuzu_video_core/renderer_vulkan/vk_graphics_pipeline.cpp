@@ -446,7 +446,10 @@ GraphicsPipeline::GraphicsPipeline(
             }
         }
     }
-    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics] {
+    const auto queued = PERF_CAPTURE_STAMP(scheduler.PerformanceCaptureState());
+    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, queued] {
+        PERF_CAPTURE_STAMP_END(queued, scheduler.PerformanceCaptureState());
+        PERF_CAPTURE_BUILD(scheduler.PerformanceCaptureState());
         bool success{};
         try {
             DescriptorLayoutBuilder builder{MakeBuilder(
@@ -979,6 +982,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
 
     if (runs && !build_complete.load(std::memory_order_acquire)) {
         scheduler.Record([this](vk::CommandBuffer) {
+            PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), pipeline_consumer_wait);
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock,
                                [this] { return build_complete.load(std::memory_order_acquire); });
@@ -1118,6 +1122,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     if (!build_complete.load(std::memory_order_acquire)) {
         // Completion includes failure, so a failed build cannot strand this worker.
         scheduler.Record([this](vk::CommandBuffer) {
+            PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), pipeline_consumer_wait);
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock, [this] { return build_complete.load(std::memory_order_acquire); });
         });

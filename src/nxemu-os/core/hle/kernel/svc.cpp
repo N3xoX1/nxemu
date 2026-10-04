@@ -4428,6 +4428,21 @@ void Call(Core::System& system, u32 imm) {
     uint64_t args[8];
     kernel.CurrentPhysicalCore().SaveSvcArguments(process, args);
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    auto& diagnostic_thread = GetCurrentThread(kernel);
+    diagnostic_thread.diagnostic_svc_id.store(imm, std::memory_order_relaxed);
+    diagnostic_thread.diagnostic_svc_arg0.store(args[0], std::memory_order_relaxed);
+    diagnostic_thread.diagnostic_svc_arg1.store(args[1], std::memory_order_relaxed);
+    diagnostic_thread.diagnostic_svc_count.fetch_add(1, std::memory_order_relaxed);
+    diagnostic_thread.diagnostic_in_svc.store(true, std::memory_order_relaxed);
+    const bool trace_svc = imm != 0xb || static_cast<int64_t>(args[0]) > 0;
+    const u64 svc_start_ns = trace_svc ? KThread::DiagnosticNowNs() : 0;
+    if (trace_svc)
+    {
+        diagnostic_thread.RecordDiagnosticEvent({svc_start_ns, 1, {imm, args[0], args[1], args[2]}});
+    }
+#endif
+
     if (process.Is64Bit()) {
         Call64(system, imm, args);
     } else {
@@ -4435,6 +4450,13 @@ void Call(Core::System& system, u32 imm) {
     }
 
     kernel.CurrentPhysicalCore().LoadSvcArguments(process, args);
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    diagnostic_thread.diagnostic_in_svc.store(false, std::memory_order_relaxed);
+    if (trace_svc)
+    {
+        diagnostic_thread.RecordDiagnosticEvent({KThread::DiagnosticNowNs(), 2, {imm, args[0], svc_start_ns}});
+    }
+#endif
 }
 
 } // namespace Kernel::Svc

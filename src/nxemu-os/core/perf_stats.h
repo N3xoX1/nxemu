@@ -19,7 +19,7 @@ namespace Core {
  */
 class PerfStats {
 public:
-    explicit PerfStats(u64 title_id_);
+    explicit PerfStats(u64 title_id_, PerformanceCaptureSharedState& capture_);
     ~PerfStats();
 
     using Clock = std::chrono::steady_clock;
@@ -42,6 +42,7 @@ public:
     double GetLastFrameTimeScale() const;
 
 private:
+    PerformanceCaptureSharedState& capture;
     mutable std::mutex object_mutex;
 
     /// Title ID for the game that is running. 0 if there is no game running yet
@@ -72,6 +73,9 @@ private:
     Clock::duration previous_frame_length = Clock::duration::zero();
     /// Previously computed fps
     double previous_fps = 0;
+
+    /// Process-memory sampling is intentionally low-frequency to keep capture overhead negligible.
+    Clock::time_point next_process_memory_sample{};
 };
 
 class SpeedLimiter {

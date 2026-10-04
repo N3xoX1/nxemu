@@ -358,7 +358,9 @@ u64 BufferCacheRuntime::GetDeviceLocalMemory() const {
 }
 
 u64 BufferCacheRuntime::GetDeviceMemoryUsage() const {
-    return device.GetDeviceMemoryUsage();
+    const auto bytes = device.GetDeviceMemoryUsage();
+    PERF_CAPTURE_MEMORY(scheduler.PerformanceCaptureState(), bytes);
+    return bytes;
 }
 
 bool BufferCacheRuntime::CanReportMemoryUsage() const {

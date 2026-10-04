@@ -2,6 +2,7 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
   <PropertyGroup Label="Configuration">
+    <NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION Condition="'$(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION)'==''">0</NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION>
     <PlatformToolset Condition="'$(DefaultPlatformToolset)'!=''">$(DefaultPlatformToolset)</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -26,7 +27,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>WIN32;_WIN32;_WINDOWS;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION=$(NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION);WIN32;_WIN32;_WINDOWS;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
 

@@ -90,6 +90,18 @@ void PhysicalCore::RunThread(Kernel::KThread * thread)
             {
                 return;
             }
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+            const bool trace_run = thread->diagnostic_svc_id.load(std::memory_order_relaxed) != 0xb ||
+                static_cast<s64>(thread->diagnostic_svc_arg0.load(std::memory_order_relaxed)) > 0;
+            KThread::DiagnosticEvent run_event;
+            if (trace_run)
+            {
+                run_event.time_ns = KThread::DiagnosticNowNs();
+                CpuThreadContext before{};
+                interface->GetContext(before);
+                run_event.values[0] = before.pc;
+            }
+#endif
 
             if (thread->GetStepState() == StepState::StepPending)
             {
@@ -105,6 +117,23 @@ void PhysicalCore::RunThread(Kernel::KThread * thread)
                 hr = interface->RunThread(thread);
             }
 
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+            if (trace_run)
+            {
+                CpuThreadContext after{};
+                interface->GetContext(after);
+                run_event.kind = 0;
+                run_event.values[1] = KThread::DiagnosticNowNs();
+                run_event.values[2] = after.pc;
+                run_event.values[3] = after.lr;
+                run_event.values[4] = static_cast<u64>(hr);
+                run_event.values[5] = m_core_index;
+                interface->GetRunDiagnostics(run_event.jit);
+                run_event.values[6] = run_event.jit.guest_ticks;
+                run_event.values[7] = run_event.jit.guest_ticks_counted;
+                thread->RecordDiagnosticEvent(run_event);
+            }
+#endif
             ExitContext();
         }
 

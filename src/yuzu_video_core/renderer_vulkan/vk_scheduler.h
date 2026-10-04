@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <nxemu-module-spec/performance_capture.h>
 #include <condition_variable>
 #include <cstddef>
 #include <functional>
@@ -36,7 +37,8 @@ struct QueryCacheParams;
 /// OpenGL-like operations on Vulkan command buffers.
 class Scheduler {
 public:
-    explicit Scheduler(const Device& device, StateTracker& state_tracker);
+    explicit Scheduler(const Device& device, StateTracker& state_tracker, PerformanceCaptureSharedState& capture);
+    PerformanceCaptureSharedState& PerformanceCaptureState() const { return capture; }
     ~Scheduler();
 
     /// Sends the current execution context to the GPU.
@@ -110,8 +112,10 @@ public:
 
     /// Waits for the given tick to trigger on the GPU.
     void Wait(u64 tick) {
+        PERF_CAPTURE_SCOPE(capture, scheduler_wait_call);
         if (tick >= master_semaphore->CurrentTick()) {
             // Make sure we are not waiting for the current tick without signalling
+            PERF_CAPTURE_ADD(capture, scheduler_forced_flushes, 1);
             Flush();
         }
         master_semaphore->Wait(tick);
@@ -231,6 +235,7 @@ private:
 
     const Device& device;
     StateTracker& state_tracker;
+    PerformanceCaptureSharedState& capture;
 
     std::unique_ptr<MasterSemaphore> master_semaphore;
     std::unique_ptr<CommandPool> command_pool;

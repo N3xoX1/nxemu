@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <nxemu-module-spec/performance_capture.h>
 
 #include <filesystem>
 #include <unordered_map>
@@ -32,7 +33,7 @@ public:
                          Core::Frontend::EmuWindow& emu_window_, const Device& device_,
                          TextureCache& texture_cache_, BufferCache& buffer_cache_,
                          ProgramManager& program_manager_, StateTracker& state_tracker_,
-                         VideoCore::ShaderNotify& shader_notify_);
+                         VideoCore::ShaderNotify& shader_notify_, PerformanceCaptureSharedState& capture_);
     ~ShaderCache();
 
     void LoadDiskResources(u64 title_id, std::stop_token stop_loading,
@@ -71,6 +72,7 @@ private:
     ProgramManager& program_manager;
     StateTracker& state_tracker;
     VideoCore::ShaderNotify& shader_notify;
+    PerformanceCaptureSharedState& capture;
     const bool use_asynchronous_shaders;
     const bool strict_context_required;
 

@@ -211,6 +211,8 @@ public:
 
     [[nodiscard]] bool UseNvdec() const;
 
+    PerformanceCaptureSharedState& PerformanceCaptureState();
+    void SetPerformanceCaptureDevice(const char* model, const char* driver);
     void RendererFrameEndNotify();
 
     void RequestComposite(std::vector<Tegra::FramebufferConfig>&& layers,

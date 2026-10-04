@@ -635,6 +635,20 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
     if (addr == 0 || size == 0) {
         return;
     }
+    PERF_CAPTURE_SCOPE(gpu.PerformanceCaptureState(), flush_region_call);
+    if (auto w = PERF_CAPTURE_WRITE(gpu.PerformanceCaptureState())) {
+        w.Add(PerformanceCounter::flush_region_requests);
+        w.Add(PerformanceCounter::flush_region_requested_bytes, size);
+        if (True(which & VideoCommon::CacheType::BufferCache)) {
+            w.Add(PerformanceCounter::buffer_download_requests);
+            w.Add(PerformanceCounter::buffer_download_requested_bytes, size);
+        }
+        if (True(which & VideoCommon::CacheType::TextureCache)) {
+            w.Add(PerformanceCounter::texture_download_requests);
+            w.Add(PerformanceCounter::texture_download_requested_bytes, size);
+        }
+        if (True(which & VideoCommon::CacheType::QueryCache)) w.Add(PerformanceCounter::query_flush_requests);
+    }
     // Registered pages retain the existing lock/download/fence path.
     which = device_memory.FilterFlushCaches(addr, size, which);
     if (False(which & (VideoCommon::CacheType::TextureCache |
