@@ -7,9 +7,10 @@
     :root {
       --bg: #ffffff;
       --text: #111111;
-      --muted: rgba(128, 128, 128, 0.85);
+      --muted: #4a555c;
       --line: rgba(128, 128, 128, 0.2);
       --card: rgba(128, 128, 128, 0.1);
+      --band: #f2f5f7;
       --accent: #4fc3f7;
       --accent-text: #00344a;
     }
@@ -18,6 +19,8 @@
       :root {
         --bg: #121212;
         --text: #e8e8e8;
+        --muted: #b4bcc2;
+        --band: #1a2226;
         --accent-text: #00344a;
       }
     }
@@ -25,11 +28,15 @@
     html.dark {
       --bg: #121212;
       --text: #e8e8e8;
+      --muted: #b4bcc2;
+      --band: #1a2226;
     }
 
     html.light {
       --bg: #ffffff;
       --text: #111111;
+      --muted: #4a555c;
+      --band: #f2f5f7;
     }
 
     * {
@@ -50,8 +57,8 @@
     }
 
     html.theme-ready {
-      transition: --bg 0.4s ease, --text 0.4s ease, --muted 0.4s ease, --line 0.4s ease, --card 0.4s ease,
-        background-color 0.4s ease, color 0.4s ease;
+      transition: --bg 0.4s ease, --text 0.4s ease, --muted 0.4s ease, --line 0.4s ease, --card 0.4s ease, --band 0.4s ease,
+      background-color 0.4s ease, color 0.4s ease;
     }
 
     html.theme-ready body,
@@ -63,6 +70,7 @@
     html.theme-ready .empty-title,
     html.theme-ready .empty-copy,
     html.theme-ready .empty-hint,
+    html.theme-ready .browser-hint,
     html.theme-ready .game-title,
     html.theme-ready .page-title,
     html.theme-ready .logo,
@@ -119,7 +127,8 @@
       height: 56px;
       position: sticky;
       top: 0;
-      background: var(--bg);
+      background: var(--band);
+      border-bottom: 1px solid var(--line);
       z-index: 2;
     }
 
@@ -130,7 +139,8 @@
       height: 56px;
       position: sticky;
       top: 0;
-      background: var(--bg);
+      background: var(--band);
+      border-bottom: 1px solid var(--line);
       z-index: 2;
     }
 
@@ -199,15 +209,55 @@
       font-weight: 700;
     }
 
+    .topbar-back .page-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .back-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex: none;
+      margin-left: 8px;
+      margin-right: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 20px;
+    }
+
+    .hint-pair {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .back-hint[hidden] {
+      display: none;
+    }
+
     .library-status {
       padding: 0 16px 8px;
       font-size: 13px;
       color: var(--muted);
-      min-height: 1.2em;
+    }
+
+    .library-status:empty {
+      display: none;
     }
 
     .settings-list {
       padding: 8px 16px;
+    }
+
+    .settings-header {
+      font-size: 13px;
+      color: var(--muted);
+      padding: 20px 0 8px;
     }
 
     .settings-item {
@@ -224,6 +274,23 @@
       margin: 0 -16px;
       padding-left: 16px;
       padding-right: 16px;
+    }
+
+    .settings-item.is-selected,
+    .folder-item.is-selected {
+      background: rgba(126, 246, 255, 0.16);
+      box-shadow: inset 3px 0 0 #7ef6ff;
+      margin: 0 -16px;
+      padding-left: 16px;
+      padding-right: 16px;
+      scroll-margin-top: 64px;
+      scroll-margin-bottom: 24px;
+    }
+
+    .primary-btn.is-selected,
+    .fab.is-selected {
+      outline: 3px solid #7ef6ff;
+      outline-offset: 2px;
     }
 
     .setting-chevron {
@@ -261,6 +328,18 @@
 
     .settings-toggle.on::after {
       left: 21px;
+    }
+
+    .settings-range {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .setting-item-static:active {
+      background: transparent;
+      margin: 0;
+      padding-left: 0;
+      padding-right: 0;
     }
 
     .setting-check {
@@ -404,6 +483,57 @@
       padding: 8px 16px 96px;
     }
 
+    .browser-hint {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      background: var(--band);
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 20px;
+      text-align: center;
+    }
+
+    .browser-hint > span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .browser-hint > span[hidden] {
+      display: none;
+    }
+
+    .hint-key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      flex: none;
+      border: none;
+      border-radius: 10px;
+      background: var(--text);
+      color: var(--band);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .hint-action {
+      color: var(--text);
+      font-weight: 600;
+    }
+
     .game-card {
       display: flex;
       flex-direction: column;
@@ -413,6 +543,13 @@
 
     .game-card:active {
       opacity: 0.7;
+    }
+
+    .game-card.is-selected .game-icon,
+    .game-card.is-selected .game-icon-ph {
+      outline: 3px solid #7ef6ff;
+      outline-offset: 2px;
+      box-shadow: 0 0 10px #7ef6ff;
     }
 
     .game-card.is-failed {
@@ -460,6 +597,9 @@
 let navStack = ['gamesPage'];
 let gameListGen = 0;
 let libraryDirty = true;
+let selectedGameIndex = -1;
+let settingsSelection = -1;
+const settingsSelectionByPage = {};
 let themeReady = false;
 
 function applyTheme() {
@@ -543,6 +683,7 @@ function setLibraryStatus(text) {
 
 function renderEmptyGames(kind) {
   const container = document.getElementById('gameList');
+  syncGameSelection(-1);
   container.className = '';
   if (kind === 'no-folders') {
     container.innerHTML =
@@ -576,6 +717,7 @@ function refreshGameList() {
   const container = document.getElementById('gameList');
   if (!container) return;
 
+  syncGameSelection(-1);
   const folders = getConfiguredFolders();
   if (!folders.length) {
     setLibraryStatus('');
@@ -686,9 +828,116 @@ function finishGameList(gen, cards, loaded, failed) {
     return (a.dataset.title || '').localeCompare(b.dataset.title || '');
   });
   visible.forEach(function (el) { container.appendChild(el); });
+  setLibraryStatus('');
+  syncGameSelection(0);
+}
 
-  const gameLabel = loaded === 1 ? '1 game' : loaded + ' games';
-  setLibraryStatus(failed ? gameLabel + ' ? ' + failed + ' skipped' : gameLabel);
+function selectableGameCards() {
+  const container = document.getElementById('gameList');
+  if (!container) return [];
+  return Array.prototype.filter.call(container.children, function (el) {
+    return el.classList.contains('game-card') &&
+      !el.classList.contains('is-failed') &&
+      !el.classList.contains('is-loading');
+  });
+}
+
+function controllerAttached() {
+  try {
+    const names = JSON.parse(NxEmu.connectedControllerNames());
+    return Array.isArray(names) && names.length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+function updatePlayHint() {
+  const hint = document.getElementById('playHint');
+  if (hint) hint.hidden = !controllerAttached() || selectedGameIndex < 0;
+}
+
+function applyControllerBrowser() {
+  const attached = controllerAttached();
+  const settingsHint = document.getElementById('settingsHint');
+  const touchHint = document.getElementById('touchHint');
+  if (settingsHint) settingsHint.hidden = !attached;
+  if (touchHint) touchHint.hidden = attached;
+  document.querySelectorAll('.back-hint').forEach(function (hint) {
+    hint.hidden = !attached;
+  });
+  if (!attached) {
+    syncGameSelection(-1);
+    syncSettingsSelection(-1);
+    return;
+  }
+  if (currentSettingsPage()) {
+    const page = currentSettingsPage();
+    const remembered = settingsSelectionByPage[page.id];
+    const index = settingsSelection >= 0 ? settingsSelection : (remembered == null ? 0 : remembered);
+    syncSettingsSelection(index);
+  }
+  if (selectedGameIndex < 0 && selectableGameCards().length) {
+    syncGameSelection(0);
+  } else {
+    updatePlayHint();
+  }
+}
+
+function syncGameSelection(index) {
+  const cards = selectableGameCards();
+  if (!controllerAttached() || !cards.length || index < 0) {
+    selectedGameIndex = -1;
+  } else {
+    selectedGameIndex = Math.min(index, cards.length - 1);
+    cards[selectedGameIndex].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  for (let i = 0; i < cards.length; i++) {
+    cards[i].classList.toggle('is-selected', i === selectedGameIndex);
+  }
+  updatePlayHint();
+}
+
+function gridColumns(cards) {
+  const top = cards[0].getBoundingClientRect().top;
+  let cols = 0;
+  for (let i = 0; i < cards.length; i++) {
+    if (Math.abs(cards[i].getBoundingClientRect().top - top) > 4) break;
+    cols++;
+  }
+  return cols || 1;
+}
+
+function moveGameSelection(direction) {
+  if (!controllerAttached()) return;
+  if (navStack[navStack.length - 1] !== 'gamesPage') {
+    moveSettingsSelection(direction);
+    return;
+  }
+  const cards = selectableGameCards();
+  if (!cards.length) return;
+  if (selectedGameIndex < 0) {
+    syncGameSelection(0);
+    return;
+  }
+  const cols = gridColumns(cards);
+  let next = selectedGameIndex;
+  if (direction === 'left') next -= 1;
+  else if (direction === 'right') next += 1;
+  else if (direction === 'up') next -= cols;
+  else if (direction === 'down') next += cols;
+  if (next < 0) next = 0;
+  if (next >= cards.length) next = cards.length - 1;
+  syncGameSelection(next);
+}
+
+function launchSelectedGame() {
+  if (!controllerAttached()) return;
+  if (navStack[navStack.length - 1] !== 'gamesPage') {
+    activateSettingsSelection();
+    return;
+  }
+  const card = selectableGameCards()[selectedGameIndex];
+  if (card && typeof card.onclick === 'function') card.onclick();
 }
 
 function shortPath(uri) {
@@ -699,6 +948,105 @@ function shortPath(uri) {
   } catch (e) {
     return uri;
   }
+}
+
+function openSettingsFromPad() {
+  if (navStack[navStack.length - 1] !== 'gamesPage') return;
+  navigate('settingsPage');
+}
+
+function goBackFromPad() {
+  if (!controllerAttached()) return;
+  if (navStack[navStack.length - 1] === 'gamesPage') return;
+  goBack();
+}
+
+function currentSettingsPage() {
+  const id = navStack[navStack.length - 1];
+  if (!id || id === 'gamesPage') return null;
+  const page = document.getElementById(id);
+  if (!page || page.style.display === 'none') return null;
+  return page;
+}
+
+function settingsRows(page) {
+  if (!page) return [];
+  return Array.prototype.filter.call(
+    page.querySelectorAll('.settings-item, .folder-item, .primary-btn, .fab'),
+    function (el) { return el.getClientRects().length > 0; }
+  );
+}
+
+function clearSettingsSelection() {
+  document.querySelectorAll('.settings-item.is-selected, .folder-item.is-selected, .primary-btn.is-selected, .fab.is-selected').forEach(function (el) {
+    el.classList.remove('is-selected');
+  });
+}
+
+function syncSettingsSelection(index) {
+  const page = currentSettingsPage();
+  const rows = settingsRows(page);
+  clearSettingsSelection();
+  if (!controllerAttached() || !page || !rows.length || index < 0) {
+    settingsSelection = -1;
+    return;
+  }
+  settingsSelection = Math.min(index, rows.length - 1);
+  settingsSelectionByPage[page.id] = settingsSelection;
+  rows[settingsSelection].classList.add('is-selected');
+  rows[settingsSelection].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function refreshSettingsSelection() {
+  if (!currentSettingsPage()) return;
+  syncSettingsSelection(settingsSelection < 0 ? 0 : settingsSelection);
+}
+
+function moveSettingsSelection(direction) {
+  if (!controllerAttached() || !currentSettingsPage()) return;
+  const rows = settingsRows(currentSettingsPage());
+  if (!rows.length) return;
+  if (direction === 'left' || direction === 'right') {
+    nudgeSelectedSlider(direction);
+    return;
+  }
+  if (settingsSelection < 0) {
+    syncSettingsSelection(0);
+    return;
+  }
+  let next = settingsSelection + (direction === 'up' ? -1 : 1);
+  if (next < 0) next = 0;
+  if (next >= rows.length) next = rows.length - 1;
+  syncSettingsSelection(next);
+}
+
+function nudgeSelectedSlider(direction) {
+  const row = settingsRows(currentSettingsPage())[settingsSelection];
+  if (!row) return;
+  const input = row.querySelector('input[type="range"]');
+  if (!input) return;
+  const min = parseFloat(input.min);
+  const max = parseFloat(input.max);
+  const stepAttr = parseFloat(input.step);
+  const span = max - min;
+  const step = stepAttr >= 1 ? Math.max(stepAttr, 1) : (span > 0 ? span / 20 : 0.05);
+  let value = parseFloat(input.value) + (direction === 'right' ? step : -step);
+  if (stepAttr >= 1) value = Math.round(value / stepAttr) * stepAttr;
+  value = Math.min(max, Math.max(min, value));
+  input.value = String(value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function activateSettingsSelection() {
+  if (!controllerAttached() || !currentSettingsPage()) return;
+  const row = settingsRows(currentSettingsPage())[settingsSelection];
+  if (!row || row.querySelector('input[type="range"]')) return;
+  if (row.classList.contains('folder-item')) {
+    const remove = row.querySelector('.folder-remove');
+    if (remove) remove.click();
+    return;
+  }
+  row.click();
 }
 
 function navigate(page) {
@@ -745,12 +1093,14 @@ function renderSettingsSummary() {
 
 function renderControllersSummary() {
   const meta = document.getElementById('controllersMeta');
-  if (!meta) return;
-  var count = 0;
-  for (var player = 0; player < 8; player++) {
-    if (NxEmu.isControllerConnected(player)) count++;
+  if (meta) {
+    var count = 0;
+    for (var player = 0; player < 8; player++) {
+      if (NxEmu.isControllerConnected(player)) count++;
+    }
+    meta.textContent = count === 0 ? 'Connected: none' : 'Connected: ' + count;
   }
-  meta.textContent = count === 0 ? 'Connected: none' : 'Connected: ' + count;
+  applyControllerBrowser();
 }
 
 function getThemeMode() {
@@ -859,6 +1209,7 @@ function renderGameFolders() {
     });
     list.appendChild(item);
   });
+  refreshSettingsSelection();
 }
 
 function removeGameFolder(uri) {
@@ -929,6 +1280,7 @@ function renderControllerSettings() {
     item.addEventListener('click', openControllerPlayer.bind(null, player));
     list.appendChild(item);
   }
+  refreshSettingsSelection();
 }
 
 function appendControllerHeader(list, title) {
@@ -1101,6 +1453,7 @@ function renderControllerPlayer() {
     appendControllerHeader(list, 'Triggers');
     appendButtons(list, [['Z', BTN.R], ['L', BTN.ZL], ['R', BTN.ZR]]);
   }
+  refreshSettingsSelection();
 }
 
 function openControllerChoices(title, items, onPick, emptyText) {
@@ -1123,6 +1476,7 @@ function openControllerChoices(title, items, onPick, emptyText) {
   });
   const page = document.getElementById('controllerChoices');
   if (page.style.display === 'none') navigate('controllerChoices');
+  else refreshSettingsSelection();
 }
 
 function openControllerStyles() {
@@ -1165,6 +1519,10 @@ function confirmResetController() {
 function showPage(page) {
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById(page).style.display = '';
+  if (page !== 'gamesPage') {
+    const remembered = settingsSelectionByPage[page];
+    settingsSelection = remembered == null ? 0 : remembered;
+  }
   if (page === 'gameFolders') renderGameFolders();
   if (page === 'settingsPage') renderSettingsSummary();
   if (page === 'overlaySettings') renderOverlaySettings();
@@ -1172,6 +1530,7 @@ function showPage(page) {
   if (page === 'controllerSettings') renderControllerSettings();
   if (page === 'controllerPlayer') renderControllerPlayer();
   if (page === 'gamesPage' && libraryDirty) refreshGameList();
+  if (page !== 'gamesPage') refreshSettingsSelection();
 }
 </script>
 </head>
@@ -1190,6 +1549,11 @@ function showPage(page) {
     </div>
     <div id="libraryStatus" class="library-status"></div>
     <div id="gameList" class="game-list"></div>
+    <div class="browser-hint">
+      <span id="playHint" hidden>Press <span class="hint-key">A</span> <span class="hint-action">to play</span></span>
+      <span id="settingsHint" hidden>Press <span class="hint-key">Y</span> <span class="hint-action">to open settings</span></span>
+      <span id="touchHint">Tap a game <span class="hint-action">to play</span></span>
+    </div>
   </div>
   <div id="settingsPage" class="page" style="display:none">
     <div class="topbar-back">
@@ -1197,6 +1561,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="page-title">Settings</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div class="settings-list">
       <div class="settings-item" onclick="navigate('gameFolders')">
@@ -1235,6 +1600,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="page-title">Controllers</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div id="controllerList" class="settings-list"></div>
   </div>
@@ -1244,6 +1610,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div id="controllerPlayerTitle" class="page-title">Controller</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div id="controllerPlayerList" class="settings-list"></div>
   </div>
@@ -1253,6 +1620,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div id="controllerChoicesTitle" class="page-title">Controller</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div id="controllerChoiceList" class="settings-list"></div>
   </div>
@@ -1262,6 +1630,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="page-title">Theme</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div class="settings-list">
       <div class="settings-item" onclick="setThemeMode(0)">
@@ -1290,6 +1659,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="page-title">On screen controller</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div class="settings-list">
       <div class="settings-item" onclick="toggleOverlayBool('nxui:ShowInputOverlay', 'overlayShow')">
@@ -1325,6 +1695,7 @@ function showPage(page) {
         <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="page-title">Game folders</div>
+      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
     </div>
     <div id="folderList" class="settings-list"></div>
     <div id="noFolders" class="empty-state">

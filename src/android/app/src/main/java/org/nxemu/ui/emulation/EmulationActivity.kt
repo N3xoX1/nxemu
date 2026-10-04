@@ -15,6 +15,7 @@ import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
 import android.view.Gravity
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -64,6 +65,16 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var overlayAppVersion: String
     private lateinit var overlayPhoneModel: String
     private lateinit var overlaySoc: String
+    private var drawerStickY = 0
+    private val drawerStickRepeat = object : Runnable {
+        override fun run() {
+            if (drawerStickY == 0 || !::drawerLayout.isInitialized || !drawerLayout.isDrawerOpen(Gravity.START)) {
+                return
+            }
+            moveDrawerFocus(drawerStickY)
+            perfStatsHandler.postDelayed(this, DRAWER_REPEAT_MS)
+        }
+    }
 
     private val settingChangedListener: (String) -> Unit = { setting ->
         if (setting == NXCoreSetting.DisplayedFrames) {
@@ -133,13 +144,26 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onResume() {
         super.onResume()
         InputHandler.updateControllerData()
-        if (::surfaceInputOverlay.isInitialized && !surfaceInputOverlay.isInEditMode()) {
+        if (::surfaceInputOverlay.isInitialized) {
             updateInputOverlayLayout()
             surfaceInputOverlay.refreshControls()
         }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            return super.dispatchKeyEvent(event)
+        }
+        val source = event.source
+        val fromGamepad = source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
+            source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
+        if (!fromGamepad) {
+            return super.dispatchKeyEvent(event)
+        }
+        if (::drawerLayout.isInitialized && drawerLayout.isDrawerOpen(Gravity.START)) {
+            handleDrawerPad(event)
+            return true
+        }
         if (InputHandler.dispatchKeyEvent(event)) {
             return true
         }
@@ -147,6 +171,12 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        val fromStick = event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK ||
+            event.source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD
+        if (fromStick && ::drawerLayout.isInitialized && drawerLayout.isDrawerOpen(Gravity.START)) {
+            handleDrawerStick(event)
+            return true
+        }
         if (InputHandler.dispatchGenericMotionEvent(event)) {
             return true
         }
@@ -165,17 +195,12 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
 
             override fun onDrawerOpened(drawerView: View) {
                 drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
-                findViewById<View>(R.id.in_game_menu).requestFocus()
+                drawerMenuItems().first().requestFocus()
             }
 
             override fun onDrawerClosed(drawerView: View) {
-                drawerLayout.setDrawerLockMode(
-                    if (surfaceInputOverlay.isInEditMode()) {
-                        DrawerLayout.LOCK_MODE_LOCKED_CLOSED
-                    } else {
-                        savedDrawerLockMode()
-                    },
-                )
+                releaseDrawerStick()
+                drawerLayout.setDrawerLockMode(savedDrawerLockMode())
                 if (loadingIndicator.visibility != View.VISIBLE) {
                     surfaceInputOverlay.visibility = View.VISIBLE
                 }
@@ -225,6 +250,69 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             },
         )
     }
+
+    private fun drawerMenuItems(): List<View> {
+        return listOf(
+            lockDrawerItem,
+            findViewById(R.id.menu_exit),
+        )
+    }
+
+    private fun handleDrawerPad(event: KeyEvent) {
+        val down = event.action == KeyEvent.ACTION_DOWN
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_B -> {
+                if (down && event.repeatCount == 0) {
+                    drawerLayout.closeDrawer(Gravity.START)
+                }
+            }
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (down && event.repeatCount == 0) {
+                    currentDrawerItem().performClick()
+                }
+            }
+            KeyEvent.KEYCODE_DPAD_UP -> if (down) moveDrawerFocus(-1)
+            KeyEvent.KEYCODE_DPAD_DOWN -> if (down) moveDrawerFocus(1)
+        }
+    }
+
+    private fun handleDrawerStick(event: MotionEvent) {
+        val y = when {
+            event.getAxisValue(MotionEvent.AXIS_Y) > DRAWER_STICK_DEADZONE -> 1
+            event.getAxisValue(MotionEvent.AXIS_Y) < -DRAWER_STICK_DEADZONE -> -1
+            else -> 0
+        }
+        if (y == drawerStickY) {
+            return
+        }
+        drawerStickY = y
+        perfStatsHandler.removeCallbacks(drawerStickRepeat)
+        if (y == 0) {
+            return
+        }
+        moveDrawerFocus(y)
+        perfStatsHandler.postDelayed(drawerStickRepeat, DRAWER_REPEAT_MS)
+    }
+
+    private fun releaseDrawerStick() {
+        drawerStickY = 0
+        perfStatsHandler.removeCallbacks(drawerStickRepeat)
+    }
+
+    private fun moveDrawerFocus(delta: Int) {
+        val items = drawerMenuItems()
+        if (items.isEmpty()) {
+            return
+        }
+        val current = items.indexOfFirst { it.hasFocus() }.let { if (it < 0) 0 else it }
+        items[(current + delta).coerceIn(0, items.lastIndex)].requestFocus()
+    }
+
+    private fun currentDrawerItem(): View {
+        val items = drawerMenuItems()
+        return items.firstOrNull { it.hasFocus() } ?: items.first().also { it.requestFocus() }
+    }
+
     private fun hideSystemBars() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -470,5 +558,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     companion object {
         const val EXTRA_GAME_PATH = "org.nxemu.EXTRA_GAME_PATH"
         private const val TAG = "NxEmu-Emulation"
+        private const val DRAWER_REPEAT_MS = 220L
+        private const val DRAWER_STICK_DEADZONE = 0.5f
     }
 }
