@@ -28,16 +28,14 @@ function applyTheme() {
 function onSettingChanged(setting) {
   if (setting === 'nxui:GameDirectories') {
     libraryDirty = true;
-    renderGameFolders();
-    renderSettingsSummary();
-    if (navStack[navStack.length - 1] === 'gamesPage') {
-      refreshGameList();
-    }
+    const top = navStack[navStack.length - 1];
+    if (top === 'gameFolders' || top === 'settingsPage') renderCurrentSettings();
+    if (top === 'gamesPage') refreshGameList();
   }
   if (setting === 'nxui:ThemeMode') {
     applyTheme();
-    renderThemeSummary();
-    renderThemeSettings();
+    const top = navStack[navStack.length - 1];
+    if (top === 'themeSettings' || top === 'settingsPage') renderCurrentSettings();
   }
 }
 
@@ -266,17 +264,15 @@ function applyControllerBrowser() {
   const touchHint = document.getElementById('touchHint');
   if (settingsHint) settingsHint.hidden = !attached;
   if (touchHint) touchHint.hidden = attached;
-  document.querySelectorAll('.back-hint').forEach(function (hint) {
-    hint.hidden = !attached;
-  });
+  const backHint = document.getElementById('backHint');
+  if (backHint) backHint.hidden = !attached;
   if (!attached) {
     syncGameSelection(-1);
     syncSettingsSelection(-1);
     return;
   }
-  if (currentSettingsPage()) {
-    const page = currentSettingsPage();
-    const remembered = settingsSelectionByPage[page.id];
+  if (currentSettingsId()) {
+    const remembered = settingsSelectionByPage[currentSettingsId()];
     const index = settingsSelection >= 0 ? settingsSelection : (remembered == null ? 0 : remembered);
     syncSettingsSelection(index);
   }
@@ -356,7 +352,7 @@ function shortPath(uri) {
 
 function openSettingsFromPad() {
   if (navStack[navStack.length - 1] !== 'gamesPage') return;
-  navigate('settingsPage');
+  if (typeof NxEmu.openSettings === 'function') NxEmu.openSettings();
 }
 
 function goBackFromPad() {
@@ -365,12 +361,17 @@ function goBackFromPad() {
   goBack();
 }
 
-function currentSettingsPage() {
+function currentSettingsId() {
   const id = navStack[navStack.length - 1];
-  if (!id || id === 'gamesPage') return null;
-  const page = document.getElementById(id);
-  if (!page || page.style.display === 'none') return null;
-  return page;
+  if (!id || !settingPage(id)) return null;
+  return id;
+}
+
+function currentSettingsPage() {
+  if (!currentSettingsId()) return null;
+  const shell = document.getElementById('settingsShell');
+  if (!shell || shell.style.display === 'none') return null;
+  return shell;
 }
 
 function settingsRows(page) {
@@ -396,7 +397,8 @@ function syncSettingsSelection(index) {
     return;
   }
   settingsSelection = Math.min(index, rows.length - 1);
-  settingsSelectionByPage[page.id] = settingsSelection;
+  const settingsId = currentSettingsId();
+  if (settingsId) settingsSelectionByPage[settingsId] = settingsSelection;
   rows[settingsSelection].classList.add('is-selected');
   rows[settingsSelection].scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
@@ -462,6 +464,10 @@ function goBack() {
   if (navStack.length > 1) {
     navStack.pop();
     showPage(navStack[navStack.length - 1]);
+    return;
+  }
+  if (typeof NxEmu.closeSettings === 'function') {
+    NxEmu.closeSettings();
   }
 }
 
@@ -482,29 +488,9 @@ function formatGameFolder(uri) {
   return volume + ' / ' + folder;
 }
 
-function renderSettingsSummary() {
-  const meta = document.getElementById('gameFoldersMeta');
-  if (meta) {
-    const n = getConfiguredFolders().length;
-    if (n === 0) meta.textContent = 'None added';
-    else if (n === 1) meta.textContent = '1 folder';
-    else meta.textContent = n + ' folders';
-  }
-  renderThemeSummary();
-  renderOverlaySummary();
-  renderControllersSummary();
-}
-
 function renderControllersSummary() {
-  const meta = document.getElementById('controllersMeta');
-  if (meta) {
-    var count = 0;
-    for (var player = 0; player < 8; player++) {
-      if (NxEmu.isControllerConnected(player)) count++;
-    }
-    meta.textContent = count === 0 ? 'Connected: none' : 'Connected: ' + count;
-  }
   applyControllerBrowser();
+  if (navStack[navStack.length - 1] === 'settingsPage') renderCurrentSettings();
 }
 
 function getThemeMode() {
@@ -521,82 +507,217 @@ function themeModeLabel(mode) {
   return 'Follow system';
 }
 
-function renderThemeSummary() {
-  const meta = document.getElementById('themeModeMeta');
-  if (meta) meta.textContent = themeModeLabel(getThemeMode());
+function folderCountLabel() {
+  const n = getConfiguredFolders().length;
+  if (n === 0) return 'None added';
+  if (n === 1) return '1 folder';
+  return n + ' folders';
 }
 
-function renderOverlaySummary() {
-  const meta = document.getElementById('overlayShowMeta');
-  if (!meta) return;
+function overlayShowLabel() {
   let shown = true;
   try {
     shown = NxEmu.getSettingBool('nxui:ShowInputOverlay');
   } catch (e) {}
-  meta.textContent = 'Show overlay: ' + (shown ? 'Yes' : 'No');
+  return 'Show overlay: ' + (shown ? 'Yes' : 'No');
 }
 
-function renderThemeSettings() {
-  const mode = getThemeMode();
-  setToggle('themeFollow', mode === 0);
-  setToggle('themeLight', mode === 1);
-  setToggle('themeDark', mode === 2);
+function connectedCountLabel() {
+  var count = 0;
+  for (var player = 0; player < 8; player++) {
+    if (NxEmu.isControllerConnected(player)) count++;
+  }
+  return count === 0 ? 'Connected: none' : 'Connected: ' + count;
 }
 
-function setThemeMode(mode) {
-  NxEmu.setSettingInt('nxui:ThemeMode', mode);
-  NxEmu.saveSettings();
-  applyTheme();
-  renderThemeSummary();
-  renderThemeSettings();
+function readSettingBool(key) {
+  try {
+    return !!NxEmu.getSettingBool(key);
+  } catch (e) {
+    return false;
+  }
 }
 
-function setToggle(id, on) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.toggle('on', !!on);
+function readSettingInt(key) {
+  try {
+    return NxEmu.getSettingInt(key);
+  } catch (e) {
+    return 0;
+  }
 }
 
-function renderOverlaySettings() {
-  setToggle('overlayShow', NxEmu.getSettingBool('nxui:ShowInputOverlay'));
-  const scale = NxEmu.getSettingInt('nxui:OverlayScale');
-  const opacity = NxEmu.getSettingInt('nxui:OverlayOpacity');
-  const scaleEl = document.getElementById('overlayScale');
-  const opacityEl = document.getElementById('overlayOpacity');
-  if (scaleEl) scaleEl.value = scale;
-  if (opacityEl) opacityEl.value = opacity;
-  const scaleValue = document.getElementById('overlayScaleValue');
-  const opacityValue = document.getElementById('overlayOpacityValue');
-  if (scaleValue) scaleValue.textContent = scale + '%';
-  if (opacityValue) opacityValue.textContent = opacity + '%';
+const settingPages = [
+  {
+    id: 'settingsPage',
+    title: 'Settings',
+    rows: [
+      { label: 'Game folders', type: 'page', page: 'gameFolders', detail: folderCountLabel },
+      { label: 'On screen controller', type: 'page', page: 'overlaySettings', detail: overlayShowLabel },
+      { label: 'Controllers', type: 'page', page: 'controllerSettings', detail: connectedCountLabel },
+      { label: 'Theme', type: 'page', page: 'themeSettings', detail: function () { return themeModeLabel(getThemeMode()); } },
+    ],
+  },
+  {
+    id: 'overlaySettings',
+    title: 'On screen controller',
+    rows: [
+      { label: 'Show overlay', type: 'bool', key: 'nxui:ShowInputOverlay' },
+      { label: 'Scale', type: 'int', key: 'nxui:OverlayScale', min: 0, max: 150, suffix: '%' },
+      { label: 'Opacity', type: 'int', key: 'nxui:OverlayOpacity', min: 0, max: 100, suffix: '%' },
+      { label: 'Edit overlay layout', detail: 'Drag buttons to reposition', type: 'action', run: function () { NxEmu.editOverlayLayout(); } },
+    ],
+  },
+  {
+    id: 'themeSettings',
+    title: 'Theme',
+    rows: [
+      { label: 'Follow system', type: 'choice', key: 'nxui:ThemeMode', value: 0, picked: function () { return getThemeMode() === 0; }, run: applyTheme },
+      { label: 'Light', type: 'choice', key: 'nxui:ThemeMode', value: 1, picked: function () { return getThemeMode() === 1; }, run: applyTheme },
+      { label: 'Dark', type: 'choice', key: 'nxui:ThemeMode', value: 2, picked: function () { return getThemeMode() === 2; }, run: applyTheme },
+    ],
+  },
+  { id: 'gameFolders', title: 'Game folders', render: renderGameFolders },
+  { id: 'controllerSettings', title: 'Controllers', render: renderControllerSettings },
+  { id: 'controllerPlayer', title: function () { return 'Controller ' + (controllerPlayerIndex + 1); }, render: renderControllerPlayer },
+  { id: 'controllerChoices', title: function () { return controllerChoiceState.title; }, render: renderControllerChoices },
+];
+
+function settingPage(id) {
+  for (var i = 0; i < settingPages.length; i++) {
+    if (settingPages[i].id === id) return settingPages[i];
+  }
+  return null;
 }
 
-function toggleOverlayBool(key, toggleId) {
-  const next = !NxEmu.getSettingBool(key);
-  NxEmu.setSettingBool(key, next);
-  NxEmu.saveSettings();
-  setToggle(toggleId, next);
-  if (key === 'nxui:ShowInputOverlay') renderOverlaySummary();
+function rowDetail(row) {
+  if (typeof row.detail === 'function') return row.detail();
+  return row.detail || '';
 }
 
-function setOverlayInt(key, value, labelId) {
-  const n = parseInt(value, 10);
-  NxEmu.setSettingInt(key, n);
-  NxEmu.saveSettings();
-  const label = document.getElementById(labelId);
-  if (label) label.textContent = n + '%';
+function ensureSettingsList() {
+  const host = document.getElementById('settingsBody');
+  if (!host) return null;
+  host.innerHTML = '';
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+  host.appendChild(list);
+  return list;
+}
+
+function renderSettingRows(spec) {
+  const list = ensureSettingsList();
+  if (!list) return;
+  spec.rows.forEach(function (row) {
+    if (row.type === 'bool') appendBoolRow(list, row);
+    else if (row.type === 'int') appendIntRow(list, row);
+    else if (row.type === 'choice') appendChoiceRow(list, row);
+    else appendLinkRow(list, row);
+  });
+}
+
+function appendLinkRow(list, row) {
+  const item = document.createElement('div');
+  item.className = 'settings-item';
+  const detail = rowDetail(row);
+  item.innerHTML =
+    '<div class="setting-info">' +
+    '<div class="setting-label">' + escapeHtml(row.label) + '</div>' +
+    (detail ? '<div class="setting-sub">' + escapeHtml(detail) + '</div>' : '') +
+    '</div>' + controllerChevron();
+  item.addEventListener('click', function () {
+    if (row.page) navigate(row.page);
+    else if (row.run) row.run();
+  });
+  list.appendChild(item);
+}
+
+function appendBoolRow(list, row) {
+  const on = readSettingBool(row.key);
+  const item = document.createElement('div');
+  item.className = 'settings-item';
+  item.innerHTML =
+    '<div class="setting-info"><div class="setting-label">' + escapeHtml(row.label) + '</div></div>' +
+    '<button class="settings-toggle' + (on ? ' on' : '') + '" type="button" aria-label="' + escapeHtml(row.label) + '"></button>';
+  item.addEventListener('click', function () {
+    NxEmu.setSettingBool(row.key, !readSettingBool(row.key));
+    NxEmu.saveSettings();
+    if (row.run) row.run();
+    renderCurrentSettings();
+  });
+  list.appendChild(item);
+}
+
+function appendIntRow(list, row) {
+  const value = readSettingInt(row.key);
+  const suffix = row.suffix || '';
+  const step = row.step == null ? 1 : row.step;
+  const item = document.createElement('div');
+  item.className = 'settings-item setting-item-static';
+  item.innerHTML =
+    '<div class="setting-info" style="flex:1">' +
+    '<div class="setting-label">' + escapeHtml(row.label) + ' <span class="slider-value">' + value + suffix + '</span></div>' +
+    '<input class="settings-range" type="range" min="' + row.min + '" max="' + row.max + '" step="' + step + '" value="' + value + '">' +
+    '</div>';
+  const input = item.querySelector('input');
+  const label = item.querySelector('.slider-value');
+  input.addEventListener('input', function () {
+    const next = parseInt(input.value, 10);
+    if (label) label.textContent = next + suffix;
+    NxEmu.setSettingInt(row.key, next);
+    NxEmu.saveSettings();
+    if (row.run) row.run();
+  });
+  list.appendChild(item);
+}
+
+function appendChoiceRow(list, row) {
+  const on = row.picked ? !!row.picked() : readSettingInt(row.key) === row.value;
+  const item = document.createElement('div');
+  item.className = 'settings-item';
+  item.innerHTML =
+    '<div class="setting-info"><div class="setting-label">' + escapeHtml(row.label) + '</div></div>' +
+    '<svg class="setting-check' + (on ? ' on' : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>';
+  item.addEventListener('click', function () {
+    if (row.key) {
+      NxEmu.setSettingInt(row.key, row.value);
+      NxEmu.saveSettings();
+    }
+    if (row.run) row.run();
+    renderCurrentSettings();
+  });
+  list.appendChild(item);
+}
+
+function renderCurrentSettings() {
+  const spec = settingPage(navStack[navStack.length - 1]);
+  if (!spec) return;
+  const title = document.getElementById('settingsTitle');
+  if (title) title.textContent = typeof spec.title === 'function' ? spec.title() : spec.title;
+  if (spec.rows) renderSettingRows(spec);
+  else if (spec.render) spec.render();
+  refreshSettingsSelection();
 }
 
 function renderGameFolders() {
-  const list = document.getElementById('folderList');
-  const empty = document.getElementById('noFolders');
-  if (!list || !empty) return;
-
+  const host = document.getElementById('settingsBody');
+  if (!host) return;
+  host.innerHTML = '';
   const dirs = getConfiguredFolders();
-  empty.style.display = dirs.length === 0 ? '' : 'none';
-  list.innerHTML = '';
-  const fab = document.querySelector('#gameFolders .fab');
-  if (fab) fab.style.display = dirs.length === 0 ? 'none' : '';
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+  host.appendChild(list);
+  if (!dirs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML =
+      '<p class="empty-title">No folders yet</p>' +
+      '<p class="empty-copy">Choose a folder that contains .nro, .dxci, or .dnsp files.</p>' +
+      '<button class="primary-btn" type="button">Add game folder</button>';
+    empty.querySelector('button').addEventListener('click', function () {
+      NxEmu.addGameDirectory();
+    });
+    host.appendChild(empty);
+  }
   dirs.forEach(function (uri) {
     const name = formatGameFolder(uri);
     const item = document.createElement('div');
@@ -613,6 +734,15 @@ function renderGameFolders() {
     });
     list.appendChild(item);
   });
+  if (dirs.length) {
+    const fab = document.createElement('button');
+    fab.className = 'fab';
+    fab.type = 'button';
+    fab.setAttribute('aria-label', 'Add game folder');
+    fab.innerHTML = '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+    fab.addEventListener('click', function () { NxEmu.addGameDirectory(); });
+    host.appendChild(fab);
+  }
   refreshSettingsSelection();
 }
 
@@ -627,6 +757,7 @@ function removeGameFolder(uri) {
 
 var controllerPlayerIndex = 0;
 var controllerFilterIndex = 0;
+var controllerChoiceState = { title: 'Controller', items: [], onPick: function () {}, emptyText: '' };
 var BTN = { A: 0, B: 1, X: 2, Y: 3, LStick: 4, RStick: 5, L: 6, R: 7, ZL: 8, ZR: 9, Plus: 10, Minus: 11, DLeft: 12, DUp: 13, DRight: 14, DDown: 15, SLLeft: 16, SRLeft: 17, Home: 18, Capture: 19, SLRight: 20, SRRight: 21 };
 var STICK = { L: 0, R: 1 };
 
@@ -661,14 +792,12 @@ function openControllerPlayer(index) {
 }
 
 function renderControllerPages() {
-  const listPage = document.getElementById('controllerSettings');
-  const playerPage = document.getElementById('controllerPlayer');
-  if (listPage && listPage.style.display !== 'none') renderControllerSettings();
-  if (playerPage && playerPage.style.display !== 'none') renderControllerPlayer();
+  const id = navStack[navStack.length - 1];
+  if (id === 'controllerSettings' || id === 'controllerPlayer') renderCurrentSettings();
 }
 
 function renderControllerSettings() {
-  const list = document.getElementById('controllerList');
+  const list = ensureSettingsList();
   if (!list) return;
   list.innerHTML = '';
   for (var player = 0; player < 8; player++) {
@@ -777,19 +906,16 @@ function appendButtons(list, buttons) {
 }
 
 function renderControllerPlayer() {
-  const title = document.getElementById('controllerPlayerTitle');
-  const list = document.getElementById('controllerPlayerList');
+  const list = ensureSettingsList();
   if (!list) return;
   const player = controllerPlayerIndex;
   const style = NxEmu.getControllerStyle(player);
   const filters = parseJsonArray(NxEmu.getControllerFilterNames());
   if (controllerFilterIndex >= filters.length) controllerFilterIndex = 0;
-  if (title) title.textContent = 'Controller ' + (player + 1);
-  list.innerHTML = '';
 
   appendControllerSwitch(list, 'Connected', NxEmu.isControllerConnected(player), function () {
     NxEmu.setControllerConnected(player, !NxEmu.isControllerConnected(player));
-    renderControllerPlayer();
+    renderCurrentSettings();
   });
   appendControllerRow(list, 'Controller type', controllerStyleName(style), openControllerStyles);
   appendControllerRow(list, 'Auto-map a controller', 'Select a device to attempt auto-mapping', openAutoMap);
@@ -860,27 +986,37 @@ function renderControllerPlayer() {
   refreshSettingsSelection();
 }
 
-function openControllerChoices(title, items, onPick, emptyText) {
-  const choiceList = document.getElementById('controllerChoiceList');
-  document.getElementById('controllerChoicesTitle').textContent = title;
-  if (choiceList) choiceList.style.display = '';
-  choiceList.innerHTML = '';
-  if (!items.length) {
+function renderControllerChoices() {
+  const list = ensureSettingsList();
+  if (!list) return;
+  const state = controllerChoiceState;
+  const title = document.getElementById('settingsTitle');
+  if (title) title.textContent = state.title;
+  if (!state.items.length) {
     const empty = document.createElement('div');
     empty.className = 'settings-header';
-    empty.textContent = emptyText || '';
-    choiceList.appendChild(empty);
+    empty.textContent = state.emptyText || '';
+    list.appendChild(empty);
   }
-  items.forEach(function (item, index) {
+  state.items.forEach(function (item, index) {
     const row = document.createElement('div');
     row.className = 'settings-item';
     row.innerHTML = '<div class="setting-info"><div class="setting-label">' + escapeHtml(item.label) + '</div></div>' + controllerChevron();
-    row.addEventListener('click', function () { onPick(item, index); });
-    choiceList.appendChild(row);
+    row.addEventListener('click', function () { state.onPick(item, index); });
+    list.appendChild(row);
   });
-  const page = document.getElementById('controllerChoices');
-  if (page.style.display === 'none') navigate('controllerChoices');
-  else refreshSettingsSelection();
+  refreshSettingsSelection();
+}
+
+function openControllerChoices(title, items, onPick, emptyText) {
+  controllerChoiceState = {
+    title: title,
+    items: items,
+    onPick: onPick,
+    emptyText: emptyText || '',
+  };
+  if (navStack[navStack.length - 1] === 'controllerChoices') renderCurrentSettings();
+  else navigate('controllerChoices');
 }
 
 function openControllerStyles() {
@@ -917,22 +1053,20 @@ function openControllerFilter() {
 function confirmResetController() {
   if (!confirm("Reset this player to defaults?")) return;
   NxEmu.resetControllerMappings(controllerPlayerIndex);
-  renderControllerPlayer();
+  renderCurrentSettings();
 }
 
 function showPage(page) {
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
-  document.getElementById(page).style.display = '';
-  if (page !== 'gamesPage') {
+  const spec = settingPage(page);
+  if (spec) {
+    document.getElementById('settingsShell').style.display = '';
     const remembered = settingsSelectionByPage[page];
     settingsSelection = remembered == null ? 0 : remembered;
+    renderCurrentSettings();
+    return;
   }
-  if (page === 'gameFolders') renderGameFolders();
-  if (page === 'settingsPage') renderSettingsSummary();
-  if (page === 'overlaySettings') renderOverlaySettings();
-  if (page === 'themeSettings') renderThemeSettings();
-  if (page === 'controllerSettings') renderControllerSettings();
-  if (page === 'controllerPlayer') renderControllerPlayer();
+  const el = document.getElementById(page);
+  if (el) el.style.display = '';
   if (page === 'gamesPage' && libraryDirty) refreshGameList();
-  if (page !== 'gamesPage') refreshSettingsSelection();
 }

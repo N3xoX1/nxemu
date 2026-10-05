@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <link rel="stylesheet" href="ui.css">
+  <script src="ui.js"></script>
+</head>
+<body>
+  <div id="settingsShell" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div id="settingsTitle" class="page-title">Settings</div>
+      <span id="backHint" class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
+    </div>
+    <div id="settingsBody"></div>
+  </div>
+<script>
+applyTheme();
+applyControllerBrowser();
+navStack = ['settingsPage'];
+showPage('settingsPage');
+</script>
+</body>
+</html>

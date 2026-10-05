@@ -25,6 +25,12 @@
             </intent-filter>
         </activity>
         <activity
+            android:name="org.nxemu.ui.main.SettingsActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="behind"
+            android:theme="@style/Theme.NxEmu.Settings" />
+        <activity
             android:name="org.nxemu.ui.emulation.EmulationActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
             android:exported="false"
