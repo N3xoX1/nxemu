@@ -34,7 +34,7 @@ public:
 
     /// Returns true when the swapchain needs to be recreated.
     bool NeedsRecreation() const {
-        return IsSubOptimal() || NeedsPresentModeUpdate();
+        return IsOutDated() || IsSubOptimal() || NeedsPresentModeUpdate();
     }
 
     /// Returns true when the swapchain is outdated.
@@ -84,7 +84,9 @@ public:
     }
 
     VkSemaphore CurrentRenderSemaphore() const {
-        return *render_semaphores[frame_index];
+        // The next submit waits on this image's acquire semaphore before
+        // signaling this semaphore again. A frame fence does not cover present.
+        return *render_semaphores[image_index];
     }
 
     u32 GetWidth() const {

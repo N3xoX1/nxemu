@@ -443,7 +443,7 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
     const std::array wait_semaphores = {present_semaphore, *frame->render_ready};
 
     static constexpr std::array<VkPipelineStageFlags, 2> wait_stage_masks{
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
     };
 

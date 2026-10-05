@@ -150,20 +150,24 @@ bool Swapchain::AcquireNextImage() {
         is_suboptimal = true;
         break;
     case VK_ERROR_OUT_OF_DATE_KHR:
+        // No image was acquired, so image_index is not valid for this call.
         is_outdated = true;
-        break;
+        return true;
     case VK_ERROR_SURFACE_LOST_KHR:
         vk::Check(result);
         break;
     default:
         LOG_ERROR(Render_Vulkan, "vkAcquireNextImageKHR returned {}", string_VkResult(result));
+        vk::Check(result);
         break;
     }
 
     scheduler.Wait(resource_ticks[image_index]);
     resource_ticks[image_index] = scheduler.CurrentTick();
 
-    return is_suboptimal || is_outdated;
+    // VK_SUBOPTIMAL_KHR is still a successful acquire. Consume the acquire
+    // semaphore and present this image before recreating on the next frame.
+    return false;
 }
 
 void Swapchain::Present(VkSemaphore render_semaphore) {
@@ -184,6 +188,7 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         break;
     case VK_SUBOPTIMAL_KHR:
         LOG_DEBUG(Render_Vulkan, "Suboptimal swapchain");
+        is_suboptimal = true;
         break;
     case VK_ERROR_OUT_OF_DATE_KHR:
         is_outdated = true;
@@ -193,6 +198,7 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         break;
     default:
         LOG_CRITICAL(Render_Vulkan, "Failed to present with error {}", string_VkResult(result));
+        vk::Check(result);
         break;
     }
     ++frame_index;
