@@ -155,13 +155,16 @@ catch (const vk::Exception & exception)
 
 RendererVulkan::~RendererVulkan()
 {
+    scheduler.WaitWorker();
     scheduler.RegisterOnSubmit([] {});
+    present_manager.DrainAndStop();
     void(device.GetLogical().WaitIdle());
     CleanupWatermark();
 }
 
 void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebuffers)
 {
+    std::scoped_lock composite_lock{composite_mutex};
     if (framebuffers.empty())
     {
         return;

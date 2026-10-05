@@ -15,8 +15,10 @@
 #include "yuzu_common/polyfill_thread.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/scope_exit.h"
+#include "yuzu_common/logging/log.h"
 #include "nxemu-video/video_settings.h"
 #include <chrono>
+#include <exception>
 #include <cstring>
 #include <algorithm>
 #include <future>
@@ -24,6 +26,7 @@
 #include <vector>
 
 extern IModuleSettings * g_settings;
+extern IModuleNotification * g_notify;
 
 struct VideoManager::Impl 
 {
@@ -52,7 +55,19 @@ struct VideoManager::Impl
         // The loader captures this and may still access the GPU, window and Host1x.
         if (m_init.valid())
         {
-            m_init.wait();
+            // The future stores the exception of a failed asynchronous shader loading.
+            try
+            {
+                m_init.get();
+            }
+            catch (const std::exception & e)
+            {
+                LOG_ERROR(Render, "Video initialization failed: {}", e.what());
+            }
+            catch (...)
+            {
+                LOG_ERROR(Render, "Video initialization failed with an unknown error");
+            }
         }
         if (m_gpuCore)
         {
@@ -94,6 +109,11 @@ struct VideoManager::Impl
         m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x);
         if (!m_gpuCore)
         {
+            // Modules are separate libraries with a C interface, so the failure is reported
+            // through the core instead of an exception. The stop request keeps the core
+            // from starting the guest after this module.
+            m_modules.StopEmulation(false);
+            g_notify->DisplayError("Could not initialize the graphics renderer. Check the selected GPU and the graphics driver; see the log for missing Vulkan features.", "Emulation initialization failed");
             return;
         }
         m_initStop = std::stop_source{};
@@ -164,6 +184,12 @@ void VideoManager::EmulationStarting()
 void VideoManager::EmulationStopping(bool wait)
 {
     impl->StopInitialization(wait);
+    if (wait)
+    {
+        // The core joins the OS producers before a synchronous video stop, so the
+        // renderer can be released with its session instead of at the next start.
+        impl->m_gpuCore.reset();
+    }
 }
 
 bool VideoManager::Initialize()

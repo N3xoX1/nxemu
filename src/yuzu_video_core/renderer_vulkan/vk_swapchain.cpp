@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <mutex>
 #include <vector>
 
 #include "yuzu_common/logging/log.h"
@@ -130,13 +131,20 @@ void Swapchain::Create(VkSurfaceKHR surface_, u32 width_, u32 height_) {
         return;
     }
 
+    if (swapchain) {
+        // Copies use the graphics queue, which can differ from the present
+        // queue. Retire both before destroying images and acquire semaphores.
+        std::scoped_lock submit_lock{scheduler.submit_mutex};
+        if (device.GetGraphicsFamily() != device.GetPresentFamily()) {
+            vk::Check(device.GetGraphicsQueue().WaitIdle());
+        }
+        // Practical presentation-retirement fallback without maintenance1 fences.
+        vk::Check(device.GetPresentQueue().WaitIdle());
+    }
     Destroy();
 
     CreateSwapchain(capabilities);
     CreateSemaphores();
-
-    resource_ticks.clear();
-    resource_ticks.resize(image_count);
 }
 
 bool Swapchain::AcquireNextImage() {
@@ -162,9 +170,9 @@ bool Swapchain::AcquireNextImage() {
         break;
     }
 
-    scheduler.Wait(resource_ticks[image_index]);
-    resource_ticks[image_index] = scheduler.CurrentTick();
-
+    // The copy submission waits on the acquire semaphore before accessing this
+    // image. Scheduler ticks do not track presentation and must not be waited
+    // here: Scheduler::Wait can Flush from this presentation thread.
     // VK_SUBOPTIMAL_KHR is still a successful acquire. Consume the acquire
     // semaphore and present this image before recreating on the next frame.
     return false;
@@ -202,7 +210,7 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         break;
     }
     ++frame_index;
-    if (frame_index >= image_count) {
+    if (frame_index >= acquire_count) {
         frame_index = 0;
     }
 }
@@ -297,7 +305,8 @@ void Swapchain::CreateSwapchain(const VkSurfaceCapabilitiesKHR& capabilities) {
 }
 
 void Swapchain::CreateSemaphores() {
-    present_semaphores.resize(image_count);
+    acquire_count = std::max(acquire_count, image_count);
+    present_semaphores.resize(acquire_count);
     std::ranges::generate(present_semaphores,
                           [this] { return device.GetLogical().CreateSemaphore(); });
     render_semaphores.resize(image_count);
@@ -308,6 +317,7 @@ void Swapchain::CreateSemaphores() {
 void Swapchain::Destroy() {
     frame_index = 0;
     present_semaphores.clear();
+    render_semaphores.clear();
     swapchain.reset();
 }
 

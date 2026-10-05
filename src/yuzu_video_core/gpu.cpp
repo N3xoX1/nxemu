@@ -8,11 +8,13 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <exception>
 #include <list>
 #include <memory>
 
 #include "frontend/emu_window.h"
 #include "frontend/graphics_context.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/nvdata.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -442,8 +444,29 @@ struct GPU::Impl :
             return;
         }
         composite_requests.Composite([this](const auto& layers) {
-            renderer->Composite(layers);
+            Composite(layers);
         });
+    }
+
+    void Composite(std::span<const Tegra::FramebufferConfig> layers)
+    {
+        if (composite_failed.load(std::memory_order_acquire))
+        {
+            return;
+        }
+        try
+        {
+            renderer->Composite(layers);
+        }
+        catch (const std::exception & error)
+        {
+            // Presentation failures reach this GPU callback. Stop producers
+            // asynchronously; joining this thread here would deadlock.
+            if (composite_failed.exchange(true, std::memory_order_acq_rel))
+                return;
+            LOG_ERROR(Render, "Frame presentation failed: {}", error.what());
+            m_modules.StopEmulation(false);
+        }
     }
 
     std::vector<u8> GetAppletCaptureBuffer()
@@ -507,6 +530,7 @@ struct GPU::Impl :
     s32 bound_channel{-1};
 
     VideoCommon::CompositeRequestQueue composite_requests;
+    std::atomic_bool composite_failed{false};
 
     // Join the worker before destroying its scheduler, context, or pending requests.
     VideoCommon::GPUThread::ThreadManager gpu_thread;

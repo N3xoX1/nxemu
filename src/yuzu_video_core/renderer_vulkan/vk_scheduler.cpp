@@ -285,11 +285,15 @@ void Scheduler::EndPendingOperations() {
 #else
     // query_cache->DisableStreams();
 #endif
-    query_cache->NotifySegment(false);
     EndRenderPass();
 }
 
 void Scheduler::EndRenderPass() {
+    // Also close conditional rendering begun outside a render pass before
+    // RequestRenderpass starts a new one. Each segment must end in its scope.
+    if (query_cache) {
+        query_cache->NotifySegment(false);
+    }
     if (!state.renderpass) {
         return;
     }

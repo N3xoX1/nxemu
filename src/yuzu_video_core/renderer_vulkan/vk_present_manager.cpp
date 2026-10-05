@@ -135,25 +135,78 @@ PresentManager::PresentManager(const vk::Instance& instance_,
     }
 }
 
-PresentManager::~PresentManager() = default;
+PresentManager::~PresentManager() {
+    DrainAndStop();
+}
+
+void PresentManager::DrainAndStop() noexcept {
+    if (stopped) {
+        return;
+    }
+    stopped = true;
+    if (!use_present_thread) {
+        return;
+    }
+    // Producers and scheduler are joined by the owning renderer first.
+    {
+        std::unique_lock queue_lock{queue_mutex};
+        frame_cv.wait(queue_lock, [this] { return present_queue.empty() || failed.load(); });
+    }
+    // Last dequeued frame is protected by swapchain_mutex.
+    {
+        std::scoped_lock swapchain_lock{swapchain_mutex};
+    }
+    present_thread.request_stop();
+    frame_cv.notify_all();
+    if (present_thread.joinable()) {
+        present_thread.join();
+    }
+}
 
 Frame* PresentManager::GetRenderFrame() {
+    if (failed.load(std::memory_order_acquire)) {
+        std::scoped_lock lock{queue_mutex};
+        std::rethrow_exception(presentation_error);
+    }
     // Wait for free presentation frames
     std::unique_lock lock{free_mutex};
-    free_cv.wait(lock, [this] { return !free_queue.empty(); });
+    free_cv.wait(lock, [this] { return !free_queue.empty() || failed.load(); });
+    if (failed.load()) {
+        lock.unlock();
+        std::scoped_lock error_lock{queue_mutex};
+        std::rethrow_exception(presentation_error);
+    }
 
     // Take the frame from the queue
     Frame* frame = free_queue.front();
     free_queue.pop();
+    lock.unlock();
 
-    // Wait for the presentation to be finished so all frame resources are free
-    frame->present_done.Wait();
+    // A failed presentation might not submit this frame's fence at all.
+    // Use bounded waits so an in-flight consumer can observe that failure.
+    for (;;) {
+        const VkResult result = frame->present_done.Wait(100'000'000);
+        if (result == VK_SUCCESS) {
+            break;
+        }
+        if (result != VK_TIMEOUT) {
+            vk::Check(result);
+        }
+        if (failed.load(std::memory_order_acquire)) {
+            std::scoped_lock error_lock{queue_mutex};
+            std::rethrow_exception(presentation_error);
+        }
+    }
     frame->present_done.Reset();
 
     return frame;
 }
 
 void PresentManager::Present(Frame* frame) {
+    if (failed.load(std::memory_order_acquire)) {
+        std::scoped_lock lock{queue_mutex};
+        std::rethrow_exception(presentation_error);
+    }
     if (!use_present_thread) {
         scheduler.WaitWorker();
         CopyToSwapchain(frame);
@@ -163,6 +216,14 @@ void PresentManager::Present(Frame* frame) {
 
     scheduler.Record([this, frame](vk::CommandBuffer) {
         std::unique_lock lock{queue_mutex};
+        if (failed.load(std::memory_order_acquire)) {
+            // Presentation may fail after this callback has been recorded.
+            // Do not enqueue new frames on a stopped presentation thread.
+            std::scoped_lock free_lock{free_mutex};
+            free_queue.push(frame);
+            free_cv.notify_all();
+            return;
+        }
         present_queue.push(frame);
         frame_cv.notify_one();
     });
@@ -245,13 +306,18 @@ void PresentManager::WaitPresent() {
     // Wait for the present queue to be empty
     {
         std::unique_lock queue_lock{queue_mutex};
-        frame_cv.wait(queue_lock, [this] { return present_queue.empty(); });
+        frame_cv.wait(queue_lock, [this] { return present_queue.empty() || failed.load(); });
     }
 
-    // The above condition will be satisfied when the last frame is taken from the queue.
-    // To ensure that frame has been presented as well take hold of the swapchain
-    // mutex.
-    std::scoped_lock swapchain_lock{swapchain_mutex};
+    // Never acquire queue_mutex while holding swapchain_mutex. The present
+    // worker may hold swapchain_mutex while reporting an error to the queue.
+    {
+        std::scoped_lock swapchain_lock{swapchain_mutex};
+    }
+    if (failed.load(std::memory_order_acquire)) {
+        std::scoped_lock error_lock{queue_mutex};
+        std::rethrow_exception(presentation_error);
+    }
 }
 
 void PresentManager::PresentThread(std::stop_token token) {
@@ -275,7 +341,28 @@ void PresentManager::PresentThread(std::stop_token token) {
         // lock in WaitPresent is guaranteed to occur after here.
         std::exchange(lock, std::unique_lock{swapchain_mutex});
 
-        CopyToSwapchain(frame);
+        try {
+            CopyToSwapchain(frame);
+        } catch (...) {
+            // CopyToSwapchain already handles a lost surface. Hand any other
+            // failure to the renderer owner instead of terminating this thread.
+            {
+                std::scoped_lock queue_lock{queue_mutex};
+                // Publish the failure under the mutex used by free_cv's
+                // predicate, so a waiting producer cannot miss the wakeup.
+                std::scoped_lock free_lock{free_mutex};
+                presentation_error = std::current_exception();
+                while (!present_queue.empty()) {
+                    auto* pending = present_queue.front();
+                    present_queue.pop();
+                    free_queue.push(pending);
+                }
+                failed.store(true, std::memory_order_release);
+            }
+            free_cv.notify_all();
+            frame_cv.notify_all();
+            return;
+        }
 
         // Free the frame for reuse
         std::scoped_lock fl{free_mutex};

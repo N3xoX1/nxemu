@@ -117,8 +117,10 @@ private:
     vk::SwapchainKHR swapchain;
 
     std::size_t image_count{};
+    // The presentation frame pool keeps its initial size across recreation.
+    // Keep acquisition buffering at least that large when image_count shrinks.
+    std::size_t acquire_count{};
     std::vector<VkImage> images;
-    std::vector<u64> resource_ticks;
     std::vector<vk::Semaphore> present_semaphores;
     std::vector<vk::Semaphore> render_semaphores;
 

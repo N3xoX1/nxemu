@@ -219,6 +219,7 @@ void Load(VkDevice device, DeviceDispatch& dld) noexcept {
     X(vkGetSemaphoreCounterValue);
     X(vkMapMemory);
     X(vkQueueSubmit);
+    X(vkQueueWaitIdle);
     X(vkResetFences);
     X(vkResetQueryPool);
     X(vkSetDebugUtilsObjectNameEXT);

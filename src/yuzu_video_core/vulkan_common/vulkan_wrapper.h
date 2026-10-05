@@ -317,6 +317,7 @@ struct DeviceDispatch : InstanceDispatch {
     PFN_vkGetSemaphoreCounterValue vkGetSemaphoreCounterValue{};
     PFN_vkMapMemory vkMapMemory{};
     PFN_vkQueueSubmit vkQueueSubmit{};
+    PFN_vkQueueWaitIdle vkQueueWaitIdle{};
     PFN_vkResetFences vkResetFences{};
     PFN_vkResetQueryPool vkResetQueryPool{};
     PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT{};
@@ -769,6 +770,10 @@ public:
 
     VkResult Present(const VkPresentInfoKHR& present_info) const noexcept {
         return dld->vkQueuePresentKHR(queue, &present_info);
+    }
+
+    VkResult WaitIdle() const noexcept {
+        return dld->vkQueueWaitIdle(queue);
     }
 
 private:
