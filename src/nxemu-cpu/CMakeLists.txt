@@ -402,6 +402,7 @@ if(ARCHITECTURE_arm64)
         dynarmic/backend/arm64/emit_arm64_data_processing.cpp
         dynarmic/backend/arm64/emit_arm64_floating_point.cpp
         dynarmic/backend/arm64/emit_arm64_memory.cpp
+        dynarmic/backend/arm64/emit_arm64_far_branch.h
         dynarmic/backend/arm64/emit_arm64_memory.h
         dynarmic/backend/arm64/emit_arm64_packed.cpp
         dynarmic/backend/arm64/emit_arm64_saturation.cpp
