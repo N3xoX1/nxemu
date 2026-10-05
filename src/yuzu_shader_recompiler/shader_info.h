@@ -239,6 +239,9 @@ struct Info {
     static constexpr size_t MAX_INDIRECT_CBUFS{14};
     static constexpr size_t MAX_CBUFS{18};
     static constexpr size_t MAX_SSBOS{32};
+    static constexpr size_t NUM_NVN_STORAGE_BUFFERS{16};
+    static constexpr u32 NVN_STORAGE_BUFFER_DESCRIPTOR_SIZE{0x10};
+    static constexpr u32 NVN_STORAGE_BUFFER_CBUF_INDEX{0};
 
     bool uses_workgroup_id{};
     bool uses_local_invocation_id{};
@@ -319,7 +322,7 @@ struct Info {
     u32 constant_buffer_mask{};
     std::array<u32, MAX_CBUFS> constant_buffer_used_sizes{};
     u32 nvn_buffer_base{};
-    std::bitset<16> nvn_buffer_used{};
+    std::bitset<NUM_NVN_STORAGE_BUFFERS> nvn_buffer_used{};
 
     bool requires_layer_emulation{};
     IR::Attribute emulated_layer{};
@@ -334,6 +337,25 @@ struct Info {
     TextureDescriptors texture_descriptors;
     ImageDescriptors image_descriptors;
 };
+
+inline u32 NvnStorageBufferOffset(const Info& info, size_t nvn_index) {
+    return info.nvn_buffer_base +
+           static_cast<u32>(nvn_index) * Info::NVN_STORAGE_BUFFER_DESCRIPTOR_SIZE;
+}
+
+inline bool IsUsedNvnStorageBufferDescriptor(const Info& info,
+                                             const StorageBufferDescriptor& desc) {
+    if (desc.cbuf_index != Info::NVN_STORAGE_BUFFER_CBUF_INDEX ||
+        desc.cbuf_offset < info.nvn_buffer_base) {
+        return false;
+    }
+    const u32 relative_offset{desc.cbuf_offset - info.nvn_buffer_base};
+    if (relative_offset % Info::NVN_STORAGE_BUFFER_DESCRIPTOR_SIZE != 0) {
+        return false;
+    }
+    const size_t nvn_index{relative_offset / Info::NVN_STORAGE_BUFFER_DESCRIPTOR_SIZE};
+    return nvn_index < info.nvn_buffer_used.size() && info.nvn_buffer_used[nvn_index];
+}
 
 template <typename Descriptors>
 u32 NumDescriptors(const Descriptors& descriptors) {

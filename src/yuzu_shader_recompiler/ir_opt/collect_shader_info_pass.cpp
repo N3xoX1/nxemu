@@ -107,8 +107,9 @@ void CheckCBufNVN(Info& info, IR::Inst& inst) {
         return;
     }
     const u32 offset{cbuf_offset.U32()};
-    const u32 descriptor_size{0x10};
-    const u32 upper_limit{info.nvn_buffer_base + descriptor_size * 16};
+    const u32 descriptor_size{Info::NVN_STORAGE_BUFFER_DESCRIPTOR_SIZE};
+    const u32 upper_limit{info.nvn_buffer_base +
+                          descriptor_size * static_cast<u32>(Info::NUM_NVN_STORAGE_BUFFERS)};
     if (offset >= info.nvn_buffer_base && offset < upper_limit) {
         const std::size_t nvn_index{(offset - info.nvn_buffer_base) / descriptor_size};
         info.nvn_buffer_used.set(nvn_index, true);
@@ -723,6 +724,7 @@ void VisitUsages(Info& info, IR::Inst& inst) {
     case IR::Opcode::StorageAtomicAnd64:
     case IR::Opcode::StorageAtomicOr64:
     case IR::Opcode::StorageAtomicXor64:
+    case IR::Opcode::StorageAtomicExchange64:
         info.used_storage_buffer_types |= IR::Type::U64 | IR::Type::U32x2;
         info.uses_int64_bit_atomics = true;
         break;

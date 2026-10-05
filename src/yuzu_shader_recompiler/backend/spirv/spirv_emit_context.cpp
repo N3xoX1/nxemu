@@ -939,7 +939,7 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         AddLabel();
         const size_t num_buffers{info.storage_buffers_descriptors.size()};
         for (size_t index = 0; index < num_buffers; ++index) {
-            if (!info.nvn_buffer_used[index]) {
+            if (!IsUsedNvnStorageBufferDescriptor(info, info.storage_buffers_descriptors[index])) {
                 continue;
             }
             const auto& ssbo{info.storage_buffers_descriptors[index]};
