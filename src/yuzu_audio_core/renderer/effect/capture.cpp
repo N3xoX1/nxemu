@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+
 #include "yuzu_audio_core/renderer/effect/aux_.h"
 #include "yuzu_audio_core/renderer/effect/capture.h"
 

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+
 #include "yuzu_audio_core/opus/decoder.h"
 #include "yuzu_audio_core/opus/hardware_opus.h"
 #include "yuzu_audio_core/opus/parameters.h"

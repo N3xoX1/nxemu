@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include "yuzu_common/common_types.h"
 #include "yuzu_hid_core/hid_types.h"
 #include "yuzu_hid_core/resources/controller_base.h"

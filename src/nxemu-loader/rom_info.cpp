@@ -10,6 +10,7 @@
 #include "core/loader/loader.h"
 #include <algorithm>
 #include <common/path.h>
+#include <cstring>
 #include <filesystem>
 #include <map>
 #include <yuzu_common/fs/fs.h>

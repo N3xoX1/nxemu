@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/vfs/vfs.h"
 #include <nxemu-module-spec/base.h>

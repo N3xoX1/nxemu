@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <mutex>
 
 #include "yuzu_common/bit_field.h"

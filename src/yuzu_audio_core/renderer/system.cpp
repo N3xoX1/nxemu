@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <chrono>
+#include <cstring>
 #include <span>
 
 #include "yuzu_audio_core/adsp/apps/audio_renderer/audio_renderer.h"

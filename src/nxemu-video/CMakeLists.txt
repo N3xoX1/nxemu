@@ -49,6 +49,9 @@ endif()
 
 if(ANDROID)
     target_link_libraries(nxemu-video PRIVATE log android)
+endif()
+
+if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(nxemu-video PRIVATE "LINKER:-Bsymbolic")
 endif()
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cmath>
+#include <cstring>
 #include <span>
 #include <vector>
 

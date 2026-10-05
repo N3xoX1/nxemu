@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstring>
 #include <optional>
 
 #include "yuzu_common/literals.h"

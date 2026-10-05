@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstring>
+
 #include "yuzu_common/literals.h"
 
 #include "core/file_sys/errors.h"

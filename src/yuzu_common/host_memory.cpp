@@ -39,6 +39,7 @@
 #endif // ^^^ POSIX ^^^
 
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <random>
 

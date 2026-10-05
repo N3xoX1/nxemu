@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 
 #include "yuzu_common/common_types.h"
 
