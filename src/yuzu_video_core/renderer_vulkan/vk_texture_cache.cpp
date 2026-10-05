@@ -168,12 +168,9 @@ constexpr VkBorderColor ConvertBorderColor(const std::array<float, 4>& color) {
         .viewFormatCount = static_cast<u32>(view_formats.size()),
         .pViewFormats = view_formats.data(),
     };
-    const bool needs_astc_views = IsPixelFormatASTC(info.format) &&
-                                  !device.IsOptimalAstcSupported() &&
-                                  videoSettings.astc_recompression == AstcRecompression::Uncompressed;
-    if (view_formats.size() > 1 || needs_astc_views) {
+    if (view_formats.size() > 1) {
         image_ci.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
-        if (device.IsKhrImageFormatListSupported() && !view_formats.empty()) {
+        if (device.IsKhrImageFormatListSupported()) {
             image_ci.pNext = &image_format_list;
         }
     }
@@ -861,9 +858,8 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
     }
     for (size_t index_a = 0; index_a < VideoCore::Surface::MaxPixelFormat; index_a++) {
         const auto image_format = static_cast<PixelFormat>(index_a);
-        if (IsPixelFormatASTC(image_format) && !device.IsOptimalAstcSupported() &&
-            videoSettings.astc_recompression == AstcRecompression::Uncompressed) {
-            view_formats[index_a].push_back(VK_FORMAT_R8G8B8A8_UNORM);
+        if (IsPixelFormatASTC(image_format) && !device.IsOptimalAstcSupported()) {
+            view_formats[index_a].push_back(VK_FORMAT_A8B8G8R8_UNORM_PACK32);
         }
         for (size_t index_b = 0; index_b < VideoCore::Surface::MaxPixelFormat; index_b++) {
             const auto view_format = static_cast<PixelFormat>(index_b);
@@ -1408,7 +1404,7 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
         const auto& device = runtime->device.GetLogical();
         for (s32 level = 0; level < info.resources.levels; ++level) {
             storage_image_views[level] =
-                MakeStorageView(device, level, *original_image, VK_FORMAT_R8G8B8A8_UNORM);
+                MakeStorageView(device, level, *original_image, VK_FORMAT_A8B8G8R8_UNORM_PACK32);
         }
     }
 }
@@ -1694,18 +1690,6 @@ bool Image::NeedsScaleHelper() const {
     return needs_blit_helper;
 }
 
-VkImageSubresourceRange ImageView::BarrierSubresourceRange() const noexcept {
-    VkImageSubresourceRange subresource_range = MakeSubresourceRange(this);
-    if (type == VideoCommon::ImageViewType::e3D ||
-        True(flags & VideoCommon::ImageViewFlagBits::Slice)) {
-        // Barriers cover the 3D mip level, not the slices of a 2D attachment
-        // view. Keep full depth coverage even when maintenance9 is enabled.
-        subresource_range.baseArrayLayer = 0;
-        subresource_range.layerCount = VK_REMAINING_ARRAY_LAYERS;
-    }
-    return subresource_range;
-}
-
 ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewInfo& info,
                      ImageId image_id_, Image& image)
     : VideoCommon::ImageViewBase{info, image.info, image_id_, image.gpu_addr},
@@ -1732,10 +1716,7 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
     const VkImageViewUsageCreateInfo image_view_usage{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
         .pNext = nullptr,
-        // A compatible view format may support usages that the backing image
-        // was not created with. Restrict the view to the image's actual usages.
-        .usage = ImageUsageFlags(format_info, format) &
-                 MakeImageCreateInfo(*device, image.info).usage,
+        .usage = ImageUsageFlags(format_info, format),
     };
     const VkImageViewCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

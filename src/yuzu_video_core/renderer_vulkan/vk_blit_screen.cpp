@@ -21,14 +21,9 @@ BlitScreen::BlitScreen(Tegra::MaxwellDeviceMemoryManager& device_memory_, const 
 BlitScreen::~BlitScreen() = default;
 
 void BlitScreen::WaitIdle() {
-    // Scheduler callbacks can enqueue presentation frames. Drain them first.
-    scheduler.Finish();
-    scheduler.WaitWorker();
     present_manager.WaitPresent();
-    // Finish waits for GPU work, but queue submissions also require host
-    // synchronization with the scheduler and presentation worker.
-    std::scoped_lock lock{scheduler.submit_mutex};
-    vk::Check(device.GetLogical().WaitIdle());
+    scheduler.Finish();
+    device.GetLogical().WaitIdle();
 }
 
 void BlitScreen::SetWindowAdaptPass() {

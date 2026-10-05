@@ -48,11 +48,8 @@ public:
                    Tegra::Engines::Fermi2D::Filter filter,
                    Tegra::Engines::Fermi2D::Operation operation);
 
-    // Select the render pass before the caller starts its occlusion counter.
-    void PrepareDrawTexture(const Framebuffer* dst_framebuffer, const ImageView& src_image_view);
-
-    void DrawTexture(const Framebuffer* dst_framebuffer, VkImageView src_image_view,
-                   VkSampler src_sampler, const Region2D& dst_region,
+    void BlitColor(const Framebuffer* dst_framebuffer, VkImageView src_image_view,
+                   VkImage src_image, VkSampler src_sampler, const Region2D& dst_region,
                    const Region2D& src_region, const Extent3D& src_size);
 
     void BlitDepthStencil(const Framebuffer* dst_framebuffer, VkImageView src_depth_view,

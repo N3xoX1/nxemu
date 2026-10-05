@@ -15,12 +15,9 @@
 #include "yuzu_common/settings.h"
 #include "nxemu-video/video_settings.h"
 #include <chrono>
-#include <cstdio>
-#include <exception>
 #include <cstring>
 #include <algorithm>
 #include <future>
-#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -65,7 +62,7 @@ struct VideoManager::Impl
         m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x);
         if (!m_gpuCore)
         {
-            throw std::runtime_error("Could not initialize the graphics renderer. Check the selected GPU and the graphics driver; see the log for missing Vulkan features.");
+            return;
         }
         m_init = std::async(std::launch::async, [this]() {
             const auto notify_disk_cache_progress = [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
@@ -131,7 +128,12 @@ VideoManager::VideoManager(IRenderWindow & window, ISystemModules & modules) :
 
 VideoManager::~VideoManager()
 {
-    Shutdown();
+    impl->m_host1x.release();
+    if (impl->m_gpuCore)
+    {
+        impl->m_gpuCore.reset();
+    }
+    impl->m_emuWindow.release();
 }
 
 void VideoManager::EmulationStarting()
@@ -145,35 +147,14 @@ bool VideoManager::Initialize()
     return impl->Initialize();
 }
 
-void VideoManager::EmulationStopping(bool wait)
-{
-    if (!wait)
-        return;
-    if (impl->m_init.valid())
-    {
-        // All teardown paths must join the initialization task, even on failure.
-        // The future stores the exception from the asynchronous shader loading.
-        try { impl->m_init.get(); }
-        catch (const std::exception & e) {
-            std::fprintf(stderr, "nxemu-video: initialization failed during shutdown: %s\n", e.what());
-        }
-        catch (...) {
-            std::fputs("nxemu-video: unknown initialization failure during shutdown\n", stderr);
-        }
-    }
-    if (impl->m_gpuCore)
-    {
-        impl->m_gpuCore->NotifyShutdown();
-        impl->m_gpuCore.reset();
-    }
-}
-
 void VideoManager::Shutdown()
 {
-    EmulationStopping(true);
-    impl->m_emuWindow.reset();
-    // Impl destroys the memory-manager registry before m_host1x (member order).
-}
+    impl->m_host1x.reset();
+    if (impl->m_gpuCore != nullptr)
+    {
+        impl->m_gpuCore->NotifyShutdown();
+    }
+};
 
 uint32_t VideoManager::AllocAsEx(uint64_t addressSpaceBits, uint64_t splitAddress, uint64_t bigPageBits, uint64_t pageBits)
 {

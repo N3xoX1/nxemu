@@ -235,8 +235,6 @@ public:
         return image_handle;
     }
 
-    [[nodiscard]] VkImageSubresourceRange BarrierSubresourceRange() const noexcept;
-
     [[nodiscard]] VkImageView RenderTarget() const noexcept {
         return render_target;
     }

@@ -8,7 +8,6 @@
 #include "notification.h"
 #include "settings/core_settings.h"
 #include <vector>
-#include <exception>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/settings/identifiers.h>
 
@@ -72,29 +71,12 @@ struct SystemModules::Impl :
 
     void StartEmulation() override
     {
-        if (pendingAsyncStop)
-        {
-            // Stop(false) requests an asynchronous shutdown. It cannot overlap
-            // the next video renderer's initialization.
-            if (operatingsystemModule)
-                operatingsystemModule->EmulationStopping(true);
-            if (videoModule)
-                videoModule->EmulationStopping(true);
-            pendingAsyncStop = false;
-        }
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Starting);
 
-        try
+        for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
         {
-            for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
-                (*itr)->EmulationStarting();
-        }
-        catch (const std::exception & error)
-        {
-            // Do not start guest CPUs after video initialization fails.
-            StopEmulation(true);
-            moduleNotification.DisplayError(error.what(), "Emulation initialization failed");
+            (*itr)->EmulationStarting();
         }
     }
 
@@ -109,14 +91,8 @@ struct SystemModules::Impl :
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopping);
 
-        // A synchronous shutdown must join the emulation/producer thread
-        // before releasing GPU resources in the video module.
-        if (wait && operatingsystemModule)
-            operatingsystemModule->EmulationStopping(true);
         for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
         {
-            if (wait && *itr == operatingsystemModule.get())
-                continue;
             (*itr)->EmulationStopping(wait);
         }
         if (settings.GetBool(NXCoreSetting::EmulationRunning))
@@ -124,7 +100,6 @@ struct SystemModules::Impl :
             settings.SetBool(NXCoreSetting::EmulationRunning, false);
         }
 
-        pendingAsyncStop = !wait;
         stopping = false;
     }
 
@@ -166,7 +141,6 @@ struct SystemModules::Impl :
     IOperatingSystem * operatingsystem;
     bool valid;
     bool stopping;
-    bool pendingAsyncStop = false;
 };
 
 SystemModules::SystemModules()
@@ -253,6 +227,7 @@ void SystemModules::ShutDown()
         return;
     }
     impl->StopEmulation(true);
+    impl->baseModules.clear();
     if (impl->cpu != nullptr && impl->cpuModule.get() != nullptr)
     {
         impl->cpuModule->DestroyCpu(impl->cpu);
@@ -277,7 +252,6 @@ void SystemModules::ShutDown()
     {
         (*itr)->ModuleCleanup();
     }
-    impl->baseModules.clear();
     impl = nullptr;
 }
 

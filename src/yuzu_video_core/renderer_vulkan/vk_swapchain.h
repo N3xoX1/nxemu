@@ -84,9 +84,7 @@ public:
     }
 
     VkSemaphore CurrentRenderSemaphore() const {
-        // Reacquiring this image proves the presentation engine finished its
-        // previous wait; a frame fence alone cannot prove semaphore reuse safe.
-        return *render_semaphores[image_index];
+        return *render_semaphores[frame_index];
     }
 
     u32 GetWidth() const {

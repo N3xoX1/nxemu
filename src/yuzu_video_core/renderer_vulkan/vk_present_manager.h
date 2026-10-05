@@ -4,8 +4,6 @@
 #pragma once
 
 #include <condition_variable>
-#include <exception>
-#include <atomic>
 #include <mutex>
 #include <queue>
 
@@ -56,9 +54,6 @@ public:
     /// Waits for the present thread to finish presenting all queued frames.
     void WaitPresent();
 
-    // Called with producers stopped, before Vulkan objects are destroyed.
-    void DrainAndStop() noexcept;
-
 private:
     void PresentThread(std::stop_token token);
 
@@ -90,9 +85,6 @@ private:
     std::jthread present_thread;
     bool blit_supported;
     bool use_present_thread;
-    std::atomic_bool failed{false};
-    std::exception_ptr presentation_error;
-    bool stopped = false;
     std::size_t image_count{};
 };
 
