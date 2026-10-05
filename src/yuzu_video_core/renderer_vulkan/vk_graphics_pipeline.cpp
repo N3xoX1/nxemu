@@ -315,28 +315,38 @@ GraphicsPipeline::GraphicsPipeline(
         }
     }
     auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics] {
-        DescriptorLayoutBuilder builder{MakeBuilder(
-            device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
-        uses_push_descriptor = builder.CanUsePushDescriptor();
-        descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
-        if (!uses_push_descriptor) {
-            descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos);
-        }
-        const VkDescriptorSetLayout set_layout{*descriptor_set_layout};
-        pipeline_layout = builder.CreatePipelineLayout(set_layout);
-        descriptor_update_template =
-            builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
+        bool success{};
+        try {
+            DescriptorLayoutBuilder builder{MakeBuilder(
+                device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
+            uses_push_descriptor = builder.CanUsePushDescriptor();
+            descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
+            if (!uses_push_descriptor) {
+                descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos);
+            }
+            const VkDescriptorSetLayout set_layout{*descriptor_set_layout};
+            pipeline_layout = builder.CreatePipelineLayout(set_layout);
+            descriptor_update_template =
+                builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
 
-        const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(key.state))};
-        Validate();
-        MakePipeline(render_pass);
-        if (pipeline_statistics) {
-            pipeline_statistics->Collect(*pipeline);
-        }
+            const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(key.state))};
+            Validate();
+            MakePipeline(render_pass);
+            if (pipeline_statistics) {
+                pipeline_statistics->Collect(*pipeline);
+            }
 
-        std::scoped_lock lock{build_mutex};
-        is_built = true;
-        build_condvar.notify_one();
+            success = true;
+        } catch (const std::exception& exception) {
+            LOG_ERROR(Render_Vulkan, "Graphics pipeline {:016x} build failed: {}", key.Hash(),
+                      exception.what());
+        }
+        {
+            std::scoped_lock lock{build_mutex};
+            is_built.store(success, std::memory_order_release);
+            build_complete.store(true, std::memory_order_release);
+        }
+        build_condvar.notify_all();
         if (shader_notify) {
             shader_notify->MarkShaderComplete();
         }
@@ -569,11 +579,11 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     }
     scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
 
-    if (!is_built.load(std::memory_order::relaxed)) {
-        // Wait for the pipeline to be built
+    if (!build_complete.load(std::memory_order_acquire)) {
+        // Completion includes failure, so a failed build cannot strand this worker.
         scheduler.Record([this](vk::CommandBuffer) {
             std::unique_lock lock{build_mutex};
-            build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
+            build_condvar.wait(lock, [this] { return build_complete.load(std::memory_order_acquire); });
         });
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
@@ -584,13 +594,16 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                       is_rescaling, update_rescaling,
                       uses_render_area = render_area.uses_render_area,
                       render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
+        if (!IsBuilt()) {
+            return;
+        }
         if (bind_pipeline) {
             cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
         }
         cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
                              RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
                              rescaling_data.data());
-        if (update_rescaling) {
+        if (update_rescaling || bind_pipeline) {
             const f32 config_down_factor{videoSettings.resolution_info.down_factor};
             const f32 scale_down_factor{is_rescaling ? config_down_factor : 1.0f};
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,

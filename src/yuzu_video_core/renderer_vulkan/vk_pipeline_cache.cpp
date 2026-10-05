@@ -601,6 +601,9 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
 }
 
 GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const noexcept {
+    if (pipeline->IsFailed()) {
+        return nullptr;
+    }
     if (pipeline->IsBuilt()) {
         return pipeline;
     }
@@ -730,6 +733,10 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         env.Dump(hash, key.unique_hashes[index]);
     }
     LOG_ERROR(Render_Vulkan, "{}", exception.what());
+    return nullptr;
+} catch (const vk::Exception& exception) {
+    LOG_ERROR(Render_Vulkan, "Graphics pipeline {:016x} shader creation failed: {}", key.Hash(),
+              exception.what());
     return nullptr;
 }
 
