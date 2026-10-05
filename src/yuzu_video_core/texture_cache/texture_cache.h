@@ -2053,6 +2053,8 @@ void TextureCache<P>::RegisterImage(ImageId image_id) {
         (*channel_state->gpu_page_table)[page].push_back(image_id);
     });
     if (False(image.flags & ImageFlagBits::Sparse)) {
+        device_memory.RegisterFlushCacheRegion(image.cpu_addr, image.guest_size_bytes,
+                                              CacheType::TextureCache);
         auto map_id =
             slot_map_views.insert(image.gpu_addr, image.cpu_addr, image.guest_size_bytes, image_id);
         ForEachCPUPage(image.cpu_addr, image.guest_size_bytes,
@@ -2063,6 +2065,7 @@ void TextureCache<P>::RegisterImage(ImageId image_id) {
     boost::container::small_vector<ImageViewId, 16> sparse_maps;
     ForEachSparseSegment(
         image, [this, image_id, &sparse_maps](GPUVAddr gpu_addr, DAddr cpu_addr, size_t size) {
+            device_memory.RegisterFlushCacheRegion(cpu_addr, size, CacheType::TextureCache);
             auto map_id = slot_map_views.insert(gpu_addr, cpu_addr, size, image_id);
             ForEachCPUPage(cpu_addr, size,
                            [this, map_id](u64 page) { page_table[page].push_back(map_id); });

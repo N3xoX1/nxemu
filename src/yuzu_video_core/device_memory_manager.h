@@ -15,6 +15,7 @@
 #include "yuzu_common/range_mutex.h"
 #include "yuzu_common/scratch_buffer.h"
 #include "yuzu_common/virtual_buffer.h"
+#include "yuzu_video_core/flush_region_cache_filter.h"
 
 #include <nxemu-module-spec/cpu.h>
 #include <nxemu-module-spec/operating_system.h>
@@ -110,6 +111,16 @@ public:
     void UnregisterProcess(Asid id);
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
+
+    // Presence remains conservative across deletion, remapping and address reuse.
+    void RegisterFlushCacheRegion(DAddr addr, u64 size, VideoCommon::CacheType types) {
+        flush_cache_filter.Register(addr, size, types);
+    }
+
+    [[nodiscard]] VideoCommon::CacheType FilterFlushCaches(
+        DAddr addr, u64 size, VideoCommon::CacheType requested) const {
+        return flush_cache_filter.Filter(addr, size, requested);
+    }
 
     static constexpr size_t AS_BITS = Traits::device_virtual_bits;
 
@@ -208,6 +219,7 @@ private:
         (1ULL << (device_virtual_bits - page_bits)) / subentries;
     using CachedPages = std::array<CounterEntry, num_counter_entries>;
     std::unique_ptr<CachedPages> cached_pages;
+    VideoCommon::FlushRegionCacheFilter<Traits::device_virtual_bits> flush_cache_filter;
     Common::RangeMutex counter_guard;
     std::mutex mapping_guard;
 };
