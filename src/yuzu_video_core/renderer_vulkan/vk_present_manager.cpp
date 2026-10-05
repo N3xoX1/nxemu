@@ -99,7 +99,8 @@ PresentManager::PresentManager(const vk::Instance& instance_,
       memory_allocator{memory_allocator_}, scheduler{scheduler_}, swapchain{swapchain_},
       surface{surface_}, blit_supported{CanBlitToSwapchain(device.GetPhysical(),
                                                            swapchain.GetImageViewFormat())},
-      use_present_thread{videoSettings.async_presentation} {
+      use_present_thread{videoSettings.async_presentation},
+      presented_window{render_window.GetWindowInfo().render_surface} {
     SetImageCount();
 
     auto& dld = device.GetLogical();
@@ -296,25 +297,25 @@ void PresentManager::SetImageCount() {
 }
 
 void PresentManager::CopyToSwapchain(Frame* frame) {
-    bool requires_recreation = false;
+    const void* window = render_window.GetWindowInfo().render_surface;
+    if (window == nullptr) {
+        presented_window = nullptr;
+        return;
+    }
 
-    while (true) {
-        try {
-            // Recreate surface and swapchain if needed.
-            if (requires_recreation) {
-                surface = CreateSurface(instance, render_window.GetWindowInfo());
-                RecreateSwapchain(frame);
-            }
-
-            // Draw to swapchain.
-            return CopyToSwapchainImpl(frame);
-        } catch (const vk::Exception& except) {
-            if (except.GetResult() != VK_ERROR_SURFACE_LOST_KHR) {
-                throw;
-            }
-
-            requires_recreation = true;
+    try {
+        if (window != presented_window) {
+            surface = CreateSurface(instance, render_window.GetWindowInfo());
+            presented_window = window;
+            RecreateSwapchain(frame);
         }
+        CopyToSwapchainImpl(frame);
+    } catch (const vk::Exception& except) {
+        if (except.GetResult() != VK_ERROR_SURFACE_LOST_KHR &&
+            except.GetResult() != VK_ERROR_INITIALIZATION_FAILED) {
+            throw;
+        }
+        presented_window = nullptr;
     }
 }
 

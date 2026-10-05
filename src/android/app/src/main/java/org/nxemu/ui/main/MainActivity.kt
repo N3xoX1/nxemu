@@ -1,5 +1,6 @@
 package org.nxemu.ui.main
 
+import android.content.Context
 import android.content.Intent
 import android.hardware.input.InputManager
 import android.net.Uri
@@ -20,7 +21,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NXUISetting
 import org.nxemu.NativeLibrary
+import org.nxemu.features.input.NativeInput
+import org.nxemu.features.input.model.NativeButton
 import org.nxemu.ui.emulation.EmulationActivity
+import org.nxemu.ui.settings.ControllerSettings
 import org.nxemu.ui.settings.InputMappingSession
 import org.nxemu.ui.settings.OverlayLayoutActivity
 import org.nxemu.utils.InputHandler
@@ -143,15 +147,62 @@ open class MainActivity : ComponentActivity() {
             },
         )
         NativeLibrary.addSettingChangedListener(settingChangedForwarder)
+        bootstrapControllerOnFirstRun()
         val page = if (this is SettingsActivity) "settings.html" else "index.html"
         webView.loadUrl("file:///android_asset/$page")
         setContentView(webView)
         ThemeHelper.applySystemBars(this)
     }
 
+    private fun bootstrapControllerOnFirstRun() {
+        if (InputHandler.getDevices().isEmpty()) {
+            return
+        }
+        if (NativeInput.getButtonParam(0, NativeButton.A).get("engine", "") != "keyboard") {
+            return
+        }
+        InputHandler.updateControllerData()
+        ControllerSettings.autoMap(this, playerIndex = 0, index = 0)
+        if (NativeInput.getButtonParam(0, NativeButton.A).get("engine", "") == "keyboard") {
+            return
+        }
+        NativeLibrary.setSettingBool(NXUISetting.ShowInputOverlay, false)
+        NativeLibrary.saveSettings()
+    }
+
     override fun onResume() {
         super.onResume()
         emulationLaunchPending = false
+        InputHandler.updateControllerData()
+        inputManager()?.registerInputDeviceListener(inputDeviceListener, null)
+        refreshConnectedControllers()
+        resumeRunningGame()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        resumeRunningGame()
+    }
+
+    private fun resumeRunningGame() {
+        if (this is SettingsActivity) {
+            return
+        }
+        val path = EmulationActivity.activeGamePath ?: return
+        startActivity(
+            Intent(this, EmulationActivity::class.java).apply {
+                putExtra(EmulationActivity.EXTRA_GAME_PATH, path)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
+        )
+    }
+
+    override fun onPause() {
+        inputMapping.dismiss()
+        inputManager()?.unregisterInputDeviceListener(inputDeviceListener)
+        releaseBrowserStick()
+        super.onPause()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -260,6 +311,14 @@ open class MainActivity : ComponentActivity() {
         }
         webView.evaluateJavascript("if(typeof moveGameSelection==='function'){$moves}", null)
     }
+    private fun releaseBrowserStick() {
+        stickX = 0
+        stickY = 0
+        if (::webView.isInitialized) {
+            webView.removeCallbacks(stickRepeat)
+        }
+    }
+
     fun beginControllerMap(playerIndex: Int, mapId: String, title: String, filterIndex: Int) {
         runOnUiThread {
             inputMapping.begin(playerIndex, mapId, title, filterIndex)
@@ -278,6 +337,10 @@ open class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun inputManager(): InputManager? {
+        return getSystemService(Context.INPUT_SERVICE) as? InputManager
     }
 
     private fun refreshConnectedControllers() {

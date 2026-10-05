@@ -118,7 +118,6 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
 
     if (native_window == nullptr)
     {
-        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "Run: no native window");
         RestoreStubModulesLocked();
         return false;
     }
@@ -131,7 +130,6 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
 
     if (!m_system_modules->IsValid())
     {
-        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "Run: SystemModules invalid after Setup");
         RestoreStubModulesLocked();
         return false;
     }
@@ -147,20 +145,61 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
     ISystemloader & loader = m_system_modules->Modules().Systemloader();
     if (!loader.LoadRom(rom_path.c_str(), 0, -1, ApplicationLaunchType::FrontendInitiated))
     {
-        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "Run: LoadRom failed");
         RestoreStubModulesLocked();
         return false;
     }
-
-    __android_log_print(ANDROID_LOG_INFO, kLogTag, "Run: LoadRom ok");
     return true;
+}
+
+void EmulationSession::Stop()
+{
+    std::lock_guard lock(m_mutex);
+    SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+    RestoreStubModulesLocked();
+}
+
+void EmulationSession::SetPaused(bool paused)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return;
+    }
+    IOperatingSystem & os = m_system_modules->Modules().OperatingSystem();
+    if (!os.IsPoweredOn())
+    {
+        return;
+    }
+    os.SetEmulationPaused(paused);
+}
+
+bool EmulationSession::IsPaused()
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return false;
+    }
+    return m_system_modules->Modules().OperatingSystem().IsEmulationPaused();
+}
+
+void EmulationSession::SetNativeWindow(ANativeWindow * native_window)
+{
+    std::lock_guard lock(m_mutex);
+    m_render_window.AttachSurface(native_window, m_pixel_ratio);
+    m_native_window = native_window;
 }
 
 void EmulationSession::SurfaceDestroyed()
 {
     std::lock_guard lock(m_mutex);
-    SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
-    RestoreStubModulesLocked();
+    const bool keep_running = m_system_modules && m_system_modules->IsValid() &&
+                              SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);
+    m_render_window.SuppressPresentation();
+    if (keep_running)
+    {
+        m_system_modules->Modules().Video().NotifyWindowChanged();
+    }
 }
 
 void EmulationSession::SurfaceChanged()
@@ -174,13 +213,55 @@ void EmulationSession::SurfaceChanged()
     {
         return;
     }
+    IVideo & video = m_system_modules->Modules().Video();
+    video.NotifyWindowChanged();
     const int native_w = ANativeWindow_getWidth(m_native_window);
     const int native_h = ANativeWindow_getHeight(m_native_window);
     if (native_w > 0 && native_h > 0)
     {
-        m_system_modules->Modules().Video().UpdateFramebufferLayout(static_cast<uint32_t>(native_w),
-                                                                 static_cast<uint32_t>(native_h));
+        video.UpdateFramebufferLayout(static_cast<uint32_t>(native_w), static_cast<uint32_t>(native_h));
     }
+}
+
+bool EmulationSession::ReadAppletCapture(std::vector<uint8_t> & out, uint32_t & width, uint32_t & height)
+{
+    IVideo * video = nullptr;
+    {
+        std::lock_guard lock(m_mutex);
+        if (!m_system_modules || !m_system_modules->IsValid())
+        {
+            return false;
+        }
+        video = &m_system_modules->Modules().Video();
+    }
+    uint32_t capture_width = 0;
+    uint32_t capture_height = 0;
+    const uint32_t size = video->GetLinearAppletCaptureBuffer(nullptr, 0, &capture_width, &capture_height);
+    if (size == 0 || capture_width == 0 || capture_height == 0)
+    {
+        return false;
+    }
+    out.resize(size);
+    video->GetLinearAppletCaptureBuffer(out.data(), size, &capture_width, &capture_height);
+    width = capture_width;
+    height = capture_height;
+    return width * height * 4 <= out.size();
+}
+
+void EmulationSession::AppletCaptureSize(uint32_t & width, uint32_t & height)
+{
+    width = 0;
+    height = 0;
+    IVideo * video = nullptr;
+    {
+        std::lock_guard lock(m_mutex);
+        if (!m_system_modules || !m_system_modules->IsValid())
+        {
+            return;
+        }
+        video = &m_system_modules->Modules().Video();
+    }
+    video->GetLinearAppletCaptureBuffer(nullptr, 0, &width, &height);
 }
 
 ANativeWindow * EmulationSession::NativeWindow() const

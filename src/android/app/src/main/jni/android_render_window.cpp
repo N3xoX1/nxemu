@@ -10,6 +10,7 @@ AndroidRenderWindow::~AndroidRenderWindow()
 void AndroidRenderWindow::AttachSurface(ANativeWindow * native_window, float pixel_ratio)
 {
     std::lock_guard lock(m_mutex);
+    m_present = native_window != nullptr;
     m_pixel_ratio = pixel_ratio > 0.f ? pixel_ratio : 1.f;
     if (m_native_window == native_window)
     {
@@ -23,9 +24,16 @@ void AndroidRenderWindow::AttachSurface(ANativeWindow * native_window, float pix
     m_native_window = native_window;
 }
 
+void AndroidRenderWindow::SuppressPresentation()
+{
+    std::lock_guard lock(m_mutex);
+    m_present = false;
+}
+
 void AndroidRenderWindow::ClearSurface()
 {
     std::lock_guard lock(m_mutex);
+    m_present = false;
     if (m_native_window != nullptr)
     {
         ANativeWindow_release(m_native_window);
@@ -37,6 +45,10 @@ void AndroidRenderWindow::ClearSurface()
 void * AndroidRenderWindow::RenderSurface() const
 {
     std::lock_guard lock(m_mutex);
+    if (!m_present)
+    {
+        return nullptr;
+    }
     return m_native_window;
 }
 

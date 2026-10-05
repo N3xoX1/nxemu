@@ -450,6 +450,12 @@ JNIEXPORT jintArray JNICALL Java_org_nxemu_features_input_NativeInput_getSupport
     return result;
 }
 
+JNIEXPORT jint JNICALL Java_org_nxemu_features_input_NativeInput_getStyleIndexImpl(
+    JNIEnv * /*env*/, jobject /*obj*/, jint j_player_index)
+{
+    return EmulationSession::GetInstance().GetStyleIndex(j_player_index);
+}
+
 JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setStyleIndexImpl(JNIEnv * /*env*/, jobject /*obj*/, jint j_player_index, jint j_style_index)
 {
     SystemModules * modules = EmulationSession::GetInstance().Modules();

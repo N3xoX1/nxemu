@@ -143,6 +143,27 @@
                 android:textSize="12sp"
                 android:visibility="gone" />
         </FrameLayout>
+
+        <ImageView
+            android:id="@+id/paused_frame_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/paused_icon"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_gravity="center"
+            android:background="@drawable/circle_white"
+            android:clickable="true"
+            android:contentDescription="@string/emulation_unpause"
+            android:focusable="false"
+            android:padding="14dp"
+            android:src="@drawable/ic_play"
+            android:visibility="gone" />
     </FrameLayout>
 
     <LinearLayout
@@ -156,6 +177,21 @@
         android:focusable="true"
         android:orientation="vertical"
         android:paddingTop="24dp">
+
+        <TextView
+            android:id="@+id/menu_pause"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/in_game_menu_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="@string/emulation_pause"
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
+
         <TextView
             android:id="@+id/menu_lock_drawer"
             android:layout_width="match_parent"

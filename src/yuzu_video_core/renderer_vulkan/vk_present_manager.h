@@ -86,6 +86,7 @@ private:
     bool blit_supported;
     bool use_present_thread;
     std::size_t image_count{};
+    const void * presented_window = nullptr;
 };
 
 } // namespace Vulkan

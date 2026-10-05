@@ -12,6 +12,7 @@ public:
     ~AndroidRenderWindow();
 
     void AttachSurface(ANativeWindow * native_window, float pixel_ratio);
+    void SuppressPresentation();
     void ClearSurface();
 
     void * RenderSurface() const override;
@@ -21,4 +22,5 @@ private:
     mutable std::mutex m_mutex;
     ANativeWindow * m_native_window = nullptr;
     float m_pixel_ratio = 1.0f;
+    bool m_present = false;
 };

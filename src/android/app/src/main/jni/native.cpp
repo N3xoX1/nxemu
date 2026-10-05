@@ -3,7 +3,9 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 #include <array>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include <common/json.h>
 #include <nxemu-core/app_init.h>
@@ -163,6 +165,12 @@ Java_org_nxemu_NativeLibrary_emulationSurfaceDestroyed(JNIEnv * /*env*/, jclass 
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_NativeLibrary_emulationStopped(JNIEnv * /*env*/, jclass /*clazz*/)
+{
+    EmulationSession::GetInstance().Stop();
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_org_nxemu_NativeLibrary_surfaceChanged(JNIEnv * env, jclass /*clazz*/, jobject jsurface)
 {
     if (jsurface == nullptr)
@@ -176,13 +184,7 @@ Java_org_nxemu_NativeLibrary_surfaceChanged(JNIEnv * env, jclass /*clazz*/, jobj
         return;
     }
     EmulationSession & session = EmulationSession::GetInstance();
-    if (session.NativeWindow() == nw)
-    {
-        ANativeWindow_release(nw);
-        session.SurfaceChanged();
-        return;
-    }
-    ANativeWindow_release(nw);
+    session.SetNativeWindow(nw);
     session.SurfaceChanged();
 }
 
@@ -215,40 +217,56 @@ Java_org_nxemu_NativeLibrary_getAppVersion(JNIEnv * env, jclass /*clazz*/)
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_features_input_NativeInput_onTouchPressed(JNIEnv * /*env*/, jobject /*obj*/,
-                                                           jint /*fingerId*/, jfloat /*x*/, jfloat /*y*/)
+Java_org_nxemu_NativeLibrary_pauseEmulation(JNIEnv * /*env*/, jclass /*clazz*/)
 {
+    EmulationSession::GetInstance().SetPaused(true);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_features_input_NativeInput_onTouchMoved(JNIEnv * /*env*/, jobject /*obj*/,
-                                                         jint /*fingerId*/, jfloat /*x*/, jfloat /*y*/)
+Java_org_nxemu_NativeLibrary_unpauseEmulation(JNIEnv * /*env*/, jclass /*clazz*/)
 {
+    EmulationSession::GetInstance().SetPaused(false);
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_features_input_NativeInput_onTouchReleased(JNIEnv * /*env*/, jobject /*obj*/,
-                                                           jint /*fingerId*/)
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_nxemu_NativeLibrary_isPaused(JNIEnv * /*env*/, jclass /*clazz*/)
 {
+    return EmulationSession::GetInstance().IsPaused() ? JNI_TRUE : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_features_input_NativeInput_onOverlayButtonEventImpl(JNIEnv * /*env*/, jobject /*obj*/,
-                                                                   jint port, jint buttonId, jint action)
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_org_nxemu_NativeLibrary_getAppletCaptureBuffer(JNIEnv * env, jclass /*clazz*/)
 {
-    EmulationSession::GetInstance().SetOverlayButton(port, buttonId, action == 1);
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_org_nxemu_features_input_NativeInput_onOverlayJoystickEventImpl(JNIEnv * /*env*/, jobject /*obj*/,
-                                                                   jint port, jint stickId, jfloat x, jfloat y)
-{
-    EmulationSession::GetInstance().SetOverlayJoystick(port, stickId, x, y);
+    std::vector<uint8_t> bytes;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    if (!EmulationSession::GetInstance().ReadAppletCapture(bytes, width, height) || bytes.empty())
+    {
+        return env->NewByteArray(0);
+    }
+    jbyteArray buffer = env->NewByteArray(static_cast<jsize>(bytes.size()));
+    if (buffer == nullptr)
+    {
+        return env->NewByteArray(0);
+    }
+    env->SetByteArrayRegion(buffer, 0, static_cast<jsize>(bytes.size()), reinterpret_cast<const jbyte *>(bytes.data()));
+    return buffer;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_org_nxemu_features_input_NativeInput_getStyleIndexImpl(JNIEnv * /*env*/, jobject /*obj*/,
-                                                            jint playerIndex)
+Java_org_nxemu_NativeLibrary_getAppletCaptureWidth(JNIEnv * /*env*/, jclass /*clazz*/)
 {
-    return EmulationSession::GetInstance().GetStyleIndex(playerIndex);
+    uint32_t width = 0;
+    uint32_t height = 0;
+    EmulationSession::GetInstance().AppletCaptureSize(width, height);
+    return static_cast<jint>(width);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_nxemu_NativeLibrary_getAppletCaptureHeight(JNIEnv * /*env*/, jclass /*clazz*/)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    EmulationSession::GetInstance().AppletCaptureSize(width, height);
+    return static_cast<jint>(height);
 }

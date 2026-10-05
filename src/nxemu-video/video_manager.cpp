@@ -11,6 +11,7 @@
 #include "yuzu_video_core/rasterizer_interface.h"
 #include <nxemu-core/settings/identifiers.h>
 #include "yuzu_video_core/shader_notify.h"
+#include "yuzu_video_core/textures/decoders.h"
 #include "yuzu_common/polyfill_thread.h"
 #include "yuzu_common/settings.h"
 #include "nxemu-video/video_settings.h"
@@ -290,7 +291,41 @@ void VideoManager::RequestComposite(VideoFramebufferConfig * layers, uint32_t la
 
 void VideoManager::UpdateFramebufferLayout(uint32_t width, uint32_t height)
 {
+    impl->m_emuWindow->RefreshRenderSurface();
     impl->m_emuWindow->UpdateCurrentFramebufferLayout(width, height);
+}
+
+uint32_t VideoManager::GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height)
+{
+    using namespace VideoCore::Capture;
+    constexpr uint32_t linear_size = LinearWidth * LinearHeight * BytesPerPixel;
+    if (out_width != nullptr)
+    {
+        *out_width = LinearWidth;
+    }
+    if (out_height != nullptr)
+    {
+        *out_height = LinearHeight;
+    }
+    if (out == nullptr || out_size < linear_size)
+    {
+        return linear_size;
+    }
+
+    std::vector<uint8_t> tiled(TiledSize);
+    GetAppletCaptureBuffer(tiled.data(), static_cast<uint32_t>(tiled.size()));
+    std::vector<uint8_t> linear(linear_size);
+    Tegra::Texture::UnswizzleTexture(linear, tiled, BytesPerPixel, LinearWidth, LinearHeight, LinearDepth, BlockHeight, BlockDepth);
+    std::memcpy(out, linear.data(), linear_size);
+    return linear_size;
+}
+
+void VideoManager::NotifyWindowChanged()
+{
+    if (impl->m_emuWindow)
+    {
+        impl->m_emuWindow->RefreshRenderSurface();
+    }
 }
 
 IChannelState * VideoManager::AllocateChannel()
