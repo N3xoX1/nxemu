@@ -42,7 +42,6 @@ class SciterMainWindow :
     public IKeySink,
     public IResizeSink,
     public IClickSink,
-    public IStateChangeSink,
     public ITimerSink,
     public IEventSink
 {
@@ -213,14 +212,11 @@ private:
     // IClickSink
     bool OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t reason) override;
 
-    // IStateChangeSink
-    bool OnStateChange(SCITER_ELEMENT elem, uint32_t eventReason, void* data) override;
-
     // ITimerSink    
     bool OnTimer(SCITER_ELEMENT Element, uint32_t* TimerId) override;
 
     // IEventSink
-    bool OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t reason);
+    bool OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t reason) override;
 
     static void SettingChanged(const char* setting, void* userData);
 

@@ -38,9 +38,14 @@
     <span id="dockedMode" />
     <span id="renderer" />
     <span id="gpuCommandSynchronization" tooltip="Toggle guest-requested GPU command synchronization at runtime." />
+    <span id="volumeSeparator" aria-hidden="true" />
     <span id="volumeAnchor">
-      <span id="volume" />
-      <span id="volumePopupBtn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path d="M104.704 685.248a64 64 0 0 0 90.496 0l316.8-316.8 316.8 316.8a64 64 0 0 0 90.496-90.496L557.248 232.704a64 64 0 0 0-90.496 0L104.704 594.752a64 64 0 0 0 0 90.496"/></svg></span>
+      <span id="volumeIcon" tooltip="Click to mute or unmute"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4Z"/><path class="sound-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></span>
+      <span id="volumeReadout"><span id="volume" tooltip="Click to mute or unmute" /></span>
+      <span id="volumeSlider">
+        <input type="hslider" min="0" max="200" value="100" class="volume-normal-marker" disabled tabindex="-1" aria-hidden="true" />
+        <input type="hslider" min="0" max="200" value="100" id="audioVolume" tooltip="Volume" />
+      </span>
     </span>
     <div id="StatusText" />
   </div>
@@ -80,8 +85,3 @@
       <span class="menu-item-label">Configure Game</span>
     </li>
   </menu>
-  <popup id="VolumePopup">
-    <div>
-      <input type="hslider" min="0" max="200" value="100" id="audioVolume" style="width: 19em" />
-    </div>
-  </popup>

@@ -10,10 +10,11 @@ class SystemModules;
 
 class SystemConfigAudio :
     public IPagesSink,
-    public IStateChangeSink
+    public IStateChangeSink,
+    public IEventSink
 {
 public:
-    SystemConfigAudio(ISciterUI & sciterUI, SystemConfig & config, SystemModules & modules, HWINDOW parent, SciterElement page);
+    SystemConfigAudio(ISciterUI & sciterUI, SystemConfig & config, SystemModules & modules, SciterElement page);
     ~SystemConfigAudio() = default;
 
     void SaveSetting(void);
@@ -26,7 +27,10 @@ public:
 
     // IStateChangeSink
     bool OnStateChange(SCITER_ELEMENT elem, uint32_t eventReason, void * data) override;
-    
+
+    // IEventSink
+    bool OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t reason) override;
+
 private:
     SystemConfigAudio() = delete;
     SystemConfigAudio(const SystemConfigAudio &) = delete;
@@ -39,12 +43,10 @@ private:
     ISciterUI & m_sciterUI;
     SystemConfig & m_config;
     SystemModules & m_modules;
-    HWINDOW m_parent;
     SciterElement m_page;
     std::shared_ptr<IPageNav> m_pageNav;
     SciterElement m_audioPage;
     std::shared_ptr<IComboBox> m_outputEngine;
     std::shared_ptr<IComboBox> m_audioOutputDevice;
     std::shared_ptr<IComboBox> m_audioInputDevice;
-    std::shared_ptr<IComboBox> m_audioMode;
 };
