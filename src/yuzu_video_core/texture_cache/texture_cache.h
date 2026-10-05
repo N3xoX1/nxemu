@@ -611,12 +611,58 @@ void TextureCache<P>::UnmapMemory(DAddr cpu_addr, size_t size) {
 }
 
 template <class P>
-void TextureCache<P>::UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t size) {
+void TextureCache<P>::UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t size,
+                                    bool preserve_contents) {
     boost::container::small_vector<ImageId, 16> deleted_images;
     ForEachImageInRegionGPU(as_id, gpu_addr, size,
                             [&](ImageId id, Image&) { deleted_images.push_back(id); });
+    // Write older aliases first so the most recently modified image wins in guest memory.
+    std::ranges::sort(deleted_images, [this](ImageId lhs, ImageId rhs) {
+        return slot_images[lhs].modification_tick < slot_images[rhs].modification_tick;
+    });
+    constexpr size_t MAX_DOWNLOAD_BATCH_SIZE = 64_MiB;
+    constexpr size_t MAX_DOWNLOAD_BATCH_IMAGES = 16;
+    boost::container::small_vector<std::pair<ImageId, AsyncBuffer>, 4> downloads;
+    size_t batch_size{};
+    const auto finish_downloads = [&] {
+        if (downloads.empty()) {
+            return;
+        }
+        runtime.Finish();
+        for (auto& [id, map] : downloads) {
+            const Image& image = slot_images[id];
+            const auto copies = FullDownloadCopies(image.info);
+            SwizzleImage(*this->GetFromID(as_id), image.gpu_addr, image.info, copies, map.mapped_span,
+                         swizzle_data_buffer);
+            runtime.FreeDeferredStagingBuffer(map);
+        }
+        downloads.clear();
+        batch_size = 0;
+    };
     for (const ImageId id : deleted_images) {
         Image& image = slot_images[id];
+        const bool fully_remapped =
+            gpu_addr <= image.gpu_addr && image.gpu_addr - gpu_addr <= size &&
+            image.guest_size_bytes <= size - (image.gpu_addr - gpu_addr);
+        if ((preserve_contents || !fully_remapped) && image.IsSafeDownload()) {
+            if (!downloads.empty() &&
+                (downloads.size() >= MAX_DOWNLOAD_BATCH_IMAGES ||
+                 batch_size >= MAX_DOWNLOAD_BATCH_SIZE ||
+                 image.unswizzled_size_bytes > MAX_DOWNLOAD_BATCH_SIZE - batch_size)) {
+                finish_downloads();
+            }
+            // Reserve buffers until their CPU readback is complete; share one GPU wait per batch.
+            auto& download = downloads.emplace_back(
+                id, runtime.DownloadStagingBuffer(image.unswizzled_size_bytes, true));
+            const auto copies = FullDownloadCopies(image.info);
+            image.DownloadMemory(download.second, copies);
+            batch_size += image.unswizzled_size_bytes;
+        }
+    }
+    finish_downloads();
+    for (const ImageId id : deleted_images) {
+        Image& image = slot_images[id];
+        image.flags &= ~ImageFlagBits::GpuModified;
         if (False(image.flags & ImageFlagBits::CpuModified)) {
             image.flags |= ImageFlagBits::CpuModified;
             if (True(image.flags & ImageFlagBits::Tracked)) {
@@ -864,8 +910,10 @@ void TextureCache<P>::PopAsyncFlushes() {
                 download_buffer.offset -= Common::AlignUp(image.unswizzled_size_bytes, 64);
                 std::span<u8> download_span =
                     download_buffer.mapped_span.subspan(download_buffer.offset);
-                SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
-                             swizzle_data_buffer);
+                if (False(image.flags & ImageFlagBits::Remapped)) {
+                    SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
+                                 swizzle_data_buffer);
+                }
             } else {
                 const BufferDownload& buffer_info = slot_buffer_downloads[download_info.object_id];
                 std::span<u8> download_span =
@@ -913,8 +961,10 @@ void TextureCache<P>::PopAsyncFlushes() {
             }
             const ImageBase& image = slot_images[download_info.object_id];
             const auto copies = FullDownloadCopies(image.info);
-            SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
-                         swizzle_data_buffer);
+            if (False(image.flags & ImageFlagBits::Remapped)) {
+                SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
+                             swizzle_data_buffer);
+            }
             download_map.offset += image.unswizzled_size_bytes;
             download_span = download_span.subspan(image.unswizzled_size_bytes);
         }

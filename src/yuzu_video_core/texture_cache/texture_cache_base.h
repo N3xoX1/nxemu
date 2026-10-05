@@ -204,7 +204,8 @@ public:
     void UnmapMemory(DAddr cpu_addr, size_t size);
 
     /// Remove images in a region
-    void UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t size);
+    void UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t size,
+                        bool preserve_contents = false);
 
     /// Blit an image with the given parameters
     bool BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,

@@ -58,7 +58,7 @@ public:
     RasterizerDownloadArea GetFlushArea(DAddr addr, u64 size) override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
-    void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size) override;
+    void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents = false) override;
     void SignalFence(std::function<void()>&& func) override;
     void SignalMemoryOperationFence(std::function<void()>&& func) override;
     void WaitForFence() override;
