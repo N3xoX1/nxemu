@@ -400,7 +400,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ClCompile Update="dynarmic\backend\x64\*.cpp;dynarmic\frontend\A64\**\*.cpp;dynarmic\ir\**\*.cpp;dynarmic\common\**\*.cpp">
+    <ClCompile Update="dynarmic\backend\x64\*.cpp;dynarmic\frontend\A64\**\*.cpp;dynarmic\ir\**\*.cpp;dynarmic\common\**\*.cpp;dynarmic\frontend\imm.cpp;dynarmic\backend\block_range_information.cpp">
       <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
   </ItemGroup>

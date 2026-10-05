@@ -521,7 +521,9 @@ target_include_directories(nxemu-cpu PRIVATE
 if(ARCHITECTURE_x86_64 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     get_target_property(_nxemu_jit_sources nxemu-cpu SOURCES)
     foreach(_nxemu_jit_source IN LISTS _nxemu_jit_sources)
-        if(_nxemu_jit_source MATCHES "^dynarmic/(backend/x64|frontend/A64|ir|common)/.*[.]cpp$")
+        if(_nxemu_jit_source MATCHES "^dynarmic/(backend/x64|frontend/A64|ir|common)/.*[.]cpp$"
+           OR _nxemu_jit_source STREQUAL "dynarmic/frontend/imm.cpp"
+           OR _nxemu_jit_source STREQUAL "dynarmic/backend/block_range_information.cpp")
             set_property(SOURCE ${_nxemu_jit_source} APPEND PROPERTY
                 COMPILE_OPTIONS "$<$<CONFIG:Release>:/GL>")
         endif()
