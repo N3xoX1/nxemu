@@ -86,6 +86,8 @@ std::optional<u64> ReadNativeThreadTimeNs() {
     }();
     if (!frequency || frequency > (std::numeric_limits<u64>::max)() / 1'000'000'000)
         return std::nullopt;
+    const auto wall_begin = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
     ULONG64 ticks{};
     if (!QueryThreadCycleTime(GetCurrentThread(), &ticks)) return std::nullopt;
     const auto fraction = ticks % frequency * 1'000'000'000 / frequency;
@@ -96,7 +98,7 @@ std::optional<u64> ReadNativeThreadTimeNs() {
     const auto wall = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
     thread_local ThreadTimeValidation validation;
-    if (!validation.Observe(cpu, wall)) return std::nullopt;
+    if (!validation.Observe(cpu, wall_begin, wall)) return std::nullopt;
     return cpu;
 #elif defined(CLOCK_THREAD_CPUTIME_ID)
     timespec time{};
