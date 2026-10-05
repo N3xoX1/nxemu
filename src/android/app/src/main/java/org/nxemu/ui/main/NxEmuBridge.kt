@@ -1,5 +1,6 @@
 package org.nxemu.ui.main
 
+import android.content.Intent
 import android.webkit.JavascriptInterface
 import org.json.JSONArray
 import org.nxemu.GameLibraryScanner
@@ -137,6 +138,25 @@ class NxEmuBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun queryRomMetadata(path: String): String {
         return NativeLibrary.queryRomMetadata(path)
+    }
+
+    @JavascriptInterface
+    fun openSettings() {
+        activity.runOnUiThread {
+            if (activity is SettingsActivity) {
+                return@runOnUiThread
+            }
+            activity.startActivity(Intent(activity, SettingsActivity::class.java))
+        }
+    }
+
+    @JavascriptInterface
+    fun closeSettings() {
+        activity.runOnUiThread {
+            if (activity is SettingsActivity) {
+                activity.finish()
+            }
+        }
     }
 
     @JavascriptInterface

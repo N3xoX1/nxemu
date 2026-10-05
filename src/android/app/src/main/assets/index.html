@@ -14,7 +14,7 @@
         <button class="icon-btn" type="button" aria-label="Refresh library" onclick="refreshGameList()">
           <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.2"/><path d="M21 3v6h-6"/></svg>
         </button>
-        <button class="settings-btn" type="button" aria-label="Settings" onclick="navigate('settingsPage')">
+        <button class="settings-btn" type="button" aria-label="Settings" onclick="NxEmu.openSettings()">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
       </div>
@@ -27,161 +27,9 @@
       <span id="touchHint">Tap a game <span class="hint-action">to play</span></span>
     </div>
   </div>
-  <div id="settingsPage" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="page-title">Settings</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div class="settings-list">
-      <div class="settings-item" onclick="navigate('gameFolders')">
-        <div class="setting-info">
-          <div class="setting-label">Game folders</div>
-          <div id="gameFoldersMeta" class="setting-sub">None added</div>
-        </div>
-        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-      <div class="settings-item" onclick="navigate('overlaySettings')">
-        <div class="setting-info">
-          <div class="setting-label">On screen controller</div>
-          <div id="overlayShowMeta" class="setting-sub"></div>
-        </div>
-        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-      <div class="settings-item" onclick="navigate('controllerSettings')">
-        <div class="setting-info">
-          <div class="setting-label">Controllers</div>
-          <div id="controllersMeta" class="setting-sub" style="white-space:pre-line"></div>
-        </div>
-        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-      <div class="settings-item" onclick="navigate('themeSettings')">
-        <div class="setting-info">
-          <div class="setting-label">Theme</div>
-          <div id="themeModeMeta" class="setting-sub">Follow system</div>
-        </div>
-        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-    </div>
-  </div>
-  <div id="controllerSettings" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="page-title">Controllers</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div id="controllerList" class="settings-list"></div>
-  </div>
-  <div id="controllerPlayer" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div id="controllerPlayerTitle" class="page-title">Controller</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div id="controllerPlayerList" class="settings-list"></div>
-  </div>
-  <div id="controllerChoices" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div id="controllerChoicesTitle" class="page-title">Controller</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div id="controllerChoiceList" class="settings-list"></div>
-  </div>
-  <div id="themeSettings" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="page-title">Theme</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div class="settings-list">
-      <div class="settings-item" onclick="setThemeMode(0)">
-        <div class="setting-info">
-          <div class="setting-label">Follow system</div>
-        </div>
-        <svg id="themeFollow" class="setting-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-      </div>
-      <div class="settings-item" onclick="setThemeMode(1)">
-        <div class="setting-info">
-          <div class="setting-label">Light</div>
-        </div>
-        <svg id="themeLight" class="setting-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-      </div>
-      <div class="settings-item" onclick="setThemeMode(2)">
-        <div class="setting-info">
-          <div class="setting-label">Dark</div>
-        </div>
-        <svg id="themeDark" class="setting-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-      </div>
-    </div>
-  </div>
-  <div id="overlaySettings" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="page-title">On screen controller</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div class="settings-list">
-      <div class="settings-item" onclick="toggleOverlayBool('nxui:ShowInputOverlay', 'overlayShow')">
-        <div class="setting-info">
-          <div class="setting-label">Show overlay</div>
-        </div>
-        <button id="overlayShow" class="settings-toggle" type="button" aria-label="Show overlay"></button>
-      </div>
-      <div class="settings-item setting-item-static">
-        <div class="setting-info" style="flex:1">
-          <div class="setting-label">Scale <span id="overlayScaleValue">50%</span></div>
-          <input id="overlayScale" class="settings-range" type="range" min="0" max="150" value="50" oninput="setOverlayInt('nxui:OverlayScale', this.value, 'overlayScaleValue')">
-        </div>
-      </div>
-      <div class="settings-item setting-item-static">
-        <div class="setting-info" style="flex:1">
-          <div class="setting-label">Opacity <span id="overlayOpacityValue">100%</span></div>
-          <input id="overlayOpacity" class="settings-range" type="range" min="0" max="100" value="100" oninput="setOverlayInt('nxui:OverlayOpacity', this.value, 'overlayOpacityValue')">
-        </div>
-      </div>
-      <div class="settings-item" onclick="NxEmu.editOverlayLayout()">
-        <div class="setting-info">
-          <div class="setting-label">Edit overlay layout</div>
-          <div class="setting-sub">Drag buttons to reposition</div>
-        </div>
-        <svg class="setting-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-    </div>
-  </div>
-  <div id="gameFolders" class="page" style="display:none">
-    <div class="topbar-back">
-      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="page-title">Game folders</div>
-      <span class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
-    </div>
-    <div id="folderList" class="settings-list"></div>
-    <div id="noFolders" class="empty-state">
-      <p class="empty-title">No folders yet</p>
-      <p class="empty-copy">Choose a folder that contains .nro, .dxci, or .dnsp files.</p>
-      <button class="primary-btn" onclick="NxEmu.addGameDirectory()">Add game folder</button>
-    </div>
-    <button class="fab" type="button" aria-label="Add game folder" onclick="NxEmu.addGameDirectory()">
-      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-  </div>
 <script>
 applyTheme();
-renderSettingsSummary();
+applyControllerBrowser();
 refreshGameList();
 </script>
 </body>

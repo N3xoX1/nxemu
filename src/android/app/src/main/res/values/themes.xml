@@ -9,4 +9,10 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_nxemu_splash</item>
         <item name="postSplashScreenTheme">@style/Theme.NxEmu</item>
     </style>
+    <style name="Theme.NxEmu.Settings" parent="Theme.NxEmu">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

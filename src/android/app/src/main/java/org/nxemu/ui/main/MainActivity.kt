@@ -26,7 +26,7 @@ import org.nxemu.ui.settings.OverlayLayoutActivity
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
 
-class MainActivity : ComponentActivity() {
+open class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
@@ -82,7 +82,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        if (this !is SettingsActivity) {
+            installSplashScreen()
+        }
         super.onCreate(savedInstanceState)
         webView = WebView(this).apply {
             setBackgroundColor(ThemeHelper.backgroundColor(this@MainActivity))
@@ -141,7 +143,8 @@ class MainActivity : ComponentActivity() {
             },
         )
         NativeLibrary.addSettingChangedListener(settingChangedForwarder)
-        webView.loadUrl("file:///android_asset/index.html")
+        val page = if (this is SettingsActivity) "settings.html" else "index.html"
+        webView.loadUrl("file:///android_asset/$page")
         setContentView(webView)
         ThemeHelper.applySystemBars(this)
     }
@@ -328,3 +331,5 @@ class MainActivity : ComponentActivity() {
         private const val STICK_DEADZONE = 0.5f
     }
 }
+
+class SettingsActivity : MainActivity()
