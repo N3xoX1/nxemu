@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include "core/hle/service/kernel_helpers.h"
 #include "core/hle/service/service.h"
 

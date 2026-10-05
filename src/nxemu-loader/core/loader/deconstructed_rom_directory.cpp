@@ -13,6 +13,7 @@
 #include "yuzu_common/interface_pointer_def.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include <cstring>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/cpu.h>

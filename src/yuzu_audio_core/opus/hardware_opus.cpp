@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <array>
+#include <cstring>
 
 #include "yuzu_audio_core/audio_core.h"
 #include "yuzu_audio_core/opus/hardware_opus.h"

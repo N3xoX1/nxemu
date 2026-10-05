@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <cstring>
 #include <utility>
+
 #include "core/file_sys/vfs/vfs_vector.h"
 
 namespace FileSys {

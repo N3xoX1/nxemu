@@ -17,6 +17,7 @@
 #include "yuzu_common/yuzu_assert.h"
 #include <algorithm>
 #include <common/sha256.h>
+#include <cstring>
 #include <random>
 #include <regex>
 

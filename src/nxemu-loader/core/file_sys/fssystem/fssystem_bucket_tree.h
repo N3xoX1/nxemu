@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstring>
 #include <mutex>
 
 #include "yuzu_common/alignment.h"

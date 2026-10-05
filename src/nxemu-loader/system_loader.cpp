@@ -26,6 +26,7 @@
 #include <cctype>
 #include <common/path.h>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fmt/core.h>
 #include <nxemu-core/settings/identifiers.h>

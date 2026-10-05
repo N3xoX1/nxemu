@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+
 #include "core/file_sys/system_archive/data/font_chinese_simplified.h"
 #include "core/file_sys/system_archive/data/font_chinese_traditional.h"
 #include "core/file_sys/system_archive/data/font_extended_chinese_simplified.h"
