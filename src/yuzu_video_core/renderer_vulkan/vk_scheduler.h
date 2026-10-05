@@ -53,7 +53,7 @@ public:
     void DispatchWork();
 
     /// Requests to begin a renderpass.
-    void RequestRenderpass(const Framebuffer* framebuffer);
+    void RequestRenderpass(const Framebuffer* framebuffer, u32 color_scratch_mask = 0);
 
     /// Requests the current execution context to be able to execute operations only allowed outside
     /// of a renderpass.

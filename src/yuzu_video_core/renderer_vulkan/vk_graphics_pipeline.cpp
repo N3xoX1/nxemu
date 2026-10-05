@@ -491,7 +491,27 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
 
 void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
-    scheduler.RequestRenderpass(texture_cache.GetFramebuffer());
+    const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
+    u32 color_scratch_mask{};
+    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+        const u32 duplicate_mask = framebuffer->DuplicateColorAttachmentMask();
+        if (duplicate_mask != 0) {
+            u32 color_write_mask{};
+            const auto& regs = maxwell3d->regs;
+            const Shader::Info& fragment_info = stage_infos[4];
+            for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+                const auto& mask = regs.color_mask[regs.color_mask_common ? 0 : index];
+                if ((mask.R || mask.G || mask.B || mask.A) &&
+                    fragment_info.stores_frag_color[index]) {
+                    color_write_mask |= 1U << index;
+                }
+            }
+            // Avoid independent Metal tile copies of
+            // the same image. Keep the render-pass shape, using scratch for masked slots.
+            color_scratch_mask = framebuffer->ColorScratchMask(color_write_mask);
+        }
+    }
+    scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
 
     if (!is_built.load(std::memory_order::relaxed)) {
         // Wait for the pipeline to be built
@@ -540,6 +560,20 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                       descriptor_set, nullptr);
         }
     });
+    if (bind_pipeline && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+        key.state.extended_dynamic_state_3_blend != 0) {
+        std::array<VkBool32, Maxwell::NumRenderTargets> setup_enables{};
+        const auto& regs = maxwell3d->regs;
+        for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+            const bool integer_format = VideoCore::Surface::IsPixelFormatInteger(
+                DecodeFormat(key.state.color_formats[index]));
+            setup_enables[index] =
+                regs.blend.enable[index] != 0 && !integer_format ? VK_TRUE : VK_FALSE;
+        }
+        scheduler.Record([setup_enables](vk::CommandBuffer cmdbuf) {
+            cmdbuf.SetColorBlendEnableEXT(0, setup_enables);
+        });
+    }
 }
 
 void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
@@ -771,8 +805,11 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         for (size_t i = 0; i < mask_table.size(); ++i) {
             write_mask |= mask[i] ? mask_table[i] : 0;
         }
+        const bool disable_integer_blend =
+            device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+            VideoCore::Surface::IsPixelFormatInteger(DecodeFormat(key.state.color_formats[index]));
         cb_attachments.push_back({
-            .blendEnable = blend.enable != 0,
+            .blendEnable = blend.enable != 0 && !disable_integer_blend,
             .srcColorBlendFactor = MaxwellToVK::BlendFactor(blend.SourceRGBFactor()),
             .dstColorBlendFactor = MaxwellToVK::BlendFactor(blend.DestRGBFactor()),
             .colorBlendOp = MaxwellToVK::BlendEquation(blend.EquationRGB()),
@@ -841,6 +878,14 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             };
             dynamic_states.insert(dynamic_states.end(), extended3.begin(), extended3.end());
         }
+    }
+    if (!device.CanUseDepthBoundsDynamicState()) {
+        dynamic_states.erase(
+            std::remove_if(dynamic_states.begin(), dynamic_states.end(), [](VkDynamicState state) {
+                return state == VK_DYNAMIC_STATE_DEPTH_BOUNDS ||
+                       state == VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT;
+            }),
+            dynamic_states.end());
     }
     const VkPipelineDynamicStateCreateInfo dynamic_state_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,

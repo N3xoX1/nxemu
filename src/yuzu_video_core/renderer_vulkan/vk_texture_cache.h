@@ -9,6 +9,7 @@
 
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
+#include "yuzu_video_core/renderer_vulkan/vk_render_pass_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_staging_buffer_pool.h"
 #include "yuzu_video_core/texture_cache/image_view_base.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
@@ -311,7 +312,7 @@ public:
     Framebuffer& operator=(const Framebuffer&) = delete;
 
     Framebuffer(Framebuffer&&) = default;
-    Framebuffer& operator=(Framebuffer&&) = default;
+    Framebuffer& operator=(Framebuffer&&) noexcept;
 
     void CreateFramebuffer(TextureCacheRuntime& runtime,
                            std::span<ImageView*, NUM_RT> color_buffers, ImageView* depth_buffer,
@@ -325,6 +326,15 @@ public:
         return renderpass;
     }
 
+    [[nodiscard]] VkFramebuffer HandleVariant(u32 color_scratch_mask) const;
+    [[nodiscard]] VkRenderPass RenderPassVariant(u32 color_scratch_mask) const;
+
+    [[nodiscard]] u32 DuplicateColorAttachmentMask() const noexcept {
+        return duplicate_color_attachment_mask;
+    }
+
+    [[nodiscard]] u32 ColorScratchMask(u32 color_write_mask) const;
+
     [[nodiscard]] VkExtent2D RenderArea() const noexcept {
         return render_area;
     }
@@ -337,20 +347,22 @@ public:
         return num_color_buffers;
     }
 
+    // Number of subpass color slots, including gaps before the last valid attachment.
+    [[nodiscard]] u32 NumColorAttachments() const noexcept {
+        return num_color_attachments;
+    }
+
     [[nodiscard]] u32 NumImages() const noexcept {
         return num_images;
     }
 
-    [[nodiscard]] const std::array<VkImage, 9>& Images() const noexcept {
-        return images;
-    }
-
-    [[nodiscard]] const std::array<VkImageSubresourceRange, 9>& ImageRanges() const noexcept {
-        return image_ranges;
-    }
+    [[nodiscard]] std::array<VkImage, 9> Images(u32 color_scratch_mask = 0) const noexcept;
+    [[nodiscard]] std::array<VkImageSubresourceRange, 9> ImageRanges(
+        u32 color_scratch_mask = 0) const noexcept;
 
     [[nodiscard]] bool HasAspectColorBit(size_t index) const noexcept {
-        return (image_ranges.at(rt_map[index]).aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) != 0;
+        return render_pass_key.color_formats.at(index) != PixelFormat::Invalid &&
+               (image_ranges.at(rt_map[index]).aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) != 0;
     }
 
     [[nodiscard]] bool HasAspectDepthBit() const noexcept {
@@ -366,11 +378,31 @@ public:
     }
 
 private:
+    struct ScratchColorAttachment {
+        vk::Image image;
+        vk::ImageView view;
+    };
+
+    void EnsureScratchColorAttachment(size_t slot) const;
+
+    // Framebuffers must be destroyed before the scratch views and images they reference.
+    mutable std::array<ScratchColorAttachment, NUM_RT> scratch_color_attachments{};
+    mutable std::vector<std::pair<u32, vk::Framebuffer>> scratch_framebuffers;
+    mutable std::vector<std::pair<u32, VkRenderPass>> scratch_renderpasses;
+    TextureCacheRuntime* runtime_ptr{};
+    std::array<VkImageView, NUM_RT + 1> framebuffer_attachments{};
+    u32 framebuffer_layers{1};
+    u32 duplicate_color_attachment_mask{};
+    std::array<u32, NUM_RT> color_attachment_alias_masks{};
+    mutable std::array<u32, NUM_RT> warned_color_attachment_aliases{};
+    mutable u32 last_checked_color_write_mask{~u32{0}};
+    RenderPassKey render_pass_key{};
     vk::Framebuffer framebuffer;
     VkRenderPass renderpass{};
     VkExtent2D render_area{};
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
     u32 num_color_buffers = 0;
+    u32 num_color_attachments = 0;
     u32 num_images = 0;
     std::array<VkImage, 9> images{};
     std::array<VkImageSubresourceRange, 9> image_ranges{};

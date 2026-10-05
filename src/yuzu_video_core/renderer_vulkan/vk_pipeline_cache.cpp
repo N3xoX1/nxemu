@@ -34,6 +34,7 @@
 #include "yuzu_video_core/shader_cache.h"
 #include "yuzu_video_core/shader_environment.h"
 #include "yuzu_video_core/shader_notify.h"
+#include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 #include "video_settings.h"
@@ -142,7 +143,7 @@ Shader::AttributeType AttributeType(const FixedPipelineState& state, size_t inde
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
-                                    const Shader::IR::Program* previous_program) {
+                                    const Shader::IR::Program* previous_program, const Device& device) {
     Shader::RuntimeInfo info;
     if (previous_program) {
         info.previous_stage_stores = previous_program->info.stores;
@@ -225,6 +226,23 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
         info.alpha_test_func = MaxwellToCompareFunction(
             key.state.UnpackComparisonOp(key.state.alpha_test_func.Value()));
         info.alpha_test_reference = Common::BitCast<float>(key.state.alpha_test_ref);
+        if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+            for (size_t index = 0; index < info.color_output_types.size(); ++index) {
+                const auto format =
+                    static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]);
+                if (format == Tegra::RenderTargetFormat::NONE) {
+                    continue;
+                }
+                const auto pixel_format =
+                    VideoCore::Surface::PixelFormatFromRenderTargetFormat(format);
+                if (VideoCore::Surface::IsPixelFormatInteger(pixel_format)) {
+                    info.color_output_types[index] =
+                        VideoCore::Surface::IsPixelFormatSignedInteger(pixel_format)
+                            ? Shader::AttributeType::SignedInt
+                            : Shader::AttributeType::UnsignedInt;
+                }
+            }
+        }
         break;
     default:
         break;
@@ -317,6 +335,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .supported_spirv = device.SupportedSpirvVersion(),
         .unified_descriptor_binding = true,
         .support_descriptor_aliasing = device.IsDescriptorAliasingSupported(),
+        .disable_uniform_buffer_descriptor_aliasing =
+            device.IsDescriptorAliasingSupported() && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
         .support_int8 = device.IsInt8Supported(),
         .support_int16 = device.IsShaderInt16Supported(),
         .support_int64 = device.IsShaderInt64Supported(),
@@ -666,7 +686,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
-        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
+        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
         ConvertLegacyToGeneric(program, runtime_info);
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);

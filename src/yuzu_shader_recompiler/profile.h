@@ -11,6 +11,8 @@ struct Profile {
     u32 supported_spirv{0x00010000};
     bool unified_descriptor_binding{};
     bool support_descriptor_aliasing{};
+    // MoltenVK needs one canonical uniform view; storage-buffer aliases remain available.
+    bool disable_uniform_buffer_descriptor_aliasing{};
     bool support_int8{};
     bool support_int16{};
     bool support_int64{};
@@ -90,6 +92,10 @@ struct Profile {
     u64 min_ssbo_alignment{};
 
     u32 max_user_clip_distances{};
+
+    bool SupportsUniformBufferDescriptorAliasing() const {
+        return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;
+    }
 };
 
 } // namespace Shader

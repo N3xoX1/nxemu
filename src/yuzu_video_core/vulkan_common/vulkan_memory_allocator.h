@@ -98,6 +98,7 @@ public:
     MemoryAllocator(const MemoryAllocator&) = delete;
 
     vk::Image CreateImage(const VkImageCreateInfo& ci) const;
+    vk::Image CreateTransientImage(const VkImageCreateInfo& ci) const;
 
     vk::Buffer CreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const;
 

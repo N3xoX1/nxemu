@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <span>
 #include <vector>
 #include <boost/container/small_vector.hpp>
@@ -25,6 +26,7 @@
 #include "yuzu_video_core/texture_cache/samples_helper.h"
 #include "yuzu_video_core/texture_cache/util.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
+#include "yuzu_video_core/vulkan_common/moltenvk_workarounds.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -1977,6 +1979,16 @@ Framebuffer::Framebuffer(TextureCacheRuntime& runtime, ImageView* color_buffer,
 
 Framebuffer::~Framebuffer() = default;
 
+Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+    // Default member assignment would release scratch images before the old
+    // framebuffers that reference them. Destroy the complete owner in order.
+    std::destroy_at(this);
+    return *std::construct_at(this, std::move(other));
+}
+
 void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
                                     std::span<ImageView*, NUM_RT> color_buffers,
                                     ImageView* depth_buffer, bool is_rescaled_) {
@@ -1989,6 +2001,8 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
 
     u32 width = std::numeric_limits<u32>::max();
     u32 height = std::numeric_limits<u32>::max();
+    std::array<VkImage, NUM_RT> color_images{};
+    std::array<VkImageSubresourceRange, NUM_RT> color_ranges{};
     for (size_t index = 0; index < NUM_RT; ++index) {
         const ImageView* const color_buffer = color_buffers[index];
         if (!color_buffer) {
@@ -2001,12 +2015,24 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
                                               : color_buffer->size.height);
         attachments.push_back(color_buffer->RenderTarget());
         renderpass_key.color_formats[index] = color_buffer->format;
+        num_color_attachments = static_cast<u32>(index + 1);
         num_layers = std::max(num_layers, color_buffer->range.extent.layers);
         images[num_images] = color_buffer->ImageHandle();
+        color_images[index] = images[num_images];
+        // Use the selected view range here. Barrier ranges normalize 3D slices to layer 0.
+        color_ranges[index] =
+            MakeSubresourceRange(ImageAspectMask(color_buffer->format), color_buffer->range);
         image_ranges[num_images] = MakeSubresourceRange(color_buffer);
         rt_map[index] = num_images;
         samples = color_buffer->Samples();
         ++num_images;
+    }
+    color_attachment_alias_masks = MoltenVK::ColorAttachmentAliasMasks(
+        runtime.device.GetDriverID(), color_images, color_ranges);
+    for (size_t slot = 0; slot < NUM_RT; ++slot) {
+        if (color_attachment_alias_masks[slot] != 0) {
+            duplicate_color_attachment_mask |= 1U << slot;
+        }
     }
     const size_t num_colors = attachments.size();
     if (depth_buffer) {
@@ -2030,10 +2056,14 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
     renderpass_key.samples = samples;
 
     renderpass = runtime.render_pass_cache.Get(renderpass_key);
+    render_pass_key = renderpass_key;
+    runtime_ptr = &runtime;
     render_area.width = std::min(render_area.width, width);
     render_area.height = std::min(render_area.height, height);
 
     num_color_buffers = static_cast<u32>(num_colors);
+    framebuffer_layers = static_cast<u32>(std::max(num_layers, 1));
+    std::copy(attachments.begin(), attachments.end(), framebuffer_attachments.begin());
     framebuffer = runtime.device.GetLogical().CreateFramebuffer({
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .pNext = nullptr,
@@ -2043,8 +2073,186 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
         .pAttachments = attachments.data(),
         .width = render_area.width,
         .height = render_area.height,
-        .layers = static_cast<u32>(std::max(num_layers, 1)),
+        .layers = framebuffer_layers,
     });
+}
+
+u32 Framebuffer::ColorScratchMask(u32 color_write_mask) const {
+    if (duplicate_color_attachment_mask == 0) {
+        return 0;
+    }
+    const u32 writers = duplicate_color_attachment_mask & color_write_mask;
+    if (writers != last_checked_color_write_mask) {
+        last_checked_color_write_mask = writers;
+        for (size_t slot = 0; slot < NUM_RT; ++slot) {
+            if ((writers & (1U << slot)) == 0) {
+                continue;
+            }
+            // Only direct overlaps conflict. In A-B-C, writers A and C may be disjoint.
+            const u32 new_conflicts = color_attachment_alias_masks[slot] & writers &
+                                     ~warned_color_attachment_aliases[slot] & ((1U << slot) - 1);
+            for (size_t other = 0; other < slot; ++other) {
+                if ((new_conflicts & (1U << other)) == 0) {
+                    continue;
+                }
+                LOG_WARNING(Render_Vulkan,
+                            "Color attachments {} and {} overlap with multiple real writers "
+                            "(mask {:02x}); Vulkan cannot represent this losslessly, "
+                            "preserving guest writers",
+                            other, slot, writers);
+                warned_color_attachment_aliases[slot] |= 1U << other;
+            }
+        }
+    }
+    // No writer: redirect every alias. Preserve all real writers; scratch cannot faithfully
+    // emulate simultaneous writes to overlapping storage.
+    return duplicate_color_attachment_mask & ~color_write_mask;
+}
+
+void Framebuffer::EnsureScratchColorAttachment(size_t slot) const {
+    ASSERT(runtime_ptr != nullptr);
+    ASSERT(slot < NUM_RT);
+    ScratchColorAttachment& scratch = scratch_color_attachments[slot];
+    if (scratch.image) {
+        return;
+    }
+
+    const PixelFormat format = render_pass_key.color_formats[slot];
+    ASSERT(format != PixelFormat::Invalid);
+    const VkFormat vk_format =
+        MaxwellToVK::SurfaceFormat(runtime_ptr->device, FormatType::Optimal, true, format).format;
+    const auto create_image = [&](VkSampleCountFlagBits image_samples) {
+        return runtime_ptr->memory_allocator.CreateTransientImage(VkImageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = vk_format,
+            .extent = {render_area.width, render_area.height, 1},
+            .mipLevels = 1,
+            .arrayLayers = framebuffer_layers,
+            .samples = image_samples,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        });
+    };
+    const auto create_view = [&](VkImage image) {
+        return runtime_ptr->device.GetLogical().CreateImageView(VkImageViewCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .image = image,
+            .viewType = framebuffer_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY
+                                               : VK_IMAGE_VIEW_TYPE_2D,
+            .format = vk_format,
+            .components{},
+            .subresourceRange{
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = framebuffer_layers,
+            },
+        });
+    };
+
+    scratch.image = create_image(samples);
+    scratch.view = create_view(*scratch.image);
+}
+
+VkFramebuffer Framebuffer::HandleVariant(u32 color_scratch_mask) const {
+    color_scratch_mask &= duplicate_color_attachment_mask;
+    if (color_scratch_mask == 0) {
+        return *framebuffer;
+    }
+    for (const auto& [mask, cached] : scratch_framebuffers) {
+        if (mask == color_scratch_mask) {
+            return *cached;
+        }
+    }
+
+    auto attachments = framebuffer_attachments;
+    for (size_t slot = 0; slot < NUM_RT; ++slot) {
+        if ((color_scratch_mask & (1u << slot)) == 0) {
+            continue;
+        }
+        EnsureScratchColorAttachment(slot);
+        const ScratchColorAttachment& scratch = scratch_color_attachments[slot];
+        attachments[rt_map[slot]] = *scratch.view;
+    }
+
+    vk::Framebuffer variant = runtime_ptr->device.GetLogical().CreateFramebuffer({
+        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .renderPass = renderpass,
+        .attachmentCount = num_images,
+        .pAttachments = attachments.data(),
+        .width = render_area.width,
+        .height = render_area.height,
+        .layers = framebuffer_layers,
+    });
+    const VkFramebuffer handle = *variant;
+    LOG_DEBUG(Render_Vulkan, "Redirecting duplicate color attachment mask {:02x} to scratch",
+              color_scratch_mask);
+    scratch_framebuffers.emplace_back(color_scratch_mask, std::move(variant));
+    return handle;
+}
+
+VkRenderPass Framebuffer::RenderPassVariant(u32 color_scratch_mask) const {
+    color_scratch_mask &= duplicate_color_attachment_mask;
+    if (color_scratch_mask == 0) {
+        return renderpass;
+    }
+    for (const auto& [mask, cached] : scratch_renderpasses) {
+        if (mask == color_scratch_mask) {
+            return cached;
+        }
+    }
+    RenderPassKey key = render_pass_key;
+    key.color_scratch_mask = color_scratch_mask;
+    const VkRenderPass variant = runtime_ptr->render_pass_cache.Get(key);
+    scratch_renderpasses.emplace_back(color_scratch_mask, variant);
+    return variant;
+}
+
+std::array<VkImage, 9> Framebuffer::Images(u32 color_scratch_mask) const noexcept {
+    auto result = images;
+    color_scratch_mask &= duplicate_color_attachment_mask;
+    if (color_scratch_mask == 0) {
+        return result;
+    }
+    for (size_t slot = 0; slot < NUM_RT; ++slot) {
+        if ((color_scratch_mask & (1U << slot)) != 0) {
+            result[rt_map[slot]] = *scratch_color_attachments[slot].image;
+        }
+    }
+    return result;
+}
+
+std::array<VkImageSubresourceRange, 9> Framebuffer::ImageRanges(
+    u32 color_scratch_mask) const noexcept {
+    auto result = image_ranges;
+    color_scratch_mask &= duplicate_color_attachment_mask;
+    if (color_scratch_mask == 0) {
+        return result;
+    }
+    for (size_t slot = 0; slot < NUM_RT; ++slot) {
+        if ((color_scratch_mask & (1U << slot)) != 0) {
+            result[rt_map[slot]] = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = framebuffer_layers,
+            };
+        }
+    }
+    return result;
 }
 
 void TextureCacheRuntime::AccelerateImageUpload(

@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "yuzu_video_core/vulkan_common/moltenvk_workarounds.h"
+
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
@@ -361,7 +363,7 @@ public:
 
     /// Returns the maximum number of push descriptors.
     u32 MaxPushDescriptors() const {
-        return properties.push_descriptor.maxPushDescriptors;
+        return MoltenVK::PushDescriptorLimit(GetDriverID(), properties.push_descriptor.maxPushDescriptors);
     }
 
     /// Returns true if formatless image load is supported.
@@ -382,6 +384,15 @@ public:
     // Returns true if depth bounds is supported.
     bool IsDepthBoundsSupported() const {
         return features.features.depthBounds;
+    }
+
+    bool CanUseDepthBoundsDynamicState() const {
+        return MoltenVK::UseDepthBoundsDynamicState(GetDriverID(), IsDepthBoundsSupported());
+    }
+
+    bool CanRequestComputeSubgroupSize() const {
+        return IsExtSubgroupSizeControlSupported() &&
+               IsGuestWarpSizeSupported(VK_SHADER_STAGE_COMPUTE_BIT);
     }
 
     /// Returns true when blitting from and to D24S8 images is supported.

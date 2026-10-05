@@ -66,7 +66,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
                 .stage{
                     .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                     .pNext =
-                        device.IsExtSubgroupSizeControlSupported() ? &subgroup_size_ci : nullptr,
+                        device.CanRequestComputeSubgroupSize() ? &subgroup_size_ci : nullptr,
                     .flags = 0,
                     .stage = VK_SHADER_STAGE_COMPUTE_BIT,
                     .module = *spv_module,

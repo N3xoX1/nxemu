@@ -86,9 +86,10 @@ void Scheduler::DispatchWork() {
     AcquireNewChunk();
 }
 
-void Scheduler::RequestRenderpass(const Framebuffer* framebuffer) {
-    const VkRenderPass renderpass = framebuffer->RenderPass();
-    const VkFramebuffer framebuffer_handle = framebuffer->Handle();
+void Scheduler::RequestRenderpass(const Framebuffer* framebuffer, u32 color_scratch_mask) {
+    color_scratch_mask &= framebuffer->DuplicateColorAttachmentMask();
+    const VkRenderPass renderpass = framebuffer->RenderPassVariant(color_scratch_mask);
+    const VkFramebuffer framebuffer_handle = framebuffer->HandleVariant(color_scratch_mask);
     const VkExtent2D render_area = framebuffer->RenderArea();
     if (renderpass == state.renderpass && framebuffer_handle == state.framebuffer &&
         render_area.width == state.render_area.width &&
@@ -117,8 +118,8 @@ void Scheduler::RequestRenderpass(const Framebuffer* framebuffer) {
         cmdbuf.BeginRenderPass(renderpass_bi, VK_SUBPASS_CONTENTS_INLINE);
     });
     num_renderpass_images = framebuffer->NumImages();
-    renderpass_images = framebuffer->Images();
-    renderpass_image_ranges = framebuffer->ImageRanges();
+    renderpass_images = framebuffer->Images(color_scratch_mask);
+    renderpass_image_ranges = framebuffer->ImageRanges(color_scratch_mask);
 }
 
 void Scheduler::RequestOutsideRenderPassOperationContext() {
