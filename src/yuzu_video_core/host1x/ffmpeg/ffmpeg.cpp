@@ -396,7 +396,7 @@ std::unique_ptr<Frame> DeinterlaceFilter::DrainSinkFrame()
 {
     auto dst_frame = std::make_unique<Frame>();
     const int ret = av_buffersink_get_frame(m_sink_context, dst_frame->GetFrame());
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR(AVERROR_EOF))
+    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
     {
         return {};
     }
