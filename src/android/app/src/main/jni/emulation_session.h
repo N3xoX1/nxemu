@@ -1,9 +1,11 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-module-spec/operating_system.h>
@@ -31,8 +33,14 @@ public:
     int GetStyleIndex(int player_index);
 
     bool Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path);
+    void Stop();
+    void SetPaused(bool paused);
+    bool IsPaused();
+    void SetNativeWindow(ANativeWindow * native_window);
     void SurfaceDestroyed();
     void SurfaceChanged();
+    bool ReadAppletCapture(std::vector<uint8_t> & out, uint32_t & width, uint32_t & height);
+    void AppletCaptureSize(uint32_t & width, uint32_t & height);
 
     ANativeWindow * NativeWindow() const;
     float PixelRatio() const;

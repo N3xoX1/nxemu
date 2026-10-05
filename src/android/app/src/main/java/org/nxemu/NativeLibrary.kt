@@ -49,7 +49,14 @@ object NativeLibrary {
 
     external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String): Boolean
     external fun emulationSurfaceDestroyed()
+    external fun emulationStopped()
     external fun surfaceChanged(surface: android.view.Surface)
+    external fun pauseEmulation()
+    external fun unpauseEmulation()
+    external fun isPaused(): Boolean
+    external fun getAppletCaptureBuffer(): ByteArray
+    external fun getAppletCaptureWidth(): Int
+    external fun getAppletCaptureHeight(): Int
 
     /** Used from native [yuzu_common/fs/fs_android.cpp] via RegisterCallbacks. */
     @JvmStatic

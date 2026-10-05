@@ -323,6 +323,11 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
     UpdateCurrentFramebufferLayout(640, 480);
 }
 
+void RenderWindow::RefreshRenderSurface()
+{
+    window_info.render_surface = m_renderWindow.RenderSurface();
+}
+
 void RenderWindow::OnFrameDisplayed()
 {
     if (!m_firstFrame)

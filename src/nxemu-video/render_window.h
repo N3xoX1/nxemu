@@ -11,6 +11,8 @@ class RenderWindow :
 public:
     RenderWindow(IRenderWindow & renderWindow);
 
+    void RefreshRenderSurface();
+
     // EmuWindow
     void OnFrameDisplayed();
     std::unique_ptr<Core::Frontend::GraphicsContext> CreateSharedContext() const;

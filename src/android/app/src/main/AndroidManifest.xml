@@ -14,8 +14,10 @@
         android:theme="@style/Theme.NxEmu.Splash">
         <activity
             android:name="org.nxemu.ui.main.MainActivity"
+            android:alwaysRetainTaskState="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.NxEmu.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -34,6 +36,7 @@
             android:name="org.nxemu.ui.emulation.EmulationActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
             android:exported="false"
+            android:launchMode="singleTop"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.NxEmu" />
         <activity

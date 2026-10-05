@@ -19,6 +19,8 @@
     <string name="button_map_description">Press a button or move a trigger/stick</string>
     <string name="emulation_done">Done</string>
     <string name="emulation_touch_overlay_reset">Reset overlay</string>
+    <string name="emulation_pause">Pause emulation</string>
+    <string name="emulation_unpause">Unpause emulation</string>
     <string name="emulation_exit">Exit emulation</string>
     <string name="lock_drawer">Lock drawer</string>
     <string name="unlock_drawer">Unlock drawer</string>
