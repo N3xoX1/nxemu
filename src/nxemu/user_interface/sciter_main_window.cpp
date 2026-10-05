@@ -4,6 +4,7 @@
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
 #include <cstring>
+#include <cstdio>
 #include "user_interface/about_dialog.h"
 #include "user_interface/app_events.h"
 #include "user_interface/file_dialogs.h"
@@ -12,6 +13,8 @@
 #include "user_interface/notification.h"
 #ifdef __APPLE__
 #include "user_interface/render_window_macos.h"
+#elif defined(__linux__)
+#include "user_interface/render_window_linux.h"
 #endif
 #include <common/path.h>
 #include <common/shell_open.h>
@@ -431,7 +434,11 @@ SciterMainWindow::~SciterMainWindow()
 #ifdef __APPLE__
     NxEmuMacOSDestroyRenderView(m_renderWindow);
     m_renderWindow = nullptr;
+#elif defined(__linux__)
+    NxEmuLinuxDestroyRenderView(m_renderWindow);
+    m_renderWindow = nullptr;
 #endif
+    m_readyForNativeClose = true;
     if (m_window != nullptr)
     {
         // File -> Exit stops the loop without a native close notification. Close
@@ -770,6 +777,15 @@ void SciterMainWindow::ShowGameConfig(const char * gamePath)
 
 void SciterMainWindow::LoadGame(const char * path, int32_t program_index, ApplicationLaunchType launch_type)
 {
+#if defined(__linux__)
+    if (m_renderWindow == nullptr)
+    {
+        Notification::GetInstance().DisplayError(
+            "Could not create a native Wayland Vulkan render view. Check the Sciter runtime and Wayland compositor.",
+            "Wayland initialization failed");
+        return;
+    }
+#endif
     SettingsStore & settings = SettingsStore::GetInstance();
     const int32_t previous_program_index = launch_type == ApplicationLaunchType::ApplicationInitiated ? m_currentProgramIndex : -1;
     if (settings.GetBool(NXCoreSetting::EmulationRunning) && launch_type == ApplicationLaunchType::ApplicationInitiated)
@@ -949,7 +965,11 @@ void SciterMainWindow::UpdateInputDrivers()
 void SciterMainWindow::CreateRenderWindow()
 {
     SciterElement mainContents(m_rootElement.GetElementByID("MainContents"));
+#if defined(__linux__)
+    SciterElement::RECT rect = mainContents.GetLocation(SciterElement::VIEW_RELATIVE | SciterElement::CONTENT_BOX);
+#else
     SciterElement::RECT rect = mainContents.GetLocation();
+#endif
     uint32_t width = rect.right - rect.left;
     uint32_t height = rect.bottom - rect.top;
 #ifdef _WIN32
@@ -959,6 +979,14 @@ void SciterMainWindow::CreateRenderWindow()
 #elif defined(__APPLE__)
     m_renderWindow = NxEmuMacOSCreateRenderView(m_window->GetHandle());
     NxEmuMacOSLayoutRenderView(m_renderWindow, rect.left, rect.top, width, height);
+#elif defined(__linux__)
+    m_renderWindow = NxEmuLinuxCreateRenderView(m_window->GetHandle());
+    if (m_renderWindow == nullptr)
+    {
+        std::fprintf(stderr, "nxemu: could not create a native Wayland render view\n");
+        return;
+    }
+    NxEmuLinuxLayoutRenderView(m_renderWindow, rect.left, rect.top, width, height);
 #else
     (void)width;
     (void)height;
@@ -967,7 +995,14 @@ void SciterMainWindow::CreateRenderWindow()
     if (m_modules.IsValid())
     {
         IVideo & video = m_modules.Modules().Video();
+#if defined(__linux__)
+        const double scale = NxEmuLinuxWindowScale(m_window->GetHandle());
+        video.UpdateFramebufferLayout(
+            static_cast<uint32_t>(std::lround((rect.right - rect.left) * scale)),
+            static_cast<uint32_t>(std::lround((rect.bottom - rect.top) * scale)));
+#else
         video.UpdateFramebufferLayout(rect.right - rect.left, rect.bottom - rect.top);
+#endif
     }
 }
 
@@ -1099,10 +1134,19 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
             DestroyWindow((HWND)impl->m_renderWindow);
 #elif defined(__APPLE__)
             NxEmuMacOSDestroyRenderView(impl->m_renderWindow);
+#elif defined(__linux__)
+            // Keep the native surface stable across game launches. The previous
+            // renderer can still own VkSurfaceKHR when this callback fires.
+            impl->LayoutRenderWindow();
 #endif
+#if !defined(__linux__)
             impl->m_renderWindow = nullptr;
+#endif
         }
-        impl->CreateRenderWindow();
+        if (impl->m_renderWindow == nullptr)
+        {
+            impl->CreateRenderWindow();
+        }
         impl->m_lastMouseActivityTick = 0;
     }
     SciterElement renderer(impl->m_rootElement.GetElementByID("renderer"));
@@ -1117,6 +1161,7 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
 
 void SciterMainWindow::ShowPanel(Panel panel)
 {
+    m_renderPanelVisible.store(panel == Panel::Renderer, std::memory_order_release);
     struct PanelEntry
     {
         Panel panel;
@@ -1141,6 +1186,8 @@ void SciterMainWindow::ShowPanel(Panel panel)
     ShowWindow((HWND)m_renderWindow, panel == Panel::Renderer ? SW_SHOW : SW_HIDE);
 #elif defined(__APPLE__)
     NxEmuMacOSSetRenderViewVisible(m_renderWindow, panel == Panel::Renderer);
+#elif defined(__linux__)
+    NxEmuLinuxSetRenderViewVisible(m_renderWindow, panel == Panel::Renderer);
 #endif
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
 }
@@ -1955,7 +2002,18 @@ void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 
 bool SciterMainWindow::OnWindowCloseRequest(HWINDOW /*hWnd*/)
 {
+#if defined(__linux__)
+    if (!m_readyForNativeClose)
+    {
+        // Deny native destruction while Vulkan still owns the child surface.
+        // File exit stops Sciter's loop; actual teardown runs in the owner.
+        OnFileExit();
+        return false;
+    }
+    return true;
+#else
     return ConfirmCloseEmulator();
+#endif
 }
 
 void SciterMainWindow::OnMenuItem(int32_t id, SCITER_ELEMENT /*item*/)
@@ -2057,6 +2115,8 @@ void * SciterMainWindow::RenderSurface() const
 {
 #ifdef __APPLE__
     return NxEmuMacOSGetRenderSurface(m_renderWindow);
+#elif defined(__linux__)
+    return NxEmuLinuxGetRenderSurface(m_renderWindow);
 #else
     return m_renderWindow;
 #endif
@@ -2101,6 +2161,8 @@ float SciterMainWindow::PixelRatio() const
 #endif
 #ifdef __APPLE__
     return NxEmuMacOSWindowScale(m_window != nullptr ? m_window->GetHandle() : nullptr);
+#elif defined(__linux__)
+    return NxEmuLinuxWindowScale(m_window != nullptr ? m_window->GetHandle() : nullptr);
 #endif
     return 1.0f;
 }
@@ -2200,12 +2262,19 @@ void SciterMainWindow::LayoutRenderWindow()
     {
         return;
     }
-    SciterElement::RECT rect = mainContents.GetLocation(SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX);
+#if defined(__linux__)
+    // The native wl_surface includes Sciter's frame/shadow inset. Document
+    // coordinates omit it; VIEW_RELATIVE includes the current native inset.
+    constexpr uint32_t renderArea = SciterElement::VIEW_RELATIVE | SciterElement::BORDER_BOX;
+#else
+    constexpr uint32_t renderArea = SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX;
+#endif
+    SciterElement::RECT rect = mainContents.GetLocation(renderArea);
     const bool uiHidden = m_hideUi || (m_win32Fullscreen != nullptr && m_win32Fullscreen->active);
     SciterElement mainMenu(m_rootElement.GetElementByID("MainMenu"));
     if (!uiHidden && mainMenu.IsValid())
     {
-        const SciterElement::RECT menuRect = mainMenu.GetLocation(SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX);
+        const SciterElement::RECT menuRect = mainMenu.GetLocation(renderArea);
         if (rect.top < menuRect.bottom)
         {
             rect.top = menuRect.bottom;
@@ -2221,6 +2290,8 @@ void SciterMainWindow::LayoutRenderWindow()
     MoveWindow((HWND)m_renderWindow, rect.left, rect.top, width, height, false);
 #elif defined(__APPLE__)
     NxEmuMacOSLayoutRenderView(m_renderWindow, rect.left, rect.top, width, height);
+#elif defined(__linux__)
+    NxEmuLinuxLayoutRenderView(m_renderWindow, rect.left, rect.top, width, height);
 #else
     (void)width;
     (void)height;
@@ -2228,7 +2299,13 @@ void SciterMainWindow::LayoutRenderWindow()
     if (m_modules.IsValid())
     {
         IVideo & video = m_modules.Modules().Video();
+#if defined(__linux__)
+        const double scale = NxEmuLinuxWindowScale(m_window->GetHandle());
+        video.UpdateFramebufferLayout(static_cast<uint32_t>(std::lround(width * scale)),
+                                      static_cast<uint32_t>(std::lround(height * scale)));
+#else
         video.UpdateFramebufferLayout(width, height);
+#endif
     }
 }
 

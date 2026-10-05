@@ -74,6 +74,29 @@ add_executable(nxemu
     applets/web_browser.h
 )
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    target_sources(nxemu PRIVATE user_interface/render_window_linux.cpp)
+    target_include_directories(nxemu PRIVATE
+        "${CMAKE_SOURCE_DIR}/external/sciterui/src/3rd_party/sciter-js-sdk-main/include")
+    pkg_check_modules(NXEMU_WAYLAND REQUIRED IMPORTED_TARGET "wayland-client>=1.20")
+    find_program(NXEMU_WAYLAND_SCANNER wayland-scanner REQUIRED)
+    set(_viewporter_xml "${CMAKE_SOURCE_DIR}/external/sdl/wayland-protocols/viewporter.xml")
+    set(_viewporter_header "${CMAKE_CURRENT_BINARY_DIR}/viewporter-client-protocol.h")
+    set(_viewporter_code "${CMAKE_CURRENT_BINARY_DIR}/viewporter-protocol.c")
+    add_custom_command(OUTPUT "${_viewporter_header}"
+        COMMAND "${NXEMU_WAYLAND_SCANNER}" client-header "${_viewporter_xml}" "${_viewporter_header}"
+        DEPENDS "${_viewporter_xml}" VERBATIM)
+    add_custom_command(OUTPUT "${_viewporter_code}"
+        COMMAND "${NXEMU_WAYLAND_SCANNER}" private-code "${_viewporter_xml}" "${_viewporter_code}"
+        DEPENDS "${_viewporter_xml}" VERBATIM)
+    target_sources(nxemu PRIVATE "${_viewporter_header}" "${_viewporter_code}")
+    target_include_directories(nxemu PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(nxemu PRIVATE PkgConfig::NXEMU_WAYLAND)
+    pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)
+    target_link_libraries(nxemu PRIVATE PkgConfig::DBUS)
+endif()
+
 if(APPLE)
     target_sources(nxemu PRIVATE
         user_interface/file_dialogs_macos.mm
@@ -102,12 +125,6 @@ target_include_directories(nxemu PRIVATE
 
 if(UNIX)
     target_compile_definitions(nxemu PRIVATE NXEMU_UNIX=1)
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)
-    target_link_libraries(nxemu PRIVATE PkgConfig::DBUS)
 endif()
 
 target_link_libraries(nxemu PRIVATE

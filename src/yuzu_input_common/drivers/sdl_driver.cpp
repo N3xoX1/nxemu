@@ -8,6 +8,7 @@
 #include "yuzu_common/param_package.h"
 #include "yuzu_common/thread.h"
 #include "yuzu_common/vector_math.h"
+#include <cstring>
 
 namespace InputCommon
 {

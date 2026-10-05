@@ -22,6 +22,9 @@
 #include <fmt/core.h>
 #include "startup_checks.h"
 #include "vulkan_probe.h"
+#ifdef __linux__
+#include <nxemu-module-spec/base.h>
+#endif
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
@@ -485,15 +488,21 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
     {
         FreeLibrary(library);
     }
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__linux__)
     records.clear();
     try
     {
-        // Use the same bundled MoltenVK as rendering, with portability enumeration enabled.
+        // Probe the same Vulkan loader as the renderer.
         const auto library = Vulkan::OpenLibrary();
         Vulkan::vk::InstanceDispatch dispatch;
-        const auto instance = Vulkan::CreateInstance(*library, dispatch, VK_API_VERSION_1_1,
-            renderSurface ? Vulkan::WindowSystemType::Metal : Vulkan::WindowSystemType::Headless);
+#ifdef __APPLE__
+        const auto window_type = renderSurface ? Vulkan::WindowSystemType::Metal : Vulkan::WindowSystemType::Headless;
+#else
+        const auto* native = static_cast<const LinuxRenderSurface*>(renderSurface);
+        const bool with_surface = native && native->display && native->window;
+        const auto window_type = with_surface ? Vulkan::WindowSystemType::Wayland : Vulkan::WindowSystemType::Headless;
+#endif
+        const auto instance = Vulkan::CreateInstance(*library, dispatch, VK_API_VERSION_1_1, window_type);
 
         u32 count = 0;
         std::vector<VkPhysicalDevice> devices;
@@ -515,6 +524,10 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
             VkPhysicalDeviceProperties a{}, b{};
             dispatch.vkGetPhysicalDeviceProperties(lhs, &a);
             dispatch.vkGetPhysicalDeviceProperties(rhs, &b);
+            const bool a_microsoft = std::strstr(a.deviceName, "Microsoft") != nullptr;
+            const bool b_microsoft = std::strstr(b.deviceName, "Microsoft") != nullptr;
+            if (a_microsoft != b_microsoft)
+                return !a_microsoft;
             if (vendor_rank(a.vendorID) != vendor_rank(b.vendorID))
                 return vendor_rank(a.vendorID) < vendor_rank(b.vendorID);
             const bool a_discrete = a.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
@@ -527,7 +540,11 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
         const auto get_proc = [&](const char* name) {
             return dispatch.vkGetInstanceProcAddr(*instance, name);
         };
+#ifdef __APPLE__
         const auto create_surface = reinterpret_cast<PFN_vkCreateMetalSurfaceEXT>(get_proc("vkCreateMetalSurfaceEXT"));
+#else
+        const auto create_surface = reinterpret_cast<PFN_vkCreateWaylandSurfaceKHR>(get_proc("vkCreateWaylandSurfaceKHR"));
+#endif
         const auto destroy_surface = reinterpret_cast<PFN_vkDestroySurfaceKHR>(get_proc("vkDestroySurfaceKHR"));
         const auto get_present_modes = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfacePresentModesKHR>(
             get_proc("vkGetPhysicalDeviceSurfacePresentModesKHR"));
@@ -536,14 +553,21 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
             if (surface != VK_NULL_HANDLE && destroy_surface)
                 destroy_surface(*instance, surface, nullptr);
         };
-        if (renderSurface && create_surface && destroy_surface)
+        if (window_type != Vulkan::WindowSystemType::Headless && create_surface && destroy_surface)
         {
+#ifdef __APPLE__
             VkMetalSurfaceCreateInfoEXT info{};
             info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
             info.pLayer = static_cast<const CAMetalLayer*>(renderSurface);
+#else
+            VkWaylandSurfaceCreateInfoKHR info{};
+            info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+            info.display = static_cast<wl_display*>(native->display);
+            info.surface = static_cast<wl_surface*>(native->window);
+#endif
             const auto status = create_surface(*instance, &info, nullptr, &surface);
             if (status != VK_SUCCESS)
-                LOG_WARNING(Render_Vulkan, "Device probe could not create a Metal surface: {}", static_cast<int>(status));
+                LOG_WARNING(Render_Vulkan, "Device probe could not create a presentation surface: {}", static_cast<int>(status));
         }
         records.reserve(devices.size());
         for (const auto device : devices)
@@ -570,7 +594,7 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
             LOG_INFO(Render_Vulkan, "Graphics device available: {}", properties.deviceName);
         }
         if (records.empty())
-            LOG_WARNING(Render_Vulkan, "MoltenVK reported no physical devices");
+            LOG_WARNING(Render_Vulkan, "Vulkan reported no physical devices");
     }
     catch (const std::exception& e)
     {

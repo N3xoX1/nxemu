@@ -173,6 +173,7 @@ public:
 private:
     AVCodecContext* m_codec_context{};
     AVPixelFormat m_hw_pix_fmt{AV_PIX_FMT_NONE};
+    bool m_logged_hardware_frame{false};
 };
 
 // Wraps an AVFilterGraph.

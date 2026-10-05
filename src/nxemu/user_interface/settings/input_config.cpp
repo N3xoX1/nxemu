@@ -30,6 +30,10 @@ InputConfig::~InputConfig()
     }
     if (m_window != nullptr)
     {
+        SciterElement root(m_window->GetRootElement());
+        root.SetTimer(0, &m_resizeTimerId);
+        m_sciterUI.DetachHandler(root, IID_ITIMERSINK, (ITimerSink*)this);
+        m_sciterUI.DetachHandler(root.GetElementByID("InputContents"), IID_IRESIZESINK, (IResizeSink*)this);
         m_window->OnCloseSinkRemove(this);
         m_window->OnDestroySinkRemove(this);
         m_window->Destroy();
@@ -70,11 +74,33 @@ void InputConfig::Display(void * parentWindow)
         m_sciterUI.AttachHandler(okButton, IID_ICLICKSINK, (IClickSink*)this);
 
         m_sciterUI.AttachHandler(root, IID_IKEYSINK, (IKeySink*)this);
+        m_sciterUI.AttachHandler(root.GetElementByID("InputContents"), IID_IRESIZESINK, (IResizeSink*)this);
+        m_sciterUI.AttachHandler(root, IID_ITIMERSINK, (ITimerSink*)this);
     }
 
     m_window->FixMinSize();
     m_window->CenterWindow();
     m_window->Show();
+}
+
+bool InputConfig::OnSizeChanged(SCITER_ELEMENT /*element*/)
+{
+    if (m_window != nullptr && !m_window->IsClosed())
+    {
+        // Resize once Sciter has finished laying out the new controller page.
+        SciterElement(m_window->GetRootElement()).SetTimer(1, &m_resizeTimerId);
+    }
+    return false;
+}
+
+bool InputConfig::OnTimer(SCITER_ELEMENT element, uint32_t * timerId)
+{
+    if (m_window != nullptr && !m_window->IsClosed() &&
+        element == m_window->GetRootElement() && timerId == &m_resizeTimerId)
+    {
+        m_window->FixMinSize();
+    }
+    return false;
 }
 
 const IParamPackageList & InputConfig::InputDeviceList() const

@@ -17,8 +17,12 @@ endif()
 
 find_package(Threads REQUIRED)
 
-if(APPLE)
+if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     option(ENABLE_SDL2 "Enable SDL game controller input" ON)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND ENABLE_SDL2 AND NOT TARGET SDL2::SDL2)
+    find_package(SDL2 REQUIRED CONFIG)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)

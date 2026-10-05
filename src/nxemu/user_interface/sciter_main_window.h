@@ -110,7 +110,8 @@ public:
 
     // IRenderWindow
     void * RenderSurface() const override;
-    float PixelRatio() const override; 
+    float PixelRatio() const override;
+    bool IsVisible() const override { return m_renderPanelVisible.load(std::memory_order_acquire); }
 
 private:
     SciterMainWindow() = delete;
@@ -216,7 +217,7 @@ private:
     // IStateChangeSink
     bool OnStateChange(SCITER_ELEMENT elem, uint32_t eventReason, void* data) override;
 
-    // ITimerSink    
+    // ITimerSink
     bool OnTimer(SCITER_ELEMENT Element, uint32_t* TimerId) override;
 
     // IEventSink
@@ -248,6 +249,7 @@ private:
     bool m_useMultiCore;
     bool m_useSpeedLimit;
     uint32_t m_speedLimit;
+    bool m_readyForNativeClose = false;
     bool m_emulationRunning;
     std::atomic<bool> m_reloadingGame;
     bool m_pendingStartInFullscreen;
@@ -273,4 +275,5 @@ private:
     int32_t m_previousProgramIndex;
     int32_t m_pendingReloadProgramIndex;
     ApplicationLaunchType m_pendingReloadLaunchType;
+    std::atomic<bool> m_renderPanelVisible{false};
 };

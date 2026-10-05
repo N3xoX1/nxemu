@@ -6,7 +6,6 @@ add_subdirectory(host_shaders)
 if(LIBVA_FOUND)
     set_source_files_properties(host1x/ffmpeg/ffmpeg.cpp
         PROPERTIES COMPILE_DEFINITIONS LIBVA_FOUND=1)
-    list(APPEND FFmpeg_LIBRARIES ${LIBVA_LIBRARIES})
 endif()
 
 add_library(video_core STATIC
@@ -378,6 +377,16 @@ if(NOT FFmpeg_LIBRARIES AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID A
     set(FFmpeg_LIBRARIES ${_ffmpeg_linux_libs})
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID AND NOT FFmpeg_LIBRARIES)
+    # Use matching system headers and libraries. A shared module may otherwise
+    # link successfully with unresolved FFmpeg symbols and fail at dlopen().
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(NXEMU_FFMPEG REQUIRED IMPORTED_TARGET
+        libavcodec libavfilter libavutil libswscale)
+    set(FFmpeg_INCLUDE_DIR ${NXEMU_FFMPEG_INCLUDE_DIRS})
+    set(FFmpeg_LIBRARIES PkgConfig::NXEMU_FFMPEG)
+endif()
+
 if(NOT FFmpeg_INCLUDE_DIR)
     set(FFmpeg_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/ffmpeg/include")
 endif()
@@ -415,6 +424,9 @@ endif()
 
 target_include_directories(video_core PRIVATE ${FFmpeg_INCLUDE_DIR})
 target_link_libraries(video_core PRIVATE ${FFmpeg_LIBRARIES})
+if(LIBVA_FOUND)
+    target_link_libraries(video_core PRIVATE ${LIBVA_LIBRARIES})
+endif()
 if(APPLE)
     foreach(framework CoreFoundation CoreMedia CoreVideo VideoToolbox)
         find_library(NXEMU_${framework}_FRAMEWORK ${framework} REQUIRED)
