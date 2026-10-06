@@ -86,8 +86,16 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     alpha_to_one_enabled.Assign(regs.anti_alias_alpha_control.alpha_to_one != 0 ? 1 : 0);
     app_stage.Assign(maxwell3d.engine_state);
 
+    bool color_formats_changed = false;
     for (size_t i = 0; i < regs.rt.size(); ++i) {
-        color_formats[i] = static_cast<u8>(regs.rt[i].format);
+        const u8 format = static_cast<u8>(regs.rt[i].format);
+        color_formats_changed |= color_formats[i] != format;
+        color_formats[i] = format;
+    }
+    if (extended_dynamic_state_3_blend && color_formats_changed) {
+        // The dynamic blend enable depends on the render target formats.
+        maxwell3d.dirty.flags[Dirty::Blending] = true;
+        maxwell3d.dirty.flags[Dirty::BlendEnable] = true;
     }
     alpha_test_ref = Common::BitCast<u32>(regs.alpha_test_ref);
     point_size = Common::BitCast<u32>(regs.point_size);

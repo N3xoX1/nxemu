@@ -143,7 +143,7 @@ Shader::AttributeType AttributeType(const FixedPipelineState& state, size_t inde
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
-                                    const Shader::IR::Program* previous_program, const Device& device) {
+                                    const Shader::IR::Program* previous_program) {
     Shader::RuntimeInfo info;
     if (previous_program) {
         info.previous_stage_stores = previous_program->info.stores;
@@ -226,21 +226,19 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
         info.alpha_test_func = MaxwellToCompareFunction(
             key.state.UnpackComparisonOp(key.state.alpha_test_func.Value()));
         info.alpha_test_reference = Common::BitCast<float>(key.state.alpha_test_ref);
-        if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
-            for (size_t index = 0; index < info.color_output_types.size(); ++index) {
-                const auto format =
-                    static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]);
-                if (format == Tegra::RenderTargetFormat::NONE) {
-                    continue;
-                }
-                const auto pixel_format =
-                    VideoCore::Surface::PixelFormatFromRenderTargetFormat(format);
-                if (VideoCore::Surface::IsPixelFormatInteger(pixel_format)) {
-                    info.color_output_types[index] =
-                        VideoCore::Surface::IsPixelFormatSignedInteger(pixel_format)
-                            ? Shader::AttributeType::SignedInt
-                            : Shader::AttributeType::UnsignedInt;
-                }
+        // Vulkan requires integer fragment outputs for integer color attachments.
+        for (size_t index = 0; index < info.color_output_types.size(); ++index) {
+            const auto format =
+                static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]);
+            if (format == Tegra::RenderTargetFormat::NONE) {
+                continue;
+            }
+            const auto pixel_format = VideoCore::Surface::PixelFormatFromRenderTargetFormat(format);
+            if (VideoCore::Surface::IsPixelFormatInteger(pixel_format)) {
+                info.color_output_types[index] =
+                    VideoCore::Surface::IsPixelFormatSignedInteger(pixel_format)
+                        ? Shader::AttributeType::SignedInt
+                        : Shader::AttributeType::UnsignedInt;
             }
         }
         break;
@@ -686,7 +684,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
-        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
+        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
         ConvertLegacyToGeneric(program, runtime_info);
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);

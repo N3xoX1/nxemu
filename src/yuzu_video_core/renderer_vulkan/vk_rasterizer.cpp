@@ -1461,11 +1461,11 @@ void RasterizerVulkan::UpdateBlending(Tegra::Engines::Maxwell3D::Regs& regs) {
 
     if (state_tracker.TouchBlendEnable()) {
         std::array<VkBool32, Maxwell::NumRenderTargets> setup_enables{};
-        const bool moltenvk = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK;
         for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
             bool enable = regs.blend.enable[index] != 0;
             const auto rt_format = regs.rt[index].format;
-            if (moltenvk && enable && rt_format != Tegra::RenderTargetFormat::NONE) {
+            // Blending is not defined for integer formats.
+            if (enable && rt_format != Tegra::RenderTargetFormat::NONE) {
                 const auto format =
                     VideoCore::Surface::PixelFormatFromRenderTargetFormat(rt_format);
                 enable = !IsPixelFormatInteger(format);

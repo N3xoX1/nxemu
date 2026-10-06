@@ -72,6 +72,11 @@ void AlphaTest(EmitContext& ctx) {
     if (!Sirit::ValidId(ctx.frag_color[0])) {
         return;
     }
+    // The alpha test does not apply to integer color outputs.
+    const AttributeType output_type{ctx.runtime_info.color_output_types[0]};
+    if (output_type == AttributeType::SignedInt || output_type == AttributeType::UnsignedInt) {
+        return;
+    }
 
     const Id type{ctx.F32[1]};
     const Id rt0_color{ctx.OpLoad(ctx.F32[4], ctx.frag_color[0])};

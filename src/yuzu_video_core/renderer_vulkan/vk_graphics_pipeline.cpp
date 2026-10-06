@@ -805,8 +805,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         for (size_t i = 0; i < mask_table.size(); ++i) {
             write_mask |= mask[i] ? mask_table[i] : 0;
         }
+        // Blending is not defined for integer formats.
         const bool disable_integer_blend =
-            device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
             VideoCore::Surface::IsPixelFormatInteger(DecodeFormat(key.state.color_formats[index]));
         cb_attachments.push_back({
             .blendEnable = blend.enable != 0 && !disable_integer_blend,
