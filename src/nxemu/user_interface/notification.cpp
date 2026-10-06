@@ -4,9 +4,15 @@
 #include <sciter_handler.h>
 #include <sciter_ui.h>
 #include <common/std_string.h>
+#include <type_traits>
 
 #ifdef WIN32
 #include<Windows.h>
+#endif
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#include <dispatch/dispatch.h>
+#include <pthread.h>
 #endif
 
 namespace
@@ -58,8 +64,9 @@ public:
 
             ConfigureButtons();
 
-            m_sciterUI.AttachHandler(root.FindFirst("button[role=\"window-ok\"]"), IID_ICLICKSINK, (IClickSink *)this);
-            m_sciterUI.AttachHandler(root.FindFirst("button[role=\"window-close\"]"), IID_ICLICKSINK, (IClickSink *)this);
+            // The role buttons are the same elements as NotificationOk and
+            // NotificationNo. Attaching twice delivers the click to a second
+            // handler after the first one has already torn the window down.
             m_sciterUI.AttachHandler(root.GetElementByID("NotificationYes"), IID_ICLICKSINK, (IClickSink *)this);
             m_sciterUI.AttachHandler(root.GetElementByID("NotificationNo"), IID_ICLICKSINK, (IClickSink *)this);
             m_sciterUI.AttachHandler(root.GetElementByID("NotificationOk"), IID_ICLICKSINK, (IClickSink *)this);
@@ -149,6 +156,32 @@ private:
     NotificationResponse m_response;
 };
 
+// AppKit only allows windows to be created on the main thread, but modules
+// report from worker threads (e.g. the firmware install thread). The call is
+// queued on the run loop rather than the main dispatch queue: the dialog runs
+// a nested event loop, and that queue is not serviced again while one of its
+// own blocks is still running, which would leave the dialog undrawn.
+template <typename Fn>
+void RunOnUiThread(Fn && fn)
+{
+#ifdef __APPLE__
+    if (pthread_main_np() == 0)
+    {
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+        std::remove_reference_t<Fn> * call = &fn;
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, ^{
+            (*call)();
+            dispatch_semaphore_signal(done);
+        });
+        CFRunLoopWakeUp(CFRunLoopGetMain());
+        dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+        dispatch_release(done);
+        return;
+    }
+#endif
+    fn();
+}
+
 } // namespace
 
 std::unique_ptr<Notification> Notification::s_instance;
@@ -177,8 +210,10 @@ void Notification::DisplayError(const char * message, const char * title) const
     {
         return;
     }
-    NotificationWindow dialog(*m_sciterUI);
-    dialog.Show(m_parentWindow, NotificationDialogMode::Alert, title, message);
+    RunOnUiThread([&]() {
+        NotificationWindow dialog(*m_sciterUI);
+        dialog.Show(m_parentWindow, NotificationDialogMode::Alert, title, message);
+    });
 }
 
 NotificationResponse Notification::Query(const char * message, const char * title) const
@@ -187,8 +222,12 @@ NotificationResponse Notification::Query(const char * message, const char * titl
     {
         return NotificationResponse::No;
     }
-    NotificationWindow dialog(*m_sciterUI);
-    return dialog.Show(m_parentWindow, NotificationDialogMode::Query, title, message);
+    NotificationResponse response = NotificationResponse::No;
+    RunOnUiThread([&]() {
+        NotificationWindow dialog(*m_sciterUI);
+        response = dialog.Show(m_parentWindow, NotificationDialogMode::Query, title, message);
+    });
+    return response;
 }
 
 void Notification::BreakPoint(const char * fileName, uint32_t lineNumber)
