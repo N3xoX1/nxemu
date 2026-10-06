@@ -1132,15 +1132,22 @@ void RasterizerVulkan::UpdateStencilFaces(Tegra::Engines::Maxwell3D::Regs& regs)
     }
     if (update_references) {
         [&]() {
+            bool changed;
             if (regs.stencil_two_side_enable) {
-                if (!state_tracker.CheckStencilReferenceFront(regs.stencil_front_ref) &&
-                    !state_tracker.CheckStencilReferenceBack(regs.stencil_back_ref)) {
-                    return;
-                }
+                const bool front_changed =
+                    state_tracker.CheckStencilReferenceFront(regs.stencil_front_ref);
+                const bool back_changed =
+                    state_tracker.CheckStencilReferenceBack(regs.stencil_back_ref);
+                changed = front_changed || back_changed;
             } else {
-                if (!state_tracker.CheckStencilReferenceFront(regs.stencil_front_ref)) {
-                    return;
-                }
+                const bool front_changed =
+                    state_tracker.CheckStencilReferenceFront(regs.stencil_front_ref);
+                const bool back_changed =
+                    state_tracker.CheckStencilReferenceBack(regs.stencil_front_ref);
+                changed = front_changed || back_changed;
+            }
+            if (!changed) {
+                return;
             }
             scheduler.Record([front_ref = regs.stencil_front_ref, back_ref = regs.stencil_back_ref,
                               two_sided = regs.stencil_two_side_enable](vk::CommandBuffer cmdbuf) {
@@ -1157,15 +1164,22 @@ void RasterizerVulkan::UpdateStencilFaces(Tegra::Engines::Maxwell3D::Regs& regs)
     }
     if (update_write_mask) {
         [&]() {
+            bool changed;
             if (regs.stencil_two_side_enable) {
-                if (!state_tracker.CheckStencilWriteMaskFront(regs.stencil_front_mask) &&
-                    !state_tracker.CheckStencilWriteMaskBack(regs.stencil_back_mask)) {
-                    return;
-                }
+                const bool front_changed =
+                    state_tracker.CheckStencilWriteMaskFront(regs.stencil_front_mask);
+                const bool back_changed =
+                    state_tracker.CheckStencilWriteMaskBack(regs.stencil_back_mask);
+                changed = front_changed || back_changed;
             } else {
-                if (!state_tracker.CheckStencilWriteMaskFront(regs.stencil_front_mask)) {
-                    return;
-                }
+                const bool front_changed =
+                    state_tracker.CheckStencilWriteMaskFront(regs.stencil_front_mask);
+                const bool back_changed =
+                    state_tracker.CheckStencilWriteMaskBack(regs.stencil_front_mask);
+                changed = front_changed || back_changed;
+            }
+            if (!changed) {
+                return;
             }
             scheduler.Record([front_write_mask = regs.stencil_front_mask,
                               back_write_mask = regs.stencil_back_mask,
@@ -1183,15 +1197,22 @@ void RasterizerVulkan::UpdateStencilFaces(Tegra::Engines::Maxwell3D::Regs& regs)
     }
     if (update_compare_masks) {
         [&]() {
+            bool changed;
             if (regs.stencil_two_side_enable) {
-                if (!state_tracker.CheckStencilCompareMaskFront(regs.stencil_front_func_mask) &&
-                    !state_tracker.CheckStencilCompareMaskBack(regs.stencil_back_func_mask)) {
-                    return;
-                }
+                const bool front_changed =
+                    state_tracker.CheckStencilCompareMaskFront(regs.stencil_front_func_mask);
+                const bool back_changed =
+                    state_tracker.CheckStencilCompareMaskBack(regs.stencil_back_func_mask);
+                changed = front_changed || back_changed;
             } else {
-                if (!state_tracker.CheckStencilCompareMaskFront(regs.stencil_front_func_mask)) {
-                    return;
-                }
+                const bool front_changed =
+                    state_tracker.CheckStencilCompareMaskFront(regs.stencil_front_func_mask);
+                const bool back_changed =
+                    state_tracker.CheckStencilCompareMaskBack(regs.stencil_front_func_mask);
+                changed = front_changed || back_changed;
+            }
+            if (!changed) {
+                return;
             }
             scheduler.Record([front_test_mask = regs.stencil_front_func_mask,
                               back_test_mask = regs.stencil_back_func_mask,
