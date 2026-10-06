@@ -996,14 +996,18 @@ void RasterizerVulkan::UpdateViewportsState(Tegra::Engines::Maxwell3D::Regs& reg
     }
     if (!regs.viewport_scale_offset_enabled) {
         const auto x = static_cast<float>(regs.surface_clip.x);
-        const auto y = static_cast<float>(regs.surface_clip.y);
-        const auto width = static_cast<float>(regs.surface_clip.width);
-        const auto height = static_cast<float>(regs.surface_clip.height);
+        float y = static_cast<float>(regs.surface_clip.y);
+        const float width = std::max(1.0f, static_cast<float>(regs.surface_clip.width));
+        float height = std::max(1.0f, static_cast<float>(regs.surface_clip.height));
+        if (regs.window_origin.mode != Maxwell::WindowOrigin::Mode::UpperLeft) {
+            y += height;
+            height = -height;
+        }
         VkViewport viewport{
             .x = x,
             .y = y,
-            .width = width != 0.0f ? width : 1.0f,
-            .height = height != 0.0f ? height : 1.0f,
+            .width = width,
+            .height = height,
             .minDepth = 0.0f,
             .maxDepth = 1.0f,
         };
