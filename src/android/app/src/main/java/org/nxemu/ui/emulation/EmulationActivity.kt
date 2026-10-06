@@ -1,5 +1,6 @@
 package org.nxemu.ui.emulation
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -37,6 +38,7 @@ import org.nxemu.NativeLibrary
 import org.nxemu.R
 import org.nxemu.overlay.InputOverlay
 import org.nxemu.overlay.model.OverlayLayout
+import org.nxemu.ui.main.SettingsActivity
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.NativeConfig
 import org.json.JSONObject
@@ -258,6 +260,10 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         })
         pauseItem.setOnClickListener { togglePause() }
+        findViewById<View>(R.id.menu_settings).setOnClickListener {
+            drawerLayout.closeDrawers()
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         lockDrawerItem.setOnClickListener { toggleDrawerLock() }
         findViewById<View>(R.id.menu_exit).setOnClickListener {
             drawerLayout.closeDrawers()
@@ -374,8 +380,9 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun drawerMenuItems(): List<View> {
         return listOf(
-            pauseItem,
-            lockDrawerItem,
+            findViewById(R.id.menu_pause),
+            findViewById(R.id.menu_settings),
+            findViewById(R.id.menu_lock_drawer),
             findViewById(R.id.menu_exit),
         )
     }
