@@ -548,6 +548,18 @@ public:
         return extensions.line_rasterization;
     }
 
+    bool SupportsRectangularLines() const {
+        return features.line_rasterization.rectangularLines != VK_FALSE;
+    }
+
+    bool SupportsSmoothLines() const {
+        return features.line_rasterization.smoothLines != VK_FALSE;
+    }
+
+    bool SupportsAlphaToOne() const {
+        return features.features.alphaToOne != VK_FALSE;
+    }
+
     /// Returns true if the device supports VK_EXT_vertex_input_dynamic_state.
     bool IsExtVertexInputDynamicStateSupported() const {
         return extensions.vertex_input_dynamic_state;

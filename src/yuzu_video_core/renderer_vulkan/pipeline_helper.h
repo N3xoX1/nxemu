@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 #include <boost/container/small_vector.hpp>
 
@@ -18,6 +19,41 @@
 namespace Vulkan {
 
 using Shader::Backend::SPIRV::NUM_TEXTURE_AND_IMAGE_SCALING_WORDS;
+
+// Returns the primitives that reach rasterization: the output of the last stage before it.
+inline Shader::OutputTopology GetRasterizationOutputTopology(
+    Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology input, bool tessellation,
+    bool tessellation_isolines, std::optional<Shader::OutputTopology> geometry) {
+    if (geometry) {
+        return *geometry;
+    }
+    if (tessellation) {
+        return tessellation_isolines ? Shader::OutputTopology::LineStrip
+                                     : Shader::OutputTopology::TriangleStrip;
+    }
+    using Topology = Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology;
+    switch (input) {
+    case Topology::Points:
+    case Topology::Patches:
+        // Patches without tessellation shaders are drawn as points.
+        return Shader::OutputTopology::PointList;
+    case Topology::Lines:
+    case Topology::LineStrip:
+    case Topology::LinesAdjacency:
+    case Topology::LineStripAdjacency:
+        return Shader::OutputTopology::LineStrip;
+    default:
+        return Shader::OutputTopology::TriangleStrip;
+    }
+}
+
+// Triangles drawn with the line polygon mode are rasterized as lines too.
+inline bool RasterizesLines(Shader::OutputTopology output,
+                            Tegra::Engines::Maxwell3D::Regs::PolygonMode polygon_mode) {
+    return output == Shader::OutputTopology::LineStrip ||
+           (output == Shader::OutputTopology::TriangleStrip &&
+            polygon_mode == Tegra::Engines::Maxwell3D::Regs::PolygonMode::Line);
+}
 
 class DescriptorLayoutBuilder {
 public:
