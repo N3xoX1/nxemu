@@ -193,6 +193,20 @@
             android:textSize="16sp" />
 
         <TextView
+            android:id="@+id/menu_settings"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/in_game_menu_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="@string/emulation_settings"
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
+
+        <TextView
             android:id="@+id/menu_lock_drawer"
             android:layout_width="match_parent"
             android:layout_height="48dp"
