@@ -6,6 +6,8 @@
 #include <mach/mach.h>
 #include <mach/message.h>
 
+#include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -79,7 +81,15 @@ private:
     std::mutex code_block_infos_mutex;
 
     std::thread thread;
-    mach_port_t server_port;
+    mach_port_t server_port = MACH_PORT_NULL;
+    std::atomic<bool> shutting_down{false};
+
+    // Exception ports that were installed before ours, restored on shutdown.
+    exception_mask_t old_masks[EXC_TYPES_COUNT];
+    mach_port_t old_ports[EXC_TYPES_COUNT];
+    exception_behavior_t old_behaviors[EXC_TYPES_COUNT];
+    thread_state_flavor_t old_flavors[EXC_TYPES_COUNT];
+    mach_msg_type_number_t old_count = 0;
 
     void MessagePump();
 };
@@ -89,20 +99,41 @@ MachHandler::MachHandler() {
 
     KCHECK(mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &server_port));
     KCHECK(mach_port_insert_right(mach_task_self(), server_port, server_port, MACH_MSG_TYPE_MAKE_SEND));
+    old_count = EXC_TYPES_COUNT;
+    KCHECK(task_get_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, old_masks, &old_count, old_ports, old_behaviors, old_flavors));
     KCHECK(task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, server_port, EXCEPTION_STATE | MACH_EXCEPTION_CODES, THREAD_STATE));
-
-    // The below doesn't actually work, and I'm not sure why; since this doesn't work we'll have a spurious error message upon shutdown.
-    mach_port_t prev;
-    KCHECK(mach_port_request_notification(mach_task_self(), server_port, MACH_NOTIFY_PORT_DESTROYED, 0, server_port, MACH_MSG_TYPE_MAKE_SEND_ONCE, &prev));
 
 #undef KCHECK
 
     thread = std::thread(&MachHandler::MessagePump, this);
-    thread.detach();
 }
 
 MachHandler::~MachHandler() {
+    // The handler lives in the CPU module. When that module is unloaded, this
+    // destructor runs and the module's code is unmapped right after. The pump
+    // thread must not outlive it, and the task must not keep routing
+    // EXC_BAD_ACCESS to a port nobody serves: any later fault (anywhere in the
+    // process) would then block forever instead of crashing.
+    shutting_down = true;
+
+    for (mach_msg_type_number_t i = 0; i < old_count; i++) {
+        task_set_exception_ports(mach_task_self(), old_masks[i], old_ports[i], old_behaviors[i], old_flavors[i]);
+    }
+    if (old_count == 0) {
+        task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, MACH_PORT_NULL, EXCEPTION_DEFAULT, THREAD_STATE_NONE);
+    }
+
+    // Destroying the receive right wakes the pump thread out of mach_msg.
+    mach_port_mod_refs(mach_task_self(), server_port, MACH_PORT_RIGHT_RECEIVE, -1);
+    if (thread.joinable()) {
+        thread.join();
+    }
     mach_port_deallocate(mach_task_self(), server_port);
+    for (mach_msg_type_number_t i = 0; i < old_count; i++) {
+        if (MACH_PORT_VALID(old_ports[i])) {
+            mach_port_deallocate(mach_task_self(), old_ports[i]);
+        }
+    }
 }
 
 void MachHandler::MessagePump() {
@@ -112,6 +143,9 @@ void MachHandler::MessagePump() {
 
     while (true) {
         mr = mach_msg(&request.head, MACH_RCV_MSG | MACH_RCV_LARGE, 0, sizeof(request), server_port, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+        if (shutting_down) {
+            return;
+        }
         if (mr != MACH_MSG_SUCCESS) {
             fmt::print(stderr, "dynarmic: macOS MachHandler: Failed to receive mach message. error: {:#08x} ({})\n", mr, mach_error_string(mr));
             return;

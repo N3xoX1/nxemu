@@ -35,6 +35,9 @@ Result TimeZoneReadBinary(Core::System& system, uint32_t & out_read_size, std::s
 } // namespace
 
 void ResetTimeZoneBinary() {
+    // The romfs is owned by the loader module. Release it here, while that module
+    // is still alive, rather than from this static's destructor at process exit.
+    g_time_zone_binary_romfs = nullptr;
     g_time_zone_binary_mount_result = ResultUnknown;
     g_time_zone_scratch_space.clear();
     g_time_zone_scratch_space.resize(0x2800, 0);
