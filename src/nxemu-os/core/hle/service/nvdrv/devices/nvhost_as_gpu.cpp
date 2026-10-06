@@ -554,57 +554,11 @@ NvResult nvhost_as_gpu::MapBufferEx(IoctlMapBufferEx & params)
         return NvResult::BadValue;
     }
 
-    // MAP_BUFFER_EX page_size is an input/output field. A non-zero value is an explicit
-    // page-size request; only zero asks the driver to choose the best fit from the nvmap
-    // allocation. libnx and nvgpu both rely on this distinction.
-    bool big_page{};
-    if (params.page_size == 0)
-    {
-        if (Common::IsAligned(handle->align, vm.big_page_size) &&
-            Common::IsAligned(params.buffer_offset, vm.big_page_size))
-        {
-            big_page = true;
-        }
-        else if (Common::IsAligned(handle->align, VM::YUZU_PAGESIZE))
-        {
-            big_page = false;
-        }
-        else
-        {
-            ASSERT(false);
-            return NvResult::BadValue;
-        }
-    }
-    else if (params.page_size == VM::YUZU_PAGESIZE)
-    {
-        if (!Common::IsAligned(handle->align, VM::YUZU_PAGESIZE))
-        {
-            LOG_WARNING(Service_NVDRV,
-                        "MapBufferEx cannot honor explicit 4K page request for handle=0x{:X} align=0x{:X}",
-                        params.handle, handle->align);
-            return NvResult::BadValue;
-        }
-        big_page = false;
-    }
-    else if (params.page_size == vm.big_page_size)
-    {
-        if (!Common::IsAligned(handle->align, vm.big_page_size) ||
-            !Common::IsAligned(params.buffer_offset, vm.big_page_size))
-        {
-            LOG_WARNING(Service_NVDRV,
-                        "MapBufferEx cannot honor explicit big-page request for handle=0x{:X} align=0x{:X} buffer_offset=0x{:X}",
-                        params.handle, handle->align, params.buffer_offset);
-            return NvResult::BadValue;
-        }
-        big_page = true;
-    }
-    else
-    {
-        LOG_WARNING(Service_NVDRV,
-                    "MapBufferEx unsupported page_size=0x{:X} handle=0x{:X}",
-                    params.page_size, params.handle);
-        return NvResult::BadValue;
-    }
+    // page_size is only a hint: it can select small pages but never fails a mapping.
+    // Big pages need a big-page aligned backing.
+    const bool can_use_big_pages{Common::IsAligned(handle->align, vm.big_page_size) &&
+                                 Common::IsAligned(params.buffer_offset, vm.big_page_size)};
+    const bool big_page{can_use_big_pages && params.page_size != VM::YUZU_PAGESIZE};
 
     DAddr device_address{static_cast<DAddr>(nvmap.PinHandle(params.handle, false) + params.buffer_offset)};
 
@@ -643,14 +597,6 @@ NvResult nvhost_as_gpu::MapBufferEx(IoctlMapBufferEx & params)
         const bool use_big_pages = alloc->second.big_pages && big_page &&
             Common::IsAligned(params.offset, vm.big_page_size) &&
             Common::IsAligned(size, vm.big_page_size);
-        if (params.page_size == vm.big_page_size && !use_big_pages)
-        {
-            nvmap.UnpinHandle(params.handle);
-            LOG_WARNING(Service_NVDRV,
-                        "MapBufferEx explicit big-page request is incompatible with allocation offset=0x{:X} size=0x{:X} allocation_big_pages={} handle=0x{:X}",
-                        params.offset, size, alloc->second.big_pages, params.handle);
-            return NvResult::BadValue;
-        }
         system.GetVideo().MapBufferEx(gmmu, params.offset, device_address, size, params.kind, use_big_pages);
         auto mapping{std::make_shared<Mapping>(params.handle, device_address, params.offset, size, true, use_big_pages, alloc->second.sparse)};
         alloc->second.mappings.push_back(mapping);
