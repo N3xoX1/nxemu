@@ -6,9 +6,11 @@
 #include <array>
 #include <cstddef>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "yuzu_common/common_types.h"
@@ -118,12 +120,12 @@ private:
 
     [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) const noexcept;
 
-    std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline();
+    std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline();
 
     std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline(
         ShaderPools& pools, const GraphicsPipelineCacheKey& key,
         std::span<Shader::Environment* const> envs, PipelineStatistics* statistics,
-        bool build_in_parallel);
+        bool build_in_parallel, const std::function<bool()>* skip_build = nullptr);
 
     std::unique_ptr<ComputePipeline> CreateComputePipeline(const ComputePipelineCacheKey& key,
                                                            const ShaderInfo* shader);
@@ -155,7 +157,11 @@ private:
     GraphicsPipeline* current_pipeline{};
 
     std::unordered_map<ComputePipelineCacheKey, std::unique_ptr<ComputePipeline>> compute_cache;
-    std::unordered_map<GraphicsPipelineCacheKey, std::unique_ptr<GraphicsPipeline>> graphics_cache;
+    // Shared: an HLE macro key without replacements maps to the pipeline of its non-HLE twin.
+    std::unordered_map<GraphicsPipelineCacheKey, std::shared_ptr<GraphicsPipeline>> graphics_cache;
+    /// HLE macro keys translated without any constant buffer replacement. The hint only changes
+    /// generated code through those replacements, so these match their non-HLE twin.
+    std::unordered_set<GraphicsPipelineCacheKey> hle_unreplaced_keys;
 
     ShaderPools main_pools;
 

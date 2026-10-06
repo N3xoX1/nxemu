@@ -522,26 +522,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         });
         ++state.total;
     }};
-    const auto load_graphics{[&](std::ifstream& file, std::vector<FileEnvironment> envs) {
-        GraphicsPipelineCacheKey key;
-        file.read(reinterpret_cast<char*>(&key), sizeof(key));
-
-        if ((key.state.extended_dynamic_state != 0) !=
-                dynamic_features.has_extended_dynamic_state ||
-            (key.state.extended_dynamic_state_2 != 0) !=
-                dynamic_features.has_extended_dynamic_state_2 ||
-            (key.state.extended_dynamic_state_2_extra != 0) !=
-                dynamic_features.has_extended_dynamic_state_2_extra ||
-            (key.state.extended_dynamic_state_3_blend != 0) !=
-                dynamic_features.has_extended_dynamic_state_3_blend ||
-            (key.state.extended_dynamic_state_3_enables != 0) !=
-                dynamic_features.has_extended_dynamic_state_3_enables ||
-            (key.state.dynamic_vertex_input != 0) != dynamic_features.has_dynamic_vertex_input ||
-            (key.state.vertex_stride_workaround != 0) !=
-                (dynamic_features.has_vertex_stride_workaround &&
-                 !dynamic_features.has_dynamic_vertex_input)) {
-            return;
-        }
+    const auto queue_graphics{[&](const GraphicsPipelineCacheKey& key,
+                                  std::vector<FileEnvironment> envs) {
         workers.QueueWork([this, key, envs_ = std::move(envs), &state, &callback]() mutable {
             ShaderPools pools;
             boost::container::static_vector<Shader::Environment*, 5> env_ptrs;
@@ -562,8 +544,60 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         });
         ++state.total;
     }};
+    // HLE macro pipelines without replacements wait until every key is known: those with a cached
+    // non-HLE twin share its pipeline instead of building an identical one.
+    struct DeferredPipeline {
+        GraphicsPipelineCacheKey key;
+        std::vector<FileEnvironment> envs;
+    };
+    std::vector<DeferredPipeline> hle_unreplaced;
+    std::unordered_set<GraphicsPipelineCacheKey> plain_keys;
+    const auto load_graphics{[&](std::ifstream& file, std::vector<FileEnvironment> envs) {
+        GraphicsPipelineCacheKey key;
+        file.read(reinterpret_cast<char*>(&key), sizeof(key));
+
+        if ((key.state.extended_dynamic_state != 0) !=
+                dynamic_features.has_extended_dynamic_state ||
+            (key.state.extended_dynamic_state_2 != 0) !=
+                dynamic_features.has_extended_dynamic_state_2 ||
+            (key.state.extended_dynamic_state_2_extra != 0) !=
+                dynamic_features.has_extended_dynamic_state_2_extra ||
+            (key.state.extended_dynamic_state_3_blend != 0) !=
+                dynamic_features.has_extended_dynamic_state_3_blend ||
+            (key.state.extended_dynamic_state_3_enables != 0) !=
+                dynamic_features.has_extended_dynamic_state_3_enables ||
+            (key.state.dynamic_vertex_input != 0) != dynamic_features.has_dynamic_vertex_input ||
+            (key.state.vertex_stride_workaround != 0) !=
+                (dynamic_features.has_vertex_stride_workaround &&
+                 !dynamic_features.has_dynamic_vertex_input)) {
+            return;
+        }
+        using EngineHint = Tegra::Engines::Maxwell3D::EngineHint;
+        if (key.state.app_stage != EngineHint::OnHLEMacro) {
+            plain_keys.insert(key);
+        } else if (std::ranges::none_of(envs,
+                                        [](const auto& env) { return env.HasHLEMacroState(); })) {
+            hle_unreplaced_keys.insert(key);
+            hle_unreplaced.push_back({key, std::move(envs)});
+            return;
+        }
+        queue_graphics(key, std::move(envs));
+    }};
     VideoCommon::LoadPipelines(stop_loading, pipeline_cache_filename, CACHE_VERSION, load_compute,
                                load_graphics);
+
+    const auto non_hle_twin{[](GraphicsPipelineCacheKey key) {
+        key.state.app_stage.Assign(Tegra::Engines::Maxwell3D::EngineHint::None);
+        return key;
+    }};
+    std::vector<GraphicsPipelineCacheKey> hle_shared_keys;
+    for (auto& [key, envs] : hle_unreplaced) {
+        if (plain_keys.contains(non_hle_twin(key))) {
+            hle_shared_keys.push_back(key);
+        } else {
+            queue_graphics(key, std::move(envs));
+        }
+    }
 
     LOG_INFO(Render_Vulkan, "Total Pipeline Count: {}", state.total);
 
@@ -573,6 +607,17 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     lock.unlock();
 
     workers.WaitForRequests(stop_loading);
+
+    lock.lock();
+    for (const auto& key : hle_shared_keys) {
+        const auto it{graphics_cache.find(non_hle_twin(key))};
+        if (it != graphics_cache.end() && it->second) {
+            const std::shared_ptr<GraphicsPipeline> twin{it->second};
+            twin->SetSharedKey(key);
+            graphics_cache.emplace(key, twin);
+        }
+    }
+    lock.unlock();
 
     if (use_vulkan_pipeline_cache) {
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
@@ -594,7 +639,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
         return nullptr;
     }
     if (current_pipeline) {
-        current_pipeline->AddTransition(pipeline.get());
+        current_pipeline->AddTransition(pipeline.get(), graphics_key);
     }
     current_pipeline = pipeline.get();
     return BuiltPipeline(current_pipeline);
@@ -625,7 +670,7 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     ShaderPools& pools, const GraphicsPipelineCacheKey& key,
     std::span<Shader::Environment* const> envs, PipelineStatistics* statistics,
-    bool build_in_parallel) try {
+    bool build_in_parallel, const std::function<bool()>* skip_build) try {
     auto hash = key.Hash();
     LOG_INFO(Render_Vulkan, "0x{:016x}", hash);
     size_t env_index{0};
@@ -670,6 +715,9 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         if (programs[index].info.requires_layer_emulation) {
             layer_source_program = &programs[index];
         }
+    }
+    if (skip_build && (*skip_build)()) {
+        return nullptr;
     }
     std::array<const Shader::Info*, Maxwell::MaxShaderStage> infos{};
     std::array<vk::ShaderModule, Maxwell::MaxShaderStage> modules;
@@ -733,13 +781,42 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     return nullptr;
 }
 
-std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
+std::shared_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
+    using EngineHint = Tegra::Engines::Maxwell3D::EngineHint;
+    const bool is_hle{graphics_key.state.app_stage == EngineHint::OnHLEMacro};
+    GraphicsPipelineCacheKey twin_key{graphics_key};
+    twin_key.state.app_stage.Assign(is_hle ? EngineHint::None : EngineHint::OnHLEMacro);
+    const auto twin_it{graphics_cache.find(twin_key)};
+    const std::shared_ptr<GraphicsPipeline> twin{twin_it != graphics_cache.end() ? twin_it->second
+                                                                                 : nullptr};
+    if (!is_hle && twin && hle_unreplaced_keys.contains(twin_key)) {
+        twin->SetSharedKey(graphics_key);
+        return twin;
+    }
     GraphicsEnvironments environments;
     GetGraphicsEnvironments(environments, graphics_key.unique_hashes);
+    const auto has_replacements{[&environments] {
+        return std::ranges::any_of(environments.envs,
+                                   [](const auto& env) { return env.HasCbufReplacements(); });
+    }};
+    // Replacements are only known once the shaders are translated; without any, the native
+    // pipeline of the non-HLE twin is reused instead of building an identical one.
+    bool reuse_twin{false};
+    const std::function<bool()> skip_build{[&] {
+        reuse_twin = !has_replacements();
+        return reuse_twin;
+    }};
 
     main_pools.ReleaseContents();
-    auto pipeline{
-        CreateGraphicsPipeline(main_pools, graphics_key, environments.Span(), nullptr, true)};
+    std::shared_ptr<GraphicsPipeline> pipeline{
+        CreateGraphicsPipeline(main_pools, graphics_key, environments.Span(), nullptr, true,
+                               is_hle && twin ? &skip_build : nullptr)};
+    if (reuse_twin) {
+        twin->SetSharedKey(graphics_key);
+        pipeline = twin;
+    } else if (pipeline && is_hle && !has_replacements()) {
+        hle_unreplaced_keys.insert(graphics_key);
+    }
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
     }

@@ -84,14 +84,20 @@ public:
     GraphicsPipeline& operator=(const GraphicsPipeline&) = delete;
     GraphicsPipeline(const GraphicsPipeline&) = delete;
 
-    void AddTransition(GraphicsPipeline* transition);
+    void AddTransition(GraphicsPipeline* transition, const GraphicsPipelineCacheKey& transition_key);
+
+    /// Registers the other key served by this pipeline, so both stay on the fast path of Next.
+    void SetSharedKey(const GraphicsPipelineCacheKey& shared_key_) noexcept {
+        shared_key = shared_key_;
+        has_shared_key = true;
+    }
 
     void Configure(bool is_indexed) {
         configure_func(this, is_indexed);
     }
 
     [[nodiscard]] GraphicsPipeline* Next(const GraphicsPipelineCacheKey& current_key) noexcept {
-        if (key == current_key) {
+        if (key == current_key || (has_shared_key && shared_key == current_key)) {
             return this;
         }
         const auto it{std::find(transition_keys.begin(), transition_keys.end(), current_key)};
@@ -125,6 +131,8 @@ private:
     void Validate();
 
     const GraphicsPipelineCacheKey key;
+    GraphicsPipelineCacheKey shared_key;
+    bool has_shared_key{};
     Tegra::Engines::Maxwell3D* maxwell3d;
     Tegra::MemoryManager* gpu_memory;
     const Device& device;
