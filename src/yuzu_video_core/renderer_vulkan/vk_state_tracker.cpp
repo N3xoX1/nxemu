@@ -77,6 +77,7 @@ Flags MakeInvalidationFlags() {
 void SetupDirtyViewports(Tables& tables) {
     FillBlock(tables[0], OFF(viewport_transform), NUM(viewport_transform), Viewports);
     FillBlock(tables[0], OFF(viewports), NUM(viewports), Viewports);
+    FillBlock(tables[1], OFF(surface_clip), NUM(surface_clip), Viewports);
     tables[0][OFF(viewport_scale_offset_enabled)] = Viewports;
     tables[1][OFF(window_origin)] = Viewports;
 }
