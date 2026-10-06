@@ -6,6 +6,7 @@
 #include "dynarmic/backend/x64/reg_alloc.h"
 
 #include <algorithm>
+#include <boost/container/small_vector.hpp>
 #include <numeric>
 #include <utility>
 
@@ -520,7 +521,7 @@ void RegAlloc::EmitVerboseDebuggingOutput() {
 }
 
 HostLoc RegAlloc::SelectARegister(const std::vector<HostLoc>& desired_locations) const {
-    std::vector<HostLoc> candidates = desired_locations;
+    boost::container::small_vector<HostLoc, 16> candidates(desired_locations.begin(), desired_locations.end());
 
     // Find all locations that have not been allocated..
     const auto allocated_locs = std::partition(candidates.begin(), candidates.end(), [this](auto loc) {
