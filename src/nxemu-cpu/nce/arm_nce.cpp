@@ -24,6 +24,28 @@ namespace
 
 struct sigaction g_orig_bus_action;
 struct sigaction g_orig_segv_action;
+struct sigaction g_orig_return_to_run_code_action;
+struct sigaction g_orig_break_from_run_code_action;
+struct sigaction g_orig_alignment_fault_action;
+
+// The handlers below live in the CPU module. Restore the previous ones when the
+// module is unloaded, so a later signal does not jump into unmapped code.
+struct SignalHandlerRestorer
+{
+    bool installed = false;
+
+    ~SignalHandlerRestorer()
+    {
+        if (!installed)
+        {
+            return;
+        }
+        Common::SigAction(ReturnToRunCodeByExceptionLevelChangeSignal, &g_orig_return_to_run_code_action, nullptr);
+        Common::SigAction(BreakFromRunCodeSignal, &g_orig_break_from_run_code_action, nullptr);
+        Common::SigAction(GuestAlignmentFaultSignal, &g_orig_alignment_fault_action, nullptr);
+        Common::SigAction(GuestAccessFaultSignal, &g_orig_segv_action, nullptr);
+    }
+} g_signal_handler_restorer;
 
 // Verify assembly offsets.
 static_assert(offsetof(NativeExecutionParameters, native_context) == TpidrEl0NativeContext);
@@ -271,25 +293,26 @@ void ArmNce::Initialize()
         return_to_run_code_action.sa_sigaction = reinterpret_cast<HandlerType>(&ArmNce::ReturnToRunCodeByExceptionLevelChangeSignalHandler);
         return_to_run_code_action.sa_mask = signal_mask;
         Common::SigAction(ReturnToRunCodeByExceptionLevelChangeSignal, &return_to_run_code_action,
-                          nullptr);
+                          &g_orig_return_to_run_code_action);
 
         struct sigaction break_from_run_code_action{};
         break_from_run_code_action.sa_flags = SA_SIGINFO | SA_ONSTACK;
         break_from_run_code_action.sa_sigaction = reinterpret_cast<HandlerType>(&ArmNce::BreakFromRunCodeSignalHandler);
         break_from_run_code_action.sa_mask = signal_mask;
-        Common::SigAction(BreakFromRunCodeSignal, &break_from_run_code_action, nullptr);
+        Common::SigAction(BreakFromRunCodeSignal, &break_from_run_code_action, &g_orig_break_from_run_code_action);
 
         struct sigaction alignment_fault_action{};
         alignment_fault_action.sa_flags = SA_SIGINFO | SA_ONSTACK;
         alignment_fault_action.sa_sigaction = reinterpret_cast<HandlerType>(&ArmNce::GuestAlignmentFaultSignalHandler);
         alignment_fault_action.sa_mask = signal_mask;
-        Common::SigAction(GuestAlignmentFaultSignal, &alignment_fault_action, nullptr);
+        Common::SigAction(GuestAlignmentFaultSignal, &alignment_fault_action, &g_orig_alignment_fault_action);
 
         struct sigaction access_fault_action{};
         access_fault_action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_RESTART;
         access_fault_action.sa_sigaction = reinterpret_cast<HandlerType>(&ArmNce::GuestAccessFaultSignalHandler);
         access_fault_action.sa_mask = signal_mask;
         Common::SigAction(GuestAccessFaultSignal, &access_fault_action, &g_orig_segv_action);
+        g_signal_handler_restorer.installed = true;
     });
 }
 

@@ -118,6 +118,14 @@ SigHandler::SigHandler() {
 }
 
 SigHandler::~SigHandler() {
+    // The handler lives in the CPU module: restore the previous handlers so a
+    // later fault does not jump into the module after it has been unloaded.
+    if (supports_fast_mem) {
+        sigaction(SIGSEGV, &old_sa_segv, nullptr);
+#ifdef __APPLE__
+        sigaction(SIGBUS, &old_sa_bus, nullptr);
+#endif
+    }
     std::free(signal_stack_memory);
 }
 
