@@ -60,7 +60,6 @@ void Fermi2D::Blit() {
     LOG_DEBUG(HW_GPU, "called. source address=0x{:x}, destination address=0x{:x}", regs.src.Address(), regs.dst.Address());
 
     UNIMPLEMENTED_IF_MSG(regs.operation != Operation::SrcCopy, "Operation is not copy");
-    UNIMPLEMENTED_IF_MSG(regs.src.layer != 0, "Source layer is not zero");
     UNIMPLEMENTED_IF_MSG(regs.dst.layer != 0, "Destination layer is not zero");
     UNIMPLEMENTED_IF_MSG(regs.src.depth != 1, "Source depth is not one");
     UNIMPLEMENTED_IF_MSG(regs.clip_enable != 0, "Clipped blit enabled");
@@ -68,6 +67,8 @@ void Fermi2D::Blit() {
     const auto& args = regs.pixels_from_memory;
     constexpr s64 null_derivative = 1ULL << 32;
     Surface src = regs.src;
+    // This slot of the source block is TWOD_INVALIDATE_TEXTURE_DATA_CACHE, not a layer.
+    src.layer = 0;
     const auto bytes_per_pixel = BytesPerBlock(PixelFormatFromRenderTargetFormat(src.format));
     const bool delegate_to_gpu = src.width > 512 && src.height > 512 && bytes_per_pixel <= 8 &&
                                  src.format != regs.dst.format;
