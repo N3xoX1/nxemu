@@ -71,6 +71,8 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     msaa_mode.Assign(regs.anti_alias_samples_mode);
 
     raw2 = 0;
+    vertex_stride_workaround.Assign(features.has_vertex_stride_workaround &&
+                                    !features.has_dynamic_vertex_input ? 1 : 0);
 
     const auto test_func =
         regs.alpha_test_enabled != 0 ? regs.alpha_test_func : Maxwell::ComparisonOp::Always_GL;
@@ -153,6 +155,12 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
         dynamic_state.Refresh(regs);
         std::ranges::transform(regs.vertex_streams, vertex_strides.begin(), [](const auto& array) {
             return static_cast<u16>(array.stride.Value());
+        });
+    } else if (vertex_stride_workaround) {
+        // Strides stay dynamic, but they select the vertex attribute formats. Disabled streams
+        // are zeroed so their stale strides do not create redundant pipelines.
+        std::ranges::transform(regs.vertex_streams, vertex_strides.begin(), [](const auto& array) {
+            return static_cast<u16>(array.enable != 0 ? array.stride.Value() : 0);
         });
     }
     if (!extended_dynamic_state_2_extra) {

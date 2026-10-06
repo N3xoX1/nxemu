@@ -45,16 +45,60 @@ using VideoCore::Surface::PixelFormatFromRenderTargetFormat;
 constexpr size_t NUM_STAGES = Maxwell::MaxShaderStage;
 constexpr size_t MAX_IMAGE_ELEMENTS = 64;
 
-DescriptorLayoutBuilder MakeBuilder(const Device& device, std::span<const Shader::Info> infos) {
-    DescriptorLayoutBuilder builder{device};
+DescriptorLayoutBuilder MakeBuilder(const Device& device, std::span<const Shader::Info> infos,
+                                    u32 num_color_attachments) {
+    static constexpr std::array stages{
+        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
+        VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+        VK_SHADER_STAGE_GEOMETRY_BIT,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
+    VkShaderStageFlags storage_buffer_stages{};
+    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+        // MoltenVK can lose the resource usage of a storage buffer reused across shader stages
+        // (KhronosGroup/MoltenVK#1870). Like Ryubing, make every storage buffer binding visible
+        // to all graphics stages using descriptors, as long as the widened layout stays within
+        // the per-stage limits.
+        std::array<u32, NUM_STAGES> stage_resources{};
+        std::array<u32, NUM_STAGES> stage_storage_buffers{};
+        u32 num_storage_buffers{};
+        for (size_t index = 0; index < infos.size(); ++index) {
+            const auto& info = infos[index];
+            const u32 storage_buffers = Shader::NumDescriptors(info.storage_buffers_descriptors);
+            const u32 resources = Shader::NumDescriptors(info.constant_buffer_descriptors) +
+                                  storage_buffers +
+                                  Shader::NumDescriptors(info.texture_buffer_descriptors) +
+                                  Shader::NumDescriptors(info.image_buffer_descriptors) +
+                                  Shader::NumDescriptors(info.texture_descriptors) +
+                                  Shader::NumDescriptors(info.image_descriptors);
+            stage_resources[index] = resources;
+            stage_storage_buffers[index] = storage_buffers;
+            num_storage_buffers += storage_buffers;
+            if (resources != 0) {
+                storage_buffer_stages |= stages.at(index);
+            }
+        }
+        bool can_widen = num_storage_buffers != 0 &&
+                         num_storage_buffers <= device.GetMaxPerStageStorageBuffers();
+        for (size_t index = 0; can_widen && index < infos.size(); ++index) {
+            if ((storage_buffer_stages & stages.at(index)) == 0) {
+                continue;
+            }
+            u32 resources =
+                stage_resources[index] - stage_storage_buffers[index] + num_storage_buffers;
+            if (stages.at(index) == VK_SHADER_STAGE_FRAGMENT_BIT) {
+                // Color attachments also count against maxPerStageResources.
+                resources += num_color_attachments;
+            }
+            can_widen = resources <= device.GetMaxPerStageResources();
+        }
+        if (!can_widen) {
+            storage_buffer_stages = 0;
+        }
+    }
+    DescriptorLayoutBuilder builder{device, storage_buffer_stages};
     for (size_t index = 0; index < infos.size(); ++index) {
-        static constexpr std::array stages{
-            VK_SHADER_STAGE_VERTEX_BIT,
-            VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
-            VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
-            VK_SHADER_STAGE_GEOMETRY_BIT,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-        };
         builder.Add(infos[index], stages.at(index));
     }
     return builder;
@@ -259,8 +303,27 @@ GraphicsPipeline::GraphicsPipeline(
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += Shader::NumDescriptors(info->texture_descriptors);
     }
+    // Number of leading components the vertex shader may read from each attribute. Used to keep
+    // vertex formats within their binding stride without discarding data the shader reads.
+    const Shader::Info& vertex_info{stage_infos[0]};
+    for (size_t index = 0; index < vertex_attribute_components.size(); ++index) {
+        if (!vertex_info.loads.Generic(index)) {
+            continue;
+        }
+        if (vertex_info.loads_indexed_attributes) {
+            vertex_attribute_components[index] = 4;
+            continue;
+        }
+        for (u8 component = 4; component != 0; --component) {
+            if (vertex_info.loads.Generic(index, component - 1)) {
+                vertex_attribute_components[index] = component;
+                break;
+            }
+        }
+    }
     auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics] {
-        DescriptorLayoutBuilder builder{MakeBuilder(device, stage_infos)};
+        DescriptorLayoutBuilder builder{MakeBuilder(
+            device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
         uses_push_descriptor = builder.CanUsePushDescriptor();
         descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
         if (!uses_push_descriptor) {
@@ -610,10 +673,17 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             if (!attribute.enabled || !stage_infos[0].loads.Generic(index)) {
                 continue;
             }
+            const VkFormat format =
+                key.state.vertex_stride_workaround != 0 && attribute.buffer < num_vertex_arrays
+                    ? MaxwellToVK::VertexFormat(device, attribute.Type(), attribute.Size(),
+                                                attribute.offset,
+                                                key.state.vertex_strides[attribute.buffer],
+                                                vertex_attribute_components[index])
+                    : MaxwellToVK::VertexFormat(device, attribute.Type(), attribute.Size());
             vertex_attributes.push_back({
                 .location = static_cast<u32>(index),
                 .binding = attribute.buffer,
-                .format = MaxwellToVK::VertexFormat(device, attribute.Type(), attribute.Size()),
+                .format = format,
                 .offset = attribute.offset,
             });
         }

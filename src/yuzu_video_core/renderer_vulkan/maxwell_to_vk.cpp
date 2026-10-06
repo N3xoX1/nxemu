@@ -367,6 +367,125 @@ VkPrimitiveTopology PrimitiveTopology([[maybe_unused]] const Device& device,
     return {};
 }
 
+u32 VertexFormatSize(VkFormat format) noexcept {
+    switch (format) {
+    case VK_FORMAT_R8_UNORM:
+    case VK_FORMAT_R8_SNORM:
+    case VK_FORMAT_R8_UINT:
+    case VK_FORMAT_R8_SINT:
+    case VK_FORMAT_R8_USCALED:
+    case VK_FORMAT_R8_SSCALED:
+        return 1;
+    case VK_FORMAT_R8G8_UNORM:
+    case VK_FORMAT_R8G8_SNORM:
+    case VK_FORMAT_R8G8_UINT:
+    case VK_FORMAT_R8G8_SINT:
+    case VK_FORMAT_R8G8_USCALED:
+    case VK_FORMAT_R8G8_SSCALED:
+    case VK_FORMAT_R16_UNORM:
+    case VK_FORMAT_R16_SNORM:
+    case VK_FORMAT_R16_UINT:
+    case VK_FORMAT_R16_SINT:
+    case VK_FORMAT_R16_USCALED:
+    case VK_FORMAT_R16_SSCALED:
+    case VK_FORMAT_R16_SFLOAT:
+        return 2;
+    case VK_FORMAT_R8G8B8_UNORM:
+    case VK_FORMAT_R8G8B8_SNORM:
+    case VK_FORMAT_R8G8B8_UINT:
+    case VK_FORMAT_R8G8B8_SINT:
+    case VK_FORMAT_R8G8B8_USCALED:
+    case VK_FORMAT_R8G8B8_SSCALED:
+        return 3;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+    case VK_FORMAT_R8G8B8A8_SNORM:
+    case VK_FORMAT_R8G8B8A8_UINT:
+    case VK_FORMAT_R8G8B8A8_SINT:
+    case VK_FORMAT_R8G8B8A8_USCALED:
+    case VK_FORMAT_R8G8B8A8_SSCALED:
+    case VK_FORMAT_R16G16_UNORM:
+    case VK_FORMAT_R16G16_SNORM:
+    case VK_FORMAT_R16G16_UINT:
+    case VK_FORMAT_R16G16_SINT:
+    case VK_FORMAT_R16G16_USCALED:
+    case VK_FORMAT_R16G16_SSCALED:
+    case VK_FORMAT_R16G16_SFLOAT:
+    case VK_FORMAT_R32_UINT:
+    case VK_FORMAT_R32_SINT:
+    case VK_FORMAT_R32_SFLOAT:
+    case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+    case VK_FORMAT_A2B10G10R10_SNORM_PACK32:
+    case VK_FORMAT_A2B10G10R10_UINT_PACK32:
+    case VK_FORMAT_A2B10G10R10_SINT_PACK32:
+    case VK_FORMAT_A2B10G10R10_USCALED_PACK32:
+    case VK_FORMAT_A2B10G10R10_SSCALED_PACK32:
+    case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
+        return 4;
+    case VK_FORMAT_R16G16B16_UNORM:
+    case VK_FORMAT_R16G16B16_SNORM:
+    case VK_FORMAT_R16G16B16_UINT:
+    case VK_FORMAT_R16G16B16_SINT:
+    case VK_FORMAT_R16G16B16_USCALED:
+    case VK_FORMAT_R16G16B16_SSCALED:
+    case VK_FORMAT_R16G16B16_SFLOAT:
+        return 6;
+    case VK_FORMAT_R16G16B16A16_UNORM:
+    case VK_FORMAT_R16G16B16A16_SNORM:
+    case VK_FORMAT_R16G16B16A16_UINT:
+    case VK_FORMAT_R16G16B16A16_SINT:
+    case VK_FORMAT_R16G16B16A16_USCALED:
+    case VK_FORMAT_R16G16B16A16_SSCALED:
+    case VK_FORMAT_R16G16B16A16_SFLOAT:
+    case VK_FORMAT_R32G32_UINT:
+    case VK_FORMAT_R32G32_SINT:
+    case VK_FORMAT_R32G32_SFLOAT:
+        return 8;
+    case VK_FORMAT_R32G32B32_UINT:
+    case VK_FORMAT_R32G32B32_SINT:
+    case VK_FORMAT_R32G32B32_SFLOAT:
+        return 12;
+    case VK_FORMAT_R32G32B32A32_UINT:
+    case VK_FORMAT_R32G32B32A32_SINT:
+    case VK_FORMAT_R32G32B32A32_SFLOAT:
+        return 16;
+    default:
+        return 0;
+    }
+}
+
+namespace {
+
+constexpr Maxwell::VertexAttribute::Size DropLastVertexComponent(
+    Maxwell::VertexAttribute::Size size) noexcept {
+    using Size = Maxwell::VertexAttribute::Size;
+    switch (size) {
+    case Size::Size_R32_G32_B32_A32:
+        return Size::Size_R32_G32_B32;
+    case Size::Size_R32_G32_B32:
+        return Size::Size_R32_G32;
+    case Size::Size_R32_G32:
+        return Size::Size_R32;
+    case Size::Size_R16_G16_B16_A16:
+        return Size::Size_R16_G16_B16;
+    case Size::Size_R16_G16_B16:
+        return Size::Size_R16_G16;
+    case Size::Size_R16_G16:
+        return Size::Size_R16;
+    case Size::Size_R8_G8_B8_A8:
+    case Size::Size_X8_B8_G8_R8:
+        return Size::Size_R8_G8_B8;
+    case Size::Size_R8_G8_B8:
+        return Size::Size_R8_G8;
+    case Size::Size_R8_G8:
+    case Size::Size_G8_R8:
+        return Size::Size_R8;
+    default:
+        return size;
+    }
+}
+
+} // Anonymous namespace
+
 VkFormat VertexFormat(const Device& device, Maxwell::VertexAttribute::Type type,
                       Maxwell::VertexAttribute::Size size) {
     if (device.MustEmulateScaledFormats()) {
@@ -594,6 +713,46 @@ VkFormat VertexFormat(const Device& device, Maxwell::VertexAttribute::Type type,
 
     return device.GetSupportedFormat(format, VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT,
                                      FormatType::Buffer);
+}
+
+VkFormat VertexFormat(const Device& device, Maxwell::VertexAttribute::Type type,
+                      Maxwell::VertexAttribute::Size size, u32 offset, u32 stride,
+                      u32 used_components) {
+    // Attributes reading past their binding stride are invalid on portability hosts and are
+    // fetched incorrectly by Metal. Drop trailing components the shader never reads until the
+    // format fits; keep the original format when that is impossible.
+    const VkFormat original = VertexFormat(device, type, size);
+    if (stride == 0 || offset >= stride) {
+        return original;
+    }
+    const u32 original_size = VertexFormatSize(original);
+    if (original_size == 0 || original_size <= stride - offset) {
+        return original;
+    }
+
+    auto reduced_size = size;
+    while (true) {
+        const auto next_size = DropLastVertexComponent(reduced_size);
+        if (next_size == reduced_size) {
+            return original;
+        }
+        Maxwell::VertexAttribute reduced_attribute{};
+        reduced_attribute.size.Assign(next_size);
+        if (reduced_attribute.ComponentCount() < used_components) {
+            // A valid host layout cannot be obtained by discarding guest data that is read.
+            // Keep the original format; such layouts require a separate repacking path.
+            return original;
+        }
+        reduced_size = next_size;
+
+        const VkFormat reduced = VertexFormat(device, type, reduced_size);
+        const u32 host_size = VertexFormatSize(reduced);
+        if (host_size != 0 && host_size <= stride - offset &&
+            device.IsFormatSupported(reduced, VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT,
+                                     FormatType::Buffer)) {
+            return reduced;
+        }
+    }
 }
 
 VkCompareOp ComparisonOp(Maxwell::ComparisonOp comparison) {
