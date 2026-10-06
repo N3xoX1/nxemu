@@ -35,7 +35,12 @@ static u64 MakeCbufKey(u32 index, u32 offset) {
     return (static_cast<u64>(index) << 32) | offset;
 }
 
-static Shader::TextureType ConvertTextureType(const Tegra::Texture::TICEntry& entry) {
+static Shader::TextureType ConvertTextureType(
+    const std::optional<Tegra::Texture::TICEntry>& optional_entry) {
+    if (!optional_entry) {
+        return Shader::TextureType::Color2D;
+    }
+    const Tegra::Texture::TICEntry& entry{*optional_entry};
     switch (entry.texture_type) {
     case Tegra::Texture::TextureType::Texture1D:
         return Shader::TextureType::Color1D;
@@ -61,7 +66,12 @@ static Shader::TextureType ConvertTextureType(const Tegra::Texture::TICEntry& en
     }
 }
 
-static Shader::TexturePixelFormat ConvertTexturePixelFormat(const Tegra::Texture::TICEntry& entry) {
+static Shader::TexturePixelFormat ConvertTexturePixelFormat(
+    const std::optional<Tegra::Texture::TICEntry>& optional_entry) {
+    if (!optional_entry) {
+        return Shader::TexturePixelFormat::A8B8G8R8_UNORM;
+    }
+    const Tegra::Texture::TICEntry& entry{*optional_entry};
     return static_cast<Shader::TexturePixelFormat>(
         PixelFormatFromTextureInfo(entry.format, entry.r_type, entry.g_type, entry.b_type,
                                    entry.a_type, entry.srgb_conversion));
@@ -271,10 +281,14 @@ std::optional<u64> GenericEnvironment::TryFindSize() {
     return std::nullopt;
 }
 
-Tegra::Texture::TICEntry GenericEnvironment::ReadTextureInfo(GPUVAddr tic_addr, u32 tic_limit,
-                                                             bool via_header_index, u32 raw) {
+std::optional<Tegra::Texture::TICEntry> GenericEnvironment::ReadTextureInfo(
+    GPUVAddr tic_addr, u32 tic_limit, bool via_header_index, u32 raw) {
     const auto handle{Tegra::Texture::TexturePair(raw, via_header_index)};
-    ASSERT(handle.first <= tic_limit);
+    if (handle.first > tic_limit) {
+        // Games leave unused sampler slots with an invalid handle, such as 0xFFFFFFFF
+        LOG_DEBUG(HW_GPU, "Invalid texture handle=0x{:08x}", raw);
+        return std::nullopt;
+    }
     const GPUVAddr descriptor_addr{tic_addr + handle.first * sizeof(Tegra::Texture::TICEntry)};
     Tegra::Texture::TICEntry entry;
     gpu_memory->ReadBlock(descriptor_addr, &entry, sizeof(entry));
