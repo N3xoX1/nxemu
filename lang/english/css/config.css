@@ -5,6 +5,7 @@ html {
 
 div.ConfigPage
 {
+  padding: 0.5rem 0.7rem 0 0.7rem;
   background: color(color-dialog-background);
   flow: horizontal;
   width: *;
@@ -99,8 +100,8 @@ popup.tooltip
   border: 1px solid #55575a;
   padding: 0.4em 0.2rem 0.2rem 0.2rem;
   border-radius: 2px;
-  margin: 0 50%% 0.9rem 50%%;
-  width: 50%%;
+  margin: 0 * 0.9rem *;
+  width: *;
 }
 
 .input-row span

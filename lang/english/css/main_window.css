@@ -2,8 +2,8 @@
 
 #MainContents
 {
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
 }
 
 #StatusBar
@@ -126,8 +126,8 @@
 
 .main-contents-panel
 {
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   display: none;
 }
 
@@ -140,8 +140,8 @@
 
 #PausePanel .pause-panel-container
 {
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -171,8 +171,8 @@
 rombrowser
 {
   display: block;
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   padding: 0.5rem 1rem;
   margin: 0;
 }
@@ -228,7 +228,7 @@ rombrowser .games-title h1
 
 rombrowser .games-grid
 {
-  height: 100%%;
+  height: *;
   flow:horizontal-wrap;
   border-spacing: 1rem;
   overflow-y: auto;
@@ -296,8 +296,8 @@ rombrowser .games-grid[data-size="4"] .rom-card
 
 #LoadingPanel .loading-container
 {
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   flow: vertical;
   background-color: black;
   color: white;
@@ -359,7 +359,7 @@ rombrowser .games-grid[data-size="4"] .rom-card
 #LoadingPanel .loading-text
 {
   font-size: 2em;
-  margin: 50%% 0;
+  margin: 0.5* 0;
 }
 
 #LoadingPanel .loading-progress-track
@@ -372,36 +372,36 @@ rombrowser .games-grid[data-size="4"] .rom-card
 
 #LoadingPanel .loading-progress-fill
 {
-  height: 100%%;
-  width: 0%%;
+  height: *;
+  width: 0*;
   border-radius: 999px;
   background-color: #00d4ff;
-  background-image: linear-gradient(90deg, #00b8e8 0%%, #33eeff 50%%, #00b8e8 100%%);
-  background-size: 100%% 100%%;
+  background-image: linear-gradient(90deg, #00b8e8 0*, #33eeff 0.5*, #00b8e8 *);
+  background-size: * *;
   transition: width 0.15s ease-out;
 }
 
 #LoadingPanel .loading-progress-fill.building
 {
-  background-image: linear-gradient(90deg, #00a3cc 0%%, #55f0ff 45%%, #00a3cc 95%%);
-  background-size: 200%% 100%%;
+  background-image: linear-gradient(90deg, #00a3cc 0*, #55f0ff 0.45*, #00a3cc 0.95*);
+  background-size: 2* *;
   animation: loading-bar-build-shimmer 1s linear infinite;
 }
 
 #LoadingPanel .loading-progress-fill.indeterminate
 {
-  width: 42%%;
+  width: 0.42*;
   animation: loading-bar-wait-pulse 0.85s ease-in-out infinite;
 }
 
 @keyframes loading-bar-build-shimmer {
-  0%% { background-position: 0%% 0; }
-  100%% { background-position: 100%% 0; }
+  0* { background-position: 0* 0; }
+  * { background-position: * 0; }
 }
 
 @keyframes loading-bar-wait-pulse {
-  0%%, 100%% { opacity: 0.5; }
-  50%% { opacity: 1; }
+  0*, * { opacity: 0.5; }
+  0.5* { opacity: 1; }
 }
 
 #LoadingPanel .loading-text > text
