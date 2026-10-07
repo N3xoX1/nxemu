@@ -552,20 +552,6 @@ void Maxwell3D::ProcessFirmwareCall4()
     regs.shadow_scratch[0] = 1;
 }
 
-void Maxwell3D::StampQueryResult(u64 payload, bool long_query)
-{
-    const GPUVAddr sequence_address{regs.report_semaphore.Address()};
-    if (long_query)
-    {
-        UNIMPLEMENTED();
-        memory_manager.Write<u64>(sequence_address, payload);
-    }
-    else
-    {
-        memory_manager.Write<u32>(sequence_address, static_cast<u32>(payload));
-    }
-}
-
 void Maxwell3D::ProcessQueryGet()
 {
     VideoCommon::QueryPropertiesFlags flags{};

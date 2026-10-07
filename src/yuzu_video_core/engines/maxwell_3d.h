@@ -3170,9 +3170,6 @@ private:
     /// Handles a write to the QUERY_GET register.
     void ProcessQueryGet();
 
-    /// Writes the query result accordingly.
-    void StampQueryResult(u64 payload, bool long_query);
-
     /// Handles conditional rendering.
     void ProcessQueryCondition();
 
