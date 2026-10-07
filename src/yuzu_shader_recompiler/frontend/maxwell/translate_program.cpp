@@ -89,43 +89,26 @@ void AddNVNStorageBuffers(IR::Program& program) {
     if (!program.info.uses_global_memory) {
         return;
     }
-    const u32 driver_cbuf{0};
-    const u32 descriptor_size{0x10};
-    const u32 num_buffers{16};
-    const u32 base{[&] {
-        switch (program.stage) {
-        case Stage::VertexA:
-        case Stage::VertexB:
-            return 0x110u;
-        case Stage::TessellationControl:
-            return 0x210u;
-        case Stage::TessellationEval:
-            return 0x310u;
-        case Stage::Geometry:
-            return 0x410u;
-        case Stage::Fragment:
-            return 0x510u;
-        case Stage::Compute:
-            return 0x310u;
-        }
-        throw InvalidArgument("Invalid stage {}", program.stage);
-    }()};
-    auto& descs{program.info.storage_buffers_descriptors};
-    for (u32 index = 0; index < num_buffers; ++index) {
-        if (!program.info.nvn_buffer_used[index]) {
+    auto& info{program.info};
+    auto& descs{info.storage_buffers_descriptors};
+    for (size_t nvn_index = 0; nvn_index < info.nvn_buffer_used.size(); ++nvn_index) {
+        if (!info.nvn_buffer_used[nvn_index]) {
             continue;
         }
-        const u32 offset{base + index * descriptor_size};
-        const auto it{std::ranges::find(descs, offset, &StorageBufferDescriptor::cbuf_offset)};
+        const u32 offset{NvnStorageBufferOffset(info, nvn_index)};
+        const auto it{std::ranges::find_if(descs, [offset](const StorageBufferDescriptor& desc) {
+            return desc.cbuf_index == Info::NVN_STORAGE_BUFFER_CBUF_INDEX &&
+                   desc.cbuf_offset == offset;
+        })};
         if (it != descs.end()) {
-            it->is_written |= program.info.stores_global_memory;
+            it->is_written |= info.stores_global_memory;
             continue;
         }
         descs.push_back({
-            .cbuf_index = driver_cbuf,
+            .cbuf_index = Info::NVN_STORAGE_BUFFER_CBUF_INDEX,
             .cbuf_offset = offset,
             .count = 1,
-            .is_written = program.info.stores_global_memory,
+            .is_written = info.stores_global_memory,
         });
     }
 }

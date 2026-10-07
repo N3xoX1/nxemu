@@ -628,7 +628,7 @@ std::string EmitContext::DefineGlobalMemoryFunctions() {
     std::string load_func_128{"uvec4 LoadGlobal128(uint64_t addr){"};
     const size_t num_buffers{info.storage_buffers_descriptors.size()};
     for (size_t index = 0; index < num_buffers; ++index) {
-        if (!info.nvn_buffer_used[index]) {
+        if (!IsUsedNvnStorageBufferDescriptor(info, info.storage_buffers_descriptors[index])) {
             continue;
         }
         define_body(write_func, index, "{0}[uint(addr-{1})>>2]=data;return;}}");
