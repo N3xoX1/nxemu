@@ -130,14 +130,6 @@ bool SupportsPrimitiveRestart(VkPrimitiveTopology topology) {
     return std::ranges::find(unsupported_topologies, topology) == unsupported_topologies.end();
 }
 
-bool IsLine(VkPrimitiveTopology topology) {
-    static constexpr std::array line_topologies{
-        VK_PRIMITIVE_TOPOLOGY_LINE_LIST, VK_PRIMITIVE_TOPOLOGY_LINE_STRIP,
-        // VK_PRIMITIVE_TOPOLOGY_LINE_LOOP_EXT,
-    };
-    return std::ranges::find(line_topologies, topology) == line_topologies.end();
-}
-
 VkViewportSwizzleNV UnpackViewportSwizzle(u16 swizzle) {
     union Swizzle {
         u32 raw;
@@ -286,10 +278,11 @@ GraphicsPipeline::GraphicsPipeline(
     GuestDescriptorQueue& guest_descriptor_queue_, Common::ThreadWorker* worker_thread,
     PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
     const GraphicsPipelineCacheKey& key_, std::array<vk::ShaderModule, NUM_STAGES> stages,
-    const std::array<const Shader::Info*, NUM_STAGES>& infos)
+    const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines_)
     : key{key_}, device{device_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
       pipeline_cache(pipeline_cache_), scheduler{scheduler_},
-      guest_descriptor_queue{guest_descriptor_queue_}, spv_modules{std::move(stages)} {
+      guest_descriptor_queue{guest_descriptor_queue_}, spv_modules{std::move(stages)},
+      rasterizes_lines{rasterizes_lines_} {
     if (shader_notify) {
         shader_notify->MarkShaderBuilding();
     }
@@ -794,12 +787,27 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         .depthBiasSlopeFactor = 0.0f,
         .lineWidth = 1.0f,
     };
+    const bool smooth_lines_supported =
+        device.IsExtLineRasterizationSupported() && device.SupportsSmoothLines();
+    const bool rectangular_lines_supported =
+        device.IsExtLineRasterizationSupported() && device.SupportsRectangularLines();
+    // As in OpenGL, line smoothing is ignored when rendering to a multisampled target.
+    const bool is_multisampled =
+        MaxwellToVK::MsaaMode(key.state.msaa_mode) != VK_SAMPLE_COUNT_1_BIT;
+    const VkLineRasterizationModeEXT line_rasterization_mode =
+        key.state.smooth_lines != 0 && smooth_lines_supported && !is_multisampled
+            ? VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT
+            : rectangular_lines_supported ? VK_LINE_RASTERIZATION_MODE_RECTANGULAR_EXT
+                                          : VK_LINE_RASTERIZATION_MODE_DEFAULT_EXT;
+    const bool use_line_state =
+        rasterizes_lines && device.IsExtLineRasterizationSupported();
+    const bool smooth_line_rasterization =
+        use_line_state &&
+        line_rasterization_mode == VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT;
     VkPipelineRasterizationLineStateCreateInfoEXT line_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_LINE_STATE_CREATE_INFO_EXT,
         .pNext = nullptr,
-        .lineRasterizationMode = key.state.smooth_lines != 0
-                                     ? VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT
-                                     : VK_LINE_RASTERIZATION_MODE_RECTANGULAR_EXT,
+        .lineRasterizationMode = line_rasterization_mode,
         .stippledLineEnable = VK_FALSE, // TODO
         .lineStippleFactor = 0,
         .lineStipplePattern = 0,
@@ -820,7 +828,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
                                    ? VK_PROVOKING_VERTEX_MODE_LAST_VERTEX_EXT
                                    : VK_PROVOKING_VERTEX_MODE_FIRST_VERTEX_EXT,
     };
-    if (IsLine(input_assembly_topology) && device.IsExtLineRasterizationSupported()) {
+    if (use_line_state) {
         line_state.pNext = std::exchange(rasterization_ci.pNext, &line_state);
     }
     if (device.IsExtConservativeRasterizationSupported()) {
@@ -830,6 +838,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         provoking_vertex.pNext = std::exchange(rasterization_ci.pNext, &provoking_vertex);
     }
 
+    const bool supports_alpha_output = stage_infos[NUM_STAGES - 1].stores_frag_color[0];
     const VkPipelineMultisampleStateCreateInfo multisample_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -838,8 +847,15 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         .sampleShadingEnable = VK_FALSE,
         .minSampleShading = 0.0f,
         .pSampleMask = nullptr,
-        .alphaToCoverageEnable = key.state.alpha_to_coverage_enabled != 0 ? VK_TRUE : VK_FALSE,
-        .alphaToOneEnable = key.state.alpha_to_one_enabled != 0 ? VK_TRUE : VK_FALSE,
+        .alphaToCoverageEnable = !smooth_line_rasterization && supports_alpha_output &&
+                                         key.state.alpha_to_coverage_enabled != 0
+                                     ? VK_TRUE
+                                     : VK_FALSE,
+        .alphaToOneEnable = !smooth_line_rasterization && supports_alpha_output &&
+                                   device.SupportsAlphaToOne() &&
+                                   key.state.alpha_to_one_enabled != 0
+                               ? VK_TRUE
+                               : VK_FALSE,
     };
     const VkPipelineDepthStencilStateCreateInfo depth_stencil_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,

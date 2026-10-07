@@ -64,6 +64,7 @@ Shader::OutputTopology MaxwellToOutputTopology(Maxwell::PrimitiveTopology topolo
     switch (topology) {
     case Maxwell::PrimitiveTopology::Points:
         return Shader::OutputTopology::PointList;
+    case Maxwell::PrimitiveTopology::Lines:
     case Maxwell::PrimitiveTopology::LineStrip:
         return Shader::OutputTopology::LineStrip;
     default:
@@ -699,11 +700,20 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
         previous_stage = &program;
     }
+    const bool has_tessellation{static_cast<bool>(modules[2])};
+    const bool tessellation_isolines{
+        static_cast<Maxwell::Tessellation::DomainType>(key.state.tessellation_primitive.Value()) ==
+        Maxwell::Tessellation::DomainType::Isolines};
+    const auto output_topology{GetRasterizationOutputTopology(
+        key.state.topology, has_tessellation, tessellation_isolines,
+        modules[3] ? std::optional{programs[4].output_topology} : std::nullopt)};
+    const bool rasterizes_lines{RasterizesLines(
+        output_topology, FixedPipelineState::UnpackPolygonMode(key.state.polygon_mode))};
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
-        std::move(modules), infos);
+        std::move(modules), infos, rasterizes_lines);
 
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();

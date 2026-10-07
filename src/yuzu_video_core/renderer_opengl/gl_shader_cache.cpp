@@ -62,6 +62,7 @@ Shader::OutputTopology MaxwellToOutputTopology(Maxwell::PrimitiveTopology topolo
     switch (topology) {
     case Maxwell::PrimitiveTopology::Points:
         return Shader::OutputTopology::PointList;
+    case Maxwell::PrimitiveTopology::Lines:
     case Maxwell::PrimitiveTopology::LineStrip:
         return Shader::OutputTopology::LineStrip;
     default:
