@@ -9,6 +9,7 @@
 #include <nxemu-core/app_init.h>
 #ifdef __APPLE__
 #include <nxemu-core/settings/core_settings.h>
+#include <sys/resource.h>
 #endif
 #include <nxemu-core/version.h>
 #include <yuzu_common/fs/path_util.h>
@@ -88,8 +89,31 @@ static void EnablePerMonitorDpiAwareness()
 }
 #endif
 
+#ifdef __APPLE__
+// Apps started from Finder inherit a soft limit of 256 open files, which a
+// firmware install (one open file per NCA) exceeds.
+static void RaiseOpenFileLimit()
+{
+    rlimit limit{};
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0)
+    {
+        return;
+    }
+    const rlim_t wanted = 10240; // OPEN_MAX, the most macOS accepts here
+    const rlim_t target = limit.rlim_max == RLIM_INFINITY || limit.rlim_max > wanted ? wanted : limit.rlim_max;
+    if (limit.rlim_cur < target)
+    {
+        limit.rlim_cur = target;
+        setrlimit(RLIMIT_NOFILE, &limit);
+    }
+}
+#endif
+
 static int RunApplication(const char * arg0) 
 {
+#ifdef __APPLE__
+    RaiseOpenFileLimit();
+#endif
     bool has_broken_vulkan = false;
     bool is_child = false;
     if (CheckEnvVars(&is_child)) {
