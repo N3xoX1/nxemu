@@ -34,6 +34,7 @@
 #include "yuzu_video_core/shader_cache.h"
 #include "yuzu_video_core/shader_environment.h"
 #include "yuzu_video_core/shader_notify.h"
+#include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 #include "video_settings.h"
@@ -225,6 +226,21 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
         info.alpha_test_func = MaxwellToCompareFunction(
             key.state.UnpackComparisonOp(key.state.alpha_test_func.Value()));
         info.alpha_test_reference = Common::BitCast<float>(key.state.alpha_test_ref);
+        // Vulkan requires integer fragment outputs for integer color attachments.
+        for (size_t index = 0; index < info.color_output_types.size(); ++index) {
+            const auto format =
+                static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]);
+            if (format == Tegra::RenderTargetFormat::NONE) {
+                continue;
+            }
+            const auto pixel_format = VideoCore::Surface::PixelFormatFromRenderTargetFormat(format);
+            if (VideoCore::Surface::IsPixelFormatInteger(pixel_format)) {
+                info.color_output_types[index] =
+                    VideoCore::Surface::IsPixelFormatSignedInteger(pixel_format)
+                        ? Shader::AttributeType::SignedInt
+                        : Shader::AttributeType::UnsignedInt;
+            }
+        }
         break;
     default:
         break;
@@ -317,6 +333,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .supported_spirv = device.SupportedSpirvVersion(),
         .unified_descriptor_binding = true,
         .support_descriptor_aliasing = device.IsDescriptorAliasingSupported(),
+        .disable_uniform_buffer_descriptor_aliasing =
+            device.IsDescriptorAliasingSupported() && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
         .support_int8 = device.IsInt8Supported(),
         .support_int16 = device.IsShaderInt16Supported(),
         .support_int64 = device.IsShaderInt64Supported(),
@@ -406,6 +424,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_extended_dynamic_state_3_blend = device.IsExtExtendedDynamicState3BlendingSupported(),
         .has_extended_dynamic_state_3_enables = device.IsExtExtendedDynamicState3EnablesSupported(),
         .has_dynamic_vertex_input = device.IsExtVertexInputDynamicStateSupported(),
+        .has_vertex_stride_workaround = device.NeedsVertexAttributeStrideWorkaround(),
     };
 }
 
@@ -516,7 +535,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 dynamic_features.has_extended_dynamic_state_3_blend ||
             (key.state.extended_dynamic_state_3_enables != 0) !=
                 dynamic_features.has_extended_dynamic_state_3_enables ||
-            (key.state.dynamic_vertex_input != 0) != dynamic_features.has_dynamic_vertex_input) {
+            (key.state.dynamic_vertex_input != 0) != dynamic_features.has_dynamic_vertex_input ||
+            (key.state.vertex_stride_workaround != 0) !=
+                (dynamic_features.has_vertex_stride_workaround &&
+                 !dynamic_features.has_dynamic_vertex_input)) {
             return;
         }
         workers.QueueWork([this, key, envs_ = std::move(envs), &state, &callback]() mutable {

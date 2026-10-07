@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "yuzu_video_core/vulkan_common/moltenvk_workarounds.h"
+
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
@@ -49,6 +51,7 @@ VK_DEFINE_HANDLE(VmaAllocator)
     FEATURE(EXT, 4444Formats, 4444_FORMATS, format_a4b4g4r4)                                       \
     FEATURE(EXT, IndexTypeUint8, INDEX_TYPE_UINT8, index_type_uint8)                               \
     FEATURE(EXT, LineRasterization, LINE_RASTERIZATION, line_rasterization)                        \
+    FEATURE(KHR, PortabilitySubset, PORTABILITY_SUBSET, portability_subset)                        \
     FEATURE(EXT, PrimitiveTopologyListRestart, PRIMITIVE_TOPOLOGY_LIST_RESTART,                    \
             primitive_topology_list_restart)                                                       \
     FEATURE(EXT, ProvokingVertex, PROVOKING_VERTEX, provoking_vertex)                              \
@@ -294,6 +297,16 @@ public:
         return properties.properties.limits.maxStorageBufferRange;
     }
 
+    /// Returns the maximum number of storage-buffer descriptors visible to one shader stage.
+    u32 GetMaxPerStageStorageBuffers() const {
+        return properties.properties.limits.maxPerStageDescriptorStorageBuffers;
+    }
+
+    /// Returns the maximum total number of descriptor resources visible to one shader stage.
+    u32 GetMaxPerStageResources() const {
+        return properties.properties.limits.maxPerStageResources;
+    }
+
     /// Returns the maximum size for push constants.
     VkDeviceSize GetMaxPushConstantsSize() const {
         return properties.properties.limits.maxPushConstantsSize;
@@ -361,7 +374,7 @@ public:
 
     /// Returns the maximum number of push descriptors.
     u32 MaxPushDescriptors() const {
-        return properties.push_descriptor.maxPushDescriptors;
+        return MoltenVK::PushDescriptorLimit(GetDriverID(), properties.push_descriptor.maxPushDescriptors);
     }
 
     /// Returns true if formatless image load is supported.
@@ -382,6 +395,15 @@ public:
     // Returns true if depth bounds is supported.
     bool IsDepthBoundsSupported() const {
         return features.features.depthBounds;
+    }
+
+    bool CanUseDepthBoundsDynamicState() const {
+        return MoltenVK::UseDepthBoundsDynamicState(GetDriverID(), IsDepthBoundsSupported());
+    }
+
+    bool CanRequestComputeSubgroupSize() const {
+        return IsExtSubgroupSizeControlSupported() &&
+               IsGuestWarpSizeSupported(VK_SHADER_STAGE_COMPUTE_BIT);
     }
 
     /// Returns true when blitting from and to D24S8 images is supported.
@@ -417,6 +439,20 @@ public:
     /// Returns true if the device supports VK_KHR_push_descriptor.
     bool IsKhrPushDescriptorSupported() const {
         return extensions.push_descriptor;
+    }
+
+    /// Returns true if vertex attributes may access bytes beyond their binding stride.
+    bool SupportsVertexAttributeAccessBeyondStride() const {
+        return !extensions.portability_subset ||
+               features.portability_subset.vertexAttributeAccessBeyondStride != VK_FALSE;
+    }
+
+    /// Returns true if vertex attribute formats must be kept within their binding stride.
+    /// MoltenVK advertises access beyond the stride, but Metal fetches such attributes
+    /// incorrectly, so the workaround is also applied there.
+    bool NeedsVertexAttributeStrideWorkaround() const {
+        return !SupportsVertexAttributeAccessBeyondStride() ||
+               GetDriverID() == VK_DRIVER_ID_MOLTENVK;
     }
 
     /// Returns true if VK_KHR_pipeline_executable_properties is enabled.

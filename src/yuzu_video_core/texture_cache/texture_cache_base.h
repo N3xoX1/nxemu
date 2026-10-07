@@ -192,6 +192,9 @@ public:
     /// UpdateRenderTargets should be called before this
     Framebuffer* GetFramebuffer();
 
+    /// Isolate one attachment/layer for helper draws. NUM_RT selects depth/stencil.
+    Framebuffer* GetClearFramebuffer(size_t color_attachment, u32 layer);
+
     /// Mark images in a range as modified from the CPU
     void WriteMemory(DAddr cpu_addr, size_t size);
 

@@ -207,6 +207,7 @@
     <ClInclude Include="vulkan_common\vulkan.h" />
     <ClInclude Include="vulkan_common\vulkan_debug_callback.h" />
     <ClInclude Include="vulkan_common\vulkan_device.h" />
+    <ClInclude Include="vulkan_common\moltenvk_workarounds.h" />
     <ClInclude Include="vulkan_common\vulkan_instance.h" />
     <ClInclude Include="vulkan_common\vulkan_library.h" />
     <ClInclude Include="vulkan_common\vulkan_memory_allocator.h" />

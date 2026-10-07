@@ -104,6 +104,10 @@ struct RuntimeInfo {
     /// Transform feedback state for each varying
     std::array<TransformFeedbackVarying, 256> xfb_varyings{};
     u32 xfb_count{0};
+
+    // Vulkan requires fragment outputs to match the attachment scalar type.
+    // Float remains the default for other backends.
+    std::array<AttributeType, 8> color_output_types{};
 };
 
 } // namespace Shader

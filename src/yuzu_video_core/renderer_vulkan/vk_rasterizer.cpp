@@ -359,10 +359,10 @@ void RasterizerVulkan::Clear(u32 layer_count) {
 
     std::scoped_lock lock{texture_cache.mutex};
     texture_cache.UpdateRenderTargets(true);
-    const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
+    const Framebuffer* framebuffer = texture_cache.GetFramebuffer();
     const VkExtent2D render_area = framebuffer->RenderArea();
-    scheduler.RequestRenderpass(framebuffer);
-
+    const u32 color_write_mask = use_color ? (1U << regs.clear_surface.RT) : 0;
+    const u32 color_scratch_mask = framebuffer->ColorScratchMask(color_write_mask);
     u32 up_scale = 1;
     u32 down_shift = 0;
     if (texture_cache.IsRescaling()) {
@@ -399,7 +399,9 @@ void RasterizerVulkan::Clear(u32 layer_count) {
         bool is_signed = IsPixelFormatSignedInteger(format);
         size_t int_size = PixelComponentSizeBitsInteger(format);
         VkClearValue clear_value{};
-        if (!is_integer) {
+        if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK || !is_integer) {
+            // Clear registers contain raw float/int/uint bits selected by the target format.
+            // Copying the words also preserves integer values whose float view is a NaN.
             std::memcpy(clear_value.color.float32, regs.clear_color.data(),
                         regs.clear_color.size() * sizeof(f32));
         } else if (!is_signed) {
@@ -415,8 +417,13 @@ void RasterizerVulkan::Clear(u32 layer_count) {
             }
         }
 
+        // MoltenVK's native attachment clears can round large 32-bit integers.
+        // The typed shader clear preserves their exact values, including full clears.
+        const bool integer_shader_clear =
+            device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && is_integer;
         if (regs.clear_surface.R && regs.clear_surface.G && regs.clear_surface.B &&
-            regs.clear_surface.A) {
+            regs.clear_surface.A && !integer_shader_clear) {
+            scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
             scheduler.Record([color_attachment, clear_value, clear_rect](vk::CommandBuffer cmdbuf) {
                 const VkClearAttachment attachment{
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -434,7 +441,18 @@ void RasterizerVulkan::Clear(u32 layer_count) {
                               static_cast<s32>(clear_rect.rect.extent.width),
                          .y = clear_rect.rect.offset.y +
                               static_cast<s32>(clear_rect.rect.extent.height)}};
-            blit_image.ClearColor(framebuffer, color_mask, regs.clear_color, dst_region);
+            if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+                for (u32 layer = 0; layer < clear_rect.layerCount; ++layer) {
+                    const Framebuffer* clear_framebuffer = texture_cache.GetClearFramebuffer(
+                        color_attachment, clear_rect.baseArrayLayer + layer);
+                    blit_image.ClearColor(clear_framebuffer, color_mask, clear_value.color, format,
+                                          dst_region);
+                }
+                // The framebuffer slot storage can grow while creating the helper framebuffer.
+                framebuffer = texture_cache.GetFramebuffer();
+            } else {
+                blit_image.ClearColor(framebuffer, color_mask, regs.clear_color, dst_region);
+            }
         }
     }
 
@@ -459,10 +477,23 @@ void RasterizerVulkan::Clear(u32 layer_count) {
             Offset2D{.x = clear_rect.rect.offset.x + static_cast<s32>(clear_rect.rect.extent.width),
                      .y = clear_rect.rect.offset.y +
                           static_cast<s32>(clear_rect.rect.extent.height)}};
-        blit_image.ClearDepthStencil(framebuffer, use_depth, regs.clear_depth,
-                                     static_cast<u8>(regs.stencil_front_mask), regs.clear_stencil,
-                                     regs.stencil_front_func_mask, dst_region);
+        if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+            for (u32 layer = 0; layer < clear_rect.layerCount; ++layer) {
+                const Framebuffer* clear_framebuffer = texture_cache.GetClearFramebuffer(
+                    Maxwell::NumRenderTargets, clear_rect.baseArrayLayer + layer);
+                blit_image.ClearDepthStencil(clear_framebuffer, use_depth, regs.clear_depth,
+                                             static_cast<u8>(regs.stencil_front_mask),
+                                             regs.clear_stencil, regs.stencil_front_func_mask,
+                                             dst_region);
+            }
+        } else {
+            blit_image.ClearDepthStencil(
+                framebuffer, use_depth, regs.clear_depth, static_cast<u8>(regs.stencil_front_mask),
+                regs.clear_stencil, regs.stencil_front_func_mask, dst_region);
+        }
     } else {
+        // A masked color clear may have selected a color-only helper framebuffer.
+        scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
         scheduler.Record([clear_depth = regs.clear_depth, clear_stencil = regs.clear_stencil,
                           clear_rect, aspect_flags](vk::CommandBuffer cmdbuf) {
             VkClearAttachment attachment;
@@ -753,7 +784,10 @@ void RasterizerVulkan::FragmentBarrier() {
 }
 
 void RasterizerVulkan::TiledCacheBarrier() {
-    // TODO: Implementing tiled barriers requires rewriting a good chunk of the Vulkan backend
+    // EndRenderPass publishes previous attachment writes before subsequent guest reads.
+    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+        scheduler.RequestOutsideRenderPassOperationContext();
+    }
 }
 
 void RasterizerVulkan::FlushCommands() {
@@ -1111,7 +1145,7 @@ void RasterizerVulkan::UpdateBlendConstants(Tegra::Engines::Maxwell3D::Regs& reg
 }
 
 void RasterizerVulkan::UpdateDepthBounds(Tegra::Engines::Maxwell3D::Regs& regs) {
-    if (!state_tracker.TouchDepthBounds()) {
+    if (!state_tracker.TouchDepthBounds() || !device.CanUseDepthBoundsDynamicState()) {
         return;
     }
     scheduler.Record([min = regs.depth_bounds[0], max = regs.depth_bounds[1]](
@@ -1230,7 +1264,7 @@ void RasterizerVulkan::UpdateCullMode(Tegra::Engines::Maxwell3D::Regs& regs) {
 }
 
 void RasterizerVulkan::UpdateDepthBoundsTestEnable(Tegra::Engines::Maxwell3D::Regs& regs) {
-    if (!state_tracker.TouchDepthBoundsTestEnable()) {
+    if (!state_tracker.TouchDepthBoundsTestEnable() || !device.CanUseDepthBoundsDynamicState()) {
         return;
     }
     bool enabled = regs.depth_bounds_enable;
@@ -1434,9 +1468,17 @@ void RasterizerVulkan::UpdateBlending(Tegra::Engines::Maxwell3D::Regs& regs) {
 
     if (state_tracker.TouchBlendEnable()) {
         std::array<VkBool32, Maxwell::NumRenderTargets> setup_enables{};
-        std::ranges::transform(
-            regs.blend.enable, setup_enables.begin(),
-            [&](const auto& is_enabled) { return is_enabled != 0 ? VK_TRUE : VK_FALSE; });
+        for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+            bool enable = regs.blend.enable[index] != 0;
+            const auto rt_format = regs.rt[index].format;
+            // Blending is not defined for integer formats.
+            if (enable && rt_format != Tegra::RenderTargetFormat::NONE) {
+                const auto format =
+                    VideoCore::Surface::PixelFormatFromRenderTargetFormat(rt_format);
+                enable = !IsPixelFormatInteger(format);
+            }
+            setup_enables[index] = enable ? VK_TRUE : VK_FALSE;
+        }
         scheduler.Record([setup_enables](vk::CommandBuffer cmdbuf) {
             cmdbuf.SetColorBlendEnableEXT(0, setup_enables);
         });

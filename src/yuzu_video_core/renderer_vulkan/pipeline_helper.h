@@ -21,7 +21,8 @@ using Shader::Backend::SPIRV::NUM_TEXTURE_AND_IMAGE_SCALING_WORDS;
 
 class DescriptorLayoutBuilder {
 public:
-    DescriptorLayoutBuilder(const Device& device_) : device{&device_} {}
+    DescriptorLayoutBuilder(const Device& device_, VkShaderStageFlags storage_buffer_stages_ = 0)
+        : device{&device_}, storage_buffer_stages{storage_buffer_stages_} {}
 
     bool CanUsePushDescriptor() const noexcept {
         return device->IsKhrPushDescriptorSupported() &&
@@ -102,6 +103,9 @@ public:
 private:
     template <typename Descriptors>
     void Add(VkDescriptorType type, VkShaderStageFlags stage, const Descriptors& descriptors) {
+        if (type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER && storage_buffer_stages != 0) {
+            stage = storage_buffer_stages;
+        }
         const size_t num{descriptors.size()};
         for (size_t i = 0; i < num; ++i) {
             bindings.push_back({
@@ -126,6 +130,7 @@ private:
     }
 
     const Device* device{};
+    VkShaderStageFlags storage_buffer_stages{};
     bool is_compute{};
     boost::container::small_vector<VkDescriptorSetLayoutBinding, 32> bindings;
     boost::container::small_vector<VkDescriptorUpdateTemplateEntry, 32> entries;

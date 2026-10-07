@@ -24,6 +24,7 @@ struct DynamicFeatures {
     bool has_extended_dynamic_state_3_blend;
     bool has_extended_dynamic_state_3_enables;
     bool has_dynamic_vertex_input;
+    bool has_vertex_stride_workaround;
 };
 
 struct FixedPipelineState {
@@ -213,6 +214,7 @@ struct FixedPipelineState {
         BitField<15, 1, u32> alpha_to_coverage_enabled;
         BitField<16, 1, u32> alpha_to_one_enabled;
         BitField<17, 3, Tegra::Engines::Maxwell3D::EngineHint> app_stage;
+        BitField<20, 1, u32> vertex_stride_workaround;
     };
     std::array<u8, Maxwell::NumRenderTargets> color_formats;
 
@@ -256,7 +258,7 @@ struct FixedPipelineState {
             // Exclude dynamic state
             return offsetof(FixedPipelineState, attributes);
         }
-        if (extended_dynamic_state) {
+        if (extended_dynamic_state && !vertex_stride_workaround) {
             // Exclude dynamic state
             return offsetof(FixedPipelineState, vertex_strides);
         }

@@ -52,7 +52,13 @@ VkRenderPass RenderPassCache::Get(const RenderPassKey& key) {
             .layout = VK_IMAGE_LAYOUT_GENERAL,
         };
         if (is_valid) {
-            descriptions.push_back(AttachmentDescription(*device, format, key.samples));
+            auto description = AttachmentDescription(*device, format, key.samples);
+            if ((key.color_scratch_mask & (1U << index)) != 0) {
+                description.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                description.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+                description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            }
+            descriptions.push_back(description);
             num_attachments = static_cast<u32>(index + 1);
             ++num_colors;
         }

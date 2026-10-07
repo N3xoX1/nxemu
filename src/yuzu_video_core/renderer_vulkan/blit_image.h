@@ -5,6 +5,7 @@
 
 #include "yuzu_video_core/engines/fermi_2d.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
+#include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -25,6 +26,12 @@ struct BlitImagePipelineKey {
 
     VkRenderPass renderpass;
     Tegra::Engines::Fermi2D::Operation operation;
+    VkSampleCountFlagBits samples{VK_SAMPLE_COUNT_1_BIT};
+    u8 color_attachment_count{1};
+    u8 clear_color_mask{0xf};
+    // 0: float, 1: signed integer, 2: unsigned integer.
+    u8 clear_color_type{};
+    bool masked_clear{};
 };
 
 struct BlitDepthStencilPipelineKey {
@@ -35,6 +42,7 @@ struct BlitDepthStencilPipelineKey {
     u8 stencil_mask;
     u32 stencil_compare_mask;
     u32 stencil_ref;
+    VkSampleCountFlagBits samples{VK_SAMPLE_COUNT_1_BIT};
 };
 
 class BlitImageHelper {
@@ -77,6 +85,10 @@ public:
 
     void ClearColor(const Framebuffer* dst_framebuffer, u8 color_mask,
                     const std::array<f32, 4>& clear_color, const Region2D& dst_region);
+
+    void ClearColor(const Framebuffer* dst_framebuffer, u8 color_mask,
+                    const VkClearColorValue& clear_color, VideoCore::Surface::PixelFormat format,
+                    const Region2D& dst_region);
 
     void ClearDepthStencil(const Framebuffer* dst_framebuffer, bool depth_clear, f32 clear_depth,
                            u8 stencil_mask, u32 stencil_ref, u32 stencil_compare_mask,
@@ -128,6 +140,8 @@ private:
     vk::ShaderModule blit_depth_stencil_frag;
     vk::ShaderModule clear_color_vert;
     vk::ShaderModule clear_color_frag;
+    vk::ShaderModule clear_color_sint_frag;
+    vk::ShaderModule clear_color_uint_frag;
     vk::ShaderModule clear_stencil_frag;
     vk::ShaderModule convert_depth_to_float_frag;
     vk::ShaderModule convert_float_to_depth_frag;

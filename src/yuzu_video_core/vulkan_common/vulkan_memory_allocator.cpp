@@ -251,6 +251,27 @@ vk::Image MemoryAllocator::CreateImage(const VkImageCreateInfo& ci) const {
                      device.GetDispatchLoader());
 }
 
+vk::Image MemoryAllocator::CreateTransientImage(const VkImageCreateInfo& ci) const {
+    const VmaAllocationCreateInfo alloc_ci = {
+        .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .requiredFlags = 0,
+        .preferredFlags =
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT,
+        .memoryTypeBits = 0,
+        .pool = VK_NULL_HANDLE,
+        .pUserData = nullptr,
+        .priority = 0.f,
+    };
+    VkImage handle{};
+    VmaAllocation allocation{};
+
+    vk::Check(vmaCreateImage(allocator, &ci, &alloc_ci, &handle, &allocation, nullptr));
+
+    return vk::Image(handle, *device.GetLogical(), allocator, allocation,
+                     device.GetDispatchLoader());
+}
+
 vk::Buffer MemoryAllocator::CreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const {
     const VmaAllocationCreateInfo alloc_ci = {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT | MemoryUsageVmaFlags(usage),

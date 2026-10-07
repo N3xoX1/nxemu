@@ -471,6 +471,28 @@ typename P::Framebuffer* TextureCache<P>::GetFramebuffer() {
 }
 
 template <class P>
+typename P::Framebuffer* TextureCache<P>::GetClearFramebuffer(size_t color_attachment, u32 layer) {
+    const bool is_color = color_attachment < NUM_RT;
+    const ImageViewId source_id = is_color ? render_targets.color_buffer_ids[color_attachment]
+                                           : render_targets.depth_buffer_id;
+    const ImageView& source = slot_image_views[source_id];
+    ASSERT(layer < static_cast<u32>(source.range.extent.layers));
+    SubresourceRange range = source.range;
+    range.base.layer += static_cast<s32>(layer);
+    range.extent.layers = 1;
+    const ImageId image_id = source.image_id;
+    const ImageViewInfo view_info{ImageViewType::e2D, source.format, range};
+    const ImageViewId view_id = FindOrEmplaceImageView(image_id, view_info);
+    const RenderTargets key{
+        .color_buffer_ids = {is_color ? view_id : ImageViewId{}},
+        .depth_buffer_id = is_color ? ImageViewId{} : view_id,
+        .size = render_targets.size,
+        .is_rescaled = render_targets.is_rescaled,
+    };
+    return &slot_framebuffers[GetFramebufferId(key)];
+}
+
+template <class P>
 template <bool has_blacklists>
 void TextureCache<P>::FillImageViews(DescriptorTable<TICEntry>& table,
                                      std::span<ImageViewId> cached_image_view_ids,

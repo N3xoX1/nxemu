@@ -633,6 +633,9 @@
     <ClInclude Include="vulkan_common\vulkan_device.h">
       <Filter>Header Files\vulkan_common</Filter>
     </ClInclude>
+    <ClInclude Include="vulkan_common\moltenvk_workarounds.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
     <ClInclude Include="vulkan_common\vulkan_instance.h">
       <Filter>Header Files\vulkan_common</Filter>
     </ClInclude>

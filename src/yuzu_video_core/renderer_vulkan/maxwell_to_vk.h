@@ -51,6 +51,12 @@ VkPrimitiveTopology PrimitiveTopology(const Device& device, Maxwell::PrimitiveTo
 VkFormat VertexFormat(const Device& device, Maxwell::VertexAttribute::Type type,
                       Maxwell::VertexAttribute::Size size);
 
+VkFormat VertexFormat(const Device& device, Maxwell::VertexAttribute::Type type,
+                      Maxwell::VertexAttribute::Size size, u32 offset, u32 stride,
+                      u32 used_components);
+
+[[nodiscard]] u32 VertexFormatSize(VkFormat format) noexcept;
+
 VkCompareOp ComparisonOp(Maxwell::ComparisonOp comparison);
 
 VkIndexType IndexFormat(Maxwell::IndexFormat index_format);

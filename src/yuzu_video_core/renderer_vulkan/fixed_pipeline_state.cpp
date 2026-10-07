@@ -71,6 +71,8 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     msaa_mode.Assign(regs.anti_alias_samples_mode);
 
     raw2 = 0;
+    vertex_stride_workaround.Assign(features.has_vertex_stride_workaround &&
+                                    !features.has_dynamic_vertex_input ? 1 : 0);
 
     const auto test_func =
         regs.alpha_test_enabled != 0 ? regs.alpha_test_func : Maxwell::ComparisonOp::Always_GL;
@@ -86,8 +88,16 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     alpha_to_one_enabled.Assign(regs.anti_alias_alpha_control.alpha_to_one != 0 ? 1 : 0);
     app_stage.Assign(maxwell3d.engine_state);
 
+    bool color_formats_changed = false;
     for (size_t i = 0; i < regs.rt.size(); ++i) {
-        color_formats[i] = static_cast<u8>(regs.rt[i].format);
+        const u8 format = static_cast<u8>(regs.rt[i].format);
+        color_formats_changed |= color_formats[i] != format;
+        color_formats[i] = format;
+    }
+    if (extended_dynamic_state_3_blend && color_formats_changed) {
+        // The dynamic blend enable depends on the render target formats.
+        maxwell3d.dirty.flags[Dirty::Blending] = true;
+        maxwell3d.dirty.flags[Dirty::BlendEnable] = true;
     }
     alpha_test_ref = Common::BitCast<u32>(regs.alpha_test_ref);
     point_size = Common::BitCast<u32>(regs.point_size);
@@ -145,6 +155,12 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
         dynamic_state.Refresh(regs);
         std::ranges::transform(regs.vertex_streams, vertex_strides.begin(), [](const auto& array) {
             return static_cast<u16>(array.stride.Value());
+        });
+    } else if (vertex_stride_workaround) {
+        // Strides stay dynamic, but they select the vertex attribute formats. Disabled streams
+        // are zeroed so their stale strides do not create redundant pipelines.
+        std::ranges::transform(regs.vertex_streams, vertex_strides.begin(), [](const auto& array) {
+            return static_cast<u16>(array.enable != 0 ? array.stride.Value() : 0);
         });
     }
     if (!extended_dynamic_state_2_extra) {

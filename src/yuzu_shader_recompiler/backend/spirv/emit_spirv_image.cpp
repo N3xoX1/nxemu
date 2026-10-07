@@ -39,7 +39,7 @@ public:
             if (offset.IsEmpty()) {
                 return;
             }
-            Add(spv::ImageOperandsMask::Offset, ctx.Def(offset));
+            Add(spv::ImageOperandsMask::Offset, SignedOffset(ctx, offset));
             return;
         }
         const std::array values{offset.InstRecursive(), offset2.InstRecursive()};
@@ -51,12 +51,14 @@ public:
         if (opcode != values[1]->GetOpcode() || opcode != IR::Opcode::CompositeConstructU32x4) {
             throw LogicError("Invalid PTP arguments");
         }
-        auto read{[&](unsigned int a, unsigned int b) { return values[a]->Arg(b).U32(); }};
+        auto read{[&](unsigned int a, unsigned int b) {
+            return static_cast<s32>(values[a]->Arg(b).U32());
+        }};
 
         const Id offsets{ctx.ConstantComposite(
-            ctx.TypeArray(ctx.U32[2], ctx.Const(4U)), ctx.Const(read(0, 0), read(0, 1)),
-            ctx.Const(read(0, 2), read(0, 3)), ctx.Const(read(1, 0), read(1, 1)),
-            ctx.Const(read(1, 2), read(1, 3)))};
+            ctx.TypeArray(ctx.S32[2], ctx.Const(4U)), ctx.SConst(read(0, 0), read(0, 1)),
+            ctx.SConst(read(0, 2), read(0, 3)), ctx.SConst(read(1, 0), read(1, 1)),
+            ctx.SConst(read(1, 2), read(1, 3)))};
         Add(spv::ImageOperandsMask::ConstOffsets, offsets);
     }
 
@@ -130,6 +132,46 @@ public:
     }
 
 private:
+    // The IR carries offsets as unsigned vectors. Texel offsets are signed, and
+    // Metal has no gather overload taking an unsigned one, so MoltenVK fails to
+    // compile the shader.
+    static Id SignedOffset(EmitContext& ctx, const IR::Value& offset) {
+        if (offset.IsImmediate()) {
+            return ctx.SConst(static_cast<s32>(offset.U32()));
+        }
+        IR::Inst* const inst{offset.InstRecursive()};
+        if (inst->AreAllArgsImmediates()) {
+            switch (inst->GetOpcode()) {
+            case IR::Opcode::CompositeConstructU32x2:
+                return ctx.SConst(static_cast<s32>(inst->Arg(0).U32()),
+                                  static_cast<s32>(inst->Arg(1).U32()));
+            case IR::Opcode::CompositeConstructU32x3:
+                return ctx.SConst(static_cast<s32>(inst->Arg(0).U32()),
+                                  static_cast<s32>(inst->Arg(1).U32()),
+                                  static_cast<s32>(inst->Arg(2).U32()));
+            case IR::Opcode::CompositeConstructU32x4:
+                return ctx.SConst(static_cast<s32>(inst->Arg(0).U32()),
+                                  static_cast<s32>(inst->Arg(1).U32()),
+                                  static_cast<s32>(inst->Arg(2).U32()),
+                                  static_cast<s32>(inst->Arg(3).U32()));
+            default:
+                break;
+            }
+        }
+        switch (offset.Type()) {
+        case IR::Type::U32:
+            return ctx.OpBitcast(ctx.S32[1], ctx.Def(offset));
+        case IR::Type::U32x2:
+            return ctx.OpBitcast(ctx.S32[2], ctx.Def(offset));
+        case IR::Type::U32x3:
+            return ctx.OpBitcast(ctx.S32[3], ctx.Def(offset));
+        case IR::Type::U32x4:
+            return ctx.OpBitcast(ctx.S32[4], ctx.Def(offset));
+        default:
+            return ctx.Def(offset);
+        }
+    }
+
     void AddOffset(EmitContext& ctx, const IR::Value& offset, bool runtime_offset_allowed) {
         if (offset.IsEmpty()) {
             return;
@@ -164,7 +206,7 @@ private:
             }
         }
         if (runtime_offset_allowed) {
-            Add(spv::ImageOperandsMask::Offset, ctx.Def(offset));
+            Add(spv::ImageOperandsMask::Offset, SignedOffset(ctx, offset));
         }
     }
 
