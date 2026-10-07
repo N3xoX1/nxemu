@@ -66,6 +66,10 @@ public:
         return has_hle_engine_state;
     }
 
+    bool HasCbufReplacements() const noexcept {
+        return !cbuf_replacements.empty();
+    }
+
 protected:
     std::optional<u64> TryFindSize();
 

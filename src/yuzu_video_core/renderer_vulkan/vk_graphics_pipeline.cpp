@@ -359,8 +359,10 @@ GraphicsPipeline::GraphicsPipeline(
     configure_func = ConfigureFunc(spv_modules, stage_infos);
 }
 
-void GraphicsPipeline::AddTransition(GraphicsPipeline* transition) {
-    transition_keys.push_back(transition->key);
+// A pipeline can be shared by several keys, so the transition is keyed explicitly.
+void GraphicsPipeline::AddTransition(GraphicsPipeline* transition,
+                                     const GraphicsPipelineCacheKey& transition_key) {
+    transition_keys.push_back(transition_key);
     transitions.push_back(transition);
 }
 
