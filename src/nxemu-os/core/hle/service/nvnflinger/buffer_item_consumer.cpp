@@ -15,6 +15,20 @@ namespace Service::android {
 BufferItemConsumer::BufferItemConsumer(std::shared_ptr<BufferQueueConsumer> consumer_)
     : ConsumerBase{std::move(consumer_)} {}
 
+std::pair<bool, bool> BufferItemConsumer::GetBufferQueueHints() const {
+    return consumer->GetBufferQueueHints();
+}
+
+Status BufferItemConsumer::ReleaseBufferIfNeeded(const BufferItem& item, bool& has_pending_buffer) {
+    std::scoped_lock lock{mutex};
+    has_pending_buffer = false;
+    const auto status = ReleaseBufferLocked(item.buf, item.graphic_buffer, &has_pending_buffer);
+    if (status != Status::NoError && status != Status::WouldBlock) {
+        LOG_WARNING(Service_Nvnflinger, "Failed to release buffer: {}", status);
+    }
+    return status;
+}
+
 Status BufferItemConsumer::AcquireBuffer(BufferItem* item, std::chrono::nanoseconds present_when,
                                          bool wait_for_fence) {
     if (!item) {

@@ -42,6 +42,7 @@
     <ClInclude Include="flush_region_cache_filter.h" />
     <ClInclude Include="capture.h" />
     <ClInclude Include="cdma_pusher.h" />
+    <ClInclude Include="composite_request.h" />
     <ClInclude Include="compatible_formats.h" />
     <ClInclude Include="control\channel_state.h" />
     <ClInclude Include="control\channel_state_cache.h" />

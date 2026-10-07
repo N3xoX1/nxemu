@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <memory>
+#include <utility>
 
 #include "yuzu_common/common_types.h"
 #include "core/hle/service/nvnflinger/consumer_base.h"
@@ -22,6 +23,8 @@ public:
     explicit BufferItemConsumer(std::shared_ptr<BufferQueueConsumer> consumer);
     Status AcquireBuffer(BufferItem* item, std::chrono::nanoseconds present_when,
                          bool wait_for_fence = true);
+    std::pair<bool, bool> GetBufferQueueHints() const;
+    Status ReleaseBufferIfNeeded(const BufferItem& item, bool& has_pending_buffer);
     Status ReleaseBuffer(const BufferItem& item, const Fence& release_fence);
 };
 

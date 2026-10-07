@@ -19,6 +19,17 @@ BufferQueueConsumer::BufferQueueConsumer(std::shared_ptr<BufferQueueCore> core_)
 
 BufferQueueConsumer::~BufferQueueConsumer() = default;
 
+std::pair<bool, bool> BufferQueueConsumer::GetBufferQueueHints() const {
+    return {core->has_queued_buffer.load(std::memory_order_relaxed),
+            core->producers_waiting_for_slot.load(std::memory_order_relaxed) != 0};
+}
+
+Status BufferQueueConsumer::ReleaseBufferIfNeeded(s32 slot, u64 frame_number,
+                                                 const Fence& release_fence,
+                                                 bool& has_pending_buffer) {
+    return ReleaseBufferImpl(slot, frame_number, release_fence, &has_pending_buffer);
+}
+
 Status BufferQueueConsumer::AcquireBuffer(BufferItem* out_buffer,
                                           std::chrono::nanoseconds expected_present) {
     std::scoped_lock lock{core->mutex};
@@ -70,6 +81,7 @@ Status BufferQueueConsumer::AcquireBuffer(BufferItem* out_buffer,
             }
 
             core->queue.erase(front);
+            core->has_queued_buffer.store(!core->queue.empty(), std::memory_order_relaxed);
             front = core->queue.begin();
         }
 
@@ -110,6 +122,7 @@ Status BufferQueueConsumer::AcquireBuffer(BufferItem* out_buffer,
     }
 
     core->queue.erase(front);
+    core->has_queued_buffer.store(!core->queue.empty(), std::memory_order_relaxed);
 
     // We might have freed a slot while dropping old buffers, or the producer  may be blocked
     // waiting for the number of buffers in the queue to decrease.
@@ -119,6 +132,11 @@ Status BufferQueueConsumer::AcquireBuffer(BufferItem* out_buffer,
 }
 
 Status BufferQueueConsumer::ReleaseBuffer(s32 slot, u64 frame_number, const Fence& release_fence) {
+    return ReleaseBufferImpl(slot, frame_number, release_fence, nullptr);
+}
+
+Status BufferQueueConsumer::ReleaseBufferImpl(s32 slot, u64 frame_number, const Fence& release_fence,
+                                             bool* has_pending_buffer) {
     if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS) {
         LOG_ERROR(Service_Nvnflinger, "slot {} out of range", slot);
         return Status::BadValue;
@@ -127,6 +145,14 @@ Status BufferQueueConsumer::ReleaseBuffer(s32 slot, u64 frame_number, const Fenc
     std::shared_ptr<IProducerListener> listener;
     {
         std::scoped_lock lock{core->mutex};
+
+        if (has_pending_buffer) {
+            *has_pending_buffer = !core->queue.empty();
+            if (!*has_pending_buffer &&
+                core->producers_waiting_for_slot.load(std::memory_order_relaxed) == 0) {
+                return Status::WouldBlock;
+            }
+        }
 
         // If the frame number has changed because the buffer has been reallocated, we can ignore
         // this ReleaseBuffer for the old buffer.
@@ -214,6 +240,7 @@ Status BufferQueueConsumer::Disconnect() {
     core->is_abandoned = true;
     core->consumer_listener = nullptr;
     core->queue.clear();
+    core->has_queued_buffer.store(false, std::memory_order_relaxed);
     core->FreeAllBuffersLocked();
     core->SignalDequeueCondition();
 

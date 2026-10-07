@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <memory>
+#include <utility>
 
 #include "yuzu_common/common_types.h"
 #include "core/hle/service/nvnflinger/binder.h"
@@ -26,6 +27,9 @@ public:
     ~BufferQueueConsumer() override;
 
     Status AcquireBuffer(BufferItem* out_buffer, std::chrono::nanoseconds expected_present);
+    std::pair<bool, bool> GetBufferQueueHints() const;
+    Status ReleaseBufferIfNeeded(s32 slot, u64 frame_number, const Fence& release_fence,
+                                bool& has_pending_buffer);
     Status ReleaseBuffer(s32 slot, u64 frame_number, const Fence& release_fence);
     Status Connect(std::shared_ptr<IConsumerListener> consumer_listener, bool controlled_by_app);
     Status Disconnect();
@@ -37,6 +41,9 @@ public:
     Kernel::KReadableEvent* GetNativeHandle(u32 type_id) override;
 
 private:
+    Status ReleaseBufferImpl(s32 slot, u64 frame_number, const Fence& release_fence,
+                             bool* has_pending_buffer);
+
     std::shared_ptr<BufferQueueCore> core;
     BufferQueueDefs::SlotsType& slots;
 };
