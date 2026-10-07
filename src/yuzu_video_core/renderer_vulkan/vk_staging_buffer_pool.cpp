@@ -103,7 +103,10 @@ void StagingBufferPool::TickFrame() {
 }
 
 StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
-    if (AreRegionsActive(Region(free_iterator) + 1,
+    // Regions up to the one holding free_iterator were checked when it advanced. At the start of
+    // the buffer nothing has been checked yet.
+    const size_t first_unchecked_region = free_iterator == 0 ? 0 : Region(free_iterator) + 1;
+    if (AreRegionsActive(first_unchecked_region,
                          std::min(Region(iterator + size) + 1, NUM_SYNCS))) {
         // Avoid waiting for the previous usages to be free
         return GetStagingBuffer(size, MemoryUsage::Upload);
@@ -122,6 +125,9 @@ StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
         free_iterator = size;
 
         if (AreRegionsActive(0, Region(size) + 1)) {
+            // The start of the buffer is still in use. Leave it unchecked, otherwise the next
+            // requests would be handed memory that pending copies still read from.
+            free_iterator = 0;
             // Avoid waiting for the previous usages to be free
             return GetStagingBuffer(size, MemoryUsage::Upload);
         }
