@@ -51,6 +51,7 @@
     <ClInclude Include="dynarmic\backend\arm64\address_space.h" />
     <ClInclude Include="dynarmic\backend\arm64\devirtualize.h" />
     <ClInclude Include="dynarmic\backend\arm64\emit_arm64.h" />
+    <ClInclude Include="dynarmic\backend\arm64\emit_arm64_far_branch.h" />
     <ClInclude Include="dynarmic\backend\arm64\emit_arm64_memory.h" />
     <ClInclude Include="dynarmic\backend\arm64\emit_context.h" />
     <ClInclude Include="dynarmic\backend\arm64\fastmem.h" />

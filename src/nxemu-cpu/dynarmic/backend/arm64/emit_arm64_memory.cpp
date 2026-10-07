@@ -13,6 +13,7 @@
 
 #include "dynarmic/backend/arm64/abi.h"
 #include "dynarmic/backend/arm64/emit_arm64.h"
+#include "dynarmic/backend/arm64/emit_arm64_far_branch.h"
 #include "dynarmic/backend/arm64/emit_context.h"
 #include "dynarmic/backend/arm64/fastmem.h"
 #include "dynarmic/backend/arm64/fpsr_manager.h"
@@ -237,12 +238,12 @@ void EmitDetectMisalignedVAddr(oaknut::CodeGenerator& code, EmitContext& ctx, oa
         }();
 
         code.TST(Xaddr, align_mask);
-        code.B(NE, *fallback);
+        EmitFarConditionalBranch(code, NE, *fallback);
     } else {
         // If (addr & page_mask) > page_size - byte_size, use fallback.
         code.AND(Xscratch0, Xaddr, page_mask);
         code.CMP(Xscratch0, page_size - bitsize / 8);
-        code.B(HI, *fallback);
+        EmitFarConditionalBranch(code, HI, *fallback);
     }
 }
 
@@ -262,7 +263,7 @@ std::pair<oaknut::XReg, oaknut::XReg> InlinePageTableEmitVAddrLookup(oaknut::Cod
     } else {
         code.LSR(Xscratch0, Xaddr, page_bits);
         code.TST(Xscratch0, u64(~u64(0)) << valid_page_index_bits);
-        code.B(NE, *fallback);
+        EmitFarConditionalBranch(code, NE, *fallback);
     }
 
     code.LDR(Xscratch0, Xpagetable, Xscratch0, LSL, 3);
@@ -272,7 +273,7 @@ std::pair<oaknut::XReg, oaknut::XReg> InlinePageTableEmitVAddrLookup(oaknut::Cod
         code.AND(Xscratch0, Xscratch0, mask);
     }
 
-    code.CBZ(Xscratch0, *fallback);
+    EmitFarZeroBranch(code, Xscratch0, *fallback);
 
     if (ctx.conf.absolute_offset_page_table) {
         return std::make_pair(Xscratch0, Xaddr);
@@ -517,7 +518,7 @@ std::pair<oaknut::XReg, oaknut::XReg> FastmemEmitVAddrLookup(oaknut::CodeGenerat
     }
 
     code.LSR(Xscratch0, Xaddr, ctx.conf.fastmem_address_space_bits);
-    code.CBNZ(Xscratch0, *fallback);
+    EmitFarNonZeroBranch(code, Xscratch0, *fallback);
     return std::make_pair(Xfastmem, Xaddr);
 }
 

@@ -9,6 +9,7 @@
 #include "dynarmic/backend/arm64/a32_jitstate.h"
 #include "dynarmic/backend/arm64/abi.h"
 #include "dynarmic/backend/arm64/emit_arm64.h"
+#include "dynarmic/backend/arm64/emit_arm64_far_branch.h"
 #include "dynarmic/backend/arm64/emit_context.h"
 #include "dynarmic/backend/arm64/fpsr_manager.h"
 #include "dynarmic/backend/arm64/reg_alloc.h"
@@ -172,7 +173,7 @@ void EmitA32CheckMemoryAbort(oaknut::CodeGenerator& code, EmitContext& ctx, IR::
 
     code.LDAR(Xscratch0, Xhalt);
     code.TST(Xscratch0, static_cast<u32>(HaltReason::MemoryAbort));
-    code.B(EQ, end);
+    EmitFarConditionalBranch(code, EQ, end);
     EmitSetUpperLocationDescriptor(code, ctx, current_location, ctx.block.Location());
     code.MOV(Wscratch0, current_location.PC());
     code.STR(Wscratch0, Xstate, offsetof(A32JitState, regs) + sizeof(u32) * 15);

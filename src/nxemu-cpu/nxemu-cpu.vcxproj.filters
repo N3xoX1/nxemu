@@ -219,6 +219,9 @@
     <ClInclude Include="dynarmic\backend\arm64\emit_arm64.h">
       <Filter>Header Files\dynamic\backend\arm64</Filter>
     </ClInclude>
+    <ClInclude Include="dynarmic\backend\arm64\emit_arm64_far_branch.h">
+      <Filter>Header Files\dynamic\backend\arm64</Filter>
+    </ClInclude>
     <ClInclude Include="dynarmic\backend\arm64\emit_arm64_memory.h">
       <Filter>Header Files\dynamic\backend\arm64</Filter>
     </ClInclude>
