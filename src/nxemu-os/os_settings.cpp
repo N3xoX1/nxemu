@@ -482,7 +482,7 @@ static OsSetting settings[] = {
         {NXOsSetting::AudioMuted, "audio\\muted", &osSettings.audio_muted, false},
         {NXOsSetting::SpeedLimit, "system\\speed_limit", &osSettings.speed_limit, 100, 0, 9999},
         {NXOsSetting::UseMultiCore, "system\\use_multi_core", &osSettings.use_multi_core, true},
-        {NXOsSetting::CpuHleSynchronization, "system\\cpu_hle_synchronization", &osSettings.cpu_hle_synchronization, false},
+        {NXOsSetting::CpuHleSynchronization, "system\\cpu_hle_synchronization", &osSettings.cpu_hle_synchronization, true},
         {NXOsSetting::UseSpeedLimit, nullptr, &osSettings.use_speed_limit, true},
         {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
         {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Language::EnglishAmerican},
