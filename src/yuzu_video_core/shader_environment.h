@@ -69,8 +69,10 @@ public:
 protected:
     std::optional<u64> TryFindSize();
 
-    Tegra::Texture::TICEntry ReadTextureInfo(GPUVAddr tic_addr, u32 tic_limit,
-                                             bool via_header_index, u32 raw);
+    /// Returns std::nullopt when the handle points outside of the texture table, which the
+    /// texture cache binds as a null image view.
+    std::optional<Tegra::Texture::TICEntry> ReadTextureInfo(GPUVAddr tic_addr, u32 tic_limit,
+                                                            bool via_header_index, u32 raw);
 
     Tegra::MemoryManager* gpu_memory{};
     GPUVAddr program_base{};
