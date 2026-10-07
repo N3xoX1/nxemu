@@ -3,20 +3,21 @@ html
   margin: 0;
   padding: 0;
   overflow: hidden;
+  width: *;
   height: max-content;
 }
 
 body
 {
   flow: vertical;
-  width: 100%%;
+  width: *;
   height: max-content;
 }
 
 .about-body
 {
   flow: vertical;
-  width: 100%%;
+  width: *;
   padding: 1em 1.25em 0.25em 1.25em;
 }
 
@@ -29,13 +30,15 @@ body>.footer
 {
   flow: horizontal;
   vertical-align: middle;
-  width: 100%%;
+  width: *;
+  min-width: min-content;
   margin-bottom: 0.85em;
 }
 
 .about-logo-wrap
 {
-  width: 40%%;
+  width: 12rem;
+  min-width: 12rem;
   margin-right: 1em;
   horizontal-align: center;
 }
@@ -43,8 +46,8 @@ body>.footer
 .about-logo
 {
   display: block;
-  width: 100%%;
-  height: width(100%%);
+  width: *;
+  height: width(100%);
   margin: 0 auto;
   image-rendering: auto;
 }
@@ -86,7 +89,7 @@ body>.footer
 
 .about-row-content
 {
-  width: 100%%;
+  width: *;
 }
 
 .about-description
