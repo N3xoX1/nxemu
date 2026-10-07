@@ -7,8 +7,8 @@ div.ConfigPage
 {
   background: color(color-dialog-background);
   flow: horizontal;
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
 }
 
 popup.tooltip
@@ -122,8 +122,8 @@ popup.tooltip
 }
 
 #ConfigContents {
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   color: #ffffff;
 }
 
@@ -207,7 +207,7 @@ input[type="text"] {
   color: #FFF;
   padding: 0.1em;
   margin: 0 0 0.3em 0;
-  width: 100%%;
+  width: *;
   border: 1px solid #54575b;
   border-radius: .2em;
   background: #2F2F31;
@@ -244,7 +244,7 @@ label:disabled {
 
 .hotkeys-page
 {
-  width: 100%%;
+  width: *;
   min-height: 12em;
 }
 
@@ -258,8 +258,8 @@ label:disabled {
 .page_content.profiles-page
 {
   flow: vertical;
-  width: 100%%;
-  height: 100%%;
+  width: *;
+  height: *;
   padding: 1em;
 }
 
@@ -277,7 +277,7 @@ label:disabled {
   border-radius: 5px;
   background: #1e1e1e;
   padding: 0.5rem;
-  width: 100%%;
+  width: *;
   height: *;
   overflow-y: auto;
   vertical-align: top;
@@ -436,7 +436,7 @@ label:disabled {
 
 .hotkeys-table
 {
-  width: 100%%;
+  width: *;
   min-width: 28em;
   border-collapse: collapse;
   font-size: 0.9rem;

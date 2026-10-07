@@ -20,6 +20,17 @@ html {
   height: max-content;
 }
 
+body {
+  margin: 0;
+  width: max-content;
+  height: max-content;
+}
+
+.InputPage {
+  width: max-content;
+  height: max-content;
+}
+
 #MainTabNav
 {
   flow: horizontal;
@@ -51,7 +62,8 @@ html {
 }
 .controller-select
 {
-  width: 100%%;
+  width: *;
+  min-width: min-content;
 }
 
 div.center-buttons-grid
@@ -73,8 +85,8 @@ div.button-column,
 {
   background: color(color-config-page);
   border: 1px solid color(color-config-page-border);
-  width: 100%%;
-  height: 100%%;
+  width: max-content;
+  height: max-content;
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 0.8rem;
   color: #eff0f1;
@@ -105,7 +117,8 @@ div.button-column,
 div.center-bottom-row
 {
   flow: horizontal;
-  width: 100%%;
+  width: *;
+  min-width: min-content;
   margin-top: 0.2rem;
   vertical-align: bottom;
 }
@@ -213,7 +226,7 @@ div.center-bottom-row
 
 .controller-config  .group.profile
 {
-  width: 100%%;
+  width: *;
   min-width: 32rem;
 }
 
@@ -249,7 +262,8 @@ div.center-buttons-grid
 
 #controllerGraphics
 {
-  width: 100%%;
+  width: *;
+  min-width: min-content;
   height: auto;
   margin: 0;
   padding: 0;
@@ -295,7 +309,7 @@ div.center-buttons-motion
 #horizontalSpacerMotionRight
 {
   display: block;
-  width: 100%%;
+  width: *;
 }
 
 div.center-buttons-motion .input-row
@@ -324,8 +338,7 @@ button
 input[type=hslider]
 {
   display: block;
-  width: 100%%;
-  min-width: 0;
+  width: *;
 }
 
 input[type=hslider] > button.slider 
@@ -344,12 +357,18 @@ input[type=hslider] > button.slider
 #horizontalSpacerShoulderButtonsWidget3,
 #horizontalSpacerShoulderButtonsWidget4	
 {
-  width: 100%%;
+  width: *;
 }
 
 #InputContents
 {
   width: max-content;
+  height: max-content;
+}
+
+body > .footer
+{
+  padding: 0.5rem 0.75rem 0.5rem 0;
 }
 
 @keyframes flash {
