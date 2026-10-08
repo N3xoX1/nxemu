@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -47,6 +50,9 @@ struct NSOHeader {
     std::array<SHA256Hash, 3> segment_hashes;
 
     bool IsSegmentCompressed(size_t segment_num) const;
+    bool IsZBICCompressed() const {
+        return ((flags >> 7) & 1) != 0;
+    }
 };
 static_assert(sizeof(NSOHeader) == 0x100, "NSOHeader has incorrect size.");
 static_assert(std::is_trivially_copyable_v<NSOHeader>, "NSOHeader must be trivially copyable.");

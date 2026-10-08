@@ -135,6 +135,7 @@
     <ClInclude Include="x64\xbyak_abi.h" />
     <ClInclude Include="x64\xbyak_util.h" />
     <ClInclude Include="yuzu_assert.h" />
+    <ClInclude Include="zbic_compression.h" />
     <ClInclude Include="zstd_compression.h" />
   </ItemGroup>
   <ItemGroup>
@@ -177,6 +178,9 @@
     <ClCompile Include="x64\native_clock.cpp" />
     <ClCompile Include="x64\rdtsc.cpp" />
     <ClCompile Include="yuzu_assert.cpp" />
+    <ClCompile Include="zbic_compression.cpp">
+      <AdditionalIncludeDirectories>$(SolutionDir)external\zbic\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="zstd_compression.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
