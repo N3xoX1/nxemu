@@ -282,8 +282,7 @@ JNIEXPORT jstring JNICALL Java_org_nxemu_features_input_NativeInput_getNextInput
     return result;
 }
 
-JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_stopMapping(JNIEnv * /*env*/,
-                                                                             jobject /*obj*/)
+JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_stopMapping(JNIEnv * /*env*/, jobject /*obj*/)
 {
     IOperatingSystem * os = CurrentOS();
     if (os != nullptr)
@@ -368,8 +367,7 @@ JNIEXPORT jstring JNICALL Java_org_nxemu_features_input_NativeInput_getButtonPar
     return result;
 }
 
-JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setButtonParamImpl(
-    JNIEnv * env, jobject /*obj*/, jint j_player_index, jint j_button_id, jstring j_param)
+JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setButtonParamImpl(JNIEnv * env, jobject /*obj*/, jint j_player_index, jint j_button_id, jstring j_param)
 {
     SystemModules * modules = EmulationSession::GetInstance().Modules();
     if (modules == nullptr || !IsPlayerIndex(j_player_index) || j_param == nullptr)
@@ -379,8 +377,7 @@ JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setButtonParamI
     const char * serialized = env->GetStringUTFChars(j_param, nullptr);
     IParamPackageImpl pkg{Common::ParamPackage{serialized}};
     env->ReleaseStringUTFChars(j_param, serialized);
-    IEmulatedController & controller =
-        ConfiguredController(modules->Modules().OperatingSystem(), static_cast<size_t>(j_player_index));
+    IEmulatedController & controller = ConfiguredController(modules->Modules().OperatingSystem(), static_cast<size_t>(j_player_index));
     controller.SetButtonParam(static_cast<uint32_t>(j_button_id), pkg);
     controller.SaveCurrentConfig();
     modules->FlushSettings();
@@ -403,8 +400,7 @@ JNIEXPORT jstring JNICALL Java_org_nxemu_features_input_NativeInput_getStickPara
     return result;
 }
 
-JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setStickParamImpl(
-    JNIEnv * env, jobject /*obj*/, jint j_player_index, jint j_stick_id, jstring j_param)
+JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setStickParamImpl(JNIEnv * env, jobject /*obj*/, jint j_player_index, jint j_stick_id, jstring j_param)
 {
     SystemModules * modules = EmulationSession::GetInstance().Modules();
     if (modules == nullptr || !IsPlayerIndex(j_player_index) || j_param == nullptr)
@@ -414,8 +410,7 @@ JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_setStickParamIm
     const char * serialized = env->GetStringUTFChars(j_param, nullptr);
     IParamPackageImpl pkg{Common::ParamPackage{serialized}};
     env->ReleaseStringUTFChars(j_param, serialized);
-    IEmulatedController & controller =
-        ConfiguredController(modules->Modules().OperatingSystem(), static_cast<size_t>(j_player_index));
+    IEmulatedController & controller = ConfiguredController(modules->Modules().OperatingSystem(), static_cast<size_t>(j_player_index));
     controller.SetStickParam(static_cast<uint32_t>(j_stick_id), pkg);
     controller.SaveCurrentConfig();
     modules->FlushSettings();
@@ -450,8 +445,7 @@ JNIEXPORT jintArray JNICALL Java_org_nxemu_features_input_NativeInput_getSupport
     return result;
 }
 
-JNIEXPORT jint JNICALL Java_org_nxemu_features_input_NativeInput_getStyleIndexImpl(
-    JNIEnv * /*env*/, jobject /*obj*/, jint j_player_index)
+JNIEXPORT jint JNICALL Java_org_nxemu_features_input_NativeInput_getStyleIndexImpl(JNIEnv * /*env*/, jobject /*obj*/, jint j_player_index)
 {
     return EmulationSession::GetInstance().GetStyleIndex(j_player_index);
 }

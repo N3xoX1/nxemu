@@ -119,7 +119,7 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
         }
 
         for (dpad in overlayDpads) {
-            if (!dpad.updateStatus(event, NativeLibrary.getSettingBool(NXUISetting.DpadSlide))) {
+            if (!dpad.updateStatus(event, true)) {
                 continue
             }
             NativeInput.onOverlayButtonEvent(
@@ -169,73 +169,19 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
             invalidate()
         }
 
-        if (!NativeLibrary.getSettingBool(NXUISetting.Touchscreen)) {
-            return true
-        }
-
-        val pointerIndex = event.actionIndex
-        val xPosition = event.getX(pointerIndex).toInt()
-        val yPosition = event.getY(pointerIndex).toInt()
-        val pointerId = event.getPointerId(pointerIndex)
-        val motionEvent = event.action and MotionEvent.ACTION_MASK
-        val isActionDown =
-            motionEvent == MotionEvent.ACTION_DOWN || motionEvent == MotionEvent.ACTION_POINTER_DOWN
-        val isActionMove = motionEvent == MotionEvent.ACTION_MOVE
-        val isActionUp =
-            motionEvent == MotionEvent.ACTION_UP || motionEvent == MotionEvent.ACTION_POINTER_UP
-
-        if (isActionDown && !isTouchInputConsumed(pointerId)) {
-            NativeInput.onTouchPressed(pointerId, xPosition.toFloat(), yPosition.toFloat())
-        }
-
-        if (isActionMove) {
-            for (i in 0 until event.pointerCount) {
-                val fingerId = event.getPointerId(i)
-                if (isTouchInputConsumed(fingerId)) {
-                    continue
-                }
-                NativeInput.onTouchMoved(fingerId, event.getX(i), event.getY(i))
-            }
-        }
-
-        if (isActionUp && !isTouchInputConsumed(pointerId)) {
-            NativeInput.onTouchReleased(pointerId)
-        }
-
         return true
     }
 
     private fun playHaptics(event: MotionEvent) {
-        if (NativeLibrary.getSettingBool(NXUISetting.HapticFeedback)) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN,
-                MotionEvent.ACTION_POINTER_DOWN ->
-                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_POINTER_DOWN ->
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
 
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_POINTER_UP ->
-                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY_RELEASE)
-            }
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_POINTER_UP ->
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY_RELEASE)
         }
-    }
-
-    private fun isTouchInputConsumed(track_id: Int): Boolean {
-        for (button in overlayButtons) {
-            if (button.trackId == track_id) {
-                return true
-            }
-        }
-        for (dpad in overlayDpads) {
-            if (dpad.trackId == track_id) {
-                return true
-            }
-        }
-        for (joystick in overlayJoysticks) {
-            if (joystick.trackId == track_id) {
-                return true
-            }
-        }
-        return false
     }
 
     private fun onTouchWhileEditing(event: MotionEvent): Boolean {
