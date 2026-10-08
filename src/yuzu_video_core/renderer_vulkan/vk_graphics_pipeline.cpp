@@ -9,6 +9,7 @@
 
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
 
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/bit_field.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_statistics.h"
@@ -16,6 +17,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "yuzu_video_core/renderer_vulkan/vk_render_pass_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
+#include "yuzu_video_core/renderer_vulkan/vk_staging_buffer_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "yuzu_video_core/shader_notify.h"
@@ -271,6 +273,78 @@ ConfigureFuncPtr ConfigureFunc(const std::array<vk::ShaderModule, NUM_STAGES>& m
 }
 } // Anonymous namespace
 
+VtgScratchAllocator::VtgScratchAllocator(const Device& device, Scheduler& scheduler_,
+                                         StagingBufferPool& staging_pool_)
+    : scheduler{scheduler_}, staging_pool{staging_pool_},
+      alignment{std::max<VkDeviceSize>(device.GetStorageBufferAlignment(), sizeof(u32))} {}
+
+std::pair<VkBuffer, VkDeviceSize> VtgScratchAllocator::Allocate(VkDeviceSize size) {
+    static constexpr VkDeviceSize CHUNK_SIZE = 4ULL << 20;
+    size = Common::AlignUp(size, alignment);
+    const u64 current_tick{scheduler.CurrentTick()};
+    if (buffer == VK_NULL_HANDLE || tick != current_tick || used + size > capacity) {
+        // A chunk is only safe to write until the tick that requested it completes
+        capacity = std::max(CHUNK_SIZE, size);
+        const StagingBufferRef ref{staging_pool.Request(capacity, MemoryUsage::DeviceLocal)};
+        buffer = ref.buffer;
+        base = ref.offset;
+        used = 0;
+        tick = current_tick;
+    }
+    const VkDeviceSize offset{base + used};
+    used += size;
+    return {buffer, offset};
+}
+
+struct GraphicsPipeline::VtgState {
+    struct Stage {
+        /// Shader information including the storage buffers added to the stage
+        Shader::Info info;
+        /// Shader information of the resources bound by the guest
+        Shader::Info guest_info;
+        vk::ShaderModule module;
+        vk::DescriptorSetLayout descriptor_set_layout;
+        DescriptorAllocator descriptor_allocator;
+        vk::PipelineLayout pipeline_layout;
+        vk::DescriptorUpdateTemplate descriptor_update_template;
+        vk::Pipeline pipeline;
+    };
+    struct Buffer {
+        VkBuffer buffer;
+        VkDeviceSize offset;
+        VkDeviceSize size;
+    };
+
+    std::array<Stage, VtgPipelineInfo::NUM_COMPUTE_STAGES> stages;
+    Shader::VtgVertexBindings vertex_bindings;
+    Shader::VtgGeometryBindings geometry_bindings;
+    Shader::VtgTopology topology{};
+    u32 vertex_stride{};
+    u32 geometry_stride{};
+    VtgScratchAllocator* scratch{};
+    StagingBufferPool* staging_pool{};
+
+    std::array<u32, NUM_STAGES> uniform_masks{};
+    VideoCommon::UniformBufferSizes uniform_sizes{};
+
+    u32 instance_count{};
+    VkBuffer index_buffer{};
+    VkDeviceSize index_offset{};
+    u32 index_count{};
+};
+
+GraphicsPipeline::~GraphicsPipeline() = default;
+
+void GraphicsPipeline::SetVtgInstanceCount(u32 instance_count) noexcept {
+    if (vtg) {
+        vtg->instance_count = instance_count;
+    }
+}
+
+std::tuple<VkBuffer, VkDeviceSize, u32> GraphicsPipeline::VtgDraw() const noexcept {
+    return {vtg->index_buffer, vtg->index_offset, vtg->index_count};
+}
+
 GraphicsPipeline::GraphicsPipeline(
     Scheduler& scheduler_, BufferCache& buffer_cache_, TextureCache& texture_cache_,
     vk::PipelineCache& pipeline_cache_, VideoCore::ShaderNotify* shader_notify,
@@ -278,7 +352,8 @@ GraphicsPipeline::GraphicsPipeline(
     GuestDescriptorQueue& guest_descriptor_queue_, Common::ThreadWorker* worker_thread,
     PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
     const GraphicsPipelineCacheKey& key_, std::array<vk::ShaderModule, NUM_STAGES> stages,
-    const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines_)
+    const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines_,
+    std::unique_ptr<VtgPipelineInfo> vtg_info)
     : key{key_}, device{device_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
       pipeline_cache(pipeline_cache_), scheduler{scheduler_},
       guest_descriptor_queue{guest_descriptor_queue_}, spv_modules{std::move(stages)},
@@ -295,6 +370,32 @@ GraphicsPipeline::GraphicsPipeline(
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += Shader::NumDescriptors(info->texture_descriptors);
+    }
+    if (vtg_info) {
+        static constexpr std::array<size_t, VtgPipelineInfo::NUM_COMPUTE_STAGES> compute_stages{
+            0, 3};
+        const std::array<u32, VtgPipelineInfo::NUM_COMPUTE_STAGES> guest_storage_buffers{
+            vtg_info->vertex_bindings.base, vtg_info->geometry_bindings.base};
+        vtg = std::make_unique<VtgState>();
+        vtg->uniform_masks = enabled_uniform_buffer_masks;
+        vtg->uniform_sizes = uniform_buffer_sizes;
+        for (size_t index = 0; index < vtg->stages.size(); ++index) {
+            VtgState::Stage& stage{vtg->stages[index]};
+            stage.info = vtg_info->infos[index];
+            stage.guest_info = stage.info;
+            stage.guest_info.storage_buffers_descriptors.resize(guest_storage_buffers[index]);
+            stage.module = std::move(vtg_info->modules[index]);
+            vtg->uniform_masks[compute_stages[index]] = stage.info.constant_buffer_mask;
+            std::ranges::copy(stage.info.constant_buffer_used_sizes,
+                              vtg->uniform_sizes[compute_stages[index]].begin());
+        }
+        vtg->vertex_bindings = vtg_info->vertex_bindings;
+        vtg->geometry_bindings = vtg_info->geometry_bindings;
+        vtg->topology = vtg_info->topology;
+        vtg->vertex_stride = vtg_info->vertex_stride;
+        vtg->geometry_stride = vtg_info->geometry_stride;
+        vtg->scratch = vtg_info->scratch;
+        vtg->staging_pool = vtg_info->staging_pool;
     }
     // Number of leading components the vertex shader may read from each attribute. Used to keep
     // vertex formats within their binding stride without discarding data the shader reads.
@@ -329,6 +430,38 @@ GraphicsPipeline::GraphicsPipeline(
             descriptor_update_template =
                 builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
 
+            if (vtg) {
+                for (VtgState::Stage& stage : vtg->stages) {
+                    DescriptorLayoutBuilder stage_builder{device};
+                    stage_builder.Add(stage.info, VK_SHADER_STAGE_COMPUTE_BIT);
+                    stage.descriptor_set_layout = stage_builder.CreateDescriptorSetLayout(false);
+                    stage.pipeline_layout =
+                        stage_builder.CreatePipelineLayout(*stage.descriptor_set_layout);
+                    stage.descriptor_update_template = stage_builder.CreateTemplate(
+                        *stage.descriptor_set_layout, *stage.pipeline_layout, false);
+                    stage.descriptor_allocator =
+                        descriptor_pool.Allocator(*stage.descriptor_set_layout, stage.info);
+                    stage.pipeline = device.GetLogical().CreateComputePipeline(
+                        {
+                            .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+                            .pNext = nullptr,
+                            .flags = 0,
+                            .stage{
+                                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                                .pNext = nullptr,
+                                .flags = 0,
+                                .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+                                .module = *stage.module,
+                                .pName = "main",
+                                .pSpecializationInfo = nullptr,
+                            },
+                            .layout = *stage.pipeline_layout,
+                            .basePipelineHandle = 0,
+                            .basePipelineIndex = 0,
+                        },
+                        *pipeline_cache);
+                }
+            }
             const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(key.state))};
             Validate();
             MakePipeline(render_pass);
@@ -356,7 +489,11 @@ GraphicsPipeline::GraphicsPipeline(
     } else {
         func();
     }
-    configure_func = ConfigureFunc(spv_modules, stage_infos);
+    if (vtg) {
+        configure_func = [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureVtg(is_indexed); };
+    } else {
+        configure_func = ConfigureFunc(spv_modules, stage_infos);
+    }
 }
 
 // A pipeline can be shared by several keys, so the transition is keyed explicitly.
@@ -557,6 +694,346 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     ConfigureDraw(rescaling, render_area);
 }
 
+void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
+    using Shader::VTG_LOCAL_SIZE;
+    namespace DrawInfo = Shader::VtgDrawInfo;
+    static constexpr size_t FRAGMENT_STAGE = 4;
+    static constexpr u32 MAX_INVOCATIONS = 1U << 20;
+    static constexpr VkDeviceSize MAX_SCRATCH_SIZE = 256ULL << 20;
+
+    VtgState& state{*vtg};
+    state.index_count = 0;
+
+    std::array<VideoCommon::ImageViewInOut, MAX_IMAGE_ELEMENTS> views;
+    std::array<VideoCommon::SamplerId, MAX_IMAGE_ELEMENTS> samplers;
+    size_t sampler_index{};
+    size_t view_index{};
+
+    texture_cache.SynchronizeGraphicsDescriptors();
+
+    buffer_cache.SetUniformBuffersState(state.uniform_masks, &state.uniform_sizes);
+
+    // The guest resources of the stages running as compute are bound as the stages they replace
+    const std::array<std::pair<size_t, const Shader::Info*>, 3> stages{{
+        {0, &state.stages[VtgPipelineInfo::VERTEX].guest_info},
+        {3, &state.stages[VtgPipelineInfo::GEOMETRY].guest_info},
+        {FRAGMENT_STAGE, &stage_infos[FRAGMENT_STAGE]},
+    }};
+    const auto& regs{maxwell3d->regs};
+    const bool via_header_index{regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding};
+    for (const auto& [stage, info_pointer] : stages) {
+        const Shader::Info& info{*info_pointer};
+        buffer_cache.UnbindGraphicsStorageBuffers(stage);
+        size_t ssbo_index{};
+        for (const auto& desc : info.storage_buffers_descriptors) {
+            ASSERT(desc.count == 1);
+            buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
+                                                   desc.cbuf_offset, desc.is_written);
+            ++ssbo_index;
+        }
+        const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
+        const auto read_handle{[&](const auto& desc, u32 index) {
+            ASSERT(cbufs[desc.cbuf_index].enabled);
+            const u32 index_offset{index << desc.size_shift};
+            const u32 offset{desc.cbuf_offset + index_offset};
+            const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
+            if constexpr (std::is_same_v<decltype(desc), const Shader::TextureDescriptor&> ||
+                          std::is_same_v<decltype(desc), const Shader::TextureBufferDescriptor&>) {
+                if (desc.has_secondary) {
+                    ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
+                    const u32 second_offset{desc.secondary_cbuf_offset + index_offset};
+                    const GPUVAddr separate_addr{cbufs[desc.secondary_cbuf_index].address +
+                                                 second_offset};
+                    const u32 lhs_raw{gpu_memory->Read<u32>(addr) << desc.shift_left};
+                    const u32 rhs_raw{gpu_memory->Read<u32>(separate_addr)
+                                      << desc.secondary_shift_left};
+                    return TexturePair(lhs_raw | rhs_raw, via_header_index);
+                }
+            }
+            return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
+        }};
+        const auto add_image{[&](const auto& desc, bool blacklist) {
+            for (u32 index = 0; index < desc.count; ++index) {
+                const auto handle{read_handle(desc, index)};
+                views[view_index++] = {
+                    .index = handle.first,
+                    .blacklist = blacklist,
+                    .id = {},
+                };
+            }
+        }};
+        for (const auto& desc : info.texture_buffer_descriptors) {
+            add_image(desc, false);
+        }
+        for (const auto& desc : info.image_buffer_descriptors) {
+            add_image(desc, false);
+        }
+        for (const auto& desc : info.texture_descriptors) {
+            for (u32 index = 0; index < desc.count; ++index) {
+                const auto handle{read_handle(desc, index)};
+                views[view_index++] = {handle.first};
+                samplers[sampler_index++] = texture_cache.GetGraphicsSamplerId(handle.second);
+            }
+        }
+        for (const auto& desc : info.image_descriptors) {
+            add_image(desc, desc.is_written);
+        }
+    }
+    texture_cache.FillGraphicsImageViews<true>(std::span(views.data(), view_index));
+
+    VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
+    for (const auto& [stage, info_pointer] : stages) {
+        const Shader::Info& info{*info_pointer};
+        size_t index{};
+        const auto add_buffer{[&](const auto& desc) {
+            constexpr bool is_image = std::is_same_v<decltype(desc), const ImageBufferDescriptor&>;
+            for (u32 i = 0; i < desc.count; ++i) {
+                bool is_written{false};
+                if constexpr (is_image) {
+                    is_written = desc.is_written;
+                }
+                ImageView& image_view{texture_cache.GetImageView(texture_buffer_it->id)};
+                buffer_cache.BindGraphicsTextureBuffer(stage, index, image_view.GpuAddr(),
+                                                       image_view.BufferSize(), image_view.format,
+                                                       is_written, is_image);
+                ++index;
+                ++texture_buffer_it;
+            }
+        }};
+        buffer_cache.UnbindGraphicsTextureBuffers(stage);
+        for (const auto& desc : info.texture_buffer_descriptors) {
+            add_buffer(desc);
+        }
+        for (const auto& desc : info.image_buffer_descriptors) {
+            add_buffer(desc);
+        }
+        texture_buffer_it += Shader::NumDescriptors(info.texture_descriptors);
+        texture_buffer_it += Shader::NumDescriptors(info.image_descriptors);
+    }
+
+    buffer_cache.UpdateGraphicsBuffers(is_indexed);
+    buffer_cache.BindHostGeometryBuffers(is_indexed);
+
+    const auto& draw_state{maxwell3d->draw_manager->GetDrawState()};
+    const u32 vertex_count{is_indexed ? draw_state.index_buffer.count
+                                      : draw_state.vertex_buffer.count};
+    const u32 instance_count{state.instance_count};
+    const u32 primitive_count{Shader::VtgPrimitiveCount(state.topology, vertex_count)};
+    const u64 total_vertices{u64{vertex_count} * instance_count};
+    const u64 total_primitives{u64{primitive_count} * instance_count};
+    const u32 vertices_per_primitive{state.geometry_bindings.vertices_per_primitive};
+    const u32 indices_per_primitive{state.geometry_bindings.indices_per_primitive};
+    const bool fits{total_vertices <= MAX_INVOCATIONS && total_primitives <= MAX_INVOCATIONS &&
+                    (total_vertices * state.vertex_stride +
+                     total_primitives * (u64{vertices_per_primitive} * state.geometry_stride +
+                                         indices_per_primitive)) *
+                            sizeof(u32) <=
+                        MAX_SCRATCH_SIZE};
+    const bool runs{total_primitives != 0 && fits};
+    if (!fits) {
+        LOG_WARNING(Render_Vulkan, "Draw of {} vertices and {} instances is too large to run as "
+                                   "compute", vertex_count, instance_count);
+    }
+    // Invocations past the end of the draw write into the padding of the buffers
+    const u32 vertex_invocations{
+        runs ? Common::AlignUp(static_cast<u32>(total_vertices), VTG_LOCAL_SIZE) : VTG_LOCAL_SIZE};
+    const u32 geometry_invocations{
+        runs ? Common::AlignUp(static_cast<u32>(total_primitives), VTG_LOCAL_SIZE)
+             : VTG_LOCAL_SIZE};
+    const u32 output_vertices{geometry_invocations * vertices_per_primitive};
+    const u32 output_indices{geometry_invocations * indices_per_primitive};
+    const bool emits_points{state.geometry_bindings.output_topology ==
+                            Shader::OutputTopology::PointList};
+
+    const VkDeviceSize vertex_size{u64{vertex_invocations} * state.vertex_stride * sizeof(u32)};
+    // One more vertex is reserved, used by the indices of points that are not emitted
+    const VkDeviceSize geometry_size{u64{output_vertices + 1} * state.geometry_stride *
+                                     sizeof(u32)};
+    const VkDeviceSize index_size{u64{output_indices} * sizeof(u32)};
+    const auto [vertex_buffer, vertex_offset]{state.scratch->Allocate(vertex_size)};
+    const auto [geometry_buffer, geometry_offset]{state.scratch->Allocate(geometry_size)};
+    const auto [index_buffer, index_offset]{state.scratch->Allocate(index_size)};
+
+    // Describe the draw to the stages running as compute
+    const StagingBufferRef info_ref{state.staging_pool->Request(
+        DrawInfo::NUM_WORDS * sizeof(u32), MemoryUsage::Upload)};
+    const VtgState::Buffer info_buffer{info_ref.buffer, info_ref.offset,
+                                       DrawInfo::NUM_WORDS * sizeof(u32)};
+    std::array<u32, DrawInfo::NUM_WORDS> words{};
+    const VkDeviceSize alignment{
+        std::max<VkDeviceSize>(device.GetStorageBufferAlignment(), sizeof(u32))};
+    // Guest buffers are bound from an aligned offset, the remainder is added by the shader
+    const auto guest_buffer{[&](const std::tuple<Buffer*, u32, u32>& binding, u32& misalignment) {
+        const auto [buffer, offset, size]{binding};
+        misalignment = 0;
+        if (!buffer || buffer->Handle() == VK_NULL_HANDLE) {
+            return info_buffer;
+        }
+        const VkDeviceSize aligned{Common::AlignDown(VkDeviceSize{offset}, alignment)};
+        misalignment = static_cast<u32>(offset - aligned);
+        const VkDeviceSize wanted{Common::AlignUp(VkDeviceSize{size} + misalignment, 8)};
+        const VkDeviceSize available{
+            Common::AlignDown(VkDeviceSize{buffer->SizeBytes()} - aligned, sizeof(u32))};
+        return VtgState::Buffer{buffer->Handle(), aligned, std::min(wanted, available)};
+    }};
+    static_vector<VtgState::Buffer, 3 + DrawInfo::NUM_ATTRIBUTES> vertex_buffers;
+    std::array<u32, Maxwell::NumVertexArrays> misalignments{};
+    u32 index_misalignment{};
+    const u32 index_bytes{is_indexed ? draw_state.index_buffer.FormatSizeInBytes() : 0};
+    vertex_buffers.push_back(info_buffer);
+    vertex_buffers.push_back({vertex_buffer, vertex_offset, vertex_size});
+    vertex_buffers.push_back(is_indexed
+                                 ? guest_buffer(buffer_cache.IndexBufferBinding(),
+                                                index_misalignment)
+                                 : info_buffer);
+    for (const auto& [stream, binding] : state.vertex_bindings.vertex_buffers) {
+        vertex_buffers.push_back(
+            guest_buffer(buffer_cache.VertexBufferBinding(stream), misalignments[stream]));
+    }
+    words[DrawInfo::VERTEX_COUNT] = vertex_count;
+    words[DrawInfo::INSTANCE_COUNT] = std::max(instance_count, 1U);
+    words[DrawInfo::BASE_VERTEX] =
+        is_indexed ? draw_state.base_index : draw_state.vertex_buffer.first;
+    words[DrawInfo::BASE_INSTANCE] = draw_state.base_instance;
+    words[DrawInfo::INDEX_SIZE] = index_bytes;
+    words[DrawInfo::INDEX_OFFSET] =
+        index_misalignment + (is_indexed ? draw_state.index_buffer.first * index_bytes : 0);
+    words[DrawInfo::PRIMITIVE_COUNT] = primitive_count;
+    words[DrawInfo::INDEX_MASK] =
+        index_bytes == 1 ? 0xffU : (index_bytes == 2 ? 0xffffU : 0xffffffffU);
+    for (size_t index = 0; index < DrawInfo::NUM_ATTRIBUTES; ++index) {
+        const auto& attribute{regs.vertex_attrib_format[index]};
+        const u32 stream{attribute.buffer};
+        u32* const attribute_words{&words[DrawInfo::ATTRIBUTES + index * DrawInfo::ATTRIBUTE_WORDS]};
+        attribute_words[DrawInfo::ATTRIBUTE_OFFSET] = misalignments[stream] + attribute.offset;
+        attribute_words[DrawInfo::ATTRIBUTE_STRIDE] = regs.vertex_streams[stream].stride;
+        attribute_words[DrawInfo::ATTRIBUTE_INSTANCED] =
+            regs.vertex_stream_instances.IsInstancingEnabled(stream) ? 1 : 0;
+        attribute_words[DrawInfo::ATTRIBUTE_DIVISOR] = regs.vertex_streams[stream].frequency;
+    }
+    std::memcpy(info_ref.mapped_span.data(), words.data(), sizeof(words));
+
+    const std::array<VtgState::Buffer, 4> geometry_buffers{{
+        info_buffer,
+        {vertex_buffer, vertex_offset, vertex_size},
+        {geometry_buffer, geometry_offset, geometry_size},
+        {index_buffer, index_offset, index_size},
+    }};
+
+    if (runs && !build_complete.load(std::memory_order_acquire)) {
+        scheduler.Record([this](vk::CommandBuffer) {
+            std::unique_lock lock{build_mutex};
+            build_condvar.wait(lock,
+                               [this] { return build_complete.load(std::memory_order_acquire); });
+        });
+    }
+    const VideoCommon::SamplerId* samplers_it{samplers.data()};
+    const VideoCommon::ImageViewInOut* views_it{views.data()};
+    const auto run_stage{[&](size_t index, size_t guest_stage,
+                             std::span<const VtgState::Buffer> buffers, u32 invocations) {
+        VtgState::Stage& stage{state.stages[index]};
+        guest_descriptor_queue.Acquire();
+        buffer_cache.BindHostStageUniformAndStorageBuffers(guest_stage);
+        for (const VtgState::Buffer& buffer : buffers) {
+            guest_descriptor_queue.AddBuffer(buffer.buffer, buffer.offset, buffer.size);
+        }
+        buffer_cache.BindHostStageTextureBuffers(guest_stage);
+        RescalingPushConstant stage_rescaling;
+        PushImageDescriptors(texture_cache, guest_descriptor_queue, stage.guest_info,
+                             stage_rescaling, samplers_it, views_it);
+        if (!runs) {
+            return;
+        }
+        const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
+        const bool is_rescaling{!stage.guest_info.texture_descriptors.empty() ||
+                                !stage.guest_info.image_descriptors.empty()};
+        scheduler.RequestOutsideRenderPassOperationContext();
+        scheduler.Record([this, &stage, descriptor_data, is_rescaling,
+                          rescaling_data = stage_rescaling.Data(),
+                          groups = invocations / VTG_LOCAL_SIZE](vk::CommandBuffer cmdbuf) {
+            if (!IsBuilt()) {
+                return;
+            }
+            cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline);
+            if (is_rescaling) {
+                cmdbuf.PushConstants(*stage.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                                     RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
+                                     rescaling_data.data());
+            }
+            const VkDescriptorSet descriptor_set{stage.descriptor_allocator.Commit()};
+            device.GetLogical().UpdateDescriptorSet(descriptor_set,
+                                                    *stage.descriptor_update_template,
+                                                    descriptor_data);
+            cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline_layout, 0,
+                                      descriptor_set, nullptr);
+            cmdbuf.Dispatch(groups, 1, 1);
+            static constexpr VkMemoryBarrier barrier{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDEX_READ_BIT,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+                                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
+                                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                                   0, barrier);
+        });
+    }};
+    run_stage(VtgPipelineInfo::VERTEX, 0, vertex_buffers, vertex_invocations);
+    if (runs) {
+        // Index slots that are not written end the strip, or draw a discarded vertex as a point
+        const u32 unused_index{emits_points ? output_vertices : Shader::VTG_RESTART_INDEX};
+        const VkDeviceSize sentinel_offset{geometry_offset +
+                                           u64{output_vertices} * state.geometry_stride *
+                                               sizeof(u32)};
+        const VkDeviceSize sentinel_size{u64{state.geometry_stride} * sizeof(u32)};
+        scheduler.RequestOutsideRenderPassOperationContext();
+        scheduler.Record([index_buffer = index_buffer, index_offset = index_offset, index_size,
+                          unused_index, geometry_buffer = geometry_buffer, sentinel_offset,
+                          sentinel_size, emits_points](vk::CommandBuffer cmdbuf) {
+            static constexpr u32 QUIET_NAN = 0x7fc00000;
+            cmdbuf.FillBuffer(index_buffer, index_offset, index_size, unused_index);
+            if (emits_points) {
+                cmdbuf.FillBuffer(geometry_buffer, sentinel_offset, sentinel_size, QUIET_NAN);
+            }
+            static constexpr VkMemoryBarrier barrier{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, barrier);
+        });
+    }
+    run_stage(VtgPipelineInfo::GEOMETRY, 3, geometry_buffers, geometry_invocations);
+
+    // The generated vertex shader reads the vertices written by the geometry stage
+    guest_descriptor_queue.Acquire();
+    guest_descriptor_queue.AddBuffer(geometry_buffer, geometry_offset, geometry_size);
+
+    RescalingPushConstant rescaling;
+    RenderAreaPushConstant render_area;
+    buffer_cache.BindHostStageBuffers(FRAGMENT_STAGE);
+    PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[FRAGMENT_STAGE],
+                         rescaling, samplers_it, views_it);
+    if (stage_infos[FRAGMENT_STAGE].uses_render_area) {
+        render_area.uses_render_area = true;
+        render_area.words = {static_cast<float>(regs.surface_clip.width),
+                             static_cast<float>(regs.surface_clip.height)};
+    }
+    texture_cache.UpdateRenderTargets(false);
+    texture_cache.CheckFeedbackLoop(views);
+    ConfigureDraw(rescaling, render_area);
+
+    if (runs) {
+        state.index_buffer = index_buffer;
+        state.index_offset = index_offset;
+        state.index_count = static_cast<u32>(total_primitives) * indices_per_primitive;
+    }
+}
+
 void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
@@ -732,12 +1209,28 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             input_assembly_topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
         }
     }
+    if (vtg) {
+        // The geometry stage running as compute writes strips cut by the restart index
+        switch (vtg->geometry_bindings.output_topology) {
+        case Shader::OutputTopology::PointList:
+            input_assembly_topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            break;
+        case Shader::OutputTopology::LineStrip:
+            input_assembly_topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+            break;
+        case Shader::OutputTopology::TriangleStrip:
+            input_assembly_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+            break;
+        }
+    }
+    const bool vtg_restart{vtg && input_assembly_topology != VK_PRIMITIVE_TOPOLOGY_POINT_LIST};
     const VkPipelineInputAssemblyStateCreateInfo input_assembly_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .topology = input_assembly_topology,
         .primitiveRestartEnable =
+            vtg_restart ||
             dynamic.primitive_restart_enable != 0 &&
                     ((input_assembly_topology != VK_PRIMITIVE_TOPOLOGY_PATCH_LIST &&
                       device.IsTopologyListPrimitiveRestartSupported()) ||

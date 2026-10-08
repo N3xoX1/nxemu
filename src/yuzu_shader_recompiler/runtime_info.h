@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_shader_recompiler/frontend/ir/attribute.h"
 #include "yuzu_shader_recompiler/varying_state.h"
 
 namespace Shader {
@@ -89,6 +90,10 @@ struct RuntimeInfo {
     TessPrimitive tess_primitive{};
     TessSpacing tess_spacing{};
     bool tess_clockwise{};
+
+    /// Generic output copied into the layer at the end of the vertex stage, standing in for an
+    /// eliminated geometry shader
+    std::optional<IR::Attribute> forwarded_layer_attribute;
 
     InputTopology input_topology{};
 

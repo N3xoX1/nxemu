@@ -40,6 +40,21 @@ struct OutAttr {
     Id type{};
 };
 
+std::optional<OutAttr> OutputAttrPointer(EmitContext& ctx, IR::Attribute attr);
+} // Anonymous namespace
+
+void EmitForwardLayer(EmitContext& ctx, IR::Attribute source) {
+    const u32 index{IR::GenericAttributeIndex(source)};
+    const u32 element{IR::GenericAttributeElement(source)};
+    if (!Sirit::ValidId(ctx.layer) || !Sirit::ValidId(ctx.output_generics.at(index).at(element).id)) {
+        return;
+    }
+    const std::optional<OutAttr> pointer{OutputAttrPointer(ctx, source)};
+    const Id value{ctx.OpLoad(ctx.F32[1], pointer->pointer)};
+    ctx.OpStore(ctx.layer, ctx.OpBitcast(ctx.U32[1], value));
+}
+
+namespace {
 std::optional<OutAttr> OutputAttrPointer(EmitContext& ctx, IR::Attribute attr) {
     if (IR::IsGeneric(attr)) {
         const u32 index{IR::GenericAttributeIndex(attr)};

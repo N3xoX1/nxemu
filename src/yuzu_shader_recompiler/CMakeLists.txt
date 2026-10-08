@@ -229,10 +229,13 @@ add_library(shader_recompiler STATIC
     ir_opt/passes.h
     ir_opt/position_pass.cpp
     ir_opt/rescaling_pass.cpp
+    ir_opt/geometry_layer_forwarding_pass.cpp
+    ir_opt/shared_memory_packing_pass.cpp
     ir_opt/ssa_rewrite_pass.cpp
     ir_opt/texture_pass.cpp
     ir_opt/vendor_workaround_pass.cpp
     ir_opt/verification_pass.cpp
+    ir_opt/vtg_to_compute_pass.cpp
     object_pool.h
     precompiled_headers.h
     profile.h
@@ -240,6 +243,7 @@ add_library(shader_recompiler STATIC
     runtime_info.h
     shader_info.h
     varying_state.h
+    vtg_as_compute.h
 )
 
 target_include_directories(shader_recompiler PRIVATE

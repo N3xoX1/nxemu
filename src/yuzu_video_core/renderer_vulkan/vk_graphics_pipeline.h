@@ -7,11 +7,15 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 
 #include "yuzu_common/thread_worker.h"
 #include "yuzu_shader_recompiler/shader_info.h"
+#include "yuzu_shader_recompiler/vtg_as_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
@@ -65,6 +69,47 @@ class RescalingPushConstant;
 class RenderAreaPushConstant;
 class Scheduler;
 
+class StagingBufferPool;
+
+/// Memory for the buffers shared between the stages of the draws running as compute
+class VtgScratchAllocator {
+public:
+    explicit VtgScratchAllocator(const Device& device, Scheduler& scheduler,
+                                 StagingBufferPool& staging_pool);
+
+    /// Returns a buffer and the offset of a region that lives until the current tick completes
+    [[nodiscard]] std::pair<VkBuffer, VkDeviceSize> Allocate(VkDeviceSize size);
+
+private:
+    Scheduler& scheduler;
+    StagingBufferPool& staging_pool;
+    VkDeviceSize alignment;
+    VkBuffer buffer{};
+    VkDeviceSize base{};
+    VkDeviceSize capacity{};
+    VkDeviceSize used{};
+    u64 tick{};
+};
+
+/// Vertex and geometry stages of a pipeline running as compute before the draw
+struct VtgPipelineInfo {
+    static constexpr size_t VERTEX = 0;
+    static constexpr size_t GEOMETRY = 1;
+    static constexpr size_t NUM_COMPUTE_STAGES = 2;
+
+    std::array<vk::ShaderModule, NUM_COMPUTE_STAGES> modules;
+    /// Shader information of each stage, including the storage buffers added to it
+    std::array<Shader::Info, NUM_COMPUTE_STAGES> infos;
+    Shader::VtgVertexBindings vertex_bindings;
+    Shader::VtgGeometryBindings geometry_bindings;
+    Shader::VtgTopology topology{};
+    /// Words of a vertex written by each stage
+    u32 vertex_stride{};
+    u32 geometry_stride{};
+    VtgScratchAllocator* scratch{};
+    StagingBufferPool* staging_pool{};
+};
+
 class GraphicsPipeline {
     static constexpr size_t NUM_STAGES = Tegra::Engines::Maxwell3D::Regs::MaxShaderStage;
 
@@ -76,7 +121,9 @@ public:
         GuestDescriptorQueue& guest_descriptor_queue, Common::ThreadWorker* worker_thread,
         PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
         const GraphicsPipelineCacheKey& key, std::array<vk::ShaderModule, NUM_STAGES> stages,
-        const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines);
+        const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines,
+        std::unique_ptr<VtgPipelineInfo> vtg_info = nullptr);
+    ~GraphicsPipeline();
 
     GraphicsPipeline& operator=(GraphicsPipeline&&) noexcept = delete;
     GraphicsPipeline(GraphicsPipeline&&) noexcept = delete;
@@ -118,6 +165,18 @@ public:
         return [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureImpl<Spec>(is_indexed); };
     }
 
+    /// Returns true when the vertex and geometry stages run as compute before the draw
+    [[nodiscard]] bool IsVtgAsCompute() const noexcept {
+        return vtg != nullptr;
+    }
+
+    /// Sets the number of instances of the next draw, zero when it cannot run as compute
+    void SetVtgInstanceCount(u32 instance_count) noexcept;
+
+    /// Index buffer, its offset and the number of indices drawing the output of the stages
+    /// running as compute. The count is zero when there is nothing to draw.
+    [[nodiscard]] std::tuple<VkBuffer, VkDeviceSize, u32> VtgDraw() const noexcept;
+
     void SetEngine(Tegra::Engines::Maxwell3D* maxwell3d_, Tegra::MemoryManager* gpu_memory_) {
         maxwell3d = maxwell3d_;
         gpu_memory = gpu_memory_;
@@ -126,6 +185,8 @@ public:
 private:
     template <typename Spec>
     void ConfigureImpl(bool is_indexed);
+
+    void ConfigureVtg(bool is_indexed);
 
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
@@ -171,6 +232,9 @@ private:
     std::atomic_bool build_complete{false};
     bool uses_push_descriptor{false};
     const bool rasterizes_lines;
+
+    struct VtgState;
+    std::unique_ptr<VtgState> vtg;
 };
 
 } // namespace Vulkan

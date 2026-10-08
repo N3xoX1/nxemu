@@ -520,6 +520,11 @@ public:
         return extensions.depth_bias_control;
     }
 
+    /// Returns true if the device supports geometry shaders.
+    bool IsGeometryShaderSupported() const {
+        return features.features.geometryShader;
+    }
+
     /// Returns true if the device supports VK_EXT_shader_viewport_index_layer.
     bool IsExtShaderViewportIndexLayerSupported() const {
         return extensions.shader_viewport_index_layer;

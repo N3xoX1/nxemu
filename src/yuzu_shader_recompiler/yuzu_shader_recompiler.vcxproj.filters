@@ -104,6 +104,9 @@
     <ClInclude Include="varying_state.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vtg_as_compute.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="backend\bindings.h">
       <Filter>Header Files\backend</Filter>
     </ClInclude>
@@ -772,6 +775,12 @@
     <ClCompile Include="ir_opt\rescaling_pass.cpp">
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
+    <ClCompile Include="ir_opt\geometry_layer_forwarding_pass.cpp">
+      <Filter>Source Files\ir_opt</Filter>
+    </ClCompile>
+    <ClCompile Include="ir_opt\shared_memory_packing_pass.cpp">
+      <Filter>Source Files\ir_opt</Filter>
+    </ClCompile>
     <ClCompile Include="ir_opt\ssa_rewrite_pass.cpp">
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
@@ -782,6 +791,9 @@
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
     <ClCompile Include="ir_opt\verification_pass.cpp">
+      <Filter>Source Files\ir_opt</Filter>
+    </ClCompile>
+    <ClCompile Include="ir_opt\vtg_to_compute_pass.cpp">
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
   </ItemGroup>
