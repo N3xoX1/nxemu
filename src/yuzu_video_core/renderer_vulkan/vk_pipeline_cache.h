@@ -84,6 +84,7 @@ class Device;
 class PipelineStatistics;
 class RenderPassCache;
 class Scheduler;
+class StagingBufferPool;
 
 using VideoCommon::ShaderInfo;
 
@@ -105,7 +106,8 @@ public:
                            Scheduler& scheduler, DescriptorPool& descriptor_pool,
                            GuestDescriptorQueue& guest_descriptor_queue,
                            RenderPassCache& render_pass_cache, BufferCache& buffer_cache,
-                           TextureCache& texture_cache, VideoCore::ShaderNotify& shader_notify_);
+                           TextureCache& texture_cache, VideoCore::ShaderNotify& shader_notify_,
+                           StagingBufferPool& staging_pool);
     ~PipelineCache();
 
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipeline();
@@ -144,6 +146,8 @@ private:
 
     const Device& device;
     Scheduler& scheduler;
+    StagingBufferPool& staging_pool;
+    VtgScratchAllocator vtg_scratch;
     DescriptorPool& descriptor_pool;
     GuestDescriptorQueue& guest_descriptor_queue;
     RenderPassCache& render_pass_cache;

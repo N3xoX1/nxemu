@@ -461,6 +461,7 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     : Sirit::Module(profile_.supported_spirv), profile{profile_}, runtime_info{runtime_info_},
       stage{program.stage}, texture_rescaling_index{bindings.texture_scaling_index},
       image_rescaling_index{bindings.image_scaling_index} {
+    shared_memory_16_to_12_packing = program.shared_memory_16_to_12_packing;
     const bool is_unified{profile.unified_descriptor_binding};
     u32& uniform_binding{is_unified ? bindings.unified : bindings.uniform_buffer};
     u32& storage_binding{is_unified ? bindings.unified : bindings.storage_buffer};
@@ -525,6 +526,18 @@ Id EmitContext::BitOffset16(const IR::Value& offset) {
         return Const(((offset.U32() / 2) % 2) * 16);
     }
     return OpBitwiseAnd(U32[1], OpShiftLeftLogical(U32[1], Def(offset), Const(3u)), Const(16u));
+}
+
+Id EmitContext::RemapSharedMemoryOffset(Id offset) {
+    if (!shared_memory_16_to_12_packing) {
+        return offset;
+    }
+    // Compact each 16-byte guest lane to the 12 bytes proven live by
+    // TryPackSharedMemory16To12(). offset - (offset / 16) * 4 is injective for
+    // offsets 0..11 within every source lane.
+    const Id lane{OpShiftRightLogical(U32[1], offset, Const(4U))};
+    const Id removed_padding{OpShiftLeftLogical(U32[1], lane, Const(2U))};
+    return OpISub(U32[1], offset, removed_padding);
 }
 
 void EmitContext::DefineCommonTypes(const Info& info) {
@@ -598,8 +611,15 @@ void EmitContext::DefineSharedMemory(const IR::Program& program) {
     if (program.shared_memory_size == 0) {
         return;
     }
+    u32 shared_memory_size{program.shared_memory_size};
+    const u32 max_size{profile.max_compute_shared_memory_size};
+    if (max_size != 0 && shared_memory_size > max_size) {
+        LOG_WARNING(Shader_SPIRV, "Requested shared memory size ({}) exceeds device limit ({})",
+                    shared_memory_size, max_size);
+        shared_memory_size = max_size;
+    }
     const auto make{[&](Id element_type, u32 element_size) {
-        const u32 num_elements{Common::DivCeil(program.shared_memory_size, element_size)};
+        const u32 num_elements{Common::DivCeil(shared_memory_size, element_size)};
         const Id array_type{TypeArray(element_type, Const(num_elements))};
         Decorate(array_type, spv::Decoration::ArrayStride, element_size);
 
@@ -634,7 +654,7 @@ void EmitContext::DefineSharedMemory(const IR::Program& program) {
         std::tie(shared_memory_u32x4, shared_u32x4, std::ignore) = make(U32[4], 16);
         return;
     }
-    const u32 num_elements{Common::DivCeil(program.shared_memory_size, 4U)};
+    const u32 num_elements{Common::DivCeil(shared_memory_size, 4U)};
     const Id type{TypeArray(U32[1], Const(num_elements))};
     shared_memory_u32_type = TypePointer(spv::StorageClass::Workgroup, type);
 

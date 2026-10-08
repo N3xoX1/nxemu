@@ -371,6 +371,43 @@ void BufferCache<P>::BindHostStageBuffers(size_t stage) {
 }
 
 template <class P>
+void BufferCache<P>::BindHostStageUniformAndStorageBuffers(size_t stage) {
+    BindHostGraphicsUniformBuffers(stage);
+    BindHostGraphicsStorageBuffers(stage);
+}
+
+template <class P>
+void BufferCache<P>::BindHostStageTextureBuffers(size_t stage) {
+    BindHostGraphicsTextureBuffers(stage);
+}
+
+template <class P>
+std::tuple<typename P::Buffer*, u32, u32> BufferCache<P>::VertexBufferBinding(u32 index) {
+    const Binding& binding = channel_state->vertex_buffers[index];
+    if (binding.buffer_id == NULL_BUFFER_ID || binding.size == 0) {
+        return {nullptr, 0, 0};
+    }
+    Buffer& buffer = slot_buffers[binding.buffer_id];
+    TouchBuffer(buffer, binding.buffer_id);
+    SynchronizeBuffer(buffer, binding.device_addr, binding.size);
+    const u32 offset = buffer.Offset(binding.device_addr);
+    buffer.MarkUsage(offset, binding.size);
+    return {&buffer, offset, binding.size};
+}
+
+template <class P>
+std::tuple<typename P::Buffer*, u32, u32> BufferCache<P>::IndexBufferBinding() {
+    const Binding& binding = channel_state->index_buffer;
+    if (binding.buffer_id == NULL_BUFFER_ID || binding.size == 0) {
+        return {nullptr, 0, 0};
+    }
+    Buffer& buffer = slot_buffers[binding.buffer_id];
+    const u32 offset = buffer.Offset(binding.device_addr);
+    buffer.MarkUsage(offset, binding.size);
+    return {&buffer, offset, binding.size};
+}
+
+template <class P>
 void BufferCache<P>::BindHostComputeBuffers() {
     BindHostComputeUniformBuffers();
     BindHostComputeStorageBuffers();

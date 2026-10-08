@@ -85,6 +85,7 @@
     <ClInclude Include="shader_info.h" />
     <ClInclude Include="stage.h" />
     <ClInclude Include="varying_state.h" />
+    <ClInclude Include="vtg_as_compute.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="backend\glasm\emit_glasm.cpp" />
@@ -269,10 +270,13 @@
     <ClCompile Include="ir_opt\lower_int64_to_int32.cpp" />
     <ClCompile Include="ir_opt\position_pass.cpp" />
     <ClCompile Include="ir_opt\rescaling_pass.cpp" />
+    <ClCompile Include="ir_opt\geometry_layer_forwarding_pass.cpp" />
+    <ClCompile Include="ir_opt\shared_memory_packing_pass.cpp" />
     <ClCompile Include="ir_opt\ssa_rewrite_pass.cpp" />
     <ClCompile Include="ir_opt\texture_pass.cpp" />
     <ClCompile Include="ir_opt\vendor_workaround_pass.cpp" />
     <ClCompile Include="ir_opt\verification_pass.cpp" />
+    <ClCompile Include="ir_opt\vtg_to_compute_pass.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <array>
+
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "yuzu_shader_recompiler/backend/spirv/spirv_emit_context.h"
 
@@ -28,6 +30,7 @@ std::pair<Id, Id> ExtractArgs(EmitContext& ctx, Id offset, u32 mask, u32 count) 
 } // Anonymous namespace
 
 Id EmitLoadSharedU8(EmitContext& ctx, Id offset) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{
             ctx.OpAccessChain(ctx.shared_u8, ctx.shared_memory_u8, ctx.u32_zero_value, offset)};
@@ -39,6 +42,7 @@ Id EmitLoadSharedU8(EmitContext& ctx, Id offset) {
 }
 
 Id EmitLoadSharedS8(EmitContext& ctx, Id offset) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{
             ctx.OpAccessChain(ctx.shared_u8, ctx.shared_memory_u8, ctx.u32_zero_value, offset)};
@@ -50,6 +54,7 @@ Id EmitLoadSharedS8(EmitContext& ctx, Id offset) {
 }
 
 Id EmitLoadSharedU16(EmitContext& ctx, Id offset) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u16, ctx.shared_memory_u16, offset, 1)};
         return ctx.OpUConvert(ctx.U32[1], ctx.OpLoad(ctx.U16, pointer));
@@ -60,6 +65,7 @@ Id EmitLoadSharedU16(EmitContext& ctx, Id offset) {
 }
 
 Id EmitLoadSharedS16(EmitContext& ctx, Id offset) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u16, ctx.shared_memory_u16, offset, 1)};
         return ctx.OpSConvert(ctx.U32[1], ctx.OpLoad(ctx.U16, pointer));
@@ -70,6 +76,7 @@ Id EmitLoadSharedS16(EmitContext& ctx, Id offset) {
 }
 
 Id EmitLoadSharedU32(EmitContext& ctx, Id offset) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u32, ctx.shared_memory_u32, offset, 2)};
         return ctx.OpLoad(ctx.U32[1], pointer);
@@ -79,6 +86,7 @@ Id EmitLoadSharedU32(EmitContext& ctx, Id offset) {
 }
 
 Id EmitLoadSharedU64(EmitContext& ctx, Id offset) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u32x2, ctx.shared_memory_u32x2, offset, 3)};
         return ctx.OpLoad(ctx.U32[2], pointer);
@@ -94,6 +102,22 @@ Id EmitLoadSharedU64(EmitContext& ctx, Id offset) {
 }
 
 Id EmitLoadSharedU128(EmitContext& ctx, Id offset) {
+    if (ctx.shared_memory_16_to_12_packing) {
+        // The packing proof guarantees 16-byte alignment and that W is never observed. Loading
+        // only XYZ avoids touching the removed padding lane (which now aliases the next guest
+        // lane after compaction).
+        offset = ctx.RemapSharedMemoryOffset(offset);
+        const Id shift_id{ctx.Const(2U)};
+        const Id base_index{ctx.OpShiftRightArithmetic(ctx.U32[1], offset, shift_id)};
+        std::array<Id, 4> values{};
+        for (u32 i = 0; i < 3; ++i) {
+            const Id index{i == 0 ? base_index : ctx.OpIAdd(ctx.U32[1], base_index, ctx.Const(i))};
+            const Id pointer{ctx.OpAccessChain(ctx.shared_u32, ctx.shared_memory_u32, index)};
+            values[i] = ctx.OpLoad(ctx.U32[1], pointer);
+        }
+        values[3] = ctx.u32_zero_value;
+        return ctx.OpCompositeConstruct(ctx.U32[4], values);
+    }
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u32x4, ctx.shared_memory_u32x4, offset, 4)};
         return ctx.OpLoad(ctx.U32[4], pointer);
@@ -110,6 +134,7 @@ Id EmitLoadSharedU128(EmitContext& ctx, Id offset) {
 }
 
 void EmitWriteSharedU8(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{
             ctx.OpAccessChain(ctx.shared_u8, ctx.shared_memory_u8, ctx.u32_zero_value, offset)};
@@ -120,6 +145,7 @@ void EmitWriteSharedU8(EmitContext& ctx, Id offset, Id value) {
 }
 
 void EmitWriteSharedU16(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u16, ctx.shared_memory_u16, offset, 1)};
         ctx.OpStore(pointer, ctx.OpUConvert(ctx.U16, value));
@@ -129,6 +155,7 @@ void EmitWriteSharedU16(EmitContext& ctx, Id offset, Id value) {
 }
 
 void EmitWriteSharedU32(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     Id pointer{};
     if (ctx.profile.support_explicit_workgroup_layout) {
         pointer = Pointer(ctx, ctx.shared_u32, ctx.shared_memory_u32, offset, 2);
@@ -141,6 +168,7 @@ void EmitWriteSharedU32(EmitContext& ctx, Id offset, Id value) {
 }
 
 void EmitWriteSharedU64(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u32x2, ctx.shared_memory_u32x2, offset, 3)};
         ctx.OpStore(pointer, value);
@@ -156,6 +184,7 @@ void EmitWriteSharedU64(EmitContext& ctx, Id offset, Id value) {
 }
 
 void EmitWriteSharedU128(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     if (ctx.profile.support_explicit_workgroup_layout) {
         const Id pointer{Pointer(ctx, ctx.shared_u32x4, ctx.shared_memory_u32x4, offset, 4)};
         ctx.OpStore(pointer, value);

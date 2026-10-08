@@ -125,6 +125,9 @@ void EmitEpilogue(EmitContext& ctx) {
         !ctx.profile.support_native_ndc) {
         ConvertDepthMode(ctx);
     }
+    if (ctx.stage == Stage::VertexB && ctx.runtime_info.forwarded_layer_attribute) {
+        EmitForwardLayer(ctx, *ctx.runtime_info.forwarded_layer_attribute);
+    }
     if (ctx.stage == Stage::Fragment) {
         AlphaTest(ctx);
     }
