@@ -153,6 +153,10 @@
     <ClInclude Include="renderer_vulkan\vk_buffer_cache.h" />
     <ClInclude Include="renderer_vulkan\vk_command_pool.h" />
     <ClInclude Include="renderer_vulkan\vk_compute_pass.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_lookup.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_limits.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_payload.h" />
+    <ClInclude Include="renderer_vulkan\cbuf_size_dependencies.h" />
     <ClInclude Include="renderer_vulkan\vk_compute_pipeline.h" />
     <ClInclude Include="renderer_vulkan\vk_descriptor_pool.h" />
     <ClInclude Include="renderer_vulkan\vk_fence_manager.h" />
@@ -192,6 +196,7 @@
     <ClInclude Include="texture_cache\format_lookup_table.h" />
     <ClInclude Include="texture_cache\image_base.h" />
     <ClInclude Include="texture_cache\image_info.h" />
+    <ClInclude Include="texture_cache\mip_levels.h" />
     <ClInclude Include="texture_cache\image_view_base.h" />
     <ClInclude Include="texture_cache\image_view_info.h" />
     <ClInclude Include="texture_cache\render_targets.h" />

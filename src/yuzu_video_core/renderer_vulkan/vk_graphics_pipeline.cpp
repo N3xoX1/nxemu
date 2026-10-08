@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <span>
 
-#include <boost/container/small_vector.hpp>
 #include <boost/container/static_vector.hpp>
 
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
@@ -31,7 +30,6 @@
 
 namespace Vulkan {
 namespace {
-using boost::container::small_vector;
 using boost::container::static_vector;
 using Shader::ImageBufferDescriptor;
 using Shader::Backend::SPIRV::RENDERAREA_LAYOUT_OFFSET;
@@ -43,7 +41,7 @@ using VideoCore::Surface::PixelFormatFromDepthFormat;
 using VideoCore::Surface::PixelFormatFromRenderTargetFormat;
 
 constexpr size_t NUM_STAGES = Maxwell::MaxShaderStage;
-constexpr size_t MAX_IMAGE_ELEMENTS = 64;
+constexpr size_t INLINE_IMAGE_ELEMENTS = 64;
 
 DescriptorLayoutBuilder MakeBuilder(const Device& device, std::span<const Shader::Info> infos,
                                     u32 num_color_attachments) {
@@ -90,14 +88,19 @@ DescriptorLayoutBuilder MakeBuilder(const Device& device, std::span<const Shader
             if (stages.at(index) == VK_SHADER_STAGE_FRAGMENT_BIT) {
                 // Color attachments also count against maxPerStageResources.
                 resources += num_color_attachments;
+                const u64 storage_images =
+                    u64{Shader::NumDescriptors(infos[index].image_descriptors)} +
+                    Shader::NumDescriptors(infos[index].image_buffer_descriptors);
+                can_widen = storage_images + num_storage_buffers + num_color_attachments <=
+                            device.DescriptorLimits().maxFragmentCombinedOutputResources;
             }
-            can_widen = resources <= device.GetMaxPerStageResources();
+            can_widen &= resources <= device.GetMaxPerStageResources();
         }
         if (!can_widen) {
             storage_buffer_stages = 0;
         }
     }
-    DescriptorLayoutBuilder builder{device, storage_buffer_stages};
+    DescriptorLayoutBuilder builder{device, storage_buffer_stages, num_color_attachments};
     for (size_t index = 0; index < infos.size(); ++index) {
         builder.Add(infos[index], stages.at(index));
     }
@@ -295,7 +298,14 @@ GraphicsPipeline::GraphicsPipeline(
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += Shader::NumDescriptors(info->texture_descriptors);
+        num_descriptor_entries += NumDescriptorUpdateEntries(*info);
+        num_image_elements += Shader::NumDescriptors(info->texture_buffer_descriptors);
+        num_image_elements += Shader::NumDescriptors(info->image_buffer_descriptors);
+        num_image_elements += Shader::NumDescriptors(info->texture_descriptors);
+        num_image_elements += Shader::NumDescriptors(info->image_descriptors);
     }
+    descriptor_views.resize(num_image_elements);
+    descriptor_samplers.resize(num_textures);
     // Number of leading components the vertex shader may read from each attribute. Used to keep
     // vertex formats within their binding stride without discarding data the shader reads.
     const Shader::Info& vertex_info{stage_infos[0]};
@@ -368,12 +378,23 @@ void GraphicsPipeline::AddTransition(GraphicsPipeline* transition,
 
 template <typename Spec>
 void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
-    std::array<VideoCommon::ImageViewInOut, MAX_IMAGE_ELEMENTS> views;
-    std::array<VideoCommon::SamplerId, MAX_IMAGE_ELEMENTS> samplers;
-    size_t sampler_index{};
+    auto& views = descriptor_views;
+    auto& samplers = descriptor_samplers;
     size_t view_index{};
+    size_t sampler_index{};
 
     texture_cache.SynchronizeGraphicsDescriptors();
+
+    if (num_textures > INLINE_IMAGE_ELEMENTS) {
+        if (!sampler_lookup) {
+            sampler_lookup = std::make_unique<DrawDescriptorCache<VideoCommon::SamplerId>>();
+        }
+        sampler_lookup->Reset();
+    }
+    const bool memoize_samplers = sampler_lookup && sampler_lookup->Enabled();
+    const auto lookup_sampler = [&](u32 index) {
+        return texture_cache.GetGraphicsSamplerId(index);
+    };
 
     buffer_cache.SetUniformBuffersState(enabled_uniform_buffer_masks, &uniform_buffer_sizes);
 
@@ -392,30 +413,38 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             }
         }
         const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
-        const auto read_handle{[&](const auto& desc, u32 index) {
+        DescriptorCbufReader<18> cbuf_reader;
+        const auto bind_cbuf = [&](u32 bank, u32 count) {
+            return cbuf_reader.Bind(*gpu_memory, bank, cbufs[bank].address, cbufs[bank].size, count);
+        };
+        const auto prepare_handle{[&](const auto& desc) {
             ASSERT(cbufs[desc.cbuf_index].enabled);
-            const u32 index_offset{index << desc.size_shift};
-            const u32 offset{desc.cbuf_offset + index_offset};
-            const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
-            if constexpr (std::is_same_v<decltype(desc), const Shader::TextureDescriptor&> ||
-                          std::is_same_v<decltype(desc), const Shader::TextureBufferDescriptor&>) {
+            const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
+            auto secondary = primary;
+            bool has_secondary{};
+            u32 secondary_offset{}, primary_shift{}, secondary_shift{};
+            if constexpr (requires { desc.has_secondary; }) {
                 if (desc.has_secondary) {
                     ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
-                    const u32 second_offset{desc.secondary_cbuf_offset + index_offset};
-                    const GPUVAddr separate_addr{cbufs[desc.secondary_cbuf_index].address +
-                                                 second_offset};
-                    const u32 lhs_raw{gpu_memory->Read<u32>(addr) << desc.shift_left};
-                    const u32 rhs_raw{gpu_memory->Read<u32>(separate_addr)
-                                      << desc.secondary_shift_left};
-                    const u32 raw{lhs_raw | rhs_raw};
-                    return TexturePair(raw, via_header_index);
+                    secondary = bind_cbuf(desc.secondary_cbuf_index, desc.count);
+                    has_secondary = true;
+                    secondary_offset = desc.secondary_cbuf_offset;
+                    primary_shift = desc.shift_left;
+                    secondary_shift = desc.secondary_shift_left;
                 }
             }
-            return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
+            return [=](u32 index) {
+                const u32 delta = index << desc.size_shift;
+                const u32 raw = primary.Read(desc.cbuf_offset + delta);
+                return TexturePair(has_secondary ? (raw << primary_shift) |
+                                    (secondary.Read(secondary_offset + delta) << secondary_shift) : raw,
+                                   via_header_index);
+            };
         }};
         const auto add_image{[&](const auto& desc, bool blacklist) LAMBDA_FORCEINLINE {
+            const auto read_handle = prepare_handle(desc);
             for (u32 index = 0; index < desc.count; ++index) {
-                const auto handle{read_handle(desc, index)};
+                const auto handle{read_handle(index)};
                 views[view_index++] = {
                     .index = handle.first,
                     .blacklist = blacklist,
@@ -434,11 +463,14 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             }
         }
         for (const auto& desc : info.texture_descriptors) {
+            const auto read_handle = prepare_handle(desc);
             for (u32 index = 0; index < desc.count; ++index) {
-                const auto handle{read_handle(desc, index)};
+                const auto handle{read_handle(index)};
                 views[view_index++] = {handle.first};
 
-                VideoCommon::SamplerId sampler{texture_cache.GetGraphicsSamplerId(handle.second)};
+                const VideoCommon::SamplerId sampler = memoize_samplers
+                    ? sampler_lookup->Get(handle.second, lookup_sampler)
+                    : lookup_sampler(handle.second);
                 samplers[sampler_index++] = sampler;
             }
         }
@@ -463,7 +495,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     if constexpr (Spec::enabled_stages[4]) {
         config_stage(4);
     }
-    texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), view_index));
+    ASSERT(view_index == views.size());
+    ASSERT(sampler_index == samplers.size());
+    texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
 
     VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
     const auto bind_stage_info{[&](size_t stage) LAMBDA_FORCEINLINE {
@@ -520,7 +554,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     buffer_cache.UpdateGraphicsBuffers(is_indexed);
     buffer_cache.BindHostGeometryBuffers(is_indexed);
 
-    guest_descriptor_queue.Acquire();
+    guest_descriptor_queue.Acquire(num_descriptor_entries);
 
     RescalingPushConstant rescaling;
     RenderAreaPushConstant render_area;
@@ -1058,7 +1092,7 @@ void GraphicsPipeline::Validate() {
         num_images += Shader::NumDescriptors(info.texture_descriptors);
         num_images += Shader::NumDescriptors(info.image_descriptors);
     }
-    ASSERT(num_images <= MAX_IMAGE_ELEMENTS);
+    ASSERT(num_images == num_image_elements);
 }
 
 } // namespace Vulkan

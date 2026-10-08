@@ -7,13 +7,17 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <type_traits>
+
+#include <boost/container/small_vector.hpp>
 
 #include "yuzu_common/thread_worker.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
+#include "yuzu_video_core/renderer_vulkan/descriptor_lookup.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
@@ -27,6 +31,7 @@ namespace Vulkan {
 
 struct GraphicsPipelineCacheKey {
     std::array<u64, 6> unique_hashes;
+    std::array<std::array<u32, 18>, 5> cbuf_sizes;
     FixedPipelineState state;
 
     size_t Hash() const noexcept;
@@ -38,7 +43,7 @@ struct GraphicsPipelineCacheKey {
     }
 
     size_t Size() const noexcept {
-        return sizeof(unique_hashes) + state.Size();
+        return sizeof(unique_hashes) + sizeof(cbuf_sizes) + state.Size();
     }
 };
 static_assert(std::has_unique_object_representations_v<GraphicsPipelineCacheKey>);
@@ -158,6 +163,13 @@ private:
     std::array<u32, 5> enabled_uniform_buffer_masks{};
     VideoCommon::UniformBufferSizes uniform_buffer_sizes{};
     u32 num_textures{};
+    u32 num_image_elements{};
+    size_t num_descriptor_entries{};
+
+    // Used only by the GPU thread; queued commands use GuestDescriptorQueue's own copies.
+    boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
+    boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
+    std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
 
     vk::DescriptorSetLayout descriptor_set_layout;
     DescriptorAllocator descriptor_allocator;

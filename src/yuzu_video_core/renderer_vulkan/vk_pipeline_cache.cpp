@@ -6,6 +6,8 @@
 #include <fstream>
 #include <memory>
 #include <thread>
+#include <unordered_set>
+#include "yuzu_common/scope_exit.h"
 #include <vector>
 
 #include "yuzu_common/bit_cast.h"
@@ -52,7 +54,7 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 11;
+constexpr u32 CACHE_VERSION = 14;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 template <typename Container>
@@ -334,6 +336,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .supported_spirv = device.SupportedSpirvVersion(),
         .unified_descriptor_binding = true,
         .support_descriptor_aliasing = device.IsDescriptorAliasingSupported(),
+        .support_sampled_image_array_nonuniform_indexing =
+            device.IsSampledImageArrayNonUniformIndexingSupported(),
         .disable_uniform_buffer_descriptor_aliasing =
             device.IsDescriptorAliasingSupported() && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
         .support_int8 = device.IsInt8Supported(),
@@ -407,6 +411,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .min_ssbo_alignment = static_cast<u32>(device.GetStorageBufferAlignment()),
         .support_geometry_shader_passthrough = device.IsNvGeometryShaderPassthroughSupported(),
         .support_conditional_barrier = device.SupportsConditionalBarriers(),
+        .max_bindless_descriptors_per_stage = device.MaxBindlessDescriptorsPerStage(),
     };
 
     if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes) {
@@ -443,6 +448,11 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
         return nullptr;
     }
     graphics_key.state.Refresh(*maxwell3d, dynamic_features);
+    graphics_cbuf_size_state.Refresh(graphics_key.cbuf_sizes, graphics_key.unique_hashes,
+        cbuf_size_dependencies, [&](size_t stage, size_t bank) {
+            const auto& buffer = maxwell3d->state.shader_stages[stage].const_buffers[bank];
+            return buffer.enabled ? buffer.size : 0;
+        });
 
     if (current_pipeline) {
         GraphicsPipeline* const next{current_pipeline->Next(graphics_key)};
@@ -460,11 +470,17 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
         return nullptr;
     }
     const auto& qmd{kepler_compute->launch_description};
-    const ComputePipelineCacheKey key{
+    ComputePipelineCacheKey key{
         .unique_hash = shader->unique_hash,
         .shared_memory_size = qmd.shared_alloc,
         .workgroup_size{qmd.block_dim_x, qmd.block_dim_y, qmd.block_dim_z},
     };
+    const u32 size_mask = qmd.const_buffer_enable_mask.Value() &
+                          cbuf_size_dependencies.Mask(shader->unique_hash);
+    for (size_t bank = 0; bank < key.cbuf_sizes.size(); ++bank) {
+        key.cbuf_sizes[bank] = ((size_mask >> bank) & 1) != 0
+                                  ? qmd.const_buffer_config[bank].size.Value() : 0;
+    }
     const auto [pair, is_new]{compute_cache.try_emplace(key)};
     auto& pipeline{pair->second};
     if (!is_new) {
@@ -500,13 +516,28 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         bool has_loaded{};
         std::unique_ptr<PipelineStatistics> statistics;
     } state;
+    // Cache parsing/allocation can throw after work capturing this stack state is queued.
+    // Drain active work before state and the progress callback can leave scope.
+    SCOPE_EXIT { workers.WaitForRequests(); };
 
     if (device.IsKhrPipelineExecutablePropertiesEnabled()) {
         state.statistics = std::make_unique<PipelineStatistics>(device);
     }
+
+    // Earlier records included sizes for every bound bank, even when the shader never
+    // queried them. Normalize and deduplicate them without discarding the existing shader cache.
+    std::unordered_set<ComputePipelineCacheKey> loaded_compute_keys;
+    std::unordered_set<GraphicsPipelineCacheKey> loaded_graphics_keys;
     const auto load_compute{[&](std::ifstream& file, FileEnvironment env) {
         ComputePipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
+
+        cbuf_size_dependencies.Observe(key.unique_hash, env.CbufSizeMask());
+        CbufSizeDependencies::Normalize(key.cbuf_sizes,
+                                       cbuf_size_dependencies.Mask(key.unique_hash));
+        if (!loaded_compute_keys.insert(key).second) {
+            return;
+        }
 
         workers.QueueWork([this, key, env_ = std::move(env), &state, &callback]() mutable {
             ShaderPools pools;
@@ -526,7 +557,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                                   std::vector<FileEnvironment> envs) {
         workers.QueueWork([this, key, envs_ = std::move(envs), &state, &callback]() mutable {
             ShaderPools pools;
-            boost::container::static_vector<Shader::Environment*, 5> env_ptrs;
+            boost::container::static_vector<Shader::Environment*, Maxwell::MaxShaderProgram> env_ptrs;
             for (auto& env : envs_) {
                 env_ptrs.push_back(&env);
             }
@@ -555,6 +586,29 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     const auto load_graphics{[&](std::ifstream& file, std::vector<FileEnvironment> envs) {
         GraphicsPipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
+
+        size_t env_index{};
+        for (u64 hash : key.unique_hashes) {
+            if (hash != 0) {
+                if (env_index >= envs.size()) {
+                    LOG_ERROR(Render_Vulkan, "Cached graphics shader environment count mismatch");
+                    return;
+                }
+                cbuf_size_dependencies.Observe(hash, envs[env_index++].CbufSizeMask());
+            }
+        }
+        if (env_index != envs.size()) {
+            LOG_ERROR(Render_Vulkan, "Cached graphics shader environment count mismatch");
+            return;
+        }
+        for (size_t stage = 0; stage < key.cbuf_sizes.size(); ++stage) {
+            const u32 mask = cbuf_size_dependencies.Mask(key.unique_hashes[stage + 1]) |
+                (stage == 0 ? cbuf_size_dependencies.Mask(key.unique_hashes[0]) : 0);
+            CbufSizeDependencies::Normalize(key.cbuf_sizes[stage], mask);
+        }
+        if (!loaded_graphics_keys.insert(key).second) {
+            return;
+        }
 
         if ((key.state.extended_dynamic_state != 0) !=
                 dynamic_features.has_extended_dynamic_state ||
@@ -818,6 +872,10 @@ std::shared_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
     std::shared_ptr<GraphicsPipeline> pipeline{
         CreateGraphicsPipeline(main_pools, graphics_key, environments.Span(), nullptr, true,
                                is_hle && twin ? &skip_build : nullptr)};
+    for (size_t index = 0; index < graphics_key.unique_hashes.size(); ++index) {
+        cbuf_size_dependencies.Observe(graphics_key.unique_hashes[index],
+                                      environments.envs[index].CbufSizeMask());
+    }
     if (reuse_twin) {
         twin->SetSharedKey(graphics_key);
         pipeline = twin;
@@ -849,6 +907,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 
     main_pools.ReleaseContents();
     auto pipeline{CreateComputePipeline(main_pools, key, env, nullptr, true)};
+    cbuf_size_dependencies.Observe(key.unique_hash, env.CbufSizeMask());
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
     }

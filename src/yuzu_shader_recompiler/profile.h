@@ -11,6 +11,7 @@ struct Profile {
     u32 supported_spirv{0x00010000};
     bool unified_descriptor_binding{};
     bool support_descriptor_aliasing{};
+    bool support_sampled_image_array_nonuniform_indexing{};
     // MoltenVK needs one canonical uniform view; storage-buffer aliases remain available.
     bool disable_uniform_buffer_descriptor_aliasing{};
     bool support_int8{};

@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <bit>
 #include <optional>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <boost/container/small_vector.hpp>
 
@@ -13,10 +15,14 @@
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
 #include "yuzu_shader_recompiler/host_translate_info.h"
 #include "yuzu_shader_recompiler/ir_opt/passes.h"
+#include "yuzu_shader_recompiler/ir_opt/bindless_descriptor.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 
 namespace Shader::Optimization {
 namespace {
+constexpr u32 DESCRIPTOR_SIZE = 8;
+constexpr u32 DESCRIPTOR_SIZE_SHIFT = static_cast<u32>(std::countr_zero(DESCRIPTOR_SIZE));
+
 struct ConstBufferAddr {
     u32 index;
     u32 offset;
@@ -26,6 +32,7 @@ struct ConstBufferAddr {
     u32 secondary_shift_left;
     IR::U32 dynamic_offset;
     u32 count;
+    u32 size_shift{DESCRIPTOR_SIZE_SHIFT};
     bool has_secondary;
 };
 
@@ -37,8 +44,76 @@ struct TextureInst {
 
 using TextureInstVector = boost::container::small_vector<TextureInst, 24>;
 
-constexpr u32 DESCRIPTOR_SIZE = 8;
-constexpr u32 DESCRIPTOR_SIZE_SHIFT = static_cast<u32>(std::countr_zero(DESCRIPTOR_SIZE));
+// Bindless handles may be fields of material records rather than consecutive handles.
+// Track alignment through SSA merges so indexing and descriptor uploads use the same stride.
+u32 OffsetAlignment(const IR::Value& value, std::unordered_set<const IR::Inst*>& visiting,
+                    std::unordered_map<const IR::Inst*, u32>& alignments, u32 depth = 0) {
+    if (value.IsImmediate()) {
+        return static_cast<u32>(std::countr_zero(value.U32()));
+    }
+    const IR::Inst* inst{value.InstRecursive()};
+    if (depth >= 128 || !inst) {
+        return 0;
+    }
+    if (const auto cached = alignments.find(inst); cached != alignments.end()) {
+        return cached->second;
+    }
+    if (!visiting.insert(inst).second) {
+        return 0;
+    }
+    const auto alignment = [&] {
+        switch (inst->GetOpcode()) {
+        case IR::Opcode::UndefU32:
+            // Undefined predecessors impose no constraint on the defined value.
+            return 32U;
+        case IR::Opcode::ShiftLeftLogical32:
+            if (inst->Arg(1).IsImmediate() && inst->Arg(1).U32() < 32) {
+                return std::min(32U, inst->Arg(1).U32() +
+                    OffsetAlignment(inst->Arg(0), visiting, alignments, depth + 1));
+            }
+            return 0U;
+        case IR::Opcode::Phi: {
+            u32 result{32};
+            for (size_t i = 0; i < inst->NumArgs(); ++i) {
+                result = std::min(result, OffsetAlignment(inst->Arg(i), visiting, alignments, depth + 1));
+            }
+            return result;
+        }
+        case IR::Opcode::BitwiseAnd32:
+            // AND guarantees every zero low bit guaranteed by either operand.
+            return std::max(OffsetAlignment(inst->Arg(0), visiting, alignments, depth + 1),
+                            OffsetAlignment(inst->Arg(1), visiting, alignments, depth + 1));
+        case IR::Opcode::IAdd32:
+        case IR::Opcode::ISub32:
+        case IR::Opcode::BitwiseOr32:
+        case IR::Opcode::BitwiseXor32:
+            // Addition/subtraction wrap in U32, preserving the common power-of-two divisor.
+            return std::min(OffsetAlignment(inst->Arg(0), visiting, alignments, depth + 1),
+                            OffsetAlignment(inst->Arg(1), visiting, alignments, depth + 1));
+        case IR::Opcode::SelectU32:
+            return std::min(OffsetAlignment(inst->Arg(1), visiting, alignments, depth + 1),
+                            OffsetAlignment(inst->Arg(2), visiting, alignments, depth + 1));
+        default:
+            return 0U;
+        }
+    }();
+    visiting.erase(inst);
+    // SSA is a graph: repeated phi/select predecessors must not multiply traversal work.
+    alignments.emplace(inst, alignment);
+    return alignment;
+}
+
+u32 DynamicDescriptorSizeShift(const ConstBufferAddr& addr,
+                               std::unordered_set<const IR::Inst*>& visiting,
+                               std::unordered_map<const IR::Inst*, u32>& alignments) {
+    if (addr.count <= 1) {
+        return DESCRIPTOR_SIZE_SHIFT;
+    }
+    const u32 alignment{OffsetAlignment(addr.dynamic_offset, visiting, alignments)};
+    // Alignment is a guaranteed divisor of every possible byte offset, not a minimum
+    // eight-byte record size. A U32 handle can occupy a four-byte field (or be unaligned).
+    return std::min(alignment, 31U);
+}
 
 IR::Opcode IndexedInstruction(const IR::Inst& inst) {
     switch (inst.GetOpcode()) {
@@ -596,6 +671,33 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             to_replace.push_back(MakeInst(env, block, inst));
         }
     }
+    // All source expressions are still unchanged here. Share SSA results across accesses.
+    std::unordered_set<const IR::Inst*> alignment_visiting;
+    std::unordered_map<const IR::Inst*, u32> offset_alignments;
+    for (auto& texture : to_replace) {
+        if (texture.cbuf.count <= 1) continue;
+        const u32 buffer_size = env.ReadCbufSize(texture.cbuf.index);
+        if (buffer_size == 0) {
+            throw NotImplementedException("Bindless constant buffer size is unavailable");
+        }
+        const u32 shift =
+            DynamicDescriptorSizeShift(texture.cbuf, alignment_visiting, offset_alignments);
+        texture.cbuf.size_shift = shift;
+        // Enumerate the entire buffer at this field's alignment phase. Guest U32 additions
+        // can wrap and select valid handles before the original immediate base.
+        const u32 phase = texture.cbuf.offset & ((1U << shift) - 1);
+        const u32 adjustment = texture.cbuf.offset - phase;
+        if (adjustment != 0) {
+            IR::IREmitter ir{*texture.block, IR::Block::InstructionList::s_iterator_to(*texture.inst)};
+            texture.cbuf.dynamic_offset = IR::U32{ir.IAdd(texture.cbuf.dynamic_offset,
+                                                         ir.Imm32(adjustment))};
+        }
+        texture.cbuf.offset = phase;
+        texture.cbuf.count = BindlessDescriptorCount(buffer_size, phase, shift);
+        if (texture.cbuf.count == 0) {
+            throw NotImplementedException("Bindless constant buffer contains no complete handle");
+        }
+    }
     // Sort instructions to visit textures by constant buffer index, then by offset
     std::ranges::sort(to_replace, [](const auto& lhs, const auto& rhs) {
         return lhs.cbuf.offset < rhs.cbuf.offset;
@@ -615,6 +717,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         inst->ReplaceOpcode(IndexedInstruction(*inst));
 
         const auto& cbuf{texture_inst.cbuf};
+        const u32 size_shift{cbuf.size_shift};
         auto flags{inst->Flags<IR::TextureInstInfo>()};
         bool is_multisample{false};
         switch (inst->GetOpcode()) {
@@ -681,7 +784,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
                     .count = cbuf.count,
-                    .size_shift = DESCRIPTOR_SIZE_SHIFT,
+                    .size_shift = size_shift,
                 });
             } else {
                 index = descriptors.Add(ImageDescriptor{
@@ -693,7 +796,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
                     .count = cbuf.count,
-                    .size_shift = DESCRIPTOR_SIZE_SHIFT,
+                    .size_shift = size_shift,
                 });
             }
             break;
@@ -709,7 +812,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .secondary_cbuf_offset = cbuf.secondary_offset,
                     .secondary_shift_left = cbuf.secondary_shift_left,
                     .count = cbuf.count,
-                    .size_shift = DESCRIPTOR_SIZE_SHIFT,
+                    .size_shift = size_shift,
                 });
             } else {
                 index = descriptors.Add(TextureDescriptor{
@@ -724,7 +827,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .secondary_cbuf_offset = cbuf.secondary_offset,
                     .secondary_shift_left = cbuf.secondary_shift_left,
                     .count = cbuf.count,
-                    .size_shift = DESCRIPTOR_SIZE_SHIFT,
+                    .size_shift = size_shift,
                 });
             }
             break;
@@ -735,9 +838,9 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         if (cbuf.count > 1) {
             const auto insert_point{IR::Block::InstructionList::s_iterator_to(*inst)};
             IR::IREmitter ir{*texture_inst.block, insert_point};
-            const IR::U32 shift{ir.Imm32(std::countr_zero(DESCRIPTOR_SIZE))};
-            inst->SetArg(0, ir.UMin(ir.ShiftRightArithmetic(cbuf.dynamic_offset, shift),
-                                    ir.Imm32(DESCRIPTOR_SIZE - 1)));
+            const IR::U32 shift{ir.Imm32(size_shift)};
+            inst->SetArg(0, ir.UMin(ir.ShiftRightLogical(cbuf.dynamic_offset, shift),
+                                    ir.Imm32(cbuf.count - 1)));
         } else {
             inst->SetArg(0, IR::Value{});
         }
@@ -749,6 +852,15 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                 PatchTexelFetch(*texture_inst.block, *texture_inst.inst, pixel_format);
             }
         }
+    }
+    // Count actual bindings after deduplication, rather than texture instructions.
+    // Never map a valid guest index to another handle to satisfy host resource limits.
+    const u64 sampled_count = u64{NumDescriptors(program.info.texture_descriptors)} +
+                              NumDescriptors(program.info.texture_buffer_descriptors);
+    if (std::ranges::any_of(to_replace, [](const auto& texture) {
+            return !texture.cbuf.dynamic_offset.IsEmpty();
+        }) && sampled_count > host_info.max_bindless_descriptors_per_stage) {
+        throw NotImplementedException("Sampled texture bindings exceed the host descriptor budget");
     }
 }
 

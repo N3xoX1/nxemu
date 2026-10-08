@@ -42,6 +42,7 @@
     <ClInclude Include="backend\spirv\emit_spirv.h" />
     <ClInclude Include="backend\spirv\emit_spirv_instructions.h" />
     <ClInclude Include="backend\spirv\spirv_emit_context.h" />
+    <ClInclude Include="ir_opt\bindless_descriptor.h" />
     <ClInclude Include="environment.h" />
     <ClInclude Include="exception.h" />
     <ClInclude Include="frontend\ir\abstract_syntax_list.h" />

@@ -20,6 +20,9 @@ public:
 
     [[nodiscard]] virtual u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) = 0;
 
+    // Zero means this environment cannot provide the bound size (e.g. an old cache).
+    [[nodiscard]] virtual u32 ReadCbufSize([[maybe_unused]] u32 cbuf_index) { return 0; }
+
     [[nodiscard]] virtual TextureType ReadTextureType(u32 raw_handle) = 0;
 
     [[nodiscard]] virtual TexturePixelFormat ReadTexturePixelFormat(u32 raw_handle) = 0;

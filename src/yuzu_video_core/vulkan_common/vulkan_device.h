@@ -31,6 +31,7 @@ VK_DEFINE_HANDLE(VmaAllocator)
     FEATURE(KHR, VariablePointer, VARIABLE_POINTERS, variable_pointer)
 
 #define FOR_EACH_VK_FEATURE_1_2(FEATURE)                                                           \
+    FEATURE(EXT, DescriptorIndexing, DESCRIPTOR_INDEXING, descriptor_indexing)                     \
     FEATURE(EXT, HostQueryReset, HOST_QUERY_RESET, host_query_reset)                               \
     FEATURE(KHR, 8BitStorage, 8BIT_STORAGE, bit8_storage)                                          \
     FEATURE(KHR, TimelineSemaphore, TIMELINE_SEMAPHORE, timeline_semaphore)
@@ -337,6 +338,11 @@ public:
         return GetDriverID() != VK_DRIVER_ID_QUALCOMM_PROPRIETARY;
     }
 
+    /// Returns true if sampled texture array indices may vary between shader invocations.
+    bool IsSampledImageArrayNonUniformIndexingSupported() const {
+        return features.descriptor_indexing.shaderSampledImageArrayNonUniformIndexing != VK_FALSE;
+    }
+
     /// Returns true if the device supports float64 natively.
     bool IsFloat64Supported() const {
         return features.features.shaderFloat64;
@@ -375,6 +381,18 @@ public:
     /// Returns the maximum number of push descriptors.
     u32 MaxPushDescriptors() const {
         return MoltenVK::PushDescriptorLimit(GetDriverID(), properties.push_descriptor.maxPushDescriptors);
+    }
+
+    const VkPhysicalDeviceLimits& DescriptorLimits() const noexcept {
+        return properties.properties.limits;
+    }
+
+    /// Single-stage upper bound; the complete pipeline layout checks actual resource usage.
+    u32 MaxBindlessDescriptorsPerStage() const {
+        const auto& limits = DescriptorLimits();
+        return std::min({limits.maxPerStageDescriptorSampledImages,
+                         limits.maxPerStageDescriptorSamplers, limits.maxDescriptorSetSampledImages,
+                         limits.maxDescriptorSetSamplers, limits.maxPerStageResources});
     }
 
     /// Returns true if formatless image load is supported.

@@ -5,11 +5,15 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+
+#include <boost/container/small_vector.hpp>
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/thread_worker.h"
 #include "yuzu_shader_recompiler/shader_info.h"
+#include "yuzu_video_core/renderer_vulkan/descriptor_lookup.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
@@ -50,6 +54,12 @@ private:
     vk::PipelineCache& pipeline_cache;
     GuestDescriptorQueue& guest_descriptor_queue;
     Shader::Info info;
+    u32 num_textures{};
+    size_t num_descriptor_entries{};
+
+    boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
+    boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
+    std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
 
     VideoCommon::ComputeUniformBufferSizes uniform_buffer_sizes{};
 

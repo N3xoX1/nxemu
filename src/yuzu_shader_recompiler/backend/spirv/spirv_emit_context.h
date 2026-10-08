@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <unordered_set>
 
 #include <sirit/sirit.h>
 
@@ -252,6 +253,9 @@ public:
     std::vector<ImageBufferDefinition> image_buffers;
     std::vector<TextureDefinition> textures;
     std::vector<ImageDefinition> images;
+
+    bool uses_nonuniform_sampled_image{};
+    std::unordered_set<u32> nonuniform_sampled_ids;
 
     Id workgroup_id{};
     Id local_invocation_id{};

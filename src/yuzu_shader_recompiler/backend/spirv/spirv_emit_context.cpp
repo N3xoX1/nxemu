@@ -1497,6 +1497,8 @@ void EmitContext::DefineInputs(const IR::Program& program) {
     }
     if (info.uses_sample_id) {
         sample_id = DefineInput(*this, U32[1], false, spv::BuiltIn::SampleId);
+        // Vulkan requires Flat on integer fragment inputs, including built-ins.
+        Decorate(sample_id, spv::Decoration::Flat);
     }
     if (info.uses_is_helper_invocation) {
         is_helper_invocation = DefineInput(*this, U1, false, spv::BuiltIn::HelperInvocation);
