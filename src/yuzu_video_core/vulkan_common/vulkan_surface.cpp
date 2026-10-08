@@ -49,6 +49,9 @@ vk::SurfaceKHR CreateSurface(
     }
 #elif defined(__ANDROID__)
     if (window_info.type == Core::Frontend::WindowSystemType::Android) {
+        if (!window_info.render_surface) {
+            throw vk::Exception(VK_ERROR_SURFACE_LOST_KHR);
+        }
         const VkAndroidSurfaceCreateInfoKHR android_ci{
             VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR, nullptr, 0,
             reinterpret_cast<ANativeWindow*>(window_info.render_surface)};

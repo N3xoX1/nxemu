@@ -7,9 +7,14 @@
 #include "video_module.h"
 #include "notification.h"
 #include "settings/core_settings.h"
+#include <condition_variable>
+#include <exception>
+#include <mutex>
+#include <thread>
 #include <vector>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/settings/identifiers.h>
+#include <yuzu_common/scope_exit.h>
 
 namespace
 {
@@ -30,14 +35,15 @@ void LoadModule(const std::string & fileName, std::unique_ptr<plugin_type> & plu
 struct SystemModules::Impl :
     public ISystemModules
 {
+    enum class LifecycleState { Idle, Starting, Stopping };
+
     explicit Impl(IRenderWindow & window_) :
         window(window_),
         systemLoader(nullptr),
         video(nullptr),
         cpu(nullptr),
         operatingsystem(nullptr),
-        valid(false),
-        stopping(false)
+        valid(false)
     {
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.RegisterCallback(NXCoreSetting::EmulationRunning, EmulationRunningChanged, this);
@@ -71,28 +77,155 @@ struct SystemModules::Impl :
 
     void StartEmulation() override
     {
-        SettingsStore & settings = SettingsStore::GetInstance();
-        settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Starting);
-
-        for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
+        if (!BeginLifecycle(LifecycleState::Starting, true))
+            return;
+        auto transition = SCOPE_GUARD { EndLifecycle(); };
+        try
         {
-            (*itr)->EmulationStarting();
+            if (pendingAsyncStop)
+            {
+                // Complete the previous session before initializing a new renderer.
+                {
+                    std::scoped_lock lock{lifecycleMutex};
+                    lifecycleState = LifecycleState::Stopping;
+                }
+                if (operatingsystemModule)
+                    operatingsystemModule->EmulationStopping(true);
+                if (videoModule)
+                    videoModule->EmulationStopping(true);
+                pendingAsyncStop = false;
+                {
+                    std::scoped_lock lock{lifecycleMutex};
+                    // Errors from the old GPU are covered by its completed stop.
+                    asyncStopRequested = false;
+                    lifecycleState = LifecycleState::Starting;
+                }
+            }
+            SettingsStore & settings = SettingsStore::GetInstance();
+            settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Starting);
+            for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
+            {
+                (*itr)->EmulationStarting();
+                // A module that cannot start requests a stop. Do not start the
+                // following modules, in particular the guest after a video failure.
+                std::scoped_lock lock{lifecycleMutex};
+                if (asyncStopRequested)
+                    break;
+            }
         }
+        catch (const std::exception & error)
+        {
+            // Modules report their own failures with a stop request. This only
+            // covers errors raised while the core itself drives the start.
+            {
+                std::scoped_lock lock{lifecycleMutex};
+                lifecycleState = LifecycleState::Stopping;
+            }
+            StopModules(true);
+            moduleNotification.DisplayError(error.what(), "Emulation initialization failed");
+            return;
+        }
+        {
+            std::scoped_lock lock{lifecycleMutex};
+            if (!asyncStopRequested)
+            {
+                // Publish completion atomically with the pending-request check.
+                transition.Cancel();
+                EndLifecycleLocked();
+                return;
+            }
+            lifecycleState = LifecycleState::Stopping;
+        }
+        // A GPU error during startup must not wait for startup to release a lock.
+        StopModules(false);
     }
 
     void StopEmulation(bool wait) override
     {
-        if (stopping)
-        {
+        if (!BeginLifecycle(LifecycleState::Stopping, wait))
             return;
-        }
-        stopping = true;
+        SCOPE_EXIT { EndLifecycle(); };
+        StopModules(wait);
+    }
 
+    bool BeginLifecycle(LifecycleState next, bool wait)
+    {
+        std::unique_lock lock{lifecycleMutex};
+        if (shuttingDown)
+            return false;
+        if (!wait && lifecycleState != LifecycleState::Idle)
+        {
+            // GPU stop requests cannot block a thread that is joining the GPU.
+            // An active stop already covers them; an active start defers them.
+            if (lifecycleState == LifecycleState::Starting)
+                asyncStopRequested = true;
+            return false;
+        }
+        if (lifecycleState != LifecycleState::Idle &&
+            lifecycleThread == std::this_thread::get_id())
+            return false;
+        ++lifecycleWaiters;
+        auto waiter = SCOPE_GUARD {
+            --lifecycleWaiters;
+            lifecycleCv.notify_all();
+        };
+        lifecycleCv.wait(lock, [this] {
+            return lifecycleState == LifecycleState::Idle || shuttingDown;
+        });
+        if (shuttingDown)
+            return false;
+        lifecycleState = next;
+        lifecycleThread = std::this_thread::get_id();
+        return true;
+    }
+
+    bool BeginShutdown()
+    {
+        std::unique_lock lock{lifecycleMutex};
+        if (lifecycleState != LifecycleState::Idle &&
+            lifecycleThread == std::this_thread::get_id())
+            return false;
+        // Close the gate before waiting, and keep it closed during destruction.
+        shuttingDown = true;
+        lifecycleCv.notify_all();
+        lifecycleCv.wait(lock, [this] {
+            return lifecycleState == LifecycleState::Idle && lifecycleWaiters == 0;
+        });
+        lifecycleState = LifecycleState::Stopping;
+        lifecycleThread = std::this_thread::get_id();
+        return true;
+    }
+
+    void EndLifecycleLocked()
+    {
+        asyncStopRequested = false;
+        lifecycleState = LifecycleState::Idle;
+        lifecycleThread = {};
+        lifecycleCv.notify_all();
+    }
+
+    void EndLifecycle()
+    {
+        std::scoped_lock lock{lifecycleMutex};
+        EndLifecycleLocked();
+    }
+
+    void StopModules(bool wait)
+    {
+        // Lifecycle ownership serializes module calls. Its mutex is released
+        // throughout callbacks and joins so GPU error requests can return.
+        pendingAsyncStop = true;
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopping);
 
+        // A synchronous shutdown must join the emulation/producer thread
+        // before releasing GPU resources in the video module.
+        if (wait && operatingsystemModule)
+            operatingsystemModule->EmulationStopping(true);
         for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
         {
+            if (wait && *itr == operatingsystemModule.get())
+                continue;
             (*itr)->EmulationStopping(wait);
         }
         if (settings.GetBool(NXCoreSetting::EmulationRunning))
@@ -100,7 +233,7 @@ struct SystemModules::Impl :
             settings.SetBool(NXCoreSetting::EmulationRunning, false);
         }
 
-        stopping = false;
+        pendingAsyncStop = !wait;
     }
 
     ISystemloader & Systemloader() override
@@ -140,7 +273,14 @@ struct SystemModules::Impl :
     ICpu * cpu;
     IOperatingSystem * operatingsystem;
     bool valid;
-    bool stopping;
+    std::mutex lifecycleMutex;
+    std::condition_variable lifecycleCv;
+    LifecycleState lifecycleState = LifecycleState::Idle;
+    std::thread::id lifecycleThread;
+    std::size_t lifecycleWaiters = 0;
+    bool asyncStopRequested = false;
+    bool shuttingDown = false;
+    bool pendingAsyncStop = false;
 };
 
 SystemModules::SystemModules()
@@ -226,8 +366,11 @@ void SystemModules::ShutDown()
     {
         return;
     }
-    impl->StopEmulation(true);
-    impl->baseModules.clear();
+    if (!impl->BeginShutdown())
+        return;
+    // Keep lifecycle ownership through module destruction, not only StopModules.
+    auto transition = SCOPE_GUARD { impl->EndLifecycle(); };
+    impl->StopModules(true);
     if (impl->cpu != nullptr && impl->cpuModule.get() != nullptr)
     {
         impl->cpuModule->DestroyCpu(impl->cpu);
@@ -252,6 +395,8 @@ void SystemModules::ShutDown()
     {
         (*itr)->ModuleCleanup();
     }
+    impl->baseModules.clear();
+    transition.Cancel();
     impl = nullptr;
 }
 

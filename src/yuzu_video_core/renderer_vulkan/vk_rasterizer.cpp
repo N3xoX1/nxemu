@@ -206,8 +206,6 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     FlushWork();
     gpu_memory->FlushCaching();
 
-    query_cache.NotifySegment(true);
-
     GraphicsPipeline* const pipeline{pipeline_cache.CurrentGraphicsPipeline()};
     if (!pipeline) {
         return;
@@ -216,6 +214,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->Configure(is_indexed);
+    query_cache.NotifySegment(true);
 
     UpdateDynamicStates();
 
@@ -310,16 +309,12 @@ void RasterizerVulkan::DrawTexture() {
     };
     FlushWork();
 
-    query_cache.NotifySegment(true);
-
     std::scoped_lock l{texture_cache.mutex};
     texture_cache.SynchronizeGraphicsDescriptors();
     texture_cache.UpdateRenderTargets(false);
 
     UpdateDynamicStates();
 
-    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
-                              maxwell3d->regs.zpass_pixel_count_enable);
     const auto& draw_texture_state = maxwell3d->draw_manager->GetDrawTextureState();
     const auto& sampler = texture_cache.GetGraphicsSampler(draw_texture_state.src_sampler);
     const auto& texture = texture_cache.GetImageView(draw_texture_state.src_texture);
@@ -348,18 +343,18 @@ void RasterizerVulkan::DrawTexture() {
                                     .y = ScaleSrc(draw_texture_state.src_y1)}};
     Extent3D src_size = {static_cast<u32>(ScaleSrc(texture.size.width)),
                          static_cast<u32>(ScaleSrc(texture.size.height)), texture.size.depth};
-    blit_image.BlitColor(framebuffer, texture.RenderTarget(), texture.ImageHandle(),
-                         sampler->Handle(), dst_region, src_region, src_size);
+    blit_image.PrepareDrawTexture(framebuffer, texture);
+    query_cache.NotifySegment(true);
+    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
+                              maxwell3d->regs.zpass_pixel_count_enable);
+    blit_image.DrawTexture(framebuffer, texture.RenderTarget(), sampler->Handle(),
+                           dst_region, src_region, src_size);
 }
 
 void RasterizerVulkan::Clear(u32 layer_count) {
 
     FlushWork();
     gpu_memory->FlushCaching();
-
-    query_cache.NotifySegment(true);
-    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
-                              maxwell3d->regs.zpass_pixel_count_enable);
 
     auto& regs = maxwell3d->regs;
     const bool use_color = regs.clear_surface.R || regs.clear_surface.G || regs.clear_surface.B ||
@@ -376,6 +371,14 @@ void RasterizerVulkan::Clear(u32 layer_count) {
     const VkExtent2D render_area = framebuffer->RenderArea();
     const u32 color_write_mask = use_color ? (1U << regs.clear_surface.RT) : 0;
     const u32 color_scratch_mask = framebuffer->ColorScratchMask(color_write_mask);
+    // Counters and conditional rendering must begin inside the render pass that receives the
+    // clear. The helper framebuffers used for masked clears select their own render pass.
+    const auto request_clear_renderpass = [&] {
+        scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
+        query_cache.NotifySegment(true);
+        query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
+                                  maxwell3d->regs.zpass_pixel_count_enable);
+    };
     u32 up_scale = 1;
     u32 down_shift = 0;
     if (texture_cache.IsRescaling()) {
@@ -436,7 +439,7 @@ void RasterizerVulkan::Clear(u32 layer_count) {
             device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && is_integer;
         if (regs.clear_surface.R && regs.clear_surface.G && regs.clear_surface.B &&
             regs.clear_surface.A && !integer_shader_clear) {
-            scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
+            request_clear_renderpass();
             scheduler.Record([color_attachment, clear_value, clear_rect](vk::CommandBuffer cmdbuf) {
                 const VkClearAttachment attachment{
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -464,6 +467,7 @@ void RasterizerVulkan::Clear(u32 layer_count) {
                 // The framebuffer slot storage can grow while creating the helper framebuffer.
                 framebuffer = texture_cache.GetFramebuffer();
             } else {
+                request_clear_renderpass();
                 blit_image.ClearColor(framebuffer, color_mask, regs.clear_color, dst_region);
             }
         }
@@ -500,13 +504,14 @@ void RasterizerVulkan::Clear(u32 layer_count) {
                                              dst_region);
             }
         } else {
+            request_clear_renderpass();
             blit_image.ClearDepthStencil(
                 framebuffer, use_depth, regs.clear_depth, static_cast<u8>(regs.stencil_front_mask),
                 regs.clear_stencil, regs.stencil_front_func_mask, dst_region);
         }
     } else {
         // A masked color clear may have selected a color-only helper framebuffer.
-        scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
+        request_clear_renderpass();
         scheduler.Record([clear_depth = regs.clear_depth, clear_stencil = regs.clear_stencil,
                           clear_rect, aspect_flags](vk::CommandBuffer cmdbuf) {
             VkClearAttachment attachment;

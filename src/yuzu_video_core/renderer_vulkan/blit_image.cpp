@@ -387,23 +387,6 @@ void SynchronizeBlitSource(vk::CommandBuffer& cmdbuf, VkImage image) {
     cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                            0, barrier);
 }
-
-void BeginRenderPass(vk::CommandBuffer& cmdbuf, VkRenderPass render_pass,
-                     VkFramebuffer framebuffer_handle, VkExtent2D render_area) {
-    const VkRenderPassBeginInfo renderpass_bi{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext = nullptr,
-        .renderPass = render_pass,
-        .framebuffer = framebuffer_handle,
-        .renderArea{
-            .offset{},
-            .extent = render_area,
-        },
-        .clearValueCount = 0,
-        .pClearValues = nullptr,
-    };
-    cmdbuf.BeginRenderPass(renderpass_bi, VK_SUBPASS_CONTENTS_INLINE);
-}
 } // Anonymous namespace
 
 BlitImageHelper::BlitImageHelper(const Device& device_, Scheduler& scheduler_,
@@ -476,10 +459,19 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
     scheduler.InvalidateState();
 }
 
-void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView src_image_view,
-                                VkImage src_image, VkSampler src_sampler,
-                                const Region2D& dst_region, const Region2D& src_region,
-                                const Extent3D& src_size) {
+void BlitImageHelper::PrepareDrawTexture(const Framebuffer* dst_framebuffer,
+                                         const ImageView& src_image_view) {
+    const VkImage src_image = src_image_view.ImageHandle();
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([src_image](vk::CommandBuffer cmdbuf) {
+        SynchronizeBlitSource(cmdbuf, src_image);
+    });
+    scheduler.RequestRenderpass(dst_framebuffer, dst_framebuffer->ColorScratchMask(1U));
+}
+
+void BlitImageHelper::DrawTexture(const Framebuffer* dst_framebuffer, VkImageView src_image_view,
+                                  VkSampler src_sampler, const Region2D& dst_region,
+                                  const Region2D& src_region, const Extent3D& src_size) {
     const u32 color_scratch_mask = dst_framebuffer->ColorScratchMask(1U);
     const bool is_moltenvk = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK;
     const BlitImagePipelineKey key{
@@ -491,15 +483,8 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
     };
     const VkPipelineLayout layout = *one_texture_pipeline_layout;
     const VkPipeline pipeline = FindOrEmplaceColorPipeline(key);
-    const VkRenderPass render_pass = key.renderpass;
-    const VkFramebuffer framebuffer_handle = dst_framebuffer->HandleVariant(color_scratch_mask);
-    const VkExtent2D render_area = dst_framebuffer->RenderArea();
-    scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([this, render_pass, framebuffer_handle, render_area, src_image_view, src_image,
-                      src_sampler, dst_region, src_region, src_size, pipeline,
-                      layout](vk::CommandBuffer cmdbuf) {
-        SynchronizeBlitSource(cmdbuf, src_image);
-        BeginRenderPass(cmdbuf, render_pass, framebuffer_handle, render_area);
+    scheduler.Record([this, src_image_view, src_sampler, dst_region,
+                      src_region, src_size, pipeline, layout](vk::CommandBuffer cmdbuf) {
         const VkDescriptorSet descriptor_set = one_texture_descriptor_allocator.Commit();
         UpdateOneTextureDescriptorSet(device, descriptor_set, src_sampler, src_image_view);
         cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -507,7 +492,6 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
                                   nullptr);
         BindBlitState(cmdbuf, layout, dst_region, src_region, src_size);
         cmdbuf.Draw(3, 1, 0, 0);
-        cmdbuf.EndRenderPass();
     });
     scheduler.InvalidateState();
 }

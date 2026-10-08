@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <variant>
 
@@ -92,6 +93,7 @@ private:
     Tegra::MaxwellDeviceMemoryManager& device_memory;
     Tegra::GPU& gpu;
     watermark_vk wm;
+    std::mutex composite_mutex;
 
     std::shared_ptr<Common::DynamicLibrary> library;
     vk::InstanceDispatch dld;
