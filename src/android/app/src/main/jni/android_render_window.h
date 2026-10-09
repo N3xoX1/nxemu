@@ -15,7 +15,10 @@ public:
     void SuppressPresentation();
     void ClearSurface();
 
+    // IRenderWindow
     void * RenderSurface() const override;
+    void * DisplayConnection() const override;
+    RenderWindowSystem WindowSystem() const override;
     float PixelRatio() const override;
 
 private:

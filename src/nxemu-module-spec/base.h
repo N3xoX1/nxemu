@@ -25,10 +25,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x0130,
-    MODULE_VIDEO_SPECS_VERSION = 0x0123,
-    MODULE_CPU_SPECS_VERSION = 0x011d,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0124,
+    MODULE_LOADER_SPECS_VERSION = 0x0131,
+    MODULE_VIDEO_SPECS_VERSION = 0x0124,
+    MODULE_CPU_SPECS_VERSION = 0x011E,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0125,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -224,9 +224,21 @@ typedef struct
     char name[200];   // Name of the DLL
 } MODULE_INFO;
 
+enum class RenderWindowSystem : uint32_t
+{
+    Default = 0,
+    Windows,
+    X11,
+    Wayland,
+    Cocoa,
+    Android,
+};
+
 nxinterface IRenderWindow
 {
     virtual void * RenderSurface(void) const = 0;
+    virtual void * DisplayConnection(void) const = 0;
+    virtual RenderWindowSystem WindowSystem(void) const = 0;
     virtual float PixelRatio(void) const = 0;
 };
 
