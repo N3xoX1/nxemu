@@ -5,6 +5,7 @@
 #include "core/core.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/ngc/ngc.h"
+#include "core/hle/service/ngc/streamplay.h"
 #include "core/hle/service/server_manager.h"
 #include "core/hle/service/service.h"
 
@@ -144,6 +145,7 @@ void LoopProcess(Core::System& system) {
 
     server_manager->RegisterNamedService("ngct:u", std::make_shared<NgctServiceImpl>(system));
     server_manager->RegisterNamedService("ngc:u", std::make_shared<NgcServiceImpl>(system));
+    RegisterStreamPlayServices(*server_manager, system);
     ServerManager::RunServer(std::move(server_manager));
 }
 

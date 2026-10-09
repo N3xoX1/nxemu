@@ -426,6 +426,7 @@
     <ClCompile Include="core\hle\service\mnpp\mnpp_app.cpp" />
     <ClCompile Include="core\hle\service\ncm\ncm.cpp" />
     <ClCompile Include="core\hle\service\ngc\ngc.cpp" />
+    <ClCompile Include="core\hle\service\ngc\streamplay.cpp" />
     <ClCompile Include="core\hle\service\nim\nim.cpp" />
     <ClCompile Include="core\hle\service\npns\npns.cpp" />
     <ClCompile Include="core\hle\service\ns\account_proxy_interface.cpp" />
@@ -443,6 +444,7 @@
     <ClCompile Include="core\hle\service\ns\platform_service_manager.cpp" />
     <ClCompile Include="core\hle\service\ns\query_service.cpp" />
     <ClCompile Include="core\hle\service\ns\read_only_application_control_data_interface.cpp" />
+    <ClCompile Include="core\hle\service\ns\application_control_data.cpp" />
     <ClCompile Include="core\hle\service\ns\read_only_application_record_interface.cpp" />
     <ClCompile Include="core\hle\service\ns\service_getter_interface.cpp" />
     <ClCompile Include="core\hle\service\ns\system_update_control.cpp" />
@@ -932,6 +934,7 @@
     <ClInclude Include="core\hle\service\mnpp\mnpp_app.h" />
     <ClInclude Include="core\hle\service\ncm\ncm.h" />
     <ClInclude Include="core\hle\service\ngc\ngc.h" />
+    <ClInclude Include="core\hle\service\ngc\streamplay.h" />
     <ClInclude Include="core\hle\service\nim\nim.h" />
     <ClInclude Include="core\hle\service\npns\npns.h" />
     <ClInclude Include="core\hle\service\ns\account_proxy_interface.h" />
@@ -951,6 +954,7 @@
     <ClInclude Include="core\hle\service\ns\platform_service_manager.h" />
     <ClInclude Include="core\hle\service\ns\query_service.h" />
     <ClInclude Include="core\hle\service\ns\read_only_application_control_data_interface.h" />
+    <ClInclude Include="core\hle\service\ns\application_control_data.h" />
     <ClInclude Include="core\hle\service\ns\read_only_application_record_interface.h" />
     <ClInclude Include="core\hle\service\ns\service_getter_interface.h" />
     <ClInclude Include="core\hle\service\ns\system_update_control.h" />
