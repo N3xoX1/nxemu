@@ -8,6 +8,7 @@
 #include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/texture_cache/format_lookup_table.h"
 #include "yuzu_video_core/texture_cache/image_info.h"
+#include "yuzu_video_core/texture_cache/mip_levels.h"
 #include "yuzu_video_core/texture_cache/samples_helper.h"
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/texture_cache/util.h"
@@ -122,6 +123,9 @@ ImageInfo::ImageInfo(const TICEntry& config) noexcept {
                        GetFormatType(format) != SurfaceType::ColorTexture;
         downscaleable = size.height > DownscaleHeightThreshold;
     }
+    // Preserve the guest layer stride above, including any excess mip levels
+    // declared by the descriptor, before limiting the host image's mip chain.
+    resources.levels = MipLevelCount(config);
 }
 
 ImageInfo::ImageInfo(const Maxwell3D::Regs::RenderTargetConfig& ct,

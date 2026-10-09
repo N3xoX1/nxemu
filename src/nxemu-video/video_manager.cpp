@@ -129,8 +129,14 @@ struct VideoManager::Impl
                 if (videoSettings.use_disk_shader_cache && !stop_token.stop_requested())
                 {
                     const u64 program_id = m_modules.OperatingSystem().GetProgramId();
-                    m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(program_id, stop_token,
-                                                                              notify_disk_cache_progress);
+                    try {
+                        m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(
+                            program_id, stop_token, notify_disk_cache_progress);
+                    } catch (const std::exception& exception) {
+                        // std::async stores exceptions in its future. If one escapes here,
+                        // Start is never called and guest GPU requests wait indefinitely.
+                        LOG_ERROR(Render, "Shader cache loading failed: {}", exception.what());
+                    }
                 }
             }
             notify_disk_cache_progress(VideoCore::LoadCallbackStage::Complete, 0, 0);

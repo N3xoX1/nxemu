@@ -227,11 +227,26 @@ private:
     spv::ImageOperandsMask mask{};
 };
 
-Id Texture(EmitContext& ctx, IR::TextureInstInfo info, [[maybe_unused]] const IR::Value& index) {
+Id Texture(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
     const TextureDefinition& def{ctx.textures.at(info.descriptor_index)};
     if (def.count > 1) {
-        const Id pointer{ctx.OpAccessChain(def.pointer_type, def.id, ctx.Def(index))};
-        return ctx.OpLoad(def.sampled_type, pointer);
+        if (!index.IsImmediate() && !ctx.profile.support_sampled_image_array_nonuniform_indexing) {
+            throw NotImplementedException("Nonuniform sampled texture indexing is unsupported by the host");
+        }
+        const Id array_index{ctx.Def(index)};
+        const Id pointer{ctx.OpAccessChain(def.pointer_type, def.id, array_index)};
+        const Id sampled_image{ctx.OpLoad(def.sampled_type, pointer)};
+        // Guest bindless handles can depend on interpolated surface coordinates. Without
+        // NonUniform, the host may select a single array element for the entire subgroup.
+        if (!index.IsImmediate() && ctx.profile.support_sampled_image_array_nonuniform_indexing) {
+            ctx.uses_nonuniform_sampled_image = true;
+            for (const Id object : {array_index, pointer, sampled_image}) {
+                if (ctx.nonuniform_sampled_ids.insert(object.value).second) {
+                    ctx.Decorate(object, spv::Decoration::NonUniform);
+                }
+            }
+        }
+        return sampled_image;
     } else {
         return ctx.OpLoad(def.sampled_type, def.id);
     }
@@ -318,8 +333,12 @@ Id IsScaled(EmitContext& ctx, const IR::Value& index, Id member_index, u32 base_
         if (base_index != 0) {
             index_value = ctx.OpIAdd(ctx.U32[1], index_value, ctx.Const(base_index));
         }
+        const Id word_index{ctx.OpShiftRightLogical(ctx.U32[1], index_value, ctx.Const(5u))};
+        const Id pointer{ctx.OpAccessChain(push_constant_u32, ctx.rescaling_push_constants,
+                                           member_index, word_index)};
+        const Id word{ctx.OpLoad(ctx.U32[1], pointer)};
         const Id bit_index{ctx.OpBitwiseAnd(ctx.U32[1], index_value, ctx.Const(31u))};
-        bit = ctx.OpBitFieldUExtract(ctx.U32[1], index_value, bit_index, ctx.Const(1u));
+        bit = ctx.OpBitFieldUExtract(ctx.U32[1], word, bit_index, ctx.Const(1u));
     }
     return ctx.OpINotEqual(ctx.U1, bit, ctx.u32_zero_value);
 }

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <array>
+#include "yuzu_video_core/renderer_vulkan/descriptor_payload.h"
 
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -33,7 +33,6 @@ class UpdateDescriptorQueue final {
     // provide up to 3 swapchain images.
     static constexpr size_t FRAMES_IN_FLIGHT = 8;
     static constexpr size_t FRAME_PAYLOAD_SIZE = 0x20000;
-    static constexpr size_t PAYLOAD_SIZE = FRAME_PAYLOAD_SIZE * FRAMES_IN_FLIGHT;
 
 public:
     explicit UpdateDescriptorQueue(const Device& device_, Scheduler& scheduler_);
@@ -41,49 +40,46 @@ public:
 
     void TickFrame();
 
-    void Acquire();
+    void Acquire(size_t num_entries);
 
     const DescriptorUpdateEntry* UpdateData() const noexcept {
-        return upload_start;
+        return payload.Data();
     }
 
     void AddSampledImage(VkImageView image_view, VkSampler sampler) {
-        *(payload_cursor++) = VkDescriptorImageInfo{
+        payload.Append(VkDescriptorImageInfo{
             .sampler = sampler,
             .imageView = image_view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
+        });
     }
 
     void AddImage(VkImageView image_view) {
-        *(payload_cursor++) = VkDescriptorImageInfo{
+        payload.Append(VkDescriptorImageInfo{
             .sampler = VK_NULL_HANDLE,
             .imageView = image_view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
+        });
     }
 
     void AddBuffer(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size) {
-        *(payload_cursor++) = VkDescriptorBufferInfo{
+        payload.Append(VkDescriptorBufferInfo{
             .buffer = buffer,
             .offset = offset,
             .range = size,
-        };
+        });
     }
 
     void AddTexelBuffer(VkBufferView texel_buffer) {
-        *(payload_cursor++) = texel_buffer;
+        payload.Append(texel_buffer);
     }
 
 private:
     const Device& device;
     Scheduler& scheduler;
 
-    size_t frame_index{0};
-    DescriptorUpdateEntry* payload_cursor = nullptr;
-    DescriptorUpdateEntry* payload_start = nullptr;
-    const DescriptorUpdateEntry* upload_start = nullptr;
-    std::array<DescriptorUpdateEntry, PAYLOAD_SIZE> payload;
+    DescriptorPayload<DescriptorUpdateEntry, FRAME_PAYLOAD_SIZE, FRAMES_IN_FLIGHT> payload;
+
 };
 
 // TODO: should these be separate classes instead?

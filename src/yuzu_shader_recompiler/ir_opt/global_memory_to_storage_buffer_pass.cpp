@@ -1,14 +1,17 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <optional>
+#include <queue>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <boost/container/flat_set.hpp>
 #include <boost/container/small_vector.hpp>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_shader_recompiler/frontend/ir/basic_block.h"
-#include "yuzu_shader_recompiler/frontend/ir/breadth_first_search.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
 #include "yuzu_shader_recompiler/frontend/ir/value.h"
 #include "yuzu_shader_recompiler/host_translate_info.h"
@@ -329,8 +332,50 @@ std::optional<LowAddrInfo> TrackLowAddress(IR::Inst* inst) {
     };
 }
 
-/// Tries to track the storage buffer address used by a global memory instruction
-std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias) {
+/// Memory reads produce a value unrelated to the address used to locate it.
+bool IsIndirectPointerLoad(IR::Opcode opcode) {
+    switch (opcode) {
+    case IR::Opcode::LoadGlobalS8:
+    case IR::Opcode::LoadGlobalU8:
+    case IR::Opcode::LoadGlobalS16:
+    case IR::Opcode::LoadGlobalU16:
+    case IR::Opcode::LoadGlobal32:
+    case IR::Opcode::LoadGlobal64:
+    case IR::Opcode::LoadGlobal128:
+    case IR::Opcode::LoadStorageS8:
+    case IR::Opcode::LoadStorageU8:
+    case IR::Opcode::LoadStorageS16:
+    case IR::Opcode::LoadStorageU16:
+    case IR::Opcode::LoadStorage32:
+    case IR::Opcode::LoadStorage64:
+    case IR::Opcode::LoadStorage128:
+    case IR::Opcode::LoadSharedS8:
+    case IR::Opcode::LoadSharedU8:
+    case IR::Opcode::LoadSharedS16:
+    case IR::Opcode::LoadSharedU16:
+    case IR::Opcode::LoadSharedU32:
+    case IR::Opcode::LoadSharedU64:
+    case IR::Opcode::LoadSharedU128:
+    case IR::Opcode::LoadLocal:
+    case IR::Opcode::GetCbufU8:
+    case IR::Opcode::GetCbufS8:
+    case IR::Opcode::GetCbufU16:
+    case IR::Opcode::GetCbufS16:
+    case IR::Opcode::GetCbufF32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+struct TrackingState {
+    std::unordered_map<const IR::Inst*, std::optional<StorageBufferAddr>> selections;
+    std::unordered_set<const IR::Inst*> active;
+};
+
+/// Tries to track a base without crossing pointer loads or choosing one side of a merge.
+std::optional<StorageBufferAddr> TrackImpl(const IR::Value& value, const Bias* bias,
+                                         bool* indirect_pointer, TrackingState& state) {
     const auto pred{[bias](const IR::Inst* inst) -> std::optional<StorageBufferAddr> {
         if (inst->GetOpcode() != IR::Opcode::GetCbufU32 &&
             inst->GetOpcode() != IR::Opcode::GetCbufU32x2) {
@@ -363,7 +408,71 @@ std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias)
         }
         return storage_buffer;
     }};
-    return BreadthFirstSearch(value, pred);
+    if (value.IsImmediate()) {
+        return std::nullopt;
+    }
+    small_vector<const IR::Inst*, 16> visited;
+    std::queue<const IR::Inst*> pending;
+    const auto enqueue = [&](const IR::Value& arg) {
+        if (arg.IsImmediate()) return;
+        const auto* inst = arg.InstRecursive();
+        if (std::ranges::find(visited, inst) == visited.end()) {
+            visited.push_back(inst);
+            pending.push(inst);
+        }
+    };
+    enqueue(value);
+    while (!pending.empty()) {
+        const auto* inst = pending.front();
+        pending.pop();
+        if (const auto result = pred(inst)) return result;
+        if (inst->GetOpcode() == IR::Opcode::SelectU32 || inst->GetOpcode() == IR::Opcode::Phi) {
+            auto cached = state.selections.find(inst);
+            if (cached == state.selections.end()) {
+                // Cyclic/very deep SSA merges remain on the global-memory path.
+                if (state.active.size() >= 64 || !state.active.insert(inst).second) {
+                    if (indirect_pointer) *indirect_pointer = true;
+                    continue;
+                }
+                std::optional<StorageBufferAddr> common;
+                bool mismatch = false;
+                const size_t begin = inst->GetOpcode() == IR::Opcode::SelectU32 ? 1 : 0;
+                for (size_t arg = begin; arg < inst->NumArgs(); ++arg) {
+                    const auto branch = TrackImpl(inst->Arg(arg), bias, indirect_pointer, state);
+                    if (!branch || (common && *common != *branch)) {
+                        mismatch = true;
+                        break;
+                    }
+                    common = branch;
+                }
+                state.active.erase(inst);
+                cached = state.selections.emplace(inst, mismatch ? std::nullopt : common).first;
+            }
+            if (cached->second) return cached->second;
+            if (indirect_pointer) *indirect_pointer = true;
+            // A separate additive base may still be present in the pending queue.
+            continue;
+        }
+        if (IsIndirectPointerLoad(inst->GetOpcode())) {
+            // Its address describes where the pointer is stored, not where it points.
+            // Following that address can wrongly select an unrelated storage buffer.
+            if (indirect_pointer) *indirect_pointer = true;
+            continue;
+        }
+        if (inst->GetOpcode() == IR::Opcode::GetCbufU32 ||
+            inst->GetOpcode() == IR::Opcode::GetCbufU32x2) {
+            // A dynamically indexed descriptor cannot be identified by tracking its index.
+            continue;
+        }
+        for (size_t arg = inst->NumArgs(); arg--;) enqueue(inst->Arg(arg));
+    }
+    return std::nullopt;
+}
+
+std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias,
+                                     bool* indirect_pointer = nullptr) {
+    TrackingState state;
+    return TrackImpl(value, bias, indirect_pointer, state);
 }
 
 /// Collects the storage buffer used by a global memory instruction and the instruction itself
@@ -387,10 +496,16 @@ void CollectStorageBuffers(IR::Block& block, IR::Inst& inst, StorageInfo& info) 
     std::optional<StorageBufferAddr> storage_buffer{Track(low_addr, &nvn_bias)};
     if (!storage_buffer) {
         // If it fails, track without a bias
-        storage_buffer = Track(low_addr, nullptr);
+        bool indirect_pointer{};
+        storage_buffer = Track(low_addr, nullptr, &indirect_pointer);
         if (!storage_buffer) {
             // If that also fails, use NVN fallbacks
-            LOG_WARNING(Shader, "Storage buffer failed to track, using global memory fallbacks");
+            if (indirect_pointer) {
+                LOG_INFO(Shader, "Storage buffer pointer loaded from memory; "
+                                 "using runtime global memory lookup");
+            } else {
+                LOG_WARNING(Shader, "Storage buffer failed to track, using global memory fallbacks");
+            }
             return;
         }
         LOG_WARNING(Shader, "Storage buffer tracked without bias, index {} offset {}",

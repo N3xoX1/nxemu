@@ -24,6 +24,7 @@
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
+#include "yuzu_video_core/renderer_vulkan/cbuf_size_dependencies.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pipeline.h"
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
@@ -50,6 +51,7 @@ struct ComputePipelineCacheKey {
     u64 unique_hash;
     u32 shared_memory_size;
     std::array<u32, 3> workgroup_size;
+    std::array<u32, 8> cbuf_sizes;
 
     size_t Hash() const noexcept;
 
@@ -159,6 +161,8 @@ private:
 
     GraphicsPipelineCacheKey graphics_key{};
     GraphicsPipeline* current_pipeline{};
+    CbufSizeDependencies cbuf_size_dependencies;
+    GraphicsCbufSizeState<5, 18> graphics_cbuf_size_state;
 
     std::unordered_map<ComputePipelineCacheKey, std::unique_ptr<ComputePipeline>> compute_cache;
     // Shared: an HLE macro key without replacements maps to the pipeline of its non-HLE twin.
