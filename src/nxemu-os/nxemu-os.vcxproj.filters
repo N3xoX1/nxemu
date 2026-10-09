@@ -1191,6 +1191,9 @@
     <ClInclude Include="core\hle\service\ngc\ngc.h">
       <Filter>Header Files\core\hle\service\ngc</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\service\ngc\streamplay.h">
+      <Filter>Header Files\core\hle\service\ngc</Filter>
+    </ClInclude>
     <ClInclude Include="core\hle\service\nim\nim.h">
       <Filter>Header Files\core\hle\service\nim</Filter>
     </ClInclude>
@@ -1246,6 +1249,9 @@
       <Filter>Header Files\core\hle\service\ns</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\ns\read_only_application_control_data_interface.h">
+      <Filter>Header Files\core\hle\service\ns</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ns\application_control_data.h">
       <Filter>Header Files\core\hle\service\ns</Filter>
     </ClInclude>
     <ClInclude Include="core\hle\service\ns\read_only_application_record_interface.h">
@@ -2770,6 +2776,9 @@
     <ClCompile Include="core\hle\service\ngc\ngc.cpp">
       <Filter>Source Files\core\hle\service\ngc</Filter>
     </ClCompile>
+    <ClCompile Include="core\hle\service\ngc\streamplay.cpp">
+      <Filter>Source Files\core\hle\service\ngc</Filter>
+    </ClCompile>
     <ClCompile Include="core\hle\service\nim\nim.cpp">
       <Filter>Source Files\core\hle\service\nim</Filter>
     </ClCompile>
@@ -2828,6 +2837,9 @@
       <Filter>Source Files\core\hle\service\ns</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\ns\read_only_application_control_data_interface.cpp">
+      <Filter>Source Files\core\hle\service\ns</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ns\application_control_data.cpp">
       <Filter>Source Files\core\hle\service\ns</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\ns\application_manager_interface.cpp">

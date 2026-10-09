@@ -42,6 +42,16 @@ void AndroidRenderWindow::ClearSurface()
     m_pixel_ratio = 1.0f;
 }
 
+void * AndroidRenderWindow::DisplayConnection() const
+{
+    return nullptr;
+}
+
+RenderWindowSystem AndroidRenderWindow::WindowSystem() const
+{
+    return RenderWindowSystem::Android;
+}
+
 void * AndroidRenderWindow::RenderSurface() const
 {
     std::lock_guard lock(m_mutex);

@@ -5,9 +5,9 @@
 
 #include <compare>
 #include <type_traits>
-#include <fmt/format.h>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/format.h"
 
 namespace Common {
 

@@ -474,6 +474,18 @@
     <ClInclude Include="renderer_vulkan\vk_compute_pass.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_limits.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_payload.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_lookup.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\cbuf_size_dependencies.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
     <ClInclude Include="renderer_vulkan\vk_compute_pipeline.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
@@ -577,6 +589,9 @@
       <Filter>Header Files\texture_cache</Filter>
     </ClInclude>
     <ClInclude Include="texture_cache\image_info.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\mip_levels.h">
       <Filter>Header Files\texture_cache</Filter>
     </ClInclude>
     <ClInclude Include="texture_cache\image_view_base.h">

@@ -15,6 +15,7 @@ class IApplicationManagerInterface final : public ServiceFramework<IApplicationM
 public:
     explicit IApplicationManagerInterface(Core::System& system_);
     ~IApplicationManagerInterface() override;
+    void GetApplicationControlDataRequest(HLERequestContext& ctx);
 
     Result GetApplicationControlData(OutBuffer<BufferAttr_HipcMapAlias> out_buffer,
                                      Out<u32> out_actual_size,

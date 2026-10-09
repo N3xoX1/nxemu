@@ -197,6 +197,10 @@ add_library(video_core STATIC
     renderer_vulkan/present/window_adapt_pass.h
     renderer_vulkan/blit_image.cpp
     renderer_vulkan/blit_image.h
+    renderer_vulkan/descriptor_lookup.h
+    renderer_vulkan/descriptor_limits.h
+    renderer_vulkan/descriptor_payload.h
+    renderer_vulkan/cbuf_size_dependencies.h
     renderer_vulkan/fixed_pipeline_state.cpp
     renderer_vulkan/fixed_pipeline_state.h
     renderer_vulkan/maxwell_to_vk.cpp
@@ -277,6 +281,7 @@ add_library(video_core STATIC
     texture_cache/image_base.h
     texture_cache/image_info.cpp
     texture_cache/image_info.h
+    texture_cache/mip_levels.h
     texture_cache/image_view_base.cpp
     texture_cache/image_view_base.h
     texture_cache/image_view_info.cpp

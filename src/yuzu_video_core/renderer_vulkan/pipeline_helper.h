@@ -10,7 +10,9 @@
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
+#include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_shader_recompiler/shader_info.h"
+#include "yuzu_video_core/renderer_vulkan/descriptor_limits.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "yuzu_video_core/texture_cache/types.h"
@@ -55,10 +57,21 @@ inline bool RasterizesLines(Shader::OutputTopology output,
             polygon_mode == Tegra::Engines::Maxwell3D::Regs::PolygonMode::Line);
 }
 
+inline size_t NumDescriptorUpdateEntries(const Shader::Info& info) {
+    return size_t{Shader::NumDescriptors(info.constant_buffer_descriptors)} +
+           Shader::NumDescriptors(info.storage_buffers_descriptors) +
+           Shader::NumDescriptors(info.texture_buffer_descriptors) +
+           Shader::NumDescriptors(info.image_buffer_descriptors) +
+           Shader::NumDescriptors(info.texture_descriptors) +
+           Shader::NumDescriptors(info.image_descriptors);
+}
+
 class DescriptorLayoutBuilder {
 public:
-    DescriptorLayoutBuilder(const Device& device_, VkShaderStageFlags storage_buffer_stages_ = 0)
-        : device{&device_}, storage_buffer_stages{storage_buffer_stages_} {}
+    DescriptorLayoutBuilder(const Device& device_, VkShaderStageFlags storage_buffer_stages_ = 0,
+                            u32 color_attachments_ = 0)
+        : device{&device_}, storage_buffer_stages{storage_buffer_stages_},
+          color_attachments{color_attachments_} {}
 
     bool CanUsePushDescriptor() const noexcept {
         return device->IsKhrPushDescriptorSupported() &&
@@ -66,6 +79,11 @@ public:
     }
 
     vk::DescriptorSetLayout CreateDescriptorSetLayout(bool use_push_descriptor) const {
+        if (const auto* violation = DescriptorLimitViolation(
+                device->DescriptorLimits(), std::span{bindings.data(), bindings.size()},
+                color_attachments)) {
+            throw Shader::NotImplementedException("{}", violation);
+        }
         if (bindings.empty()) {
             return nullptr;
         }
@@ -161,12 +179,13 @@ private:
             });
             ++binding;
             num_descriptors += descriptors[i].count;
-            offset += sizeof(DescriptorUpdateEntry);
+            offset += sizeof(DescriptorUpdateEntry) * descriptors[i].count;
         }
     }
 
     const Device* device{};
     VkShaderStageFlags storage_buffer_stages{};
+    u32 color_attachments{};
     bool is_compute{};
     boost::container::small_vector<VkDescriptorSetLayoutBinding, 32> bindings;
     boost::container::small_vector<VkDescriptorUpdateTemplateEntry, 32> entries;
@@ -225,6 +244,7 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
     views += num_texture_buffers;
     views += num_image_buffers;
     for (const auto& desc : info.texture_descriptors) {
+        bool is_rescaled{};
         for (u32 index = 0; index < desc.count; ++index) {
             const VideoCommon::ImageViewId image_view_id{(views++)->id};
             const VideoCommon::SamplerId sampler_id{*(samplers++)};
@@ -236,10 +256,13 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
             const VkSampler vk_sampler{use_fallback_sampler ? sampler.HandleWithDefaultAnisotropy()
                                                             : sampler.Handle()};
             guest_descriptor_queue.AddSampledImage(vk_image_view, vk_sampler);
-            rescaling.PushTexture(texture_cache.IsRescaling(image_view));
+            is_rescaled |= texture_cache.IsRescaling(image_view);
         }
+        // SPIR-V allocates one scaling bit per descriptor, including array descriptors.
+        rescaling.PushTexture(is_rescaled);
     }
     for (const auto& desc : info.image_descriptors) {
+        bool is_rescaled{};
         for (u32 index = 0; index < desc.count; ++index) {
             ImageView& image_view{texture_cache.GetImageView((views++)->id)};
             if (desc.is_written) {
@@ -247,8 +270,9 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
             }
             const VkImageView vk_image_view{image_view.StorageView(desc.type, desc.format)};
             guest_descriptor_queue.AddImage(vk_image_view);
-            rescaling.PushImage(texture_cache.IsRescaling(image_view));
+            is_rescaled |= texture_cache.IsRescaling(image_view);
         }
+        rescaling.PushImage(is_rescaled);
     }
 }
 

@@ -123,7 +123,8 @@ ImageInfo::ImageInfo(const TICEntry& config) noexcept {
                        GetFormatType(format) != SurfaceType::ColorTexture;
         downscaleable = size.height > DownscaleHeightThreshold;
     }
-    // The guest layer layout includes all declared levels; only the host mip chain is limited.
+    // Preserve the guest layer stride above, including any excess mip levels
+    // declared by the descriptor, before limiting the host image's mip chain.
     resources.levels = MipLevelCount(config);
 }
 

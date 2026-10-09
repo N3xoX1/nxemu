@@ -49,6 +49,8 @@ public:
     bool InstallFirmwarePackage(const char * utf8_path) override;
     void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) override;
     bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
+    LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,
+                                       uint32_t buffer_size, uint32_t & actual_size) override;
 
 private:
     Systemloader() = delete;

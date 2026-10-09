@@ -116,6 +116,8 @@ add_library(yuzu_common STATIC
     wall_clock.h
     yuzu_assert.cpp
     yuzu_assert.h
+    zbic_compression.cpp
+    zbic_compression.h
     zstd_compression.cpp
     zstd_compression.h
 )
@@ -169,6 +171,10 @@ if(ARCHITECTURE_arm64)
 endif()
 
 set_source_files_properties(stb.cpp PROPERTIES COMPILE_OPTIONS "-Wno-implicit-fallthrough;-Wno-missing-declarations;-Wno-missing-field-initializers")
+
+set_source_files_properties(zbic_compression.cpp PROPERTIES
+    INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/external/zbic/src"
+    COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-unused-function;-Wno-missing-declarations;-Wno-shadow>")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   target_compile_options(yuzu_common PRIVATE
