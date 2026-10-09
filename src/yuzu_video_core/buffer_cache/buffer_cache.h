@@ -953,6 +953,7 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
                 ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
             if (is_written) {
                 sparse_writes.emplace_back(binding.sparse_gpu_addr, binding.size);
+                runtime.MarkHostWrite(sparse_buffer);
             }
             if constexpr (NEEDS_BIND_STORAGE_INDEX) {
                 runtime.BindStorageBuffer(stage, binding_index, sparse_buffer, sparse.offset,
@@ -1090,6 +1091,7 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
                 ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
             if (is_written) {
                 sparse_writes.emplace_back(binding.sparse_gpu_addr, binding.size);
+                runtime.MarkHostWrite(sparse_buffer);
             }
             if constexpr (NEEDS_BIND_STORAGE_INDEX) {
                 runtime.BindComputeStorageBuffer(binding_index, sparse_buffer, sparse.offset,
