@@ -330,6 +330,9 @@
     <ClInclude Include="ring_buffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="format.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="fixed_point.h">
       <Filter>Header Files</Filter>
     </ClInclude>

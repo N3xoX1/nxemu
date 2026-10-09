@@ -56,6 +56,7 @@
     <ClInclude Include="fence.h" />
     <ClInclude Include="fiber.h" />
     <ClInclude Include="fixed_point.h" />
+    <ClInclude Include="format.h" />
     <ClInclude Include="free_region_manager.h" />
     <ClInclude Include="fs\filesystem_interfaces.h" />
     <ClInclude Include="guest_memory.h" />
