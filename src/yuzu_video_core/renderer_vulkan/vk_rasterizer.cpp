@@ -189,7 +189,8 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
                           staging_pool, compute_pass_descriptor_queue, descriptor_pool),
       query_cache(gpu, *this, device_memory, query_cache_runtime),
       pipeline_cache(device_memory, device, scheduler, descriptor_pool, guest_descriptor_queue,
-                     render_pass_cache, buffer_cache, texture_cache, gpu.ShaderNotify()),
+                     render_pass_cache, buffer_cache, texture_cache, gpu.ShaderNotify(),
+                     staging_pool),
       accelerate_dma(buffer_cache, texture_cache, scheduler),
       fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler),
       wfi_event(device.GetLogical().CreateEvent()) {
@@ -215,6 +216,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
+    pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
     pipeline->Configure(is_indexed);
 
     UpdateDynamicStates();
@@ -225,8 +227,38 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     draw_func(pipeline);
 }
 
+void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
+    // The stages running as compute wrote the strips to draw into an index buffer
+    const auto [index_buffer, index_offset, index_count]{pipeline->VtgDraw()};
+    if (index_count == 0) {
+        return;
+    }
+    const bool dynamic_restart{device.IsExtExtendedDynamicState2Supported()};
+    if (dynamic_restart) {
+        // The guest state is restored by the next draw
+        maxwell3d->dirty.flags[Dirty::PrimitiveRestartEnable] = true;
+        maxwell3d->dirty.flags[Dirty::StateEnable] = true;
+    }
+    scheduler.Record([pipeline, index_buffer = index_buffer, index_offset = index_offset,
+                      index_count = index_count, dynamic_restart](vk::CommandBuffer cmdbuf) {
+        if (!pipeline->IsBuilt()) {
+            return;
+        }
+        if (dynamic_restart) {
+            cmdbuf.SetPrimitiveRestartEnableEXT(true);
+        }
+        cmdbuf.BindIndexBuffer(index_buffer, index_offset, VK_INDEX_TYPE_UINT32);
+        cmdbuf.DrawIndexed(index_count, 1, 0, 0, 0);
+    });
+}
+
 void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
+    vtg_instance_count = instance_count;
     PrepareDraw(is_indexed, [this, is_indexed, instance_count](const GraphicsPipeline* pipeline) {
+        if (pipeline->IsVtgAsCompute()) {
+            DrawVtgAsCompute(pipeline);
+            return;
+        }
         const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
         const u32 num_instances{instance_count};
         const DrawParams draw_params{MakeDrawParams(draw_state, num_instances, is_indexed)};
@@ -250,6 +282,10 @@ void RasterizerVulkan::DrawIndirect() {
     const auto& params = maxwell3d->draw_manager->GetIndirectParams();
     buffer_cache.SetDrawIndirect(&params);
     PrepareDraw(params.is_indexed, [this, &params](const GraphicsPipeline* pipeline) {
+        if (pipeline->IsVtgAsCompute()) {
+            // The stages running as compute need the draw parameters on the CPU
+            return;
+        }
         const auto indirect_buffer = buffer_cache.GetDrawIndirectBuffer();
         const auto& buffer = indirect_buffer.first;
         const auto& offset = indirect_buffer.second;
@@ -539,15 +575,23 @@ void RasterizerVulkan::DispatchCompute() {
         const auto [buffer, offset] =
             buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
         scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([indirect_buffer = buffer->Handle(),
+        scheduler.Record([pipeline, indirect_buffer = buffer->Handle(),
                           indirect_offset = offset](vk::CommandBuffer cmdbuf) {
+            if (pipeline->HasBuildFailed()) {
+                return;
+            }
             cmdbuf.DispatchIndirect(indirect_buffer, indirect_offset);
         });
         return;
     }
     const std::array<u32, 3> dim{qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z};
     scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([dim](vk::CommandBuffer cmdbuf) { cmdbuf.Dispatch(dim[0], dim[1], dim[2]); });
+    scheduler.Record([pipeline, dim](vk::CommandBuffer cmdbuf) {
+        if (pipeline->HasBuildFailed()) {
+            return;
+        }
+        cmdbuf.Dispatch(dim[0], dim[1], dim[2]);
+    });
 }
 
 void RasterizerVulkan::ResetCounter(VideoCommon::QueryType type) {

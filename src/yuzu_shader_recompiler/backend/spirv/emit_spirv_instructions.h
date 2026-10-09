@@ -34,6 +34,7 @@ void EmitWorkgroupMemoryBarrier(EmitContext& ctx);
 void EmitDeviceMemoryBarrier(EmitContext& ctx);
 void EmitPrologue(EmitContext& ctx);
 void EmitEpilogue(EmitContext& ctx);
+void EmitForwardLayer(EmitContext& ctx, IR::Attribute source);
 void EmitEmitVertex(EmitContext& ctx, const IR::Value& stream);
 void EmitEndPrimitive(EmitContext& ctx, const IR::Value& stream);
 void EmitGetRegister(EmitContext& ctx);

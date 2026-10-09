@@ -6,6 +6,7 @@
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/frontend/ir/basic_block.h"
 #include "yuzu_shader_recompiler/frontend/ir/program.h"
+#include "yuzu_shader_recompiler/vtg_as_compute.h"
 #include "yuzu_shader_recompiler/frontend/maxwell/control_flow.h"
 #include "yuzu_shader_recompiler/object_pool.h"
 #include "yuzu_shader_recompiler/runtime_info.h"
@@ -33,5 +34,13 @@ void ConvertLegacyToGeneric(IR::Program& program, const RuntimeInfo& runtime_inf
                                                       const HostTranslateInfo& host_info,
                                                       IR::Program& source_program,
                                                       Shader::OutputTopology output_topology);
+
+// Creates the vertex shader feeding the rasterizer with the vertices written to a storage buffer
+// by the stages running as compute, indexed by the vertex index of the draw.
+[[nodiscard]] IR::Program GenerateVtgPassthroughVertex(ObjectPool<IR::Inst>& inst_pool,
+                                                       ObjectPool<IR::Block>& block_pool,
+                                                       const IR::Program& source_program,
+                                                       const VaryingState& source_stores,
+                                                       const VtgVaryingLayout& layout);
 
 } // namespace Shader::Maxwell

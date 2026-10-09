@@ -150,6 +150,8 @@ private:
     template <typename Func>
     void PrepareDraw(bool is_indexed, Func&&);
 
+    void DrawVtgAsCompute(const GraphicsPipeline* pipeline);
+
     void FlushWork();
 
     void UpdateDynamicStates();
@@ -191,6 +193,8 @@ private:
     Scheduler& scheduler;
 
     StagingBufferPool staging_pool;
+    /// Instances of the draw being prepared, zero when it cannot run its stages as compute
+    u32 vtg_instance_count{};
     DescriptorPool descriptor_pool;
     GuestDescriptorQueue guest_descriptor_queue;
     ComputePassDescriptorQueue compute_pass_descriptor_queue;

@@ -10,6 +10,7 @@
 namespace Shader::Backend::SPIRV {
 namespace {
 Id SharedPointer(EmitContext& ctx, Id offset, u32 index_offset = 0) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     const Id shift_id{ctx.Const(2U)};
     Id index{ctx.OpShiftRightArithmetic(ctx.U32[1], offset, shift_id)};
     if (index_offset > 0) {
@@ -129,12 +130,14 @@ Id EmitSharedAtomicUMax32(EmitContext& ctx, Id offset, Id value) {
 }
 
 Id EmitSharedAtomicInc32(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     const Id shift_id{ctx.Const(2U)};
     const Id index{ctx.OpShiftRightArithmetic(ctx.U32[1], offset, shift_id)};
     return ctx.OpFunctionCall(ctx.U32[1], ctx.increment_cas_shared, index, value);
 }
 
 Id EmitSharedAtomicDec32(EmitContext& ctx, Id offset, Id value) {
+    offset = ctx.RemapSharedMemoryOffset(offset);
     const Id shift_id{ctx.Const(2U)};
     const Id index{ctx.OpShiftRightArithmetic(ctx.U32[1], offset, shift_id)};
     return ctx.OpFunctionCall(ctx.U32[1], ctx.decrement_cas_shared, index, value);

@@ -22,11 +22,6 @@ object NativeInput {
     external fun onGamePadButtonEvent(guid: String, port: Int, buttonId: Int, action: Int)
 
     external fun onGamePadAxisEvent(guid: String, port: Int, axis: Int, value: Float)
-    external fun onTouchPressed(fingerId: Int, xAxis: Float, yAxis: Float)
-
-    external fun onTouchMoved(fingerId: Int, xAxis: Float, yAxis: Float)
-
-    external fun onTouchReleased(fingerId: Int)
 
     fun onOverlayButtonEvent(port: Int, button: NativeButton, action: Int) =
         onOverlayButtonEventImpl(port, button.int, action)

@@ -435,4 +435,75 @@ IR::Program GenerateGeometryPassthrough(ObjectPool<IR::Inst>& inst_pool,
     return program;
 }
 
+IR::Program GenerateVtgPassthroughVertex(ObjectPool<IR::Inst>& inst_pool,
+                                         ObjectPool<IR::Block>& block_pool,
+                                         const IR::Program& source_program,
+                                         const VaryingState& source_stores,
+                                         const VtgVaryingLayout& layout) {
+    static constexpr u32 word_size{sizeof(u32)};
+    IR::Program program;
+    program.stage = Stage::VertexB;
+    program.info.legacy_stores_mapping = source_program.info.legacy_stores_mapping;
+    program.info.used_clip_distances = source_program.info.used_clip_distances;
+    program.info.loads.Set(IR::Attribute::VertexId);
+    program.info.used_storage_buffer_types = IR::Type::U32;
+    program.info.storage_buffers_descriptors.push_back({
+        .cbuf_index = static_cast<u32>(Info::MAX_CBUFS),
+        .cbuf_offset = 0,
+        .count = 1,
+        .is_written = false,
+    });
+
+    IR::Block* const current_block{block_pool.Create(inst_pool)};
+    auto& node{program.syntax_list.emplace_back()};
+    node.type = IR::AbstractSyntaxNode::Type::Block;
+    node.data.block = current_block;
+
+    IR::IREmitter ir{*current_block};
+    ir.Prologue();
+    const IR::U32 vertex{ir.GetAttributeU32(IR::Attribute::VertexId)};
+    const IR::U32 base{ir.IMul(vertex, ir.Imm32(layout.stride * word_size))};
+    const auto forward{[&](IR::Attribute attribute) {
+        const std::optional<u32> word{layout.Offset(attribute)};
+        if (!word) {
+            return;
+        }
+        const IR::U32 offset{ir.IAdd(base, ir.Imm32(*word * word_size))};
+        current_block->AppendNewInst(IR::Opcode::LoadStorage32,
+                                     {IR::Value{0U}, IR::Value{offset}});
+        const IR::U32 value{IR::Value{&current_block->back()}};
+        ir.SetAttribute(attribute, ir.BitCast<IR::F32>(value), ir.Imm32(0U));
+        program.info.stores.Set(attribute);
+    }};
+    for (u32 element = 0; element < 4; ++element) {
+        forward(IR::Attribute::PositionX + element);
+    }
+    for (u32 index = 0; index < IR::NUM_GENERICS; ++index) {
+        for (u32 element = 0; element < 4; ++element) {
+            forward(IR::Attribute::Generic0X + index * 4 + element);
+        }
+    }
+    for (u32 index = 0; index < 8; ++index) {
+        if (source_stores[IR::Attribute::ClipDistance0 + index]) {
+            forward(IR::Attribute::ClipDistance0 + index);
+        }
+    }
+    forward(IR::Attribute::PointSize);
+    forward(IR::Attribute::Layer);
+    forward(IR::Attribute::ViewportIndex);
+
+    IR::Block* const return_block{block_pool.Create(inst_pool)};
+    IR::IREmitter{*return_block}.Epilogue();
+    current_block->AddBranch(return_block);
+
+    auto& merge{program.syntax_list.emplace_back()};
+    merge.type = IR::AbstractSyntaxNode::Type::Block;
+    merge.data.block = return_block;
+    program.syntax_list.emplace_back().type = IR::AbstractSyntaxNode::Type::Return;
+
+    program.blocks = GenerateBlocks(program.syntax_list);
+    program.post_order_blocks = PostOrder(program.syntax_list.front());
+    return program;
+}
+
 } // namespace Shader::Maxwell

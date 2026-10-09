@@ -94,6 +94,9 @@ struct Profile {
 
     u32 max_user_clip_distances{};
 
+    /// Largest compute shared memory the host accepts, in bytes. Zero means no limit.
+    u32 max_compute_shared_memory_size{};
+
     bool SupportsUniformBufferDescriptorAliasing() const {
         return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;
     }

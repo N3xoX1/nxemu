@@ -49,6 +49,11 @@ public:
     void Configure(Tegra::Engines::KeplerCompute& kepler_compute, Tegra::MemoryManager& gpu_memory,
                    Scheduler& scheduler, BufferCache& buffer_cache, TextureCache& texture_cache);
 
+    /// Returns true when the host rejected the pipeline. Only valid once the build has finished.
+    [[nodiscard]] bool HasBuildFailed() const noexcept {
+        return build_failed.load(std::memory_order::relaxed);
+    }
+
 private:
     const Device& device;
     vk::PipelineCache& pipeline_cache;
@@ -73,6 +78,7 @@ private:
     std::condition_variable build_condvar;
     std::mutex build_mutex;
     std::atomic_bool is_built{false};
+    std::atomic_bool build_failed{false};
 };
 
 } // namespace Vulkan

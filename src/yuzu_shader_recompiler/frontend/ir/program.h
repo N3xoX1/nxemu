@@ -26,6 +26,7 @@ struct Program {
     u32 invocations{};
     u32 local_memory_size{};
     u32 shared_memory_size{};
+    bool shared_memory_16_to_12_packing{};
     bool is_geometry_passthrough{};
 };
 

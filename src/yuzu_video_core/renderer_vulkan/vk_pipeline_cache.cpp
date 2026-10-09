@@ -19,6 +19,7 @@
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/frontend/maxwell/control_flow.h"
 #include "yuzu_shader_recompiler/frontend/maxwell/translate_program.h"
+#include "yuzu_shader_recompiler/ir_opt/passes.h"
 #include "yuzu_shader_recompiler/program_header.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -47,6 +48,7 @@ namespace {
 using Shader::Backend::SPIRV::EmitSPIRV;
 using Shader::Maxwell::ConvertLegacyToGeneric;
 using Shader::Maxwell::GenerateGeometryPassthrough;
+using Shader::Maxwell::GenerateVtgPassthroughVertex;
 using Shader::Maxwell::MergeDualVertexPrograms;
 using Shader::Maxwell::TranslateProgram;
 using VideoCommon::ComputeEnvironment;
@@ -295,6 +297,139 @@ size_t GetTotalPipelineWorkers() {
 #endif
 }
 
+std::optional<Shader::VtgTopology> MaxwellToVtgTopology(Maxwell::PrimitiveTopology topology) {
+    switch (topology) {
+    case Maxwell::PrimitiveTopology::Points:
+        return Shader::VtgTopology::Points;
+    case Maxwell::PrimitiveTopology::Lines:
+        return Shader::VtgTopology::Lines;
+    case Maxwell::PrimitiveTopology::LineLoop:
+        return Shader::VtgTopology::LineLoop;
+    case Maxwell::PrimitiveTopology::LineStrip:
+        return Shader::VtgTopology::LineStrip;
+    case Maxwell::PrimitiveTopology::Triangles:
+        return Shader::VtgTopology::Triangles;
+    case Maxwell::PrimitiveTopology::TriangleStrip:
+        return Shader::VtgTopology::TriangleStrip;
+    case Maxwell::PrimitiveTopology::TriangleFan:
+    case Maxwell::PrimitiveTopology::Polygon:
+        return Shader::VtgTopology::TriangleFan;
+    case Maxwell::PrimitiveTopology::Quads:
+        return Shader::VtgTopology::Quads;
+    case Maxwell::PrimitiveTopology::QuadStrip:
+        return Shader::VtgTopology::QuadStrip;
+    case Maxwell::PrimitiveTopology::LinesAdjacency:
+        return Shader::VtgTopology::LinesAdjacency;
+    case Maxwell::PrimitiveTopology::LineStripAdjacency:
+        return Shader::VtgTopology::LineStripAdjacency;
+    case Maxwell::PrimitiveTopology::TrianglesAdjacency:
+        return Shader::VtgTopology::TrianglesAdjacency;
+    case Maxwell::PrimitiveTopology::TriangleStripAdjacency:
+        return Shader::VtgTopology::TriangleStripAdjacency;
+    case Maxwell::PrimitiveTopology::Patches:
+        break;
+    }
+    return std::nullopt;
+}
+
+/// Describes how a vertex shader running as compute reads its attributes from the vertex buffers
+Shader::VtgVertexInputs MakeVtgVertexInputs(const FixedPipelineState& state) {
+    using Size = Maxwell::VertexAttribute::Size;
+    using Type = Maxwell::VertexAttribute::Type;
+    Shader::VtgVertexInputs inputs{};
+    for (size_t index = 0; index < inputs.size(); ++index) {
+        const FixedPipelineState::VertexAttribute& attribute{state.attributes[index]};
+        Shader::VtgVertexAttribute& input{inputs[index]};
+        if (attribute.enabled == 0) {
+            continue;
+        }
+        input.buffer = static_cast<u8>(attribute.buffer.Value());
+        const auto set_size{[&input](u8 components, u8 bits) {
+            input.components = components;
+            input.bits = bits;
+        }};
+        switch (attribute.Size()) {
+        case Size::Size_R32_G32_B32_A32:
+            set_size(4, 32);
+            break;
+        case Size::Size_R32_G32_B32:
+            set_size(3, 32);
+            break;
+        case Size::Size_R32_G32:
+            set_size(2, 32);
+            break;
+        case Size::Size_R32:
+            set_size(1, 32);
+            break;
+        case Size::Size_R16_G16_B16_A16:
+            set_size(4, 16);
+            break;
+        case Size::Size_R16_G16_B16:
+            set_size(3, 16);
+            break;
+        case Size::Size_R16_G16:
+            set_size(2, 16);
+            break;
+        case Size::Size_R16:
+            set_size(1, 16);
+            break;
+        case Size::Size_R8_G8_B8_A8:
+        case Size::Size_X8_B8_G8_R8:
+            set_size(4, 8);
+            break;
+        case Size::Size_R8_G8_B8:
+            set_size(3, 8);
+            break;
+        case Size::Size_R8_G8:
+        case Size::Size_G8_R8:
+            set_size(2, 8);
+            break;
+        case Size::Size_R8:
+        case Size::Size_A8:
+            set_size(1, 8);
+            break;
+        case Size::Size_A2_B10_G10_R10:
+            set_size(4, 0);
+            input.packed_offsets = {0, 10, 20, 30};
+            input.packed_bits = {10, 10, 10, 2};
+            break;
+        case Size::Size_B10_G11_R11:
+            set_size(3, 0);
+            input.packed_offsets = {0, 11, 22, 0};
+            input.packed_bits = {11, 11, 10, 0};
+            break;
+        default:
+            continue;
+        }
+        switch (attribute.Type()) {
+        case Type::SNorm:
+            input.type = Shader::VtgComponentType::SNorm;
+            break;
+        case Type::UNorm:
+            input.type = Shader::VtgComponentType::UNorm;
+            break;
+        case Type::SInt:
+            input.type = Shader::VtgComponentType::SInt;
+            break;
+        case Type::UInt:
+            input.type = Shader::VtgComponentType::UInt;
+            break;
+        case Type::UScaled:
+            input.type = Shader::VtgComponentType::UScaled;
+            break;
+        case Type::SScaled:
+            input.type = Shader::VtgComponentType::SScaled;
+            break;
+        case Type::Float:
+            input.type = Shader::VtgComponentType::Float;
+            break;
+        default:
+            break;
+        }
+    }
+    return inputs;
+}
+
 } // Anonymous namespace
 
 size_t ComputePipelineCacheKey::Hash() const noexcept {
@@ -320,8 +455,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                              DescriptorPool& descriptor_pool_,
                              GuestDescriptorQueue& guest_descriptor_queue_,
                              RenderPassCache& render_pass_cache_, BufferCache& buffer_cache_,
-                             TextureCache& texture_cache_, VideoCore::ShaderNotify& shader_notify_)
+                             TextureCache& texture_cache_, VideoCore::ShaderNotify& shader_notify_,
+                             StagingBufferPool& staging_pool_)
     : VideoCommon::ShaderCache{device_memory_}, device{device_}, scheduler{scheduler_},
+      staging_pool{staging_pool_}, vtg_scratch{device_, scheduler_, staging_pool_},
       descriptor_pool{descriptor_pool_}, guest_descriptor_queue{guest_descriptor_queue_},
       render_pass_cache{render_pass_cache_}, buffer_cache{buffer_cache_},
       texture_cache{texture_cache_}, shader_notify{shader_notify_},
@@ -397,6 +534,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
             device.IsNvidia() && device.GetNvidiaArch() <= NvidiaArchitecture::Arch_Pascal,
         .min_ssbo_alignment = device.GetStorageBufferAlignment(),
         .max_user_clip_distances = device.GetMaxUserClipDistances(),
+        // Metal refuses shaders over its limit, the other drivers build them
+        .max_compute_shared_memory_size = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK
+                                              ? device.GetMaxComputeSharedMemorySize()
+                                              : 0,
     };
 
     host_info = Shader::HostTranslateInfo{
@@ -776,16 +917,113 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     if (skip_build && (*skip_build)()) {
         return nullptr;
     }
+    // Without host geometry shaders, a geometry shader that only selects the layer of the
+    // triangle it forwards is folded into the vertex shader
+    std::optional<Shader::IR::Attribute> forwarded_layer;
+    const size_t geometry_index{static_cast<size_t>(Maxwell::ShaderType::Geometry)};
+    if (!device.IsGeometryShaderSupported() && device.IsExtShaderViewportIndexLayerSupported() &&
+        key.unique_hashes[geometry_index] != 0 && key.unique_hashes[2] == 0 &&
+        key.unique_hashes[3] == 0 && uses_vertex_b) {
+        const u32 input_vertices{Shader::InputTopologyVertices::vertices(
+            MakeRuntimeInfo(programs, key, programs[geometry_index], nullptr).input_topology)};
+        forwarded_layer = Shader::Optimization::FindForwardedLayerAttribute(
+            programs[geometry_index], input_vertices);
+        if (forwarded_layer) {
+            programs[1].info.stores.Set(Shader::IR::Attribute::Layer);
+        }
+    }
     std::array<const Shader::Info*, Maxwell::MaxShaderStage> infos{};
     std::array<vk::ShaderModule, Maxwell::MaxShaderStage> modules;
 
     const Shader::IR::Program* previous_stage{};
     Shader::Backend::Bindings binding;
+
+    // Without host geometry shaders, the vertex and geometry shaders run as compute shaders
+    // before the draw and a generated vertex shader feeds their output to the rasterizer
+    std::unique_ptr<VtgPipelineInfo> vtg_info;
+    Shader::IR::Program vtg_passthrough;
+    const std::optional<Shader::VtgTopology> vtg_topology{
+        MaxwellToVtgTopology(key.state.topology)};
+    if (!device.IsGeometryShaderSupported() && !forwarded_layer && vtg_topology &&
+        key.unique_hashes[geometry_index] != 0 && key.unique_hashes[2] == 0 &&
+        key.unique_hashes[3] == 0 && uses_vertex_b && key.state.dynamic_vertex_input == 0 &&
+        key.state.xfb_enabled == 0) {
+        Shader::IR::Program& vertex{programs[1]};
+        Shader::IR::Program& geometry{programs[geometry_index]};
+        const auto vertex_runtime{MakeRuntimeInfo(programs, key, vertex, nullptr)};
+        ConvertLegacyToGeneric(vertex, vertex_runtime);
+        const auto geometry_runtime{MakeRuntimeInfo(programs, key, geometry, &vertex)};
+        ConvertLegacyToGeneric(geometry, geometry_runtime);
+
+        Shader::VaryingState geometry_stores{geometry.info.stores};
+        if (!device.IsExtShaderViewportIndexLayerSupported()) {
+            geometry_stores.Set(Shader::IR::Attribute::Layer, false);
+            geometry_stores.Set(Shader::IR::Attribute::ViewportIndex, false);
+        }
+        const Shader::VtgVaryingLayout vertex_layout{vertex.info.stores};
+        const Shader::VtgVaryingLayout geometry_layout{geometry_stores};
+        const u32 input_vertices{
+            Shader::InputTopologyVertices::vertices(geometry_runtime.input_topology)};
+        const Shader::OutputTopology geometry_topology{geometry.output_topology};
+
+        auto info{std::make_unique<VtgPipelineInfo>()};
+        if (Shader::Optimization::VtgVertexToCompute(vertex, MakeVtgVertexInputs(key.state),
+                                                     vertex_layout, info->vertex_bindings)) {
+            if (!Shader::Optimization::VtgGeometryToCompute(geometry, *vtg_topology,
+                                                            input_vertices, vertex_layout,
+                                                            geometry_layout,
+                                                            info->geometry_bindings)) {
+                LOG_ERROR(Render_Vulkan, "Geometry shader {:016x} cannot run as compute",
+                          key.unique_hashes[geometry_index]);
+                return nullptr;
+            }
+            const std::array<Shader::IR::Program*, VtgPipelineInfo::NUM_COMPUTE_STAGES> stages{
+                &vertex, &geometry};
+            const std::array<const Shader::RuntimeInfo*, VtgPipelineInfo::NUM_COMPUTE_STAGES>
+                runtimes{&vertex_runtime, &geometry_runtime};
+            for (size_t stage = 0; stage < stages.size(); ++stage) {
+                Shader::Backend::Bindings compute_binding;
+                const std::vector<u32> code{
+                    EmitSPIRV(profile, *runtimes[stage], *stages[stage], compute_binding)};
+                device.SaveShader(code);
+                info->modules[stage] = BuildShader(device, code);
+                info->infos[stage] = stages[stage]->info;
+            }
+            info->topology = *vtg_topology;
+            info->vertex_stride = vertex_layout.stride;
+            info->geometry_stride = geometry_layout.stride;
+            info->scratch = &vtg_scratch;
+            info->staging_pool = &staging_pool;
+
+            vtg_passthrough = GenerateVtgPassthroughVertex(pools.inst, pools.block, geometry,
+                                                           geometry_stores, geometry_layout);
+            auto runtime_info{MakeRuntimeInfo(programs, key, vtg_passthrough, nullptr)};
+            runtime_info.convert_depth_mode = key.state.ndc_minus_one_to_one != 0;
+            if (geometry_topology == Shader::OutputTopology::PointList) {
+                runtime_info.fixed_state_point_size = Common::BitCast<float>(key.state.point_size);
+            }
+            const std::vector<u32> code{EmitSPIRV(profile, runtime_info, vtg_passthrough, binding)};
+            device.SaveShader(code);
+            modules[0] = BuildShader(device, code);
+            infos[0] = &vtg_passthrough.info;
+            previous_stage = &vtg_passthrough;
+            vtg_info = std::move(info);
+            LOG_INFO(Render_Vulkan, "Running vertex shader {:016x} and geometry shader {:016x} "
+                                    "as compute",
+                     key.unique_hashes[1], key.unique_hashes[geometry_index]);
+        }
+    }
     for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0; index < Maxwell::MaxShaderProgram;
          ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
                                        index == static_cast<u32>(Maxwell::ShaderType::Geometry);
         if (key.unique_hashes[index] == 0 && !is_emulated_stage) {
+            continue;
+        }
+        if (forwarded_layer && index == geometry_index) {
+            continue;
+        }
+        if (vtg_info && (index == 1 || index == geometry_index)) {
             continue;
         }
         UNIMPLEMENTED_IF(index == 0);
@@ -794,7 +1032,11 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
-        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
+        auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
+        if (forwarded_layer && program.stage == Shader::Stage::VertexB) {
+            runtime_info.forwarded_layer_attribute = forwarded_layer;
+            runtime_info.convert_depth_mode = key.state.ndc_minus_one_to_one != 0;
+        }
         ConvertLegacyToGeneric(program, runtime_info);
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
@@ -811,14 +1053,15 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Maxwell::Tessellation::DomainType::Isolines};
     const auto output_topology{GetRasterizationOutputTopology(
         key.state.topology, has_tessellation, tessellation_isolines,
-        modules[3] ? std::optional{programs[4].output_topology} : std::nullopt)};
+        vtg_info ? std::optional{vtg_info->geometry_bindings.output_topology}
+                 : (modules[3] ? std::optional{programs[4].output_topology} : std::nullopt))};
     const bool rasterizes_lines{RasterizesLines(
         output_topology, FixedPipelineState::UnpackPolygonMode(key.state.polygon_mode))};
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
-        std::move(modules), infos, rasterizes_lines);
+        std::move(modules), infos, rasterizes_lines, std::move(vtg_info));
 
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();
@@ -937,6 +1180,17 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     }
 
     auto program{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
+    // Only where the host enforces its limit
+    const u32 max_shared_memory{profile.max_compute_shared_memory_size};
+    if (max_shared_memory != 0 && program.shared_memory_size > max_shared_memory &&
+        !profile.support_explicit_workgroup_layout) {
+        const u32 requested_shared_memory{program.shared_memory_size};
+        if (Shader::Optimization::TryPackSharedMemory16To12(program, max_shared_memory)) {
+            LOG_INFO(Render_Vulkan,
+                     "Compute shader {:#016x}: compacted shared memory from {} to {} bytes",
+                     key.unique_hash, requested_shared_memory, program.shared_memory_size);
+        }
+    }
     const std::vector<u32> code{EmitSPIRV(profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};

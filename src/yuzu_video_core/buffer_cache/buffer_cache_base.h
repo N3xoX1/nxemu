@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <tuple>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -217,6 +218,18 @@ public:
     void BindHostGeometryBuffers(bool is_indexed);
 
     void BindHostStageBuffers(size_t stage);
+
+    /// Binds the uniform and storage buffers of a stage, leaving its texture buffers unbound
+    void BindHostStageUniformAndStorageBuffers(size_t stage);
+
+    /// Binds the texture buffers of a stage
+    void BindHostStageTextureBuffers(size_t stage);
+
+    /// Returns the host buffer with the offset and size of a vertex stream of the draw
+    [[nodiscard]] std::tuple<Buffer*, u32, u32> VertexBufferBinding(u32 index);
+
+    /// Returns the host buffer with the offset and size of the index buffer of the draw
+    [[nodiscard]] std::tuple<Buffer*, u32, u32> IndexBufferBinding();
 
     void BindHostComputeBuffers();
 

@@ -164,6 +164,7 @@ public:
 
     [[nodiscard]] Id BitOffset8(const IR::Value& offset);
     [[nodiscard]] Id BitOffset16(const IR::Value& offset);
+    [[nodiscard]] Id RemapSharedMemoryOffset(Id offset);
 
     Id Const(u32 value) {
         return Constant(U32[1], value);
@@ -306,6 +307,7 @@ public:
 
     Id local_memory{};
 
+    bool shared_memory_16_to_12_packing{};
     Id shared_memory_u8{};
     Id shared_memory_u16{};
     Id shared_memory_u32{};
