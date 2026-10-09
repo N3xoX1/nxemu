@@ -278,12 +278,20 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
     });
 }
 
-void RasterizerVulkan::DrawIndirect() {
+bool RasterizerVulkan::DrawIndirect() {
     const auto& params = maxwell3d->draw_manager->GetIndirectParams();
+    if (!device.IsGeometryShaderSupported() && !params.is_byte_count) {
+        // The stages running as compute need the parameters of the draw on the CPU
+        gpu_memory->FlushCaching();
+        const GraphicsPipeline* const pipeline{pipeline_cache.CurrentGraphicsPipeline()};
+        if (pipeline && pipeline->IsVtgAsCompute()) {
+            return false;
+        }
+    }
     buffer_cache.SetDrawIndirect(&params);
     PrepareDraw(params.is_indexed, [this, &params](const GraphicsPipeline* pipeline) {
         if (pipeline->IsVtgAsCompute()) {
-            // The stages running as compute need the draw parameters on the CPU
+            // Only draws that take their count from transform feedback get here
             return;
         }
         const auto indirect_buffer = buffer_cache.GetDrawIndirectBuffer();
@@ -338,6 +346,7 @@ void RasterizerVulkan::DrawIndirect() {
         });
     });
     buffer_cache.SetDrawIndirect(nullptr);
+    return true;
 }
 
 void RasterizerVulkan::DrawTexture() {

@@ -1742,12 +1742,20 @@ void EmitContext::DefineOutputs(const IR::Program& program) {
         break;
     case Stage::Fragment:
         for (u32 index = 0; index < 8; ++index) {
-            if (!info.stores_frag_color[index] && !profile.need_declared_frag_colors) {
+            // With dual source blending, color output 1 is the second source of render target 0
+            const bool is_second_source{runtime_info.dual_source_blend && index == 1};
+            if (!info.stores_frag_color[index] && !profile.need_declared_frag_colors &&
+                !is_second_source) {
                 continue;
             }
             const Id type{GetAttributeType(*this, runtime_info.color_output_types[index])};
             frag_color[index] = DefineOutput(*this, type, std::nullopt);
-            Decorate(frag_color[index], spv::Decoration::Location, index);
+            if (is_second_source) {
+                Decorate(frag_color[index], spv::Decoration::Location, 0U);
+                Decorate(frag_color[index], spv::Decoration::Index, 1U);
+            } else {
+                Decorate(frag_color[index], spv::Decoration::Location, index);
+            }
             Name(frag_color[index], fmt::format("frag_color{}", index));
         }
         if (info.stores_frag_depth) {

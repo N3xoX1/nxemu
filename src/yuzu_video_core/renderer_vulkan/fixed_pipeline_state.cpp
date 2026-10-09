@@ -48,6 +48,37 @@ void RefreshXfbState(VideoCommon::TransformFeedbackState& state, const Maxwell& 
 }
 } // Anonymous namespace
 
+bool FixedPipelineState::UsesDualSourceBlend(const Maxwell& regs) noexcept {
+    const auto format = regs.rt[0].format;
+    if (!regs.blend.enable[0] || format == Tegra::RenderTargetFormat::NONE ||
+        VideoCore::Surface::IsPixelFormatInteger(
+            VideoCore::Surface::PixelFormatFromRenderTargetFormat(format))) {
+        return false;
+    }
+    const auto is_second_source = [](Maxwell::Blend::Factor factor) {
+        using Factor = Maxwell::Blend::Factor;
+        switch (factor) {
+        case Factor::Source1Color_D3D:
+        case Factor::OneMinusSource1Color_D3D:
+        case Factor::Source1Alpha_D3D:
+        case Factor::OneMinusSource1Alpha_D3D:
+        case Factor::Source1Color_GL:
+        case Factor::OneMinusSource1Color_GL:
+        case Factor::Source1Alpha_GL:
+        case Factor::OneMinusSource1Alpha_GL:
+            return true;
+        default:
+            return false;
+        }
+    };
+    const auto uses_second_source = [&](const auto& blend) {
+        return is_second_source(blend.color_source) || is_second_source(blend.color_dest) ||
+               is_second_source(blend.alpha_source) || is_second_source(blend.alpha_dest);
+    };
+    return regs.blend_per_target_enabled ? uses_second_source(regs.blend_per_target[0])
+                                         : uses_second_source(regs.blend);
+}
+
 void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFeatures& features) {
     const Maxwell& regs = maxwell3d.regs;
     const auto topology_ = maxwell3d.draw_manager->GetDrawState().topology;
@@ -70,7 +101,9 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     topology.Assign(topology_);
     msaa_mode.Assign(regs.anti_alias_samples_mode);
 
+    const bool cached_dual_source_blend = dual_source_blend != 0;
     raw2 = 0;
+    dual_source_blend.Assign(cached_dual_source_blend);
     vertex_stride_workaround.Assign(features.has_vertex_stride_workaround &&
                                     !features.has_dynamic_vertex_input ? 1 : 0);
 
@@ -176,6 +209,12 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     }
     if (!extended_dynamic_state_3_enables) {
         dynamic_state.Refresh3(regs);
+    }
+    // The shader output interface is static even when the blend equation is dynamic.
+    // Only this mode belongs in the key; ordinary blend factors remain dynamic.
+    if (!extended_dynamic_state_3_blend || color_formats_changed ||
+        maxwell3d.dirty.flags[Dirty::Blending] || maxwell3d.dirty.flags[Dirty::BlendEnable]) {
+        dual_source_blend.Assign(UsesDualSourceBlend(regs));
     }
     if (xfb_enabled) {
         RefreshXfbState(xfb_state, regs);

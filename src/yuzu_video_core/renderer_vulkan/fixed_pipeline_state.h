@@ -49,6 +49,8 @@ struct FixedPipelineState {
     static u32 PackBlendEquation(Maxwell::Blend::Equation equation) noexcept;
     static Maxwell::Blend::Equation UnpackBlendEquation(u32 packed) noexcept;
 
+    static bool UsesDualSourceBlend(const Maxwell& regs) noexcept;
+
     static u32 PackBlendFactor(Maxwell::Blend::Factor factor) noexcept;
     static Maxwell::Blend::Factor UnpackBlendFactor(u32 packed) noexcept;
 
@@ -203,6 +205,7 @@ struct FixedPipelineState {
     };
     union {
         u32 raw2;
+        BitField<0, 1, u32> dual_source_blend;
         BitField<1, 3, u32> alpha_test_func;
         BitField<4, 1, u32> early_z;
         BitField<5, 1, u32> depth_enabled;

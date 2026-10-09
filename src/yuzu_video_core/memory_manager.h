@@ -151,6 +151,17 @@ public:
 
     PTEKind GetPageKind(GPUVAddr gpu_addr) const;
 
+    /**
+     * Returns the sparse allocation an address belongs to, if any.
+     */
+    [[nodiscard]] std::optional<std::pair<GPUVAddr, std::size_t>> GetSparseRegion(
+        GPUVAddr gpu_addr) const;
+
+    /// Changes every time the address space is mapped or unmapped
+    [[nodiscard]] u64 MappingGeneration() const noexcept {
+        return mapping_generation.load(std::memory_order_relaxed);
+    }
+
     size_t GetMemoryLayoutSize(GPUVAddr gpu_addr,
                                size_t max_size = std::numeric_limits<size_t>::max()) const;
 
@@ -240,6 +251,11 @@ private:
 
     Common::MultiLevelPageTable<u32> page_table;
     Common::RangeMap<GPUVAddr, PTEKind> kind_map;
+    /// Start and end of the sparse allocations, protected by guard
+    std::map<GPUVAddr, GPUVAddr> sparse_regions;
+    // Publish catalog emptiness under guard so empty lookups can avoid the mutex.
+    std::atomic<bool> has_sparse_regions{};
+    std::atomic<u64> mapping_generation{};
     Common::VirtualBuffer<u32> big_page_table_dev;
 
     std::vector<u64> big_page_continuous;

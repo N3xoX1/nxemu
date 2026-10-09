@@ -113,6 +113,9 @@ struct RuntimeInfo {
     // Vulkan requires fragment outputs to match the attachment scalar type.
     // Float remains the default for other backends.
     std::array<AttributeType, 8> color_output_types{};
+
+    /// The first render target blends with a second source color taken from color output 1
+    bool dual_source_blend{};
 };
 
 } // namespace Shader

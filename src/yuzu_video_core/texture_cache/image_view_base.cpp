@@ -16,15 +16,21 @@ namespace VideoCommon {
 
 ImageViewBase::ImageViewBase(const ImageViewInfo& info, const ImageInfo& image_info,
                              ImageId image_id_, GPUVAddr addr)
-    : image_id{image_id_}, gpu_addr{addr}, format{info.format}, type{info.type}, range{info.range},
-      size{
-          .width = std::max(image_info.size.width >> range.base.level, 1u),
-          .height = std::max(image_info.size.height >> range.base.level, 1u),
-          .depth = std::max(image_info.size.depth >> range.base.level, 1u),
-      } {
+    : image_id{image_id_}, gpu_addr{addr}, format{info.format}, type{info.type},
+      range{info.range},
+      size{} {
     ASSERT_MSG(VideoCore::Surface::IsViewCompatible(image_info.format, info.format, false, true),
                "Image view format {} is incompatible with image format {}", info.format,
                image_info.format);
+    // Clamp before shifting so malformed internal views cannot cause an invalid shift.
+    range.base.level = std::clamp(range.base.level, 0, std::max(image_info.resources.levels - 1, 0));
+    size = Extent3D{
+        .width = std::max(image_info.size.width >> range.base.level, 1u),
+        .height = std::max(image_info.size.height >> range.base.level, 1u),
+        .depth = std::max(image_info.size.depth >> range.base.level, 1u),
+    };
+    range.extent.levels =
+        std::clamp(range.extent.levels, 1, std::max(image_info.resources.levels - range.base.level, 1));
     if (image_info.forced_flushed) {
         flags |= ImageViewFlagBits::PreemtiveDownload;
     }

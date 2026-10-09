@@ -299,7 +299,7 @@ void RasterizerOpenGL::Draw(bool is_indexed, u32 instance_count) {
     });
 }
 
-void RasterizerOpenGL::DrawIndirect() {
+bool RasterizerOpenGL::DrawIndirect() {
     const auto& params = maxwell3d->draw_manager->GetIndirectParams();
     buffer_cache.SetDrawIndirect(&params);
     PrepareDraw(params.is_indexed, [this, &params](GLenum primitive_mode) {
@@ -344,6 +344,7 @@ void RasterizerOpenGL::DrawIndirect() {
         }
     });
     buffer_cache.SetDrawIndirect(nullptr);
+    return true;
 }
 
 void RasterizerOpenGL::DrawTexture() {

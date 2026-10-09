@@ -3,6 +3,7 @@
 
 #include <array>
 #include <vector>
+#include "nxemu-video/video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_video_core/dirty_flags.h"
@@ -82,11 +83,14 @@ public:
                 0, 0x640, Maxwell3D::HLEReplacementAttributeType::BaseInstance);
         }
 
-        maxwell3d.draw_manager->DrawArrayIndirect(topology);
+        const bool is_drawn = maxwell3d.draw_manager->DrawArrayIndirect(topology);
 
         if constexpr (extended) {
             maxwell3d.engine_state = Maxwell3D::EngineHint::None;
             maxwell3d.replace_table.clear();
+        }
+        if (!is_drawn) {
+            Fallback(parameters);
         }
     }
 
@@ -171,13 +175,16 @@ public:
         params.max_draw_counts = 1;
         params.stride = 0;
         maxwell3d.dirty.flags[VideoCommon::Dirty::IndexBuffer] = true;
-        maxwell3d.draw_manager->DrawIndexedIndirect(topology, 0, estimate);
+        const bool is_drawn = maxwell3d.draw_manager->DrawIndexedIndirect(topology, 0, estimate);
         maxwell3d.regs.vertex_id_base = 0x0;
         maxwell3d.regs.global_base_vertex_index = 0x0;
         maxwell3d.regs.global_base_instance_index = 0x0;
         if constexpr (extended) {
             maxwell3d.engine_state = Maxwell3D::EngineHint::None;
             maxwell3d.replace_table.clear();
+        }
+        if (!is_drawn) {
+            Fallback(parameters);
         }
     }
 
@@ -255,7 +262,7 @@ public:
         const u32 indirect_words = 5 + padding;
         const u32 stride = indirect_words * sizeof(u32);
         const std::size_t draw_count = end_indirect - start_indirect;
-        const u32 estimate = static_cast<u32>(maxwell3d.EstimateIndexBufferSize());
+        const u32 estimate = IndexCount(parameters, indirect_words, draw_count);
         maxwell3d.dirty.flags[VideoCommon::Dirty::IndexBuffer] = true;
         auto& params = maxwell3d.draw_manager->GetIndirectParams();
         params.is_byte_count = false;
@@ -274,12 +281,39 @@ public:
             0, 0x644, Maxwell3D::HLEReplacementAttributeType::BaseInstance);
         maxwell3d.SetHLEReplacementAttributeType(0, 0x648,
                                                  Maxwell3D::HLEReplacementAttributeType::DrawID);
-        maxwell3d.draw_manager->DrawIndexedIndirect(topology, 0, estimate);
+        const bool is_drawn = maxwell3d.draw_manager->DrawIndexedIndirect(topology, 0, estimate);
         maxwell3d.engine_state = Maxwell3D::EngineHint::None;
         maxwell3d.replace_table.clear();
+        if (!is_drawn) {
+            Fallback(parameters);
+        }
     }
 
 private:
+    /// Number of indices the draws can read from the start of the index buffer
+    u32 IndexCount(const std::vector<u32>& parameters, u32 indirect_words, std::size_t draw_count) {
+        // The draws are parameters of the macro, when the guest wrote them they tell how far
+        // the indices go, the size of the vertex buffers tells nothing about it
+        static constexpr std::size_t FIRST_DRAW = 5;
+        u64 exact{};
+        bool is_complete{true};
+        for (std::size_t draw = 0; draw < draw_count; ++draw) {
+            const std::size_t base = FIRST_DRAW + draw * indirect_words;
+            if (base + 2 >= parameters.size()) {
+                is_complete = false;
+                break;
+            }
+            exact = std::max(exact, u64{parameters[base]} + parameters[base + 2]);
+        }
+        const u64 limit = maxwell3d.IndexBufferLayoutSize();
+        const u64 clamped = std::min(exact, limit);
+        if (is_complete && Settings::IsGPULevelHigh() && !maxwell3d.AnyParametersDirty()) {
+            return static_cast<u32>(clamped);
+        }
+        // The draws may have been written by the GPU, the parameters can't be trusted
+        return static_cast<u32>(std::max<u64>(clamped, maxwell3d.EstimateIndexBufferSize()));
+    }
+
     void Fallback(const std::vector<u32>& parameters) {
         SCOPE_EXIT {
             // Clean everything.

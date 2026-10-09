@@ -99,6 +99,7 @@ void BufferCache<P>::TickFrame() {
     }
     ++frame_tick;
     delayed_destruction_ring.Tick();
+    RemoveUnusedSparseBuffers();
 
     for (auto& buffer : async_buffers_death_ring) {
         runtime.FreeDeferredStagingBuffer(buffer);
@@ -234,6 +235,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     src_buffer.MarkUsage(copy.src_offset, copy.size);
     dest_buffer.MarkUsage(copy.dst_offset, copy.size);
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
+    MarkBufferContentChanged(dest_buffer);
     if (has_new_downloads) {
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
@@ -262,6 +264,7 @@ bool BufferCache<P>::DMAClear(GPUVAddr dst_address, u64 amount, u32 value) {
     Buffer& dest_buffer = slot_buffers[buffer];
     const u32 offset = dest_buffer.Offset(*cpu_dst_address);
     runtime.ClearBuffer(dest_buffer, offset, size, value);
+    MarkBufferContentChanged(dest_buffer);
     dest_buffer.MarkUsage(offset, size);
     return true;
 }
@@ -398,7 +401,15 @@ std::tuple<typename P::Buffer*, u32, u32> BufferCache<P>::VertexBufferBinding(u3
 template <class P>
 std::tuple<typename P::Buffer*, u32, u32> BufferCache<P>::IndexBufferBinding() {
     const Binding& binding = channel_state->index_buffer;
-    if (binding.buffer_id == NULL_BUFFER_ID || binding.size == 0) {
+    if (binding.size == 0) {
+        return {nullptr, 0, 0};
+    }
+    if (channel_state->is_index_buffer_sparse) {
+        const SparseBinding sparse =
+            SynchronizeSparseBuffer(channel_state->index_buffer_sparse_gpu_addr, binding.size);
+        return {&slot_buffers[sparse.buffer_id], sparse.offset, sparse.size};
+    }
+    if (binding.buffer_id == NULL_BUFFER_ID) {
         return {nullptr, 0, 0};
     }
     Buffer& buffer = slot_buffers[binding.buffer_id];
@@ -711,6 +722,22 @@ bool BufferCache<P>::IsRegionCpuModified(DAddr addr, size_t size) {
 
 template <class P>
 void BufferCache<P>::BindHostIndexBuffer() {
+    if (channel_state->is_index_buffer_sparse) {
+        const SparseBinding sparse = SynchronizeSparseBuffer(
+            channel_state->index_buffer_sparse_gpu_addr, channel_state->index_buffer.size);
+        Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
+        const auto& sparse_draw = maxwell3d->draw_manager->GetDrawState();
+        if constexpr (HAS_FULL_INDEX_AND_PRIMITIVE_SUPPORT) {
+            const u32 first_offset = sparse.offset + sparse_draw.index_buffer.first *
+                                                         sparse_draw.index_buffer.FormatSizeInBytes();
+            runtime.BindIndexBuffer(sparse_buffer, first_offset, sparse.size);
+        } else {
+            runtime.BindIndexBuffer(sparse_draw.topology, sparse_draw.index_buffer.format,
+                                    sparse_draw.index_buffer.first, sparse_draw.index_buffer.count,
+                                    sparse_buffer, sparse.offset, sparse.size);
+        }
+        return;
+    }
     Buffer& buffer = slot_buffers[channel_state->index_buffer.buffer_id];
     TouchBuffer(buffer, channel_state->index_buffer.buffer_id);
     const u32 offset = buffer.Offset(channel_state->index_buffer.device_addr);
@@ -891,6 +918,19 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
     u32 binding_index = 0;
     ForEachEnabledBit(channel_state->enabled_storage_buffers[stage], [&](u32 index) {
         const Binding& binding = channel_state->storage_buffers[stage][index];
+        if (binding.is_sparse) {
+            const SparseBinding sparse =
+                SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
+            if constexpr (NEEDS_BIND_STORAGE_INDEX) {
+                runtime.BindStorageBuffer(stage, binding_index, sparse_buffer, sparse.offset,
+                                          sparse.size, false);
+                ++binding_index;
+            } else {
+                runtime.BindStorageBuffer(sparse_buffer, sparse.offset, sparse.size, false);
+            }
+            return;
+        }
         Buffer& buffer = slot_buffers[binding.buffer_id];
         TouchBuffer(buffer, binding.buffer_id);
         const u32 size = binding.size;
@@ -917,6 +957,13 @@ template <class P>
 void BufferCache<P>::BindHostGraphicsTextureBuffers(size_t stage) {
     ForEachEnabledBit(channel_state->enabled_texture_buffers[stage], [&](u32 index) {
         const TextureBufferBinding& binding = channel_state->texture_buffers[stage][index];
+        if (binding.is_sparse) {
+            const SparseBinding sparse =
+                SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            runtime.BindTextureBuffer(slot_buffers[sparse.buffer_id], sparse.offset, sparse.size,
+                                      binding.format);
+            return;
+        }
         Buffer& buffer = slot_buffers[binding.buffer_id];
         const u32 size = binding.size;
         SynchronizeBuffer(buffer, binding.device_addr, size);
@@ -1003,6 +1050,19 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
     u32 binding_index = 0;
     ForEachEnabledBit(channel_state->enabled_compute_storage_buffers, [&](u32 index) {
         const Binding& binding = channel_state->compute_storage_buffers[index];
+        if (binding.is_sparse) {
+            const SparseBinding sparse =
+                SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
+            if constexpr (NEEDS_BIND_STORAGE_INDEX) {
+                runtime.BindComputeStorageBuffer(binding_index, sparse_buffer, sparse.offset,
+                                                 sparse.size, false);
+                ++binding_index;
+            } else {
+                runtime.BindStorageBuffer(sparse_buffer, sparse.offset, sparse.size, false);
+            }
+            return;
+        }
         Buffer& buffer = slot_buffers[binding.buffer_id];
         TouchBuffer(buffer, binding.buffer_id);
         const u32 size = binding.size;
@@ -1030,6 +1090,13 @@ template <class P>
 void BufferCache<P>::BindHostComputeTextureBuffers() {
     ForEachEnabledBit(channel_state->enabled_compute_texture_buffers, [&](u32 index) {
         const TextureBufferBinding& binding = channel_state->compute_texture_buffers[index];
+        if (binding.is_sparse) {
+            const SparseBinding sparse =
+                SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            runtime.BindTextureBuffer(slot_buffers[sparse.buffer_id], sparse.offset, sparse.size,
+                                      binding.format);
+            return;
+        }
         Buffer& buffer = slot_buffers[binding.buffer_id];
         const u32 size = binding.size;
         SynchronizeBuffer(buffer, binding.device_addr, size);
@@ -1094,6 +1161,7 @@ void BufferCache<P>::UpdateIndexBuffer() {
         return;
     }
     flags[Dirty::IndexBuffer] = false;
+    channel_state->is_index_buffer_sparse = false;
     if (!draw_state.inline_index_draw_indexes.empty()) [[unlikely]] {
         auto inline_index_size = static_cast<u32>(draw_state.inline_index_draw_indexes.size());
         u32 buffer_size = Common::AlignUp(inline_index_size, CACHING_PAGESIZE);
@@ -1121,6 +1189,17 @@ void BufferCache<P>::UpdateIndexBuffer() {
     const u32 size = std::min(address_size, draw_size);
     if (size == 0 || !device_addr) {
         channel_state->index_buffer = NULL_BINDING;
+        return;
+    }
+    if (!gpu_memory->IsContinuousRange(gpu_addr_begin, size)) {
+        UpdateSparseBuffer(gpu_addr_begin, size);
+        channel_state->is_index_buffer_sparse = true;
+        channel_state->index_buffer_sparse_gpu_addr = gpu_addr_begin;
+        channel_state->index_buffer = Binding{
+            .device_addr = *device_addr,
+            .size = size,
+            .buffer_id = BufferId{},
+        };
         return;
     }
     channel_state->index_buffer = Binding{
@@ -1214,6 +1293,10 @@ void BufferCache<P>::UpdateStorageBuffers(size_t stage) {
     ForEachEnabledBit(channel_state->enabled_storage_buffers[stage], [&](u32 index) {
         // Resolve buffer
         Binding& binding = channel_state->storage_buffers[stage][index];
+        if (binding.is_sparse) {
+            UpdateSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            return;
+        }
         const BufferId buffer_id = FindBuffer(binding.device_addr, binding.size);
         binding.buffer_id = buffer_id;
     });
@@ -1222,7 +1305,12 @@ void BufferCache<P>::UpdateStorageBuffers(size_t stage) {
 template <class P>
 void BufferCache<P>::UpdateTextureBuffers(size_t stage) {
     ForEachEnabledBit(channel_state->enabled_texture_buffers[stage], [&](u32 index) {
-        Binding& binding = channel_state->texture_buffers[stage][index];
+        TextureBufferBinding& binding = channel_state->texture_buffers[stage][index];
+        if (binding.is_sparse && ((channel_state->written_texture_buffers[stage] >> index) & 1) == 0) {
+            UpdateSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            return;
+        }
+        binding.is_sparse = false;
         binding.buffer_id = FindBuffer(binding.device_addr, binding.size);
     });
 }
@@ -1278,6 +1366,10 @@ void BufferCache<P>::UpdateComputeStorageBuffers() {
     ForEachEnabledBit(channel_state->enabled_compute_storage_buffers, [&](u32 index) {
         // Resolve buffer
         Binding& binding = channel_state->compute_storage_buffers[index];
+        if (binding.is_sparse) {
+            UpdateSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            return;
+        }
         binding.buffer_id = FindBuffer(binding.device_addr, binding.size);
     });
 }
@@ -1285,7 +1377,12 @@ void BufferCache<P>::UpdateComputeStorageBuffers() {
 template <class P>
 void BufferCache<P>::UpdateComputeTextureBuffers() {
     ForEachEnabledBit(channel_state->enabled_compute_texture_buffers, [&](u32 index) {
-        Binding& binding = channel_state->compute_texture_buffers[index];
+        TextureBufferBinding& binding = channel_state->compute_texture_buffers[index];
+        if (binding.is_sparse && ((channel_state->written_compute_texture_buffers >> index) & 1) == 0) {
+            UpdateSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            return;
+        }
+        binding.is_sparse = false;
         binding.buffer_id = FindBuffer(binding.device_addr, binding.size);
     });
 }
@@ -1295,6 +1392,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
+    MarkBufferContentChanged(slot_buffers[buffer_id]);
 }
 
 template <class P>
@@ -1423,6 +1521,7 @@ BufferId BufferCache<P>::CreateBuffer(DAddr device_addr, u32 wanted_size) {
     auto& new_buffer = slot_buffers[new_buffer_id];
     const size_t size_bytes = new_buffer.SizeBytes();
     runtime.ClearBuffer(new_buffer, 0, size_bytes, 0);
+    MarkBufferContentChanged(new_buffer);
     new_buffer.MarkUsage(0, size_bytes);
     for (const BufferId overlap_id : overlap.ids) {
         JoinOverlap(new_buffer_id, overlap_id, !overlap.has_stream_leap);
@@ -1477,6 +1576,7 @@ void BufferCache<P>::TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept {
 
 template <class P>
 bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size) {
+    // Keep ordinary uploads local; only sparse assembly needs the caller-visible copy list.
     boost::container::small_vector<BufferCopy, 4> copies;
     u64 total_size_bytes = 0;
     u64 largest_copy = 0;
@@ -1495,6 +1595,31 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
     }
     const std::span<BufferCopy> copies_span(copies.data(), copies.size());
     UploadMemory(buffer, total_size_bytes, largest_copy, copies_span);
+    MarkBufferContentChanged(buffer);
+    return false;
+}
+
+template <class P>
+bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size,
+                                       boost::container::small_vector<BufferCopy, 4>& copies) {
+    u64 total_size_bytes = 0;
+    u64 largest_copy = 0;
+    DAddr buffer_start = buffer.CpuAddr();
+    memory_tracker.ForEachUploadRange(device_addr, size, [&](u64 device_addr_out, u64 range_size) {
+        copies.push_back(BufferCopy{
+            .src_offset = total_size_bytes,
+            .dst_offset = device_addr_out - buffer_start,
+            .size = range_size,
+        });
+        total_size_bytes += range_size;
+        largest_copy = std::max(largest_copy, range_size);
+    });
+    if (total_size_bytes == 0) {
+        return true;
+    }
+    const std::span<BufferCopy> copies_span(copies.data(), copies.size());
+    UploadMemory(buffer, total_size_bytes, largest_copy, copies_span);
+    MarkBufferContentChanged(buffer);
     return false;
 }
 
@@ -1596,6 +1721,7 @@ void BufferCache<P>::InlineMemoryImplementation(DAddr dest_address, size_t copy_
     } else {
         buffer.ImmediateUpload(buffer.Offset(dest_address), inlined_buffer.first(copy_size));
     }
+    MarkBufferContentChanged(buffer);
 }
 
 template <class P>
@@ -1679,6 +1805,14 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
         channel_state->index_buffer.buffer_id = BufferId{};
         dirty_index = true;
     }
+    for (SparseBuffer& sparse : sparse_buffers) {
+        for (SparseBufferPart& part : sparse.parts) {
+            if (part.buffer_id == buffer_id) {
+                // It is found again before the part is read
+                part.buffer_id = BufferId{};
+            }
+        }
+    }
 
     for (u32 index = 0; index < channel_state->vertex_buffers.size(); index++) {
         auto& binding = channel_state->vertex_buffers[index];
@@ -1726,7 +1860,7 @@ template <class P>
 Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
                                              bool is_written) const {
     const GPUVAddr gpu_addr = gpu_memory->Read<u64>(ssbo_addr);
-    const auto size = [&]() {
+    const auto requested_size = [&]() {
         const bool is_nvn_cbuf = cbuf_index == 0;
         // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size.
         if (is_nvn_cbuf) {
@@ -1741,6 +1875,9 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         const u32 memory_layout_size = static_cast<u32>(gpu_memory->GetMemoryLayoutSize(gpu_addr));
         return std::min(memory_layout_size, static_cast<u32>(8_MiB));
     }();
+    // Guests can declare a size that runs past the memory backing the buffer. Bindings are linear
+    // in device memory, so stop where the mapping stops being contiguous.
+    const u32 size = static_cast<u32>(gpu_memory->MaxContinuousRange(gpu_addr, requested_size));
     // Alignment only applies to the offset of the buffer
     const u32 alignment = runtime.GetStorageBufferAlignment();
     const GPUVAddr aligned_gpu_addr = Common::AlignDown(gpu_addr, alignment);
@@ -1757,12 +1894,229 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
     // The end address used for size calculation does not need to be aligned
     const DAddr cpu_end = Common::AlignUp(*device_addr + size, Core::DEVICE_PAGESIZE);
 
-    const Binding binding{
+    Binding binding{
         .device_addr = *aligned_device_addr,
         .size = is_written ? aligned_size : static_cast<u32>(cpu_end - *aligned_device_addr),
         .buffer_id = BufferId{},
     };
+    if (size != requested_size && !is_written) {
+        // The buffer goes on in other parts of a sparse allocation, shaders address it from its
+        // start so it has to be assembled
+        if (const auto region = gpu_memory->GetSparseRegion(aligned_gpu_addr)) {
+            const u64 region_size = region->first + region->second - aligned_gpu_addr;
+            const u64 wanted_size = (gpu_addr - aligned_gpu_addr) + u64{requested_size};
+            binding.size = static_cast<u32>(std::min(region_size, wanted_size));
+            binding.sparse_gpu_addr = aligned_gpu_addr;
+            binding.is_sparse = true;
+        }
+    }
     return binding;
+}
+
+template <class P>
+typename BufferCache<P>::SparseBuffer& BufferCache<P>::FindSparseBuffer(GPUVAddr gpu_addr,
+                                                                       u32 size) {
+    const auto it = std::ranges::find_if(sparse_buffers, [&](const SparseBuffer& sparse) {
+        return sparse.gpu_memory == gpu_memory && sparse.gpu_addr <= gpu_addr &&
+               gpu_addr + size <= sparse.gpu_addr + sparse.size;
+    });
+    if (it != sparse_buffers.end()) {
+        return *it;
+    }
+    // Cover the whole sparse allocation, its ranges are bound with many sizes
+    GPUVAddr begin = gpu_addr;
+    u64 total_size = size;
+    if (const auto region = gpu_memory->GetSparseRegion(gpu_addr)) {
+        const GPUVAddr region_end = region->first + region->second;
+        if (gpu_addr + size <= region_end && region->second <= std::numeric_limits<u32>::max()) {
+            begin = region->first;
+            total_size = region->second;
+        }
+    }
+    return sparse_buffers.emplace_back(SparseBuffer{
+        .gpu_memory = gpu_memory,
+        .gpu_addr = begin,
+        .size = static_cast<u32>(total_size),
+        .capacity = 0,
+        .buffer_id = {},
+        .mapping_generation = ~u64{},
+        .frame_tick = frame_tick,
+        .parts = {},
+    });
+}
+
+template <class P>
+void BufferCache<P>::ResizeSparseBuffer(SparseBuffer& sparse, u32 capacity) {
+    if (sparse.buffer_id) {
+        delayed_destruction_ring.Push(std::move(slot_buffers[sparse.buffer_id]));
+        slot_buffers.erase(sparse.buffer_id);
+    }
+    sparse.buffer_id = slot_buffers.insert(runtime, DAddr{}, capacity);
+    sparse.capacity = capacity;
+    // What is not mapped reads as zero
+    runtime.ClearBuffer(slot_buffers[sparse.buffer_id], 0, capacity, 0);
+    for (SparseBufferPart& part : sparse.parts) {
+        part.content_version = 0;
+    }
+}
+
+template <class P>
+void BufferCache<P>::UpdateSparseBuffer(GPUVAddr gpu_addr, u32 size) {
+    // Host memory is committed in steps as the guest maps more of the range
+    static constexpr u64 CAPACITY_STEP = 16_MiB;
+
+    SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
+    sparse.frame_tick = frame_tick;
+
+    const u64 mapping_generation = gpu_memory->MappingGeneration();
+    if (sparse.mapping_generation != mapping_generation) {
+        sparse.mapping_generation = mapping_generation;
+        const auto ranges = gpu_memory->GetSubmappedRange(sparse.gpu_addr, sparse.size);
+        std::vector<SparseBufferPart> parts;
+        parts.reserve(ranges.size());
+        u64 extent = 0;
+        // GetSubmappedRange and parts are ordered by guest address. Match them in one pass.
+        auto old = sparse.parts.begin();
+        const auto clear_old_part = [&](const SparseBufferPart& part) {
+            if (sparse.buffer_id && part.offset < sparse.capacity) {
+                runtime.ClearBuffer(slot_buffers[sparse.buffer_id], part.offset,
+                                    std::min(part.size, sparse.capacity - part.offset), 0);
+            }
+        };
+        for (const auto& [part_addr, part_size] : ranges) {
+            const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(part_addr);
+            if (!device_addr || part_size == 0) {
+                continue;
+            }
+            SparseBufferPart part{
+                .device_addr = *device_addr,
+                .size = static_cast<u32>(part_size),
+                .offset = static_cast<u32>(part_addr - sparse.gpu_addr),
+                .buffer_id = {},
+                .content_version = 0,
+            };
+            while (old != sparse.parts.end() && old->offset < part.offset) {
+                clear_old_part(*old++);
+            }
+            if (old != sparse.parts.end() && old->offset == part.offset) {
+                if (old->device_addr == part.device_addr && old->size == part.size) {
+                    part.content_version = old->content_version;
+                    part.buffer_id = old->buffer_id;
+                } else {
+                    clear_old_part(*old);
+                }
+                ++old;
+            }
+            extent = std::max(extent, u64{part.offset} + part.size);
+            parts.push_back(part);
+        }
+        while (old != sparse.parts.end()) {
+            clear_old_part(*old++);
+        }
+        sparse.parts = std::move(parts);
+
+        const u64 capacity = std::min<u64>(
+            sparse.size, Common::AlignUp(std::max<u64>(extent, 1), CAPACITY_STEP));
+        if (capacity > sparse.capacity) {
+            ResizeSparseBuffer(sparse, static_cast<u32>(capacity));
+        }
+    }
+    for (SparseBufferPart& part : sparse.parts) {
+        if (!part.buffer_id) {
+            part.buffer_id = FindBuffer(part.device_addr, part.size);
+        }
+    }
+}
+
+template <class P>
+typename BufferCache<P>::SparseBinding BufferCache<P>::GetSparseBinding(GPUVAddr gpu_addr,
+                                                                       u32 size) {
+    const SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
+    const u32 offset = static_cast<u32>(gpu_addr - sparse.gpu_addr);
+    ASSERT(offset < sparse.capacity);
+    return SparseBinding{
+        .buffer_id = sparse.buffer_id,
+        .offset = offset,
+        .size = std::min(size, sparse.capacity - offset),
+    };
+}
+
+template <class P>
+typename BufferCache<P>::SparseBinding BufferCache<P>::SynchronizeSparseBuffer(GPUVAddr gpu_addr,
+                                                                              u32 size) {
+    const auto& cached = FindSparseBuffer(gpu_addr, size);
+    if (!cached.buffer_id || cached.mapping_generation != gpu_memory->MappingGeneration()) {
+        // Index bindings can survive a mapping change without any register becoming dirty.
+        UpdateSparseBuffer(gpu_addr, size);
+    }
+    SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
+    sparse.frame_tick = frame_tick;
+    // Finding the buffer of a part can delete the buffer of another one
+    while (std::ranges::any_of(sparse.parts, [](const SparseBufferPart& part) {
+        return !part.buffer_id;
+    })) {
+        for (SparseBufferPart& part : sparse.parts) {
+            if (!part.buffer_id) {
+                part.buffer_id = FindBuffer(part.device_addr, part.size);
+            }
+        }
+    }
+    Buffer& buffer = slot_buffers[sparse.buffer_id];
+    boost::container::small_vector<BufferCopy, 4> uploads;
+    boost::container::small_vector<BufferCopy, 4> copies;
+    for (SparseBufferPart& part : sparse.parts) {
+        Buffer& source = slot_buffers[part.buffer_id];
+        TouchBuffer(source, part.buffer_id);
+        // Anything but the uploads done here leaves the whole part to copy
+        const bool is_stale = source.content_version != part.content_version;
+        uploads.clear();
+        SynchronizeBuffer(source, part.device_addr, part.size, uploads);
+        part.content_version = source.content_version;
+
+        const u64 source_offset = source.Offset(part.device_addr);
+        copies.clear();
+        if (is_stale) {
+            copies.push_back(BufferCopy{
+                .src_offset = source_offset,
+                .dst_offset = part.offset,
+                .size = part.size,
+            });
+        } else {
+            for (const BufferCopy& upload : uploads) {
+                const u64 begin = std::max<u64>(upload.dst_offset, source_offset);
+                const u64 end =
+                    std::min<u64>(upload.dst_offset + upload.size, source_offset + part.size);
+                if (begin >= end) {
+                    continue;
+                }
+                copies.push_back(BufferCopy{
+                    .src_offset = begin,
+                    .dst_offset = part.offset + (begin - source_offset),
+                    .size = end - begin,
+                });
+            }
+        }
+        if (!copies.empty()) {
+            runtime.CopyBuffer(buffer, source, copies, true);
+        }
+    }
+    return GetSparseBinding(gpu_addr, size);
+}
+
+template <class P>
+void BufferCache<P>::RemoveUnusedSparseBuffers() {
+    static constexpr u64 TICKS_TO_REMOVE = 600;
+
+    std::erase_if(sparse_buffers, [this](SparseBuffer& sparse) {
+        if (sparse.frame_tick + TICKS_TO_REMOVE > frame_tick) {
+            return false;
+        }
+        if (sparse.buffer_id) {
+            delayed_destruction_ring.Push(std::move(slot_buffers[sparse.buffer_id]));
+            slot_buffers.erase(sparse.buffer_id);
+        }
+        return true;
+    });
 }
 
 template <class P>
@@ -1780,6 +2134,10 @@ TextureBufferBinding BufferCache<P>::GetTextureBufferBinding(GPUVAddr gpu_addr, 
         binding.size = size;
         binding.buffer_id = BufferId{};
         binding.format = format;
+        if (!gpu_memory->IsContinuousRange(gpu_addr, size)) {
+            binding.sparse_gpu_addr = gpu_addr;
+            binding.is_sparse = true;
+        }
     }
     return binding;
 }

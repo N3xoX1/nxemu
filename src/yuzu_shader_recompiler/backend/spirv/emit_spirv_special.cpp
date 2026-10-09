@@ -138,7 +138,11 @@ void EmitEmitVertex(EmitContext& ctx, const IR::Value& stream) {
         ConvertDepthMode(ctx);
     }
     if (!ctx.profile.support_geometry_streams) {
-        throw NotImplementedException("Geometry streams");
+        // The non-stream instructions are exactly stream 0 and need no GeometryStreams capability
+        if (!stream.IsImmediate() || stream.U32() != 0) {
+            throw NotImplementedException("Geometry streams");
+        }
+        ctx.OpEmitVertex();
     } else if (stream.IsImmediate()) {
         ctx.OpEmitStreamVertex(ctx.Def(stream));
     } else {
@@ -151,7 +155,10 @@ void EmitEmitVertex(EmitContext& ctx, const IR::Value& stream) {
 
 void EmitEndPrimitive(EmitContext& ctx, const IR::Value& stream) {
     if (!ctx.profile.support_geometry_streams) {
-        throw NotImplementedException("Geometry streams");
+        if (!stream.IsImmediate() || stream.U32() != 0) {
+            throw NotImplementedException("Geometry streams");
+        }
+        ctx.OpEndPrimitive();
     } else if (stream.IsImmediate()) {
         ctx.OpEndStreamPrimitive(ctx.Def(stream));
     } else {

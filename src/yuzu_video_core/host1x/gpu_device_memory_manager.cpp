@@ -247,7 +247,7 @@ void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size
     IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
-    std::scoped_lock lk(mapping_guard);
+    std::unique_lock lk(mapping_guard);
     for (size_t i = 0; i < num_pages; i++)
     {
         const VAddr new_vaddress = virtual_address + i * DEVICE_PAGESIZE;
@@ -278,6 +278,13 @@ void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size
     if (track)
     {
         TrackContinuityImpl(address, virtual_address, size, asid);
+    }
+    lk.unlock();
+    if (device_inter != nullptr)
+    {
+        // The caches may have synchronized these pages while nothing backed them. Their contents
+        // are unknown and the guest pages were never write protected, start over.
+        device_inter->InvalidateRegion(address, size);
     }
 }
 
@@ -612,6 +619,8 @@ void DeviceMemoryManager<Traits>::UpdatePagesCachedCount(DAddr addr, size_t size
 
         if (vpage == 0) [[unlikely]]
         {
+            // Keep counting pages without a backing, they are balanced once the page is mapped
+            count.fetch_add(static_cast<CounterType>(delta), std::memory_order_release);
             release_pending();
             continue;
         }

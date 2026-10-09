@@ -463,13 +463,18 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     };
 }
 
+std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block, IR::Inst& inst) {
+    std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
+    if (!track_addr) {
+        track_addr = TrackLocalLoad(inst.Arg(0), block, env);
+    }
+    return track_addr;
+}
+
 TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
-        std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
-        if (!track_addr) {
-            track_addr = TrackLocalLoad(inst.Arg(0), block, env);
-        }
+        const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst)};
         if (!track_addr) {
             throw NotImplementedException("Failed to track bindless texture constant buffer");
         }
