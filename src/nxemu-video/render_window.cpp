@@ -306,19 +306,32 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
     m_renderWindow(renderWindow),
     m_firstFrame(false)
 {
-#if defined(_WIN32)
-    window_info.type = Core::Frontend::WindowSystemType::Windows;
-#elif defined(__ANDROID__)
-    window_info.type = Core::Frontend::WindowSystemType::Android;
-#elif defined(__APPLE__)
-    window_info.type = Core::Frontend::WindowSystemType::Cocoa;
-#else
-    window_info.type = Core::Frontend::WindowSystemType::Headless;
-#endif
+    window_info.display_connection = renderWindow.DisplayConnection();
     window_info.render_surface = renderWindow.RenderSurface();
-#ifdef __APPLE__
-    window_info.render_surface_scale = renderWindow.PixelRatio();
-#endif
+    window_info.render_surface_scale = renderWindow.WindowSystem() == RenderWindowSystem::Cocoa ? renderWindow.PixelRatio() : 1.0f;
+    switch (renderWindow.WindowSystem())
+    {
+    case RenderWindowSystem::Windows:
+        window_info.type = Core::Frontend::WindowSystemType::Windows;
+        break;
+    case RenderWindowSystem::X11:
+        window_info.type = Core::Frontend::WindowSystemType::X11;
+        break;
+    case RenderWindowSystem::Wayland:
+        window_info.type = Core::Frontend::WindowSystemType::Wayland;
+        break;
+    case RenderWindowSystem::Cocoa:
+        window_info.type = Core::Frontend::WindowSystemType::Cocoa;
+        break;
+    case RenderWindowSystem::Android:
+        window_info.type = Core::Frontend::WindowSystemType::Android;
+        break;
+    case RenderWindowSystem::Default:
+        window_info.type = Core::Frontend::WindowSystemType::Headless;
+        window_info.display_connection = nullptr;
+        window_info.render_surface = nullptr;
+        break;
+    }
     NotifyClientAreaSizeChanged({0, 0});
     UpdateCurrentFramebufferLayout(640, 480);
 }

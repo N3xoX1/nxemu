@@ -2077,6 +2077,22 @@ void * SciterMainWindow::RenderSurface() const
 #endif
 }
 
+void * SciterMainWindow::DisplayConnection() const
+{
+    return nullptr;
+}
+
+RenderWindowSystem SciterMainWindow::WindowSystem() const
+{
+#ifdef _WIN32
+    return RenderWindowSystem::Windows;
+#elif defined(__APPLE__)
+    return RenderWindowSystem::Cocoa;
+#else
+    return RenderWindowSystem::Default;
+#endif
+}
+
 float SciterMainWindow::PixelRatio() const
 {
 #ifdef _WIN32
