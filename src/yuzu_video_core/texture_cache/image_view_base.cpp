@@ -25,6 +25,17 @@ ImageViewBase::ImageViewBase(const ImageViewInfo& info, const ImageInfo& image_i
     ASSERT_MSG(VideoCore::Surface::IsViewCompatible(image_info.format, info.format, false, true),
                "Image view format {} is incompatible with image format {}", info.format,
                image_info.format);
+    // Keep the view inside the levels the image really has
+    if (range.base.level >= image_info.resources.levels) {
+        range.base.level = std::max(image_info.resources.levels - 1, 0);
+        size = Extent3D{
+            .width = std::max(image_info.size.width >> range.base.level, 1u),
+            .height = std::max(image_info.size.height >> range.base.level, 1u),
+            .depth = std::max(image_info.size.depth >> range.base.level, 1u),
+        };
+    }
+    range.extent.levels =
+        std::clamp(range.extent.levels, 1, std::max(image_info.resources.levels - range.base.level, 1));
     if (image_info.forced_flushed) {
         flags |= ImageViewFlagBits::PreemtiveDownload;
     }

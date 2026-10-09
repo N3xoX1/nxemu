@@ -295,6 +295,21 @@ u32 Maxwell3D::GetMaxCurrentVertices()
     return num_vertices;
 }
 
+size_t Maxwell3D::IndexBufferLayoutSize()
+{
+    const GPUVAddr start_address = regs.index_buffer.StartAddress();
+    const GPUVAddr end_address = regs.index_buffer.EndAddress();
+    const size_t byte_size = regs.index_buffer.FormatSizeInBytes();
+    const size_t address_size = static_cast<size_t>(end_address - start_address);
+    // The pages of a sparse allocation are mapped one part at a time, the indices can be anywhere
+    // in the allocation
+    if (const auto sparse = memory_manager.GetSparseRegion(start_address)) {
+        const size_t sparse_size = sparse->first + sparse->second - start_address;
+        return std::min(sparse_size, address_size) / byte_size;
+    }
+    return std::min(memory_manager.GetMemoryLayoutSize(start_address), address_size) / byte_size;
+}
+
 size_t Maxwell3D::EstimateIndexBufferSize()
 {
     GPUVAddr start_address = regs.index_buffer.StartAddress();
@@ -307,6 +322,9 @@ size_t Maxwell3D::EstimateIndexBufferSize()
     const size_t cap{GetMaxCurrentVertices() * 4 * byte_size};
     const size_t lower_cap =
         std::min<size_t>(static_cast<size_t>(end_address - start_address), cap);
+    if (memory_manager.GetSparseRegion(start_address)) {
+        return IndexBufferLayoutSize();
+    }
     return std::min<size_t>(
         memory_manager.GetMemoryLayoutSize(start_address, byte_size * max_sizes[log2_byte_size]) /
             byte_size,

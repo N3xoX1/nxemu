@@ -3121,6 +3121,9 @@ public:
 
     size_t EstimateIndexBufferSize();
 
+    /// Number of indices the memory the index buffer starts in can hold
+    size_t IndexBufferLayoutSize();
+
     /// Handles a write to the CLEAR_BUFFERS register.
     void ProcessClearBuffers(u32 layer_count);
 

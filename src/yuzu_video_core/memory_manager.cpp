@@ -265,6 +265,7 @@ void MemoryManager::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 GPUVAddr MemoryManager::Map(GPUVAddr gpu_addr, DAddr dev_addr, std::size_t size, PTEKind kind,
                             bool is_big_pages)
 {
+    mapping_generation.fetch_add(1, std::memory_order_relaxed);
     NotifyMappingChanged(gpu_addr, dev_addr, size, EntryType::Mapped, kind, is_big_pages);
     if (is_big_pages) [[likely]]
     {
@@ -274,8 +275,40 @@ GPUVAddr MemoryManager::Map(GPUVAddr gpu_addr, DAddr dev_addr, std::size_t size,
     return PageTableOp<EntryType::Mapped>(gpu_addr, dev_addr, size, kind);
 }
 
+std::optional<std::pair<GPUVAddr, std::size_t>> MemoryManager::GetSparseRegion(
+    GPUVAddr gpu_addr) const
+{
+    std::unique_lock<std::mutex> lock(guard);
+    auto it = sparse_regions.upper_bound(gpu_addr);
+    if (it == sparse_regions.begin()) {
+        return std::nullopt;
+    }
+    --it;
+    if (gpu_addr >= it->second) {
+        return std::nullopt;
+    }
+    return std::make_pair(it->first, static_cast<std::size_t>(it->second - it->first));
+}
+
 GPUVAddr MemoryManager::MapSparse(GPUVAddr gpu_addr, std::size_t size, bool is_big_pages)
 {
+    {
+        std::unique_lock<std::mutex> lock(guard);
+        GPUVAddr begin = gpu_addr;
+        GPUVAddr end = gpu_addr + size;
+        // Merge with the allocations this one overlaps
+        auto it = sparse_regions.upper_bound(begin);
+        if (it != sparse_regions.begin() && std::prev(it)->second > begin) {
+            --it;
+        }
+        while (it != sparse_regions.end() && it->first < end) {
+            begin = std::min(begin, it->first);
+            end = std::max(end, it->second);
+            it = sparse_regions.erase(it);
+        }
+        sparse_regions.emplace(begin, end);
+    }
+    mapping_generation.fetch_add(1, std::memory_order_relaxed);
     NotifyMappingChanged(gpu_addr, 0, size, EntryType::Reserved, PTEKind::INVALID, is_big_pages);
     if (is_big_pages) [[likely]]
     {
@@ -291,6 +324,27 @@ void MemoryManager::Unmap(GPUVAddr gpu_addr, std::size_t size)
     {
         return;
     }
+    {
+        std::unique_lock<std::mutex> lock(guard);
+        const GPUVAddr unmap_end = gpu_addr + size;
+        auto it = sparse_regions.upper_bound(gpu_addr);
+        if (it != sparse_regions.begin() && std::prev(it)->second > gpu_addr) {
+            --it;
+        }
+        while (it != sparse_regions.end() && it->first < unmap_end) {
+            const GPUVAddr begin = it->first;
+            const GPUVAddr end = it->second;
+            it = sparse_regions.erase(it);
+            if (begin < gpu_addr) {
+                sparse_regions.emplace(begin, gpu_addr);
+            }
+            if (end > unmap_end) {
+                it = sparse_regions.emplace(unmap_end, end).first;
+                ++it;
+            }
+        }
+    }
+    mapping_generation.fetch_add(1, std::memory_order_relaxed);
     NotifyMappingChanged(gpu_addr, 0, size, EntryType::Free, PTEKind::INVALID, false);
     GetSubmappedRangeImpl<false>(gpu_addr, size, page_stash);
 

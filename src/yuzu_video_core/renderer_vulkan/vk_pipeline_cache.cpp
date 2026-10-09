@@ -229,6 +229,31 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
         info.alpha_test_func = MaxwellToCompareFunction(
             key.state.UnpackComparisonOp(key.state.alpha_test_func.Value()));
         info.alpha_test_reference = Common::BitCast<float>(key.state.alpha_test_ref);
+        if (!key.state.extended_dynamic_state_3_blend) {
+            const auto is_second_source{[](Maxwell::Blend::Factor factor) {
+                using Factor = Maxwell::Blend::Factor;
+                switch (factor) {
+                case Factor::Source1Color_D3D:
+                case Factor::OneMinusSource1Color_D3D:
+                case Factor::Source1Alpha_D3D:
+                case Factor::OneMinusSource1Alpha_D3D:
+                case Factor::Source1Color_GL:
+                case Factor::OneMinusSource1Color_GL:
+                case Factor::Source1Alpha_GL:
+                case Factor::OneMinusSource1Alpha_GL:
+                    return true;
+                default:
+                    return false;
+                }
+            }};
+            const auto& blend{key.state.attachments[0]};
+            info.dual_source_blend =
+                blend.enable != 0 &&
+                (is_second_source(blend.SourceRGBFactor()) ||
+                 is_second_source(blend.DestRGBFactor()) ||
+                 is_second_source(blend.SourceAlphaFactor()) ||
+                 is_second_source(blend.DestAlphaFactor()));
+        }
         // Vulkan requires integer fragment outputs for integer color attachments.
         for (size_t index = 0; index < info.color_output_types.size(); ++index) {
             const auto format =

@@ -388,13 +388,18 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     };
 }
 
+std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block, IR::Inst& inst) {
+    std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
+    if (!track_addr) {
+        track_addr = TrackLocalLoad(inst.Arg(0), block, env);
+    }
+    return track_addr;
+}
+
 TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
-        std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
-        if (!track_addr) {
-            track_addr = TrackLocalLoad(inst.Arg(0), block, env);
-        }
+        const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst)};
         if (!track_addr) {
             throw NotImplementedException("Failed to track bindless texture constant buffer");
         }
@@ -591,6 +596,14 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
     for (IR::Block* const block : program.post_order_blocks) {
         for (IR::Inst& inst : block->Instructions()) {
             if (!IsTextureInstruction(inst)) {
+                continue;
+            }
+            if (inst.GetOpcode() == IR::Opcode::BindlessImageWrite &&
+                !TrackBindless(env, block, inst)) {
+                // The image is only known at run time. Drop the write and keep the rest of the
+                // shader instead of rejecting the whole program.
+                LOG_WARNING(Shader, "Dropping image write with an untracked bindless handle");
+                inst.Invalidate();
                 continue;
             }
             to_replace.push_back(MakeInst(env, block, inst));

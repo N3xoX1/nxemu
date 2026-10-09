@@ -41,7 +41,10 @@ public:
     virtual void Draw(bool is_indexed, u32 instance_count) = 0;
 
     /// Dispatches an indirect draw invocation
-    virtual void DrawIndirect() {}
+    /// Returns false when the host needs the parameters of the draw on the CPU, nothing is drawn
+    virtual bool DrawIndirect() {
+        return true;
+    }
 
     /// Dispatches an draw texture invocation
     virtual void DrawTexture() = 0;

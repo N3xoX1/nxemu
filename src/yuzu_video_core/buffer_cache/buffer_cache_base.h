@@ -75,6 +75,10 @@ struct Binding {
     DAddr device_addr{};
     u32 size{};
     BufferId buffer_id;
+    /// Guest address of a range that is not continuous in device memory, it is bound from the
+    /// buffer assembled from its parts
+    GPUVAddr sparse_gpu_addr{};
+    bool is_sparse{};
 };
 
 struct TextureBufferBinding : Binding {
@@ -105,6 +109,10 @@ public:
     BufferCacheChannelInfo& operator=(const BufferCacheChannelInfo&) = delete;
 
     Binding index_buffer;
+    /// Set when the index buffer is not continuous in device memory, it is then bound from the
+    /// buffer assembled from its parts
+    bool is_index_buffer_sparse = false;
+    GPUVAddr index_buffer_sparse_gpu_addr = 0;
     std::array<Binding, NUM_VERTEX_BUFFERS> vertex_buffers;
     std::array<std::array<Binding, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES> uniform_buffers;
     std::array<std::array<Binding, NUM_STORAGE_BUFFERS>, NUM_STAGES> storage_buffers;
@@ -422,6 +430,10 @@ private:
 
     bool SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size);
 
+    /// @param uploads Receives the ranges of the buffer that were uploaded
+    bool SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size,
+                           boost::container::small_vector<BufferCopy, 4>& uploads);
+
     void UploadMemory(Buffer& buffer, u64 total_size_bytes, u64 largest_copy,
                       std::span<BufferCopy> copies);
 
@@ -463,6 +475,59 @@ private:
     u32 last_index_count = 0;
 
     MemoryTracker memory_tracker;
+
+    /// Part of a guest range that is continuous in device memory
+    struct SparseBufferPart {
+        DAddr device_addr{};
+        u32 size{};
+        u32 offset{};
+        BufferId buffer_id;
+        u64 content_version{};
+    };
+
+    /// Host buffer assembled from the parts of a guest range that is not continuous in device
+    /// memory. It is not registered, only the buffers of its parts track guest memory.
+    struct SparseBuffer {
+        const Tegra::MemoryManager* gpu_memory{};
+        GPUVAddr gpu_addr{};
+        u32 size{};
+        /// Size of the host buffer, it stops after the last part
+        u32 capacity{};
+        BufferId buffer_id;
+        /// Mapping generation of the address space the parts were found at
+        u64 mapping_generation{};
+        u64 frame_tick{};
+        std::vector<SparseBufferPart> parts;
+    };
+
+    struct SparseBinding {
+        BufferId buffer_id;
+        u32 offset{};
+        u32 size{};
+    };
+
+    [[nodiscard]] SparseBuffer& FindSparseBuffer(GPUVAddr gpu_addr, u32 size);
+
+    /// Finds the parts of the buffer holding a guest range and their buffers
+    void UpdateSparseBuffer(GPUVAddr gpu_addr, u32 size);
+
+    /// Where a guest range is in the buffer assembled for it
+    [[nodiscard]] SparseBinding GetSparseBinding(GPUVAddr gpu_addr, u32 size);
+
+    /// Brings the buffer holding a guest range up to date with its parts
+    SparseBinding SynchronizeSparseBuffer(GPUVAddr gpu_addr, u32 size);
+
+    void ResizeSparseBuffer(SparseBuffer& sparse, u32 capacity);
+
+    void RemoveUnusedSparseBuffers();
+
+    void MarkBufferContentChanged(Buffer& buffer) noexcept {
+        buffer.content_version = ++content_version;
+    }
+
+    std::vector<SparseBuffer> sparse_buffers;
+    u64 content_version = 0;
+
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
     Common::RangeSet<DAddr> gpu_modified_ranges;
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;

@@ -72,9 +72,10 @@ public:
     void DrawIndex(PrimitiveTopology topology, u32 index_first, u32 index_count, u32 base_index,
                    u32 base_instance, u32 num_instances);
 
-    void DrawArrayIndirect(PrimitiveTopology topology);
+    /// Indirect draws return false when the host needs their parameters on the CPU
+    bool DrawArrayIndirect(PrimitiveTopology topology);
 
-    void DrawIndexedIndirect(PrimitiveTopology topology, u32 index_first, u32 index_count);
+    bool DrawIndexedIndirect(PrimitiveTopology topology, u32 index_first, u32 index_count);
 
     const State& GetDrawState() const {
         return draw_state;
@@ -107,7 +108,7 @@ private:
 
     void ProcessDraw(bool draw_indexed, u32 instance_count);
 
-    void ProcessDrawIndirect();
+    bool ProcessDrawIndirect();
 
     Maxwell3D* maxwell3d{};
     State draw_state{};
