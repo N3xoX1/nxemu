@@ -178,6 +178,9 @@ void BufferCache<P>::DownloadMemory(DAddr device_addr, u64 size) {
 template <class P>
 void BufferCache<P>::ClearDownload(DAddr device_addr, u64 size) {
     async_downloads.DeleteAll(device_addr, size);
+    for (Common::RangeSet<DAddr>& ranges : pending_download_ranges) {
+        ranges.Subtract(device_addr, size);
+    }
     uncommitted_gpu_modified_ranges.Subtract(device_addr, size);
     for (auto& interval_set : committed_gpu_modified_ranges) {
         interval_set.Subtract(device_addr, size);
@@ -626,6 +629,7 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
     }
     auto download_staging = runtime.DownloadStagingBuffer(total_size_bytes, true);
     boost::container::small_vector<BufferCopy, 4> normalized_copies;
+    Common::RangeSet<DAddr> download_ranges;
     runtime.PreCopyBarrier();
     for (auto& [copy, buffer_id] : downloads) {
         copy.dst_offset += download_staging.offset;
@@ -635,12 +639,14 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
         second_copy.src_offset = static_cast<size_t>(buffer.CpuAddr()) + copy.src_offset;
         const DAddr orig_device_addr = static_cast<DAddr>(second_copy.src_offset);
         async_downloads.Add(orig_device_addr, copy.size);
+        download_ranges.Add(orig_device_addr, copy.size);
         buffer.MarkUsage(copy.src_offset, copy.size);
         runtime.CopyBuffer(download_staging.buffer, buffer, copies, false);
         normalized_copies.push_back(second_copy);
     }
     runtime.PostCopyBarrier();
     pending_downloads.emplace_back(std::move(normalized_copies));
+    pending_download_ranges.emplace_back(std::move(download_ranges));
     async_buffers.emplace_back(download_staging);
 }
 
@@ -664,6 +670,7 @@ void BufferCache<P>::PopAsyncBuffers() {
         return;
     }
     auto& downloads = pending_downloads.front();
+    const Common::RangeSet<DAddr>& ranges = pending_download_ranges.front();
     auto& async_buffer = async_buffers.front();
     u8* base = async_buffer->mapped_span.data();
     const size_t base_offset = async_buffer->offset;
@@ -671,35 +678,40 @@ void BufferCache<P>::PopAsyncBuffers() {
         const DAddr device_addr = static_cast<DAddr>(copy.src_offset);
         const u64 dst_offset = copy.dst_offset - base_offset;
         const u8* read_mapped_memory = base + dst_offset;
-        async_downloads.ForEachInRange(device_addr, copy.size, [&](DAddr start, DAddr end, s32) {
-            device_memory.WriteBlockUnsafe(start, &read_mapped_memory[start - device_addr],
-                                           end - start);
-        });
-        async_downloads.Subtract(device_addr, copy.size, [&](DAddr start, DAddr end) {
-            const u64 size = end - start;
-            if (uncommitted_gpu_modified_ranges.Empty() && committed_gpu_modified_ranges.empty()) {
-                gpu_modified_ranges.Subtract(start, size);
-                return;
-            }
-            // What the GPU wrote again after this download was committed has not reached guest
-            // memory, it stays modified until its own download
-            downloaded_ranges.Clear();
-            downloaded_ranges.Add(start, size);
-            const auto keep = [&](DAddr keep_start, DAddr keep_end) {
-                downloaded_ranges.Subtract(keep_start, keep_end - keep_start);
-            };
-            uncommitted_gpu_modified_ranges.ForEachInRange(start, size, keep);
-            for (const Common::RangeSet<DAddr>& committed : committed_gpu_modified_ranges) {
-                committed.ForEachInRange(start, size, keep);
-            }
-            downloaded_ranges.ForEach([&](DAddr clean_start, DAddr clean_end) {
-                gpu_modified_ranges.Subtract(clean_start, clean_end - clean_start);
+        // A range cancelled since this download was committed holds newer data in guest memory,
+        // it belongs to a later download if any
+        ranges.ForEachInRange(device_addr, copy.size, [&](DAddr alive_start, DAddr alive_end) {
+            device_memory.WriteBlockUnsafe(alive_start,
+                                           &read_mapped_memory[alive_start - device_addr],
+                                           alive_end - alive_start);
+            async_downloads.Subtract(alive_start, alive_end - alive_start,
+                                     [&](DAddr start, DAddr end) {
+                const u64 size = end - start;
+                if (uncommitted_gpu_modified_ranges.Empty() && committed_gpu_modified_ranges.empty()) {
+                    gpu_modified_ranges.Subtract(start, size);
+                    return;
+                }
+                // What the GPU wrote again after this download was committed has not reached guest
+                // memory, it stays modified until its own download
+                downloaded_ranges.Clear();
+                downloaded_ranges.Add(start, size);
+                const auto keep = [&](DAddr keep_start, DAddr keep_end) {
+                    downloaded_ranges.Subtract(keep_start, keep_end - keep_start);
+                };
+                uncommitted_gpu_modified_ranges.ForEachInRange(start, size, keep);
+                for (const Common::RangeSet<DAddr>& committed : committed_gpu_modified_ranges) {
+                    committed.ForEachInRange(start, size, keep);
+                }
+                downloaded_ranges.ForEach([&](DAddr clean_start, DAddr clean_end) {
+                    gpu_modified_ranges.Subtract(clean_start, clean_end - clean_start);
+                });
             });
         });
     }
     async_buffers_death_ring.emplace_back(*async_buffer);
     async_buffers.pop_front();
     pending_downloads.pop_front();
+    pending_download_ranges.pop_front();
 }
 
 template <class P>
