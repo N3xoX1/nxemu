@@ -1,8 +1,13 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cinttypes>
 #include <cstring>
+#include <limits>
+#include <span>
 #include <vector>
 
 #include "core/core.h"
@@ -16,6 +21,7 @@
 #include "yuzu_common/hex_util.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/lz4_compression.h"
+#include "yuzu_common/zbic_compression.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/swap.h"
 
@@ -35,15 +41,6 @@ struct MODHeader
 };
 static_assert(sizeof(MODHeader) == 0x1c, "MODHeader has incorrect size.");
 
-std::vector<u8> DecompressSegment(const std::vector<u8> & compressed_data, const NSOSegmentHeader & header)
-{
-    std::vector<u8> uncompressed_data = Common::Compression::DecompressDataLZ4(compressed_data, header.size);
-
-    ASSERT_MSG(uncompressed_data.size() == header.size, "{} != {}", header.size, uncompressed_data.size());
-
-    return uncompressed_data;
-}
-
 constexpr u32 PageAlignSize(u32 size)
 {
     return static_cast<u32>((size + Core::Memory::YUZU_PAGEMASK) & ~Core::Memory::YUZU_PAGEMASK);
@@ -55,6 +52,7 @@ bool NSOHeader::IsSegmentCompressed(size_t segment_num) const
     ASSERT_MSG(segment_num < 3, "Invalid segment {}", segment_num);
     return ((flags >> segment_num) & 1) != 0;
 }
+
 
 AppLoader_NSO::AppLoader_NSO(FileSys::VirtualFile file_) :
     AppLoader(std::move(file_))
@@ -102,19 +100,74 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     Kernel::PhysicalMemory program_image;
     for (std::size_t i = 0; i < nso_header.segments.size(); ++i)
     {
-        std::vector<u8> data = nso_file.ReadBytes(nso_header.segments_compressed_size[i], nso_header.segments[i].offset);
-        if (nso_header.IsSegmentCompressed(i))
+        const auto & segment = nso_header.segments[i];
+        const bool compressed = nso_header.IsSegmentCompressed(i);
+        const u32 stored_size = compressed ? nso_header.segments_compressed_size[i] : segment.size;
+        const u64 file_size = nso_file.GetSize();
+        // Check in wide arithmetic before allocating or calling the int-sized LZ4 API.
+        const u64 image_end = module_start + static_cast<u64>(segment.location) + segment.size;
+        if (segment.offset > file_size || stored_size > file_size - segment.offset ||
+            segment.size > static_cast<u32>(std::numeric_limits<int>::max()) ||
+            stored_size > static_cast<u32>(std::numeric_limits<int>::max()) ||
+            image_end > std::numeric_limits<u32>::max() - Core::Memory::YUZU_PAGEMASK)
         {
-            data = DecompressSegment(data, nso_header.segments[i]);
+            LOG_ERROR(Loader, "Invalid NSO segment {} in {} (offset={:#x}, stored={}, size={})",
+                      i, nso_file.GetName(), segment.offset, stored_size, segment.size);
+            return std::nullopt;
         }
-        program_image.resize(module_start + nso_header.segments[i].location + static_cast<u32>(data.size()));
-        std::memcpy(program_image.data() + module_start + nso_header.segments[i].location, data.data(), data.size());
+        std::vector<u8> data = nso_file.ReadBytes(stored_size, segment.offset);
+        if (data.size() != stored_size)
+        {
+            LOG_ERROR(Loader, "Truncated NSO segment {} in {}", i, nso_file.GetName());
+            return std::nullopt;
+        }
+        if (compressed)
+        {
+            if (nso_header.IsZBICCompressed())
+            {
+                std::vector<u8> uncompressed_data(segment.size);
+                if (!Common::Compression::DecompressDataZBIC(uncompressed_data, data))
+                {
+                    LOG_ERROR(Loader, "ZBIC decompression failed for segment {} in {}: expected {} bytes",
+                              i, nso_file.GetName(), segment.size);
+                    return std::nullopt;
+                }
+                data = std::move(uncompressed_data);
+            }
+            else
+            {
+                data = Common::Compression::DecompressDataLZ4(data, segment.size);
+                if (data.size() != segment.size)
+                {
+                    LOG_ERROR(Loader, "LZ4 decompression failed for segment {} in {}: expected {} bytes",
+                              i, nso_file.GetName(), segment.size);
+                    return std::nullopt;
+                }
+            }
+        }
+        // Preserve earlier segments even when a later segment is empty or located below them.
+        program_image.resize((std::max)(program_image.size(), static_cast<size_t>(image_end)));
+        if (!data.empty())
+        {
+            std::memcpy(program_image.data() + module_start + segment.location, data.data(), data.size());
+        }
         codeset.segments[i].addr = module_start + nso_header.segments[i].location;
         codeset.segments[i].offset = module_start + nso_header.segments[i].location;
         codeset.segments[i].size = nso_header.segments[i].size;
     }
 
-    if (should_pass_arguments && !Settings::values.program_args.GetValue().empty())
+    const u64 argument_size = should_pass_arguments && !Settings::values.program_args.GetValue().empty()
+                                  ? NSO_ARGUMENT_DATA_ALLOCATION_SIZE : 0;
+    if (program_image.size() + argument_size + static_cast<u64>(nso_header.segments[2].bss_size) >
+        std::numeric_limits<u32>::max() - Core::Memory::YUZU_PAGEMASK ||
+        (argument_size != 0 && Settings::values.program_args.GetValue().size() >
+                                  NSO_ARGUMENT_DATA_ALLOCATION_SIZE - sizeof(NSOArgumentHeader)))
+    {
+        LOG_ERROR(Loader, "Invalid NSO BSS or argument size in {}", nso_file.GetName());
+        return std::nullopt;
+    }
+
+    if (argument_size != 0)
     {
         const auto arg_data{Settings::values.program_args.GetValue()};
 
