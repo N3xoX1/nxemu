@@ -34,7 +34,11 @@ public:
 
     /// Returns true when the swapchain needs to be recreated.
     bool NeedsRecreation() const {
+#ifdef ANDROID
+        return IsOutDated() || NeedsPresentModeUpdate();
+#else
         return IsOutDated() || IsSubOptimal() || NeedsPresentModeUpdate();
+#endif
     }
 
     /// Returns true when the swapchain is outdated.
