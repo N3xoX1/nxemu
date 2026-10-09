@@ -10,6 +10,7 @@
 #include <thread>
 #include <utility>
 #include <queue>
+#include <vector>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/common_types.h"
@@ -67,6 +68,13 @@ public:
 
     /// Invalidates current command buffer state except for render passes
     void InvalidateState();
+
+    /// Notes that commands recorded on the current execution context write to a buffer.
+    void MarkBufferWrite(VkBuffer buffer);
+
+    /// Returns true when the current execution context writes to a buffer. Commands recorded on
+    /// the upload buffer run before these writes and would read the previous contents.
+    [[nodiscard]] bool IsBufferWritten(VkBuffer buffer) const noexcept;
 
     /// Assigns the query cache.
     void SetQueryCache(VideoCommon::QueryCacheBase<QueryCacheParams>& query_cache_) {
@@ -244,6 +252,9 @@ private:
     std::function<void()> on_submit;
 
     State state;
+
+    std::vector<VkBuffer> written_buffers;
+    bool all_buffers_written = false;
 
     u32 num_renderpass_images = 0;
     std::array<VkImage, 9> renderpass_images{};

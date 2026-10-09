@@ -375,6 +375,10 @@ void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noe
     }
 }
 
+void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {
+    scheduler.MarkBufferWrite(buffer.Handle());
+}
+
 void BufferCacheRuntime::Finish() {
     scheduler.Finish();
 }
@@ -421,6 +425,7 @@ void BufferCacheRuntime::CopyBuffer(VkBuffer dst_buffer, VkBuffer src_buffer,
         return;
     }
 
+    scheduler.MarkBufferWrite(dst_buffer);
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([src_buffer, dst_buffer, vk_copies, barrier](vk::CommandBuffer cmdbuf) {
         if (barrier) {
@@ -480,6 +485,7 @@ void BufferCacheRuntime::ClearBuffer(VkBuffer dest_buffer, u32 offset, size_t si
         .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
     };
 
+    scheduler.MarkBufferWrite(dest_buffer);
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([dest_buffer, offset, size, value](vk::CommandBuffer cmdbuf) {
         cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,

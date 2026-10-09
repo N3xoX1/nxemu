@@ -275,6 +275,7 @@ public:
                                                           ObtainBufferOperation post_op);
     void FlushCachedWrites();
 
+
     /// Return true when there are uncommitted buffers to be downloaded
     [[nodiscard]] bool HasUncommittedFlushes() const noexcept;
 
@@ -519,6 +520,9 @@ private:
 
     void ResizeSparseBuffer(SparseBuffer& sparse, u32 capacity);
 
+    /// Brings what the GPU wrote in assembled buffers back to the buffers of their parts
+    void CopySparseWrites();
+
     void RemoveUnusedSparseBuffers();
 
     void MarkBufferContentChanged(Buffer& buffer) noexcept {
@@ -526,6 +530,7 @@ private:
     }
 
     std::vector<SparseBuffer> sparse_buffers;
+    std::vector<std::pair<GPUVAddr, u32>> sparse_writes;
     u64 content_version = 0;
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
@@ -534,6 +539,7 @@ private:
 
     // Async Buffers
     Common::OverlapRangeSet<DAddr> async_downloads;
+    Common::RangeSet<DAddr> downloaded_ranges;
     std::deque<std::optional<Async_Buffer>> async_buffers;
     std::deque<boost::container::small_vector<BufferCopy, 4>> pending_downloads;
     std::optional<Async_Buffer> current_buffer;
