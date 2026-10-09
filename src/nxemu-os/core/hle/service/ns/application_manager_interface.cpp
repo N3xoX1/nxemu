@@ -109,7 +109,7 @@ IApplicationManagerInterface::IApplicationManagerInterface(Core::System& system_
         {305, nullptr, "TerminateSystemApplet"},
         {306, nullptr, "LaunchOverlayApplet"},
         {307, nullptr, "TerminateOverlayApplet"},
-        {400, D<&IApplicationManagerInterface::GetApplicationControlData>, "GetApplicationControlData"},
+        {400, &IApplicationManagerInterface::GetApplicationControlDataRequest, "GetApplicationControlData"},
         {401, nullptr, "InvalidateAllApplicationControlCache"},
         {402, nullptr, "RequestDownloadApplicationControlData"},
         {403, nullptr, "GetMaxApplicationControlCacheCount"},
@@ -304,6 +304,10 @@ IApplicationManagerInterface::IApplicationManagerInterface(Core::System& system_
 }
 
 IApplicationManagerInterface::~IApplicationManagerInterface() = default;
+
+void IApplicationManagerInterface::GetApplicationControlDataRequest(HLERequestContext& ctx) {
+    IReadOnlyApplicationControlDataInterface(system).GetApplicationControlDataRequest(ctx);
+}
 
 Result IApplicationManagerInterface::GetApplicationControlData(
     OutBuffer<BufferAttr_HipcMapAlias> out_buffer, Out<u32> out_actual_size,
