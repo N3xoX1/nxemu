@@ -52,11 +52,36 @@ void Android::RegisterController(jobject j_input_device)
     const PadIdentifier identifier = GetIdentifier(guid, static_cast<size_t>(port));
     PreSetController(identifier);
 
-    if (input_devices.find(identifier) != input_devices.end())
+    jobject global = env->NewGlobalRef(j_input_device);
+    if (global == nullptr)
     {
-        env->DeleteGlobalRef(input_devices[identifier]);
+        return;
     }
-    input_devices[identifier] = env->NewGlobalRef(j_input_device);
+    jobject replaced = nullptr;
+    {
+        std::lock_guard lock(input_mutex);
+        std::unordered_map<PadIdentifier, jobject>::iterator existing = input_devices.find(identifier);
+        if (existing != input_devices.end())
+        {
+            if (env->IsSameObject(existing->second, j_input_device))
+            {
+                replaced = global;
+            }
+            else
+            {
+                replaced = existing->second;
+                existing->second = global;
+            }
+        }
+        else
+        {
+            input_devices.emplace(identifier, global);
+        }
+    }
+    if (replaced != nullptr)
+    {
+        env->DeleteGlobalRef(replaced);
+    }
 }
 #endif
 
@@ -102,16 +127,29 @@ Common::Input::DriverResult Android::SetVibration([[maybe_unused]] const PadIden
 bool Android::IsVibrationEnabled([[maybe_unused]] const PadIdentifier & identifier)
 {
 #ifdef ANDROID
-    std::unordered_map<PadIdentifier, jobject>::iterator device = input_devices.find(identifier);
-    if (device != input_devices.end() && GetNxInputDeviceGetSupportsVibration() != nullptr)
+    if (GetNxInputDeviceGetSupportsVibration() == nullptr)
     {
-        return RunJNIOnFiber<bool>([&](JNIEnv * env) {
-            return env->CallBooleanMethod(device->second, GetNxInputDeviceGetSupportsVibration()) !=
-                   JNI_FALSE;
-        });
+        return false;
     }
-#endif
+    return RunJNIOnFiber<bool>([&](JNIEnv * env) {
+        std::lock_guard lock(input_mutex);
+        std::unordered_map<PadIdentifier, jobject>::iterator device = input_devices.find(identifier);
+        if (device == input_devices.end() || device->second == nullptr)
+        {
+            return false;
+        }
+        const jboolean supported =
+            env->CallBooleanMethod(device->second, GetNxInputDeviceGetSupportsVibration());
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionClear();
+            return false;
+        }
+        return supported != JNI_FALSE;
+    });
+#else
     return false;
+#endif
 }
 
 Common::ParamPackage Android::BuildParamPackageForAnalog(PadIdentifier identifier, int axis_x, int axis_y) const
@@ -416,7 +454,24 @@ std::vector<Common::ParamPackage> Android::GetInputDevices() const
     {
         return devices;
     }
-    for (const std::pair<const PadIdentifier, jobject> & device : input_devices)
+    std::vector<std::pair<PadIdentifier, jobject>> devices_snapshot;
+    {
+        std::lock_guard lock(input_mutex);
+        devices_snapshot.reserve(input_devices.size());
+        for (const std::pair<const PadIdentifier, jobject> & device : input_devices)
+        {
+            if (device.second == nullptr)
+            {
+                continue;
+            }
+            jobject local = env->NewLocalRef(device.second);
+            if (local != nullptr)
+            {
+                devices_snapshot.emplace_back(device.first, local);
+            }
+        }
+    }
+    for (const std::pair<PadIdentifier, jobject> & device : devices_snapshot)
     {
         const PadIdentifier & key = device.first;
         const jobject value = device.second;
@@ -427,12 +482,17 @@ std::vector<Common::ParamPackage> Android::GetInputDevices() const
         {
             env->DeleteLocalRef(name_object);
         }
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionClear();
+        }
         devices.emplace_back(Common::ParamPackage{
             {"engine", GetEngineName()},
             {"display", std::move(name)},
             {"guid", key.guid.RawString()},
             {"port", std::to_string(key.port)},
         });
+        env->DeleteLocalRef(value);
     }
     return devices;
 #else
@@ -453,17 +513,32 @@ PadIdentifier Android::GetIdentifier(const std::string & guid, size_t port) cons
 void Android::SendVibrations(JNIEnv * env, std::stop_token token)
 {
     VibrationRequest request = vibration_queue.PopWait(token);
-    if (env == nullptr || GetNxInputDeviceVibrate() == nullptr)
+    if (token.stop_requested() || env == nullptr || GetNxInputDeviceVibrate() == nullptr)
     {
         return;
     }
-    std::unordered_map<PadIdentifier, jobject>::iterator device = input_devices.find(request.identifier);
-    if (device != input_devices.end())
+    jobject device = nullptr;
     {
-        const float average_intensity = static_cast<float>(
-            (request.vibration.high_amplitude + request.vibration.low_amplitude) / 2.0);
-        env->CallVoidMethod(device->second, GetNxInputDeviceVibrate(), average_intensity);
+        std::lock_guard lock(input_mutex);
+        std::unordered_map<PadIdentifier, jobject>::iterator found = input_devices.find(request.identifier);
+        if (found == input_devices.end() || found->second == nullptr)
+        {
+            return;
+        }
+        device = env->NewLocalRef(found->second);
     }
+    if (device == nullptr)
+    {
+        return;
+    }
+    const float average_intensity = static_cast<float>(
+        (request.vibration.high_amplitude + request.vibration.low_amplitude) / 2.0);
+    env->CallVoidMethod(device, GetNxInputDeviceVibrate(), average_intensity);
+    if (env->ExceptionCheck())
+    {
+        env->ExceptionClear();
+    }
+    env->DeleteLocalRef(device);
 }
 #endif
 
