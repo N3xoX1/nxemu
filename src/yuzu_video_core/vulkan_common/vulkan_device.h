@@ -266,6 +266,15 @@ public:
         return properties.properties.apiVersion;
     }
 
+    bool SupportsDepthStencilResolve(VkImageAspectFlags aspect) const
+    {
+        const auto & caps = properties.depth_stencil_resolve;
+        return instance_version >= VK_API_VERSION_1_2 && dld.vkCreateRenderPass2 &&
+               ((aspect & VK_IMAGE_ASPECT_DEPTH_BIT) == 0 ||
+                (caps.supportedDepthResolveModes & VK_RESOLVE_MODE_SAMPLE_ZERO_BIT)) &&
+               ((aspect & VK_IMAGE_ASPECT_STENCIL_BIT) == 0 ||
+                (caps.supportedStencilResolveModes & VK_RESOLVE_MODE_SAMPLE_ZERO_BIT));
+    }
     /// Returns the current driver version provided in Vulkan-formatted version numbers.
     u32 GetDriverVersion() const {
         return properties.properties.driverVersion;
@@ -857,6 +866,7 @@ private:
     };
 
     struct Properties {
+        VkPhysicalDeviceDepthStencilResolveProperties depth_stencil_resolve{};
         VkPhysicalDeviceDriverProperties driver{};
         VkPhysicalDeviceSubgroupProperties subgroup_properties{};
         VkPhysicalDeviceFloatControlsProperties float_controls{};

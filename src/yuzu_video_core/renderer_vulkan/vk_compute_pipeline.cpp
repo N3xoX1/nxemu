@@ -43,6 +43,9 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
     }
     std::copy_n(info.constant_buffer_used_sizes.begin(), uniform_buffer_sizes.size(),
                 uniform_buffer_sizes.begin());
+    const auto is_written = [](const auto& desc) { return desc.is_written; };
+    writes_images = std::ranges::any_of(info.image_descriptors, is_written) ||
+                    std::ranges::any_of(info.image_buffer_descriptors, is_written);
 
     auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics] {
         try {

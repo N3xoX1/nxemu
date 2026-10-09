@@ -272,6 +272,7 @@ struct DeviceDispatch : InstanceDispatch {
     PFN_vkCreatePipelineLayout vkCreatePipelineLayout{};
     PFN_vkCreateQueryPool vkCreateQueryPool{};
     PFN_vkCreateRenderPass vkCreateRenderPass{};
+    PFN_vkCreateRenderPass2 vkCreateRenderPass2{};
     PFN_vkCreateSampler vkCreateSampler{};
     PFN_vkCreateSemaphore vkCreateSemaphore{};
     PFN_vkCreateShaderModule vkCreateShaderModule{};
@@ -968,6 +969,7 @@ public:
     DescriptorPool CreateDescriptorPool(const VkDescriptorPoolCreateInfo& ci) const;
 
     RenderPass CreateRenderPass(const VkRenderPassCreateInfo& ci) const;
+    RenderPass CreateRenderPass2(const VkRenderPassCreateInfo2 & ci) const;
 
     DescriptorSetLayout CreateDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo& ci) const;
 

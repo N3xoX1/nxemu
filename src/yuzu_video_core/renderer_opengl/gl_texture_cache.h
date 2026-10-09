@@ -93,7 +93,7 @@ public:
         return true;
     }
 
-    bool CanUploadMSAA() const noexcept {
+    bool CanUploadMSAA(const Image&) const noexcept {
         return true;
     }
 

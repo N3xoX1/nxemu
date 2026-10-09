@@ -96,6 +96,22 @@ void AlphaTest(EmitContext& ctx) {
 } // Anonymous namespace
 
 void EmitPrologue(EmitContext& ctx) {
+    if (ctx.stage == Stage::Fragment && ctx.runtime_info.dual_source_blend &&
+        Sirit::ValidId(ctx.frag_color[1])) {
+        // Vulkan leaves the secondary blend source undefined when it is not written.
+        Id type{ctx.F32[4]};
+        switch (ctx.runtime_info.color_output_types[0]) {
+        case AttributeType::SignedInt:
+            type = ctx.S32[4];
+            break;
+        case AttributeType::UnsignedInt:
+            type = ctx.U32[4];
+            break;
+        default:
+            break;
+        }
+        ctx.OpStore(ctx.frag_color[1], ctx.ConstantNull(type));
+    }
     if (ctx.stage == Stage::VertexB) {
         const Id zero{ctx.Const(0.0f)};
         const Id one{ctx.Const(1.0f)};

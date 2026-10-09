@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <compare>
 #include <span>
+#include <vector>
 
 #include "yuzu_video_core/texture_cache/texture_cache_base.h"
 
@@ -83,10 +85,11 @@ public:
         return false;
     }
 
-    bool CanUploadMSAA() const noexcept {
-        // TODO: Implement buffer to MSAA uploads
-        return false;
-    }
+    bool CanUploadMSAA(const Image& image) const noexcept;
+
+    [[nodiscard]] VkImage AcquireMsaaScratchImage(const VkImageCreateInfo& image_ci);
+
+    void ReleaseMsaaScratchImage(VkImage image);
 
     void AccelerateImageUpload(Image&, const StagingBufferRef&,
                                std::span<const VideoCommon::SwizzleParameters>);
@@ -123,6 +126,30 @@ public:
     std::unique_ptr<MSAACopyPass> msaa_copy_pass;
     const Settings::ResolutionScalingInfo& resolution;
     std::array<std::vector<VkFormat>, VideoCore::Surface::MaxPixelFormat> view_formats;
+
+    struct MsaaScratchKey {
+        VkFormat format{};
+        VkImageType type{};
+        u32 width{};
+        u32 height{};
+        u32 depth{};
+        u32 levels{};
+        u32 layers{};
+        VkImageUsageFlags usage{};
+        VkImageCreateFlags flags{};
+
+        auto operator<=>(const MsaaScratchKey&) const = default;
+    };
+
+    struct MsaaScratchImage {
+        MsaaScratchKey key;
+        vk::Image image;
+        u64 tick{};
+        u32 unused_frames{};
+    };
+
+    std::vector<MsaaScratchImage> msaa_scratch_images;
+    size_t msaa_scratch_last = static_cast<size_t>(-1);
 
     static constexpr size_t indexing_slots = 8 * sizeof(size_t);
     std::array<vk::Buffer, indexing_slots> buffers{};

@@ -1194,6 +1194,11 @@ bool Device::GetSuitability(bool requires_swapchain)
         SetNext(next, properties.transform_feedback);
     }
 
+    if (instance_version >= VK_API_VERSION_1_2)
+    {
+        properties.depth_stencil_resolve.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_STENCIL_RESOLVE_PROPERTIES;
+        SetNext(next, properties.depth_stencil_resolve);
+    }
     // Perform the property fetch.
     physical.GetProperties2(properties2);
     properties.properties = properties2.properties;

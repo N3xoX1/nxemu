@@ -174,6 +174,7 @@ void Load(VkDevice device, DeviceDispatch& dld) noexcept {
     X(vkCreatePipelineLayout);
     X(vkCreateQueryPool);
     X(vkCreateRenderPass);
+    X(vkCreateRenderPass2);
     X(vkCreateSampler);
     X(vkCreateSemaphore);
     X(vkCreateShaderModule);
@@ -698,6 +699,13 @@ DescriptorPool Device::CreateDescriptorPool(const VkDescriptorPoolCreateInfo& ci
 RenderPass Device::CreateRenderPass(const VkRenderPassCreateInfo& ci) const {
     VkRenderPass object;
     Check(dld->vkCreateRenderPass(handle, &ci, nullptr, &object));
+    return RenderPass(object, handle, *dld);
+}
+
+RenderPass Device::CreateRenderPass2(const VkRenderPassCreateInfo2 & ci) const
+{
+    VkRenderPass object;
+    Check(dld->vkCreateRenderPass2(handle, &ci, nullptr, &object));
     return RenderPass(object, handle, *dld);
 }
 

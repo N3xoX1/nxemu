@@ -18,9 +18,10 @@ void main() {
     const ivec3 msaa_size = imageSize(output_msaa);
     const ivec3 out_size = imageSize(img_in);
     const ivec3 scale = out_size / msaa_size;
+    const int samples_x = num_samples >= 8 ? 4 : (num_samples >= 2 ? 2 : 1);
     for (int curr_sample = 0; curr_sample < num_samples; ++curr_sample) {
-        const int single_sample_x = scale.x * coords.x + (curr_sample & 1);
-        const int single_sample_y = scale.y * coords.y + ((curr_sample / 2) & 1);
+        const int single_sample_x = scale.x * coords.x + (curr_sample % samples_x);
+        const int single_sample_y = scale.y * coords.y + (curr_sample / samples_x);
         const ivec3 single_coords = ivec3(single_sample_x, single_sample_y, coords.z);
 
         if (any(greaterThanEqual(single_coords, imageSize(img_in)))) {

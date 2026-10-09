@@ -218,6 +218,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
     pipeline->Configure(is_indexed);
+    image_write_stages |= pipeline->ImageWriteStages();
 
     UpdateDynamicStates();
 
@@ -574,6 +575,9 @@ void RasterizerVulkan::DispatchCompute() {
     }
     std::scoped_lock lock{texture_cache.mutex, buffer_cache.mutex};
     pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
+    if (pipeline->WritesImages()) {
+        image_write_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
 
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
@@ -845,14 +849,40 @@ void RasterizerVulkan::WaitForIdle() {
 }
 
 void RasterizerVulkan::FragmentBarrier() {
-    // We already put barriers when a render pass finishes
+    // Ending the render pass already makes color/depth attachment writes visible.
     scheduler.RequestOutsideRenderPassOperationContext();
+
+    if (image_write_stages == 0) {
+        return;
+    }
+
+    // Naming the tessellation and geometry stages needs their device features, so use the
+    // generic graphics stage for the readers.
+    static constexpr VkPipelineStageFlags SHADER_STAGES =
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    static constexpr VkMemoryBarrier IMAGE_WRITE_BARRIER{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+    };
+
+    const VkPipelineStageFlags src_stages = image_write_stages;
+    image_write_stages = 0;
+    scheduler.Record([src_stages](vk::CommandBuffer cmdbuf) {
+        cmdbuf.PipelineBarrier(src_stages, SHADER_STAGES, 0, IMAGE_WRITE_BARRIER);
+    });
 }
 
 void RasterizerVulkan::TiledCacheBarrier() {
     // EndRenderPass publishes previous attachment writes before subsequent guest reads.
     if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
         scheduler.RequestOutsideRenderPassOperationContext();
+    }
+    // As in Ryubing, apply the texture barrier when shaders wrote to images. Ending the render
+    // pass on every call would split render passes for no reason on other drivers.
+    if (image_write_stages != 0) {
+        FragmentBarrier();
     }
 }
 

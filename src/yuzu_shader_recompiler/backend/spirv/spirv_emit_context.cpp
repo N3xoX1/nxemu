@@ -1742,21 +1742,25 @@ void EmitContext::DefineOutputs(const IR::Program& program) {
         break;
     case Stage::Fragment:
         for (u32 index = 0; index < 8; ++index) {
-            // With dual source blending, color output 1 is the second source of render target 0
-            const bool is_second_source{runtime_info.dual_source_blend && index == 1};
-            if (!info.stores_frag_color[index] && !profile.need_declared_frag_colors &&
-                !is_second_source) {
+            // In dual-source mode guest color output 1 is not render target 1: it is the
+            // secondary source of attachment 0.
+            const bool dual_source_output = runtime_info.dual_source_blend && index <= 1;
+            if (!dual_source_output && !info.stores_frag_color[index] &&
+                !profile.need_declared_frag_colors) {
                 continue;
             }
-            const Id type{GetAttributeType(*this, runtime_info.color_output_types[index])};
+            // Both outputs of a dual-source pair use the type of attachment 0.
+            const u32 type_index = dual_source_output ? 0 : index;
+            const Id type{GetAttributeType(*this, runtime_info.color_output_types[type_index])};
             frag_color[index] = DefineOutput(*this, type, std::nullopt);
-            if (is_second_source) {
-                Decorate(frag_color[index], spv::Decoration::Location, 0U);
-                Decorate(frag_color[index], spv::Decoration::Index, 1U);
+            if (dual_source_output) {
+                Decorate(frag_color[index], spv::Decoration::Location, 0u);
+                Decorate(frag_color[index], spv::Decoration::Index, index);
+                Name(frag_color[index], index == 0 ? "frag_color0" : "frag_color0_secondary");
             } else {
                 Decorate(frag_color[index], spv::Decoration::Location, index);
+                Name(frag_color[index], fmt::format("frag_color{}", index));
             }
-            Name(frag_color[index], fmt::format("frag_color{}", index));
         }
         if (info.stores_frag_depth) {
             frag_depth = DefineOutput(*this, F32[1], std::nullopt);
