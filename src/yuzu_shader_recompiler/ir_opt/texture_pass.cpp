@@ -598,14 +598,6 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             if (!IsTextureInstruction(inst)) {
                 continue;
             }
-            if (inst.GetOpcode() == IR::Opcode::BindlessImageWrite &&
-                !TrackBindless(env, block, inst)) {
-                // The image is only known at run time. Drop the write and keep the rest of the
-                // shader instead of rejecting the whole program.
-                LOG_WARNING(Shader, "Dropping image write with an untracked bindless handle");
-                inst.Invalidate();
-                continue;
-            }
             to_replace.push_back(MakeInst(env, block, inst));
         }
     }

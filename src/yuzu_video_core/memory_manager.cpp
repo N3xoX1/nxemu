@@ -278,6 +278,9 @@ GPUVAddr MemoryManager::Map(GPUVAddr gpu_addr, DAddr dev_addr, std::size_t size,
 std::optional<std::pair<GPUVAddr, std::size_t>> MemoryManager::GetSparseRegion(
     GPUVAddr gpu_addr) const
 {
+    if (!has_sparse_regions.load(std::memory_order_acquire)) {
+        return std::nullopt;
+    }
     std::unique_lock<std::mutex> lock(guard);
     auto it = sparse_regions.upper_bound(gpu_addr);
     if (it == sparse_regions.begin()) {
@@ -307,6 +310,7 @@ GPUVAddr MemoryManager::MapSparse(GPUVAddr gpu_addr, std::size_t size, bool is_b
             it = sparse_regions.erase(it);
         }
         sparse_regions.emplace(begin, end);
+        has_sparse_regions.store(true, std::memory_order_release);
     }
     mapping_generation.fetch_add(1, std::memory_order_relaxed);
     NotifyMappingChanged(gpu_addr, 0, size, EntryType::Reserved, PTEKind::INVALID, is_big_pages);
@@ -343,6 +347,7 @@ void MemoryManager::Unmap(GPUVAddr gpu_addr, std::size_t size)
                 ++it;
             }
         }
+        has_sparse_regions.store(!sparse_regions.empty(), std::memory_order_release);
     }
     mapping_generation.fetch_add(1, std::memory_order_relaxed);
     NotifyMappingChanged(gpu_addr, 0, size, EntryType::Free, PTEKind::INVALID, false);

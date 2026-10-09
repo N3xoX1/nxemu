@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <algorithm>
-#include <bit>
-
 #include <fmt/format.h>
 
 #include "yuzu_common/yuzu_assert.h"
@@ -11,6 +8,7 @@
 #include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/texture_cache/format_lookup_table.h"
 #include "yuzu_video_core/texture_cache/image_info.h"
+#include "yuzu_video_core/texture_cache/mip_levels.h"
 #include "yuzu_video_core/texture_cache/samples_helper.h"
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/texture_cache/util.h"
@@ -112,10 +110,6 @@ ImageInfo::ImageInfo(const TICEntry& config) noexcept {
         ASSERT_MSG(false, "Invalid texture_type={}", static_cast<int>(config.texture_type.Value()));
         break;
     }
-    // Guests can declare more levels than the dimensions allow. Hosts reject those images.
-    const u32 largest_dimension{
-        std::max({size.width, size.height, type == ImageType::e3D ? size.depth : 1U, 1U})};
-    resources.levels = std::min(resources.levels, static_cast<s32>(std::bit_width(largest_dimension)));
     if (num_samples > 1) {
         size.width *= NumSamplesX(config.msaa_mode);
         size.height *= NumSamplesY(config.msaa_mode);
@@ -129,6 +123,8 @@ ImageInfo::ImageInfo(const TICEntry& config) noexcept {
                        GetFormatType(format) != SurfaceType::ColorTexture;
         downscaleable = size.height > DownscaleHeightThreshold;
     }
+    // The guest layer layout includes all declared levels; only the host mip chain is limited.
+    resources.levels = MipLevelCount(config);
 }
 
 ImageInfo::ImageInfo(const Maxwell3D::Regs::RenderTargetConfig& ct,

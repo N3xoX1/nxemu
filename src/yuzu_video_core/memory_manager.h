@@ -253,6 +253,8 @@ private:
     Common::RangeMap<GPUVAddr, PTEKind> kind_map;
     /// Start and end of the sparse allocations, protected by guard
     std::map<GPUVAddr, GPUVAddr> sparse_regions;
+    // Publish catalog emptiness under guard so empty lookups can avoid the mutex.
+    std::atomic<bool> has_sparse_regions{};
     std::atomic<u64> mapping_generation{};
     Common::VirtualBuffer<u32> big_page_table_dev;
 
