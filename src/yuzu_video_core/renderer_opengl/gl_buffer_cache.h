@@ -92,6 +92,8 @@ public:
 
     void TickFrame(Common::SlotVector<Buffer>&) noexcept {}
 
+    void MarkHostWrite(const Buffer&) noexcept {}
+
     void ClearBuffer(Buffer& dest_buffer, u32 offset, size_t size, u32 value);
 
     void BindIndexBuffer(Buffer& buffer, u32 offset, u32 size);

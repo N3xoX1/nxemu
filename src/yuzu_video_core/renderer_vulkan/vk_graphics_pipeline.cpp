@@ -285,14 +285,23 @@ std::pair<VkBuffer, VkDeviceSize> VtgScratchAllocator::Allocate(VkDeviceSize siz
     static constexpr VkDeviceSize CHUNK_SIZE = 4ULL << 20;
     size = Common::AlignUp(size, alignment);
     const u64 current_tick{scheduler.CurrentTick()};
-    if (buffer == VK_NULL_HANDLE || tick != current_tick || used + size > capacity) {
-        // A chunk is only safe to write until the tick that requested it completes
+    if (tick != current_tick) {
+        // A draw may be recorded on the tick following the one its stages ran on, the chunks are
+        // kept from being reused until that tick completes
+        for (StagingBufferRef& chunk : chunks) {
+            staging_pool.FreeDeferred(chunk);
+        }
+        chunks.clear();
+        buffer = VK_NULL_HANDLE;
+        tick = current_tick;
+    }
+    if (buffer == VK_NULL_HANDLE || used + size > capacity) {
         capacity = std::max(CHUNK_SIZE, size);
-        const StagingBufferRef ref{staging_pool.Request(capacity, MemoryUsage::DeviceLocal)};
+        const StagingBufferRef ref{staging_pool.Request(capacity, MemoryUsage::DeviceLocal, true)};
+        chunks.push_back(ref);
         buffer = ref.buffer;
         base = ref.offset;
         used = 0;
-        tick = current_tick;
     }
     const VkDeviceSize offset{base + used};
     used += size;
@@ -971,6 +980,9 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                                [this] { return build_complete.load(std::memory_order_acquire); });
         });
     }
+    // Commands on the upload buffer run before the ones of the execution context. The stages are
+    // recorded there, leaving the render pass open, unless they read what these commands write.
+    bool reorder{!videoSettings.disable_buffer_reorder};
     const VideoCommon::SamplerId* samplers_it{samplers.data()};
     const VideoCommon::ImageViewInOut* views_it{views.data()};
     const auto run_stage{[&](size_t index, size_t guest_stage,
@@ -981,6 +993,17 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
         for (const VtgState::Buffer& buffer : buffers) {
             guest_descriptor_queue.AddBuffer(buffer.buffer, buffer.offset, buffer.size);
         }
+        const bool is_rescaling{!stage.guest_info.texture_descriptors.empty() ||
+                                !stage.guest_info.image_descriptors.empty()};
+        const bool reads_images{is_rescaling ||
+                                !stage.guest_info.texture_buffer_descriptors.empty() ||
+                                !stage.guest_info.image_buffer_descriptors.empty()};
+        // Only buffers have been added to the queue when the stage has no images
+        reorder = reorder && !reads_images &&
+                  std::ranges::none_of(guest_descriptor_queue.Entries(),
+                                       [this](const DescriptorUpdateEntry& entry) {
+                                           return scheduler.IsBufferWritten(entry.buffer.buffer);
+                                       });
         buffer_cache.BindHostStageTextureBuffers(guest_stage);
         RescalingPushConstant stage_rescaling;
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage.guest_info,
@@ -989,15 +1012,18 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             return;
         }
         const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
-        const bool is_rescaling{!stage.guest_info.texture_descriptors.empty() ||
-                                !stage.guest_info.image_descriptors.empty()};
-        scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([this, &stage, descriptor_data, is_rescaling,
-                          rescaling_data = stage_rescaling.Data(),
-                          groups = invocations / VTG_LOCAL_SIZE](vk::CommandBuffer cmdbuf) {
+        if (!reorder) {
+            scheduler.RequestOutsideRenderPassOperationContext();
+        }
+        scheduler.RecordWithUploadBuffer([this, &stage, descriptor_data, is_rescaling, reorder,
+                                          rescaling_data = stage_rescaling.Data(),
+                                          groups = invocations / VTG_LOCAL_SIZE](
+                                             vk::CommandBuffer main_cmdbuf,
+                                             vk::CommandBuffer upload_cmdbuf) {
             if (!IsBuilt()) {
                 return;
             }
+            const vk::CommandBuffer cmdbuf{reorder ? upload_cmdbuf : main_cmdbuf};
             cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline);
             if (is_rescaling) {
                 cmdbuf.PushConstants(*stage.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -1032,11 +1058,18 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                                            u64{output_vertices} * state.geometry_stride *
                                                sizeof(u32)};
         const VkDeviceSize sentinel_size{u64{state.geometry_stride} * sizeof(u32)};
-        scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([index_buffer = index_buffer, index_offset = index_offset, index_size,
-                          unused_index, geometry_buffer = geometry_buffer, sentinel_offset,
-                          sentinel_size, emits_points](vk::CommandBuffer cmdbuf) {
+        // This has to precede the geometry stage, which may still leave the upload buffer
+        if (!reorder) {
+            scheduler.RequestOutsideRenderPassOperationContext();
+        }
+        scheduler.RecordWithUploadBuffer([index_buffer = index_buffer, index_offset = index_offset,
+                                          index_size, unused_index,
+                                          geometry_buffer = geometry_buffer, sentinel_offset,
+                                          sentinel_size, emits_points,
+                                          reorder](vk::CommandBuffer main_cmdbuf,
+                                                   vk::CommandBuffer upload_cmdbuf) {
             static constexpr u32 QUIET_NAN = 0x7fc00000;
+            const vk::CommandBuffer cmdbuf{reorder ? upload_cmdbuf : main_cmdbuf};
             cmdbuf.FillBuffer(index_buffer, index_offset, index_size, unused_index);
             if (emits_points) {
                 cmdbuf.FillBuffer(geometry_buffer, sentinel_offset, sentinel_size, QUIET_NAN);

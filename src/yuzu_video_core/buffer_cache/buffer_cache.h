@@ -300,11 +300,8 @@ std::pair<typename P::Buffer*, u32> BufferCache<P>::ObtainCPUBuffer(
         MarkWrittenBuffer(buffer_id, device_addr, size);
         break;
     case ObtainBufferOperation::DiscardWrite: {
-        const DAddr device_addr_start = Common::AlignDown(device_addr, 64);
-        const DAddr device_addr_end = Common::AlignUp(device_addr + size, 64);
-        const size_t new_size = device_addr_end - device_addr_start;
-        ClearDownload(device_addr_start, new_size);
-        gpu_modified_ranges.Subtract(device_addr_start, new_size);
+        ClearDownload(device_addr, size);
+        gpu_modified_ranges.Subtract(device_addr, size);
         break;
     }
     default:
@@ -679,7 +676,25 @@ void BufferCache<P>::PopAsyncBuffers() {
                                            end - start);
         });
         async_downloads.Subtract(device_addr, copy.size, [&](DAddr start, DAddr end) {
-            gpu_modified_ranges.Subtract(start, end - start);
+            const u64 size = end - start;
+            if (uncommitted_gpu_modified_ranges.Empty() && committed_gpu_modified_ranges.empty()) {
+                gpu_modified_ranges.Subtract(start, size);
+                return;
+            }
+            // What the GPU wrote again after this download was committed has not reached guest
+            // memory, it stays modified until its own download
+            downloaded_ranges.Clear();
+            downloaded_ranges.Add(start, size);
+            const auto keep = [&](DAddr keep_start, DAddr keep_end) {
+                downloaded_ranges.Subtract(keep_start, keep_end - keep_start);
+            };
+            uncommitted_gpu_modified_ranges.ForEachInRange(start, size, keep);
+            for (const Common::RangeSet<DAddr>& committed : committed_gpu_modified_ranges) {
+                committed.ForEachInRange(start, size, keep);
+            }
+            downloaded_ranges.ForEach([&](DAddr clean_start, DAddr clean_end) {
+                gpu_modified_ranges.Subtract(clean_start, clean_end - clean_start);
+            });
         });
     }
     async_buffers_death_ring.emplace_back(*async_buffer);
@@ -922,12 +937,17 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
             const SparseBinding sparse =
                 SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
             Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
+            const bool is_written =
+                ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
+            if (is_written) {
+                sparse_writes.emplace_back(binding.sparse_gpu_addr, binding.size);
+            }
             if constexpr (NEEDS_BIND_STORAGE_INDEX) {
                 runtime.BindStorageBuffer(stage, binding_index, sparse_buffer, sparse.offset,
-                                          sparse.size, false);
+                                          sparse.size, is_written);
                 ++binding_index;
             } else {
-                runtime.BindStorageBuffer(sparse_buffer, sparse.offset, sparse.size, false);
+                runtime.BindStorageBuffer(sparse_buffer, sparse.offset, sparse.size, is_written);
             }
             return;
         }
@@ -1054,12 +1074,17 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
             const SparseBinding sparse =
                 SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
             Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
+            const bool is_written =
+                ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
+            if (is_written) {
+                sparse_writes.emplace_back(binding.sparse_gpu_addr, binding.size);
+            }
             if constexpr (NEEDS_BIND_STORAGE_INDEX) {
                 runtime.BindComputeStorageBuffer(binding_index, sparse_buffer, sparse.offset,
-                                                 sparse.size, false);
+                                                 sparse.size, is_written);
                 ++binding_index;
             } else {
-                runtime.BindStorageBuffer(sparse_buffer, sparse.offset, sparse.size, false);
+                runtime.BindStorageBuffer(sparse_buffer, sparse.offset, sparse.size, is_written);
             }
             return;
         }
@@ -1124,6 +1149,7 @@ void BufferCache<P>::BindHostComputeTextureBuffers() {
 
 template <class P>
 void BufferCache<P>::DoUpdateGraphicsBuffers(bool is_indexed) {
+    CopySparseWrites();
     BufferOperations([&]() {
         if (is_indexed) {
             UpdateIndexBuffer();
@@ -1143,6 +1169,7 @@ void BufferCache<P>::DoUpdateGraphicsBuffers(bool is_indexed) {
 
 template <class P>
 void BufferCache<P>::DoUpdateComputeBuffers() {
+    CopySparseWrites();
     BufferOperations([&]() {
         UpdateComputeUniformBuffers();
         UpdateComputeStorageBuffers();
@@ -1392,6 +1419,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
+    runtime.MarkHostWrite(slot_buffers[buffer_id]);
     MarkBufferContentChanged(slot_buffers[buffer_id]);
 }
 
@@ -1605,14 +1633,28 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
     u64 total_size_bytes = 0;
     u64 largest_copy = 0;
     DAddr buffer_start = buffer.CpuAddr();
-    memory_tracker.ForEachUploadRange(device_addr, size, [&](u64 device_addr_out, u64 range_size) {
+    const auto add_upload = [&](DAddr start, DAddr end) {
+        if (start == end) {
+            return;
+        }
+        const u64 range_size = end - start;
         copies.push_back(BufferCopy{
             .src_offset = total_size_bytes,
-            .dst_offset = device_addr_out - buffer_start,
+            .dst_offset = start - buffer_start,
             .size = range_size,
         });
         total_size_bytes += range_size;
         largest_copy = std::max(largest_copy, range_size);
+    };
+    memory_tracker.ForEachUploadRange(device_addr, size, [&](u64 device_addr_out, u64 range_size) {
+        // What the GPU wrote is newer than guest memory until it is downloaded
+        DAddr upload_start = device_addr_out;
+        gpu_modified_ranges.ForEachInRange(device_addr_out, range_size,
+                                           [&](DAddr gpu_start, DAddr gpu_end) {
+                                               add_upload(upload_start, gpu_start);
+                                               upload_start = gpu_end;
+                                           });
+        add_upload(upload_start, device_addr_out + range_size);
     });
     if (total_size_bytes == 0) {
         return true;
@@ -1622,6 +1664,7 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
     MarkBufferContentChanged(buffer);
     return false;
 }
+
 
 template <class P>
 void BufferCache<P>::UploadMemory(Buffer& buffer, u64 total_size_bytes, u64 largest_copy,
@@ -1899,7 +1942,7 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         .size = is_written ? aligned_size : static_cast<u32>(cpu_end - *aligned_device_addr),
         .buffer_id = BufferId{},
     };
-    if (size != requested_size && !is_written) {
+    if (size != requested_size) {
         // The buffer goes on in other parts of a sparse allocation, shaders address it from its
         // start so it has to be assembled
         if (const auto region = gpu_memory->GetSparseRegion(aligned_gpu_addr)) {
@@ -2101,6 +2144,47 @@ typename BufferCache<P>::SparseBinding BufferCache<P>::SynchronizeSparseBuffer(G
         }
     }
     return GetSparseBinding(gpu_addr, size);
+}
+
+template <class P>
+void BufferCache<P>::CopySparseWrites() {
+    if (sparse_writes.empty()) {
+        return;
+    }
+    boost::container::small_vector<BufferCopy, 4> copies;
+    for (const auto& [gpu_addr, size] : sparse_writes) {
+        SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
+        if (!sparse.buffer_id) {
+            continue;
+        }
+        while (std::ranges::any_of(sparse.parts, [](const SparseBufferPart& part) {
+            return !part.buffer_id;
+        })) {
+            for (SparseBufferPart& part : sparse.parts) {
+                if (!part.buffer_id) {
+                    part.buffer_id = FindBuffer(part.device_addr, part.size);
+                }
+            }
+        }
+        const u64 begin = gpu_addr - sparse.gpu_addr;
+        const u64 end = begin + size;
+        for (const SparseBufferPart& part : sparse.parts) {
+            const u64 copy_begin = std::max<u64>(part.offset, begin);
+            const u64 copy_end = std::min<u64>(u64{part.offset} + part.size, end);
+            if (copy_begin >= copy_end) {
+                continue;
+            }
+            Buffer& dest = slot_buffers[part.buffer_id];
+            copies.clear();
+            copies.push_back(BufferCopy{
+                .src_offset = copy_begin,
+                .dst_offset = dest.Offset(part.device_addr) + (copy_begin - part.offset),
+                .size = copy_end - copy_begin,
+            });
+            runtime.CopyBuffer(dest, slot_buffers[sparse.buffer_id], copies, true);
+        }
+    }
+    sparse_writes.clear();
 }
 
 template <class P>

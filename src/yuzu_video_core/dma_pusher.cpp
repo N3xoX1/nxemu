@@ -17,7 +17,7 @@ namespace Tegra
 {
 
 constexpr u32 MacroRegistersStart = 0xE00;
-[[maybe_unused]] constexpr u32 ComputeInline = 0x6D;
+constexpr u32 ComputeInline = 0x6D;
 
 DmaPusher::DmaPusher(GPU & gpu_, MemoryManager & memory_manager_, Control::ChannelState & channel_state_) :
     gpu{gpu_},
@@ -117,7 +117,14 @@ bool DmaPusher::Step()
 
     if (header.size > 0)
     {
-        const bool use_safe = Settings::UseSafeDMAReads();
+        // Macro parameters and the inline data of compute launches written by the GPU are consumed
+        // on the GPU, reading them back would stall on every indirect draw and dispatch
+        const bool is_gpu_consumed =
+            Settings::IsDMALevelDefault() &&
+            (dma_state.method >= MacroRegistersStart ||
+             (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::KeplerCompute &&
+              dma_state.method == ComputeInline));
+        const bool use_safe = Settings::UseSafeDMAReads() && !is_gpu_consumed;
         if (use_safe)
         {
             Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::SafeRead> headers(
