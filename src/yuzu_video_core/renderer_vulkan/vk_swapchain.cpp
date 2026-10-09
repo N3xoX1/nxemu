@@ -188,7 +188,9 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         break;
     case VK_SUBOPTIMAL_KHR:
         LOG_DEBUG(Render_Vulkan, "Suboptimal swapchain");
+#ifndef ANDROID
         is_suboptimal = true;
+#endif
         break;
     case VK_ERROR_OUT_OF_DATE_KHR:
         is_outdated = true;
