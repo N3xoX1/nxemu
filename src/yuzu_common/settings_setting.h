@@ -10,8 +10,8 @@
 #include <string>
 #include <typeindex>
 #include <typeinfo>
-#include <fmt/format.h>
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/format.h"
 #include "yuzu_common/settings_common.h"
 
 namespace Settings {

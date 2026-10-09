@@ -6,8 +6,7 @@
 #include <algorithm>
 #include <string_view>
 
-#include <fmt/format.h>
-
+#include "yuzu_common/format.h"
 #include "yuzu_common/logging/formatter.h"
 #include <nxemu-module-spec/base.h>
 
