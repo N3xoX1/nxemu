@@ -226,6 +226,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                               maxwell3d->regs.zpass_pixel_count_enable);
     draw_func(pipeline);
+    buffer_cache.CopySparseWrites();
 }
 
 void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
@@ -578,6 +579,9 @@ void RasterizerVulkan::DispatchCompute() {
     if (pipeline->WritesImages()) {
         image_write_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }
+    SCOPE_EXIT {
+        buffer_cache.CopySparseWrites();
+    };
 
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
