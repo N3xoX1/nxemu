@@ -542,6 +542,8 @@ private:
     Common::RangeSet<DAddr> downloaded_ranges;
     std::deque<std::optional<Async_Buffer>> async_buffers;
     std::deque<boost::container::small_vector<BufferCopy, 4>> pending_downloads;
+    /// Ranges of each pending download that guest memory did not get newer data for since
+    std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
     std::optional<Async_Buffer> current_buffer;
 
     std::deque<Async_Buffer> async_buffers_death_ring;
