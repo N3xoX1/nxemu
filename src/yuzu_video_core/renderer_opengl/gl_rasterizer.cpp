@@ -251,6 +251,7 @@ void RasterizerOpenGL::PrepareDraw(bool is_indexed, Func&& draw_func)
     draw_func(primitive_mode);
 
     EndTransformFeedback();
+    buffer_cache.CopySparseWrites();
 
     ++num_queued_commands;
     has_written_global_memory |= pipeline->WritesGlobalMemory();
@@ -405,6 +406,9 @@ void RasterizerOpenGL::DispatchCompute() {
     }
     pipeline->SetEngine(kepler_compute, gpu_memory);
     pipeline->Configure();
+    SCOPE_EXIT {
+        buffer_cache.CopySparseWrites();
+    };
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
     if (indirect_address) {

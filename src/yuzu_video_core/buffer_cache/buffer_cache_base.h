@@ -223,6 +223,10 @@ public:
 
     void UpdateComputeBuffers();
 
+    /// Brings what the GPU wrote in assembled buffers back to the buffers of their parts, once the
+    /// draw or dispatch writing them is recorded
+    void CopySparseWrites();
+
     void BindHostGeometryBuffers(bool is_indexed);
 
     void BindHostStageBuffers(size_t stage);
@@ -498,6 +502,8 @@ private:
         /// Mapping generation of the address space the parts were found at
         u64 mapping_generation{};
         u64 frame_tick{};
+        /// Draw or dispatch the buffer was last bound by
+        u64 bind_tick{};
         std::vector<SparseBufferPart> parts;
     };
 
@@ -520,8 +526,12 @@ private:
 
     void ResizeSparseBuffer(SparseBuffer& sparse, u32 capacity);
 
-    /// Brings what the GPU wrote in assembled buffers back to the buffers of their parts
-    void CopySparseWrites();
+    /// Guest address a binding has in an assembled buffer bound by the same draw or dispatch,
+    /// zero when it is not part of one
+    [[nodiscard]] GPUVAddr FindSparseAlias(const Binding& binding, bool is_written) const;
+
+    /// Tracks what the GPU is about to write in an assembled buffer
+    void MarkSparseWrite(GPUVAddr gpu_addr, u32 size);
 
     void RemoveUnusedSparseBuffers();
 
@@ -531,6 +541,9 @@ private:
 
     std::vector<SparseBuffer> sparse_buffers;
     std::vector<std::pair<GPUVAddr, u32>> sparse_writes;
+    u64 sparse_bind_tick = 0;
+    bool has_bound_sparse = false;
+    bool has_written_sparse = false;
     u64 content_version = 0;
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;

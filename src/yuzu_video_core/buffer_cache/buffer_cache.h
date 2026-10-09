@@ -945,15 +945,13 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
     u32 binding_index = 0;
     ForEachEnabledBit(channel_state->enabled_storage_buffers[stage], [&](u32 index) {
         const Binding& binding = channel_state->storage_buffers[stage][index];
-        if (binding.is_sparse) {
-            const SparseBinding sparse =
-                SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
+        const bool is_written = ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
+        if (const GPUVAddr sparse_addr = binding.is_sparse ? binding.sparse_gpu_addr
+                                                           : FindSparseAlias(binding, is_written)) {
+            const SparseBinding sparse = SynchronizeSparseBuffer(sparse_addr, binding.size);
             Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
-            const bool is_written =
-                ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
             if (is_written) {
-                sparse_writes.emplace_back(binding.sparse_gpu_addr, binding.size);
-                runtime.MarkHostWrite(sparse_buffer);
+                MarkSparseWrite(sparse_addr, binding.size);
             }
             if constexpr (NEEDS_BIND_STORAGE_INDEX) {
                 runtime.BindStorageBuffer(stage, binding_index, sparse_buffer, sparse.offset,
@@ -971,7 +969,6 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
 
         const u32 offset = buffer.Offset(binding.device_addr);
         buffer.MarkUsage(offset, size);
-        const bool is_written = ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
 
         if (is_written) {
             MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size);
@@ -1083,15 +1080,14 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
     u32 binding_index = 0;
     ForEachEnabledBit(channel_state->enabled_compute_storage_buffers, [&](u32 index) {
         const Binding& binding = channel_state->compute_storage_buffers[index];
-        if (binding.is_sparse) {
-            const SparseBinding sparse =
-                SynchronizeSparseBuffer(binding.sparse_gpu_addr, binding.size);
+        const bool is_written =
+            ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
+        if (const GPUVAddr sparse_addr = binding.is_sparse ? binding.sparse_gpu_addr
+                                                           : FindSparseAlias(binding, is_written)) {
+            const SparseBinding sparse = SynchronizeSparseBuffer(sparse_addr, binding.size);
             Buffer& sparse_buffer = slot_buffers[sparse.buffer_id];
-            const bool is_written =
-                ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
             if (is_written) {
-                sparse_writes.emplace_back(binding.sparse_gpu_addr, binding.size);
-                runtime.MarkHostWrite(sparse_buffer);
+                MarkSparseWrite(sparse_addr, binding.size);
             }
             if constexpr (NEEDS_BIND_STORAGE_INDEX) {
                 runtime.BindComputeStorageBuffer(binding_index, sparse_buffer, sparse.offset,
@@ -1109,8 +1105,6 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
 
         const u32 offset = buffer.Offset(binding.device_addr);
         buffer.MarkUsage(offset, size);
-        const bool is_written =
-            ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
 
         if (is_written) {
             MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size);
@@ -1163,7 +1157,9 @@ void BufferCache<P>::BindHostComputeTextureBuffers() {
 
 template <class P>
 void BufferCache<P>::DoUpdateGraphicsBuffers(bool is_indexed) {
-    CopySparseWrites();
+    ++sparse_bind_tick;
+    has_bound_sparse = false;
+    has_written_sparse = false;
     BufferOperations([&]() {
         if (is_indexed) {
             UpdateIndexBuffer();
@@ -1183,7 +1179,9 @@ void BufferCache<P>::DoUpdateGraphicsBuffers(bool is_indexed) {
 
 template <class P>
 void BufferCache<P>::DoUpdateComputeBuffers() {
-    CopySparseWrites();
+    ++sparse_bind_tick;
+    has_bound_sparse = false;
+    has_written_sparse = false;
     BufferOperations([&]() {
         UpdateComputeUniformBuffers();
         UpdateComputeStorageBuffers();
@@ -1336,6 +1334,7 @@ void BufferCache<P>::UpdateStorageBuffers(size_t stage) {
         Binding& binding = channel_state->storage_buffers[stage][index];
         if (binding.is_sparse) {
             UpdateSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            has_written_sparse |= ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
             return;
         }
         const BufferId buffer_id = FindBuffer(binding.device_addr, binding.size);
@@ -1409,6 +1408,7 @@ void BufferCache<P>::UpdateComputeStorageBuffers() {
         Binding& binding = channel_state->compute_storage_buffers[index];
         if (binding.is_sparse) {
             UpdateSparseBuffer(binding.sparse_gpu_addr, binding.size);
+            has_written_sparse |= ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
             return;
         }
         binding.buffer_id = FindBuffer(binding.device_addr, binding.size);
@@ -2024,6 +2024,8 @@ void BufferCache<P>::UpdateSparseBuffer(GPUVAddr gpu_addr, u32 size) {
 
     SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
     sparse.frame_tick = frame_tick;
+    sparse.bind_tick = sparse_bind_tick;
+    has_bound_sparse = true;
 
     const u64 mapping_generation = gpu_memory->MappingGeneration();
     if (sparse.mapping_generation != mapping_generation) {
@@ -2154,10 +2156,56 @@ typename BufferCache<P>::SparseBinding BufferCache<P>::SynchronizeSparseBuffer(G
             }
         }
         if (!copies.empty()) {
+            for (const BufferCopy& copy : copies) {
+                source.MarkUsage(copy.src_offset, copy.size);
+            }
             runtime.CopyBuffer(buffer, source, copies, true);
         }
     }
     return GetSparseBinding(gpu_addr, size);
+}
+
+template <class P>
+GPUVAddr BufferCache<P>::FindSparseAlias(const Binding& binding, bool is_written) const {
+    // Reads only have to go through the assembled buffer when it is being written
+    if (!has_bound_sparse || (!is_written && !has_written_sparse)) {
+        return 0;
+    }
+    for (const SparseBuffer& sparse : sparse_buffers) {
+        if (sparse.bind_tick != sparse_bind_tick || sparse.gpu_memory != gpu_memory) {
+            continue;
+        }
+        for (const SparseBufferPart& part : sparse.parts) {
+            if (part.device_addr <= binding.device_addr &&
+                binding.device_addr + binding.size <= part.device_addr + part.size) {
+                return sparse.gpu_addr + part.offset + (binding.device_addr - part.device_addr);
+            }
+        }
+    }
+    return 0;
+}
+
+template <class P>
+void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
+    sparse_writes.emplace_back(gpu_addr, size);
+    const SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
+    runtime.MarkHostWrite(slot_buffers[sparse.buffer_id]);
+    const u64 begin = gpu_addr - sparse.gpu_addr;
+    const u64 end = begin + size;
+    for (const SparseBufferPart& part : sparse.parts) {
+        const u64 write_begin = std::max<u64>(part.offset, begin);
+        const u64 write_end = std::min<u64>(u64{part.offset} + part.size, end);
+        if (write_begin >= write_end) {
+            continue;
+        }
+        // The buffer of the part gets it once the write is recorded, its content version is kept
+        // as the assembled buffer stays its exact copy
+        const DAddr device_addr = part.device_addr + (write_begin - part.offset);
+        const u64 write_size = write_end - write_begin;
+        memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
+        gpu_modified_ranges.Add(device_addr, write_size);
+        uncommitted_gpu_modified_ranges.Add(device_addr, write_size);
+    }
 }
 
 template <class P>
