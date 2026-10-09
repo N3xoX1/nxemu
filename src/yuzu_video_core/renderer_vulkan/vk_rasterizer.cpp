@@ -951,18 +951,22 @@ void RasterizerVulkan::LoadDiskResources(u64 title_id, std::stop_token stop_load
 void RasterizerVulkan::FlushWork() {
 #ifdef ANDROID
     static constexpr u32 DRAWS_TO_DISPATCH = 1024;
+    static constexpr u32 DRAWS_PER_WORKER_BATCH = 8;
 #else
     static constexpr u32 DRAWS_TO_DISPATCH = 4096;
+    static constexpr u32 DRAWS_PER_WORKER_BATCH = 16;
 #endif // ANDROID
 
-    // Only check multiples of 8 draws
-    static_assert(DRAWS_TO_DISPATCH % 8 == 0);
+    // Keep submission checks independent of the worker batch size.
+    static_assert(DRAWS_TO_DISPATCH % DRAWS_PER_WORKER_BATCH == 0);
+    static_assert((DRAWS_PER_WORKER_BATCH & (DRAWS_PER_WORKER_BATCH - 1)) == 0);
     if ((++draw_counter & 7) != 7) {
         return;
     }
     if (draw_counter < DRAWS_TO_DISPATCH) {
-        // Send recorded tasks to the worker thread
-        scheduler.DispatchWork();
+        if ((draw_counter & (DRAWS_PER_WORKER_BATCH - 1)) == DRAWS_PER_WORKER_BATCH - 1) {
+            scheduler.DispatchWork();
+        }
         return;
     }
     // Otherwise (every certain number of draws) flush execution.
