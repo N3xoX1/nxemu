@@ -5,6 +5,7 @@
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/texture_cache/image_view_info.h"
+#include "yuzu_video_core/texture_cache/mip_levels.h"
 #include "yuzu_video_core/texture_cache/texture_cache_base.h"
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/texture_cache/util.h"
@@ -30,11 +31,14 @@ ImageViewInfo::ImageViewInfo(const TICEntry& config, s32 base_layer) noexcept
     : format{PixelFormatFromTIC(config)}, x_source{CastSwizzle(config.x_source)},
       y_source{CastSwizzle(config.y_source)}, z_source{CastSwizzle(config.z_source)},
       w_source{CastSwizzle(config.w_source)} {
+    const s32 last_level = static_cast<s32>(MipLevelCount(config)) - 1;
     range.base = SubresourceBase{
-        .level = static_cast<s32>(config.res_min_mip_level),
+        .level = std::min(static_cast<s32>(config.res_min_mip_level), last_level),
         .layer = base_layer,
     };
-    range.extent.levels = config.res_max_mip_level - config.res_min_mip_level + 1;
+    const s32 max_level = std::clamp(static_cast<s32>(config.res_max_mip_level),
+                                   range.base.level, last_level);
+    range.extent.levels = max_level - range.base.level + 1;
 
     switch (config.texture_type) {
     case TextureType::Texture1D:

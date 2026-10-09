@@ -10,7 +10,8 @@
 namespace VideoCommon {
 
 constexpr size_t NUM_RT = 8;
-constexpr size_t MAX_MIP_LEVELS = 14;
+// The TIC mip level field is four bits and encodes up to 16 levels.
+constexpr size_t MAX_MIP_LEVELS = 16;
 
 constexpr Common::SlotId CORRUPT_ID{0xfffffffe};
 

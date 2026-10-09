@@ -35,6 +35,25 @@ static u64 MakeCbufKey(u32 index, u32 offset) {
     return (static_cast<u64>(index) << 32) | offset;
 }
 
+static u32 CbufSizeQueryMask(const std::unordered_map<u64, u32>& values) {
+    u32 mask{};
+    for (const auto& [key, value] : values) {
+        const u32 bank = static_cast<u32>(key >> 32);
+        if (static_cast<u32>(key) == UINT32_MAX && bank < 32) {
+            mask |= 1U << bank;
+        }
+    }
+    return mask;
+}
+
+u32 GenericEnvironment::CbufSizeMask() const noexcept {
+    return CbufSizeQueryMask(cbuf_values);
+}
+
+u32 FileEnvironment::CbufSizeMask() const noexcept {
+    return CbufSizeQueryMask(cbuf_values);
+}
+
 static Shader::TextureType ConvertTextureType(
     const std::optional<Tegra::Texture::TICEntry>& optional_entry) {
     if (!optional_entry) {
@@ -341,6 +360,14 @@ GraphicsEnvironment::GraphicsEnvironment(Tegra::Engines::Maxwell3D& maxwell3d_,
         maxwell3d->engine_state == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro;
 }
 
+u32 GraphicsEnvironment::ReadCbufSize(u32 cbuf_index) {
+    const auto& cbuf{maxwell3d->state.shader_stages[stage_index].const_buffers[cbuf_index]};
+    const u32 size = cbuf.enabled ? cbuf.size : 0;
+    // Reserved offset outside the guest address space; keeps cache layout unchanged.
+    cbuf_values.emplace(MakeCbufKey(cbuf_index, UINT32_MAX), size);
+    return size;
+}
+
 u32 GraphicsEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
     const auto& cbuf{maxwell3d->state.shader_stages[stage_index].const_buffers[cbuf_index]};
     ASSERT(cbuf.enabled);
@@ -423,6 +450,14 @@ ComputeEnvironment::ComputeEnvironment(Tegra::Engines::KeplerCompute& kepler_com
     workgroup_size = {qmd.block_dim_x, qmd.block_dim_y, qmd.block_dim_z};
 }
 
+u32 ComputeEnvironment::ReadCbufSize(u32 cbuf_index) {
+    const auto& qmd{kepler_compute->launch_description};
+    const bool enabled = ((qmd.const_buffer_enable_mask.Value() >> cbuf_index) & 1) != 0;
+    const u32 size = enabled ? qmd.const_buffer_config[cbuf_index].size.Value() : 0;
+    cbuf_values.emplace(MakeCbufKey(cbuf_index, UINT32_MAX), size);
+    return size;
+}
+
 u32 ComputeEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
     const auto& qmd{kepler_compute->launch_description};
     ASSERT(((qmd.const_buffer_enable_mask.Value() >> cbuf_index) & 1) != 0);
@@ -482,6 +517,33 @@ void FileEnvironment::Deserialize(std::ifstream& file) {
         .read(reinterpret_cast<char*>(&read_highest), sizeof(read_highest))
         .read(reinterpret_cast<char*>(&viewport_transform_state), sizeof(viewport_transform_state))
         .read(reinterpret_cast<char*>(&stage), sizeof(stage));
+    // A crash can leave the last cache entry incomplete. Validate serialized sizes before
+    // allocating memory; otherwise arbitrary bytes can turn into a huge allocation request.
+    if (!file || stage > Shader::Stage::VertexA || code_size % sizeof(u64) != 0) {
+        throw std::ios_base::failure("Invalid shader cache environment header");
+    }
+    const auto position = file.tellg();
+    file.seekg(0, std::ios::end);
+    const auto end = file.tellg();
+    file.seekg(position);
+    if (!file || position < 0 || end < position) {
+        throw std::ios_base::failure("Invalid shader cache file bounds");
+    }
+    u64 remaining = static_cast<u64>(end - position);
+    if (code_size > remaining) {
+        throw std::ios_base::failure("Invalid shader cache code size");
+    }
+    remaining -= code_size;
+    const auto consume_entries = [&remaining](u64 count, size_t entry_size) {
+        if (count > remaining / entry_size) {
+            throw std::ios_base::failure("Invalid shader cache entry count");
+        }
+        remaining -= count * entry_size;
+    };
+    consume_entries(num_texture_types, sizeof(u32) + sizeof(Shader::TextureType));
+    consume_entries(num_texture_pixel_formats, sizeof(u32) + sizeof(Shader::TexturePixelFormat));
+    consume_entries(num_cbuf_values, sizeof(u64) + sizeof(u32));
+    consume_entries(num_cbuf_replacement_values, sizeof(u64) + sizeof(Shader::ReplaceConstant));
     code.resize(Common::DivCeil(code_size, sizeof(u64)));
     file.read(reinterpret_cast<char*>(code.data()), code_size);
     for (size_t i = 0; i < num_texture_types; ++i) {
@@ -523,6 +585,9 @@ void FileEnvironment::Deserialize(std::ifstream& file) {
             file.read(reinterpret_cast<char*>(&gp_passthrough_mask), sizeof(gp_passthrough_mask));
         }
     }
+    if (!file) {
+        throw std::ios_base::failure("Truncated shader cache environment");
+    }
     is_proprietary_driver = texture_bound == 2;
 }
 
@@ -535,6 +600,11 @@ u64 FileEnvironment::ReadInstruction(u32 address) {
         throw Shader::LogicError("Out of bounds address {}", address);
     }
     return code[(address - read_lowest) / sizeof(u64)];
+}
+
+u32 FileEnvironment::ReadCbufSize(u32 cbuf_index) {
+    const auto it = cbuf_values.find(MakeCbufKey(cbuf_index, UINT32_MAX));
+    return it != cbuf_values.end() ? it->second : 0;
 }
 
 u32 FileEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
@@ -666,11 +736,17 @@ void LoadPipelines(
         }
         u32 num_envs{};
         file.read(reinterpret_cast<char*>(&num_envs), sizeof(num_envs));
+        if (num_envs == 0 || num_envs > 6) {
+            throw std::ios_base::failure("Invalid shader cache stage count");
+        }
         std::vector<FileEnvironment> envs(num_envs);
         for (FileEnvironment& env : envs) {
             env.Deserialize(file);
         }
         if (envs.front().ShaderStage() == Shader::Stage::Compute) {
+            if (envs.size() != 1) {
+                throw std::ios_base::failure("Invalid compute shader cache stage count");
+            }
             load_compute(file, std::move(envs.front()));
         } else {
             load_graphics(file, std::move(envs));

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
@@ -237,7 +237,12 @@
       <Filter>Header Files\frontend\maxwell\translate\impl</Filter>
     </ClInclude>
     <ClInclude Include="ir_opt\passes.h">
-      <Filter>Header Files\ir_opt</Filter>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ir_opt\bindless_descriptor.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

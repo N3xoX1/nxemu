@@ -70,6 +70,9 @@ public:
         return !cbuf_replacements.empty();
     }
 
+    // Banks whose bound sizes were actually queried during shader translation.
+    [[nodiscard]] u32 CbufSizeMask() const noexcept;
+
 protected:
     std::optional<u64> TryFindSize();
 
@@ -117,6 +120,8 @@ public:
 
     u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
 
+    u32 ReadCbufSize(u32 cbuf_index) override;
+
     Shader::TextureType ReadTextureType(u32 handle) override;
 
     Shader::TexturePixelFormat ReadTexturePixelFormat(u32 handle) override;
@@ -142,6 +147,8 @@ public:
     ~ComputeEnvironment() override = default;
 
     u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
+
+    u32 ReadCbufSize(u32 cbuf_index) override;
 
     Shader::TextureType ReadTextureType(u32 handle) override;
 
@@ -176,6 +183,10 @@ public:
     [[nodiscard]] u64 ReadInstruction(u32 address) override;
 
     [[nodiscard]] u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
+
+    [[nodiscard]] u32 ReadCbufSize(u32 cbuf_index) override;
+
+    [[nodiscard]] u32 CbufSizeMask() const noexcept;
 
     [[nodiscard]] Shader::TextureType ReadTextureType(u32 handle) override;
 

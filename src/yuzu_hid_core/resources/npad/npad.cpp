@@ -886,12 +886,24 @@ Result NPad::DisconnectNpad(u64 aruid, NpadIdType npad_id) {
         return ResultInvalidNpadId;
     }
 
+    // Applications can disconnect unused pads before creating their HID resource.
+    // Do not fall back to another application's controller data in this case.
+    const auto aruid_index = applet_resource_holder.applet_resource->GetIndexFromAruid(aruid);
+    if (aruid_index >= AruidIndexMax) {
+        return ResultSuccess;
+    }
+    const auto* data = applet_resource_holder.applet_resource->GetAruidDataByIndex(aruid_index);
+    if (data == nullptr || !data->flag.is_assigned) {
+        return ResultSuccess;
+    }
+
     LOG_DEBUG(Service_HID, "Npad disconnected {}", npad_id);
-    auto& controller = GetControllerFromNpadIdType(aruid, npad_id);
+    auto& controller = controller_data[aruid_index][NpadIdTypeToIndex(npad_id)];
 
     auto* shared_memory = controller.shared_memory;
     if (!shared_memory) {
-        LOG_WARNING(Service_HID, "shared_memory is null for npad_id={}", npad_id);
+        LOG_DEBUG(Service_HID, "Npad resource is not active for aruid={:#x}, npad_id={}", aruid,
+                  npad_id);
         return ResultSuccess;
     }
     // Don't reset shared_memory->assignment_mode this value is persistent

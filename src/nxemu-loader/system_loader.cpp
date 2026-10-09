@@ -1,4 +1,5 @@
 #include "system_loader.h"
+#include <nxemu-module-spec/application_control_data.h>
 #include "core/core.h"
 #include "core/file_sys/card_image.h"
 #include "core/file_sys/common_funcs.h"
@@ -816,6 +817,25 @@ IFileSysNACP * Systemloader::GetPMControlMetadata(uint64_t programID)
         return nullptr;
     }
     return metadata.first.release();
+}
+
+LoaderResultStatus Systemloader::GetPMControlData(uint64_t program_id, uint8_t * buffer,
+                                                 uint32_t buffer_size, uint32_t & actual_size)
+{
+    actual_size = 0;
+    const FileSys::PatchManager pm(program_id, GetFileSystemController(), GetContentProvider());
+    const auto metadata = pm.GetControlMetadata();
+    if (metadata.first == nullptr || !metadata.first->IsValid())
+    {
+        return LoaderResultStatus::ErrorNoControl;
+    }
+    static_assert(sizeof(FileSys::RawNACP) == ApplicationControlData::NacpSize);
+    const auto nacp = metadata.first->GetRawBytes();
+    const auto & icon = metadata.second;
+    return ApplicationControlData::Read(nacp, icon != nullptr ? icon->GetSize() : 0,
+        [&icon](uint8_t * destination, uint64_t size) {
+            return icon->Read(destination, static_cast<size_t>(size), 0);
+        }, buffer, buffer_size, actual_size);
 }
 
 IManualContentProvider & Systemloader::ManualContentProvider()

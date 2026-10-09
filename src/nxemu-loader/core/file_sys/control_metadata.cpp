@@ -69,7 +69,8 @@ NACP::NACP() = default;
 
 NACP::NACP(VirtualFile file)
 {
-    file->ReadObject(&raw);
+    valid = file != nullptr && file->GetSize() == sizeof(raw) &&
+            file->ReadObject(&raw) == sizeof(raw);
     version = Common::StringFromFixedZeroTerminatedBuffer(raw.version_string.data(), raw.version_string.size());
 }
 
@@ -80,6 +81,7 @@ NACP & NACP::operator=(const NACP & other)
     if (this != &other)
     {
         raw = other.raw;
+        valid = other.valid;
         version = other.version;
         developer = other.developer;
     }

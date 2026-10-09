@@ -67,3 +67,7 @@
 [submodule "external/libadrenotools"]
 	path = external/libadrenotools
 	url = https://github.com/bylaws/libadrenotools.git
+
+[submodule "external/zbic"]
+	path = external/zbic
+	url = https://github.com/kinnay/zbic.git

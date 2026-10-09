@@ -113,6 +113,7 @@ public:
     uint64_t GetDefaultNormalSaveSize() const;
     uint64_t GetDefaultJournalSaveSize() const;
     std::vector<u8> GetRawBytes() const;
+    bool IsValid() const { return valid; }
     uint64_t GetDeviceSaveDataSize() const;
 
     //IFileSysNACP
@@ -130,6 +131,7 @@ private:
     std::string version;
     mutable std::string developer;
     RawNACP raw{};
+    bool valid{};
 };
 
 } // namespace FileSys
