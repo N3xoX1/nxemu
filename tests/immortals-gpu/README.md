@@ -24,29 +24,12 @@ elle corrige uniquement l'activation du décalage sur les triangles de la carte
 d'ombres et supprime l'alternance du sol sur les 113 images enregistrées.
 
 `run-indirect-dispatch.ps1` extrait les méthodes DMA et KeplerCompute du commit
-23cd95f9 (v8) et des sources courantes. Il utilise l'ordre réel EXEC, DATA, LAUNCH.
-L'ancien banc envoyait DATA avant EXEC et masquait une source et une longueur
-provenant de l'upload précédent. Il vérifie séparément X et le mot compacté Y/Z,
-les envois simples et multiples aux niveaux Normal et High, les uploads recouvrants,
-les sources discontinues, les écrasements CPU, le nettoyage entre deux lancements
-et l'accumulation des commandes traversant plusieurs entrées GP sans lecture hors limites.
-Le témoin échoue sur vingt-deux des vingt-neuf cas ; la correction doit passer les vingt-neuf.
-10 000 morceaux contigus doivent conserver une seule plage à examiner au lancement.
-Les doubles de mémoire permettent de contrôler ces cas sans lancer le jeu.
-
-`run-compute-indirect.ps1` compile le shader de conversion de production, extrait
-ses barrières et vérifie l'intégration : lecture de deux mots QMD indépendants,
-restauration du pipeline invité après le calcul auxiliaire et tampon Vulkan portant
-l'usage INDIRECT_BUFFER. Vingt cas GPU vérifient le compactage Y/Z, le bit réservé
-de X, les champs statiques, les offsets et un vrai consommateur DispatchIndirect.
-Une dimension nulle doit produire zéro invocation. Les couches Vulkan et la validation
-des dépendances shaders doivent signaler zéro erreur. Le coût est mesuré séparément
-sur neuf échantillons après échauffement, en lots de 1 000 lancements, sans validation.
-`run-compute-indirect-opengl.ps1` vérifie aussi le shader OpenGL de production et
-un vrai consommateur indirect sur la carte, dans un contexte WGL invisible : dix-huit
-cas couvrent les mêmes champs, les dimensions nulles, les offsets et la restauration
-du programme après le calcul auxiliaire. Il évite une régression du second backend
-lors du changement du suivi partagé des uploads.
+25a0b0e4 et des sources courantes. Il reproduit la perte de provenance des paramètres
+de dispatch écrits par le GPU, puis téléchargés avant le lancement. Il vérifie les
+envois simples et multiples aux niveaux Normal et High, le nettoyage entre deux
+lancements, les continuations partielles et la provenance des paramètres de macros.
+Le témoin échoue sur six des seize cas ; la correction doit passer les seize.
+Les doubles de mémoire permettent de contrôler cette course sans lancer le jeu.
 
 `run-shaders.ps1` lie le banc au recompileur SPIR-V réellement construit. Il couvre
 une image Buffer en lecture seule, la lecture/écriture, et les tailles privées et

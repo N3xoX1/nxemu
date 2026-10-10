@@ -209,14 +209,8 @@ public:
         return indirect_compute;
     }
 
-    std::optional<GPUVAddr> GetIndirectComputeYZAddress() const
-    {
-        return indirect_compute_yz;
-    }
-
 private:
     void ProcessLaunch();
-    void RecordUploadSource(u32 bytes);
 
     void ConsumeSinkImpl() override;
 
@@ -229,10 +223,8 @@ private:
     MemoryManager& memory_manager;
     VideoCore::RasterizerInterface* rasterizer = nullptr;
     Upload::State upload_state;
-    GPUVAddr upload_target{};
-    u32 upload_size{};
-    u32 uploaded_bytes{};
-    bool upload_linear{};
+    GPUVAddr upload_address{};
+    bool upload_dirty{};
 
     struct UploadInfo {
         GPUVAddr upload_address;
@@ -242,7 +234,6 @@ private:
     };
     std::vector<UploadInfo> uploads;
     std::optional<GPUVAddr> indirect_compute{};
-    std::optional<GPUVAddr> indirect_compute_yz{};
 };
 
 #define ASSERT_REG_POSITION(field_name, position)                                                  \

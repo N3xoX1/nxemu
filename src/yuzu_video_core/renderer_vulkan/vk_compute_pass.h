@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <array>
 #include <optional>
 #include <span>
 #include <utility>
@@ -66,22 +65,6 @@ private:
     Scheduler& scheduler;
     StagingBufferPool& staging_buffer_pool;
     ComputePassDescriptorQueue& compute_pass_descriptor_queue;
-};
-
-class ComputeIndirectPass final : public ComputePass
-{
-public:
-    explicit ComputeIndirectPass(const Device & device_, Scheduler & scheduler_,
-                                 DescriptorPool & descriptor_pool_, StagingBufferPool & staging_pool_,
-                                 ComputePassDescriptorQueue & descriptor_queue_);
-    std::pair<VkBuffer, VkDeviceSize> Assemble(
-        std::array<std::pair<VkBuffer, VkDeviceSize>, 2> sources,
-        u32 default_x, u32 default_yz);
-
-private:
-    Scheduler & scheduler;
-    StagingBufferPool & staging_pool;
-    ComputePassDescriptorQueue & descriptor_queue;
 };
 
 class QuadIndexedPass final : public ComputePass {

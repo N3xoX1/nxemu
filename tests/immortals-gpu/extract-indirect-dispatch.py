@@ -22,12 +22,10 @@ for variant in ('baseline', 'fixed'):
     def read(path):
         if variant == 'fixed':
             return (root / path).read_text()
-        return subprocess.check_output(['git', 'show', f'23cd95f9:{path}'], cwd=root, text=True)
+        return subprocess.check_output(['git', 'show', f'25a0b0e4:{path}'], cwd=root, text=True)
     compute = read('src/yuzu_video_core/engines/kepler_compute.cpp')
     methods = '\n\n'.join(function(compute, s) for s in
         ('void KeplerCompute::CallMethod(', 'void KeplerCompute::CallMultiMethod('))
-    if variant == 'fixed':
-        methods += '\n\n' + function(compute, 'void KeplerCompute::RecordUploadSource(')
     (out / f'{variant}-compute.inc').write_text(methods.replace('KeplerCompute::', 'Compute::'))
     dma = read('src/yuzu_video_core/dma_pusher.cpp')
     start = dma.index('    if (header.size > 0 &&')

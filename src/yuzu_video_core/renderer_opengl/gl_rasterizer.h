@@ -238,9 +238,6 @@ private:
     void QueryFallback(GPUVAddr gpu_addr, VideoCommon::QueryType type,
                        VideoCommon::QueryPropertiesFlags flags, u32 payload, u32 subreport);
 
-    GLuint AssembleComputeIndirect(std::array<std::pair<GLuint, u32>, 2> sources,
-                                   u32 default_x, u32 default_yz);
-
     Tegra::GPU& gpu;
     Tegra::MaxwellDeviceMemoryManager& device_memory;
 
@@ -259,8 +256,6 @@ private:
     FenceManagerOpenGL fence_manager;
 
     BlitImageHelper blit_image;
-    OGLProgram compute_indirect_program;
-    OGLBuffer compute_indirect_buffer;
 
     boost::container::static_vector<u32, MAX_IMAGE_VIEWS> image_view_indices;
     std::array<ImageViewId, MAX_IMAGE_VIEWS> image_view_ids;
