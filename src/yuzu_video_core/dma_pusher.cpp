@@ -117,10 +117,12 @@ bool DmaPusher::Step()
 
     if (header.size > 0)
     {
-        // Macro parameters and the inline data of compute launches written by the GPU are consumed
-        // on the GPU, reading them back would stall on every indirect draw and dispatch
+        // Only bypass readback when this entire entry continues a non-incrementing parameter
+        // command. A completed command leaves its method behind, and a partial continuation can
+        // be followed by new headers that the CPU must fetch safely.
         const bool is_gpu_consumed =
-            Settings::IsDMALevelDefault() &&
+            Settings::IsDMALevelDefault() && dma_state.non_incrementing &&
+            dma_state.method_count >= header.size &&
             (dma_state.method >= MacroRegistersStart ||
              (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::KeplerCompute &&
               dma_state.method == ComputeInline));

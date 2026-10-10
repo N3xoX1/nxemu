@@ -52,6 +52,8 @@ struct ComputePipelineCacheKey {
     u32 shared_memory_size;
     std::array<u32, 3> workgroup_size;
     std::array<u32, 8> cbuf_sizes;
+    u32 texture_table_size;
+    u32 reserved;
 
     size_t Hash() const noexcept;
 

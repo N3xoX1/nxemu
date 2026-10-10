@@ -34,6 +34,7 @@ struct ConstBufferAddr {
     u32 count;
     u32 size_shift{DESCRIPTOR_SIZE_SHIFT};
     bool has_secondary;
+    bool is_direct{};
 };
 
 struct TextureInst {
@@ -476,7 +477,21 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst) {
     if (IsBindless(inst)) {
         const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst)};
         if (!track_addr) {
-            throw NotImplementedException("Failed to track bindless texture constant buffer");
+            // Handles passed through SSBOs/shared memory have no constant-buffer address.
+            // Keep the runtime handle and index the TIC table directly instead of guessing
+            // a cbuf from the address expression. Typeless 3D stores are the supported case.
+            const auto flags = inst.Flags<IR::TextureInstInfo>();
+            if (inst.GetOpcode() == IR::Opcode::BindlessImageWrite &&
+                flags.type == TextureType::Color3D && flags.image_format == ImageFormat::Typeless) {
+                const u32 size = env.ReadTextureTableSize();
+                if (size != 0) {
+                    addr = ConstBufferAddr{.dynamic_offset = IR::U32{inst.Arg(0)},
+                                          .count = size + 1, .is_direct = true};
+                    return TextureInst{addr, &inst, block};
+                }
+            }
+            throw NotImplementedException("Failed to track bindless texture constant buffer\n{}",
+                                          IR::DumpBlock(*block));
         }
         addr = *track_addr;
     } else {
@@ -577,7 +592,9 @@ public:
             return desc.type == existing.type && desc.format == existing.format &&
                    desc.cbuf_index == existing.cbuf_index &&
                    desc.cbuf_offset == existing.cbuf_offset && desc.count == existing.count &&
-                   desc.size_shift == existing.size_shift;
+                   desc.size_shift == existing.size_shift && desc.is_direct == existing.is_direct &&
+                   (!desc.is_direct || (desc.is_integer == existing.is_integer &&
+                                        desc.is_signed == existing.is_signed));
         })};
         image_descriptors[index].is_written |= desc.is_written;
         image_descriptors[index].is_read |= desc.is_read;
@@ -680,7 +697,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
     std::unordered_set<const IR::Inst*> alignment_visiting;
     std::unordered_map<const IR::Inst*, u32> offset_alignments;
     for (auto& texture : to_replace) {
-        if (texture.cbuf.count <= 1) continue;
+        if (texture.cbuf.count <= 1 || texture.cbuf.is_direct) continue;
         const u32 buffer_size = env.ReadCbufSize(texture.cbuf.index);
         if (buffer_size == 0) {
             throw NotImplementedException("Bindless constant buffer size is unavailable");
@@ -779,7 +796,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             }
             const bool is_written{inst->GetOpcode() != IR::Opcode::ImageRead};
             const bool is_read{inst->GetOpcode() != IR::Opcode::ImageWrite};
-            const bool is_integer{IsTexturePixelFormatInteger(env, cbuf)};
+            const bool is_integer{!cbuf.is_direct && IsTexturePixelFormatInteger(env, cbuf)};
             if (flags.type == TextureType::Buffer) {
                 index = descriptors.Add(ImageBufferDescriptor{
                     .format = flags.image_format,
@@ -802,6 +819,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .cbuf_offset = cbuf.offset,
                     .count = cbuf.count,
                     .size_shift = size_shift,
+                    .is_direct = cbuf.is_direct,
                 });
             }
             break;
@@ -840,7 +858,29 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         flags.descriptor_index.Assign(index);
         inst->SetFlags(flags);
 
-        if (cbuf.count > 1) {
+        if (cbuf.is_direct) {
+            if (!host_info.support_null_descriptor) {
+                throw NotImplementedException("Runtime storage image table requires null descriptors");
+            }
+            program.info.runtime_image_write_mask_words = (cbuf.count + 31U) / 32U;
+            IR::IREmitter ir{*texture_inst.block, IR::Block::InstructionList::s_iterator_to(*inst)};
+            const auto tic_index = ir.BitwiseAnd(cbuf.dynamic_offset, ir.Imm32(0xfffffU));
+            // The final descriptor is a null image for handles outside the bound table.
+            inst->SetArg(0, ir.UMin(tic_index, ir.Imm32(cbuf.count - 1)));
+            // A runtime TIC can select float, unsigned or signed storage. Bind the
+            // matching view in one typed table and null descriptors in the other two.
+            // nullDescriptor discards their stores without interpreting the texel bits.
+            auto typed_desc = program.info.image_descriptors[index];
+            typed_desc.is_integer = true;
+            for (const bool is_signed : {false, true}) {
+                typed_desc.is_signed = is_signed;
+                auto typed_flags = flags;
+                typed_flags.descriptor_index.Assign(descriptors.Add(typed_desc));
+                auto clone = texture_inst.block->PrependNewInst(
+                    IR::Block::InstructionList::s_iterator_to(*inst), *inst);
+                clone->SetFlags(typed_flags);
+            }
+        } else if (cbuf.count > 1) {
             const auto insert_point{IR::Block::InstructionList::s_iterator_to(*inst)};
             IR::IREmitter ir{*texture_inst.block, insert_point};
             const IR::U32 shift{ir.Imm32(size_shift)};
@@ -866,6 +906,10 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             return !texture.cbuf.dynamic_offset.IsEmpty();
         }) && sampled_count > host_info.max_bindless_descriptors_per_stage) {
         throw NotImplementedException("Sampled texture bindings exceed the host descriptor budget");
+    }
+    if (NumDescriptors(program.info.image_descriptors) > host_info.max_storage_images_per_stage &&
+        std::ranges::any_of(program.info.image_descriptors, [](const auto& desc) { return desc.is_direct; })) {
+        throw NotImplementedException("Runtime storage image table exceeds the host descriptor budget");
     }
 }
 

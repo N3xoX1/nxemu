@@ -946,6 +946,8 @@ void GatherInfoFromHeader(Environment& env, Info& info) {
 
 void CollectShaderInfoPass(Environment& env, IR::Program& program) {
     Info& info{program.info};
+    // Read-only and atomic storage texel buffers also require ImageBuffer in SPIR-V.
+    info.uses_image_buffers |= !info.image_buffer_descriptors.empty();
     const u32 base{[&] {
         switch (program.stage) {
         case Stage::VertexA:

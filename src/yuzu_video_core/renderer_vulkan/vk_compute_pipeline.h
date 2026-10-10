@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include <boost/container/small_vector.hpp>
 
@@ -38,7 +39,7 @@ public:
                              Common::ThreadWorker* thread_worker,
                              PipelineStatistics* pipeline_statistics,
                              VideoCore::ShaderNotify* shader_notify, const Shader::Info& info,
-                             vk::ShaderModule spv_module);
+                             vk::ShaderModule spv_module, StagingBufferPool& staging_pool);
 
     ComputePipeline& operator=(ComputePipeline&&) noexcept = delete;
     ComputePipeline(ComputePipeline&&) noexcept = delete;
@@ -48,6 +49,7 @@ public:
 
     void Configure(Tegra::Engines::KeplerCompute& kepler_compute, Tegra::MemoryManager& gpu_memory,
                    Scheduler& scheduler, BufferCache& buffer_cache, TextureCache& texture_cache);
+    void FinishRuntimeImageWrites(Scheduler& scheduler, TextureCache& texture_cache);
 
     /// Returns true when the host rejected the pipeline. Only valid once the build has finished.
     [[nodiscard]] bool HasBuildFailed() const noexcept {
@@ -59,6 +61,10 @@ private:
     vk::PipelineCache& pipeline_cache;
     GuestDescriptorQueue& guest_descriptor_queue;
     Shader::Info info;
+    StagingBufferPool& staging_pool;
+    StagingBufferRef runtime_image_write_mask{};
+    std::vector<VideoCommon::ImageViewId> runtime_image_views;
+    u64 runtime_image_dispatch_count{};
     u32 num_textures{};
     size_t num_descriptor_entries{};
 

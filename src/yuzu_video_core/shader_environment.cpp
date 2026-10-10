@@ -458,6 +458,17 @@ u32 ComputeEnvironment::ReadCbufSize(u32 cbuf_index) {
     return size;
 }
 
+u32 ComputeEnvironment::ReadTextureTableSize() {
+    const u32 size = std::min(kepler_compute->regs.tic.limit + 1U, 1U << 20);
+    cbuf_values.emplace(MakeCbufKey(UINT32_MAX, UINT32_MAX), size);
+    return size;
+}
+
+u32 FileEnvironment::ReadTextureTableSize() {
+    const auto it = cbuf_values.find(MakeCbufKey(UINT32_MAX, UINT32_MAX));
+    return it != cbuf_values.end() ? it->second : 0;
+}
+
 u32 ComputeEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
     const auto& qmd{kepler_compute->launch_description};
     ASSERT(((qmd.const_buffer_enable_mask.Value() >> cbuf_index) & 1) != 0);

@@ -8,12 +8,14 @@
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/dirty_flags.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/texture_cache/image_view_base.h"
+#include "yuzu_video_core/texture_cache/format_lookup_table.h"
 #include "yuzu_video_core/texture_cache/samples_helper.h"
 #include "yuzu_video_core/texture_cache/texture_cache_base.h"
 #include "yuzu_video_core/texture_cache/util.h"
@@ -323,6 +325,25 @@ void TextureCache<P>::SynchronizeComputeDescriptors() {
 }
 
 template <class P>
+bool TextureCache<P>::IsCompute3DImage(u32 index, bool is_integer, bool is_signed) {
+    auto& table = channel_state->compute_image_table;
+    if (index > table.Limit()) {
+        return false;
+    }
+    const auto [tic, is_new] = table.Read(index);
+    if (is_new) {
+        channel_state->compute_image_view_ids[index] = CORRUPT_ID;
+    }
+    if (tic.texture_type != Tegra::Texture::TextureType::Texture3D) {
+        return false;
+    }
+    const auto format = PixelFormatFromTextureInfo(
+        tic.format, tic.r_type, tic.g_type, tic.b_type, tic.a_type, tic.srgb_conversion);
+    return VideoCore::Surface::IsPixelFormatInteger(format) == is_integer &&
+           (tic.r_type == Tegra::Texture::ComponentType::SINT) == is_signed;
+}
+
+template <class P>
 bool TextureCache<P>::RescaleRenderTargets() {
     auto& flags = maxwell3d->dirty.flags;
     u32 scale_rating = 0;
@@ -527,7 +548,7 @@ ImageViewId TextureCache<P>::VisitImageView(DescriptorTable<TICEntry>& table,
     }
     const auto [descriptor, is_new] = table.Read(index);
     ImageViewId& image_view_id = cached_image_view_ids[index];
-    if (is_new) {
+    if (is_new || image_view_id == CORRUPT_ID) {
         image_view_id = FindImageView(descriptor);
     }
     if (image_view_id != NULL_IMAGE_VIEW_ID) {

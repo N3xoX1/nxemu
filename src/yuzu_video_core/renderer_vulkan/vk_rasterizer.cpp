@@ -192,8 +192,7 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
                      render_pass_cache, buffer_cache, texture_cache, gpu.ShaderNotify(),
                      staging_pool),
       accelerate_dma(buffer_cache, texture_cache, scheduler),
-      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler),
-      wfi_event(device.GetLogical().CreateEvent()) {
+      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler) {
     scheduler.SetQueryCache(query_cache);
 }
 
@@ -217,13 +216,15 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
+    // CounterEnable may close the previous render pass to keep query endpoints outside.
+    // Configure must open the draw's render pass afterwards.
+    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
+                              maxwell3d->regs.zpass_pixel_count_enable);
     pipeline->Configure(is_indexed);
 
     UpdateDynamicStates();
 
     HandleTransformFeedback();
-    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
-                              maxwell3d->regs.zpass_pixel_count_enable);
     draw_func(pipeline);
     buffer_cache.CopySparseWrites();
 }
@@ -595,7 +596,9 @@ void RasterizerVulkan::DispatchCompute() {
                 return;
             }
             cmdbuf.DispatchIndirect(indirect_buffer, indirect_offset);
+            Scheduler::ComputeMemoryBarrier(cmdbuf);
         });
+        pipeline->FinishRuntimeImageWrites(scheduler, texture_cache);
         return;
     }
     const std::array<u32, 3> dim{qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z};
@@ -605,7 +608,9 @@ void RasterizerVulkan::DispatchCompute() {
             return;
         }
         cmdbuf.Dispatch(dim[0], dim[1], dim[2]);
+        Scheduler::ComputeMemoryBarrier(cmdbuf);
     });
+    pipeline->FinishRuntimeImageWrites(scheduler, texture_cache);
 }
 
 void RasterizerVulkan::ResetCounter(VideoCommon::QueryType type) {
@@ -842,9 +847,16 @@ void RasterizerVulkan::WaitForIdle() {
     query_cache.NotifyWFI();
 
     scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([event = *wfi_event, flags](vk::CommandBuffer cmdbuf) {
-        cmdbuf.SetEvent(event, flags);
-        cmdbuf.WaitEvents(event, flags, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, {}, {}, {});
+    scheduler.Record([flags](vk::CommandBuffer cmdbuf) {
+        // WFI must publish prior writes, not just order execution. In particular, compute
+        // output may become a vertex buffer or an indirect draw argument after this point.
+        static constexpr VkMemoryBarrier barrier{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+        };
+        cmdbuf.PipelineBarrier(flags, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, barrier);
     });
     fence_manager.SignalOrdering();
 }

@@ -398,6 +398,13 @@ void SetupTransformFeedbackCapabilities(EmitContext& ctx, Id main_func) {
 }
 
 void SetupCapabilities(const Profile& profile, const Info& info, EmitContext& ctx) {
+    if (ctx.uses_nonuniform_storage_image) {
+        if (profile.supported_spirv < 0x00010500) {
+            ctx.AddExtension("SPV_EXT_descriptor_indexing");
+        }
+        ctx.AddCapability(spv::Capability::ShaderNonUniform);
+        ctx.AddCapability(spv::Capability::StorageImageArrayNonUniformIndexing);
+    }
     if (ctx.uses_nonuniform_sampled_image) {
         if (profile.supported_spirv < 0x00010500) {
             ctx.AddExtension("SPV_EXT_descriptor_indexing");

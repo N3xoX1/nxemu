@@ -535,8 +535,26 @@ private:
 
     void RemoveUnusedSparseBuffers();
 
-    void MarkBufferContentChanged(Buffer& buffer) noexcept {
+    void MarkBufferContentChanged(Buffer& buffer, DAddr changed_addr = 0,
+                                  u64 changed_size = std::numeric_limits<u64>::max()) noexcept {
+        const u64 previous_version = buffer.content_version;
         buffer.content_version = ++content_version;
+        // A large canonical buffer can contain many independent sparse parts. Updating one
+        // part must not cause every other part to be copied again on its next use.
+        if (changed_size == std::numeric_limits<u64>::max()) {
+            return;
+        }
+        const DAddr changed_end = changed_addr + changed_size;
+        for (SparseBuffer& sparse : sparse_buffers) {
+            for (SparseBufferPart& part : sparse.parts) {
+                if (part.buffer_id && &slot_buffers[part.buffer_id] == &buffer &&
+                    part.content_version == previous_version &&
+                    (part.device_addr >= changed_end ||
+                     part.device_addr + part.size <= changed_addr)) {
+                    part.content_version = buffer.content_version;
+                }
+            }
+        }
     }
 
     std::vector<SparseBuffer> sparse_buffers;

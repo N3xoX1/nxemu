@@ -1037,17 +1037,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline_layout, 0,
                                       descriptor_set, nullptr);
             cmdbuf.Dispatch(groups, 1, 1);
-            static constexpr VkMemoryBarrier barrier{
-                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                .pNext = nullptr,
-                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDEX_READ_BIT,
-            };
-            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
-                                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                                   0, barrier);
+            Scheduler::ComputeMemoryBarrier(cmdbuf);
         });
     }};
     run_stage(VtgPipelineInfo::VERTEX, 0, vertex_buffers, vertex_invocations);

@@ -150,6 +150,8 @@ public:
 
     u32 ReadCbufSize(u32 cbuf_index) override;
 
+    u32 ReadTextureTableSize() override;
+
     Shader::TextureType ReadTextureType(u32 handle) override;
 
     Shader::TexturePixelFormat ReadTexturePixelFormat(u32 handle) override;
@@ -185,6 +187,8 @@ public:
     [[nodiscard]] u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
 
     [[nodiscard]] u32 ReadCbufSize(u32 cbuf_index) override;
+
+    [[nodiscard]] u32 ReadTextureTableSize() override;
 
     [[nodiscard]] u32 CbufSizeMask() const noexcept;
 

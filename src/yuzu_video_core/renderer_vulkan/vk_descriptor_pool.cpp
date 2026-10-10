@@ -28,7 +28,7 @@ struct DescriptorBank {
 bool DescriptorBankInfo::IsSuperset(const DescriptorBankInfo& subset) const noexcept {
     return uniform_buffers >= subset.uniform_buffers && storage_buffers >= subset.storage_buffers &&
            texture_buffers >= subset.texture_buffers && image_buffers >= subset.image_buffers &&
-           textures >= subset.textures && images >= subset.image_buffers;
+           textures >= subset.textures && images >= subset.images;
 }
 
 template <typename Descriptors>
@@ -45,6 +45,7 @@ static DescriptorBankInfo MakeBankInfo(std::span<const Shader::Info> infos) {
     for (const Shader::Info& info : infos) {
         bank.uniform_buffers += Accumulate(info.constant_buffer_descriptors);
         bank.storage_buffers += Accumulate(info.storage_buffers_descriptors);
+        bank.storage_buffers += info.runtime_image_write_mask_words != 0 ? 1U : 0U;
         bank.texture_buffers += Accumulate(info.texture_buffer_descriptors);
         bank.image_buffers += Accumulate(info.image_buffer_descriptors);
         bank.textures += Accumulate(info.texture_descriptors);

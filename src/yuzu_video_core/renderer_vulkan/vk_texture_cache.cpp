@@ -1005,7 +1005,7 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .pNext = nullptr,
                 .srcAccessMask = 0,
-                .dstAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -1314,7 +1314,9 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .pNext = nullptr,
                 .srcAccessMask = 0,
-                .dstAccessMask = 0,
+                // Restoring the source layout also writes image memory; publish that
+                // transition before the next shader read or attachment LOAD.
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -1509,7 +1511,8 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .pNext = nullptr,
             .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            // The restored image can be read immediately, including by attachment LOAD.
+            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             .newLayout = VK_IMAGE_LAYOUT_GENERAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -1854,7 +1857,18 @@ VkImageView ImageView::StorageView(Shader::TextureType texture_type,
         return VK_NULL_HANDLE;
     }
     if (image_format == Shader::ImageFormat::Typeless) {
-        return Handle(texture_type);
+        // Storage images require identity swizzles. Sampled TIC views can select
+        // constants or reorder components and cannot be reused for stores.
+        if (!storage_views) {
+            storage_views = std::make_unique<StorageViews>();
+        }
+        auto& view = storage_views->typeless[static_cast<size_t>(texture_type)];
+        if (!view) {
+            const auto& format_info =
+                MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal, false, format);
+            view = MakeView(format_info.format, VK_IMAGE_ASPECT_COLOR_BIT, texture_type);
+        }
+        return *view;
     }
     const bool is_signed{image_format == Shader::ImageFormat::R8_SINT ||
                          image_format == Shader::ImageFormat::R16_SINT};
@@ -1866,7 +1880,7 @@ VkImageView ImageView::StorageView(Shader::TextureType texture_type,
     if (view) {
         return *view;
     }
-    view = MakeView(Format(image_format), VK_IMAGE_ASPECT_COLOR_BIT);
+    view = MakeView(Format(image_format), VK_IMAGE_ASPECT_COLOR_BIT, texture_type);
     return *view;
 }
 
@@ -1879,13 +1893,21 @@ bool ImageView::IsRescaled() const noexcept {
     return src_image.IsRescaled();
 }
 
-vk::ImageView ImageView::MakeView(VkFormat vk_format, VkImageAspectFlags aspect_mask) {
+vk::ImageView ImageView::MakeView(VkFormat vk_format, VkImageAspectFlags aspect_mask,
+                                std::optional<Shader::TextureType> texture_type) {
+    auto subresource_range = MakeSubresourceRange(aspect_mask, range);
+    if (texture_type == Shader::TextureType::Color1D ||
+        texture_type == Shader::TextureType::Color2D) {
+        subresource_range.layerCount = 1;
+    } else if (texture_type == Shader::TextureType::ColorCube) {
+        subresource_range.layerCount = 6;
+    }
     return device->GetLogical().CreateImageView({
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .image = image_handle,
-        .viewType = ImageViewType(type),
+        .viewType = texture_type ? ImageViewType(*texture_type) : ImageViewType(type),
         .format = vk_format,
         .components{
             .r = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -1893,7 +1915,7 @@ vk::ImageView ImageView::MakeView(VkFormat vk_format, VkImageAspectFlags aspect_
             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
             .a = VK_COMPONENT_SWIZZLE_IDENTITY,
         },
-        .subresourceRange = MakeSubresourceRange(aspect_mask, range),
+        .subresourceRange = subresource_range,
     });
 }
 

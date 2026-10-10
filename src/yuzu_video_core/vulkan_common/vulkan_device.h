@@ -343,6 +343,10 @@ public:
         return features.descriptor_indexing.shaderSampledImageArrayNonUniformIndexing != VK_FALSE;
     }
 
+    bool IsStorageImageArrayNonUniformIndexingSupported() const {
+        return features.descriptor_indexing.shaderStorageImageArrayNonUniformIndexing != VK_FALSE;
+    }
+
     /// Returns true if the device supports float64 natively.
     bool IsFloat64Supported() const {
         return features.features.shaderFloat64;

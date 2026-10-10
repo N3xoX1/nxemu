@@ -132,6 +132,9 @@ public:
 
     std::mutex submit_mutex;
 
+    /// Publishes compute accesses before later dispatches, draws and transfers on the GPU.
+    static void ComputeMemoryBarrier(vk::CommandBuffer cmdbuf);
+
 private:
     class Command {
     public:

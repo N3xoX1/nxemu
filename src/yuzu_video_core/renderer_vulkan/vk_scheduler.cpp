@@ -310,6 +310,19 @@ void Scheduler::EndPendingOperations() {
     EndRenderPass();
 }
 
+void Scheduler::ComputeMemoryBarrier(vk::CommandBuffer cmdbuf) {
+    static constexpr VkMemoryBarrier barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+    };
+    // Submission order alone does not make storage buffer/image writes visible. Include
+    // all consumers: compute, graphics, indirect commands and transfers to sparse aliases.
+    cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, barrier);
+}
+
 void Scheduler::EndRenderPass() {
     if (!state.renderpass) {
         return;

@@ -56,7 +56,7 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 15;
+constexpr u32 CACHE_VERSION = 18;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 template <typename Container>
@@ -476,6 +476,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_descriptor_aliasing = device.IsDescriptorAliasingSupported(),
         .support_sampled_image_array_nonuniform_indexing =
             device.IsSampledImageArrayNonUniformIndexingSupported(),
+        .support_storage_image_array_nonuniform_indexing =
+            device.IsStorageImageArrayNonUniformIndexingSupported(),
         .disable_uniform_buffer_descriptor_aliasing =
             device.IsDescriptorAliasingSupported() && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
         .support_int8 = device.IsInt8Supported(),
@@ -554,6 +556,9 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_geometry_shader_passthrough = device.IsNvGeometryShaderPassthroughSupported(),
         .support_conditional_barrier = device.SupportsConditionalBarriers(),
         .max_bindless_descriptors_per_stage = device.MaxBindlessDescriptorsPerStage(),
+        .max_storage_images_per_stage = std::min(device.DescriptorLimits().maxPerStageDescriptorStorageImages,
+                                                 device.DescriptorLimits().maxDescriptorSetStorageImages),
+        .support_null_descriptor = device.HasNullDescriptor(),
     };
 
     if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes) {
@@ -616,6 +621,7 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
         .unique_hash = shader->unique_hash,
         .shared_memory_size = qmd.shared_alloc,
         .workgroup_size{qmd.block_dim_x, qmd.block_dim_y, qmd.block_dim_z},
+        .texture_table_size = std::min(kepler_compute->regs.tic.limit + 1U, 1U << 20),
     };
     const u32 size_mask = qmd.const_buffer_enable_mask.Value() &
                           cbuf_size_dependencies.Mask(shader->unique_hash);
@@ -1181,6 +1187,11 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     }
 
     auto program{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
+    if (std::ranges::any_of(program.info.image_descriptors,
+                           [](const auto& desc) { return desc.is_direct; })) {
+        LOG_INFO(Render_Vulkan, "Compute shader {:#016x}: runtime TIC storage images, table size={}",
+                 key.unique_hash, key.texture_table_size);
+    }
     // Only where the host enforces its limit
     const u32 max_shared_memory{profile.max_compute_shared_memory_size};
     if (max_shared_memory != 0 && program.shared_memory_size > max_shared_memory &&
@@ -1202,10 +1213,12 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
-                                             &shader_notify, program.info, std::move(spv_module));
+                                             &shader_notify, program.info, std::move(spv_module), staging_pool);
 
 } catch (const Shader::Exception& exception) {
-    LOG_ERROR(Render_Vulkan, "{}", exception.what());
+    env.Dump(key.Hash(), key.unique_hash);
+    LOG_ERROR(Render_Vulkan, "Compute shader {:#016x}, TIC table size={}: {}",
+              key.unique_hash, key.texture_table_size, exception.what());
     return nullptr;
 }
 

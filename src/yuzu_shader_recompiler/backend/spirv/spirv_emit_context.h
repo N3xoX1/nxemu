@@ -54,8 +54,11 @@ struct ImageBufferDefinition {
 struct ImageDefinition {
     Id id;
     Id image_type;
+    Id pointer_type;
     u32 count;
     bool is_integer;
+    bool is_signed{};
+    bool is_direct{};
 };
 
 struct UniformDefinitions {
@@ -156,6 +159,8 @@ struct GenericElementInfo {
 
 class EmitContext final : public Sirit::Module {
 public:
+    Id runtime_image_write_mask{};
+    Id runtime_image_write_mask_element{};
     explicit EmitContext(const Profile& profile, const RuntimeInfo& runtime_info,
                          IR::Program& program, Bindings& binding);
     ~EmitContext();
@@ -256,6 +261,7 @@ public:
     std::vector<ImageDefinition> images;
 
     bool uses_nonuniform_sampled_image{};
+    bool uses_nonuniform_storage_image{};
     std::unordered_set<u32> nonuniform_sampled_ids;
 
     Id workgroup_id{};

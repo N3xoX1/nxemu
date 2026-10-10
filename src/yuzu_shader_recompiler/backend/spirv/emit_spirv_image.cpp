@@ -272,14 +272,34 @@ Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& ind
 }
 
 std::pair<Id, bool> Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
-    if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
-        throw NotImplementedException("Indirect image indexing");
-    }
     if (info.type == TextureType::Buffer) {
+        if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
+            throw NotImplementedException("Indirect image buffer indexing");
+        }
         const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
         return {ctx.OpLoad(def.image_type, def.id), def.is_integer};
     } else {
         const ImageDefinition def{ctx.images.at(info.descriptor_index)};
+        if (def.count > 1) {
+            if (!index.IsImmediate() && !ctx.profile.support_storage_image_array_nonuniform_indexing) {
+                throw NotImplementedException("Nonuniform storage image indexing is unsupported by the host");
+            }
+            const Id array_index{ctx.Def(index)};
+            const Id pointer{ctx.OpAccessChain(def.pointer_type, def.id, array_index)};
+            const Id image{ctx.OpLoad(def.image_type, pointer)};
+            if (!index.IsImmediate()) {
+                ctx.uses_nonuniform_storage_image = true;
+                for (const Id object : {array_index, pointer, image}) {
+                    if (ctx.nonuniform_sampled_ids.insert(object.value).second) {
+                        ctx.Decorate(object, spv::Decoration::NonUniform);
+                    }
+                }
+            }
+            return {image, def.is_integer};
+        }
+        if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
+            throw NotImplementedException("Indirect single image indexing");
+        }
         return {ctx.OpLoad(def.image_type, def.id), def.is_integer};
     }
 }
@@ -680,8 +700,23 @@ void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id
     const auto [image, is_integer] = Image(ctx, index, info);
     if (!is_integer) {
         color = ctx.OpBitcast(ctx.F32[4], color);
+    } else if (info.type != TextureType::Buffer && ctx.images[info.descriptor_index].is_signed) {
+        color = ctx.OpBitcast(ctx.S32[4], color);
     }
     ctx.OpImageWrite(image, coords, color);
+    if (Sirit::ValidId(ctx.runtime_image_write_mask) && info.type != TextureType::Buffer &&
+        !ctx.images[info.descriptor_index].is_integer &&
+        ctx.images[info.descriptor_index].is_direct) {
+        // Record the original handle once for the three numeric variants. The host
+        // publishes only these images after dispatch, rather than the whole TIC pool.
+        const Id handle = ctx.Def(index);
+        const Id word = ctx.OpShiftRightLogical(ctx.U32[1], handle, ctx.Const(5U));
+        const Id bit = ctx.OpBitwiseAnd(ctx.U32[1], handle, ctx.Const(31U));
+        const Id pointer = ctx.OpAccessChain(ctx.runtime_image_write_mask_element,
+                                            ctx.runtime_image_write_mask, ctx.Const(0U), word);
+        ctx.OpAtomicOr(ctx.U32[1], pointer, ctx.Const(static_cast<u32>(spv::Scope::Device)),
+                       ctx.Const(0U), ctx.OpShiftLeftLogical(ctx.U32[1], ctx.Const(1U), bit));
+    }
 }
 
 Id EmitIsTextureScaled(EmitContext& ctx, const IR::Value& index) {
