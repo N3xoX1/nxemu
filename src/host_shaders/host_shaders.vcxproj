@@ -123,6 +123,12 @@
       <Command>call "$(SolutionDir)src\script\generate_shader_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_comp.h</Outputs>
     </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\opengl_compute_indirect.comp">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_comp.h</Outputs>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\opengl_copy_bc4.comp">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
@@ -290,6 +296,12 @@
       <Message>Compiling %(Filename)%(Extension)</Message>
       <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_compute_indirect.comp">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_comp_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_quad_indexed.comp">
       <FileType>Document</FileType>

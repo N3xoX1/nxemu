@@ -9,16 +9,17 @@
 
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 
-#include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/vector_math.h"
+#include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/host_shaders/astc_decoder_comp_spv.h"
 #include "yuzu_video_core/host_shaders/convert_msaa_to_non_msaa_comp_spv.h"
 #include "yuzu_video_core/host_shaders/convert_non_msaa_to_msaa_comp_spv.h"
 #include "yuzu_video_core/host_shaders/queries_prefix_scan_sum_comp_spv.h"
 #include "yuzu_video_core/host_shaders/queries_prefix_scan_sum_nosubgroups_comp_spv.h"
 #include "yuzu_video_core/host_shaders/resolve_conditional_render_comp_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_compute_indirect_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_quad_indexed_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_uint8_comp_spv.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
@@ -312,6 +313,66 @@ Uint8Pass::Uint8Pass(const Device& device_, Scheduler& scheduler_, DescriptorPoo
       compute_pass_descriptor_queue{compute_pass_descriptor_queue_} {}
 
 Uint8Pass::~Uint8Pass() = default;
+
+ComputeIndirectPass::ComputeIndirectPass(const Device & device_, Scheduler & scheduler_,
+                                         DescriptorPool & descriptor_pool_, StagingBufferPool & staging_pool_,
+                                         ComputePassDescriptorQueue & descriptor_queue_) :
+    ComputePass(device_, descriptor_pool_, QUERIES_SCAN_DESCRIPTOR_SET_BINDINGS,
+                QUERIES_SCAN_DESCRIPTOR_UPDATE_TEMPLATE, QUERIES_SCAN_BANK_INFO,
+                COMPUTE_PUSH_CONSTANT_RANGE<5 * sizeof(u32)>, VULKAN_COMPUTE_INDIRECT_COMP_SPV),
+    scheduler{scheduler_}, staging_pool{staging_pool_}, descriptor_queue{descriptor_queue_}
+{
+}
+
+std::pair<VkBuffer, VkDeviceSize> ComputeIndirectPass::Assemble(
+    std::array<std::pair<VkBuffer, VkDeviceSize>, 2> sources, u32 default_x, u32 default_yz)
+{
+    const auto staging = staging_pool.Request(3 * sizeof(u32), MemoryUsage::DeviceLocal);
+    std::array<u32, 5> parameters{0, 0, default_x, default_yz, 0};
+    const auto fallback = sources[0].first ? sources[0] : sources[1];
+    descriptor_queue.Acquire(3);
+    for (u32 i = 0; i < 2; ++i)
+    {
+        if (sources[i].first)
+        {
+            parameters[4] |= 1U << i;
+        }
+        else
+        {
+            sources[i] = fallback;
+        }
+        const auto [buffer, offset] = sources[i];
+        const VkDeviceSize aligned = Common::AlignDown(offset, device.GetStorageBufferAlignment());
+        parameters[i] = static_cast<u32>((offset - aligned) / sizeof(u32));
+        descriptor_queue.AddBuffer(buffer, aligned, offset - aligned + sizeof(u32));
+    }
+    descriptor_queue.AddBuffer(staging.buffer, staging.offset, 3 * sizeof(u32));
+    const void * data = descriptor_queue.UpdateData();
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([this, data, parameters](vk::CommandBuffer cmdbuf) {
+        const VkMemoryBarrier input{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, input);
+        const VkDescriptorSet set = descriptor_allocator.Commit();
+        device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, data);
+        cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+        cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
+        cmdbuf.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(parameters), parameters.data());
+        cmdbuf.Dispatch(1, 1, 1);
+        const VkMemoryBarrier output{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                               VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, output);
+    });
+    return {staging.buffer, staging.offset};
+}
 
 std::pair<VkBuffer, VkDeviceSize> Uint8Pass::Assemble(u32 num_vertices, VkBuffer src_buffer,
                                                       u32 src_offset) {

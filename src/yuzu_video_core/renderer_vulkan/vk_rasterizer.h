@@ -208,6 +208,7 @@ private:
     QueryCacheRuntime query_cache_runtime;
     QueryCache query_cache;
     PipelineCache pipeline_cache;
+    std::unique_ptr<ComputeIndirectPass> compute_indirect_pass;
     AccelerateDMA accelerate_dma;
     FenceManager fence_manager;
 

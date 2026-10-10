@@ -31,6 +31,7 @@ set(SHADER_FILES
     fxaa.frag
     fxaa.vert
     opengl_convert_s8d24.comp
+    opengl_compute_indirect.comp
     opengl_copy_bc4.comp
     opengl_fidelityfx_fsr.frag
     opengl_fidelityfx_fsr_easu.frag
@@ -68,6 +69,7 @@ set(SHADER_FILES
     vulkan_present_scaleforce_fp16.frag
     vulkan_present_scaleforce_fp32.frag
     vulkan_quad_indexed.comp
+    vulkan_compute_indirect.comp
     vulkan_turbo_mode.comp
     vulkan_uint8.comp
     watermark.frag

@@ -10,20 +10,22 @@
 
 #include <glad/glad.h>
 
-#include "yuzu_common/yuzu_assert.h"
+#include "video_settings.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/math_util.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
-#include "video_settings.h"
+#include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
+#include "yuzu_video_core/host_shaders/opengl_compute_indirect_comp.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/renderer_opengl/gl_device.h"
 #include "yuzu_video_core/renderer_opengl/gl_query_cache.h"
 #include "yuzu_video_core/renderer_opengl/gl_rasterizer.h"
 #include "yuzu_video_core/renderer_opengl/gl_shader_cache.h"
+#include "yuzu_video_core/renderer_opengl/gl_shader_util.h"
 #include "yuzu_video_core/renderer_opengl/gl_staging_buffer_pool.h"
 #include "yuzu_video_core/renderer_opengl/gl_texture_cache.h"
 #include "yuzu_video_core/renderer_opengl/maxwell_to_gl.h"
@@ -405,26 +407,82 @@ void RasterizerOpenGL::DispatchCompute() {
         program_manager.LocalMemoryWarmup();
     }
     pipeline->SetEngine(kepler_compute, gpu_memory);
-    pipeline->Configure();
     SCOPE_EXIT {
         buffer_cache.CopySparseWrites();
     };
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
-    if (indirect_address) {
+    auto indirect_yz_address = kepler_compute->GetIndirectComputeYZAddress();
+    if (indirect_address || indirect_yz_address)
+    {
         // DispatchIndirect
         static constexpr auto sync_info = VideoCommon::ObtainBufferSynchronize::FullSynchronize;
         // The parameters are only read, what the GPU wrote there still has to reach the guest
         const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
-        const auto [buffer, offset] =
-            buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
-        glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, buffer->Handle());
-        glDispatchComputeIndirect(static_cast<GLintptr>(offset));
-        return;
+        std::array<std::pair<GLuint, u32>, 2> sources{};
+        const std::array addresses{indirect_address, indirect_yz_address};
+        for (u32 i = 0; i < 2; ++i)
+        {
+            if (!addresses[i])
+            {
+                continue;
+            }
+            const auto [buffer, offset] =
+                buffer_cache.ObtainBuffer(*addresses[i], sizeof(u32), sync_info, post_op);
+            sources[i] = {buffer->Handle(), offset};
+        }
+        const GLuint buffer = AssembleComputeIndirect(
+            sources, qmd.grid_dim_x, qmd.grid_dim_y | (qmd.grid_dim_z << 16));
+        pipeline->Configure();
+        glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, buffer);
+        glDispatchComputeIndirect(0);
     }
-    glDispatchCompute(qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z);
+    else
+    {
+        pipeline->Configure();
+        glDispatchCompute(qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z);
+    }
     ++num_queued_commands;
     has_written_global_memory |= pipeline->WritesGlobalMemory();
+}
+
+GLuint RasterizerOpenGL::AssembleComputeIndirect(std::array<std::pair<GLuint, u32>, 2> sources,
+                                                 u32 default_x, u32 default_yz)
+{
+    if (compute_indirect_program.handle == 0)
+    {
+        compute_indirect_program =
+            CreateProgram(HostShaders::OPENGL_COMPUTE_INDIRECT_COMP, GL_COMPUTE_SHADER);
+        compute_indirect_buffer.Create();
+        glNamedBufferStorage(compute_indirect_buffer.handle, 3 * sizeof(u32), nullptr, 0);
+    }
+    std::array<u32, 4> parameters{0, 0, default_x, default_yz};
+    u32 mask = 0;
+    const auto fallback = sources[0].first ? sources[0] : sources[1];
+    for (u32 i = 0; i < 2; ++i)
+    {
+        if (sources[i].first)
+        {
+            mask |= 1U << i;
+        }
+        else
+        {
+            sources[i] = fallback;
+        }
+        const auto [buffer, offset] = sources[i];
+        const auto aligned = Common::AlignDown(offset, device.GetShaderStorageBufferAlignment());
+        parameters[i] = static_cast<u32>((offset - aligned) / sizeof(u32));
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER, i, buffer, aligned,
+                          offset - aligned + sizeof(u32));
+    }
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, compute_indirect_buffer.handle);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    program_manager.BindComputeProgram(compute_indirect_program.handle);
+    glUniform4uiv(0, 1, parameters.data());
+    glUniform1ui(1, mask);
+    glDispatchCompute(1, 1, 1);
+    glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
+    return compute_indirect_buffer.handle;
 }
 
 void RasterizerOpenGL::ResetCounter(VideoCommon::QueryType type) {

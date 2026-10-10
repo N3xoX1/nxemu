@@ -575,24 +575,41 @@ void RasterizerVulkan::DispatchCompute() {
         return;
     }
     std::scoped_lock lock{texture_cache.mutex, buffer_cache.mutex};
-    pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
     SCOPE_EXIT {
         buffer_cache.CopySparseWrites();
     };
 
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
-    if (indirect_address) {
+    auto indirect_yz_address = kepler_compute->GetIndirectComputeYZAddress();
+    if (indirect_address || indirect_yz_address)
+    {
         // DispatchIndirect
         static constexpr auto sync_info = VideoCommon::ObtainBufferSynchronize::FullSynchronize;
         // The parameters are only read, what the GPU wrote there still has to reach the guest
         const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
-        const auto [buffer, offset] =
-            buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
+        std::array<std::pair<VkBuffer, VkDeviceSize>, 2> sources{};
+        const std::array addresses{indirect_address, indirect_yz_address};
+        for (u32 i = 0; i < 2; ++i)
+        {
+            if (!addresses[i]) continue;
+            const auto [buffer, offset] = buffer_cache.ObtainBuffer(*addresses[i], sizeof(u32), sync_info, post_op);
+            sources[i] = {buffer->Handle(), offset};
+        }
+        if (!compute_indirect_pass)
+        {
+            compute_indirect_pass = std::make_unique<ComputeIndirectPass>(
+                device, scheduler, descriptor_pool, staging_pool, compute_pass_descriptor_queue);
+        }
+        const auto [buffer, offset] = compute_indirect_pass->Assemble(
+            sources, qmd.grid_dim_x, qmd.grid_dim_y | (qmd.grid_dim_z << 16));
+        // The helper uses its own pipeline/descriptors. Bind the guest pipeline afterwards.
+        pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
         scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([pipeline, indirect_buffer = buffer->Handle(),
+        scheduler.Record([pipeline, indirect_buffer = buffer,
                           indirect_offset = offset](vk::CommandBuffer cmdbuf) {
-            if (pipeline->HasBuildFailed()) {
+            if (pipeline->HasBuildFailed())
+            {
                 return;
             }
             cmdbuf.DispatchIndirect(indirect_buffer, indirect_offset);
@@ -602,6 +619,7 @@ void RasterizerVulkan::DispatchCompute() {
         return;
     }
     const std::array<u32, 3> dim{qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z};
+    pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([pipeline, dim](vk::CommandBuffer cmdbuf) {
         if (pipeline->HasBuildFailed()) {
