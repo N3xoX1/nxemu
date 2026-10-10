@@ -79,3 +79,9 @@ de primitive lorsque le groupe de registres `StateEnable` était propre. Le tém
 10 000 dessins inchangés sans commande supplémentaire et les capacités Vulkan
 sans états dynamiques étendus. Ce banc complète celui qui appelait directement
 `UpdateDepthBiasEnable` et ne couvrait pas le contrôle effectué par son appelant.
+
+Avec `NXEMU_GPU_BINDING_DIAGNOSTICS=1`, les traces de présentation indiquent aussi
+les adresses des images mises en file, les fences d'acquisition, leur satisfaction,
+puis l'adresse réellement composée. Ces traces et le filtre
+`Service.Nvnflinger:Debug` servent à corréler les F10 avec les tampons présentés.
+Elles n'altèrent ni le choix ni l'ordre des images affichées.

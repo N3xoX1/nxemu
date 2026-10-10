@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <optional>
@@ -165,6 +166,21 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     if (framebuffers.empty())
     {
         return;
+    }
+
+    static const bool diagnose = [] {
+        const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
+        return value && value[0] == '1' && value[1] == '\0';
+    }();
+    if (diagnose) {
+        static u64 composite_number = 0;
+        ++composite_number;
+        for (const auto& layer : framebuffers) {
+            LOG_INFO(Render_Vulkan,
+                     "Present composite: number={}, address={:#x}, offset={}, dimensions={}x{}, blending={}",
+                     composite_number, layer.address, layer.offset, layer.width, layer.height,
+                     static_cast<u32>(layer.blending));
+        }
     }
 
     SCOPE_EXIT
