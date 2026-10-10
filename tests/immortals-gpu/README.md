@@ -1,5 +1,19 @@
 Tests du correctif graphique Immortals
 
+`run-sparse-storage-binding.ps1` extrait le résolveur de tampons du commit
+ca47b3b2 et des sources courantes. Il couvre les allocations dont la première
+page est absente, y compris le descripteur de 60 Mo vu dans les logs d'Immortals,
+les adresses non alignées, les limites de réservation, les descripteurs de cbuf
+personnalisés, les plages entièrement absentes et les tampons linéaires.
+Le témoin échoue sur huit des dix-sept cas ; la correction doit passer les
+dix-sept. Il teste la résolution du tampon,
+sans prétendre prouver la disparition d'un défaut visuel dans le jeu.
+L'environnement `NXEMU_GPU_BINDING_DIAGNOSTICS=1` active des traces des allocations
+avec un trou au début et des mots 128–143 du cbuf3 de calcul, avec leurs adresses
+invitées et physiques. Ces traces n'effectuent aucun téléchargement GPU ; le marqueur
+`gpu_modified` précise si les valeurs CPU peuvent être plus anciennes que celles du GPU.
+Elles sont désactivées dans un lancement normal.
+
 `run-depth-bias-topology.ps1` extrait la mise à jour Vulkan du décalage de profondeur
 du commit 4d053d0d et des sources courantes, ainsi que le suivi de topologie.
 Il vérifie les transitions points/lignes/triangles, les changements de registres et

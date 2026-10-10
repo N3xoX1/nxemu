@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdlib>
 #include <memory>
 #include <numeric>
 
@@ -1066,6 +1067,21 @@ void BufferCache<P>::BindHostComputeUniformBuffers() {
 
         const u32 offset = buffer.Offset(binding.device_addr);
         buffer.MarkUsage(offset, size);
+        static const bool diagnose_uniforms = [] {
+            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
+            return value && value[0] == '1' && value[1] == '\0';
+        }();
+        if (diagnose_uniforms && index == 3 && size >= 144 && binding.device_addr != 0) {
+            const auto gpu_addr =
+                kepler_compute->launch_description.const_buffer_config[index].Address();
+            LOG_INFO(HW_GPU,
+                     "Compute cbuf3: gpu={:#x}, device={:#x}, host_base={:#x}, offset={}, size={}, "
+                     "cpu_words_128={:08x},{:08x},{:08x},{:08x}, gpu_modified={}",
+                     gpu_addr, binding.device_addr, buffer.CpuAddr(), offset, size,
+                     gpu_memory->Read<u32>(gpu_addr + 128), gpu_memory->Read<u32>(gpu_addr + 132),
+                     gpu_memory->Read<u32>(gpu_addr + 136), gpu_memory->Read<u32>(gpu_addr + 140),
+                     IsRegionGpuModified(binding.device_addr + 128, 16));
+        }
         if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
             runtime.BindComputeUniformBuffer(binding_index, buffer, offset, size);
             ++binding_index;
@@ -1925,6 +1941,42 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
     const u32 aligned_size = static_cast<u32>(gpu_addr - aligned_gpu_addr) + size;
 
     const std::optional<DAddr> aligned_device_addr = gpu_memory->GpuToCpuAddress(aligned_gpu_addr);
+    if (requested_size != 0 && size != requested_size) {
+        // A sparse allocation can start with an unmapped page. Its later pages still have to
+        // be accessible from the descriptor's original base; the assembled buffer supplies
+        // zeros for holes. Resolve this before rejecting an unmapped linear buffer.
+        if (const auto region = gpu_memory->GetSparseRegion(aligned_gpu_addr)) {
+            const u64 region_size = region->first + region->second - aligned_gpu_addr;
+            const u64 wanted_size = (gpu_addr - aligned_gpu_addr) + u64{requested_size};
+            const u32 sparse_size = static_cast<u32>(std::min(region_size, wanted_size));
+            if (size == 0) {
+                const auto ranges = gpu_memory->GetSubmappedRange(aligned_gpu_addr, sparse_size);
+                static const bool diagnose_sparse = [] {
+                    const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
+                    return value && value[0] == '1' && value[1] == '\0';
+                }();
+                if (diagnose_sparse) {
+                    LOG_INFO(HW_GPU,
+                             "Sparse storage leading hole: cbuf={}, descriptor={:#x}, base={:#x}, "
+                             "size={}, mapped_parts={}, first_mapped={:#x}, written={}",
+                             cbuf_index, ssbo_addr, aligned_gpu_addr, sparse_size, ranges.size(),
+                             ranges.empty() ? 0 : ranges.front().first, is_written);
+                }
+                // A wholly unmapped descriptor has no bytes to assemble. In particular, do
+                // not bind an offset beyond a sparse buffer's last resident page.
+                if (ranges.empty()) {
+                    return NULL_BINDING;
+                }
+            }
+            return Binding{
+                .device_addr = aligned_device_addr.value_or(0),
+                .size = sparse_size,
+                .buffer_id = BufferId{},
+                .sparse_gpu_addr = aligned_gpu_addr,
+                .is_sparse = true,
+            };
+        }
+    }
     if (!aligned_device_addr || size == 0) {
         LOG_WARNING(HW_GPU,
                     "Failed to find storage buffer: cbuf={}, descriptor={:#x}, address={:#x}, "
@@ -1938,23 +1990,11 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
     // The end address used for size calculation does not need to be aligned
     const DAddr cpu_end = Common::AlignUp(*device_addr + size, Core::DEVICE_PAGESIZE);
 
-    Binding binding{
+    return Binding{
         .device_addr = *aligned_device_addr,
         .size = is_written ? aligned_size : static_cast<u32>(cpu_end - *aligned_device_addr),
         .buffer_id = BufferId{},
     };
-    if (size != requested_size) {
-        // The buffer goes on in other parts of a sparse allocation, shaders address it from its
-        // start so it has to be assembled
-        if (const auto region = gpu_memory->GetSparseRegion(aligned_gpu_addr)) {
-            const u64 region_size = region->first + region->second - aligned_gpu_addr;
-            const u64 wanted_size = (gpu_addr - aligned_gpu_addr) + u64{requested_size};
-            binding.size = static_cast<u32>(std::min(region_size, wanted_size));
-            binding.sparse_gpu_addr = aligned_gpu_addr;
-            binding.is_sparse = true;
-        }
-    }
-    return binding;
 }
 
 template <class P>
