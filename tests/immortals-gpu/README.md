@@ -71,3 +71,11 @@ Python, et les fichiers générés par `tests/pr396/run-tests.ps1` et le shader 
 Les relectures GFXReconstruct ne lancent pas le jeu. Elles vérifient la même
 séquence de commandes GPU ; un essai interactif reste nécessaire pour confirmer
 la disparition durable d'un défaut intermittent.
+
+`run-depth-bias-dynamic-state.ps1` extrait aussi `UpdateDynamicStates`, le véritable
+appelant de la mise à jour du décalage. La v7 pouvait encore ignorer un changement
+de primitive lorsque le groupe de registres `StateEnable` était propre. Le témoin
+307ccf09 échoue sur trois des treize cas ; le correctif les passe tous, y compris
+10 000 dessins inchangés sans commande supplémentaire et les capacités Vulkan
+sans états dynamiques étendus. Ce banc complète celui qui appelait directement
+`UpdateDepthBiasEnable` et ne couvrait pas le contrôle effectué par son appelant.

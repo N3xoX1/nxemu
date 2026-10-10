@@ -1070,12 +1070,16 @@ void RasterizerVulkan::UpdateDynamicStates() {
             if (device.IsExtExtendedDynamicState2Supported()) {
                 UpdatePrimitiveRestartEnable(regs);
                 UpdateRasterizerDiscardEnable(regs);
-                UpdateDepthBiasEnable(regs);
             }
             if (device.IsExtExtendedDynamicState3EnablesSupported()) {
                 UpdateLogicOpEnable(regs);
                 UpdateDepthClampEnable(regs);
             }
+        }
+        // Topology can select a different polygon-offset enable without writing any
+        // of the StateEnable registers. Check it even when that group is clean.
+        if (device.IsExtExtendedDynamicState2Supported()) {
+            UpdateDepthBiasEnable(regs);
         }
         if (device.IsExtExtendedDynamicState2ExtrasSupported()) {
             UpdateLogicOp(regs);
