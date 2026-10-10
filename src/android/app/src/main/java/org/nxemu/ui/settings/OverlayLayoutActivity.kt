@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -23,6 +24,9 @@ class OverlayLayoutActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.attributes = window.attributes.apply {
+            rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT
+        }
         setContentView(R.layout.activity_overlay_layout)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -66,6 +70,17 @@ class OverlayLayoutActivity : ComponentActivity() {
                 }
             },
         )
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                hide(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
     }
 
     override fun finish() {
