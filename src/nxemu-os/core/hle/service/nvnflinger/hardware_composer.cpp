@@ -4,7 +4,10 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <cstdlib>
 #include <boost/container/small_vector.hpp>
+
+#include "yuzu_common/logging/log.h"
 
 #include "core/hle/service/nvdrv/devices/nvdisp_disp0.h"
 #include "core/hle/service/nvnflinger/buffer_item.h"
@@ -171,6 +174,19 @@ bool HardwareComposer::TryAcquireFramebufferLocked(Layer& layer, Framebuffer& fr
     const auto status = layer.buffer_item_consumer->AcquireBuffer(&framebuffer.item, {}, false);
     if (status != android::Status::NoError) {
         return false;
+    }
+
+    static const bool diagnose = [] {
+        const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
+        return value && value[0] == '1' && value[1] == '\0';
+    }();
+    if (diagnose) {
+        const auto& item = framebuffer.item;
+        LOG_INFO(Service_Nvnflinger,
+                 "Present acquire: frame={}, slot={}, timestamp={}, automatic={}, droppable={}, "
+                 "swap_interval={}, compositor_frame={}",
+                 item.frame_number, item.slot, item.timestamp, item.is_auto_timestamp,
+                 item.is_droppable, item.swap_interval, m_frame_number);
     }
 
     const s32 swap_interval = NormalizeSwapInterval(nullptr, framebuffer.item.swap_interval);
