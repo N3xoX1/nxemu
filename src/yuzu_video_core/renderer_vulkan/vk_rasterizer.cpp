@@ -1435,7 +1435,11 @@ void RasterizerVulkan::UpdateRasterizerDiscardEnable(Tegra::Engines::Maxwell3D::
 }
 
 void RasterizerVulkan::UpdateDepthBiasEnable(Tegra::Engines::Maxwell3D::Regs& regs) {
-    if (!state_tracker.TouchDepthBiasEnable()) {
+    // The guest has separate point, line and polygon enables. Changing topology
+    // selects a different enable even when none of those registers were written.
+    const auto topology = maxwell3d->draw_manager->GetDrawState().topology;
+    const bool topology_changed = state_tracker.ChangePrimitiveTopology(topology);
+    if (!state_tracker.TouchDepthBiasEnable() && !topology_changed) {
         return;
     }
     constexpr size_t POINT = 0;
@@ -1463,7 +1467,7 @@ void RasterizerVulkan::UpdateDepthBiasEnable(Tegra::Engines::Maxwell3D::Regs& re
         regs.polygon_offset_line_enable,
         regs.polygon_offset_fill_enable,
     };
-    const u32 topology_index = static_cast<u32>(maxwell3d->draw_manager->GetDrawState().topology);
+    const u32 topology_index = static_cast<u32>(topology);
     const u32 enable = enabled_lut[POLYGON_OFFSET_ENABLE_LUT[topology_index]];
     scheduler.Record(
         [enable](vk::CommandBuffer cmdbuf) { cmdbuf.SetDepthBiasEnableEXT(enable != 0); });
