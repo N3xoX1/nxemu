@@ -1,5 +1,13 @@
 Tests du correctif graphique Immortals
 
+`run-indirect-dispatch.ps1` extrait les méthodes DMA et KeplerCompute du commit
+25a0b0e4 et des sources courantes. Il reproduit la perte de provenance des paramètres
+de dispatch écrits par le GPU, puis téléchargés avant le lancement. Il vérifie les
+envois simples et multiples aux niveaux Normal et High, le nettoyage entre deux
+lancements, les continuations partielles et la provenance des paramètres de macros.
+Le témoin échoue sur six des seize cas ; la correction doit passer les seize.
+Les doubles de mémoire permettent de contrôler cette course sans lancer le jeu.
+
 `run-shaders.ps1` lie le banc au recompileur SPIR-V réellement construit. Il couvre
 une image Buffer en lecture seule, la lecture/écriture, et les tailles privées et
 partagées identiques ou différentes, avec SPIR-V 1.6 et disposition Workgroup explicite.
