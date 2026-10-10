@@ -52,6 +52,9 @@ open class MainActivity : ComponentActivity() {
     }
     private val settingChangedForwarder: (String) -> Unit = { setting ->
         runOnUiThread {
+            if (setting == NXUISetting.ThemeMode) {
+                applyWebViewTheme()
+            }
             webView.evaluateJavascript(
                 "onSettingChanged('${setting.replace("'", "\\'")}')",
                 null
@@ -175,6 +178,7 @@ open class MainActivity : ComponentActivity() {
         emulationLaunchPending = false
         InputHandler.updateControllerData()
         inputManager()?.registerInputDeviceListener(inputDeviceListener, null)
+        applyWebViewTheme()
         refreshConnectedControllers()
         resumeRunningGame()
     }
@@ -359,6 +363,12 @@ open class MainActivity : ComponentActivity() {
 
     fun editOverlayLayout() {
         startActivity(Intent(this, OverlayLayoutActivity::class.java))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
     }
 
     override fun onDestroy() {
@@ -387,6 +397,15 @@ open class MainActivity : ComponentActivity() {
             "onGameLibraryPaths($gen, ${JSONObject.quote(json)})",
             null,
         )
+    }
+
+    private fun applyWebViewTheme() {
+        if (!::webView.isInitialized) {
+            return
+        }
+        webView.setBackgroundColor(ThemeHelper.backgroundColor(this))
+        ThemeHelper.applySystemBars(this)
+        webView.evaluateJavascript("typeof applyTheme==='function'&&applyTheme()", null)
     }
 
     companion object {

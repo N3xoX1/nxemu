@@ -33,6 +33,37 @@ html.light {
   --band: #f2f5f7;
 }
 
+@property --bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #111111;
+}
+@property --muted {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #4a555c;
+}
+@property --line {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(128, 128, 128, 0.2);
+}
+@property --card {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(128, 128, 128, 0.1);
+}
+@property --band {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f2f5f7;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
