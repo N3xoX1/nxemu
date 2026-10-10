@@ -3,6 +3,7 @@
 #include "user_interface/app_events.h"
 #include "user_interface/sciter_main_window.h"
 #include "settings/ui_settings.h"
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <map>
@@ -36,15 +37,16 @@ struct RomEntry
     SciterElement romCard;
     std::string title;
     std::vector<uint8_t> icon;
-    bool newItem;
-    bool found;
+    bool newItem = false;
+    bool found = false;
+    bool removePending = false;
 };
 using RomEntrys = std::unordered_map<std::string, RomEntry>;
 
 class RomListWorker
 {
 public:
-    RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules);
+    RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories);
     ~RomListWorker();
 
     void Start();
@@ -56,12 +58,12 @@ private:
     bool HasSupportedFileExtension(const std::string & file_name);
 
     ISystemModules & m_modules;
-    WidgetRomBrowser & m_romBrowser;
     std::mutex & m_romsMutex;
     RomEntrys & m_roms;
     SciterElement & m_rootElement;
+    const Stringlist m_gameDirectories;
     std::thread m_thread;
-    bool m_stop;
+    std::atomic<bool> m_stop;
 };
 
 class WidgetRomBrowser :
@@ -203,20 +205,29 @@ bool WidgetRomBrowser::RenderUI()
         m_rootElement.Insert(m_gameGrid, m_rootElement.GetChildCount());
     }
 
-    if (m_roms.size() > 0)
     {
         std::lock_guard<std::mutex> lock(m_romsMutex);
-        for (std::pair<const std::string, RomEntry> & entry : m_roms)
+        for (RomEntrys::iterator itr = m_roms.begin(); itr != m_roms.end();)
         {
-            RomEntry & romEntry = entry.second;
+            RomEntry & romEntry = itr->second;
             SciterElement & romCard = romEntry.romCard;
+            if (romEntry.removePending)
+            {
+                if (romCard.IsValid())
+                {
+                    romCard.Destroy();
+                }
+                itr = m_roms.erase(itr);
+                continue;
+            }
             if (romCard.IsValid())
             {
+                ++itr;
                 continue;
             }
             romCard.Create("div", "");
             romCard.SetAttribute("class", "rom-card");
-            romCard.SetAttribute("data-path", entry.first.c_str());
+            romCard.SetAttribute("data-path", itr->first.c_str());
             m_gameGrid.Insert(romCard, m_gameGrid.GetChildCount());
             m_sciterUI.AttachHandler(romCard, IID_ICLICKSINK, (IClickSink *)this);
             m_sciterUI.AttachHandler(romCard, IID_IDBLCLICKSINK, (IDoubleClickSink *)this);
@@ -236,6 +247,7 @@ bool WidgetRomBrowser::RenderUI()
                 romCardContents.Insert(iconElement, romCardContents.GetChildCount());
                 romEntry.icon.clear();
             }
+            ++itr;
         }
     }
     m_updatingUI = false;
@@ -540,7 +552,7 @@ void WidgetRomBrowser::PopulateAsync()
     if (m_modules != nullptr)
     {    
         m_currentWorker.reset();
-        m_currentWorker = std::make_unique<RomListWorker>(*this, *m_modules);
+        m_currentWorker = std::make_unique<RomListWorker>(*this, *m_modules, uiSettings.gameDirectories);
         m_currentWorker->Start();
     }
 }
@@ -591,12 +603,12 @@ void WidgetRomBrowser::ClearItems()
     m_roms.clear();
 }
 
-RomListWorker::RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules) :
+RomListWorker::RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories) :
     m_modules(modules),
-    m_romBrowser(romBrowser),
     m_romsMutex(romBrowser.m_romsMutex),
     m_roms(romBrowser.m_roms),
     m_rootElement(romBrowser.m_rootElement),
+    m_gameDirectories(std::move(gameDirectories)),
     m_stop(false)
 {
 }
@@ -628,10 +640,11 @@ void RomListWorker::Run()
         {
             RomEntry & romEntry = entry.second;
             romEntry.found = false;
+            romEntry.removePending = false;
         }
     }
 
-    for (const std::string & game_dir : uiSettings.gameDirectories)
+    for (const std::string & game_dir : m_gameDirectories)
     {
         if (m_stop)
         {
@@ -640,26 +653,26 @@ void RomListWorker::Run()
         ScanFileSystem(game_dir);
     }
 
-    if (!m_stop)
+    if (m_stop)
+    {
+        return;
+    }
+
+    bool removedAny = false;
     {
         std::lock_guard<std::mutex> lock(m_romsMutex);
-
-        for (RomEntrys::iterator itr = m_roms.begin(); itr != m_roms.end();)
+        for (std::pair<const std::string, RomEntry> & entry : m_roms)
         {
-            if (!itr->second.found)            
+            if (!entry.second.found)
             {
-                SciterElement & romCard = itr->second.romCard;
-                if (romCard.IsValid())
-                {
-                    romCard.Destroy();
-                }
-                itr = m_roms.erase(itr);
-            }
-            else
-            {
-                itr++;
+                entry.second.removePending = true;
+                removedAny = true;
             }
         }
+    }
+    if (removedAny)
+    {
+        m_rootElement.PostEvent(EVENT_UPDATE_LIST);
     }
 }
 
