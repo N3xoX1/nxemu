@@ -52,6 +52,15 @@ object ControllerSettings {
         return params.get(key, stickDefault(key))
     }
 
+    fun setStickValue(playerIndex: Int, stickId: Int, key: String, value: Float) {
+        if (key != "range" && key != "deadzone" && key != "modifier_scale") {
+            return
+        }
+        val stick = NativeAnalog.from(stickId)
+        val next = NativeInput.getStickParam(player(playerIndex), stick)
+        next.set(key, value)
+        NativeInput.setStickParam(player(playerIndex), stick, next)
+    }
 
     fun resetMappings(playerIndex: Int) {
         NativeInput.resetControllerMappings(player(playerIndex))
