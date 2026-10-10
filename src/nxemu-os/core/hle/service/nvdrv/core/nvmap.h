@@ -162,11 +162,12 @@ public:
     void UnmapAllHandles(const std::shared_ptr<NvCore::Session>& session);
 
 private:
+    typedef std::unordered_map<Handle::Id, std::shared_ptr<Handle>> HandleMap;
+
     std::list<std::shared_ptr<Handle>> unmap_queue{};
     std::mutex unmap_queue_lock{}; //!< Protects access to `unmap_queue`
 
-    std::unordered_map<Handle::Id, std::shared_ptr<Handle>>
-        handles{};           //!< Main owning map of handles
+    HandleMap handles{};     //!< Main owning map of handles
     std::mutex handles_lock; //!< Protects access to `handles`
 
     static constexpr u32 HandleIdIncrement{

@@ -228,14 +228,8 @@ NvResult NvMap::CreateHandle(u64 size, std::shared_ptr<NvMap::Handle> & result_o
 std::shared_ptr<NvMap::Handle> NvMap::GetHandle(Handle::Id handle)
 {
     std::scoped_lock lock(handles_lock);
-    try
-    {
-        return handles.at(handle);
-    }
-    catch (std::out_of_range &)
-    {
-        return nullptr;
-    }
+    HandleMap::const_iterator itr = handles.find(handle);
+    return itr != handles.end() ? itr->second : nullptr;
 }
 
 DAddr NvMap::GetHandleAddress(Handle::Id handle)
