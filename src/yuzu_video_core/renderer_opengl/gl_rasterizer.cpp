@@ -251,6 +251,7 @@ void RasterizerOpenGL::PrepareDraw(bool is_indexed, Func&& draw_func)
     draw_func(primitive_mode);
 
     EndTransformFeedback();
+    buffer_cache.CopySparseWrites();
 
     ++num_queued_commands;
     has_written_global_memory |= pipeline->WritesGlobalMemory();
@@ -405,12 +406,16 @@ void RasterizerOpenGL::DispatchCompute() {
     }
     pipeline->SetEngine(kepler_compute, gpu_memory);
     pipeline->Configure();
+    SCOPE_EXIT {
+        buffer_cache.CopySparseWrites();
+    };
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
     if (indirect_address) {
         // DispatchIndirect
         static constexpr auto sync_info = VideoCommon::ObtainBufferSynchronize::FullSynchronize;
-        const auto post_op = VideoCommon::ObtainBufferOperation::DiscardWrite;
+        // The parameters are only read, what the GPU wrote there still has to reach the guest
+        const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
         const auto [buffer, offset] =
             buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
         glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, buffer->Handle());

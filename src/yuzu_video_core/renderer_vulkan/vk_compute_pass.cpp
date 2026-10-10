@@ -473,7 +473,7 @@ void QueriesPrefixScanPass::Run(VkBuffer accumulation_buffer, VkBuffer dst_buffe
         static constexpr size_t DISPATCH_SIZE = 2048U;
         size_t runs_to_do = std::min<size_t>(current_runs, DISPATCH_SIZE);
         current_runs -= runs_to_do;
-        compute_pass_descriptor_queue.Acquire(2);
+        compute_pass_descriptor_queue.Acquire(3);
         compute_pass_descriptor_queue.AddBuffer(src_buffer, 0, number_of_sums * sizeof(u64));
         compute_pass_descriptor_queue.AddBuffer(dst_buffer, 0, number_of_sums * sizeof(u64));
         compute_pass_descriptor_queue.AddBuffer(accumulation_buffer, 0, sizeof(u64));

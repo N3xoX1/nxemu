@@ -12,6 +12,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <boost/container/small_vector.hpp>
 
@@ -81,13 +82,15 @@ public:
     explicit VtgScratchAllocator(const Device& device, Scheduler& scheduler,
                                  StagingBufferPool& staging_pool);
 
-    /// Returns a buffer and the offset of a region that lives until the current tick completes
+    /// Returns a buffer and the offset of a region that lives until the tick following the
+    /// current one completes
     [[nodiscard]] std::pair<VkBuffer, VkDeviceSize> Allocate(VkDeviceSize size);
 
 private:
     Scheduler& scheduler;
     StagingBufferPool& staging_pool;
     VkDeviceSize alignment;
+    std::vector<StagingBufferRef> chunks;
     VkBuffer buffer{};
     VkDeviceSize base{};
     VkDeviceSize capacity{};
@@ -191,6 +194,7 @@ private:
     void ConfigureImpl(bool is_indexed);
 
     void ConfigureVtg(bool is_indexed);
+
 
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);

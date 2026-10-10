@@ -225,6 +225,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                               maxwell3d->regs.zpass_pixel_count_enable);
     draw_func(pipeline);
+    buffer_cache.CopySparseWrites();
 }
 
 void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
@@ -574,13 +575,17 @@ void RasterizerVulkan::DispatchCompute() {
     }
     std::scoped_lock lock{texture_cache.mutex, buffer_cache.mutex};
     pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
+    SCOPE_EXIT {
+        buffer_cache.CopySparseWrites();
+    };
 
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
     if (indirect_address) {
         // DispatchIndirect
         static constexpr auto sync_info = VideoCommon::ObtainBufferSynchronize::FullSynchronize;
-        const auto post_op = VideoCommon::ObtainBufferOperation::DiscardWrite;
+        // The parameters are only read, what the GPU wrote there still has to reach the guest
+        const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
         const auto [buffer, offset] =
             buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
         scheduler.RequestOutsideRenderPassOperationContext();

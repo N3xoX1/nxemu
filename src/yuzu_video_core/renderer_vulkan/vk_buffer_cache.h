@@ -83,6 +83,9 @@ public:
 
     void TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept;
 
+    /// Notes that the commands being recorded write to a buffer.
+    void MarkHostWrite(const Buffer& buffer);
+
     void Finish();
 
     u64 GetDeviceLocalMemory() const;

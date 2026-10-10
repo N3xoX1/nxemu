@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -256,7 +257,27 @@ u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_se
     return signal_value;
 }
 
+void Scheduler::MarkBufferWrite(VkBuffer buffer) {
+    // Past this many buffers, searching them costs more than what reordering commands saves
+    static constexpr size_t MAX_WRITTEN_BUFFERS = 64;
+    if (buffer == VK_NULL_HANDLE || IsBufferWritten(buffer)) {
+        return;
+    }
+    if (written_buffers.size() == MAX_WRITTEN_BUFFERS) {
+        all_buffers_written = true;
+        return;
+    }
+    written_buffers.push_back(buffer);
+}
+
+bool Scheduler::IsBufferWritten(VkBuffer buffer) const noexcept {
+    return all_buffers_written ||
+           std::ranges::find(written_buffers, buffer) != written_buffers.end();
+}
+
 void Scheduler::AllocateNewContext() {
+    written_buffers.clear();
+    all_buffers_written = false;
     // Enable counters once again. These are disabled when a command buffer is finished.
     if (query_cache) {
 #if ANDROID
