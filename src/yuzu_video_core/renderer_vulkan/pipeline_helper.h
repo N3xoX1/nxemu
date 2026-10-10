@@ -63,7 +63,8 @@ inline size_t NumDescriptorUpdateEntries(const Shader::Info& info) {
            Shader::NumDescriptors(info.texture_buffer_descriptors) +
            Shader::NumDescriptors(info.image_buffer_descriptors) +
            Shader::NumDescriptors(info.texture_descriptors) +
-           Shader::NumDescriptors(info.image_descriptors);
+           Shader::NumDescriptors(info.image_descriptors) +
+           (info.runtime_image_write_mask_words != 0 ? 1U : 0U);
 }
 
 class DescriptorLayoutBuilder {
@@ -152,6 +153,10 @@ public:
         Add(VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, stage, info.image_buffer_descriptors);
         Add(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stage, info.texture_descriptors);
         Add(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, stage, info.image_descriptors);
+        if (info.runtime_image_write_mask_words != 0) {
+            const std::array mask_descriptor{Shader::StorageBufferDescriptor{.count = 1}};
+            Add(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stage, mask_descriptor);
+        }
     }
 
 private:
@@ -265,7 +270,7 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
         bool is_rescaled{};
         for (u32 index = 0; index < desc.count; ++index) {
             ImageView& image_view{texture_cache.GetImageView((views++)->id)};
-            if (desc.is_written) {
+            if (desc.is_written && !desc.is_direct) {
                 texture_cache.MarkModification(image_view.image_id);
             }
             const VkImageView vk_image_view{image_view.StorageView(desc.type, desc.format)};

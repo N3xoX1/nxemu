@@ -1,0 +1,5 @@
+#version 450
+layout(local_size_x=1) in;
+layout(set=0,binding=0,std430) readonly buffer Input { uint input_value[]; };
+layout(set=0,binding=1,std430) writeonly buffer Output { uint output_value[]; };
+void main() { output_value[0] = input_value[0]; }

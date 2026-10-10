@@ -238,7 +238,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     src_buffer.MarkUsage(copy.src_offset, copy.size);
     dest_buffer.MarkUsage(copy.dst_offset, copy.size);
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
-    MarkBufferContentChanged(dest_buffer);
+    MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
@@ -267,7 +267,7 @@ bool BufferCache<P>::DMAClear(GPUVAddr dst_address, u64 amount, u32 value) {
     Buffer& dest_buffer = slot_buffers[buffer];
     const u32 offset = dest_buffer.Offset(*cpu_dst_address);
     runtime.ClearBuffer(dest_buffer, offset, size, value);
-    MarkBufferContentChanged(dest_buffer);
+    MarkBufferContentChanged(dest_buffer, *cpu_dst_address, size);
     dest_buffer.MarkUsage(offset, size);
     return true;
 }
@@ -1434,7 +1434,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
     runtime.MarkHostWrite(slot_buffers[buffer_id]);
-    MarkBufferContentChanged(slot_buffers[buffer_id]);
+    MarkBufferContentChanged(slot_buffers[buffer_id], device_addr, size);
 }
 
 template <class P>
@@ -1620,25 +1620,7 @@ template <class P>
 bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size) {
     // Keep ordinary uploads local; only sparse assembly needs the caller-visible copy list.
     boost::container::small_vector<BufferCopy, 4> copies;
-    u64 total_size_bytes = 0;
-    u64 largest_copy = 0;
-    DAddr buffer_start = buffer.CpuAddr();
-    memory_tracker.ForEachUploadRange(device_addr, size, [&](u64 device_addr_out, u64 range_size) {
-        copies.push_back(BufferCopy{
-            .src_offset = total_size_bytes,
-            .dst_offset = device_addr_out - buffer_start,
-            .size = range_size,
-        });
-        total_size_bytes += range_size;
-        largest_copy = std::max(largest_copy, range_size);
-    });
-    if (total_size_bytes == 0) {
-        return true;
-    }
-    const std::span<BufferCopy> copies_span(copies.data(), copies.size());
-    UploadMemory(buffer, total_size_bytes, largest_copy, copies_span);
-    MarkBufferContentChanged(buffer);
-    return false;
+    return SynchronizeBuffer(buffer, device_addr, size, copies);
 }
 
 template <class P>
@@ -1675,7 +1657,9 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
     }
     const std::span<BufferCopy> copies_span(copies.data(), copies.size());
     UploadMemory(buffer, total_size_bytes, largest_copy, copies_span);
-    MarkBufferContentChanged(buffer);
+    for (const BufferCopy& copy : copies) {
+        MarkBufferContentChanged(buffer, buffer_start + copy.dst_offset, copy.size);
+    }
     return false;
 }
 
@@ -1778,7 +1762,7 @@ void BufferCache<P>::InlineMemoryImplementation(DAddr dest_address, size_t copy_
     } else {
         buffer.ImmediateUpload(buffer.Offset(dest_address), inlined_buffer.first(copy_size));
     }
-    MarkBufferContentChanged(buffer);
+    MarkBufferContentChanged(buffer, dest_address, copy_size);
 }
 
 template <class P>
@@ -1942,7 +1926,10 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
 
     const std::optional<DAddr> aligned_device_addr = gpu_memory->GpuToCpuAddress(aligned_gpu_addr);
     if (!aligned_device_addr || size == 0) {
-        LOG_WARNING(HW_GPU, "Failed to find storage buffer for cbuf index {}", cbuf_index);
+        LOG_WARNING(HW_GPU,
+                    "Failed to find storage buffer: cbuf={}, descriptor={:#x}, address={:#x}, "
+                    "requested={}, contiguous={}",
+                    cbuf_index, ssbo_addr, gpu_addr, requested_size, size);
         return NULL_BINDING;
     }
     const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
@@ -2187,6 +2174,10 @@ GPUVAddr BufferCache<P>::FindSparseAlias(const Binding& binding, bool is_written
 
 template <class P>
 void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
+    // Several writable descriptors can bind the same region of one assembled buffer.
+    if (std::ranges::find(sparse_writes, std::pair{gpu_addr, size}) != sparse_writes.end()) {
+        return;
+    }
     sparse_writes.emplace_back(gpu_addr, size);
     const SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
     runtime.MarkHostWrite(slot_buffers[sparse.buffer_id]);
@@ -2198,8 +2189,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         if (write_begin >= write_end) {
             continue;
         }
-        // The buffer of the part gets it once the write is recorded, its content version is kept
-        // as the assembled buffer stays its exact copy
+        // The canonical buffer receives the bytes after the draw or dispatch is recorded.
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
@@ -2213,11 +2203,24 @@ void BufferCache<P>::CopySparseWrites() {
     if (sparse_writes.empty()) {
         return;
     }
+    std::ranges::sort(sparse_writes);
     boost::container::small_vector<BufferCopy, 4> copies;
-    for (const auto& [gpu_addr, size] : sparse_writes) {
+    for (size_t index = 0; index < sparse_writes.size();) {
+        const auto [gpu_addr, size] = sparse_writes[index++];
         SparseBuffer& sparse = FindSparseBuffer(gpu_addr, size);
         if (!sparse.buffer_id) {
             continue;
+        }
+        // Merge overlapping or adjacent writes only within this assembled buffer.
+        GPUVAddr write_end = gpu_addr + size;
+        while (index < sparse_writes.size()) {
+            const auto [next_addr, next_size] = sparse_writes[index];
+            if (next_addr > write_end || next_addr < sparse.gpu_addr ||
+                next_addr + next_size > sparse.gpu_addr + sparse.size) {
+                break;
+            }
+            write_end = std::max(write_end, next_addr + next_size);
+            ++index;
         }
         while (std::ranges::any_of(sparse.parts, [](const SparseBufferPart& part) {
             return !part.buffer_id;
@@ -2229,7 +2232,7 @@ void BufferCache<P>::CopySparseWrites() {
             }
         }
         const u64 begin = gpu_addr - sparse.gpu_addr;
-        const u64 end = begin + size;
+        const u64 end = write_end - sparse.gpu_addr;
         for (const SparseBufferPart& part : sparse.parts) {
             const u64 copy_begin = std::max<u64>(part.offset, begin);
             const u64 copy_end = std::min<u64>(u64{part.offset} + part.size, end);
@@ -2243,7 +2246,17 @@ void BufferCache<P>::CopySparseWrites() {
                 .dst_offset = dest.Offset(part.device_addr) + (copy_begin - part.offset),
                 .size = copy_end - copy_begin,
             });
+            dest.MarkUsage(copies.front().dst_offset, copies.front().size);
             runtime.CopyBuffer(dest, slot_buffers[sparse.buffer_id], copies, true);
+            MarkBufferContentChanged(dest, dest.CpuAddr() + copies.front().dst_offset,
+                                     copies.front().size);
+        }
+        // A canonical buffer can back several parts, so publish their final versions after all
+        // copies. Other assembled buffers retain their old versions and will refresh on use.
+        for (SparseBufferPart& part : sparse.parts) {
+            if (part.offset < end && begin < u64{part.offset} + part.size) {
+                part.content_version = slot_buffers[part.buffer_id].content_version;
+            }
         }
     }
     sparse_writes.clear();

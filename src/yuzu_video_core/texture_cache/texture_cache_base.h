@@ -153,6 +153,9 @@ public:
     /// Fill image_view_ids with the compute images in indices
     void FillComputeImageViews(std::span<ImageViewInOut> views);
 
+    // Filter a direct TIC entry before creating/uploading an unrelated image.
+    bool IsCompute3DImage(u32 index, bool is_integer, bool is_signed);
+
     /// Handle feedback loops during draws.
     void CheckFeedbackLoop(std::span<const ImageViewInOut> views);
 

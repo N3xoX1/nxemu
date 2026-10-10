@@ -151,6 +151,9 @@ public:
         if (has_started) {
             return;
         }
+        // An occlusion query can span render passes when both endpoints are outside.
+        // Starting in one scope and ending in another invalidates the result.
+        scheduler.RequestOutsideRenderPassOperationContext();
         ReserveHostQuery();
         scheduler.Record([query_pool = current_query_pool,
                           query_index = current_bank_slot](vk::CommandBuffer cmdbuf) {
@@ -165,6 +168,7 @@ public:
         if (!has_started) {
             return;
         }
+        scheduler.RequestOutsideRenderPassOperationContext();
         scheduler.Record([query_pool = current_query_pool,
                           query_index = current_bank_slot](vk::CommandBuffer cmdbuf) {
             cmdbuf.EndQuery(query_pool, static_cast<u32>(query_index));
@@ -1522,6 +1526,7 @@ void QueryCacheRuntime::SyncValues(std::span<SyncValuesType> values, VkBuffer ba
             const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
             const auto [buffer, offset] = impl->buffer_cache.ObtainCPUBuffer(
                 pair.first, static_cast<u32>(pair.second - pair.first), sync_info, post_op);
+            buffer->MarkUsage(offset, pair.second - pair.first);
             impl->buffers_to_upload_to.emplace_back(buffer->Handle(), offset);
         }
     });
@@ -1560,7 +1565,12 @@ void QueryCacheRuntime::SyncValues(std::span<SyncValuesType> values, VkBuffer ba
         src_buffer = base_src_buffer;
     }
 
-    impl->scheduler.RequestOutsideRenderPassOperationContext();
+    for (const auto& [buffer, offset] : impl->buffers_to_upload_to) {
+        impl->scheduler.MarkBufferWrite(buffer);
+    }
+    // Query destinations may still be in use by shaders or indirect draws. Order that
+    // usage before overwriting them, then make the copied results visible to consumers.
+    Barriers(true);
     impl->scheduler.Record([src_buffer, dst_buffers = std::move(impl->buffers_to_upload_to),
                             vk_copies = std::move(impl->copies_setup)](vk::CommandBuffer cmdbuf) {
         size_t size = dst_buffers.size();
@@ -1568,6 +1578,7 @@ void QueryCacheRuntime::SyncValues(std::span<SyncValuesType> values, VkBuffer ba
             cmdbuf.CopyBuffer(src_buffer, dst_buffers[i].first, vk_copies[i]);
         }
     });
+    Barriers(false);
 }
 
 } // namespace Vulkan

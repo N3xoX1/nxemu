@@ -45,12 +45,13 @@ vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, 
 
 void TransitionImageLayout(vk::CommandBuffer& cmdbuf, VkImage image, VkImageLayout target_layout,
                            VkImageLayout source_layout) {
-    constexpr VkFlags flags{VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT};
+    // Presentation images can be uploaded or downloaded as well as sampled/rendered.
+    // Layout transitions must include transfer writes, including the initial upload.
+    constexpr VkFlags flags{VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT};
     const VkImageMemoryBarrier barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = nullptr,
-        .srcAccessMask = flags,
+        .srcAccessMask = source_layout == VK_IMAGE_LAYOUT_UNDEFINED ? 0U : flags,
         .dstAccessMask = flags,
         .oldLayout = source_layout,
         .newLayout = target_layout,

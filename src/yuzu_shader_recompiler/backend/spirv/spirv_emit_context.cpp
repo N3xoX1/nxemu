@@ -481,6 +481,22 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     DefineImageBuffers(program.info, image_binding);
     DefineTextures(program.info, texture_binding, bindings.texture_scaling_index);
     DefineImages(program.info, image_binding, bindings.image_scaling_index);
+    if (program.info.runtime_image_write_mask_words != 0) {
+        const auto storage = spv::StorageClass::StorageBuffer;
+        const Id array = TypeArray(U32[1], Const(program.info.runtime_image_write_mask_words));
+        Decorate(array, spv::Decoration::ArrayStride, 4U);
+        const Id block = TypeStruct(array);
+        Decorate(block, spv::Decoration::Block);
+        MemberDecorate(block, 0U, spv::Decoration::Offset, 0U);
+        runtime_image_write_mask = AddGlobalVariable(TypePointer(storage, block), storage);
+        runtime_image_write_mask_element = TypePointer(storage, U32[1]);
+        Decorate(runtime_image_write_mask, spv::Decoration::DescriptorSet, 0U);
+        Decorate(runtime_image_write_mask, spv::Decoration::Binding, storage_binding++);
+        Name(runtime_image_write_mask, "runtime_image_write_mask");
+        if (profile.supported_spirv >= 0x00010400) {
+            interfaces.push_back(runtime_image_write_mask);
+        }
+    }
     DefineAttributeMemAccess(program.info);
     DefineWriteStorageCasLoopFunction(program.info);
     DefineGlobalMemoryFunctions(program.info);
@@ -599,7 +615,9 @@ void EmitContext::DefineLocalMemory(const IR::Program& program) {
         return;
     }
     const u32 num_elements{Common::DivCeil(program.local_memory_size, 4U)};
-    const Id type{TypeArray(U32[1], Const(num_elements))};
+    // Sirit interns types. A signed length keeps this Private array distinct from the
+    // Workgroup array with the same size, which carries an explicit ArrayStride layout.
+    const Id type{TypeArray(U32[1], SConst(static_cast<s32>(num_elements)))};
     const Id pointer{TypePointer(spv::StorageClass::Private, type)};
     local_memory = AddGlobalVariable(pointer, spv::StorageClass::Private);
     if (profile.supported_spirv >= 0x00010400) {
@@ -1474,21 +1492,22 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
 void EmitContext::DefineImages(const Info& info, u32& binding, u32& scaling_index) {
     images.reserve(info.image_descriptors.size());
     for (const ImageDescriptor& desc : info.image_descriptors) {
-        if (desc.count != 1) {
-            throw NotImplementedException("Array of images");
-        }
-        const Id sampled_type{desc.is_integer ? U32[1] : F32[1]};
+        const Id sampled_type{desc.is_signed ? S32[1] : desc.is_integer ? U32[1] : F32[1]};
         const Id image_type{ImageType(*this, desc, sampled_type)};
         const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, image_type)};
-        const Id id{AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant)};
+        const Id desc_type{DescType(*this, image_type, pointer_type, desc.count)};
+        const Id id{AddGlobalVariable(desc_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
         Decorate(id, spv::Decoration::DescriptorSet, 0U);
         Name(id, NameOf(stage, desc, "img"));
         images.push_back({
             .id = id,
             .image_type = image_type,
+            .pointer_type = pointer_type,
             .count = desc.count,
             .is_integer = desc.is_integer,
+            .is_signed = desc.is_signed,
+            .is_direct = desc.is_direct,
         });
         if (profile.supported_spirv >= 0x00010400) {
             interfaces.push_back(id);
