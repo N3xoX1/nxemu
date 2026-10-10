@@ -716,7 +716,10 @@ bool InputConfigPlayer::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReaso
     }
     else if (m_page.GetElementByID("comboDevices") == elem)
     {
-        UpdateMappingWithDefaults();
+        if (!m_suppressDeviceAutomap)
+        {
+            UpdateMappingWithDefaults();
+        }
     }
     else if (m_analogMapDeadzoneSlider[0] == elem)
     {
@@ -1046,6 +1049,18 @@ void InputConfigPlayer::UpdateInputDeviceCombobox(void)
     {
         return;
     }
+    struct SuppressDeviceAutomap
+    {
+        bool & flag;
+        explicit SuppressDeviceAutomap(bool & flag_) : flag(flag_)
+        {
+            flag = true;
+        }
+        ~SuppressDeviceAutomap()
+        {
+            flag = false;
+        }
+    } suppress(m_suppressDeviceAutomap);
 
     // Skip input device persistence if "Input Devices" is set to "Any".
     if (m_comboDevices->CurrentIndex() == 0)
@@ -1561,7 +1576,7 @@ void InputConfigPlayer::UpdateMappingWithDefaults()
     
     for (int i = 0, n = (uint32_t)NativeMotionValues::NumMotions; i < n; i++)
     {
-        if (m_motionMap[i].IsValid())
+        if (!m_motionMap[i].IsValid())
         {
             continue;
         }
