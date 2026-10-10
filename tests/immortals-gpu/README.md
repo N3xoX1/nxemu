@@ -1,5 +1,14 @@
 Tests du correctif graphique Immortals
 
+`run-depth-bias-topology.ps1` extrait la mise à jour Vulkan du décalage de profondeur
+du commit 4d053d0d et des sources courantes, ainsi que le suivi de topologie.
+Il vérifie les transitions points/lignes/triangles, les changements de registres et
+l'absence de commandes supplémentaires pour 10 000 dessins de topologie identique.
+Le témoin échoue sur deux des huit cas ; la correction doit passer les huit.
+La relecture GPU ciblée de la capture v5 complète cette vérification de l'état :
+elle corrige uniquement l'activation du décalage sur les triangles de la carte
+d'ombres et supprime l'alternance du sol sur les 113 images enregistrées.
+
 `run-indirect-dispatch.ps1` extrait les méthodes DMA et KeplerCompute du commit
 25a0b0e4 et des sources courantes. Il reproduit la perte de provenance des paramètres
 de dispatch écrits par le GPU, puis téléchargés avant le lancement. Il vérifie les
