@@ -87,6 +87,11 @@ class NxEmuBridge(private val activity: MainActivity) {
         ControllerSettings.stickValue(playerIndex, stickId, key)
 
     @JavascriptInterface
+    fun setStickValue(playerIndex: Int, stickId: Int, key: String, value: Double) {
+        ControllerSettings.setStickValue(playerIndex, stickId, key, value.toFloat())
+    }
+
+    @JavascriptInterface
     fun resetControllerMappings(playerIndex: Int) {
         ControllerSettings.resetMappings(playerIndex)
     }
