@@ -201,6 +201,18 @@ JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_onGamePadAxisEv
     env->ReleaseStringUTFChars(j_guid, guid);
 }
 
+JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_onOverlayButtonEventImpl(
+    JNIEnv * /*env*/, jobject /*obj*/, jint j_port, jint j_button_id, jint j_action)
+{
+    EmulationSession::GetInstance().SetOverlayButton(j_port, j_button_id, j_action == 1);
+}
+
+JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_onOverlayJoystickEventImpl(
+    JNIEnv * /*env*/, jobject /*obj*/, jint j_port, jint j_stick_id, jfloat j_x, jfloat j_y)
+{
+    EmulationSession::GetInstance().SetOverlayJoystick(j_port, j_stick_id, j_x, j_y);
+}
+
 JNIEXPORT void JNICALL Java_org_nxemu_features_input_NativeInput_registerController(JNIEnv * /*env*/, jobject /*obj*/, jobject j_device)
 {
     IOperatingSystem * os = CurrentOS();
