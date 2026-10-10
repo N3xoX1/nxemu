@@ -82,6 +82,7 @@ sans états dynamiques étendus. Ce banc complète celui qui appelait directemen
 
 Avec `NXEMU_GPU_BINDING_DIAGNOSTICS=1`, les traces de présentation indiquent aussi
 les adresses des images mises en file, les fences d'acquisition, leur satisfaction,
-puis l'adresse réellement composée. Ces traces et le filtre
-`Service.Nvnflinger:Debug` servent à corréler les F10 avec les tampons présentés.
+puis l'adresse réellement composée. L'acquisition indique aussi le numéro de
+tampon, son horodatage, son intervalle d'affichage et son droit d'être remplacé.
+Ces traces servent à corréler les F10 avec les tampons présentés.
 Elles n'altèrent ni le choix ni l'ordre des images affichées.
