@@ -57,6 +57,24 @@
       <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
     </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_d24s8_depth.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_s8d24_depth.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_s8d24.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_d32f.frag">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
@@ -98,6 +116,78 @@
       <Message>Compiling %(Filename)%(Extension)</Message>
       <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_comp.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_comp_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_color_msaa.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_color_msaa_sint.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_color_msaa_uint.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_depth_msaa.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_depth_stencil_msaa.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_sint.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_uint.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_depth.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_depth_stencil.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_packed_depth_to_msaa.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_packed_depth_stencil_to_msaa.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_s8d24_to_abgr8.frag">
       <FileType>Document</FileType>

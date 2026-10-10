@@ -16,6 +16,15 @@
     <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_d24s8.frag">
       <Filter>frag</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_d24s8_depth.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_s8d24_depth.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_s8d24.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_abgr8_to_d32f.frag">
       <Filter>frag</Filter>
     </CustomBuild>
@@ -36,6 +45,42 @@
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa.comp">
       <Filter>comp</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_color_msaa.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_color_msaa_sint.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_color_msaa_uint.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_depth_msaa.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\blit_depth_stencil_msaa.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_sint.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_uint.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_depth.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_non_msaa_to_msaa_depth_stencil.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_packed_depth_to_msaa.frag">
+      <Filter>frag</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_packed_depth_stencil_to_msaa.frag">
+      <Filter>frag</Filter>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\convert_s8d24_to_abgr8.frag">
       <Filter>frag</Filter>

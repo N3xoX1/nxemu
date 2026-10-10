@@ -114,7 +114,7 @@ struct RuntimeInfo {
     // Float remains the default for other backends.
     std::array<AttributeType, 8> color_output_types{};
 
-    /// The first render target blends with a second source color taken from color output 1
+    /// Whether fragment outputs 0 and 1 are the primary and secondary sources for attachment 0.
     bool dual_source_blend{};
 };
 

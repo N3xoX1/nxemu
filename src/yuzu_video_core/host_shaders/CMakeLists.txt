@@ -16,9 +16,17 @@ set(GLSL_INCLUDES
 set(SHADER_FILES
     astc_decoder.comp
     blit_color_float.frag
+    blit_color_msaa.frag
+    blit_color_msaa_sint.frag
+    blit_color_msaa_uint.frag
+    blit_depth_msaa.frag
+    blit_depth_stencil_msaa.frag
     block_linear_unswizzle_2d.comp
     block_linear_unswizzle_3d.comp
     convert_abgr8_to_d24s8.frag
+    convert_abgr8_to_d24s8_depth.frag
+    convert_abgr8_to_s8d24.frag
+    convert_abgr8_to_s8d24_depth.frag
     convert_abgr8_to_d32f.frag
     convert_d32f_to_abgr8.frag
     convert_d24s8_to_abgr8.frag
@@ -26,6 +34,13 @@ set(SHADER_FILES
     convert_float_to_depth.frag
     convert_msaa_to_non_msaa.comp
     convert_non_msaa_to_msaa.comp
+    convert_non_msaa_to_msaa.frag
+    convert_non_msaa_to_msaa_sint.frag
+    convert_non_msaa_to_msaa_uint.frag
+    convert_non_msaa_to_msaa_depth.frag
+    convert_non_msaa_to_msaa_depth_stencil.frag
+    convert_packed_depth_to_msaa.frag
+    convert_packed_depth_stencil_to_msaa.frag
     convert_s8d24_to_abgr8.frag
     full_screen_triangle.vert
     fxaa.frag

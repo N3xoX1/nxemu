@@ -45,6 +45,14 @@ using VideoCore::Surface::PixelFormatFromRenderTargetFormat;
 constexpr size_t NUM_STAGES = Maxwell::MaxShaderStage;
 constexpr size_t INLINE_IMAGE_ELEMENTS = 64;
 
+constexpr std::array<VkPipelineStageFlagBits, NUM_STAGES> PIPELINE_STAGE_FLAGS{
+    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+    VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT,
+    VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT,
+    VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT,
+    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+};
+
 DescriptorLayoutBuilder MakeBuilder(const Device& device, std::span<const Shader::Info> infos,
                                     u32 num_color_attachments) {
     static constexpr std::array stages{
@@ -371,6 +379,11 @@ GraphicsPipeline::GraphicsPipeline(
             continue;
         }
         stage_infos[stage] = *info;
+        const auto is_written = [](const auto& desc) { return desc.is_written; };
+        if (std::ranges::any_of(info->image_descriptors, is_written) ||
+            std::ranges::any_of(info->image_buffer_descriptors, is_written)) {
+            image_write_stages |= PIPELINE_STAGE_FLAGS[stage];
+        }
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += Shader::NumDescriptors(info->texture_descriptors);

@@ -54,11 +54,16 @@ public:
         return build_failed.load(std::memory_order::relaxed);
     }
 
+    [[nodiscard]] bool WritesImages() const noexcept {
+        return writes_images;
+    }
+
 private:
     const Device& device;
     vk::PipelineCache& pipeline_cache;
     GuestDescriptorQueue& guest_descriptor_queue;
     Shader::Info info;
+    bool writes_images{};
     u32 num_textures{};
     size_t num_descriptor_entries{};
 

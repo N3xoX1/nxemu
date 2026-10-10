@@ -238,6 +238,7 @@ struct FixedPipelineState {
 
     VideoCommon::TransformFeedbackState xfb_state;
 
+
     void Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFeatures& features);
 
     size_t Hash() const noexcept;

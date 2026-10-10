@@ -217,6 +217,7 @@ private:
     std::array<VideoCommon::ImageViewId, MAX_IMAGE_VIEWS> image_view_ids;
     boost::container::static_vector<VkSampler, MAX_TEXTURES> sampler_handles;
 
+    VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;
 };
 

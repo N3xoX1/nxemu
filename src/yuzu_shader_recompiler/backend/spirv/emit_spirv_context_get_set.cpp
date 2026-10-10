@@ -499,7 +499,9 @@ void EmitSetPatch(EmitContext& ctx, IR::Patch patch, Id value) {
 void EmitSetFragColor(EmitContext& ctx, u32 index, u32 component, Id value) {
     const Id component_id{ctx.Const(component)};
     Id pointer_type{ctx.output_f32};
-    switch (ctx.runtime_info.color_output_types.at(index)) {
+    // The secondary output of a dual-source pair has the type of attachment 0.
+    const u32 type_index = ctx.runtime_info.dual_source_blend && index == 1 ? 0 : index;
+    switch (ctx.runtime_info.color_output_types.at(type_index)) {
     case AttributeType::UnsignedInt:
         pointer_type = ctx.output_u32;
         value = ctx.OpBitcast(ctx.U32[1], value);
