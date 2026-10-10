@@ -108,11 +108,22 @@ bool DmaPusher::Step()
         ASSERT(memory_operation_sync_state == MemoryOperationSyncState::None);
     }
 
-    if (header.size > 0 && Settings::IsGPULevelHigh() &&
-        dma_state.method >= MacroRegistersStart && subchannels[dma_state.subchannel])
+    if (header.size > 0 && dma_state.method_count && subchannels[dma_state.subchannel])
     {
-        subchannels[dma_state.subchannel]->current_dirty =
-            memory_manager.IsMemoryDirty(dma_state.dma_get, header.size * sizeof(u32));
+        const auto engine = subchannel_type[dma_state.subchannel];
+        const bool compute_payload = engine == Engines::EngineTypes::KeplerCompute &&
+                                     dma_state.method == ComputeInline && dma_state.non_incrementing;
+        const bool macro_payload = Settings::IsGPULevelHigh() &&
+                                   engine == Engines::EngineTypes::Maxwell3D &&
+                                   dma_state.method >= MacroRegistersStart;
+        if (compute_payload || macro_payload)
+        {
+            // A safe fetch can download the parameters and clear their GPU dirty state. Keep
+            // their origin so compute launches can still consume the live GPU arguments.
+            const std::size_t words = std::min<std::size_t>(dma_state.method_count, header.size);
+            subchannels[dma_state.subchannel]->current_dirty =
+                memory_manager.IsMemoryDirty(dma_state.dma_get, words * sizeof(u32));
+        }
     }
 
     if (header.size > 0)

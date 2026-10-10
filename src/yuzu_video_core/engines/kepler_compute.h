@@ -223,12 +223,14 @@ private:
     MemoryManager& memory_manager;
     VideoCore::RasterizerInterface* rasterizer = nullptr;
     Upload::State upload_state;
-    GPUVAddr upload_address;
+    GPUVAddr upload_address{};
+    bool upload_dirty{};
 
     struct UploadInfo {
         GPUVAddr upload_address;
         GPUVAddr exec_address;
         u32 copy_size;
+        bool was_dirty;
     };
     std::vector<UploadInfo> uploads;
     std::optional<GPUVAddr> indirect_compute{};
