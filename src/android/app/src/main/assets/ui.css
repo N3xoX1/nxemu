@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #ffffff;
   --text: #111111;
   --muted: #4a555c;
@@ -11,6 +12,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+	color-scheme: dark;
 	--bg: #121212;
 	--text: #e8e8e8;
 	--muted: #b4bcc2;
@@ -20,6 +22,7 @@
 }
 
 html.dark {
+  color-scheme: dark;
   --bg: #121212;
   --text: #e8e8e8;
   --muted: #b4bcc2;
@@ -27,6 +30,7 @@ html.dark {
 }
 
 html.light {
+  color-scheme: light;
   --bg: #ffffff;
   --text: #111111;
   --muted: #4a555c;

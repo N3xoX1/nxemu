@@ -1,9 +1,11 @@
 package org.nxemu.ui.main
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.hardware.input.InputManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.InputDevice
@@ -12,6 +14,7 @@ import android.view.MotionEvent
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -96,6 +99,13 @@ open class MainActivity : ComponentActivity() {
         webView = WebView(this).apply {
             setBackgroundColor(ThemeHelper.backgroundColor(this@MainActivity))
             settings.javaScriptEnabled = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                @Suppress("DEPRECATION")
+                settings.forceDark = WebSettings.FORCE_DARK_OFF
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                settings.isAlgorithmicDarkeningAllowed = false
+            }
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
                     Log.d("NxEmu-JS", "${msg.message()} [${msg.sourceId()}:${msg.lineNumber()}]")
