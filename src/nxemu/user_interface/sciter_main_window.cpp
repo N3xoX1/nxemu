@@ -652,7 +652,7 @@ bool SciterMainWindow::Show()
     enum
     {
         WINDOW_HEIGHT = 507,
-        WINDOW_WIDTH = 760,
+        WINDOW_WIDTH = 650,
     };
 
 #ifdef __APPLE__
