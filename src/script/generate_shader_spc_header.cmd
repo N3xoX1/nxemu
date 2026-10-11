@@ -31,7 +31,7 @@ endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
 :cmErrorLevel
 exit /b %1
 :cmDone
-if %errorlevel% neq 0 goto :VCEnd
+exit /b %errorlevel%
 
 :ToUpper
 if not defined %~1 EXIT /b
