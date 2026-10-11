@@ -130,4 +130,5 @@ private:
     std::chrono::steady_clock::time_point m_motionUiThrottleLast;
     NpadStyleIndex m_displayedControllerLayout;
     bool m_callbackEnabled;
+    bool m_suppressDeviceAutomap{};
 };
