@@ -538,12 +538,89 @@ function readSettingBool(key) {
   }
 }
 
+function gameIsRunning() {
+  return readSettingBool('nxcore:EmulationRunning');
+}
+
 function readSettingInt(key) {
   try {
     return NxEmu.getSettingInt(key);
   } catch (e) {
     return 0;
   }
+}
+
+function optionLabel(options, value) {
+  for (var i = 0; i < options.length; i++) {
+    if (options[i].value === value) return options[i].label;
+  }
+  return String(value);
+}
+
+var resolutionOptions = [
+  { label: '0.5X', value: 0 },
+  { label: '0.75X', value: 1 },
+  { label: '1X', value: 2 },
+  { label: '1.5X', value: 3 },
+  { label: '2X', value: 4 },
+  { label: '3X', value: 5 },
+  { label: '4X', value: 6 },
+  { label: '5X', value: 7 },
+  { label: '6X', value: 8 },
+  { label: '7X', value: 9 },
+  { label: '8X', value: 10 },
+];
+var accuracyOptions = [
+  { label: 'Normal', value: 0 },
+  { label: 'High', value: 1 },
+  { label: 'Extreme', value: 2 },
+];
+var vsyncOptions = [
+  { label: 'Immediate', value: 0 },
+  { label: 'Mailbox', value: 1 },
+  { label: 'FIFO', value: 2 },
+  { label: 'FIFO Relaxed', value: 3 },
+];
+var aspectOptions = [
+  { label: '16:9', value: 0 },
+  { label: '4:3', value: 1 },
+  { label: '21:9', value: 2 },
+  { label: '16:10', value: 3 },
+  { label: 'Stretch', value: 4 },
+];
+var anisotropyOptions = [
+  { label: 'Automatic', value: 0 },
+  { label: 'Default', value: 1 },
+  { label: '2x', value: 2 },
+  { label: '4x', value: 3 },
+  { label: '8x', value: 4 },
+  { label: '16x', value: 5 },
+];
+var antiAliasingOptions = [
+  { label: 'None', value: 0 },
+  { label: 'FXAA', value: 1 },
+  { label: 'SMAA', value: 2 },
+];
+var scalingOptions = [
+  { label: 'Nearest neighbor', value: 0 },
+  { label: 'Bilinear', value: 1 },
+  { label: 'Bicubic', value: 2 },
+  { label: 'Gaussian', value: 3 },
+  { label: 'ScaleForce', value: 4 },
+  { label: 'FSR', value: 5 },
+];
+var settingChoiceState = null;
+
+function dockedLabel() {
+  return readSettingInt('nxos:DockedMode') === 1 ? 'Docked' : 'Handheld';
+}
+
+function systemSummary() {
+  return dockedLabel() + ' · ' + readSettingInt('nxos:SpeedLimit') + '%';
+}
+
+function graphicsSummary() {
+  return optionLabel(resolutionOptions, readSettingInt('nxvideo:ResolutionSetup'));
 }
 
 const settingPages = [
@@ -554,6 +631,8 @@ const settingPages = [
       { label: 'Game folders', type: 'page', page: 'gameFolders', detail: folderCountLabel },
       { label: 'On screen controller', type: 'page', page: 'overlaySettings', detail: overlayShowLabel },
       { label: 'Controllers', type: 'page', page: 'controllerSettings', detail: connectedCountLabel },
+      { label: 'System', type: 'page', page: 'systemSettings', detail: systemSummary },
+      { label: 'Graphics', type: 'page', page: 'graphicsSettings', detail: graphicsSummary },
       { label: 'Theme', type: 'page', page: 'themeSettings', detail: function () { return themeModeLabel(getThemeMode()); } },
     ],
   },
@@ -565,6 +644,33 @@ const settingPages = [
       { label: 'Scale', type: 'int', key: 'nxui:OverlayScale', min: 0, max: 150, suffix: '%' },
       { label: 'Opacity', type: 'int', key: 'nxui:OverlayOpacity', min: 0, max: 100, suffix: '%' },
       { label: 'Edit overlay layout', detail: 'Drag buttons to reposition', type: 'action', run: function () { NxEmu.editOverlayLayout(); } },
+    ],
+  },
+  {
+    id: 'systemSettings',
+    title: 'System',
+    rows: [
+      { label: 'Limit speed', type: 'bool', key: 'nxos:UseSpeedLimit', detail: 'This session only', save: false, visible: gameIsRunning },
+      { label: 'Speed limit', type: 'int', key: 'nxos:SpeedLimit', min: 1, max: 400, suffix: '%' },
+      { label: 'Docked mode', type: 'bool', key: 'nxos:DockedMode', intBool: true, detail: 'Higher resolution, lower performance' },
+    ],
+  },
+  {
+    id: 'graphicsSettings',
+    title: 'Graphics',
+    rows: [
+      { label: 'Accuracy', type: 'select', key: 'nxvideo:AccuracyLevel', options: accuracyOptions },
+      { label: 'Resolution', type: 'select', key: 'nxvideo:ResolutionSetup', options: resolutionOptions },
+      { label: 'VSync', type: 'select', key: 'nxvideo:VSyncMode', options: vsyncOptions },
+      { label: 'Window adapting filter', type: 'select', key: 'nxvideo:ScalingFilter', options: scalingOptions },
+      { label: 'FSR sharpness', type: 'int', key: 'nxvideo:FSPSharpness', min: 0, max: 200, suffix: '%', visible: function () { return readSettingInt('nxvideo:ScalingFilter') === 5; } },
+      { label: 'Anti-aliasing', type: 'select', key: 'nxvideo:AntiAliasing', options: antiAliasingOptions },
+      { label: 'Anisotropic filtering', type: 'select', key: 'nxvideo:AnisotropicFiltering', options: anisotropyOptions },
+      { label: 'Aspect ratio', type: 'select', key: 'nxvideo:AspectRatio', options: aspectOptions },
+      { label: 'Force maximum clocks', type: 'bool', key: 'nxvideo:ForceMaximumClocks', detail: 'Adreno GPUs. Can overheat the device' },
+      { label: 'Asynchronous shaders', type: 'bool', key: 'nxvideo:UseAsynchronousShaderBuilding', detail: 'Reduces stutter, but can glitch' },
+      { label: 'Reactive flushing', type: 'bool', key: 'nxvideo:EnableReactiveFlushing', detail: 'More accurate, costs performance' },
+      { label: 'Disk shader cache', type: 'bool', key: 'nxvideo:UseDiskPipelineCache' },
     ],
   },
   {
@@ -580,6 +686,7 @@ const settingPages = [
   { id: 'controllerSettings', title: 'Controllers', render: renderControllerSettings },
   { id: 'controllerPlayer', title: function () { return 'Controller ' + (controllerPlayerIndex + 1); }, render: renderControllerPlayer },
   { id: 'controllerChoices', title: function () { return controllerChoiceState.title; }, render: renderControllerChoices },
+  { id: 'settingChoices', title: function () { return settingChoiceState ? settingChoiceState.label : 'Settings'; }, render: renderSettingChoices },
 ];
 
 function settingPage(id) {
@@ -608,9 +715,11 @@ function renderSettingRows(spec) {
   const list = ensureSettingsList();
   if (!list) return;
   spec.rows.forEach(function (row) {
+    if (row.visible && !row.visible()) return;
     if (row.type === 'bool') appendBoolRow(list, row);
     else if (row.type === 'int') appendIntRow(list, row);
     else if (row.type === 'choice') appendChoiceRow(list, row);
+    else if (row.type === 'select') appendSelectRow(list, row);
     else appendLinkRow(list, row);
   });
 }
@@ -631,16 +740,26 @@ function appendLinkRow(list, row) {
   list.appendChild(item);
 }
 
+function rowIsOn(row) {
+  if (row.intBool) return readSettingInt(row.key) === 1;
+  return readSettingBool(row.key);
+}
+
 function appendBoolRow(list, row) {
-  const on = readSettingBool(row.key);
+  const on = rowIsOn(row);
+  const detail = rowDetail(row);
   const item = document.createElement('div');
   item.className = 'settings-item';
   item.innerHTML =
-    '<div class="setting-info"><div class="setting-label">' + escapeHtml(row.label) + '</div></div>' +
+    '<div class="setting-info">' +
+    '<div class="setting-label">' + escapeHtml(row.label) + '</div>' +
+    (detail ? '<div class="setting-sub">' + escapeHtml(detail) + '</div>' : '') +
+    '</div>' +
     '<button class="settings-toggle' + (on ? ' on' : '') + '" type="button" aria-label="' + escapeHtml(row.label) + '"></button>';
   item.addEventListener('click', function () {
-    NxEmu.setSettingBool(row.key, !readSettingBool(row.key));
-    NxEmu.saveSettings();
+    if (row.intBool) NxEmu.setSettingInt(row.key, rowIsOn(row) ? 0 : 1);
+    else NxEmu.setSettingBool(row.key, !readSettingBool(row.key));
+    if (row.save !== false) NxEmu.saveSettings();
     if (row.run) row.run();
     renderCurrentSettings();
   });
@@ -668,6 +787,43 @@ function appendIntRow(list, row) {
     if (row.run) row.run();
   });
   list.appendChild(item);
+}
+
+function appendSelectRow(list, row) {
+  const item = document.createElement('div');
+  item.className = 'settings-item';
+  const detail = optionLabel(row.options, readSettingInt(row.key));
+  item.innerHTML =
+    '<div class="setting-info">' +
+    '<div class="setting-label">' + escapeHtml(row.label) + '</div>' +
+    (detail ? '<div class="setting-sub">' + escapeHtml(detail) + '</div>' : '') +
+    '</div>' + controllerChevron();
+  item.addEventListener('click', function () {
+    settingChoiceState = row;
+    navigate('settingChoices');
+  });
+  list.appendChild(item);
+}
+
+function renderSettingChoices() {
+  const spec = settingChoiceState;
+  const list = ensureSettingsList();
+  if (!list || !spec) return;
+  const current = readSettingInt(spec.key);
+  spec.options.forEach(function (option) {
+    const on = current === option.value;
+    const item = document.createElement('div');
+    item.className = 'settings-item';
+    item.innerHTML =
+      '<div class="setting-info"><div class="setting-label">' + escapeHtml(option.label) + '</div></div>' +
+      '<svg class="setting-check' + (on ? ' on' : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>';
+    item.addEventListener('click', function () {
+      NxEmu.setSettingInt(spec.key, option.value);
+      NxEmu.saveSettings();
+      goBack();
+    });
+    list.appendChild(item);
+  });
 }
 
 function appendChoiceRow(list, row) {
