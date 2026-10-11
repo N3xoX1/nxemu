@@ -19,6 +19,8 @@ find_package(Threads REQUIRED)
 
 if(APPLE)
     option(ENABLE_SDL2 "Enable SDL game controller input" ON)
+    # Use Boost.Container for overlapping ICL interval lookups on libc++.
+    add_compile_definitions(ICL_USE_BOOST_MOVE_IMPLEMENTATION)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)

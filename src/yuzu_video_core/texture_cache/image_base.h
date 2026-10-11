@@ -42,6 +42,7 @@ enum class ImageFlagBits : u32 {
 
     AsynchronousDecode = 1 << 16,
     IsDecoding = 1 << 17, ///< Is currently being decoded asynchronously.
+    DownloadQueued = 1 << 18, ///< Temporary mark while deduplicating a download batch.
 };
 DECLARE_ENUM_FLAG_OPERATORS(ImageFlagBits)
 
