@@ -1,36 +1,43 @@
 html {
   var(font-ui): "Segoe UI";
-  var(color-ui-text-primary): #eff0f1;
-  var(color-ui-text-muted): #b0b6bc;
-  var(color-statusbar-background): #31363b;
-  var(color-statusbar-border): #434242;
-  var(color-statusbar-hover-border): #76797c;
-  var(color-pause-panel-background): #25282c;
-  var(color-main-background): #2d2d2d;
-  var(color-titlebar-background): #181818;
-  var(color-titlebar-background-inactive): #2d2d2d;
-  var(color-titlebar-text): #FFF;
-  var(color-titlebar-icon): #FFF;
-  var(color-titlebar-icon-hover): #0078d7;
-  var(color-titlebar-icon-inactive): #2f7bb0;
-  var(color-menubar-background): #181818;
-  var(color-menubar-background-hover): #2c2c2c;
-  var(color-menubar-background-active): #2c2c2c;
-  var(color-menuitem-background): #2c2c2c;
-  var(color-menuitem-background-hover): #383838;
-  var(color-menu-popup-background): #252526;
-  var(color-menu-popup-border): #454545;
-  var(color-menu-popup-shadow): rgba(0, 0, 0, 0.45);
-  var(color-menu-shortcut-text): #b8b8b8;
-  var(color-menu-separator): #3d3d3d;
-  var(color-context-menu-background): #2b2b2b;
-  var(color-context-menu-border): #3c3c3c;
-  var(color-context-menu-hover): #3a3a3a;
-  var(color-context-menu-text): #f3f3f3;
-  var(color-context-menu-muted): #a8a8a8;
-  var(color-context-menu-separator): #404040;
-  var(color-context-menu-shadow): rgba(0, 0, 0, 0.55);
-  var(color-window-border): #353535;
+  var(color-ui-text-primary): #e6ecf5;
+  var(color-ui-text-muted): #8d9bb3;
+  var(color-statusbar-background): #0a1222;
+  var(color-statusbar-border): #1a2840;
+  var(color-statusbar-hover-border): #2f80ff;
+  var(color-pause-panel-background): #0b1422;
+  var(color-main-background): #090f1a;
+  var(color-titlebar-background): #0a1222;
+  var(color-titlebar-background-inactive): #0a1222;
+  var(color-titlebar-text): #e6ecf5;
+  var(color-titlebar-icon): #c9d4e5;
+  var(color-titlebar-icon-hover): #18263f;
+  var(color-titlebar-icon-inactive): #5d6b82;
+  var(color-menubar-background): #0a1222;
+  var(color-menubar-background-hover): #18263f;
+  var(color-menubar-background-active): #1e3050;
+  var(color-menuitem-background): #16233a;
+  var(color-menuitem-background-hover): #1a2a44;
+  var(color-menu-popup-background): #0f1a2c;
+  var(color-menu-popup-border): #22324d;
+  var(color-menu-popup-shadow): rgba(0, 0, 0, 0.55);
+  var(color-menu-shortcut-text): #8d9bb3;
+  var(color-menu-separator): #1f2d45;
+  var(color-context-menu-background): #0f1a2c;
+  var(color-context-menu-border): #22324d;
+  var(color-context-menu-hover): #1a2a44;
+  var(color-context-menu-text): #e6ecf5;
+  var(color-context-menu-muted): #8d9bb3;
+  var(color-context-menu-separator): #1f2d45;
+  var(color-context-menu-shadow): rgba(0, 0, 0, 0.6);
+  var(color-window-border): #263856;
+  var(color-titlebar-version): #7d8aa3;
+  var(color-menubar-border): #1a2840;
+  var(color-accent): #2f80ff;
+  var(color-accent-soft): rgba(47, 128, 255, 0.16);
+  var(color-card-background): #111c2e;
+  var(color-card-border): #1b2a42;
+  var(color-card-border-hover): #2c4166;
 
   border: 1px solid color(color-window-border);
   background-color: color(color-main-background);
@@ -64,13 +71,21 @@ html > header > window-caption
   width: *;
   padding: 0 1em;
   font-family: var(font-ui), Arial, sans-serif;
-  font-size: 0.9em;
-  font-weight: 100;
+  font-size: 0.95em;
+  font-weight: 600;
 }
 
 html > header > window-caption span
 {
   vertical-align: middle;
+}
+
+html > header > window-caption span.caption-version
+{
+  display: inline-block;
+  margin-left: 0.9em;
+  font-weight: 400;
+  color: color(color-titlebar-version);
 }
 
 html > header > window-caption img

@@ -1075,7 +1075,15 @@ void SciterMainWindow::SetCaption(const std::string & caption)
     SciterElement captionElement(m_rootElement.FindFirst("[role='window-caption'] > span"));
     if (captionElement.IsValid())
     {
-        captionElement.SetHTML((uint8_t *)caption.data(), caption.size());
+        std::string captionHtml = caption;
+        size_t versionSep = m_windowTitle.find(' ');
+        if (versionSep != std::string::npos && caption.size() >= m_windowTitle.size() &&
+            caption.compare(caption.size() - m_windowTitle.size(), m_windowTitle.size(), m_windowTitle) == 0)
+        {
+            size_t versionStart = caption.size() - m_windowTitle.size() + versionSep + 1;
+            captionHtml = caption.substr(0, versionStart - 1) + "<span class=\"caption-version\">" + caption.substr(versionStart) + "</span>";
+        }
+        captionElement.SetHTML((uint8_t *)captionHtml.data(), captionHtml.size());
     }
 }
 

@@ -16,16 +16,17 @@
   border-top: 1px solid color(color-statusbar-border);
   font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.8em;
-  font-weight: 100;
+  font-weight: 400;
   line-height: 1.2em;
-  height: 1.6rem;
+  height: 1.9rem;
 }
 
 #StatusText
 {
   width: *;
   text-align: right;
-  display: inline-block;
+  display: block;
+  vertical-align: middle;
   height: 1.2em;
   padding: 0.2em;
 }
@@ -37,7 +38,7 @@
   height: 1.2em;
   margin: 0 0.6em;
   vertical-align: middle;
-  background: rgba(239, 240, 241, 0.16);
+  background: color(color-statusbar-border);
 }
 
 #StatusBar #volumeAnchor
@@ -75,7 +76,8 @@
 #StatusBar #gpuCommandSynchronization
 {
   border: 1px solid transparent;
-  padding: 0.2em;
+  border-radius: 4dip;
+  padding: 0.2em 0.4em;
   display: block;
   height: 1.2em;
   vertical-align: middle;
@@ -88,6 +90,7 @@
 #StatusBar #gpuCommandSynchronization:hover
 {
   border: 1px solid color(color-statusbar-hover-border);
+  background: color(color-accent-soft);
 }
 
 #StatusBar #volume
@@ -173,8 +176,9 @@ rombrowser
   display: block;
   width: *;
   height: *;
-  padding: 0.5rem 1rem;
+  padding: 0.8rem 1.2rem 0.5rem;
   margin: 0;
+  background: color(color-main-background);
 }
 
 rombrowser .games-title
@@ -201,27 +205,30 @@ rombrowser .config-button .outline
 
 rombrowser .config-button:hover .outline
 {
-  fill: #232629;
+  fill: color(color-ui-text-primary);
 }
 
 rombrowser .config-button
 {
-  padding: 0.2rem;
+  padding: 0.3rem;
+  border: 1px solid color(color-card-border);
+  border-radius: 6px;
+  background-color: color(color-card-background);
 }
 
 rombrowser .config-button:hover
 {
-  background-color: #b3d9f6;
-  border-radius: 4px;
+  background-color: color(color-accent-soft);
+  border-color: color(color-accent);
 }
 
 rombrowser .games-title h1
 {
   font-family: var(font-ui), Arial, sans-serif;
-  font-size: 1.5rem;
-  font-weight: 400;
+  font-size: 1.9rem;
+  font-weight: 700;
   color: color(color-ui-text-primary);
-  padding: 0 0 0.6rem;
+  padding: 0 0 0.8rem;
   margin: 0;
   width:*
 }
@@ -259,14 +266,22 @@ rombrowser .rom-card-content
 rombrowser .rom-card
 {
   cursor: pointer;
-  border-radius: 8px;
-  border: 3px solid transparent;
+  border-radius: 10px;
+  border: 3px solid color(color-card-border);
+  background-color: color(color-card-background);
   context-menu: selector(menu#RomCardContextMenu);
+  transition: border-color linear 120ms;
+}
+
+rombrowser .rom-card:hover
+{
+  border-color: color(color-card-border-hover);
 }
 
 rombrowser .rom-card:visited
 {
-  border: 3px solid #76B9ED;
+  border: 3px solid color(color-accent);
+  box-shadow: 0 0 10px rgba(47, 128, 255, 0.45);
   cursor: pointer;
 }
 
@@ -417,18 +432,19 @@ rombrowser .games-grid[data-size="4"] .rom-card
 ul#menu-bar
 {
   margin: 0;
-  padding: 0 0.5em 0.3em 0.5em;
+  padding: 0.2em 0.5em;
   background: color(color-menubar-background);
   color: color(color-ui-text-primary);
+  border-bottom: 1px solid color(color-menubar-border);
   font-family: var(font-ui), Arial, sans-serif;
-  font-size: 0.9em;
-  font-weight: 100;
+  font-size: 0.95em;
+  font-weight: 400;
   flow: horizontal;
 }
 
 ul#menu-bar > li
 {
-  padding: 0.28em 0.55em;
+  padding: 0.2em 0.6em;
   margin: 0;
   white-space: nowrap;
   width: max-content;
@@ -446,7 +462,7 @@ ul#menu-bar > li:hover
 ul#menu-bar:focus > li:current,
 ul#menu-bar > li:owns-popup {
   background-color: color(color-menubar-background-active);
-  border-radius: 5px 5px 0;
+  border-radius: 5px;
 }
 
 ul#menu-bar caption u,
@@ -474,9 +490,9 @@ menu
   min-width: 14em;
   max-width:max-content;
   background: color(color-menu-popup-background);
-  color: #f0f0f0;
+  color: color(color-ui-text-primary);
   border: 1px solid color(color-menu-popup-border);
-  border-top: none;
+  border-radius: 6px;
   box-shadow: 0 0.25em 0.75em color(color-menu-popup-shadow);
 }
 
@@ -485,6 +501,7 @@ ul#menu-bar menu
   position: absolute;
   left: 0;
   top: 100%;
+  margin-top: 2px;
   z-index: 10000;
 }
 
@@ -520,7 +537,7 @@ menu li
   foreground-repeat: no-repeat;
   foreground-position: left 2px top 50%;
   padding: 0.4em 1.75em 0.4em 1.1em;
-  margin: 0;
+  margin: 0 0.3em;
 }
 
 menu li .menu-item-label
@@ -652,14 +669,14 @@ menu li .menu-accelerator:empty
 menu li:hover
 {
   background: color(color-menuitem-background-hover);
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
 menu li:current,
 menu li:hover:owns-popup
 {
-  background-color: #094771;
-  border-radius: 2px;
+  background-color: color(color-accent);
+  border-radius: 4px;
 }
 
 menu li:current .menu-item-label,
