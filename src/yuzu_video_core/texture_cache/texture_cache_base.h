@@ -257,6 +257,8 @@ public:
     std::recursive_mutex mutex;
 
 private:
+    void DeduplicateDownloads();
+
     /// Iterate over all page indices in a range
     template <typename Func>
     static void ForEachCPUPage(DAddr addr, size_t size, Func&& func) {

@@ -794,6 +794,11 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
         runtime.BlitImage(dst_framebuffer, dst_view, src_view, dst_region, src_region, copy.filter,
                           copy.operation);
     }
+    // Fermi2D bypasses BindRenderTarget and must enqueue preemptive readbacks.
+    const ImageViewBase& dst_view = slot_image_views[dst_view_id];
+    if (True(dst_view.flags & ImageViewFlagBits::PreemtiveDownload)) {
+        uncommitted_downloads.emplace_back(PendingDownload{true, 0, dst_id});
+    }
     return true;
 }
 
@@ -867,7 +872,38 @@ bool TextureCache<P>::ShouldWaitAsyncFlushes() const noexcept {
 }
 
 template <class P>
+void TextureCache<P>::DeduplicateDownloads() {
+    if constexpr (!IMPLEMENTS_ASYNC_DOWNLOADS) {
+        return;
+    }
+    if (uncommitted_downloads.size() < 2) {
+        return;
+    }
+    // Full images share final GPU contents; retain the first for reverse publication.
+    // Keep buffer snapshots distinct.
+    auto output = uncommitted_downloads.begin();
+    for (auto input = uncommitted_downloads.begin(); input != uncommitted_downloads.end();
+         ++input) {
+        if (input->is_swizzle) {
+            Image& image = slot_images[input->object_id];
+            if (True(image.flags & ImageFlagBits::DownloadQueued)) {
+                continue;
+            }
+            image.flags |= ImageFlagBits::DownloadQueued;
+        }
+        *output++ = *input;
+    }
+    uncommitted_downloads.erase(output, uncommitted_downloads.end());
+    for (const PendingDownload& download : uncommitted_downloads) {
+        if (download.is_swizzle) {
+            slot_images[download.object_id].flags &= ~ImageFlagBits::DownloadQueued;
+        }
+    }
+}
+
+template <class P>
 void TextureCache<P>::CommitAsyncFlushes() {
+    DeduplicateDownloads();
     // This is intentionally passing the value by copy
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
         auto& download_ids = uncommitted_downloads;

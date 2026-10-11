@@ -4,7 +4,9 @@
 #pragma once
 
 #include <compare>
+#include <optional>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include "yuzu_video_core/texture_cache/texture_cache_base.h"
@@ -281,11 +283,13 @@ public:
 
 private:
     struct StorageViews {
-        std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> signeds;
-        std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> unsigneds;
+        std::unordered_map<u64, vk::ImageView> by_format;
     };
 
-    [[nodiscard]] vk::ImageView MakeView(VkFormat vk_format, VkImageAspectFlags aspect_mask);
+    [[nodiscard]] vk::ImageView MakeView(
+        VkFormat vk_format, VkImageAspectFlags aspect_mask,
+        std::optional<Shader::TextureType> texture_type = std::nullopt,
+        VkImageUsageFlags usage = 0);
 
     const Device* device = nullptr;
     const SlotVector<Image>* slot_images = nullptr;

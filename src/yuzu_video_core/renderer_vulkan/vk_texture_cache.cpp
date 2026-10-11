@@ -9,6 +9,7 @@
 #include <vector>
 #include <boost/container/small_vector.hpp>
 
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/settings.h"
@@ -1002,9 +1003,16 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
         return MakeBufferImageCopy(copy, false, dst_aspect_mask);
     });
     const u32 img_bpp = BytesPerBlock(dst.info.format);
+    const size_t alignment = std::max({4U, BytesPerBlock(src.info.format), img_bpp});
     size_t total_size = 0;
-    for (const auto& copy : copies) {
-        total_size += copy.extent.width * copy.extent.height * copy.extent.depth * img_bpp;
+    for (size_t index = 0; index < copies.size(); ++index) {
+        const auto& copy = copies[index];
+        // Keep scratch ranges separate for each copy region.
+        total_size = Common::AlignUp(total_size, alignment);
+        vk_in_copies[index].bufferOffset = total_size;
+        vk_out_copies[index].bufferOffset = total_size;
+        total_size += static_cast<size_t>(copy.extent.width) * copy.extent.height *
+                      copy.extent.depth * img_bpp * copy.dst_subresource.num_layers;
     }
     const VkBuffer copy_buffer = GetTemporaryBuffer(total_size);
     const VkImage dst_image = dst.Handle();
@@ -1107,7 +1115,8 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
 
         cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                0, READ_BARRIER, {}, middle_out_barrier);
-        cmdbuf.CopyBufferToImage(copy_buffer, dst_image, VK_IMAGE_LAYOUT_GENERAL, vk_out_copies);
+        cmdbuf.CopyBufferToImage(copy_buffer, dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 vk_out_copies);
         cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                                0, {}, {}, post_barriers);
     });
@@ -1361,6 +1370,24 @@ void TextureCacheRuntime::ConvertImage(Framebuffer* dst, ImageView& dst_view, Im
 
 void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
                                     std::span<const VideoCommon::ImageCopy> copies) {
+    const u32 src_bpp = BytesPerBlock(src.info.format);
+    const u32 dst_bpp = BytesPerBlock(dst.info.format);
+    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+        src.info.type == ImageType::Linear && dst.info.type == ImageType::Linear &&
+        src_bpp != dst_bpp) {
+        // Copy incompatible linear formats through a buffer.
+        boost::container::small_vector<VideoCommon::ImageCopy, 16> reinterpret_copies(
+            copies.begin(), copies.end());
+        for (auto& copy : reinterpret_copies) {
+            // ReinterpretImage expects widths in destination texels.
+            copy.extent.width = std::min({
+                copy.extent.width * std::max(src_bpp, dst_bpp) / dst_bpp,
+                src.info.size.width * src_bpp / dst_bpp,
+                dst.info.size.width,
+            });
+        }
+        return ReinterpretImage(dst, src, reinterpret_copies);
+    }
     boost::container::small_vector<VkImageCopy, 16> vk_copies(copies.size());
     const VkImageAspectFlags aspect_mask = dst.AspectMask();
     ASSERT(aspect_mask == src.AspectMask());
@@ -2109,20 +2136,20 @@ VkImageView ImageView::StorageView(Shader::TextureType texture_type,
     if (!image_handle) {
         return VK_NULL_HANDLE;
     }
-    if (image_format == Shader::ImageFormat::Typeless) {
-        return Handle(texture_type);
-    }
-    const bool is_signed{image_format == Shader::ImageFormat::R8_SINT ||
-                         image_format == Shader::ImageFormat::R16_SINT};
+    const VkFormat view_format = image_format == Shader::ImageFormat::Typeless
+                                    ? MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal,
+                                                                false, format).format
+                                    : Format(image_format);
     if (!storage_views) {
         storage_views = std::make_unique<StorageViews>();
     }
-    auto& views{is_signed ? storage_views->signeds : storage_views->unsigneds};
-    auto& view{views[static_cast<size_t>(texture_type)]};
-    if (view) {
-        return *view;
+    // Cache views by format and texture type.
+    const u64 key = (static_cast<u64>(view_format) << 32) | static_cast<u32>(texture_type);
+    auto& view = storage_views->by_format[key];
+    if (!view) {
+        view = MakeView(view_format, VK_IMAGE_ASPECT_COLOR_BIT, texture_type,
+                        VK_IMAGE_USAGE_STORAGE_BIT);
     }
-    view = MakeView(Format(image_format), VK_IMAGE_ASPECT_COLOR_BIT);
     return *view;
 }
 
@@ -2135,13 +2162,27 @@ bool ImageView::IsRescaled() const noexcept {
     return src_image.IsRescaled();
 }
 
-vk::ImageView ImageView::MakeView(VkFormat vk_format, VkImageAspectFlags aspect_mask) {
+vk::ImageView ImageView::MakeView(VkFormat vk_format, VkImageAspectFlags aspect_mask,
+                                std::optional<Shader::TextureType> texture_type,
+                                VkImageUsageFlags usage) {
+    auto subresource_range = MakeSubresourceRange(aspect_mask, range);
+    if (texture_type == Shader::TextureType::Color1D ||
+        texture_type == Shader::TextureType::Color2D) {
+        subresource_range.layerCount = 1;
+    } else if (texture_type == Shader::TextureType::ColorCube) {
+        subresource_range.layerCount = 6;
+    }
+    const VkImageViewUsageCreateInfo view_usage{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .usage = usage,
+    };
     return device->GetLogical().CreateImageView({
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = usage ? &view_usage : nullptr,
         .flags = 0,
         .image = image_handle,
-        .viewType = ImageViewType(type),
+        .viewType = texture_type ? ImageViewType(*texture_type) : ImageViewType(type),
         .format = vk_format,
         .components{
             .r = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -2149,7 +2190,7 @@ vk::ImageView ImageView::MakeView(VkFormat vk_format, VkImageAspectFlags aspect_
             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
             .a = VK_COMPONENT_SWIZZLE_IDENTITY,
         },
-        .subresourceRange = MakeSubresourceRange(aspect_mask, range),
+        .subresourceRange = subresource_range,
     });
 }
 
