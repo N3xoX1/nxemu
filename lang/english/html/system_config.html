@@ -24,28 +24,31 @@ body {
   #MainTabNav {
     width: 12em;
     height: *;
-    border: 1px solid #54575b;
-    border-radius: 0.5em;
+    border: 1px solid color(color-config-page-border);
+    border-radius: 8px;
     background-color: color(color-config-page);
-    margin: 0 0.4em 0 0;
-    color: #ffffff;
+    margin: 0 0.6em 0 0;
+    padding: 0.35em;
+    color: color(color-ui-text-primary);
     font-size: 0.9em;
-  }
-
-  #MainTabNav > Page:first-child
-  {
-    border-radius: 0.5em 0.5em 0 0;
   }
 
   #MainTabNav > Page
   {
-    padding: 0.2em 0.5em;
+    padding: 0.4em 0.7em;
+    margin: 0 0 0.15em 0;
+    border-radius: 6px;
+  }
+
+  #MainTabNav > Page:hover
+  {
+    background: color(color-control-hover);
   }
 
   #MainTabNav > Page:visited
   {
-    background: #b3d9f7;
-    color: #303030;
+    background: color(color-accent);
+    color: #ffffff;
   }
 
   .checkbox-row,
@@ -90,6 +93,11 @@ body {
     width: *;
   }
 
+  .page_content input[type="hslider"]:not(.volume-normal-marker)
+  {
+    style-set: volume-slider-control;
+  }
+
   .volume-slider
   {
     display: block;
@@ -119,51 +127,49 @@ PageNav.page_tabs {
 }
 
 PageNav.page_tabs page {
-  background: #2b2f32;
-  border: 1px solid #55575a;
+  background: color(color-tab-background);
+  border: 1px solid color(color-config-page-border);
   border-bottom: 1px solid color(color-config-page-border);
-  border-radius: 2px 2px 0 0;
-  color: #eff0f1;
-  font-family: 'Segoe UI', Arial, sans-serif;
-  font-size: 1rem;
-  padding: 0.2rem 1.3rem 0.2rem 1.3rem;
-  margin: 0;
+  border-top: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  color: color(color-ui-text-muted);
+  font-family: var(font-ui), Arial, sans-serif;
+  font-size: 0.9rem;
+  padding: 0.25rem 1.1rem;
+  margin: 0 0.2rem -1px 0;
   position: relative;
-  z-index: 2; 
-  margin-bottom: -1px;
+  z-index: 2;
   min-width: 2rem;
   display: inline-block;
   width: max-content;
 }
 
 PageNav.page_tabs page:hover {
-  border: 1px solid #55575a;
-  border-bottom: 1px solid color(color-config-page-border);
+  background: color(color-control-hover);
+  color: color(color-ui-text-primary);
 }
 
-PageNav.page_tabs page:visited {
-  background: color(color-config-page);
-  border-color: color(color-config-page-border);
-  border-bottom: 1px solid color(color-config-page);
-}
-
+PageNav.page_tabs page:visited,
 PageNav.page_tabs page.active {
   background: color(color-config-page);
   border-color: color(color-config-page-border);
+  border-top: 2px solid color(color-accent);
   border-bottom: 1px solid color(color-config-page);
+  color: color(color-ui-text-primary);
 }
 
 .page_content
 {
   background: color(color-config-page);
   border: 1px solid color(color-config-page-border);
+  border-radius: 0 8px 8px 8px;
   width: *;
   height: *;
   flow: horizontal;
   padding: 1em 1em 0 1em;
   font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.9rem;
-  color: #eff0f1;
+  color: color(color-ui-text-primary);
 }
 
 #gameDirectoryList,
@@ -174,9 +180,9 @@ PageNav.page_tabs page.active {
 
 #gameDirectoryList select,
 #addOnDirectoryList select {
-  background-color: #1e1e1e;
-  border: 1px solid #404040;
-  border-radius: 4px;
+  background-color: color(color-control-background);
+  border: 1px solid color(color-control-border);
+  border-radius: 6px;
   box-sizing: border-box;
   height: 8rem;
   max-height: 8rem;
@@ -191,14 +197,21 @@ PageNav.page_tabs page.active {
 {
   padding: 0.2rem 0.3rem;
   margin: 0.2rem 0.3rem;
-  border-radius: 3px;
-  color: white;
+  border-radius: 4px;
+  color: color(color-ui-text-primary);
+}
+
+#gameDirectoryList option:hover,
+#addOnDirectoryList option:hover
+{
+  background: color(color-control-hover);
 }
 
 #gameDirectoryList option:current,
 #addOnDirectoryList option:current
 {
-  color: #1e1e1e;
+  background: color(color-accent);
+  color: #ffffff;
 }
 
 body > .footer

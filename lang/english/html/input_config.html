@@ -3,6 +3,7 @@
     <link href="base.css" rel="stylesheet" type="text/css" />
     <link href="dialog.css" rel="stylesheet" type="text/css" />
     <link href="config.css" rel="stylesheet" type="text/css" />
+    <link href="volume_slider.css" rel="stylesheet" type="text/css" />
     <title>Configure Input</title>
   </head>
   <header>
@@ -44,11 +45,7 @@ body {
    text-align: center;
    min-width: 2.5rem;
 }
-.tab-button:visited {
-  background: color(color-config-page);
-  border-color: color(color-config-page-border);
-  border-bottom: 1px solid color(color-config-page);
-}
+
 
 .connect {
   position: absolute;
@@ -86,11 +83,12 @@ div.button-column,
 {
   background: color(color-config-page);
   border: 1px solid color(color-config-page-border);
+  border-radius: 0 8px 8px 8px;
   width: max-content;
   height: max-content;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: var(font-ui), Arial, sans-serif;
   font-size: 0.8rem;
-  color: #eff0f1;
+  color: color(color-ui-text-primary);
   padding: 1em;
 }
 
@@ -100,11 +98,12 @@ div.button-column,
   width: fit-content;
 }
 
-.controller-config .config-header .group 
+.controller-config .config-header .group
 {
   position: relative;
   background-color: color(color-config-page);
-  border: 1px solid #55575a;
+  border: 1px solid color(color-config-page-border);
+  border-radius: 6px;
   padding: 1.2rem 0.5rem 0.5rem 0.5rem;
   margin: 0 0 1rem 0;
 }
@@ -128,7 +127,8 @@ div.center-bottom-row
 {
   position: relative;
   background-color: color(color-config-page);
-  border: 1px solid #55575a;
+  border: 1px solid color(color-config-page-border);
+  border-radius: 6px;
   padding: 1.2rem 0.5rem 0.5rem 0.5rem;
   margin-right: 0.6rem;
   width: max-content;
@@ -201,7 +201,8 @@ div.center-bottom-row
 .controller-config .group.vibration #labelVibrationStrength:hover,
 .controller-config .group.vibration #vibrationStrengthPopupBtn:hover
 {
-  border: 1px solid #55575a;
+  border: 1px solid color(color-accent);
+  border-radius: 4px;
 }
 
 .controller-config .group.vibration #vibrationStrengthPopupBtn svg
@@ -221,7 +222,8 @@ div.center-bottom-row
 #VibrationStrengthPopup
 {
   background: color(color-config-page);
-  border: 1px solid #55575a;
+  border: 1px solid color(color-control-border);
+  border-radius: 6px;
   padding: 0.8em;
 }
 
@@ -338,16 +340,22 @@ button
 
 input[type=hslider]
 {
+  style-set: volume-slider-control;
   display: block;
   width: *;
+}
+
+.input-row > input[type=hslider]
+{
+  width: 4.6rem;
 }
 
 input[type=hslider] > button.slider 
 { 
   size:4dip; 
   foreground: none; 
-  background: #009CF6; 
-  border:2dip solid #009CF6;
+  background: color(color-accent);
+  border:2dip solid color(color-accent);
   border-radius:50%;
   padding: 0px;
   margin: 0px;

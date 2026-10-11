@@ -5,14 +5,14 @@
     height: 4dip;
     padding: 5dip 6dip;
     border: none;
-    background: #505a64;
+    background: #24324a;
     background-clip: content-box;
     background-image: url(stock:block);
     background-repeat: no-repeat;
     background-position: 0 0;
     background-size: var(slider-position, 0px) 4dip;
     border-radius: 3dip;
-    fill: #0078d7;
+    fill: #2f80ff;
     foreground: none;
   }
 
