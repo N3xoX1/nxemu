@@ -190,9 +190,50 @@ void BufferCache<P>::ClearDownload(DAddr device_addr, u64 size) {
 
 template <class P>
 bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 amount) {
+    // This path binds one linear device-memory range on each side. A GPU allocation can
+    // span unrelated physical pages, so translating only its first byte is insufficient.
+    // Leave these transfers to the page-aware guest-memory path before changing cache state.
+    if (amount == 0 || amount > std::numeric_limits<u32>::max()) {
+        return false;
+    }
+    const u64 src_contiguous = gpu_memory->MaxContinuousRange(src_address, amount);
+    const u64 dst_contiguous = gpu_memory->MaxContinuousRange(dest_address, amount);
+    if (src_contiguous != amount || dst_contiguous != amount) {
+        static const bool diagnostic = [] {
+            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
+            return value && value[0] == '1';
+        }();
+        static u32 diagnostic_count = 0;
+        if (diagnostic && diagnostic_count++ < 64) {
+            LOG_INFO(HW_GPU,
+                     "DMA copy uses mapped-page fallback: src={:#x}, dst={:#x}, size={}, "
+                     "src_contiguous={}, dst_contiguous={}",
+                     src_address, dest_address, amount, src_contiguous, dst_contiguous);
+        }
+        return false;
+    }
     const std::optional<DAddr> cpu_src_address = gpu_memory->GpuToCpuAddress(src_address);
     const std::optional<DAddr> cpu_dest_address = gpu_memory->GpuToCpuAddress(dest_address);
     if (!cpu_src_address || !cpu_dest_address) {
+        return false;
+    }
+    // vkCmdCopyBuffer does not permit overlapping source/destination memory. Different
+    // GPU virtual addresses can also alias the same device-memory range.
+    const DAddr distance = *cpu_src_address < *cpu_dest_address
+                               ? *cpu_dest_address - *cpu_src_address
+                               : *cpu_src_address - *cpu_dest_address;
+    if (distance < amount) {
+        static const bool diagnostic = [] {
+            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
+            return value && value[0] == '1';
+        }();
+        static u32 diagnostic_count = 0;
+        if (diagnostic && diagnostic_count++ < 64) {
+            LOG_INFO(HW_GPU,
+                     "DMA copy uses overlapping-range snapshot: src={:#x}, dst={:#x}, size={}, "
+                     "src_device={:#x}, dst_device={:#x}",
+                     src_address, dest_address, amount, *cpu_src_address, *cpu_dest_address);
+        }
         return false;
     }
     const bool source_dirty = IsRegionRegistered(*cpu_src_address, amount);

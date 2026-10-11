@@ -1,5 +1,22 @@
 Tests du correctif graphique Immortals
 
+`run-dma-copy.ps1` extrait les contrôles de la copie DMA et le chemin de repli
+des sources de production. Il couvre les pages physiques discontinues, les trous,
+les plages qui se chevauchent, les alias physiques et les limites de taille.
+Le témoin b71029e5 échoue sur 14 des 18 cas et corrompt 219 des 256 transferts
+fragmentés générés. Le correctif passe ces cas et protège la table voisine.
+Le repli prend une copie complète de la source avant d'écrire par pages, pour
+conserver les données lors d'un chevauchement. Les copies linéaires disjointes
+continuent d'utiliser l'accélération GPU. Les traces facultatives indiquent les
+copies refusées, avec leurs adresses et leurs longueurs contiguës.
+Ce banc ne prouve pas que la corruption d'Immortals a emprunté ce chemin DMA.
+
+`run-volume-sync.ps1` teste sur Vulkan une écriture du volume RGBA16_FLOAT suivie
+de lectures filtrées. Les barrières sont extraites du code de production.
+Il vérifie 2 228 224 valeurs sur 16 motifs, utilise un témoin sans barrière qui
+doit signaler une erreur de synchronisation et mesure le coût sans validation.
+Il ne couvre pas les données corrompues avant le début d'une capture.
+
 `run-sparse-storage-binding.ps1` extrait le résolveur de tampons du commit
 ca47b3b2 et des sources courantes. Il couvre les allocations dont la première
 page est absente, y compris le descripteur de 60 Mo vu dans les logs d'Immortals,
