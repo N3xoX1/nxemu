@@ -1,0 +1,10 @@
+#version 450
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0, std430) readonly buffer Input { uint selected; } source;
+layout(set = 0, binding = 1, std430) buffer Mask { uint words[]; } output_mask;
+void main() {
+    uint handle = gl_GlobalInvocationID.x;
+    if (handle < 8193 && handle == source.selected) {
+        atomicOr(output_mask.words[handle >> 5], 1u << (handle & 31));
+    }
+}
