@@ -308,6 +308,9 @@ struct System::Impl {
     /// Services
     std::unique_ptr<Service::Services> services;
 
+    /// Network instance
+    Network::NetworkInstance network_instance;
+
     std::unique_ptr<Core::PerfStats> perf_stats;
     Core::SpeedLimiter speed_limiter;
 

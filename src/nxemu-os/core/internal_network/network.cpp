@@ -188,9 +188,11 @@ void Initialize() {
 void Finalize() {
     if (interrupt_pipe_fd[0] >= 0) {
         close(interrupt_pipe_fd[0]);
+        interrupt_pipe_fd[0] = -1;
     }
     if (interrupt_pipe_fd[1] >= 0) {
         close(interrupt_pipe_fd[1]);
+        interrupt_pipe_fd[1] = -1;
     }
 }
 
