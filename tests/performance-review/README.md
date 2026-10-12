@@ -168,6 +168,58 @@ measurements on Ryzen 9800X3D/RTX 5070 Ti; other games and hardware are unmeasur
 NXEMU_GPU_DIFFERENTIAL_READBACK=1 enables the GPU candidate; absent or 0 retains
 the CPU SIMD path. Reference buffers consume bounded additional VRAM and host RAM.
 
+`run-host-reference-strategies.ps1` compares ten exact host retirement strategies
+over four working sets and three change patterns. It rotates order, includes
+persistent worker wake/completion and checks every final byte outside timing.
+Wider SIMD and finer stores provide little improvement; parallel comparison can
+help cache-resident working sets, while large streaming sets remain bandwidth
+limited. Synthetic speedups are not predictions of game FPS.
+
+`run-parallel-readback.ps1` checks the production worker class and configured
+0/2/4-thread paths. Parts are disjoint, 64 KiB aligned and complete before return;
+small spans and overlap retain serial copies. Exact byte oracles, guard pages,
+tails and CPU-consumer visibility are checked. The same portable fixture runs
+on AArch64 and x86 QEMU, with AVX2 enabled and disabled. Worker creation is lazy,
+failure keeps the serial path, and caller-owned TLS prevents overlapping jobs.
+`readback_parallel` counts actually split spans. GPU delta remains independent.
+`run-cache-filter.ps1` checks an opt-in monotonic GPU write-history filter and
+executes the production Vulkan flush/CPU-write predicates. Its writer variants
+compare unconditional atomic RMW at 4/64 KiB granularity and published-word loads.
+All historical positives keep the original mutex; only never-written negatives
+bypass it. Publication precedes ordinary, DMA-mirrored and sparse dirty ranges.
+Existing resource-presence proofs omit absent buffer/texture CPU callbacks while
+preserving GPU-dirty early returns and shader invalidation. Real held-mutex tests
+verify that positives still block; independent byte/page oracles and concurrent
+writers cover false-negative risks. NXEMU_GPU_WRITE_FILTER=1 is required; absence
+keeps the previous path. The fixtures also pass native Linux and ARM64 QEMU.
+The retirement function now owns the workers through an explicit stack scope;
+only a nonowning pointer is TLS. `run-parallel-dll-shutdown.ps1` reproduces the
+old TLS-owner deadlock in a disposable Windows DLL fixture and checks repeated
+DLL loading, worker completion, caller joining and unloading in 0/2/4-thread modes.
+Callers without a retirement scope retain the serial path. This avoids joining
+workers from DLL TLS destruction while the Windows loader lock is held.
+
+`ANDROID-NEON.md` describes six AArch64 comparison variants and physical-device
+benchmarking. All variants pass exact byte/guard tests under Cortex-A53 and max
+QEMU models. Generated NEON instructions were checked; emulated timings are not
+used to select a faster mobile implementation. The NDK wrapper is syntax checked,
+but an actual Android NDK build and hardware measurement remain unavailable.
+
+The upload tracker additionally summarizes CPU | Untracked work by word. Tests
+compare ranges and protection notifications with v9, including cached writes
+with zero CPU dirty bits, 64-word boundaries, larger managers and movement. A
+noinline benchmark avoids eliminating the clean upload call in the compiler.
+
+The user validated the v12 candidate with correct Immortals rendering and normal
+process exit. Stable separate runs requested in the same scene/camera measured
+42.769 FPS for v11 and 46.777 for v12 (9.4% higher); a later v12 window measured
+46.212. This is an across-run comparison, not a deterministic replay. Logical
+traffic remains about 501-504 MB/frame. CPU readback-copy time was 8.16 ms/frame
+in v11 and 5.48 in the first v12 window. The filter bypassed 23.0% of buffer-flush
+consultations and 93.0% of texture consultations in CPU-write callbacks. Buffer
+CPU-write consultation was still required in every measured callback. All
+positive predicates and actual copy/fence visibility retain their original locks.
+
 `run-strategies.ps1` compares five experimental real Vulkan paths: full memcpy,
 archived v7 SSE2, current SIMD, two CPU threads, and exact GPU comparison with
 selective downloads. The GPU reference and source are device-local; staging is

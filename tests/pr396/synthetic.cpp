@@ -20,11 +20,13 @@
 #include "yuzu_common/range_sets.inc"
 #include "yuzu_video_core/buffer_cache/usage_tracker.h"
 #include "yuzu_video_core/flush_region_cache_filter.h"
+#include "yuzu_video_core/gpu_write_history.h"
 #include "yuzu_video_core/renderer_vulkan/descriptor_payload.h"
 #include "../performance-review/diagnostics-stub.h"
 
 using BufferId = u32;
 using VideoCommon::CacheType;
+using VideoCommon::GpuWriteFilterEnabled;
 struct BufferCopy { u64 src_offset{}, dst_offset{}, size{}; };
 struct Buffer {
     u64 base{}, content_version{1};
@@ -68,6 +70,7 @@ struct Runtime {
 struct AsyncBuffer { std::span<u8> mapped_span; size_t offset{}; };
 struct Mapping { u64 MappingGeneration() const { return 1; } };
 struct Harness {
+    VideoCommon::GpuWriteHistory<> gpu_write_history;
     struct SparseBufferPart { DAddr device_addr{}; u32 size{},offset{}; BufferId buffer_id{}; u64 content_version{}; };
     struct SparseBuffer {
         const Mapping* gpu_memory{}; GPUVAddr gpu_addr{}; u32 size{}, capacity{};

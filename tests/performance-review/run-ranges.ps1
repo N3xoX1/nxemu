@@ -8,6 +8,10 @@ foreach ($rangeItem in @(@('usage_tracker.h','BaselineUsage','baseline-usage.h')
     $rangeText=($rangeSource -join "`n").Replace('namespace VideoCommon {',"namespace $($rangeItem[1]) {")
     [IO.File]::WriteAllText((Join-Path $rangeOut $rangeItem[2]),$rangeText,[Text.UTF8Encoding]::new($false))
 }
+$rangeV9Source=& git -C $rangeRepo show '308818ba:src/yuzu_video_core/buffer_cache/word_manager.h'
+if($LASTEXITCODE -ne 0){throw 'Validated v9 word tracker extraction failed'}
+$rangeV9Text=($rangeV9Source -join "`n").Replace('namespace VideoCommon {','namespace PreviousWord {')
+[IO.File]::WriteAllText((Join-Path $rangeOut 'v9-word.h'),$rangeV9Text,[Text.UTF8Encoding]::new($false))
 & 'C:\Users\fabri\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' "$PSScriptRoot/extract-ranges.py"
 if($LASTEXITCODE -ne 0){throw 'Continuity function extraction failed'}
 $rangeVcvars='C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat'

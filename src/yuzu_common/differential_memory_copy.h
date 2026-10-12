@@ -146,24 +146,10 @@ inline bool ReadbackMemoryEqual(const unsigned char* lhs, const unsigned char* r
     return comparer(lhs, rhs, size);
 }
 
-// Compare actual bytes, never a hash. The caller must exclude concurrent writers,
-// just as for memcpy. Dense changes switch back to the original bulk copy.
-inline std::size_t CopyChangedMemory(void* destination, const void* source, std::size_t size) {
-    if (!size) {
-        return 0;
-    }
-    const auto dst_address = reinterpret_cast<std::uintptr_t>(destination);
-    const auto src_address = reinterpret_cast<std::uintptr_t>(source);
-    const auto distance = dst_address >= src_address ? dst_address - src_address
-                                                     : src_address - dst_address;
-    if (distance < size) {
-        std::memmove(destination, source, size);
-        return size;
-    }
-    if (size < 1024 * 1024) {
-        std::memcpy(destination, source, size);
-        return size;
-    }
+namespace ReadbackDetail {
+// Internal chunk loop: the caller has checked overlap and the whole-copy
+// threshold. Parallel partitions retain comparison even below that threshold.
+inline std::size_t CopyChunks(void* destination, const void* source, std::size_t size) {
     auto* dst = static_cast<unsigned char*>(destination);
     auto* src = static_cast<const unsigned char*>(source);
     std::size_t copied = 0;
@@ -185,6 +171,28 @@ inline std::size_t CopyChangedMemory(void* destination, const void* source, std:
         size -= chunk;
     }
     return copied;
+}
+} // namespace ReadbackDetail
+
+// Compare actual bytes, never a hash. The caller must exclude concurrent writers,
+// just as for memcpy. Dense changes switch back to the original bulk copy.
+inline std::size_t CopyChangedMemory(void* destination, const void* source, std::size_t size) {
+    if (!size) {
+        return 0;
+    }
+    const auto dst_address = reinterpret_cast<std::uintptr_t>(destination);
+    const auto src_address = reinterpret_cast<std::uintptr_t>(source);
+    const auto distance = dst_address >= src_address ? dst_address - src_address
+                                                     : src_address - dst_address;
+    if (distance < size) {
+        std::memmove(destination, source, size);
+        return size;
+    }
+    if (size < 1024 * 1024) {
+        std::memcpy(destination, source, size);
+        return size;
+    }
+    return ReadbackDetail::CopyChunks(destination, source, size);
 }
 
 } // namespace Common

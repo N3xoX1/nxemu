@@ -6,6 +6,7 @@
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/differential_memory_copy.h"
+#include "yuzu_common/parallel_readback_copy.h"
 #include <chrono>
 #include <span>
 
@@ -95,8 +96,8 @@ void Verify(Fixture& f,NativeDelta& pass,size_t bytes,size_t source_offset,size_
         }
         auto* dst=reinterpret_cast<unsigned char*>(guest.data());
         const size_t a=65536-4,b=65536+8;
-        if(!cancel)Common::CopyChangedMemory(dst,cpu_reference.bytes.get(),bytes);
-        else {Common::CopyChangedMemory(dst,cpu_reference.bytes.get(),a);Common::CopyChangedMemory(dst+b,cpu_reference.bytes.get()+b,bytes-b);}
+        if(!cancel)Common::CopyChangedMemoryForReadback(dst,cpu_reference.bytes.get(),bytes);
+        else {Common::CopyChangedMemoryForReadback(dst,cpu_reference.bytes.get(),a);Common::CopyChangedMemoryForReadback(dst+b,cpu_reference.bytes.get()+b,bytes-b);}
     };
     auto* bits=reinterpret_cast<const uint32_t*>(flags.mapped);
     for(size_t i=0;i<chunks;++i)if(bits[i]!=1)throw std::runtime_error("unknown reference did not force every chunk");
@@ -151,7 +152,7 @@ void Benchmark(Fixture& f,NativeDelta& pass,size_t bytes,unsigned percent,bool d
         if(delta) {
             const auto* bits=reinterpret_cast<const uint32_t*>(flags.mapped);
             for(size_t chunk=0;chunk<chunks;++chunk)if(bits[chunk])std::memcpy(cpu_reference.bytes.get()+chunk*65536,data.mapped+chunk*65536,65536);
-            Common::CopyChangedMemory(guest.data(),cpu_reference.bytes.get(),bytes);
+            Common::CopyChangedMemoryForReadback(guest.data(),cpu_reference.bytes.get(),bytes);
         } else Common::CopyChangedMemory(guest.data(),data.mapped,bytes);
         const auto end=std::chrono::steady_clock::now();
         if(iteration>=4)samples.push_back(std::chrono::duration<double,std::milli>(end-start).count());
@@ -169,6 +170,7 @@ void Benchmark(Fixture& f,NativeDelta& pass,size_t bytes,unsigned percent,bool d
              <<" median_ms="<<(samples[9]+samples[10])/2<<" samples=20 PASS_payload\n";
 }
 int main(int argc,char** argv)try{
+    Common::ReadbackCopyContext readback_context;
     if(argc!=3&&argc!=4)return 2;Fixture f(argv[1]);NativeDelta pass(f,argv[2]);
     if(argc==4) {
         for(size_t size:{2097152ULL,8388608ULL})for(unsigned percent:{0u,10u,100u})for(bool delta:{false,true})Benchmark(f,pass,size,percent,delta);

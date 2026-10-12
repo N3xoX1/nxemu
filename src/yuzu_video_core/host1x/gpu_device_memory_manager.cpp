@@ -11,6 +11,7 @@
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/coalesced_memory_copy.h"
 #include "yuzu_common/differential_memory_copy.h"
+#include "yuzu_common/parallel_readback_copy.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/scope_exit.h"
@@ -562,7 +563,11 @@ void DeviceMemoryManager<Traits>::WriteBlockForGpuReadback(DAddr address,
             },
             [&](size_t copy_amount, u8* const dst_ptr)
             {
-                const size_t copied = Common::CopyChangedMemory(dst_ptr, src_pointer, copy_amount);
+                bool parallel{};
+                const size_t copied = Common::CopyChangedMemoryForReadback(dst_ptr, src_pointer, copy_amount, &parallel);
+                if (parallel) {
+                    Perf::RecordEvent(Perf::Category::ReadbackParallel, copy_amount);
+                }
                 if (copied) {
                     Perf::RecordEvent(Perf::Category::ReadbackStores, copied);
                 }

@@ -27,6 +27,7 @@
 #include "yuzu_video_core/control/channel_state_cache.h"
 #include "yuzu_video_core/delayed_destruction_ring.h"
 #include "yuzu_video_core/dirty_flags.h"
+#include "yuzu_video_core/gpu_write_history.h"
 #include "yuzu_video_core/engines/draw_manager.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -304,6 +305,9 @@ public:
 
     /// Return true when a CPU region is modified from the GPU
     [[nodiscard]] bool IsRegionGpuModified(DAddr addr, size_t size);
+    [[nodiscard]] bool MayHaveGpuWrites(DAddr addr, size_t size) const noexcept {
+        return !GpuWriteFilterEnabled() || gpu_write_history.MayHaveWrites(addr, size);
+    }
 
     /// Return true when a region is registered on the cache
     [[nodiscard]] bool IsRegionRegistered(DAddr addr, size_t size);
@@ -570,6 +574,7 @@ private:
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
     Common::RangeSet<DAddr> gpu_modified_ranges;
+    GpuWriteHistory<> gpu_write_history;
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;
 
     // Async Buffers

@@ -12,8 +12,10 @@
 #include "yuzu_video_core/buffer_cache/word_manager.h"
 #include "baseline-usage.h"
 #include "baseline-word.h"
+#include "v9-word.h"
 #include "yuzu_video_core/continuous_range_cache.h"
 #include "yuzu_video_core/flush_region_cache_filter.h"
+#include "diagnostics-stub.h"
 
 int failures{}, checks{};
 volatile u64 result_sink{};
@@ -28,6 +30,9 @@ template<class F> void Bench(const char* name, size_t count, F operation) {
     std::cout << "BENCH " << name << " ns/op=" << ns << '\n';
 }
 template<class T> __declspec(noinline) void Track(T& tracker,u64 offset,u64 size) { tracker.Track(offset,size); }
+template<class T, auto Kind> __declspec(noinline) void UploadScan(T& tracker,u64 size) {
+    tracker.template ForEachModifiedRange<Kind,true>(0,size,[](u64,u64 bytes){result_sink=bytes;});
+}
 
 void UsageOracle() {
     constexpr u64 size=65536;
@@ -113,9 +118,45 @@ void WordOracle() {
     next.ForEachModifiedRange<VideoCommon::Type::CPU,true>(0,4ULL<<20,[](u64,u64){});
     old.ForEachModifiedRange<BaselineWord::Type::CPU,true>(0,4ULL<<20,[](u64,u64){});
     const auto next_notifications=next_device.notifications,old_notifications=old_device.notifications;
-    Bench("4MiB_clean_upload_baseline",1000000,[&](size_t){old.ForEachModifiedRange<BaselineWord::Type::CPU,true>(0,4ULL<<20,[](u64,u64){});});
-    Bench("4MiB_clean_upload_current",1000000,[&](size_t){next.ForEachModifiedRange<VideoCommon::Type::CPU,true>(0,4ULL<<20,[](u64,u64){});});
+    DeviceTracker v9_device;
+    PreviousWord::WordManager<DeviceTracker,16> v9(0,v9_device,4ULL<<20);
+    UploadScan<decltype(v9),PreviousWord::Type::CPU>(v9,4ULL<<20);
+    Bench("4MiB_clean_upload_baseline",1000000,[&](size_t){UploadScan<decltype(old),BaselineWord::Type::CPU>(old,4ULL<<20);});
+    Bench("4MiB_clean_upload_v9",1000000,[&](size_t){UploadScan<decltype(v9),PreviousWord::Type::CPU>(v9,4ULL<<20);});
+    Bench("4MiB_clean_upload_current",1000000,[&](size_t){UploadScan<decltype(next),VideoCommon::Type::CPU>(next,4ULL<<20);});
     Check("clean_repeat_keeps_protection_counts",next_device.counts==old_device.counts && next_device.notifications==next_notifications && old_device.notifications==old_notifications);
+    struct LargeDevice {
+        std::vector<int> counts;size_t notifications{};
+        explicit LargeDevice(size_t size):counts((size+4095)/4096){}
+        void UpdatePagesCachedCount(u64 addr,u64 size,int delta){++notifications;for(u64 page=addr/4096;page<(addr+size)/4096;++page)counts.at(page)+=delta;}
+    };
+    for(u64 size:{4ULL<<20,16ULL<<20,(16ULL<<20)+4096}) {
+        LargeDevice da(size),db(size);
+        VideoCommon::WordManager<LargeDevice,16> a(0,da,size);
+        PreviousWord::WordManager<LargeDevice,16> b(0,db,size);
+        using R=std::vector<std::pair<u64,u64>>;bool equal=true;
+        const auto upload=[&](u64 offset,u64 bytes) {
+            R x,y;a.ForEachModifiedRange<VideoCommon::Type::CPU,true>(offset,bytes,[&](u64 p,u64 n){x.emplace_back(p,n);});
+            b.ForEachModifiedRange<PreviousWord::Type::CPU,true>(offset,bytes,[&](u64 p,u64 n){y.emplace_back(p,n);});
+            equal&=x==y&&da.counts==db.counts&&da.notifications==db.notifications;
+        };
+        upload(0,size);
+        for(unsigned round=0;round<1000;++round) {
+            const u64 offset=rng()%size,bytes=std::min<u64>(1+rng()%65536,size-offset);
+            if(round%3==0) {
+                a.ChangeRegionState<VideoCommon::Type::CachedCPU,true>(offset,bytes);b.ChangeRegionState<PreviousWord::Type::CachedCPU,true>(offset,bytes);
+                upload(offset,bytes); // CPU bits can be zero while untracked needs notification.
+                a.FlushCachedWrites();b.FlushCachedWrites();
+            }else {a.ChangeRegionState<VideoCommon::Type::CPU,true>(offset,bytes);b.ChangeRegionState<PreviousWord::Type::CPU,true>(offset,bytes);}
+            upload(0,size);upload(0,size);
+        }
+        Check(size<=(16ULL<<20)?"CPU_summary_cached_untracked_and_64word_boundary_match_v9":"CPU_summary_large_manager_fallback_matches_v9",equal);
+        a.ChangeRegionState<VideoCommon::Type::CPU,true>(size-1,1);b.ChangeRegionState<PreviousWord::Type::CPU,true>(size-1,1);
+        auto moved_a=std::move(a);auto moved_b=std::move(b);R x,y;
+        moved_a.ForEachModifiedRange<VideoCommon::Type::CPU,true>(0,size,[&](u64 p,u64 n){x.emplace_back(p,n);});
+        moved_b.ForEachModifiedRange<PreviousWord::Type::CPU,true>(0,size,[&](u64 p,u64 n){y.emplace_back(p,n);});
+        Check("CPU_summary_move_preserves_pending_upload_and_notifications",x==y&&da.counts==db.counts&&da.notifications==db.notifications);
+    }
 }
 namespace Settings {bool high=true;bool IsGPULevelHigh(){return high;}}
 struct RasterizerDownloadArea {u64 startAddress{},endAddress{};bool preemtive{};auto operator<=>(const RasterizerDownloadArea&)const=default;};
@@ -124,6 +165,7 @@ struct CountingLock {
 };
 struct MockCache {
     CountingLock mutex;bool present{},dirty{};
+    bool MayHaveGpuWrites(u64,u64) const {return true;} // History proofs have their own fixture.
     bool IsRegionGpuModified(u64 address,u64 size){return present&&dirty&&address<0x20000&&address+size>0x10000;}
     std::optional<RasterizerDownloadArea> GetFlushArea(u64 address,u64 size){
         if(!IsRegionGpuModified(address,size))return {};

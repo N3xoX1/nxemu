@@ -167,7 +167,12 @@ template <class DeviceTracker, size_t stack_words = 1>
 class WordManager {
 public:
     explicit WordManager(VAddr cpu_addr_, DeviceTracker& tracker_, u64 size_bytes)
-        : cpu_addr{cpu_addr_}, tracker{&tracker_}, words{size_bytes} {}
+        : cpu_addr{cpu_addr_}, tracker{&tracker_}, words{size_bytes} {
+        const auto count = NumWords();
+        if (count && count <= 64) {
+            cpu_work_words = count == 64 ? ~u64{0} : (u64{1} << count) - 1;
+        }
+    }
 
     explicit WordManager() = default;
 
@@ -275,6 +280,9 @@ public:
                     untracked_words[index] &= ~mask;
                 }
             }
+            if constexpr (type == Type::CPU || type == Type::CachedCPU || type == Type::Untracked) {
+                UpdateCpuWorkWord(index);
+            }
         });
     }
 
@@ -289,6 +297,13 @@ public:
     template <Type type, bool clear, typename Func>
     void ForEachModifiedRange(VAddr query_cpu_range, s64 size, Func&& func) {
         static_assert(type != Type::Untracked);
+        // A clean CPU word can still need protection updates for cached writes.
+        // Summarize CPU | Untracked, rather than only the CPU dirty bits.
+        if constexpr (type == Type::CPU && clear) {
+            if (NumWords() <= 64 && cpu_work_words == 0) {
+                return;
+            }
+        }
 
         std::span<u64> state_words = words.template Span<type>();
         [[maybe_unused]] std::span<u64> untracked_words = words.template Span<Type::Untracked>();
@@ -323,6 +338,9 @@ public:
                 }
                 if constexpr (type == Type::CPU) {
                     cached_words[index] &= ~word;
+                }
+                if constexpr (type == Type::CPU || type == Type::CachedCPU) {
+                    UpdateCpuWorkWord(index);
                 }
             }
             const size_t base_offset = index * PAGES_PER_WORD;
@@ -431,14 +449,26 @@ public:
         u64* const cpu_words = Array<Type::CPU>();
         for (u64 word_index = 0; word_index < num_words; ++word_index) {
             const u64 cached_bits = cached_words[word_index];
+            if (cached_bits == 0) {
+                continue;
+            }
             NotifyRasterizer<false>(word_index, untracked_words[word_index], cached_bits);
             untracked_words[word_index] |= cached_bits;
             cpu_words[word_index] |= cached_bits;
             cached_words[word_index] = 0;
+            UpdateCpuWorkWord(word_index);
         }
     }
 
 private:
+    void UpdateCpuWorkWord(size_t index) noexcept {
+        if (NumWords() > 64) {
+            return;
+        }
+        const u64 bit = u64{1} << index;
+        const bool work = (Array<Type::CPU>()[index] | Array<Type::Untracked>()[index]) != 0;
+        cpu_work_words = (cpu_work_words & ~bit) | (work ? bit : 0);
+    }
     template <Type type>
     u64* Array() noexcept {
         if constexpr (type == Type::CPU) {
@@ -487,6 +517,8 @@ private:
     VAddr cpu_addr = 0;
     DeviceTracker* tracker = nullptr;
     Words<stack_words> words;
+    /// Exact word summary for managers up to 16 MiB; larger managers use the original scan.
+    u64 cpu_work_words{};
 };
 
 } // namespace VideoCommon

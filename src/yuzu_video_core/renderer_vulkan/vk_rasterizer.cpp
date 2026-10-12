@@ -675,11 +675,17 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
 }
 
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
+    namespace Perf = VideoCommon::PerformanceDiagnostics;
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
-        std::scoped_lock lock{buffer_cache.mutex};
-        if (buffer_cache.IsRegionGpuModified(addr, size)) {
-            return true;
+        Perf::RecordEvent(Perf::Category::FlushBufferQuery);
+        if (buffer_cache.MayHaveGpuWrites(addr, size)) {
+            std::scoped_lock lock{buffer_cache.mutex};
+            if (buffer_cache.IsRegionGpuModified(addr, size)) {
+                return true;
+            }
+        } else {
+            Perf::RecordEvent(Perf::Category::FlushBufferSkipped);
         }
     }
     if (!Settings::IsGPULevelHigh()) {
@@ -750,20 +756,29 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
 }
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
+    namespace Perf = VideoCommon::PerformanceDiagnostics;
     if (addr == 0 || size == 0) {
         return false;
     }
 
-    {
+    const auto requested = VideoCommon::CacheType::BufferCache | VideoCommon::CacheType::TextureCache;
+    const auto caches = VideoCommon::GpuWriteFilterEnabled()
+        ? device_memory.FilterFlushCaches(addr, size, requested) : requested;
+    Perf::Scope timing{Perf::Category::CpuWriteQuery};
+    if (True(caches & VideoCommon::CacheType::BufferCache)) {
         std::scoped_lock lock{buffer_cache.mutex};
         if (buffer_cache.OnCPUWrite(addr, size)) {
             return true;
         }
+    } else {
+        Perf::RecordEvent(Perf::Category::CpuWriteBufferSkipped);
     }
 
-    {
+    if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
+    } else {
+        Perf::RecordEvent(Perf::Category::CpuWriteTextureSkipped);
     }
 
     pipeline_cache.InvalidateRegion(addr, size);

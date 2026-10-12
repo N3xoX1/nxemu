@@ -10,6 +10,7 @@
 #include <vector>
 #include "yuzu_common/coalesced_memory_copy.h"
 #include "yuzu_common/differential_memory_copy.h"
+#include "yuzu_common/parallel_readback_copy.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/scope_exit.h"
 #include "diagnostics-stub.h"
@@ -97,6 +98,7 @@ void Oracle() {
     VirtualFree(a,0,MEM_RELEASE);VirtualFree(b,0,MEM_RELEASE);
 }
 int main() try {
+    Common::ReadbackCopyContext readback_context;
     Oracle();
     constexpr size_t capacity=128ULL<<20;
     auto* src=static_cast<unsigned char*>(VirtualAlloc(nullptr,capacity+4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));

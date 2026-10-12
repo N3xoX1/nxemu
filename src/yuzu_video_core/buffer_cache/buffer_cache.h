@@ -282,6 +282,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         const u64 size = base_address_end - base_address;
         const DAddr diff = base_address - *cpu_src_address;
         const DAddr new_base_address = *cpu_dest_address + diff;
+        if (GpuWriteFilterEnabled()) gpu_write_history.Mark(new_base_address, size);
         tmp_intervals.push_back({new_base_address, size});
         uncommitted_gpu_modified_ranges.Add(new_base_address, size);
     };
@@ -1607,6 +1608,7 @@ void BufferCache<P>::UpdateComputeTextureBuffers() {
 
 template <class P>
 void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size) {
+    if (GpuWriteFilterEnabled()) gpu_write_history.Mark(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
@@ -2406,6 +2408,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         // The canonical buffer receives the bytes after the draw or dispatch is recorded.
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
+        if (GpuWriteFilterEnabled()) gpu_write_history.Mark(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);
