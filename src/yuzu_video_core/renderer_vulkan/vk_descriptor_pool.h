@@ -26,6 +26,8 @@ struct DescriptorBankInfo {
     u32 texture_buffers{}; ///< Number of texture buffer descriptors
     u32 image_buffers{};   ///< Number of image buffer descriptors
     u32 textures{};        ///< Number of texture descriptors
+    u32 sampled_images{};  ///< Number of sampler-less texture descriptors
+    u32 samplers{};        ///< Number of separate sampler descriptors
     u32 images{};          ///< Number of image descriptors
     s32 score{};           ///< Number of descriptors in total
 };

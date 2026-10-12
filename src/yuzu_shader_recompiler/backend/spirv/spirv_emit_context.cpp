@@ -479,8 +479,10 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     DefineStorageBuffers(program.info, storage_binding);
     DefineTextureBuffers(program.info, texture_binding);
     DefineImageBuffers(program.info, image_binding);
-    DefineTextures(program.info, texture_binding, bindings.texture_scaling_index);
+    DefineTextures(program.info, texture_binding, bindings.texture_scaling_index,
+                   bindings.texture_table);
     DefineImages(program.info, image_binding, bindings.image_scaling_index);
+    DefineRuntimeSamplers(program.info, bindings.texture_table);
     if (program.info.runtime_image_write_mask_words != 0) {
         const auto storage = spv::StorageClass::StorageBuffer;
         const Id array = TypeArray(U32[1], Const(program.info.runtime_image_write_mask_words));
@@ -1459,16 +1461,20 @@ void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
     }
 }
 
-void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_index) {
+void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_index,
+                                 u32& table_binding) {
     textures.reserve(info.texture_descriptors.size());
     for (const TextureDescriptor& desc : info.texture_descriptors) {
         const Id image_type{ImageType(*this, desc)};
         const Id sampled_type{TypeSampledImage(image_type)};
-        const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, sampled_type)};
-        const Id desc_type{DescType(*this, sampled_type, pointer_type, desc.count)};
+        // Direct descriptors hold images that are combined with a runtime sampler when used.
+        const Id element_type{desc.is_direct ? image_type : sampled_type};
+        const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, element_type)};
+        const Id desc_type{DescType(*this, element_type, pointer_type, desc.count)};
         const Id id{AddGlobalVariable(desc_type, spv::StorageClass::UniformConstant)};
-        Decorate(id, spv::Decoration::Binding, binding);
-        Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        // Texture tables are kept in their own set, the host reuses it between draws.
+        Decorate(id, spv::Decoration::Binding, desc.is_direct ? table_binding++ : binding++);
+        Decorate(id, spv::Decoration::DescriptorSet, desc.is_direct ? 1U : 0U);
         Name(id, NameOf(stage, desc, "tex"));
         textures.push_back({
             .id = id,
@@ -1477,15 +1483,34 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
             .image_type = image_type,
             .count = desc.count,
             .is_multisample = desc.is_multisample,
+            .is_direct = desc.is_direct,
         });
         if (profile.supported_spirv >= 0x00010400) {
             interfaces.push_back(id);
         }
-        ++binding;
         ++scaling_index;
     }
     if (info.uses_atomic_image_u32) {
         image_u32 = TypePointer(spv::StorageClass::Image, U32[1]);
+    }
+}
+
+void EmitContext::DefineRuntimeSamplers(const Info& info, u32& table_binding) {
+    if (info.runtime_sampler_count == 0) {
+        return;
+    }
+    runtime_sampler_type = TypeSampler();
+    runtime_sampler_pointer = TypePointer(spv::StorageClass::UniformConstant, runtime_sampler_type);
+    runtime_samplers_linked = info.runtime_samplers_linked;
+    const Id array_type{TypeArray(runtime_sampler_type, Const(info.runtime_sampler_count))};
+    runtime_samplers = AddGlobalVariable(
+        TypePointer(spv::StorageClass::UniformConstant, array_type),
+        spv::StorageClass::UniformConstant);
+    Decorate(runtime_samplers, spv::Decoration::Binding, table_binding++);
+    Decorate(runtime_samplers, spv::Decoration::DescriptorSet, 1U);
+    Name(runtime_samplers, "runtime_samplers");
+    if (profile.supported_spirv >= 0x00010400) {
+        interfaces.push_back(runtime_samplers);
     }
 }
 

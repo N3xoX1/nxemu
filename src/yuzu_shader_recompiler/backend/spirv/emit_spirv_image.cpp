@@ -227,8 +227,38 @@ private:
     spv::ImageOperandsMask mask{};
 };
 
+// Combines the image and the sampler selected by a runtime handle. The index packs the
+// texture index in its low 20 bits and the sampler index above them.
+Id DirectTexture(EmitContext& ctx, const TextureDefinition& def, const IR::Value& index) {
+    if (!ctx.profile.support_sampled_image_array_nonuniform_indexing) {
+        throw NotImplementedException("Nonuniform sampled texture indexing is unsupported by the host");
+    }
+    const Id packed{ctx.Def(index)};
+    const Id image_index{ctx.OpBitwiseAnd(ctx.U32[1], packed, ctx.Const(0xfffffU))};
+    const Id sampler_index{ctx.runtime_samplers_linked
+                               ? image_index
+                               : ctx.OpShiftRightLogical(ctx.U32[1], packed, ctx.Const(20U))};
+    const Id image_pointer{ctx.OpAccessChain(def.pointer_type, def.id, image_index)};
+    const Id image{ctx.OpLoad(def.image_type, image_pointer)};
+    const Id sampler_pointer{
+        ctx.OpAccessChain(ctx.runtime_sampler_pointer, ctx.runtime_samplers, sampler_index)};
+    const Id sampler{ctx.OpLoad(ctx.runtime_sampler_type, sampler_pointer)};
+    const Id sampled_image{ctx.OpSampledImage(def.sampled_type, image, sampler)};
+    ctx.uses_nonuniform_sampled_image = true;
+    for (const Id object : {image_index, sampler_index, image_pointer, image, sampler_pointer,
+                            sampler, sampled_image}) {
+        if (ctx.nonuniform_sampled_ids.insert(object.value).second) {
+            ctx.Decorate(object, spv::Decoration::NonUniform);
+        }
+    }
+    return sampled_image;
+}
+
 Id Texture(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
     const TextureDefinition& def{ctx.textures.at(info.descriptor_index)};
+    if (def.is_direct) {
+        return DirectTexture(ctx, def, index);
+    }
     if (def.count > 1) {
         if (!index.IsImmediate() && !ctx.profile.support_sampled_image_array_nonuniform_indexing) {
             throw NotImplementedException("Nonuniform sampled texture indexing is unsupported by the host");

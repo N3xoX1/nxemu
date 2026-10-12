@@ -213,7 +213,8 @@ void TextureCache<P>::CheckFeedbackLoop(std::span<const ImageViewInOut> views) {
 
     const bool requires_barrier = [&] {
         for (const auto& view : views) {
-            if (!view.id) {
+            // A whole texture table usually holds the render targets too
+            if (!view.id || view.is_table) {
                 continue;
             }
             auto& image_view = slot_image_views[view.id];

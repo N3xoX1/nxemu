@@ -52,6 +52,8 @@ using namespace Common::Literals;
 struct ImageViewInOut {
     u32 index{};
     bool blacklist{};
+    /// Entry of a table indexed by the shader, which may never sample it
+    bool is_table{};
     ImageViewId id{};
 };
 

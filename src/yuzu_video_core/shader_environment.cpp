@@ -35,8 +35,24 @@ static u64 MakeCbufKey(u32 index, u32 offset) {
     return (static_cast<u64>(index) << 32) | offset;
 }
 
+// Reserved keys outside the guest address space; they keep the cache layout unchanged.
+constexpr u64 POOL_TEXTURES_KEY = (u64{UINT32_MAX} << 32) | (UINT32_MAX - 1);
+constexpr u64 POOL_SAMPLERS_KEY = (u64{UINT32_MAX} << 32) | (UINT32_MAX - 2);
+constexpr u32 POOL_LINKED_SAMPLERS_BIT = 1U << 31;
+
+Shader::TexturePoolInfo GraphicsTexturePoolInfo(const Maxwell& regs) {
+    // Handles hold a 20 bit texture index and a 12 bit sampler index.
+    const u32 num_textures = std::min(regs.tex_header.limit + 1U, 1U << 20);
+    const bool linked = regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding;
+    return {
+        .num_textures = num_textures,
+        .num_samplers = linked ? num_textures : std::min(regs.tex_sampler.limit + 1U, 1U << 12),
+        .linked_samplers = linked,
+    };
+}
+
 static u32 CbufSizeQueryMask(const std::unordered_map<u64, u32>& values) {
-    u32 mask{};
+    u32 mask{values.contains(POOL_TEXTURES_KEY) ? TEXTURE_POOL_SIZE_BIT : 0U};
     for (const auto& [key, value] : values) {
         const u32 bank = static_cast<u32>(key >> 32);
         if (static_cast<u32>(key) == UINT32_MAX && bank < 32) {
@@ -379,6 +395,14 @@ u32 GraphicsEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
     return value;
 }
 
+std::optional<Shader::TexturePoolInfo> GraphicsEnvironment::ReadTexturePoolInfo() {
+    const Shader::TexturePoolInfo pool{GraphicsTexturePoolInfo(maxwell3d->regs)};
+    cbuf_values.emplace(POOL_TEXTURES_KEY, pool.num_textures);
+    cbuf_values.emplace(POOL_SAMPLERS_KEY,
+                        pool.num_samplers | (pool.linked_samplers ? POOL_LINKED_SAMPLERS_BIT : 0U));
+    return pool;
+}
+
 std::optional<Shader::ReplaceConstant> GraphicsEnvironment::GetReplaceConstBuffer(u32 bank,
                                                                                   u32 offset) {
     if (!has_hle_engine_state) {
@@ -467,6 +491,19 @@ u32 ComputeEnvironment::ReadTextureTableSize() {
 u32 FileEnvironment::ReadTextureTableSize() {
     const auto it = cbuf_values.find(MakeCbufKey(UINT32_MAX, UINT32_MAX));
     return it != cbuf_values.end() ? it->second : 0;
+}
+
+std::optional<Shader::TexturePoolInfo> FileEnvironment::ReadTexturePoolInfo() {
+    const auto textures = cbuf_values.find(POOL_TEXTURES_KEY);
+    const auto samplers = cbuf_values.find(POOL_SAMPLERS_KEY);
+    if (textures == cbuf_values.end() || samplers == cbuf_values.end()) {
+        return std::nullopt;
+    }
+    return Shader::TexturePoolInfo{
+        .num_textures = textures->second,
+        .num_samplers = samplers->second & ~POOL_LINKED_SAMPLERS_BIT,
+        .linked_samplers = (samplers->second & POOL_LINKED_SAMPLERS_BIT) != 0,
+    };
 }
 
 u32 ComputeEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {

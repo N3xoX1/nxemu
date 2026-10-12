@@ -464,6 +464,37 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     };
 }
 
+// Sampling instructions the backends can emit against separate image and sampler arrays.
+bool IsRuntimeSampled(const IR::Inst& inst) {
+    switch (inst.GetOpcode()) {
+    case IR::Opcode::BindlessImageSampleImplicitLod:
+    case IR::Opcode::BindlessImageSampleExplicitLod:
+    case IR::Opcode::BindlessImageSampleDrefImplicitLod:
+    case IR::Opcode::BindlessImageSampleDrefExplicitLod:
+    case IR::Opcode::BindlessImageQueryLod:
+    case IR::Opcode::BindlessImageGradient:
+        return inst.Flags<IR::TextureInstInfo>().type != TextureType::Buffer;
+    default:
+        return false;
+    }
+}
+
+// True when the handle is an unmodified shader input, such as a per-vertex texture handle.
+bool IsShaderInput(const IR::Value& value) {
+    if (value.IsImmediate()) {
+        return false;
+    }
+    const IR::Inst* inst{value.InstRecursive()};
+    if (inst->GetOpcode() == IR::Opcode::BitCastU32F32) {
+        if (inst->Arg(0).IsImmediate()) {
+            return false;
+        }
+        inst = inst->Arg(0).InstRecursive();
+    }
+    return inst->GetOpcode() == IR::Opcode::GetAttribute ||
+           inst->GetOpcode() == IR::Opcode::GetAttributeU32;
+}
+
 std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block, IR::Inst& inst) {
     std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
     if (!track_addr) {
@@ -472,11 +503,25 @@ std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block,
     return track_addr;
 }
 
-TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst) {
+TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
+                     const HostTranslateInfo& host_info) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
         const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst)};
         if (!track_addr) {
+            // A handle read from a shader input is only known when the shader runs. Index
+            // the whole texture and sampler tables with it and combine them in the shader.
+            if (host_info.support_separate_sampler && IsRuntimeSampled(inst) &&
+                IsShaderInput(inst.Arg(0))) {
+                const auto pool = env.ReadTexturePoolInfo();
+                if (pool && pool->num_textures != 0) {
+                    // One element is not declared as an array.
+                    addr = ConstBufferAddr{.dynamic_offset = IR::U32{inst.Arg(0)},
+                                           .count = std::max(pool->num_textures, 2U),
+                                           .is_direct = true};
+                    return TextureInst{addr, &inst, block};
+                }
+            }
             // Handles passed through SSBOs/shared memory have no constant-buffer address.
             // Keep the runtime handle and index the TIC table directly instead of guessing
             // a cbuf from the address expression. Typeless 3D stores are the supported case.
@@ -580,7 +625,8 @@ public:
                    desc.secondary_cbuf_index == existing.secondary_cbuf_index &&
                    desc.secondary_cbuf_offset == existing.secondary_cbuf_offset &&
                    desc.secondary_shift_left == existing.secondary_shift_left &&
-                   desc.count == existing.count && desc.size_shift == existing.size_shift;
+                   desc.count == existing.count && desc.size_shift == existing.size_shift &&
+                   desc.is_direct == existing.is_direct;
         })};
         // TODO: Read this from TIC
         texture_descriptors[index].is_multisample |= desc.is_multisample;
@@ -690,7 +736,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             if (!IsTextureInstruction(inst)) {
                 continue;
             }
-            to_replace.push_back(MakeInst(env, block, inst));
+            to_replace.push_back(MakeInst(env, block, inst, host_info));
         }
     }
     // All source expressions are still unchanged here. Share SSA results across accesses.
@@ -748,7 +794,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             inst->SetFlags(flags);
             break;
         case IR::Opcode::ImageSampleImplicitLod:
-            if (flags.type != TextureType::Color2D) {
+            if (flags.type != TextureType::Color2D || cbuf.is_direct) {
                 break;
             }
             if (ReadTextureType(env, cbuf) == TextureType::Color2DRect) {
@@ -851,6 +897,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .secondary_shift_left = cbuf.secondary_shift_left,
                     .count = cbuf.count,
                     .size_shift = size_shift,
+                    .is_direct = cbuf.is_direct,
                 });
             }
             break;
@@ -858,7 +905,26 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         flags.descriptor_index.Assign(index);
         inst->SetFlags(flags);
 
-        if (cbuf.is_direct) {
+        if (cbuf.is_direct && inst->GetOpcode() != IR::Opcode::ImageWrite) {
+            const TexturePoolInfo pool{env.ReadTexturePoolInfo().value()};
+            const u32 num_samplers{pool.linked_samplers ? cbuf.count
+                                                        : std::max(pool.num_samplers, 2U)};
+            program.info.runtime_sampler_count = num_samplers;
+            program.info.runtime_samplers_linked = pool.linked_samplers;
+            IR::IREmitter ir{*texture_inst.block, IR::Block::InstructionList::s_iterator_to(*inst)};
+            const IR::U32 handle{cbuf.dynamic_offset};
+            // Out of range indices select the last element instead of reading past the arrays.
+            if (pool.linked_samplers) {
+                inst->SetArg(0, ir.UMin(handle, ir.Imm32(cbuf.count - 1)));
+            } else {
+                // Keep the guest layout: texture index in the low 20 bits, sampler index above.
+                const IR::U32 tic{ir.UMin(ir.BitwiseAnd(handle, ir.Imm32(0xfffffU)),
+                                          ir.Imm32(cbuf.count - 1))};
+                const IR::U32 tsc{ir.UMin(ir.ShiftRightLogical(handle, ir.Imm32(20)),
+                                          ir.Imm32(num_samplers - 1))};
+                inst->SetArg(0, ir.BitwiseOr(tic, ir.ShiftLeftLogical(tsc, ir.Imm32(20))));
+            }
+        } else if (cbuf.is_direct) {
             if (!host_info.support_null_descriptor) {
                 throw NotImplementedException("Runtime storage image table requires null descriptors");
             }
@@ -901,7 +967,8 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
     // Count actual bindings after deduplication, rather than texture instructions.
     // Never map a valid guest index to another handle to satisfy host resource limits.
     const u64 sampled_count = u64{NumDescriptors(program.info.texture_descriptors)} +
-                              NumDescriptors(program.info.texture_buffer_descriptors);
+                              NumDescriptors(program.info.texture_buffer_descriptors) +
+                              program.info.runtime_sampler_count;
     if (std::ranges::any_of(to_replace, [](const auto& texture) {
             return !texture.cbuf.dynamic_offset.IsEmpty();
         }) && sampled_count > host_info.max_bindless_descriptors_per_stage) {
@@ -920,6 +987,9 @@ void JoinTextureInfo(Info& base, Info& source) {
         base.texture_descriptors,
         base.image_descriptors,
     };
+    base.runtime_sampler_count =
+        std::max(base.runtime_sampler_count, source.runtime_sampler_count);
+    base.runtime_samplers_linked |= source.runtime_samplers_linked;
     for (auto& desc : source.texture_buffer_descriptors) {
         descriptors.Add(desc);
     }

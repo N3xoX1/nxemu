@@ -56,7 +56,7 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 18;
+constexpr u32 CACHE_VERSION = 19;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 template <typename Container>
@@ -559,6 +559,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .max_storage_images_per_stage = std::min(device.DescriptorLimits().maxPerStageDescriptorStorageImages,
                                                  device.DescriptorLimits().maxDescriptorSetStorageImages),
         .support_null_descriptor = device.HasNullDescriptor(),
+        .support_separate_sampler = true,
     };
 
     if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes) {
@@ -600,6 +601,12 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
             const auto& buffer = maxwell3d->state.shader_stages[stage].const_buffers[bank];
             return buffer.enabled ? buffer.size : 0;
         });
+    graphics_key.texture_pool = {};
+    if ((graphics_cbuf_size_state.ExtraMask() & VideoCommon::TEXTURE_POOL_SIZE_BIT) != 0) {
+        const auto pool = VideoCommon::GraphicsTexturePoolInfo(maxwell3d->regs);
+        graphics_key.texture_pool = {pool.num_textures,
+                                     pool.linked_samplers ? 0U : pool.num_samplers};
+    }
 
     if (current_pipeline) {
         GraphicsPipeline* const next{current_pipeline->Next(graphics_key)};
@@ -753,6 +760,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             const u32 mask = cbuf_size_dependencies.Mask(key.unique_hashes[stage + 1]) |
                 (stage == 0 ? cbuf_size_dependencies.Mask(key.unique_hashes[0]) : 0);
             CbufSizeDependencies::Normalize(key.cbuf_sizes[stage], mask);
+        }
+        if (std::ranges::none_of(key.unique_hashes, [this](u64 hash) {
+                return (cbuf_size_dependencies.Mask(hash) & VideoCommon::TEXTURE_POOL_SIZE_BIT) != 0;
+            })) {
+            key.texture_pool = {};
         }
         if (!loaded_graphics_keys.insert(key).second) {
             return;

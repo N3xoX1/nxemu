@@ -37,6 +37,7 @@ struct TextureDefinition {
     Id image_type;
     u32 count;
     bool is_multisample;
+    bool is_direct{};
 };
 
 struct TextureBufferDefinition {
@@ -159,6 +160,10 @@ struct GenericElementInfo {
 
 class EmitContext final : public Sirit::Module {
 public:
+    Id runtime_samplers{};
+    Id runtime_sampler_type{};
+    Id runtime_sampler_pointer{};
+    bool runtime_samplers_linked{};
     Id runtime_image_write_mask{};
     Id runtime_image_write_mask_element{};
     explicit EmitContext(const Profile& profile, const RuntimeInfo& runtime_info,
@@ -383,7 +388,8 @@ private:
     void DefineStorageBuffers(const Info& info, u32& binding);
     void DefineTextureBuffers(const Info& info, u32& binding);
     void DefineImageBuffers(const Info& info, u32& binding);
-    void DefineTextures(const Info& info, u32& binding, u32& scaling_index);
+    void DefineTextures(const Info& info, u32& binding, u32& scaling_index, u32& table_binding);
+    void DefineRuntimeSamplers(const Info& info, u32& table_binding);
     void DefineImages(const Info& info, u32& binding, u32& scaling_index);
     void DefineAttributeMemAccess(const Info& info);
     void DefineWriteStorageCasLoopFunction(const Info& info);
