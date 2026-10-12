@@ -555,6 +555,11 @@ html.theme-ready .folder-item:active {
   opacity: 0.85;
 }
 
+.done-btn {
+  background: #66bb6a;
+  color: #0b2e10;
+}
+
 .link-btn {
   border: none;
   background: transparent;
