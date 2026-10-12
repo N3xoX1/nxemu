@@ -12,8 +12,8 @@ android {
         applicationId = "org.nxemu"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = (project.findProperty("nxemuVersionCode") as String?)?.toInt() ?: 1
+        versionName = project.findProperty("nxemuVersionName") as String? ?: "0.1"
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -27,10 +27,22 @@ android {
         }
     }
 
+    val releaseKeystore = System.getenv("NXEMU_KEYSTORE_FILE")
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("NXEMU_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("NXEMU_KEY_ALIAS")
+                keyPassword = System.getenv("NXEMU_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (releaseKeystore != null) "release" else "debug")
         }
     }
 
