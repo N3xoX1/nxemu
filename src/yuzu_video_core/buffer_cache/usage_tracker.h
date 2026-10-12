@@ -21,6 +21,7 @@ public:
 
     void Reset() noexcept {
         std::ranges::fill(pages, 0ULL);
+        covered_begin = covered_end = 0;
     }
 
     void Track(u64 offset, u64 size) noexcept {
@@ -31,6 +32,21 @@ public:
         const size_t page_end = (offset + size) >> PAGE_SHIFT;
         if (page_end < page || page_end >= pages.size()) {
             return;
+        }
+        // Usage only grows until Reset. Rebinding a large texel buffer must not fill
+        // its bitmap on every draw when these blocks are already known to be used.
+        const u64 begin_block = offset >> BYTES_PER_BIT_SHIFT;
+        const u64 end_block = ((offset + size - 1) >> BYTES_PER_BIT_SHIFT) + 1;
+        if (covered_begin <= begin_block && end_block <= covered_end) {
+            return;
+        }
+        if (begin_block <= covered_end && covered_begin <= end_block) {
+            covered_begin = std::min(covered_begin, begin_block);
+            covered_end = std::max(covered_end, end_block);
+        } else if (end_block - begin_block > covered_end - covered_begin) {
+            // Keep the largest covered interval when disjoint small bindings alternate.
+            covered_begin = begin_block;
+            covered_end = end_block;
         }
         TrackPage(page, offset, size);
         if (page == page_end) {
@@ -93,6 +109,8 @@ private:
 
 private:
     std::vector<u64> pages;
+    u64 covered_begin{};
+    u64 covered_end{};
 };
 
 } // namespace VideoCommon

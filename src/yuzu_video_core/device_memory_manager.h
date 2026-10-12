@@ -106,6 +106,7 @@ public:
     void ReadBlockUnsafe(DAddr address, void* dest_pointer, size_t size);
     void WriteBlock(DAddr address, const void* src_pointer, size_t size);
     void WriteBlockUnsafe(DAddr address, const void* src_pointer, size_t size);
+    void WriteBlockForGpuReadback(DAddr address, const void* src_pointer, size_t size);
 
     Asid RegisterProcess(IMemory * memory);
     void UnregisterProcess(Asid id);

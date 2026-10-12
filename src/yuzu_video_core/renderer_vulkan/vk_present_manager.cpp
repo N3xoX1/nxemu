@@ -4,6 +4,7 @@
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/thread.h"
+#include "yuzu_video_core/performance_diagnostics.h"
 #include "frontend/emu_window.h"
 #include "yuzu_video_core/renderer_vulkan/vk_present_manager.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -154,6 +155,8 @@ Frame* PresentManager::GetRenderFrame() {
 }
 
 void PresentManager::Present(Frame* frame) {
+    VideoCommon::PerformanceDiagnostics::Scope timing{
+        VideoCommon::PerformanceDiagnostics::Category::Present};
     if (!use_present_thread) {
         scheduler.WaitWorker();
         CopyToSwapchain(frame);
@@ -329,8 +332,12 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
         RecreateSwapchain(frame);
     }
 
-    while (swapchain.AcquireNextImage()) {
-        RecreateSwapchain(frame);
+    {
+        VideoCommon::PerformanceDiagnostics::Scope timing{
+            VideoCommon::PerformanceDiagnostics::Category::AcquireImage};
+        while (swapchain.AcquireNextImage()) {
+            RecreateSwapchain(frame);
+        }
     }
 
     const vk::CommandBuffer cmdbuf{frame->cmdbuf};
@@ -477,7 +484,9 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
     }
 
     // Present
-    swapchain.Present(render_semaphore);
+    VideoCommon::PerformanceDiagnostics::Measure(
+        VideoCommon::PerformanceDiagnostics::Category::QueuePresent,
+        [&] { swapchain.Present(render_semaphore); });
 }
 
 } // namespace Vulkan

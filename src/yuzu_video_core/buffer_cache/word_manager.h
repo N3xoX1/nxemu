@@ -306,6 +306,13 @@ public:
                 mask &= ~untracked_words[index];
             }
             const u64 word = state_words[index] & mask;
+            if constexpr (clear && (type == Type::CPU || type == Type::CachedCPU)) {
+                // A clean, tracked word needs neither protection updates nor stores.
+                // Cached CPU writes can leave untracked bits even when word is zero.
+                if (word == 0 && (untracked_words[index] & mask) == 0) {
+                    return;
+                }
+            }
             if constexpr (clear) {
                 if constexpr (type == Type::CPU || type == Type::CachedCPU) {
                     NotifyRasterizer<true>(index, untracked_words[index], mask);

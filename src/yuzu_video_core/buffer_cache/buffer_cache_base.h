@@ -19,6 +19,7 @@
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/range_sets.h"
+#include "yuzu_common/readback_reference.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/slot_vector.h"
@@ -295,6 +296,7 @@ public:
     /// Pop asynchronous downloads
     void PopAsyncFlushes();
     void PopAsyncBuffers();
+    void InvalidateReadbackReferences(DAddr device_addr, u64 size);
 
     bool DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 amount);
 
@@ -518,6 +520,8 @@ private:
     /// Finds the parts of the buffer holding a guest range and their buffers
     void UpdateSparseBuffer(GPUVAddr gpu_addr, u32 size);
 
+    void ResolveSparseBufferPart(SparseBufferPart& part);
+
     /// Where a guest range is in the buffer assembled for it
     [[nodiscard]] SparseBinding GetSparseBinding(GPUVAddr gpu_addr, u32 size);
 
@@ -541,7 +545,7 @@ private:
         buffer.content_version = ++content_version;
         // A large canonical buffer can contain many independent sparse parts. Updating one
         // part must not cause every other part to be copied again on its next use.
-        if (changed_size == std::numeric_limits<u64>::max()) {
+        if (changed_size == std::numeric_limits<u64>::max() || !buffer.has_sparse_references) {
             return;
         }
         const DAddr changed_end = changed_addr + changed_size;
@@ -573,6 +577,10 @@ private:
     Common::RangeSet<DAddr> downloaded_ranges;
     std::deque<std::optional<Async_Buffer>> async_buffers;
     std::deque<boost::container::small_vector<BufferCopy, 4>> pending_downloads;
+    /// Separate flags keep data staging allocations at their original sizes.
+    std::deque<std::optional<Async_Buffer>> pending_readback_flags;
+    std::deque<std::vector<u64>> pending_readback_flag_offsets;
+    std::deque<std::vector<Common::ReadbackCpuCopy>> pending_readback_cpu_copies;
     /// Ranges of each pending download that guest memory did not get newer data for since
     std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
     std::optional<Async_Buffer> current_buffer;

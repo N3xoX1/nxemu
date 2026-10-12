@@ -13,7 +13,7 @@ foreach ($reviewLine in $reviewEnvironment) {
         [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
     }
 }
-& cl.exe /nologo /std:c++20 /EHsc /O2 /MT /DNDEBUG /DPR_MODE=1 /DFIXED_MODE=1 "/I$reviewRoot/src" "/I$reviewRoot/external/boost" "/I$reviewExtracted" (Join-Path $PSScriptRoot 'cpu.cpp') "/Fo$reviewOut/cpu.obj" "/Fe$reviewOut/cpu.exe" *> (Join-Path $reviewOut 'cpu-build.log')
+& cl.exe /nologo /std:c++20 /EHsc /O2 /MT /utf-8 /DNDEBUG /DPR_MODE=1 /DFIXED_MODE=1 "/I$reviewRoot/src" "/I$reviewRoot/src/yuzu_video_core" "/I$reviewRoot/external/boost" "/I$reviewRoot/external/fmt/include" "/I$reviewExtracted" (Join-Path $PSScriptRoot 'cpu.cpp') "/Fo$reviewOut/cpu.obj" "/Fe$reviewOut/cpu.exe" *> (Join-Path $reviewOut 'cpu-build.log')
 if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $reviewOut 'cpu-build.log'); throw 'CPU benchmark build failed' }
 & (Join-Path $reviewOut 'cpu.exe') > (Join-Path $reviewOut 'cpu-scaling.log')
 $reviewExit = $LASTEXITCODE

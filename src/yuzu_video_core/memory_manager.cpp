@@ -7,6 +7,7 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_video_core/guest_memory.h"
+#include "yuzu_video_core/continuous_range_cache.h"
 #include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/invalidation_accumulator.h"
 #include "yuzu_video_core/memory_manager.h"
@@ -265,7 +266,7 @@ void MemoryManager::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 GPUVAddr MemoryManager::Map(GPUVAddr gpu_addr, DAddr dev_addr, std::size_t size, PTEKind kind,
                             bool is_big_pages)
 {
-    mapping_generation.fetch_add(1, std::memory_order_relaxed);
+    MappingChangeScope mapping_change{mapping_generation, mapping_updates_in_progress};
     NotifyMappingChanged(gpu_addr, dev_addr, size, EntryType::Mapped, kind, is_big_pages);
     if (is_big_pages) [[likely]]
     {
@@ -312,7 +313,7 @@ GPUVAddr MemoryManager::MapSparse(GPUVAddr gpu_addr, std::size_t size, bool is_b
         sparse_regions.emplace(begin, end);
         has_sparse_regions.store(true, std::memory_order_release);
     }
-    mapping_generation.fetch_add(1, std::memory_order_relaxed);
+    MappingChangeScope mapping_change{mapping_generation, mapping_updates_in_progress};
     NotifyMappingChanged(gpu_addr, 0, size, EntryType::Reserved, PTEKind::INVALID, is_big_pages);
     if (is_big_pages) [[likely]]
     {
@@ -349,7 +350,7 @@ void MemoryManager::Unmap(GPUVAddr gpu_addr, std::size_t size)
         }
         has_sparse_regions.store(!sparse_regions.empty(), std::memory_order_release);
     }
-    mapping_generation.fetch_add(1, std::memory_order_relaxed);
+    MappingChangeScope mapping_change{mapping_generation, mapping_updates_in_progress};
     NotifyMappingChanged(gpu_addr, 0, size, EntryType::Free, PTEKind::INVALID, false);
     GetSubmappedRangeImpl<false>(gpu_addr, size, page_stash);
 
@@ -825,6 +826,12 @@ bool MemoryManager::IsGranularRange(GPUVAddr gpu_addr, std::size_t size) const
 
 bool MemoryManager::IsContinuousRange(GPUVAddr gpu_addr, std::size_t size) const
 {
+    thread_local ContinuousRangeCache cache;
+    const u64 generation = mapping_generation.load(std::memory_order_acquire);
+    if (cache.ContainsStableMapping(unique_identifier, generation, gpu_addr, size,
+                                    mapping_generation, mapping_updates_in_progress)) {
+        return true;
+    }
     std::optional<DAddr> old_page_addr{};
     bool result{true};
     auto fail = [&]([[maybe_unused]] std::size_t page_index, [[maybe_unused]] std::size_t offset,
@@ -860,6 +867,10 @@ bool MemoryManager::IsContinuousRange(GPUVAddr gpu_addr, std::size_t size) const
         return !result;
     };
     MemoryOperation<true>(gpu_addr, size, big_check, fail, check_short_pages);
+    if (result && mapping_updates_in_progress.load(std::memory_order_acquire) == 0 &&
+        mapping_generation.load(std::memory_order_acquire) == generation) {
+        cache.Remember(unique_identifier, generation, gpu_addr, size);
+    }
     return result;
 }
 

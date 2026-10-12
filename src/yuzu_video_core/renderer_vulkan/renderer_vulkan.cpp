@@ -17,6 +17,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/scope_exit.h"
+#include "yuzu_video_core/performance_diagnostics.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/stb.h"
@@ -163,6 +164,8 @@ RendererVulkan::~RendererVulkan()
 
 void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebuffers)
 {
+    VideoCommon::PerformanceDiagnostics::Scope timing{
+        VideoCommon::PerformanceDiagnostics::Category::Composite};
     if (framebuffers.empty())
     {
         return;

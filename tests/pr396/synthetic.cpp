@@ -15,14 +15,21 @@
 #include <vector>
 #include <boost/container/small_vector.hpp>
 #include "yuzu_common/bit_field.h"
+#include "yuzu_common/div_ceil.h"
+#include "yuzu_common/readback_reference.h"
 #include "yuzu_common/range_sets.inc"
 #include "yuzu_video_core/buffer_cache/usage_tracker.h"
+#include "yuzu_video_core/flush_region_cache_filter.h"
 #include "yuzu_video_core/renderer_vulkan/descriptor_payload.h"
+#include "../performance-review/diagnostics-stub.h"
 
 using BufferId = u32;
+using VideoCommon::CacheType;
 struct BufferCopy { u64 src_offset{}, dst_offset{}, size{}; };
 struct Buffer {
     u64 base{}, content_version{1};
+    // These fixtures install sparse parts directly rather than call UpdateSparseBuffer.
+    bool has_sparse_references{true};
     std::vector<u8> data;
     u64 usage_bytes{};
     VideoCommon::UsageTracker usage{4096};
@@ -36,6 +43,7 @@ struct Memory {
     void WriteBlockUnsafe(u64 start, const u8* source, u64 size) {
         std::copy_n(source, size, data.begin()+start);
     }
+    void WriteBlockForGpuReadback(u64 start,const u8* source,u64 size) { WriteBlockUnsafe(start,source,size); }
 };
 struct Tracker {
     std::vector<std::pair<u64,u64>> uploads;
@@ -78,6 +86,9 @@ struct Harness {
     Common::OverlapRangeSet<DAddr> async_downloads;
     std::deque<std::optional<AsyncBuffer>> async_buffers;
     std::deque<boost::container::small_vector<BufferCopy,4>> pending_downloads;
+    std::deque<std::optional<AsyncBuffer>> pending_readback_flags;
+    std::deque<std::vector<u64>> pending_readback_flag_offsets;
+    std::deque<std::vector<Common::ReadbackCpuCopy>> pending_readback_cpu_copies;
     std::deque<AsyncBuffer> async_buffers_death_ring;
     std::deque<std::vector<u8>> staging;
     std::vector<SparseBuffer> sparse_buffers;
@@ -112,13 +123,19 @@ struct Harness {
     bool SynchronizeBuffer(Buffer&,DAddr,u32);
     bool SynchronizeBuffer(Buffer&,DAddr,u32,boost::container::small_vector<BufferCopy,4>&);
     void ClearDownload(DAddr,u64);
+    // Legacy upload/DMA fixtures never create GPU reference buffers. Their
+    // invalidation is empty; the delta fixture exercises the real invalidation.
+    void InvalidateReadbackReferences(DAddr,u64) {}
     void PopAsyncBuffers();
     SparseBinding SynchronizeSparseBuffer(GPUVAddr,u32);
+#if FIXED_MODE
+    void ResolveSparseBufferPart(SparseBufferPart&);
+#endif
     GPUVAddr FindSparseAlias(const struct Binding&,bool) const;
     void MarkSparseWrite(GPUVAddr,u32);
     void CopySparseWrites();
     BufferId AddBuffer(u64 base,u32 size,u8 value=0x11) {
-        slot_buffers.push_back(Buffer{base,1,std::vector<u8>(size,value)});
+        slot_buffers.push_back(Buffer{base,1,true,std::vector<u8>(size,value)});
         return static_cast<u32>(slot_buffers.size()-1);
     }
     bool Dirty(u64 start,u32 size) {
@@ -128,6 +145,9 @@ struct Harness {
         staging.emplace_back(size,value);
         async_buffers.emplace_back(AsyncBuffer{staging.back(),0});
         pending_downloads.push_back({BufferCopy{start,0,size}});
+        pending_readback_flags.emplace_back(std::nullopt);
+        pending_readback_flag_offsets.emplace_back();
+        pending_readback_cpu_copies.emplace_back();
         pending_download_ranges.emplace_back(); pending_download_ranges.back().Add(start,size);
         async_downloads.Add(start,size); gpu_modified_ranges.Add(start,size);
     }

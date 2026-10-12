@@ -2,11 +2,98 @@
 #define main PriorCpuMain
 #include "../pr396/synthetic.cpp"
 #undef main
+#include "yuzu_video_core/buffer_cache/buffer_base.h"
+
+void SparseReferenceRegistration() {
+    VideoCommon::BufferBase real_buffer{VideoCommon::NullBufferParams{}};
+    Check("new_production_buffer_has_no_sparse_references", !real_buffer.has_sparse_references);
+    Harness h;
+    const auto canonical = h.AddBuffer(4096, 4096);
+    auto& buffer = h.slot_buffers[canonical];
+    buffer.has_sparse_references = false;
+    Harness::SparseBufferPart part{4096, 1024, 0, 0, 1};
+    h.ResolveSparseBufferPart(part);
+    Check("resolved_part_uses_canonical_buffer", part.buffer_id == canonical);
+    Check("resolved_part_registers_canonical_buffer", buffer.has_sparse_references);
+    const auto replacement = h.AddBuffer(12288, 4096);
+    h.slot_buffers[replacement].has_sparse_references = false;
+    part.buffer_id = 0;
+    part.device_addr = 12288;
+    h.ResolveSparseBufferPart(part);
+    Check("invalidated_part_selects_replacement", part.buffer_id == replacement);
+    Check("invalidated_part_registers_replacement", h.slot_buffers[replacement].has_sparse_references);
+    part = {4096, 1024, 0, canonical, 1};
+    buffer.has_sparse_references = false;
+    h.ResolveSparseBufferPart(part);
+    Check("retained_part_conservatively_registers_buffer", buffer.has_sparse_references);
+    h.sparse_buffers.push_back({h.gpu_memory, 0x10000, 2048, 2048, canonical, 1, 0, 1,
+        {{4096, 1024, 0, canonical, 1}, {5120, 1024, 1024, canonical, 1}}});
+    h.MarkBufferContentChanged(buffer, 4096, 16);
+    Check("referenced_overlap_remains_stale", h.sparse_buffers[0].parts[0].content_version == 1);
+    Check("referenced_disjoint_part_is_current", h.sparse_buffers[0].parts[1].content_version == buffer.content_version);
+    h.MarkBufferContentChanged(buffer, 4096, 16);
+    Check("already_stale_overlap_stays_stale", h.sparse_buffers[0].parts[0].content_version == 1);
+    Check("disjoint_part_tracks_repeated_writes", h.sparse_buffers[0].parts[1].content_version == buffer.content_version);
+    h.sparse_buffers.clear(); // The conservative flag intentionally survives part removal.
+    const auto previous = buffer.content_version;
+    h.MarkBufferContentChanged(buffer, 4096, 16);
+    Check("removed_parts_allow_future_version_updates", buffer.content_version > previous);
+    const auto unrelated = h.AddBuffer(8192, 4096);
+    h.slot_buffers[unrelated].has_sparse_references = false;
+    const auto old_unrelated = h.slot_buffers[unrelated].content_version;
+    h.MarkBufferContentChanged(h.slot_buffers[unrelated], 8192, 16);
+    Check("unreferenced_buffer_still_advances_version", h.slot_buffers[unrelated].content_version > old_unrelated);
+    real_buffer.has_sparse_references = true;
+    VideoCommon::BufferBase moved_buffer{std::move(real_buffer)};
+    Check("moved_production_buffer_keeps_sparse_registration", moved_buffer.has_sparse_references);
+}
+
+void SparseReferenceOracle() {
+    Harness h;
+    std::array<BufferId, 8> buffers;
+    for (u32 i = 0; i < buffers.size(); ++i) {
+        buffers[i] = h.AddBuffer(4096ULL * (i + 1), 4096);
+        h.slot_buffers[buffers[i]].has_sparse_references = false;
+    }
+    for (u32 i = 0; i < 4; ++i) {
+        Harness::SparseBuffer sparse{h.gpu_memory, 0x10000ULL + i * 0x10000ULL,
+                                    4096, 4096, buffers[i], 1, 0, 1, {}};
+        for (u32 j = 0; j < 4; ++j) {
+            auto& part = sparse.parts.emplace_back(Harness::SparseBufferPart{
+                4096ULL * (i + 1) + j * 1024ULL, 1024, j * 1024, buffers[i], 1});
+            h.ResolveSparseBufferPart(part);
+        }
+        h.sparse_buffers.push_back(std::move(sparse));
+    }
+    std::mt19937 rng{0x1072026};
+    bool valid = true;
+    for (u32 iteration = 0; iteration < 2000; ++iteration) {
+        const auto target = buffers[rng() % buffers.size()];
+        auto& buffer = h.slot_buffers[target];
+        const auto previous = buffer.content_version;
+        const auto next = h.content_version + 1;
+        const DAddr begin = buffer.base + rng() % 4096;
+        const u64 size = iteration % 63 == 0 ? std::numeric_limits<u64>::max() : rng() % 513;
+        std::vector<u64> expected;
+        for (const auto& sparse : h.sparse_buffers) for (const auto& part : sparse.parts) {
+            const bool update = size != std::numeric_limits<u64>::max() && part.buffer_id == target &&
+                part.content_version == previous && (part.device_addr >= begin + size || part.device_addr + part.size <= begin);
+            expected.push_back(update ? next : part.content_version);
+        }
+        h.MarkBufferContentChanged(buffer, begin, size);
+        valid &= buffer.content_version == next;
+        size_t index = 0;
+        for (const auto& sparse : h.sparse_buffers) for (const auto& part : sparse.parts)
+            valid &= part.content_version == expected[index++];
+    }
+    Check("sparse_versions_match_original_semantics_2000_writes", valid);
+}
 
 void VersionScaling() {
     for (u32 count : {0U, 1U, 8U, 64U, 512U, 4096U}) {
         Harness h;
         const auto target = h.AddBuffer(4096, 4096);
+        h.slot_buffers[target].has_sparse_references = false;
         const auto other = h.AddBuffer(8192, 4096);
         for (u32 i = 0; i < count; ++i) {
             h.sparse_buffers.push_back({h.gpu_memory, 0x10000ULL + i * 0x10000ULL,
@@ -69,6 +156,8 @@ void MaskScanning() {
 }
 
 int main() {
+    SparseReferenceRegistration();
+    SparseReferenceOracle();
     VersionScaling();
     FragmentedCopyScaling();
     MaskScanning();

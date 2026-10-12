@@ -1,8 +1,9 @@
 # Performance audit of the validated rendering commit
 
 Baseline: `61f2d4b645b2110c51eee21e981ded8c0f5ca4fc` on `fix/rendering-perf`.
-These fixtures measure scaling and preserve the validated renderer. They do not
-implement any of the candidate optimizations and do not measure game FPS.
+These fixtures measure scaling and do not measure game FPS. The validated
+baseline is retained in Git; the current working tree additionally tests the
+conservative sparse reference optimization described below.
 
 Run the existing CPU extraction and regression suite first:
 
@@ -65,6 +66,117 @@ The cache's version publisher scans all sparse parts after every written part,
 giving quadratic bookkeeping for this copy-back stress case. Runtime image
 stores also need a GPU readback before marking precisely the modified images;
 the batched control is not a safe replacement for that protocol. These results
-identify optimization candidates, not implemented fixes or demonstrated causes
+identify optimization candidates, rather than demonstrated causes
 of a particular game's frame rate. Existing synchronization barriers and alias
 tracking must be preserved when addressing these costs.
+
+The current candidate skips the global version scan only for canonical buffers
+that have never been registered as a sparse part. Registration is conservative
+for the buffer's lifetime and is repeated when a part is resolved after buffer
+merges or mapping changes. Version numbers still advance on every write, and
+referenced buffers retain the existing overlap and disjoint-part behavior.
+The fixture also checks construction and move of the actual production
+BufferBase, part registration/re-registration, repeated writes and part removal.
+An independent oracle compares all sparse versions after 2000 randomized writes
+to referenced and unreferenced buffers against the original update semantics.
+This eliminates scaling with unrelated sparse populations, while copy-back to
+referenced buffers retains its existing cost. Game FPS still requires measurement.
+
+`run-ranges.ps1` compares the current implementation with validated commit
+61f2d4b6, extracting both production continuity checks and flush query functions.
+It checks monotonic usage coverage against independent 64-byte block bits,
+CPU/CachedCPU/GPU upload ranges and protection notifications against the original
+WordManager, and mapping changes, holes, fragmentation and contained range reuse.
+Continuity cache results are per thread and manager, positive only, and never
+retained during a mapping mutation. Mapping scopes invalidate at entry and exit.
+Flush presence filtering is tested with both accuracy levels and dirty/clean,
+registered/unregistered regions. Scaling benchmarks use large synthetic buffers;
+game FPS and visual correctness still require a live run of this candidate.
+
+`run-downloads.ps1` extracts the complete production async download planner and
+retirement bodies, comparing to 61f2d4b6. It uses the real MemoryTrackerBase and
+RangeSet, with bounds-checked GPU copies into staging storage and guest RAM doubles.
+The tracker reports whole pages; the candidate clips each to the committed byte
+interval and current buffer before intersecting the GPU dirty byte set. The old
+planner duplicates disjoint same-page writes and can include adjacent buffers.
+64 four-byte writes produce 4096 copies in the old planner and 64 in the candidate.
+300 random sequences compare planned byte multiplicity and retired guest bytes
+with independent byte arrays, including CPU cancellations and newer GPU writes.
+Full buffer, empty batch, staging offset, untracked page and buffer boundaries
+are checked separately. Benchmarks exclude fixture construction, include actual
+CPU staging copies, and use seven medians; these are not live GPU transfer timings.
+
+The GPU write history candidate was removed after the v4 game test showed no FPS gain.
+
+`run-coalesced-copy.ps1` extracts the complete production device page walker and
+both write methods. It compares the new GPU readback method with the original
+on 2000 small sequences and eight 96 MiB cases including physical fragmentation,
+holes, aliases, partial end pages and unaligned source pointers. The new method
+coalesces only readbacks of at least 96 MiB, and only when both host pointers are
+contiguous. It flushes on holes and before returning; all small requests call
+the original method. Guard pages check precise end bounds. The benchmark compares
+4 KiB memcpy calls and coalescing, including actual copies, across seven medians.
+Small warm buffers can regress when copied as one block; they retain the old path.
+Large-transfer timings are synthetic and do not prove the size mix of the game.
+The opt-in game log records small/large bytes and segment/run counts to verify that.
+
+The download planner also merges adjacent copies only when source buffer ID,
+source offset and staging offset are contiguous. The real page tracker test
+shows a 128 MiB dirty interval being split into 33 callbacks at 4 MiB manager
+boundaries. The candidate emits one copy with the same byte payload. Cancellation
+across a manager boundary produces identical guest RAM after retirement. Adjacent
+canonical buffers, dirty gaps and staging padding are kept separate. This allows
+large contiguous readbacks to reach the physical-span coalescing method rather
+than being classified as small due to the tracker's metadata partitions.
+
+GPU readback retirement additionally compares the actual destination before
+writing spans of at least 1 MiB. Exact 64 KiB chunks use runtime-selected AVX2
+(including OS YMM support) or baseline SSE2 on x64, NEON on AArch64, and memcmp
+elsewhere. There are no hashes or retained guest snapshots. Dense changes switch
+back to bulk memcpy; CPU cancellation and metadata retirement retain their order.
+`run-differential-copy.ps1` tests the helper, and `run-coalesced-copy.ps1` extracts
+and tests the complete production walker and readback method against full copies.
+`differential-portable.cpp` is a POSIX fixture for GCC/Clang, including every
+byte lane, alignment, exact tails, guard pages and random final-byte oracles.
+It also runs under AArch64 QEMU and x64 QEMU with AVX2 enabled and disabled.
+ARM and older x86 measurements under emulation are correctness tests, not device
+performance measurements; no macOS or Android runtime was available locally.
+
+`run-vulkan-delta.ps1` executes the production ReadbackDeltaPass::Copy body and
+production host shader against real Vulkan buffers. Nine cases check exact NaN
+bit patterns, unaligned descriptor offsets, partial last chunks, consecutive
+queued epochs, CPU cancellation and the following GPU write. Synchronization
+validation is enabled for these cases and disabled for benchmarks. Twelve timing
+rows compare the v8 full transfer plus SIMD retirement with the production delta
+pass; each final guest byte is checked outside the timed interval. Command
+recording, descriptor allocation, source mutations, submit, fence wait, mask reads
+host snapshot updates, live RAM comparisons and retirement copies are timed.
+Initial resource allocation/seeding is excluded. Dense changes can regress.
+The opt-in emulator path retains FIFO retirement, invalidates reference proofs on
+RAM changes and falls back for unsupported sizes, offsets or exhausted VRAM budget.
+A FIFO host snapshot preserves each GPU epoch and is compared against live RAM,
+including untracked RAM writes between queued epochs and canonical buffer removal.
+Eligibility rejection counters count checks, which may repeat, rather than traffic.
+
+The user validated the v9 candidate in Immortals Fenyx Rising with correct images
+and 35-36 FPS. In matching stable windows (seconds 135-155), logs measured 25.862
+system FPS for v8 and 35.247 for v9, a 36.3% improvement across separate runs.
+Logical readbacks were 502.9 and 505.6 MB/frame respectively. The candidate avoided
+96.16% of readback payload; estimated transferred data fell to 19.42 MB/frame.
+Inclusive CPU readback-copy time fell from 20.18 to 10.16 ms/frame. These are game
+measurements on Ryzen 9800X3D/RTX 5070 Ti; other games and hardware are unmeasured.
+NXEMU_GPU_DIFFERENTIAL_READBACK=1 enables the GPU candidate; absent or 0 retains
+the CPU SIMD path. Reference buffers consume bounded additional VRAM and host RAM.
+
+`run-strategies.ps1` compares five experimental real Vulkan paths: full memcpy,
+archived v7 SSE2, current SIMD, two CPU threads, and exact GPU comparison with
+selective downloads. The GPU reference and source are device-local; staging is
+host-visible coherent with cached memory preferred. Timings include transfers,
+submissions, waits, CPU retirement, masks, and refresh of the additional GPU
+reference following simulated CPU uploads. Initial allocation/reference seeding
+is excluded. Final RAM is checked against an independent oracle, with cancelled
+CPU bytes spanning chunk boundaries. A follow-up upload refreshes that range
+before a new GPU write and verifies detection by the next mask. Vulkan sync
+validation runs separately from timing. These worker/GPU strategies are fixtures
+only; integrating a mirror requires the emulator's complete alias, cancellation,
+remapping and pending-epoch lifecycle. They do not establish game FPS gains.

@@ -9,6 +9,8 @@
 #include "yuzu_common/address_space.h"
 #include "yuzu_common/address_space.inc"
 #include "yuzu_common/alignment.h"
+#include "yuzu_common/coalesced_memory_copy.h"
+#include "yuzu_common/differential_memory_copy.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/scope_exit.h"
@@ -18,6 +20,7 @@
 #include "host1x/gpu_device_memory_manager.h"
 #include "rasterizer_interface.h"
 #include "device_memory_manager.h"
+#include "yuzu_video_core/performance_diagnostics.h"
 
 extern IModuleSettings * g_settings;
 
@@ -538,6 +541,65 @@ void DeviceMemoryManager<Traits>::WriteBlockUnsafe(DAddr address, const void* sr
         {
             src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
         });
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::WriteBlockForGpuReadback(DAddr address,
+                                                         const void* src_pointer, size_t size)
+{
+    namespace Perf = VideoCommon::PerformanceDiagnostics;
+    Perf::Scope timing{Perf::Category::ReadbackDeviceCopy};
+    // Small working sets benefit from the existing per-span copy behavior.
+    // The bulk-copy benchmark wins for transfers exceeding the CPU cache.
+    if (size < 96 * 1024 * 1024) {
+        Perf::RecordEvent(Perf::Category::ReadbackSmall, size);
+        // Retirement holds the buffer cache mutex and has already excluded CPU
+        // cancelled ranges. Compare the live destination, without hashes or
+        // retained snapshots, and complete every changed byte before retirement.
+        WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr)
+            {
+                LOG_ERROR(HW_Memory,"Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
+            },
+            [&](size_t copy_amount, u8* const dst_ptr)
+            {
+                const size_t copied = Common::CopyChangedMemory(dst_ptr, src_pointer, copy_amount);
+                if (copied) {
+                    Perf::RecordEvent(Perf::Category::ReadbackStores, copied);
+                }
+                if (copied < copy_amount) {
+                    Perf::RecordEvent(Perf::Category::ReadbackSkipped, copy_amount - copied);
+                }
+            },
+            [&](const std::size_t copy_amount)
+            {
+                src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
+            });
+        return;
+    }
+    Perf::RecordEvent(Perf::Category::ReadbackLarge, size);
+    Common::CoalescedMemoryCopy copies;
+    const auto count_run = [&](bool copied) {
+        if (copied) {
+            Perf::RecordEvent(Perf::Category::ReadbackRuns);
+        }
+    };
+    // Walk the original page mappings. Only combine the resulting host spans;
+    // do not infer continuity across a hole, alias or unrelated physical page.
+    WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr)
+        {
+            count_run(copies.Flush());
+            LOG_ERROR(HW_Memory,"Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
+        },
+        [&](size_t copy_amount, u8* const dst_ptr)
+        {
+            Perf::RecordEvent(Perf::Category::ReadbackSegments, copy_amount);
+            count_run(copies.Append(dst_ptr, src_pointer, copy_amount));
+        },
+        [&](const std::size_t copy_amount)
+        {
+            src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
+        });
+    count_run(copies.Flush());
 }
 
 template <typename Traits>

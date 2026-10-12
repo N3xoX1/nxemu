@@ -10,6 +10,7 @@
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/bit_field.h"
+#include "yuzu_video_core/performance_diagnostics.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_statistics.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
@@ -545,6 +546,7 @@ void GraphicsPipeline::AddTransition(GraphicsPipeline* transition,
 
 template <typename Spec>
 void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
+    namespace Perf = VideoCommon::PerformanceDiagnostics;
     auto& views = descriptor_views;
     auto& samplers = descriptor_samplers;
     size_t view_index{};
@@ -664,7 +666,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     }
     ASSERT(view_index == views.size());
     ASSERT(sampler_index == samplers.size());
-    texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
+    Perf::Measure(Perf::Category::GraphicsViews, [&] {
+        texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
+    });
 
     VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
     const auto bind_stage_info{[&](size_t stage) LAMBDA_FORCEINLINE {
@@ -718,8 +722,10 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         bind_stage_info(4);
     }
 
-    buffer_cache.UpdateGraphicsBuffers(is_indexed);
-    buffer_cache.BindHostGeometryBuffers(is_indexed);
+    Perf::Measure(Perf::Category::GraphicsBuffers, [&] {
+        buffer_cache.UpdateGraphicsBuffers(is_indexed);
+        buffer_cache.BindHostGeometryBuffers(is_indexed);
+    });
 
     guest_descriptor_queue.Acquire(num_descriptor_entries);
 
@@ -728,7 +734,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     const VideoCommon::SamplerId* samplers_it{samplers.data()};
     const VideoCommon::ImageViewInOut* views_it{views.data()};
     const auto prepare_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
-        buffer_cache.BindHostStageBuffers(stage);
+        Perf::Measure(Perf::Category::GraphicsBindings, [&] {
+            buffer_cache.BindHostStageBuffers(stage);
+        });
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage], rescaling,
                              samplers_it, views_it);
         const auto& info{stage_infos[0]};
@@ -753,8 +761,10 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     if constexpr (Spec::enabled_stages[4]) {
         prepare_stage(4);
     }
-    texture_cache.UpdateRenderTargets(false);
-    texture_cache.CheckFeedbackLoop(views);
+    Perf::Measure(Perf::Category::GraphicsTargets, [&] {
+        texture_cache.UpdateRenderTargets(false);
+        texture_cache.CheckFeedbackLoop(views);
+    });
     ConfigureDraw(rescaling, render_area);
 }
 

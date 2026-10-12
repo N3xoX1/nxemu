@@ -47,6 +47,8 @@ for mode in ('master', 'pr', 'fixed'):
                           'void BufferCache<P>::MarkSparseWrite(',
                           'void BufferCache<P>::CopySparseWrites(']:
             bodies.extend(functions(cache, signature))
+    if mode == 'fixed':
+        bodies.extend(functions(cache, 'void BufferCache<P>::ResolveSparseBufferPart('))
     rewritten = '\n\n'.join(bodies).replace('BufferCache<P>::', 'Harness::').replace('typename Harness::', 'Harness::')
     (OUT / f'{mode}-functions.inc').write_text(rewritten)
     manifest[mode] = [hashlib.sha256(b.encode()).hexdigest() for b in bodies]
