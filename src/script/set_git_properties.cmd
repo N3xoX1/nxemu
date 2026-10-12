@@ -16,6 +16,7 @@ set VERSION=%VERSION_PREFIX%%VERSION_MAJOR%.%VERSION_MINOR%.%VERSION_REVISION%-%
 
 echo %VERSION%
 echo GIT_DESCRIBE=%VERSION%>"%base_dir%\git.properties"
+echo GIT_BUILD_VERSION=%GIT_BUILD_VERSION%>>"%base_dir%\git.properties"
 goto :EOF
 
 :process_version
