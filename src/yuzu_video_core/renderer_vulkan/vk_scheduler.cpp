@@ -156,7 +156,10 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
 
         work = std::move(work_queue.front());
         work_queue.pop();
-        event_cv.notify_all();
+        // WaitWorker only needs a notification when its queue-empty predicate can pass.
+        if (work_queue.empty()) {
+            event_cv.notify_all();
+        }
         return true;
     }};
 
