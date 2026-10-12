@@ -283,6 +283,10 @@ html.theme-ready .folder-item:active {
   padding: 8px 16px;
 }
 
+.settings-list:has(+ .fab) {
+  padding-bottom: 96px;
+}
+
 .settings-header {
   font-size: 13px;
   color: var(--muted);
@@ -381,6 +385,61 @@ html.theme-ready .folder-item:active {
 
 .setting-check.on {
   opacity: 1;
+}
+
+.setting-download {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.setting-download.busy {
+  animation: download-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes download-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.3; }
+}
+
+.setup-intro {
+  padding: 20px 0 12px;
+}
+
+.setup-step {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.setup-copy {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.setup-folder {
+  font-size: 14px;
+  color: var(--muted);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 28px 0 40px;
+}
+
+.release-notes {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-bottom: 96px;
 }
 
 .fab {
@@ -494,6 +553,11 @@ html.theme-ready .folder-item:active {
 
 .primary-btn:active {
   opacity: 0.85;
+}
+
+.done-btn {
+  background: #66bb6a;
+  color: #0b2e10;
 }
 
 .link-btn {

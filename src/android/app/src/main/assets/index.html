@@ -27,10 +27,20 @@
       <span id="touchHint">Tap a game <span class="hint-action">to play</span></span>
     </div>
   </div>
+  <div id="settingsShell" class="page" style="display:none">
+    <div class="topbar-back">
+      <button class="back-btn" type="button" aria-label="Back" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div id="settingsTitle" class="page-title">Settings</div>
+      <span id="backHint" class="back-hint" hidden><span class="hint-pair"><span class="hint-key">A</span> <span class="hint-action">Select</span></span><span class="hint-pair"><span class="hint-key">B</span> <span class="hint-action">Back</span></span></span>
+    </div>
+    <div id="settingsBody"></div>
+  </div>
 <script>
 applyTheme();
 applyControllerBrowser();
-refreshGameList();
+startApp();
 </script>
 </body>
 </html>

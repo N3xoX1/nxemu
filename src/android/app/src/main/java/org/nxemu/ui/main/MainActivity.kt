@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -30,6 +31,7 @@ import org.nxemu.ui.emulation.EmulationActivity
 import org.nxemu.ui.settings.ControllerSettings
 import org.nxemu.ui.settings.InputMappingSession
 import org.nxemu.ui.settings.OverlayLayoutActivity
+import org.nxemu.utils.GpuDriverHelper
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
 
@@ -89,6 +91,24 @@ open class MainActivity : ComponentActivity() {
                 NativeLibrary.saveSettings()
             }
         }
+    }
+
+    private val importGpuDriver = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) {
+            return@registerForActivityResult
+        }
+        Thread({
+            val result = GpuDriverHelper.importAndSelect(this, uri)
+            runOnUiThread {
+                if (isDestroyed) {
+                    return@runOnUiThread
+                }
+                showGpuDriverResult(result)
+                refreshGpuDrivers()
+            }
+        }, "GpuDriverImport").start()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -384,6 +404,46 @@ open class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
         super.onDestroy()
+    }
+
+    fun installGpuDriver() {
+        importGpuDriver.launch(arrayOf("application/zip", "application/octet-stream"))
+    }
+
+    fun showGpuDriverResult(result: String) {
+        if (isDestroyed) {
+            return
+        }
+        val message = when (result) {
+            "ok" -> "GPU driver installed. It applies the next time a game starts."
+            "unsupported" -> "Custom GPU drivers need an Adreno GPU."
+            "api" -> "This driver needs a newer Android version."
+            "invalid" -> "That file is not a GPU driver."
+            "network" -> "Download failed. Check your connection and try again."
+            "busy" -> "A driver is already downloading."
+            "missing" -> "That driver is no longer listed. Refresh and try again."
+            else -> "Couldn't read that driver."
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    fun dispatchGpuDriverEvent(function: String, json: String) {
+        runOnUiThread {
+            if (!::webView.isInitialized || isDestroyed) {
+                return@runOnUiThread
+            }
+            webView.evaluateJavascript("typeof $function==='function'&&$function($json)", null)
+        }
+    }
+
+    fun refreshGpuDrivers() {
+        if (!::webView.isInitialized || isDestroyed) {
+            return
+        }
+        webView.evaluateJavascript(
+            "typeof renderGpuDriversPage==='function'&&renderGpuDriversPage()",
+            null,
+        )
     }
 
     fun AddGameDirectory() {
