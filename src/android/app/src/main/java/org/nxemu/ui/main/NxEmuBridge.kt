@@ -1,11 +1,14 @@
 package org.nxemu.ui.main
 
+import android.content.Context
 import android.content.Intent
 import android.webkit.JavascriptInterface
 import org.json.JSONArray
 import org.nxemu.GameLibraryScanner
 import org.nxemu.NativeLibrary
 import org.nxemu.ui.settings.ControllerSettings
+import org.nxemu.utils.GpuDriverFetcher
+import org.nxemu.utils.GpuDriverHelper
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
 
@@ -124,6 +127,60 @@ class NxEmuBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun gpuDriverList(): String = GpuDriverHelper.listDriversJson()
+
+    @JavascriptInterface
+    fun installGpuDriver() {
+        activity.runOnUiThread { activity.installGpuDriver() }
+    }
+
+    @JavascriptInterface
+    fun selectGpuDriver(fileName: String) {
+        Thread({
+            if (fileName.isEmpty()) {
+                GpuDriverHelper.useSystemDriver()
+            } else {
+                GpuDriverHelper.useStoredDriver(fileName)
+            }
+            activity.runOnUiThread { activity.refreshGpuDrivers() }
+        }, "GpuDriverSelect").start()
+    }
+
+    @JavascriptInterface
+    fun gpuDriverRecommendation(): String = GpuDriverFetcher.recommendedLabel()
+
+    @JavascriptInterface
+    fun fetchGpuDriverCatalog(force: Boolean) {
+        Thread({
+            val json = try {
+                GpuDriverFetcher.catalogJson(force)
+            } catch (_: Exception) {
+                "{\"error\":\"Couldn't load the driver list\"}"
+            }
+            activity.dispatchGpuDriverEvent("onGpuDriverCatalog", json)
+        }, "GpuDriverCatalog").start()
+    }
+
+    @JavascriptInterface
+    fun downloadGpuDriver(repo: String, tag: String, asset: String) {
+        Thread({
+            val result = GpuDriverFetcher.download(repo, tag, asset) { percent ->
+                activity.dispatchGpuDriverEvent("onGpuDriverDownload", "{\"percent\":$percent}")
+            }
+            activity.dispatchGpuDriverEvent("onGpuDriverDownload", "{\"result\":\"$result\"}")
+            activity.runOnUiThread { activity.showGpuDriverResult(result) }
+        }, "GpuDriverDownload").start()
+    }
+
+    @JavascriptInterface
+    fun removeGpuDriver(fileName: String) {
+        Thread({
+            GpuDriverHelper.removeDriver(fileName)
+            activity.runOnUiThread { activity.refreshGpuDrivers() }
+        }, "GpuDriverRemove").start()
+    }
+
+    @JavascriptInterface
     fun isDarkTheme(): Boolean {
         return ThemeHelper.isDark(activity)
     }
@@ -165,7 +222,22 @@ class NxEmuBridge(private val activity: MainActivity) {
     }
 
     @JavascriptInterface
+    fun isSetupComplete(): Boolean {
+        return activity.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).getBoolean(SETUP_COMPLETE, false)
+    }
+
+    @JavascriptInterface
+    fun completeSetup() {
+        activity.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).edit().putBoolean(SETUP_COMPLETE, true).apply()
+    }
+
+    @JavascriptInterface
     fun launchGame(path: String) {
         activity.runOnUiThread { activity.launchGame(path) }
+    }
+
+    companion object {
+        private const val UI_PREFS = "nxemu_ui"
+        private const val SETUP_COMPLETE = "setup_complete"
     }
 }
