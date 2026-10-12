@@ -679,7 +679,12 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
         Perf::RecordEvent(Perf::Category::FlushBufferQuery);
-        if (buffer_cache.MayHaveGpuWrites(addr, size)) {
+        // Texture retirement also holds the buffer mutex. A buffer-only clean
+        // proof does not cover texture RAM copies, so retain the historical
+        // policy on any page ever registered by the texture cache.
+        const bool allow_current = buffer_cache.HasGpuDirtySummary() &&
+            !True(device_memory.FilterFlushCaches(addr, size, VideoCommon::CacheType::TextureCache));
+        if (buffer_cache.MayHaveGpuWritesForRead(addr, size, allow_current)) {
             std::scoped_lock lock{buffer_cache.mutex};
             if (buffer_cache.IsRegionGpuModified(addr, size)) {
                 return true;

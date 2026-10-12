@@ -7,7 +7,7 @@ if($LASTEXITCODE -ne 0){throw 'Cache predicate extraction failed'}
 $filterEnvironment=& cmd.exe /d /c 'call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul && set'
 foreach($filterLine in $filterEnvironment){if($filterLine -match '^([^=]+)=(.*)$'){[Environment]::SetEnvironmentVariable($matches[1],$matches[2],'Process')}}
 foreach($filterSource in @('gpu-write-history','cache-filter')) {
-    & cl.exe /nologo /std:c++20 /EHsc /O2 /MT /DNDEBUG /utf-8 "/I$filterRepo/src" "/I$filterOut" (Join-Path $PSScriptRoot "$filterSource.cpp") "/Fo$filterOut/$filterSource.obj" "/Fe$filterOut/$filterSource.exe" *> (Join-Path $filterOut "$filterSource-build.log")
+    & cl.exe /nologo /std:c++20 /EHsc /O2 /MT /DNDEBUG /utf-8 "/I$filterRepo/src" "/I$filterRepo/external/boost" "/I$filterOut" (Join-Path $PSScriptRoot "$filterSource.cpp") "/Fo$filterOut/$filterSource.obj" "/Fe$filterOut/$filterSource.exe" *> (Join-Path $filterOut "$filterSource-build.log")
     if($LASTEXITCODE -ne 0){Get-Content (Join-Path $filterOut "$filterSource-build.log") -Tail 20;throw 'Cache fixture build failed'}
 }
 & (Join-Path $filterOut 'gpu-write-history.exe') --benchmark > (Join-Path $filterOut 'history-results.txt')

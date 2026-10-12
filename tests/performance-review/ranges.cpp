@@ -166,6 +166,8 @@ struct CountingLock {
 struct MockCache {
     CountingLock mutex;bool present{},dirty{};
     bool MayHaveGpuWrites(u64,u64) const {return true;} // History proofs have their own fixture.
+    bool HasGpuDirtySummary() const {return false;}
+    bool MayHaveGpuWritesForRead(u64 a,u64 n,bool) const {return MayHaveGpuWrites(a,n);}
     bool IsRegionGpuModified(u64 address,u64 size){return present&&dirty&&address<0x20000&&address+size>0x10000;}
     std::optional<RasterizerDownloadArea> GetFlushArea(u64 address,u64 size){
         if(!IsRegionGpuModified(address,size))return {};

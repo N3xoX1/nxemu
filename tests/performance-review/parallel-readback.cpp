@@ -42,6 +42,32 @@ int main()try {
     std::thread consumer{[&]{ready.wait(false,std::memory_order_acquire);Check("worker_return_publishes_all_partitions_to_CPU_consumer",std::memcmp(dst.data(),src.data(),maximum)==0);}};
     std::thread producer{[&]{workers.Copy(dst.data(),src.data(),maximum);ready.store(true,std::memory_order_release);ready.notify_one();}};
     producer.join();consumer.join();
+    bool burst_correct=true;
+    for(unsigned epoch=0;epoch<96;++epoch) {
+        if(epoch%12==0)std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        for(size_t partition=0;partition<4;++partition)src[partition*524288+epoch]^=0x5A;
+        workers.Copy(dst.data(),src.data(),2097152);
+        burst_correct&=std::memcmp(dst.data(),src.data(),2097152)==0;
+    }
+    Check("burst_and_idle_wakeup_complete_every_partition_before_return",burst_correct);
+    // A destruction without any submitted jobs must also wake and join helpers
+    // that have already left the initial wait and parked.
+    {Common::ReadbackCopyWorkers idle_workers(4);std::this_thread::sleep_for(std::chrono::milliseconds(5));}
+    Check("parked_helpers_stop_and_join_without_a_copy",true);
+#ifdef _WIN32
+    const auto process_cpu=[] {
+        FILETIME created{},exited{},kernel{},user{};
+        if(!GetProcessTimes(GetCurrentProcess(),&created,&exited,&kernel,&user))throw std::runtime_error("process timing");
+        const auto ticks=[](FILETIME value){return (static_cast<unsigned long long>(value.dwHighDateTime)<<32)|value.dwLowDateTime;};
+        return ticks(kernel)+ticks(user);
+    };
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    const auto idle_begin=process_cpu();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    const auto idle_ticks=process_cpu()-idle_begin;
+    std::cout<<"IDLE process_cpu_ms="<<idle_ticks/10000.0<<" wall_ms=200\n";
+    Check("idle_helpers_remain_parked_instead_of_spinning_forever",idle_ticks<500000);
+#endif
     const size_t allocation=2097152+8192;
 #ifdef _WIN32
     auto* a=static_cast<Byte*>(VirtualAlloc(nullptr,allocation,MEM_RESERVE,PAGE_NOACCESS));

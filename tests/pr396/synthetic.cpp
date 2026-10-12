@@ -21,6 +21,7 @@
 #include "yuzu_video_core/buffer_cache/usage_tracker.h"
 #include "yuzu_video_core/flush_region_cache_filter.h"
 #include "yuzu_video_core/gpu_write_history.h"
+#include "yuzu_video_core/gpu_dirty_summary.h"
 #include "yuzu_video_core/renderer_vulkan/descriptor_payload.h"
 #include "../performance-review/diagnostics-stub.h"
 
@@ -71,6 +72,7 @@ struct AsyncBuffer { std::span<u8> mapped_span; size_t offset{}; };
 struct Mapping { u64 MappingGeneration() const { return 1; } };
 struct Harness {
     VideoCommon::GpuWriteHistory<> gpu_write_history;
+    std::unique_ptr<VideoCommon::GpuDirtySummary<>> gpu_dirty_summary{VideoCommon::MakeGpuDirtySummary()};
     struct SparseBufferPart { DAddr device_addr{}; u32 size{},offset{}; BufferId buffer_id{}; u64 content_version{}; };
     struct SparseBuffer {
         const Mapping* gpu_memory{}; GPUVAddr gpu_addr{}; u32 size{}, capacity{};
@@ -152,7 +154,9 @@ struct Harness {
         pending_readback_flag_offsets.emplace_back();
         pending_readback_cpu_copies.emplace_back();
         pending_download_ranges.emplace_back(); pending_download_ranges.back().Add(start,size);
-        async_downloads.Add(start,size); gpu_modified_ranges.Add(start,size);
+        async_downloads.Add(start,size);
+        if(gpu_dirty_summary)gpu_dirty_summary->Mark(start,size);
+        gpu_modified_ranges.Add(start,size);
     }
 };
 struct Binding { DAddr device_addr{}; u32 size{}; BufferId buffer_id{}; GPUVAddr sparse_gpu_addr{}; bool is_sparse{}; };

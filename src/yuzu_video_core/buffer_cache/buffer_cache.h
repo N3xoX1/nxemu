@@ -283,6 +283,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         const DAddr diff = base_address - *cpu_src_address;
         const DAddr new_base_address = *cpu_dest_address + diff;
         if (GpuWriteFilterEnabled()) gpu_write_history.Mark(new_base_address, size);
+        if (gpu_dirty_summary) gpu_dirty_summary->Mark(new_base_address, size);
         tmp_intervals.push_back({new_base_address, size});
         uncommitted_gpu_modified_ranges.Add(new_base_address, size);
     };
@@ -865,6 +866,17 @@ void BufferCache<P>::PopAsyncBuffers() {
                 });
             });
         });
+        if (gpu_dirty_summary) {
+            // The cache mutex still protects all canonical/alias metadata. The
+            // release publication is after every live RAM copy and preserves
+            // dirty bytes from later committed and uncommitted GPU epochs.
+            VideoCommon::PerformanceDiagnostics::Scope summary_timing{
+                VideoCommon::PerformanceDiagnostics::Category::DirtySummaryRefresh};
+            gpu_dirty_summary->Refresh(device_addr, copy.size,
+                [&](DAddr begin, u64 size, auto&& visitor) {
+                    gpu_modified_ranges.ForEachInRange(begin, size, visitor);
+                });
+        }
         ++copy_index;
     }
     async_buffers_death_ring.emplace_back(*async_buffer);
@@ -1609,6 +1621,7 @@ void BufferCache<P>::UpdateComputeTextureBuffers() {
 template <class P>
 void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size) {
     if (GpuWriteFilterEnabled()) gpu_write_history.Mark(device_addr, size);
+    if (gpu_dirty_summary) gpu_dirty_summary->Mark(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
@@ -2409,6 +2422,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
         if (GpuWriteFilterEnabled()) gpu_write_history.Mark(device_addr, write_size);
+        if (gpu_dirty_summary) gpu_dirty_summary->Mark(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);

@@ -8,8 +8,10 @@
 #include <thread>
 #include <vector>
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/range_sets.inc"
 #include "yuzu_video_core/flush_region_cache_filter.h"
 #include "yuzu_video_core/gpu_write_history.h"
+#include "yuzu_video_core/gpu_dirty_summary.h"
 #include "diagnostics-stub.h"
 using namespace VideoCommon;
 using BufferId=unsigned;
@@ -20,9 +22,13 @@ struct CountingMutex {
 };
 struct BufferModel {
     CountingMutex mutex;GpuWriteHistory<> gpu_write_history;
+    std::unique_ptr<GpuDirtySummary<>> gpu_dirty_summary;
+    Common::RangeSet<DAddr>* exact_dirty_ranges{};
     bool registered{},dirty{};unsigned cpu_writes{};
     bool MayHaveGpuWrites(DAddr,size_t)const noexcept;
-    bool IsRegionGpuModified(DAddr,size_t){return dirty;}
+    bool HasGpuDirtySummary()const noexcept;
+    bool MayHaveGpuWritesForRead(DAddr,size_t,bool)const noexcept;
+    bool IsRegionGpuModified(DAddr addr,size_t size){if(!exact_dirty_ranges)return dirty;bool found=false;exact_dirty_ranges->ForEachInRange(addr,size,[&](DAddr,DAddr){found=true;});return found;}
     bool OnCPUWrite(DAddr,u64){if(!registered)return false;if(dirty)return true;++cpu_writes;return false;}
 };
 struct TextureModel {
@@ -42,8 +48,9 @@ struct RasterizerModel {
 };
 struct WrittenModel {
     GpuWriteHistory<> gpu_write_history;
+    std::unique_ptr<GpuDirtySummary<>> gpu_dirty_summary{std::make_unique<GpuDirtySummary<>>()};
     bool published_first{true};unsigned dirty_calls{},host_calls{},content_calls{};
-    struct Tracker {WrittenModel& owner;void MarkRegionAsGpuModified(DAddr a,u32 n){++owner.dirty_calls;owner.published_first &= !GpuWriteFilterEnabled() || owner.gpu_write_history.MayHaveWrites(a,n);}} memory_tracker{*this};
+    struct Tracker {WrittenModel& owner;void MarkRegionAsGpuModified(DAddr a,u32 n){++owner.dirty_calls;owner.published_first &= (!GpuWriteFilterEnabled() || owner.gpu_write_history.MayHaveWrites(a,n)) && owner.gpu_dirty_summary->MayHaveWrites(a,n);}} memory_tracker{*this};
     struct Ranges {WrittenModel& owner;void Add(DAddr a,u32 n){owner.published_first &= !GpuWriteFilterEnabled() || owner.gpu_write_history.MayHaveWrites(a,n);}} gpu_modified_ranges{*this},uncommitted_gpu_modified_ranges{*this};
     struct Runtime {WrittenModel& owner;void MarkHostWrite(unsigned){++owner.host_calls;}} runtime{*this};
     std::array<unsigned,1> slot_buffers{};
@@ -60,6 +67,30 @@ void Initialize(RasterizerModel& r,bool b,bool t,bool db,bool dt) {
     if(b)r.device_memory.filter.Register(address,64,CacheType::BufferCache);
     if(t)r.device_memory.filter.Register(address,64,CacheType::TextureCache);
     if(db)r.buffer_cache.gpu_write_history.Mark(address,64);
+}
+void CurrentSummaryPredicate(){
+    auto model=std::make_unique<RasterizerModel>();auto& r=*model;
+    constexpr DAddr address=0x20000,pending=address+65536;
+    Initialize(r,true,false,false,false);Settings::high=false;
+    Common::RangeSet<DAddr> remaining;r.buffer_cache.exact_dirty_ranges=&remaining;
+    r.buffer_cache.gpu_dirty_summary=std::make_unique<GpuDirtySummary<>>();
+    remaining.Add(address,64);r.buffer_cache.gpu_dirty_summary->Mark(address,64);
+    r.buffer_cache.gpu_write_history.Mark(address,64);
+    Check("current_dirty_positive_uses_actual_locked_predicate",r.MustFlushRegion(address,1,CacheType::BufferCache)&&r.buffer_cache.mutex.calls==1);
+    r.device_memory.filter.Register(pending,64,CacheType::BufferCache);
+    remaining.Add(pending,64);r.buffer_cache.gpu_dirty_summary->Mark(pending,64);
+    remaining.Subtract(address,64);
+    r.buffer_cache.gpu_dirty_summary->Refresh(address,64,[&](DAddr a,u64 n,auto&& visit){remaining.ForEachInRange(a,n,visit);});
+    r.buffer_cache.mutex.calls=0;
+    Check("retired_region_skips_original_cache_mutex",!r.MustFlushRegion(address,1,CacheType::BufferCache)&&r.buffer_cache.mutex.calls==0);
+    Check("later_pending_region_keeps_original_cache_mutex",r.MustFlushRegion(pending,1,CacheType::BufferCache)&&r.buffer_cache.mutex.calls==1);
+    r.buffer_cache.mutex.lock();
+    auto negative=std::async(std::launch::async,[&]{return r.MustFlushRegion(address,1,CacheType::BufferCache);});
+    const bool ready=negative.wait_for(std::chrono::milliseconds(30))==std::future_status::ready;
+    r.buffer_cache.mutex.unlock();Check("retired_negative_completes_while_cache_mutex_is_held",ready&&!negative.get());
+    r.device_memory.filter.Register(address,64,CacheType::TextureCache);
+    const auto before=r.buffer_cache.mutex.calls;
+    Check("texture_alias_preserves_historical_buffer_lock",!r.MustFlushRegion(address,1,CacheType::BufferCache)&&r.buffer_cache.mutex.calls==before+1);
 }
 int main(){
     bool flush=true,writes=true,early=true;unsigned cases{};
@@ -104,5 +135,6 @@ int main(){
         r.buffer_cache.mutex.unlock();const bool result=query.get();
         Check("held_cache_lock_is_bypassed_only_for_proven_negative",ready==(GpuWriteFilterEnabled()&&!positive)&&result==positive);
     }
+    CurrentSummaryPredicate();
     std::cout<<"RESULT checks="<<checks<<" failed="<<failures<<" filter_enabled="<<GpuWriteFilterEnabled()<<'\n';return failures?1:0;
 }

@@ -1,3 +1,4 @@
+param([switch]$CorrectnessOnly)
 $ErrorActionPreference='Stop'
 $deltaRepo=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $deltaOut=Join-Path $deltaRepo 'build/performance-live-20261011/gpu-delta-tests'
@@ -29,6 +30,7 @@ try{
  if(Select-String -LiteralPath (Join-Path $deltaOut 'validation.txt') -Pattern 'Validation Error|SYNC-HAZARD|ERROR / SPEC'){Get-Content (Join-Path $deltaOut 'validation.txt') -Tail 14;throw 'Production delta Vulkan sync invalid'}
  Get-Content (Join-Path $deltaOut 'validation.txt')
 }finally{$env:VK_INSTANCE_LAYERS=$deltaOldLayers;$env:VK_LAYER_PATH=$deltaOldPath;$env:VK_LAYER_SETTINGS_PATH=$deltaOldSettings}
+if ($CorrectnessOnly) { exit 0 }
 try {
  $env:VK_INSTANCE_LAYERS=$null;$env:VK_LAYER_SETTINGS_PATH=$null
  & (Join-Path $deltaOut 'delta.exe') (Join-Path $deltaRepo 'build/pr396-corrections/tests/read.spv') (Join-Path $deltaOut 'delta.spv') --benchmark *> (Join-Path $deltaOut 'benchmark.txt')

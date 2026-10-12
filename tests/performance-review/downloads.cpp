@@ -80,6 +80,7 @@ struct DownloadHarness {
     DownloadRuntime runtime;
     std::deque<Buffer> slot_buffers{Buffer{}};
     Common::RangeSet<DAddr> gpu_modified_ranges,uncommitted_gpu_modified_ranges,downloaded_ranges;
+    std::unique_ptr<VideoCommon::GpuDirtySummary<>> gpu_dirty_summary{VideoCommon::MakeGpuDirtySummary()};
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges,pending_download_ranges;
     Common::OverlapRangeSet<DAddr> async_downloads;
     std::deque<std::optional<Async_Buffer>> async_buffers;
@@ -94,6 +95,7 @@ struct DownloadHarness {
         memory_tracker.ForEachUploadRange(base,size,[](u64,u64){});
     }
     void Mark(u64 begin,u64 size) {
+        if(gpu_dirty_summary)gpu_dirty_summary->Mark(begin,size);
         gpu_modified_ranges.Add(begin,size);uncommitted_gpu_modified_ranges.Add(begin,size);
         memory_tracker.MarkRegionAsGpuModified(begin,size);
     }
@@ -265,6 +267,17 @@ void DeltaEpochs() {
     Check("delta_invalidation_crossing_mask_word_boundary_clears_both_proofs",(mask[0]&(1u<<31))==0&&(mask[1]&1)==0);
 }
 
+void CurrentDirtyRetirement(){
+    DownloadHarness h;h.device_memory.data.resize(3ULL<<20,0x11);h.AddBuffer(4096,2ULL<<20);
+    h.gpu_dirty_summary=std::make_unique<VideoCommon::GpuDirtySummary<>>();h.runtime.gpu_delta=true;
+    h.Mark(4096,2ULL<<20);h.CommitAsyncFlushesHigh();
+    constexpr u64 future=4096+33000;h.slot_buffers[1].data[33000]^=0x13;h.Mark(future,1);
+    h.PopAsyncBuffers();
+    Check("actual_retirement_keeps_newer_GPU_epoch_summary_positive",h.gpu_dirty_summary->MayHaveWrites(future,1));
+    Check("actual_retirement_clears_clean_neighbour_pages",!h.gpu_dirty_summary->MayHaveWrites(4096+131072,1));
+    h.CommitAsyncFlushesHigh();h.PopAsyncBuffers();
+    Check("actual_final_retirement_publishes_clean_after_payload",!h.gpu_dirty_summary->MayHaveWrites(4096,2ULL<<20)&&h.device_memory.data[future]==h.slot_buffers[1].data[33000]);
+}
 void Scaling() {
     for(u32 n:{1U,8U,64U})for(bool baseline:{true,false}) {
         const auto label=std::string(baseline?"baseline_":"current_")+std::to_string(n)+"_same_page_writes";
@@ -282,7 +295,7 @@ void Scaling() {
 }
 #ifndef DOWNLOAD_NO_MAIN
 int main() try {
-    SamePage();Boundary();FullAndEmpty();TrackerBoundaries();Oracle();DeltaEpochs();Scaling();
+    SamePage();Boundary();FullAndEmpty();TrackerBoundaries();Oracle();DeltaEpochs();CurrentDirtyRetirement();Scaling();
     std::cout<<"FAILURES="<<failures<<'\n';return failures?1:0;
 } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 2;}
 #endif

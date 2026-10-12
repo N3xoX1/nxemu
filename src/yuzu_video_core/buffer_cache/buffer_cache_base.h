@@ -28,6 +28,7 @@
 #include "yuzu_video_core/delayed_destruction_ring.h"
 #include "yuzu_video_core/dirty_flags.h"
 #include "yuzu_video_core/gpu_write_history.h"
+#include "yuzu_video_core/gpu_dirty_summary.h"
 #include "yuzu_video_core/engines/draw_manager.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -308,6 +309,11 @@ public:
     [[nodiscard]] bool MayHaveGpuWrites(DAddr addr, size_t size) const noexcept {
         return !GpuWriteFilterEnabled() || gpu_write_history.MayHaveWrites(addr, size);
     }
+    [[nodiscard]] bool HasGpuDirtySummary() const noexcept { return gpu_dirty_summary != nullptr; }
+    [[nodiscard]] bool MayHaveGpuWritesForRead(DAddr addr, size_t size, bool allow_current) const noexcept {
+        if (allow_current && gpu_dirty_summary) return gpu_dirty_summary->MayHaveWrites(addr, size);
+        return MayHaveGpuWrites(addr, size);
+    }
 
     /// Return true when a region is registered on the cache
     [[nodiscard]] bool IsRegionRegistered(DAddr addr, size_t size);
@@ -575,6 +581,7 @@ private:
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
     Common::RangeSet<DAddr> gpu_modified_ranges;
     GpuWriteHistory<> gpu_write_history;
+    std::unique_ptr<GpuDirtySummary<>> gpu_dirty_summary{MakeGpuDirtySummary()};
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;
 
     // Async Buffers

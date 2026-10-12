@@ -232,3 +232,27 @@ before a new GPU write and verifies detection by the next mask. Vulkan sync
 validation runs separately from timing. These worker/GPU strategies are fixtures
 only; integrating a mirror requires the emulator's complete alias, cancellation,
 remapping and pending-epoch lifecycle. They do not establish game FPS gains.
+
+
+`run-retirement-audit.ps1` extracts actual fence retirement and raw query RAM
+writes. Seventeen controls in serial/four-thread modes verify completed payloads,
+lock ordering, newer CPU writes and unchanged GPU epochs after untracked query
+writes. Test-only negative controls demonstrate that early unlocking, GPU flags
+alone and buffer-only generation counters can lose guest data. No production
+lock, readback policy or experimental environment option is changed.
+`run-vulkan-delta.ps1 -CorrectnessOnly` runs validation without the benchmark.
+Worker tests cover burst/idle wakeup, parked shutdown and idle CPU use; DLL tests
+perform a large and small copy before unloading the existing worker scope.
+
+
+The optional `NXEMU_CURRENT_GPU_DIRTY_FILTER=1` summary tracks current dirty
+buffer pages. Three write sites publish before dirty insertion; retirement
+refreshes only after exact live-RAM reconciliation and preserves newer GPU
+epochs. Texture aliases retain the historical buffer-lock policy. Unsupported
+addresses or allocation failure use the conservative path. It is disabled by
+default. Tests cover independent byte oracles, publication, cancellation and
+held mutexes. In Immortals it bypassed about 43–44% of buffer consultations,
+versus 23% for v12, at about 0.028 ms/frame maintenance. Separate runs measured
+46.38 FPS for v14 and 46.21–46.78 FPS for v12: no demonstrated extra FPS gain.
+Worker polling, invalidation filtering, adaptive eight-thread pools and batching
+of memory protections were not retained after their game measurements.

@@ -19,6 +19,9 @@ try {
         $env:NXEMU_PARALLEL_READBACK_THREADS=$shutdownMode
         $shutdownProcess=Start-Process -FilePath (Join-Path $shutdownOut 'host.exe') -ArgumentList ('"'+(Join-Path $shutdownOut 'scoped.dll')+'"') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $shutdownOut "mode-$shutdownMode.txt") -RedirectStandardError (Join-Path $shutdownOut "mode-$shutdownMode-errors.txt")
         try {
+            # Retain the process handle before a fast fixture exits; otherwise
+            # Windows PowerShell can return a null ExitCode after WaitForExit.
+            $null=$shutdownProcess.Handle
             if(!$shutdownProcess.WaitForExit(15000)){$shutdownProcess.Kill();$shutdownProcess.WaitForExit();throw 'Scoped shutdown fixture timed out'}
             if($shutdownProcess.ExitCode -ne 0){throw "Scoped shutdown fixture failed: $($shutdownProcess.ExitCode)"}
             Get-Content (Join-Path $shutdownOut "mode-$shutdownMode.txt")

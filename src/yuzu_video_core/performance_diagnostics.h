@@ -30,7 +30,7 @@ enum class Category : size_t {
     ReadbackSegments, ReadbackRuns, ReadbackSmall, ReadbackLarge,
     ReadbackStores, ReadbackSkipped, ReadbackGpu, ReadbackGpuSkipped, ReadbackParallel,
     ReadbackGpuRejectedSize, ReadbackGpuRejectedBuffer, ReadbackGpuRejectedBudget,
-    FlushBufferQuery, FlushBufferSkipped, CpuWriteQuery, CpuWriteBufferSkipped, CpuWriteTextureSkipped, Count,
+    FlushBufferQuery, FlushBufferSkipped, CpuWriteQuery, CpuWriteBufferSkipped, CpuWriteTextureSkipped, DirtySummaryRefresh, Count,
 };
 
 inline constexpr std::array<const char*, static_cast<size_t>(Category::Count)> Names{
@@ -43,7 +43,7 @@ inline constexpr std::array<const char*, static_cast<size_t>(Category::Count)> N
     "readback_device_copy", "readback_segments", "readback_runs", "readback_small", "readback_large",
     "readback_stores", "readback_skipped", "readback_gpu", "readback_gpu_skipped", "readback_parallel",
     "readback_gpu_rejected_size", "readback_gpu_rejected_buffer", "readback_gpu_rejected_budget",
-    "flush_buffer_query", "flush_buffer_skipped", "cpu_write_query", "cpu_write_buffer_skipped", "cpu_write_texture_skipped",
+    "flush_buffer_query", "flush_buffer_skipped", "cpu_write_query", "cpu_write_buffer_skipped", "cpu_write_texture_skipped", "dirty_summary_refresh",
 };
 
 using Clock = std::chrono::steady_clock;
