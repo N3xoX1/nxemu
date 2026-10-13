@@ -183,6 +183,7 @@ struct TextureBufferDescriptor {
     u32 secondary_shift_left;
     u32 count;
     u32 size_shift;
+    u32 handle_or_bits{};
 
     auto operator<=>(const TextureBufferDescriptor&) const = default;
 };
@@ -217,6 +218,8 @@ struct TextureDescriptor {
     u32 size_shift;
     /// Sampler-less array indexed by the TIC index of a runtime handle.
     bool is_direct{};
+    /// Constant bits combined with the cbuf handle, including an immediate sampler index.
+    u32 handle_or_bits{};
 
     auto operator<=>(const TextureDescriptor&) const = default;
 };

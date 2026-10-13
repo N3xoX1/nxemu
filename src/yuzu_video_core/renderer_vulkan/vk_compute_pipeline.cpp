@@ -155,22 +155,20 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
         const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
         auto secondary = primary;
         bool has_secondary{};
-        u32 secondary_offset{}, primary_shift{}, secondary_shift{};
+        u32 secondary_offset{};
         if constexpr (requires { desc.has_secondary; }) {
             if (desc.has_secondary) {
                 ASSERT(((qmd.const_buffer_enable_mask >> desc.secondary_cbuf_index) & 1) != 0);
                 secondary = bind_cbuf(desc.secondary_cbuf_index, desc.count);
                 has_secondary = true;
                 secondary_offset = desc.secondary_cbuf_offset;
-                primary_shift = desc.shift_left;
-                secondary_shift = desc.secondary_shift_left;
             }
         }
         return [=](u32 index) {
             const u32 delta = index << desc.size_shift;
             const u32 raw = primary.Read(desc.cbuf_offset + delta);
-            return TexturePair(has_secondary ? (raw << primary_shift) |
-                                (secondary.Read(secondary_offset + delta) << secondary_shift) : raw,
+            return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                   desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
                                via_header_index);
         };
     }};

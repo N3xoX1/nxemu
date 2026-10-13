@@ -114,8 +114,10 @@ void ComputePipeline::Configure() {
                 const u32 lhs_raw{gpu_memory->Read<u32>(addr) << desc.shift_left};
                 const u32 rhs_raw{gpu_memory->Read<u32>(separate_addr)
                                   << desc.secondary_shift_left};
-                return TexturePair(lhs_raw | rhs_raw, via_header_index);
+                return TexturePair(lhs_raw | rhs_raw | desc.handle_or_bits, via_header_index);
             }
+            return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                   desc, gpu_memory->Read<u32>(addr)), via_header_index);
         }
         return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
     }};

@@ -35,6 +35,7 @@ struct ConstBufferAddr {
     u32 size_shift{DESCRIPTOR_SIZE_SHIFT};
     bool has_secondary;
     bool is_direct{};
+    u32 handle_or_bits{};
 };
 
 struct TextureInst {
@@ -345,6 +346,18 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     default:
         return std::nullopt;
     case IR::Opcode::BitwiseOr32: {
+        // TEX.B can combine a cbuf TIC handle with an immediate TSC index in bits 20..31.
+        // Keep the constant in the descriptor instead of finding only the cbuf below the OR.
+        for (size_t immediate = 0; immediate < 2; ++immediate) {
+            if (inst->Arg(immediate).IsImmediate() &&
+                (inst->Arg(immediate).U32() & 0xfffffU) == 0) {
+                auto source = Track(inst->Arg(1 - immediate), env);
+                if (source) {
+                    source->handle_or_bits |= inst->Arg(immediate).U32();
+                }
+                return source;
+            }
+        }
         std::optional lhs{Track(inst->Arg(0), env)};
         std::optional rhs{Track(inst->Arg(1), env)};
         if (!lhs || !rhs) {
@@ -369,6 +382,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
             .dynamic_offset = {},
             .count = 1,
             .has_secondary = true,
+            .handle_or_bits = lhs->handle_or_bits | rhs->handle_or_bits,
         };
     }
     case IR::Opcode::ShiftLeftLogical32: {
@@ -379,6 +393,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         std::optional lhs{Track(inst->Arg(0), env)};
         if (lhs) {
             lhs->shift_left = shift.U32();
+            lhs->handle_or_bits = shift.U32() < 32 ? lhs->handle_or_bits << shift.U32() : 0;
         }
         return lhs;
         break;
@@ -408,6 +423,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         std::optional lhs{Track(op1, env)};
         if (lhs) {
             lhs->shift_left = static_cast<u32>(std::countr_zero(op2.U32()));
+            lhs->handle_or_bits &= op2.U32();
         }
         return lhs;
         break;
@@ -565,7 +581,7 @@ u32 GetTextureHandle(Environment& env, const ConstBufferAddr& cbuf) {
     const u32 lhs_raw{env.ReadCbufValue(cbuf.index, cbuf.offset) << cbuf.shift_left};
     const u32 rhs_raw{env.ReadCbufValue(secondary_index, secondary_offset)
                       << cbuf.secondary_shift_left};
-    return lhs_raw | rhs_raw;
+    return lhs_raw | rhs_raw | cbuf.handle_or_bits;
 }
 
 TextureType ReadTextureType(Environment& env, const ConstBufferAddr& cbuf) {
@@ -599,6 +615,7 @@ public:
                    desc.secondary_cbuf_offset == existing.secondary_cbuf_offset &&
                    desc.secondary_shift_left == existing.secondary_shift_left &&
                    desc.count == existing.count && desc.size_shift == existing.size_shift &&
+                   desc.handle_or_bits == existing.handle_or_bits &&
                    desc.has_secondary == existing.has_secondary;
         });
     }
@@ -626,6 +643,7 @@ public:
                    desc.secondary_cbuf_offset == existing.secondary_cbuf_offset &&
                    desc.secondary_shift_left == existing.secondary_shift_left &&
                    desc.count == existing.count && desc.size_shift == existing.size_shift &&
+                   desc.handle_or_bits == existing.handle_or_bits &&
                    desc.is_direct == existing.is_direct;
         })};
         // TODO: Read this from TIC
@@ -882,6 +900,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .secondary_shift_left = cbuf.secondary_shift_left,
                     .count = cbuf.count,
                     .size_shift = size_shift,
+                    .handle_or_bits = cbuf.handle_or_bits,
                 });
             } else {
                 index = descriptors.Add(TextureDescriptor{
@@ -898,6 +917,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .count = cbuf.count,
                     .size_shift = size_shift,
                     .is_direct = cbuf.is_direct,
+                    .handle_or_bits = cbuf.handle_or_bits,
                 });
             }
             break;
