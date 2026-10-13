@@ -248,11 +248,63 @@ struct MemoryHarness {
     bool IsContinuousRange(GPUVAddr,size_t)const;
     bool BaselineContinuousRange(GPUVAddr,size_t)const;
     bool PreviousContinuousRange(GPUVAddr,size_t)const;
+    size_t MaxContinuousRange(GPUVAddr,size_t)const;
+    size_t BaselineMaxContinuousRange(GPUVAddr,size_t)const;
 };
 #include "memory-operations.inc"
 #include "continuity-current.inc"
 #include "continuity-baseline.inc"
 #include "continuity-previous.inc"
+#include "max-continuity-current.inc"
+#include "max-continuity-baseline.inc"
+void MaxContinuityOracle() {
+    MemoryHarness memory(201);memory.SyncEntries();
+    Check("max_continuity_full_range",memory.MaxContinuousRange(0,8ULL<<20)==(8ULL<<20));
+    const auto scans=memory.walked_pages;
+    Check("max_continuity_contained_range_reuses_proof",
+          memory.MaxContinuousRange(17,20480)==20480&&memory.walked_pages==scans);
+    {
+        Tegra::MappingChangeScope update(memory.mapping_generation,memory.mapping_updates_in_progress);
+        memory.page_table[4]=0;memory.SyncEntries();
+        Check("max_continuity_remapped_hole_returns_exact_prefix",memory.MaxContinuousRange(0,8ULL<<20)==16384);
+        memory.page_table[4]=0x10004;memory.SyncEntries();
+        Check("max_continuity_active_writer_uses_live_walk",memory.MaxContinuousRange(0,8ULL<<20)==(8ULL<<20));
+        memory.page_table[4]=0;memory.SyncEntries();
+    }
+    Check("max_continuity_active_writer_result_is_not_retained",memory.MaxContinuousRange(0,8ULL<<20)==16384);
+    bool valid=true;std::mt19937 rng(0x5166B);
+    for(size_t i=0;i<40000;++i) {
+        if(i%7==0) {
+            Tegra::MappingChangeScope update(memory.mapping_generation,memory.mapping_updates_in_progress);
+            const size_t page=rng()%memory.page_table.size();
+            memory.page_table[page]=rng()%3?static_cast<u32>(0x10000+page+(rng()%4==0?31:0)):0;
+            memory.SyncEntries();
+            const size_t big=rng()%memory.big_page_table_dev.size();
+            memory.SetEntry<true>(big*65536,static_cast<MemoryHarness::EntryType>(rng()%4));
+            memory.big_page_table_dev[big]=static_cast<u32>(0x10000+big*16+(rng()%4==0?19:0));
+        }
+        const u64 address=rng()%(8ULL<<20);
+        const u64 size=std::min<u64>(rng()%(2ULL<<20),(8ULL<<20)-address);
+        valid &= memory.MaxContinuousRange(address,size)==memory.BaselineMaxContinuousRange(address,size);
+    }
+    Check("max_continuity_40000_remaps_tags_holes_and_prefixes_match_validated_walk",valid);
+    MemoryHarness small(202);small.SyncEntries();valid=true;
+    for(u64 big=0;big<4;++big)for(u64 tag=0;tag<4;++tag) {
+        Tegra::MappingChangeScope update(small.mapping_generation,small.mapping_updates_in_progress);
+        small.SetEntry<true>(0,static_cast<MemoryHarness::EntryType>(big));
+        small.SetEntry<false>(0,static_cast<MemoryHarness::EntryType>(tag));
+        for(u64 offset:{0ULL,17ULL,4095ULL})for(u64 size:{0ULL,1ULL,4096ULL-offset}) {
+            valid &= small.MaxContinuousRange(offset,size)==small.BaselineMaxContinuousRange(offset,size);
+        }
+    }
+    Check("max_continuity_single_page_all_tags_and_empty_ranges_match_walk",valid);
+    MemoryHarness reused(203);reused.SyncEntries();reused.page_table[4]=0;reused.SyncEntries();
+    Check("max_continuity_new_owner_rejects_previous_proof",reused.MaxContinuousRange(0,8ULL<<20)==16384);
+    MemoryHarness huge(204,65536);huge.SyncEntries();
+    Bench("16MiB_max_continuity_baseline",2000,[&](size_t){result_sink=huge.BaselineMaxContinuousRange(0,16ULL<<20);});
+    Bench("16MiB_max_continuity_current",2000,[&](size_t){result_sink=huge.MaxContinuousRange(0,16ULL<<20);});
+    Check("max_continuity_large_cached_result_preserved",result_sink==(16ULL<<20));
+}
 void ContinuityOracle() {
     MemoryHarness memory(100);
     memory.SyncEntries();
@@ -327,7 +379,7 @@ void ContinuityOracle() {
     Check("continuous_wrapping_range_is_not_retained",!cache.Contains(1,0,std::numeric_limits<u64>::max()-3,1));
 }
 int main() {
-    UsageOracle();WordOracle();ContinuityOracle();FlushOracle();
+    UsageOracle();WordOracle();ContinuityOracle();MaxContinuityOracle();FlushOracle();
     std::cout << "RESULT checks=" << checks << " failed=" << failures << '\n';
     return failures ? 1:0;
 }

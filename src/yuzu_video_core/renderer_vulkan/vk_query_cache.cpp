@@ -1466,7 +1466,8 @@ VideoCommon::StreamerInterface* QueryCacheRuntime::GetStreamerInterface(QueryTyp
     }
 }
 
-void QueryCacheRuntime::Barriers(bool is_prebarrier) {
+namespace {
+void QueryCopyBarrier(vk::CommandBuffer cmdbuf, bool is_prebarrier) {
     static constexpr VkMemoryBarrier READ_BARRIER{
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .pNext = nullptr,
@@ -1479,18 +1480,21 @@ void QueryCacheRuntime::Barriers(bool is_prebarrier) {
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
     };
-    impl->scheduler.RequestOutsideRenderPassOperationContext();
     if (is_prebarrier) {
-        impl->scheduler.Record([](vk::CommandBuffer cmdbuf) {
-            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, READ_BARRIER);
-        });
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               0, READ_BARRIER);
     } else {
-        impl->scheduler.Record([](vk::CommandBuffer cmdbuf) {
-            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, WRITE_BARRIER);
-        });
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               0, WRITE_BARRIER);
     }
+}
+} // namespace
+
+void QueryCacheRuntime::Barriers(bool is_prebarrier) {
+    impl->scheduler.RequestOutsideRenderPassOperationContext();
+    impl->scheduler.Record([is_prebarrier](vk::CommandBuffer cmdbuf) {
+        QueryCopyBarrier(cmdbuf, is_prebarrier);
+    });
 }
 
 template <typename SyncValuesType>
@@ -1586,15 +1590,18 @@ void QueryCacheRuntime::SyncValues(std::span<SyncValuesType> values, VkBuffer ba
     }
     // Query destinations may still be in use by shaders or indirect draws. Order that
     // usage before overwriting them, then make the copied results visible to consumers.
-    Barriers(true);
+    // Keep the barrier/copy/barrier sequence in one worker command. Nothing can be
+    // interleaved between these operations, and the memory dependencies stay identical.
+    impl->scheduler.RequestOutsideRenderPassOperationContext();
     impl->scheduler.Record([src_buffer, dst_buffers = std::move(impl->buffers_to_upload_to),
                             vk_copies = std::move(impl->copies_setup)](vk::CommandBuffer cmdbuf) {
+        QueryCopyBarrier(cmdbuf, true);
         size_t size = dst_buffers.size();
         for (size_t i = 0; i < size; i++) {
             cmdbuf.CopyBuffer(src_buffer, dst_buffers[i].first, vk_copies[i]);
         }
+        QueryCopyBarrier(cmdbuf, false);
     });
-    Barriers(false);
 }
 
 } // namespace Vulkan

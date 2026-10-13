@@ -14,9 +14,9 @@ assert 'cmdbuf.Dispatch(dim[0], dim[1], dim[2]);\n        Scheduler::ComputeMemo
 assert 'cmdbuf.Dispatch(groups, 1, 1);\n            Scheduler::ComputeMemoryBarrier(cmdbuf);' in graphics
 full_query=(root/'src/yuzu_video_core/renderer_vulkan/vk_query_cache.cpp').read_text()
 sync=full_query[full_query.index('void QueryCacheRuntime::SyncValues('):]
-assert sync.index('Barriers(true);') < sync.index('cmdbuf.CopyBuffer(') < sync.index('Barriers(false);')
+assert sync.index('QueryCopyBarrier(cmdbuf, true);') < sync.index('cmdbuf.CopyBuffer(') < sync.index('QueryCopyBarrier(cmdbuf, false);')
 wfi=raster[raster.index('void RasterizerVulkan::WaitForIdle()'):raster.index('void RasterizerVulkan::FragmentBarrier()')]
-query=query[query.index('void QueryCacheRuntime::Barriers('):query.index('template <typename SyncValuesType>')]
+query=query[query.index('void QueryCopyBarrier('):query.index('void QueryCacheRuntime::Barriers(')]
 texture=texture[texture.index('void Image::DownloadMemory(std::span<VkBuffer>'):]
 def mask(text, field):
     return re.search(r'\.'+field+r'\s*=\s*([^,]+),',text)[1].strip()

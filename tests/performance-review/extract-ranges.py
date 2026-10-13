@@ -31,6 +31,17 @@ for mode in ('current','baseline','previous'):
     (out/f'continuity-{mode}.inc').write_text(body)
 (out/'extraction.json').write_text(json.dumps(manifest,indent=2))
 for mode in ('current','baseline'):
+    text=memory_text if mode=='current' else subprocess.check_output(
+        ['git','show','5166b027:src/yuzu_video_core/memory_manager.cpp'],cwd=root,text=True)
+    start=text.index('size_t MemoryManager::MaxContinuousRange(')
+    opening=text.index('{',start);end=opening+1;depth=1
+    while depth:
+        depth+=(text[end]=='{')-(text[end]=='}');end+=1
+    body=text[start:end].replace('MemoryManager::','MemoryHarness::')
+    body=body.replace('thread_local ContinuousRangeCache','thread_local Tegra::ContinuousRangeCache')
+    if mode=='baseline':body=body.replace('MaxContinuousRange(', 'BaselineMaxContinuousRange(')
+    (out/f'max-continuity-{mode}.inc').write_text(body)
+for mode in ('current','baseline'):
     path='src/yuzu_video_core/renderer_vulkan/vk_rasterizer.cpp'
     text=(root/path).read_text() if mode=='current' else subprocess.check_output(['git','show',f'61f2d4b6:{path}'],cwd=root,text=True)
     bodies=[]

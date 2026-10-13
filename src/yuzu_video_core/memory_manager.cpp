@@ -728,6 +728,15 @@ bool MemoryManager::IsMemoryDirty(GPUVAddr gpu_addr, size_t size,
 
 size_t MemoryManager::MaxContinuousRange(GPUVAddr gpu_addr, size_t size) const
 {
+    if (size <= page_size - (gpu_addr & page_mask)) {
+        return IsContinuousRange(gpu_addr, size) ? size : 0;
+    }
+    thread_local ContinuousRangeCache cache;
+    const u64 generation = mapping_generation.load(std::memory_order_acquire);
+    if (cache.ContainsStableMapping(unique_identifier, generation, gpu_addr, size,
+                                    mapping_generation, mapping_updates_in_progress)) {
+        return size;
+    }
     std::optional<DAddr> old_page_addr{};
     size_t range_so_far = 0;
     bool result{false};
@@ -763,6 +772,13 @@ size_t MemoryManager::MaxContinuousRange(GPUVAddr gpu_addr, size_t size) const
         return result;
     };
     MemoryOperation<true>(gpu_addr, size, big_check, fail, check_short_pages);
+    // Cache only a fully verified range. A partial prefix still needs the original
+    // walk to locate its boundary, and results from an active remap are not retained.
+    if (range_so_far == size &&
+        mapping_updates_in_progress.load(std::memory_order_acquire) == 0 &&
+        mapping_generation.load(std::memory_order_acquire) == generation) {
+        cache.Remember(unique_identifier, generation, gpu_addr, size);
+    }
     return range_so_far;
 }
 
