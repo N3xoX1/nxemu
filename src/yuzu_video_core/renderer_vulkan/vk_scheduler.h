@@ -60,6 +60,10 @@ public:
     /// of a renderpass.
     void RequestOutsideRenderPassOperationContext();
 
+    [[nodiscard]] bool IsInsideRenderPass() const noexcept {
+        return state.renderpass != VK_NULL_HANDLE;
+    }
+
     /// Update the pipeline to the current execution context.
     bool UpdateGraphicsPipeline(GraphicsPipeline* pipeline);
 

@@ -126,6 +126,9 @@ void Scheduler::RequestRenderpass(const Framebuffer* framebuffer, u32 color_scra
     num_renderpass_images = framebuffer->NumImages();
     renderpass_images = framebuffer->Images(color_scratch_mask);
     renderpass_image_ranges = framebuffer->ImageRanges(color_scratch_mask);
+    if (query_cache) {
+        query_cache->NotifyRenderPass(true);
+    }
 }
 
 void Scheduler::RequestOutsideRenderPassOperationContext() {
@@ -335,6 +338,9 @@ void Scheduler::ComputeMemoryBarrier(vk::CommandBuffer cmdbuf) {
 void Scheduler::EndRenderPass() {
     if (!state.renderpass) {
         return;
+    }
+    if (query_cache) {
+        query_cache->NotifyRenderPass(false);
     }
     Record([num_images = num_renderpass_images, images = renderpass_images,
             ranges = renderpass_image_ranges](vk::CommandBuffer cmdbuf) {

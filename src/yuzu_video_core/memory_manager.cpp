@@ -826,6 +826,17 @@ bool MemoryManager::IsGranularRange(GPUVAddr gpu_addr, std::size_t size) const
 
 bool MemoryManager::IsContinuousRange(GPUVAddr gpu_addr, std::size_t size) const
 {
+    if (size == 0) {
+        return true;
+    }
+    // A range contained in one small page cannot have a discontinuity. Read its
+    // mapping directly instead of consulting the multi-page result cache.
+    if (size <= page_size - (gpu_addr & page_mask)) {
+        const auto big_entry = GetEntry<true>(gpu_addr);
+        return big_entry == EntryType::Mapped ||
+               (big_entry != EntryType::Reserved &&
+                GetEntry<false>(gpu_addr) == EntryType::Mapped);
+    }
     thread_local ContinuousRangeCache cache;
     const u64 generation = mapping_generation.load(std::memory_order_acquire);
     if (cache.ContainsStableMapping(unique_identifier, generation, gpu_addr, size,

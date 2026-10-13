@@ -1,5 +1,10 @@
-// Temporary opt-in timing for the validated rendering implementation.
+// Legacy stage timings are compiled out by default. Define the build flag below
+// to retain the environment-controlled diagnostics without affecting F9 captures.
 #pragma once
+
+#ifndef NXEMU_ENABLE_LEGACY_PERFORMANCE_DIAGNOSTICS
+#define NXEMU_ENABLE_LEGACY_PERFORMANCE_DIAGNOSTICS 0
+#endif
 
 #include <array>
 #include <chrono>
@@ -13,6 +18,7 @@
 
 namespace VideoCommon::PerformanceDiagnostics {
 
+#if NXEMU_ENABLE_LEGACY_PERFORMANCE_DIAGNOSTICS
 inline bool Enabled() {
     static const bool enabled = [] {
         const char* value = std::getenv("NXEMU_PERFORMANCE_DIAGNOSTICS");
@@ -20,6 +26,9 @@ inline bool Enabled() {
     }();
     return enabled;
 }
+#else
+inline constexpr bool Enabled() { return false; }
+#endif
 
 enum class Category : size_t {
     CommandList, Draw, GraphicsPipeline, GraphicsConfigure, Compute, ComputePipeline,
@@ -75,6 +84,7 @@ inline void RecordEvent(Category category, size_t bytes = 0) {
 
 // Times are inclusive, overlap between nested categories, and must not be added.
 // Counters are local to each thread: no lock or atomic on the per-draw path.
+#if NXEMU_ENABLE_LEGACY_PERFORMANCE_DIAGNOSTICS
 class Scope {
 public:
     explicit Scope(Category category_) : category(category_), enabled(Enabled()) {
@@ -120,6 +130,12 @@ private:
     bool enabled;
     Clock::time_point begin{};
 };
+#else
+class Scope {
+public:
+    explicit Scope(Category) {}
+};
+#endif
 
 template <typename Func>
 decltype(auto) Measure(Category category, Func&& func) {

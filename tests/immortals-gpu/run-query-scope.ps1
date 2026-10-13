@@ -26,7 +26,7 @@ if($LASTEXITCODE -ne 0){Get-Content (Join-Path $taskOut 'query-scope-build.log')
 $env:VK_LAYER_PATH='C:\VulkanSDK\1.4.357.0\Bin'
 $env:VK_INSTANCE_LAYERS='VK_LAYER_KHRONOS_validation'
 $env:VK_LAYER_SETTINGS_PATH=$taskOut
-foreach($taskVariant in @('baseline','fixed')){
+foreach($taskVariant in @('baseline','fixed','segmented')){
  $taskLog=Join-Path $taskOut "query-scope-$taskVariant.log"
  & (Join-Path $taskOut 'query-scope.exe') (Join-Path $taskPrior 'read.spv') (Join-Path $taskOut 'query-scope.vert.spv') (Join-Path $taskOut 'query-scope.frag.spv') $taskVariant *> $taskLog
  if($LASTEXITCODE -ne 0){Get-Content $taskLog;throw 'Query values failed'}
@@ -34,5 +34,5 @@ foreach($taskVariant in @('baseline','fixed')){
  Get-Content $taskLog | Select-Object -Last 2
  Write-Output "Query scope $taskVariant errors=$taskErrors"
  if($taskVariant -eq 'baseline' -and $taskErrors -eq 0){throw 'Negative control missed invalid query'}
- if($taskVariant -eq 'fixed' -and $taskErrors -ne 0){Get-Content $taskLog;throw 'Query scope Vulkan validation failed'}
+ if($taskVariant -ne 'baseline' -and $taskErrors -ne 0){Get-Content $taskLog;throw 'Query scope Vulkan validation failed'}
 }

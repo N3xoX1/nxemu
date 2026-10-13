@@ -148,12 +148,12 @@ public:
     ~SamplesStreamer() = default;
 
     void StartCounter() override {
-        if (has_started) {
+        counter_enabled = true;
+        if (has_started || !scheduler.IsInsideRenderPass()) {
             return;
         }
-        // An occlusion query can span render passes when both endpoints are outside.
-        // Starting in one scope and ending in another invalidates the result.
-        scheduler.RequestOutsideRenderPassOperationContext();
+        // A host query stays within one render pass. The existing query accumulator
+        // sums its segments when a guest counter spans several passes.
         ReserveHostQuery();
         scheduler.Record([query_pool = current_query_pool,
                           query_index = current_bank_slot](vk::CommandBuffer cmdbuf) {
@@ -165,10 +165,25 @@ public:
     }
 
     void PauseCounter() override {
+        counter_enabled = false;
+        EndQuery();
+    }
+
+    void NotifyRenderPass(bool begin) override {
+        if (begin) {
+            if (counter_enabled) {
+                StartCounter();
+            }
+        } else {
+            EndQuery();
+        }
+    }
+
+    void EndQuery() {
         if (!has_started) {
             return;
         }
-        scheduler.RequestOutsideRenderPassOperationContext();
+        ASSERT(scheduler.IsInsideRenderPass());
         scheduler.Record([query_pool = current_query_pool,
                           query_index = current_bank_slot](vk::CommandBuffer cmdbuf) {
             cmdbuf.EndQuery(query_pool, static_cast<u32>(query_index));
@@ -589,6 +604,7 @@ private:
     bool accumulation_since_last_sync{};
     VideoCommon::HostQueryBase* current_query;
     bool has_started{};
+    bool counter_enabled{};
     std::mutex flush_guard;
 
     std::unique_ptr<QueriesPrefixScanPass> queries_prefix_scan_pass;

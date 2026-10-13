@@ -211,46 +211,64 @@ void FlushOracle() {
 }
 
 struct MemoryHarness {
-    static constexpr u64 cpu_page_bits=12,big_page_bits=16;
+    enum class EntryType : u64 { Free=0, Reserved=1, Mapped=2, SmallPages=3 };
+    static constexpr u64 cpu_page_bits=12,page_bits=12,big_page_bits=16;
+    static constexpr u64 page_size=1ULL<<page_bits,page_mask=page_size-1;
+    static constexpr u64 big_page_size=1ULL<<big_page_bits,big_page_mask=big_page_size-1;
     std::vector<u32> page_table;
     std::vector<u32> big_page_table_dev;
+    std::vector<u64> entries,big_entries;
     std::atomic<u64> mapping_generation{};
     std::atomic<u32> mapping_updates_in_progress{};
     size_t unique_identifier;
     size_t walked_pages{};
-    explicit MemoryHarness(size_t id,size_t pages=2048):page_table(pages),unique_identifier(id) {
+    explicit MemoryHarness(size_t id,size_t pages=2048):page_table(pages),
+        big_page_table_dev((pages+15)/16), entries((pages+31)/32),
+        big_entries(((pages+15)/16+31)/32),unique_identifier(id) {
         for(size_t i=0;i<pages;++i) page_table[i]=static_cast<u32>(0x10000+i);
     }
-    template<bool big,class M,class F,class S> void MemoryOperation(u64 address,size_t size,M mapped,F fail,S small) const {
-        for(size_t amount;size;size-=amount,address+=amount) {
-            constexpr u64 bits=big?big_page_bits:cpu_page_bits;
-            const u64 mask=(1ULL<<bits)-1;
-            amount=std::min<u64>(size,(1ULL<<bits)-(address&mask));
-            if constexpr(big) {if(small(address>>bits,address&mask,amount))break;}
-            else {
-                ++const_cast<MemoryHarness*>(this)->walked_pages;
-                if(address/4096>=page_table.size()||page_table[address/4096]==0) {if(fail(address>>bits,address&mask,amount))break;}
-                else if(mapped(address>>bits,address&mask,amount))break;
-            }
+    void SyncEntries() {
+        entries.assign(entries.size(),0);
+        for(size_t i=0;i<page_table.size();++i) {
+            entries[i/32] |= static_cast<u64>(page_table[i]?EntryType::Mapped:EntryType::Reserved) << (2*(i%32));
         }
     }
+    template<bool big> void SetEntry(u64 address,EntryType value) {
+        auto& table=big?big_entries:entries;
+        const size_t index=address>>(big?big_page_bits:page_bits),shift=2*(index%32);
+        table[index/32]=(table[index/32]&~(3ULL<<shift))|(static_cast<u64>(value)<<shift);
+    }
+    template<bool big> EntryType RawGetEntry(size_t) const;
+    template<bool big> EntryType GetEntry(size_t address) const {
+        ++const_cast<MemoryHarness*>(this)->walked_pages;
+        return RawGetEntry<big>(address);
+    }
+    template<bool big,class M,class R,class U>
+    void MemoryOperation(GPUVAddr,size_t,M&&,R&&,U&&) const;
     bool IsContinuousRange(GPUVAddr,size_t)const;
     bool BaselineContinuousRange(GPUVAddr,size_t)const;
+    bool PreviousContinuousRange(GPUVAddr,size_t)const;
 };
+#include "memory-operations.inc"
 #include "continuity-current.inc"
 #include "continuity-baseline.inc"
+#include "continuity-previous.inc"
 void ContinuityOracle() {
     MemoryHarness memory(100);
+    memory.SyncEntries();
     Check("continuous_initial_range",memory.IsContinuousRange(0,8ULL<<20));
     const auto scans=memory.walked_pages;
     Check("continuous_contained_reuse",memory.IsContinuousRange(17,20480)&&memory.walked_pages==scans);
     {
         Tegra::MappingChangeScope mapping(memory.mapping_generation,memory.mapping_updates_in_progress);
         memory.page_table[4]=0;
+        memory.SyncEntries();
         Check("continuous_hole_invalidates_positive_result",!memory.IsContinuousRange(0,8ULL<<20));
         memory.page_table[4]=0x10004;
+        memory.SyncEntries();
         Check("continuous_query_during_update_uses_page_walk",memory.IsContinuousRange(0,8ULL<<20));
         memory.page_table[4]=0;
+        memory.SyncEntries();
     }
     Check("continuous_in_progress_result_was_not_retained",!memory.IsContinuousRange(0,8ULL<<20));
     bool valid=true;std::mt19937 rng(0x15CA8);
@@ -259,15 +277,40 @@ void ContinuityOracle() {
             Tegra::MappingChangeScope mapping(memory.mapping_generation,memory.mapping_updates_in_progress);
             const size_t page=rng()%memory.page_table.size();
             memory.page_table[page]=(rng()%4==0)?0:static_cast<u32>(0x10000+page+(rng()%4==0?31:0));
+            memory.SyncEntries();
         }
-        const u64 start=rng()%(8ULL<<20),size=rng()%(2ULL<<20);
+        const u64 start=rng()%(8ULL<<20),size=std::min<u64>(rng()%(2ULL<<20),(8ULL<<20)-start);
         valid &= memory.IsContinuousRange(start,size)==memory.BaselineContinuousRange(start,size);
     }
     Check("continuous_10000_remap_hole_fragment_queries_match_production_baseline",valid);
-    MemoryHarness reused(101);reused.page_table[4]=0;
+    MemoryHarness small(103);small.SyncEntries();
+    valid=true;
+    for(u64 big=0;big<4;++big)for(u64 tag=0;tag<4;++tag) {
+        Tegra::MappingChangeScope mapping(small.mapping_generation,small.mapping_updates_in_progress);
+        small.SetEntry<true>(0,static_cast<MemoryHarness::EntryType>(big));
+        small.SetEntry<false>(0,static_cast<MemoryHarness::EntryType>(tag));
+        for(u64 offset:{0ULL,17ULL,4095ULL})for(u64 bytes:{0ULL,1ULL,4096ULL-offset}) {
+            valid &= small.IsContinuousRange(offset,bytes)==small.BaselineContinuousRange(offset,bytes);
+        }
+    }
+    Check("single_page_all_big_and_small_mapping_tags_match_exact_page_walk",valid);
+    small.SetEntry<true>(0,MemoryHarness::EntryType::SmallPages);
+    small.SetEntry<false>(0,MemoryHarness::EntryType::Mapped);
+    small.SetEntry<false>(4096,MemoryHarness::EntryType::Reserved);
+    Check("single_page_fast_path_stops_at_first_unmapped_byte",
+          small.IsContinuousRange(4095,1)&&!small.IsContinuousRange(4095,2));
+    small.SetEntry<true>(0,MemoryHarness::EntryType::Reserved);
+    Check("reserved_big_page_does_not_expose_mapped_small_page",!small.IsContinuousRange(0,1));
+    MemoryHarness tiny(104);tiny.SyncEntries();
+    Bench("128B_256pages_continuity_baseline",1000000,[&](size_t i){result_sink=tiny.BaselineContinuousRange((i%256)*4096+128,128);});
+    Bench("128B_256pages_continuity_previous",1000000,[&](size_t i){result_sink=tiny.PreviousContinuousRange((i%256)*4096+128,128);});
+    Bench("128B_256pages_continuity_current",1000000,[&](size_t i){result_sink=tiny.IsContinuousRange((i%256)*4096+128,128);});
+    MemoryHarness reused(101);reused.page_table[4]=0;reused.SyncEntries();
     Check("continuous_new_manager_does_not_reuse_previous_manager",!reused.IsContinuousRange(0,8ULL<<20));
     MemoryHarness huge(102,65536);
+    huge.SyncEntries();
     Bench("256MiB_continuity_baseline",2000,[&](size_t){result_sink=huge.BaselineContinuousRange(0,256ULL<<20);});
+    Bench("256MiB_continuity_previous",2000,[&](size_t){result_sink=huge.PreviousContinuousRange(0,256ULL<<20);});
     Bench("256MiB_continuity_current",2000,[&](size_t){result_sink=huge.IsContinuousRange(0,256ULL<<20);});
     Check("continuous_large_range_correct",result_sink==1);
     Tegra::ContinuousRangeCache cache;

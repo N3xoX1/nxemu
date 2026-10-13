@@ -2,15 +2,41 @@
 #define main PriorTestMain
 #include "../pr396/vulkan-synthetic.cpp"
 #undef main
+#include <cassert>
+using u32 = uint32_t;
 namespace vk {
 struct CommandBuffer {
     VkCommandBuffer handle;
+    void BeginQuery(VkQueryPool pool, uint32_t index, VkQueryControlFlags flags) {
+        vkCmdBeginQuery(handle, pool, index, flags);
+    }
+    void EndQuery(VkQueryPool pool, uint32_t index) {
+        vkCmdEndQuery(handle, pool, index);
+    }
     void PipelineBarrier(VkPipelineStageFlags src, VkPipelineStageFlags dst,
                          VkDependencyFlags flags, const VkImageMemoryBarrier& barrier) {
         vkCmdPipelineBarrier(handle, src, dst, flags, 0, nullptr, 0, nullptr, 1, &barrier);
     }
 };
 }
+namespace Settings { inline bool IsGPULevelHigh() { return true; } }
+#define ASSERT(condition) assert(condition)
+struct QueryScheduler {
+    vk::CommandBuffer command;
+    bool inside{};
+    bool IsInsideRenderPass() const { return inside; }
+    template<class F> void Record(F&& f) { f(command); }
+};
+struct SegmentedCounter {
+    QueryScheduler& scheduler;
+    VkQueryPool current_query_pool;
+    uint32_t current_bank_slot{};
+    uint32_t reserved{};
+    bool has_started{};
+    bool counter_enabled{};
+    void ReserveHostQuery() { current_bank_slot = reserved++; }
+#include "query-counter.inc"
+};
 #include "presentation-transition.inc"
 VkShaderModule LoadShader(VkDevice device, const char* path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -27,6 +53,7 @@ int main(int argc, char** argv) try {
     if (argc != 5) return 2;
     Fixture f(argv[1]);
     const bool fixed = std::string(argv[4]) == "fixed";
+    const bool segmented = std::string(argv[4]) == "segmented";
     VkImageCreateInfo ici{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     ici.imageType = VK_IMAGE_TYPE_2D; ici.format = VK_FORMAT_R8G8B8A8_UNORM;
     ici.extent = {4,4,1}; ici.mipLevels = ici.arrayLayers = 1;
@@ -92,7 +119,7 @@ int main(int argc, char** argv) try {
     pci.pMultisampleState=&samples; pci.pColorBlendState=&bci; pci.layout=layout; pci.renderPass=pass;
     VkPipeline pipeline{}; Check(vkCreateGraphicsPipelines(f.device,VK_NULL_HANDLE,1,&pci,nullptr,&pipeline));
     VkQueryPoolCreateInfo qci{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
-    qci.queryType=VK_QUERY_TYPE_OCCLUSION; qci.queryCount=2;
+    qci.queryType=VK_QUERY_TYPE_OCCLUSION; qci.queryCount=3;
     VkQueryPool queries{}; Check(vkCreateQueryPool(f.device,&qci,nullptr,&queries));
     std::fill_n(f.buffers[0].mapped,16,0xff00ff00u);
     f.Begin(); auto cb=f.commands[1]; vk::CommandBuffer wrapped{cb};
@@ -103,11 +130,43 @@ int main(int argc, char** argv) try {
     Fixture::Barrier(cb,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,
                      VK_ACCESS_MEMORY_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT);
     vkCmdCopyImageToBuffer(cb,image,VK_IMAGE_LAYOUT_GENERAL,f.buffers[2].buffer,1,&copy);
-    vkCmdResetQueryPool(cb,queries,0,2);
+    vkCmdResetQueryPool(cb,queries,0,3);
     VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     begin.renderPass=pass; begin.framebuffer=framebuffer; begin.renderArea={{0,0},{4,4}};
     auto draw=[&]{vkCmdBeginRenderPass(cb,&begin,VK_SUBPASS_CONTENTS_INLINE);
                   vkCmdBindPipeline(cb,VK_PIPELINE_BIND_POINT_GRAPHICS,pipeline);vkCmdDraw(cb,3,1,0,0);};
+    if (segmented) {
+        QueryScheduler scheduler{wrapped};
+        SegmentedCounter counter{scheduler, queries};
+        const auto begin_pass = [&] {
+            vkCmdBeginRenderPass(cb,&begin,VK_SUBPASS_CONTENTS_INLINE);
+            scheduler.inside=true;
+            counter.NotifyRenderPass(true);
+            vkCmdBindPipeline(cb,VK_PIPELINE_BIND_POINT_GRAPHICS,pipeline);
+        };
+        const auto end_pass = [&] {
+            counter.NotifyRenderPass(false);
+            vkCmdEndRenderPass(cb);
+            scheduler.inside=false;
+        };
+        counter.StartCounter(); // Enabling outside must wait for a real render pass.
+        if(counter.reserved!=0) throw std::runtime_error("Premature query allocation");
+        begin_pass();
+        counter.StartCounter(); // Repeated enables must reuse the current query.
+        vkCmdDraw(cb,3,1,0,0);
+        counter.PauseCounter();
+        end_pass();
+        begin_pass(); // Disabled counters must stay disabled across pass changes.
+        if(counter.reserved!=1) throw std::runtime_error("Disabled counter restarted");
+        counter.StartCounter();
+        vkCmdDraw(cb,3,1,0,0);
+        end_pass();
+        begin_pass(); // One guest counter spans these two host queries.
+        vkCmdDraw(cb,3,1,0,0);
+        end_pass();
+        counter.PauseCounter(); // Also valid with no active render pass.
+        if(counter.reserved!=3 || counter.has_started) throw std::runtime_error("Invalid segmentation");
+    } else {
     vkCmdBeginQuery(cb,queries,0,VK_QUERY_CONTROL_PRECISE_BIT); draw();
     if(fixed)vkCmdEndRenderPass(cb);
     vkCmdEndQuery(cb,queries,0);
@@ -115,20 +174,21 @@ int main(int argc, char** argv) try {
     vkCmdBeginQuery(cb,queries,1,VK_QUERY_CONTROL_PRECISE_BIT);
     draw();vkCmdEndRenderPass(cb);draw();vkCmdEndRenderPass(cb);
     vkCmdEndQuery(cb,queries,1);
+    }
     Fixture::Barrier(cb,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_HOST_BIT,
                      VK_ACCESS_MEMORY_WRITE_BIT,VK_ACCESS_HOST_READ_BIT);
     f.Submit();
-    std::array<uint64_t,2> results{};
-    Check(vkGetQueryPoolResults(f.device,queries,0,2,sizeof(results),results.data(),8,
+    std::array<uint64_t,3> results{};
+    Check(vkGetQueryPoolResults(f.device,queries,0,segmented?3:2,sizeof(results),results.data(),8,
                                VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_WAIT_BIT));
-    bool ok=results[0]==16 && results[1]==32;
+    bool ok=results[0]==16 && results[1]+results[2]==32;
     for(int i=0;i<16;++i)ok &= f.buffers[2].mapped[i]==0xff00ff00u;
-    std::cout<<"RESULT query_scope fixed="<<fixed<<" samples="<<results[0]<<","<<results[1]
+    std::cout<<"RESULT query_scope fixed="<<fixed<<" segmented="<<segmented<<" samples="<<results[0]<<","<<results[1]+results[2]
              <<" upload="<<std::hex<<f.buffers[2].mapped[0]<<std::dec<<'\n';
     vkDestroyQueryPool(f.device,queries,nullptr);vkDestroyPipeline(f.device,pipeline,nullptr);
     vkDestroyPipelineLayout(f.device,layout,nullptr);vkDestroyShaderModule(f.device,vertex,nullptr);
     vkDestroyShaderModule(f.device,fragment,nullptr);vkDestroyFramebuffer(f.device,framebuffer,nullptr);
     vkDestroyRenderPass(f.device,pass,nullptr);vkDestroyImageView(f.device,view,nullptr);
     vkDestroyImage(f.device,image,nullptr);vkFreeMemory(f.device,memory,nullptr);
-    return !fixed || ok ? 0 : 1;
+    return (!fixed && !segmented) || ok ? 0 : 1;
 } catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

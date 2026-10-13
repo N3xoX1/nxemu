@@ -220,8 +220,8 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
-    // CounterEnable may close the previous render pass to keep query endpoints outside.
-    // Configure must open the draw's render pass afterwards.
+    // Update the guest counter state before Configure opens the draw's render pass.
+    // Host queries begin/end within that pass and accumulate across pass boundaries.
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                               maxwell3d->regs.zpass_pixel_count_enable);
     Perf::Measure(Perf::Category::GraphicsConfigure, [&] { pipeline->Configure(is_indexed); });

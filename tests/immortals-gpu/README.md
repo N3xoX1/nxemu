@@ -60,6 +60,10 @@ doivent passer avec la bibliothèque corrigée.
 formats float/uint/sint, handle invalide ignoré, texture valide mais inutilisée
 inchangée et masque d'écriture exact. `run-query-scope.ps1` vérifie la portée des
 requêtes d'occlusion, 16 puis 32 pixels, et la transition d'une image de présentation.
+Le cas `segmented` exécute les méthodes extraites de `SamplesStreamer` : activation
+différée hors passe, activation répétée, compteur désactivé et accumulation sur
+deux passes existantes. Chaque requête GPU commence et finit dans la même passe,
+sans demander de fermeture supplémentaire. Le cas invalide reste un contrôle négatif.
 
 `run-probe-lifetime.ps1` extrait le corps Windows de la détection des GPU depuis
 la PR d'origine et les sources courantes. Un dispatch instrumenté vérifie que la
