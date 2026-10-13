@@ -2115,8 +2115,8 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         const u32 memory_layout_size = static_cast<u32>(gpu_memory->GetMemoryLayoutSize(gpu_addr));
         return std::min(memory_layout_size, static_cast<u32>(8_MiB));
     }();
-    // Guests can declare a size that runs past the memory backing the buffer. Bindings are linear
-    // in device memory, so stop where the mapping stops being contiguous.
+    // A physical discontinuity is not necessarily the end of the guest buffer. Keep the
+    // contiguous prefix for the linear path, then assemble later mapped pages below.
     const u32 size = static_cast<u32>(gpu_memory->MaxContinuousRange(gpu_addr, requested_size));
     // Alignment only applies to the offset of the buffer
     const u32 alignment = runtime.GetStorageBufferAlignment();
@@ -2158,6 +2158,29 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
                 .sparse_gpu_addr = aligned_gpu_addr,
                 .is_sparse = true,
             };
+        }
+        // Ordinary mappings can also span physically disjoint pages, without a sparse
+        // reservation. Assemble their mapped prefix, stopping at the first guest hole so
+        // an oversized descriptor cannot expose a separate allocation beyond that hole.
+        const u64 wanted_size = (gpu_addr - aligned_gpu_addr) + u64{requested_size};
+        if (aligned_device_addr && wanted_size <= std::numeric_limits<u32>::max()) {
+            const auto ranges = gpu_memory->GetSubmappedRange(aligned_gpu_addr, wanted_size);
+            u64 mapped_size = 0;
+            for (const auto& [part_addr, part_size] : ranges) {
+                if (part_addr != aligned_gpu_addr + mapped_size) {
+                    break;
+                }
+                mapped_size += part_size;
+            }
+            if (mapped_size > aligned_size) {
+                return Binding{
+                    .device_addr = *aligned_device_addr,
+                    .size = static_cast<u32>(mapped_size),
+                    .buffer_id = BufferId{},
+                    .sparse_gpu_addr = aligned_gpu_addr,
+                    .is_sparse = true,
+                };
+            }
         }
     }
     if (!aligned_device_addr || size == 0) {
