@@ -38,6 +38,8 @@ class WidgetRomBrowser;
 struct RomEntry
 {
     SciterElement romCard;
+    std::string path;
+    uint64_t programId = 0;
     std::string title;
     std::vector<uint8_t> icon;
     bool newItem = false;
@@ -46,6 +48,23 @@ struct RomEntry
     bool refreshPending = false;
 };
 using RomEntrys = std::unordered_map<std::string, RomEntry>;
+
+// A single file can contain several applications, so a card is identified by path and program id.
+std::string RomEntryKey(const std::string & path, uint64_t programId)
+{
+    return stdstr_f("%s|%016llX", path.c_str(), (unsigned long long)programId);
+}
+
+uint64_t RomCardProgramId(const SciterElement & card)
+{
+    return strtoull(card.GetAttribute("data-program-id").c_str(), nullptr, 16);
+}
+
+std::string RomCardKey(const SciterElement & card)
+{
+    const std::string path = card.GetAttribute("data-path");
+    return path.empty() ? std::string() : RomEntryKey(path, RomCardProgramId(card));
+}
 
 class RomListWorker :
     public IGameListScanCallback
@@ -145,7 +164,8 @@ private:
     SciterElement m_configButton;
     SciterElement m_currentGame;
     std::string m_contextMenuPath;
-    std::string m_lastRomClickPath;
+    uint64_t m_contextMenuProgramId;
+    std::string m_lastRomClickKey;
     std::chrono::steady_clock::time_point m_lastRomClickTime;
     std::mutex m_romsMutex;
     RomEntrys m_roms;
@@ -164,6 +184,7 @@ WidgetRomBrowser::WidgetRomBrowser(ISciterUI & sciterUI) :
     m_sciterUI(sciterUI),
     m_updatingUI(false),
     m_contextMenuHandlerAttached(false),
+    m_contextMenuProgramId(0),
     m_baseElement(nullptr),
     m_window(nullptr),
     m_modules(nullptr)
@@ -249,7 +270,8 @@ bool WidgetRomBrowser::RenderUI()
             }
             romCard.Create("div", "");
             romCard.SetAttribute("class", "rom-card");
-            romCard.SetAttribute("data-path", itr->first.c_str());
+            romCard.SetAttribute("data-path", romEntry.path.c_str());
+            romCard.SetAttribute("data-program-id", stdstr_f("%016llX", (unsigned long long)romEntry.programId).c_str());
             m_gameGrid.Insert(romCard, m_gameGrid.GetChildCount());
             m_sciterUI.AttachHandler(romCard, IID_ICLICKSINK, (IClickSink *)this);
             m_sciterUI.AttachHandler(romCard, IID_IDBLCLICKSINK, (IDoubleClickSink *)this);
@@ -322,6 +344,7 @@ bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
         {
             SelectRomCard(card);
             m_contextMenuPath = card.GetAttribute("data-path");
+            m_contextMenuProgramId = RomCardProgramId(card);
         }
         return HandleContextMenuCommand(itemId);
     }
@@ -349,6 +372,7 @@ bool WidgetRomBrowser::OnContextMenu(SCITER_ELEMENT element, SCITER_ELEMENT sour
     if (!menu.IsValid()) return false;
     SelectRomCard(card);
     m_contextMenuPath = card.GetAttribute("data-path");
+    m_contextMenuProgramId = RomCardProgramId(card);
     // Placement 7 anchors the top-left at a point in view coordinates. The
     // macOS backend uses Cocoa's context menu and native cursor coordinates.
     m_sciterUI.PopupShowAt(menu, {x, y}, 7);
@@ -375,18 +399,18 @@ bool WidgetRomBrowser::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
     }
     else if (strcmp(className.c_str(), "rom-card") == 0)
     {
-        const std::string path = el.GetAttribute("data-path");
+        const std::string key = RomCardKey(el);
         const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         const std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastRomClickTime);
         // ClickHandler can deliver both sinking and bubbling mouse-up for one click.
-        if (!path.empty() && path == m_lastRomClickPath && elapsed.count() >= 0 && elapsed.count() < 20)
+        if (!key.empty() && key == m_lastRomClickKey && elapsed.count() >= 0 && elapsed.count() < 20)
         {
             return true;
         }
 
-        const bool doubleClick = !path.empty() && path == m_lastRomClickPath && elapsed.count() <= 500;
+        const bool doubleClick = !key.empty() && key == m_lastRomClickKey && elapsed.count() <= 500;
         m_lastRomClickTime = now;
-        m_lastRomClickPath = path;
+        m_lastRomClickKey = key;
         SelectRomCard(el);
         if (doubleClick)
         {
@@ -436,7 +460,7 @@ bool WidgetRomBrowser::StartGame(const SciterElement & card)
         return false;
     }
 
-    m_window->LoadGame(path.c_str());
+    m_window->LoadGame(path.c_str(), RomCardProgramId(card));
     return true;
 }
 
@@ -477,9 +501,11 @@ bool WidgetRomBrowser::HandleContextMenuCommand(const std::string & itemId)
     }
 
     std::string path = m_contextMenuPath;
+    uint64_t programId = m_contextMenuProgramId;
     if (path.empty() && m_currentGame.IsValid())
     {
         path = m_currentGame.GetAttribute("data-path");
+        programId = RomCardProgramId(m_currentGame);
     }
     if (path.empty())
     {
@@ -488,22 +514,22 @@ bool WidgetRomBrowser::HandleContextMenuCommand(const std::string & itemId)
 
     if (itemId == "romStartGame")
     {
-        m_window->LoadGame(path.c_str());
+        m_window->LoadGame(path.c_str(), programId);
         return true;
     }
     if (itemId == "romOpenSaveData")
     {
-        m_window->OpenGameSaveDataLocation(path.c_str());
+        m_window->OpenGameSaveDataLocation(path.c_str(), programId);
         return true;
     }
     if (itemId == "romOpenModData")
     {
-        m_window->OpenGameModDataLocation(path.c_str());
+        m_window->OpenGameModDataLocation(path.c_str(), programId);
         return true;
     }
     if (itemId == "romProperties")
     {
-        m_window->ShowGameConfig(path.c_str());
+        m_window->ShowGameConfig(path.c_str(), programId);
         return true;
     }
 
@@ -763,9 +789,15 @@ void RomListWorker::GameFound(const char * path, IRomInfo * info, bool changed)
     {
         return;
     }
+    uint64_t programId = 0;
+    if (romInfo->ReadProgramId(programId) != LoaderResultStatus::Success)
+    {
+        programId = 0;
+    }
+    const std::string key = RomEntryKey(path, programId);
     {
         std::lock_guard<std::mutex> lock(m_romsMutex);
-        RomEntrys::iterator iter = m_roms.find(path);
+        RomEntrys::iterator iter = m_roms.find(key);
         if (iter != m_roms.end() && !changed)
         {
             iter->second.found = true;
@@ -774,6 +806,8 @@ void RomListWorker::GameFound(const char * path, IRomInfo * info, bool changed)
     }
 
     RomEntry entry;
+    entry.path = path;
+    entry.programId = programId;
     entry.newItem = true;
     entry.found = true;
 
@@ -795,7 +829,7 @@ void RomListWorker::GameFound(const char * path, IRomInfo * info, bool changed)
 
     {
         std::lock_guard<std::mutex> lock(m_romsMutex);
-        RomEntrys::iterator iter = m_roms.find(path);
+        RomEntrys::iterator iter = m_roms.find(key);
         if (iter != m_roms.end())
         {
             RomEntry & existing = iter->second;
@@ -807,7 +841,7 @@ void RomListWorker::GameFound(const char * path, IRomInfo * info, bool changed)
         }
         else
         {
-            m_roms.emplace(path, std::move(entry));
+            m_roms.emplace(key, std::move(entry));
         }
     }
     m_rootElement.PostEvent(EVENT_UPDATE_LIST);

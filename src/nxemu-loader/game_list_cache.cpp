@@ -24,7 +24,7 @@ extern IModuleSettings * g_settings;
 namespace
 {
 constexpr uint32_t CacheMagic = 0x4C47584E; // "NXGL"
-constexpr uint32_t CacheVersion = 1;
+constexpr uint32_t CacheVersion = 2;
 constexpr const char * CacheFileName = "game_list.bin";
 
 std::string GetLowerExtension(const std::string & path)
@@ -375,7 +375,8 @@ private:
         std::lock_guard<std::mutex> lock(m_romInfoMutex);
         if (m_romInfo == nullptr)
         {
-            m_romInfo = m_systemloader.RomInfo(m_path.c_str(), 0, 0);
+            const uint64_t programId = m_metadata->programIdStatus == LoaderResultStatus::Success ? m_metadata->programId : 0;
+            m_romInfo = m_systemloader.RomInfo(m_path.c_str(), programId, 0);
         }
         return m_romInfo;
     }
@@ -423,6 +424,43 @@ void ReadMetadata(CacheReader & reader, CachedGameMetadata & metadata)
     metadata.icon = reader.Bytes();
     metadata.versionStatus = (LoaderResultStatus)reader.U32();
     metadata.displayVersion = reader.String();
+}
+
+void ReadLoaderMetadata(Loader::AppLoader & loader, CachedGameMetadata & metadata)
+{
+    metadata.fileType = loader.GetFileType();
+    metadata.programIdStatus = loader.ReadProgramId(metadata.programId);
+
+    uint32_t count = 0;
+    metadata.programIdsStatus = loader.ReadProgramIds(nullptr, &count);
+    if (metadata.programIdsStatus == LoaderResultStatus::Success)
+    {
+        metadata.programIds.resize(count);
+        metadata.programIdsStatus = loader.ReadProgramIds(metadata.programIds.data(), &count);
+    }
+
+    uint32_t size = 0;
+    metadata.titleStatus = loader.ReadTitle(nullptr, &size);
+    if (metadata.titleStatus == LoaderResultStatus::Success)
+    {
+        metadata.title.resize(size);
+        metadata.titleStatus = loader.ReadTitle(metadata.title.data(), &size);
+    }
+
+    size = 0;
+    metadata.iconStatus = loader.ReadIcon(nullptr, &size);
+    if (metadata.iconStatus == LoaderResultStatus::Success)
+    {
+        metadata.icon.resize(size);
+        metadata.iconStatus = loader.ReadIcon(metadata.icon.data(), &size);
+    }
+
+    FileSys::NACP nacp;
+    metadata.versionStatus = loader.ReadControlData(nacp);
+    if (metadata.versionStatus == LoaderResultStatus::Success)
+    {
+        metadata.displayVersion = nacp.GetVersionString();
+    }
 }
 
 std::filesystem::path CacheFilePath()
@@ -665,9 +703,10 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
             continue;
         }
 
-        if (parse[i] || !record.updateValid || listChanged)
+        const bool updatesValid = std::all_of(record.programs.begin(), record.programs.end(), [](const ProgramRecord & program) { return program.updateValid; });
+        if (parse[i] || !updatesValid || listChanged)
         {
-            const bool rebuilt = RefreshUpdate(record, addOnIndex, siblingIndex);
+            const bool rebuilt = RefreshUpdates(record, addOnIndex, siblingIndex);
             ReportGame(game.first, record, parse[i] || rebuilt, callback);
             pending.push_back(&game);
         }
@@ -679,9 +718,12 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
 
     for (GameFiles::value_type * game : pending)
     {
-        if (RefreshUpdate(game->second, addOnIndex, siblingIndex))
+        for (ProgramRecord & program : game->second.programs)
         {
-            ReportGame(game->first, game->second, true, callback);
+            if (RefreshUpdate(program, addOnIndex, siblingIndex))
+            {
+                ReportProgram(game->first, program, true, callback);
+            }
         }
     }
     m_dirListIds[gameDir] = listId;
@@ -698,40 +740,35 @@ void GameListCache::ParseGameFile(const std::string & path, GameFileRecord & rec
         const LoaderFileType fileType = loader ? loader->GetFileType() : LoaderFileType::Error;
         if (fileType != LoaderFileType::Unknown && fileType != LoaderFileType::Error)
         {
-            CachedGameMetadata & base = record.base;
             record.isGame = true;
-            base.fileType = fileType;
-            base.programIdStatus = loader->ReadProgramId(base.programId);
+            record.programs.emplace_back();
+            ReadLoaderMetadata(*loader, record.programs.back().base);
 
-            uint32_t count = 0;
-            base.programIdsStatus = loader->ReadProgramIds(nullptr, &count);
-            if (base.programIdsStatus == LoaderResultStatus::Success)
+            // Some cartridges and packages bundle several applications (e.g. Super Mario Galaxy + Super Mario
+            // Galaxy 2). List each application separately, as the Switch home menu does.
+            const std::vector<uint64_t> programIds = record.programs.back().base.programIds;
+            if (programIds.size() > 1 && (fileType == LoaderFileType::XCI || fileType == LoaderFileType::NSP))
             {
-                base.programIds.resize(count);
-                base.programIdsStatus = loader->ReadProgramIds(base.programIds.data(), &count);
-            }
-
-            uint32_t size = 0;
-            base.titleStatus = loader->ReadTitle(nullptr, &size);
-            if (base.titleStatus == LoaderResultStatus::Success)
-            {
-                base.title.resize(size);
-                base.titleStatus = loader->ReadTitle(base.title.data(), &size);
-            }
-
-            size = 0;
-            base.iconStatus = loader->ReadIcon(nullptr, &size);
-            if (base.iconStatus == LoaderResultStatus::Success)
-            {
-                base.icon.resize(size);
-                base.iconStatus = loader->ReadIcon(base.icon.data(), &size);
-            }
-
-            FileSys::NACP nacp;
-            base.versionStatus = loader->ReadControlData(nacp);
-            if (base.versionStatus == LoaderResultStatus::Success)
-            {
-                base.displayVersion = nacp.GetVersionString();
+                record.programs.clear();
+                for (uint64_t programId : programIds)
+                {
+                    std::shared_ptr<Loader::AppLoader> programLoader = Loader::GetLoader(m_systemloader, file, programId, 0);
+                    if (!programLoader || programLoader->GetFileType() != fileType)
+                    {
+                        continue;
+                    }
+                    ProgramRecord program;
+                    ReadLoaderMetadata(*programLoader, program.base);
+                    if (program.base.programIdStatus == LoaderResultStatus::Success && program.base.programId == programId)
+                    {
+                        record.programs.push_back(std::move(program));
+                    }
+                }
+                if (record.programs.empty())
+                {
+                    record.programs.emplace_back();
+                    ReadLoaderMetadata(*loader, record.programs.back().base);
+                }
             }
         }
     }
@@ -818,9 +855,22 @@ GameListCache::AddOnEntries GameListCache::ReadAddOnEntries(const std::string & 
     return entries;
 }
 
-bool GameListCache::RefreshUpdate(GameFileRecord & record, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const
+bool GameListCache::RefreshUpdates(GameFileRecord & record, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const
 {
-    const uint64_t programId = record.base.programIdStatus == LoaderResultStatus::Success ? record.base.programId : 0;
+    bool rebuilt = false;
+    for (ProgramRecord & program : record.programs)
+    {
+        if (RefreshUpdate(program, addOnIndex, siblingIndex))
+        {
+            rebuilt = true;
+        }
+    }
+    return rebuilt;
+}
+
+bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const
+{
+    const uint64_t programId = program.base.programIdStatus == LoaderResultStatus::Success ? program.base.programId : 0;
     const uint64_t updateTitleId = FileSys::GetUpdateTitleID(programId);
     const DisabledAddOns::const_iterator disabledItr = m_disabledAddOns.find(programId);
     static const std::vector<std::string> noneDisabled;
@@ -854,25 +904,25 @@ bool GameListCache::RefreshUpdate(GameFileRecord & record, const UpdateIndex & a
         fingerprint.Add((uint64_t)best->stamp.modifiedTime);
         fingerprint.Add(best->version);
     }
-    if (record.updateValid && record.updateFingerprint == fingerprint.Value())
+    if (program.updateValid && program.updateFingerprint == fingerprint.Value())
     {
         return false;
     }
 
-    record.updateTitle.clear();
-    record.updateIcon.clear();
-    record.updateVersion.clear();
+    program.updateTitle.clear();
+    program.updateIcon.clear();
+    program.updateVersion.clear();
     if (best != nullptr)
     {
-        ReadUpdateMetadata(*best, updateTitleId, record);
+        ReadUpdateMetadata(*best, updateTitleId, program);
     }
-    record.updateValid = true;
-    record.updateFingerprint = fingerprint.Value();
-    record.effective.reset();
+    program.updateValid = true;
+    program.updateFingerprint = fingerprint.Value();
+    program.effective.reset();
     return true;
 }
 
-void GameListCache::ReadUpdateMetadata(const UpdateCandidate & candidate, uint64_t updateTitleId, GameFileRecord & record) const
+void GameListCache::ReadUpdateMetadata(const UpdateCandidate & candidate, uint64_t updateTitleId, ProgramRecord & program) const
 {
     FileSys::VirtualFile file = m_systemloader.GetFilesystem()->OpenFile(*candidate.path, VirtualFileOpenMode::Read);
     if (!file)
@@ -907,38 +957,46 @@ void GameListCache::ReadUpdateMetadata(const UpdateCandidate & candidate, uint64
     const FileSys::PatchManager::Metadata metadata = FileSys::ParseControlRomFS(control->RomFS());
     if (metadata.first)
     {
-        record.updateTitle = metadata.first->GetApplicationName();
-        record.updateVersion = metadata.first->GetVersionString();
+        program.updateTitle = metadata.first->GetApplicationName();
+        program.updateVersion = metadata.first->GetVersionString();
     }
     if (metadata.second)
     {
-        record.updateIcon = metadata.second->ReadAllBytes();
+        program.updateIcon = metadata.second->ReadAllBytes();
     }
 }
 
 void GameListCache::ReportGame(const std::string & path, GameFileRecord & record, bool changed, IGameListScanCallback & callback)
 {
-    if (!record.effective)
+    for (ProgramRecord & program : record.programs)
     {
-        std::shared_ptr<CachedGameMetadata> effective = std::make_shared<CachedGameMetadata>(record.base);
-        if (!record.updateTitle.empty())
+        ReportProgram(path, program, changed, callback);
+    }
+}
+
+void GameListCache::ReportProgram(const std::string & path, ProgramRecord & program, bool changed, IGameListScanCallback & callback)
+{
+    if (!program.effective)
+    {
+        std::shared_ptr<CachedGameMetadata> effective = std::make_shared<CachedGameMetadata>(program.base);
+        if (!program.updateTitle.empty())
         {
-            effective->title = record.updateTitle;
+            effective->title = program.updateTitle;
             effective->titleStatus = LoaderResultStatus::Success;
         }
-        if (!record.updateIcon.empty())
+        if (!program.updateIcon.empty())
         {
-            effective->icon = record.updateIcon;
+            effective->icon = program.updateIcon;
             effective->iconStatus = LoaderResultStatus::Success;
         }
-        if (!record.updateVersion.empty())
+        if (!program.updateVersion.empty())
         {
-            effective->displayVersion = record.updateVersion;
+            effective->displayVersion = program.updateVersion;
             effective->versionStatus = LoaderResultStatus::Success;
         }
-        record.effective = std::move(effective);
+        program.effective = std::move(effective);
     }
-    callback.GameFound(path.c_str(), new CachedRomInfo(m_systemloader, path, record.effective), changed);
+    callback.GameFound(path.c_str(), new CachedRomInfo(m_systemloader, path, program.effective), changed);
 }
 
 void GameListCache::Load()
@@ -995,16 +1053,18 @@ void GameListCache::Load()
         record.stamp.size = reader.U64();
         record.stamp.modifiedTime = (int64_t)reader.U64();
         record.isGame = reader.U32() != 0;
-        if (record.isGame)
+        const uint32_t programCount = reader.U32();
+        for (uint32_t j = 0; j < programCount && reader.Ok(); j++)
         {
-            ReadMetadata(reader, record.base);
+            ProgramRecord & program = record.programs.emplace_back();
+            ReadMetadata(reader, program.base);
+            program.updateValid = reader.U32() != 0;
+            program.updateFingerprint = reader.U64();
+            program.updateTitle = reader.String();
+            program.updateIcon = reader.Bytes();
+            program.updateVersion = reader.String();
         }
         readAddOns(record.addOns);
-        record.updateValid = reader.U32() != 0;
-        record.updateFingerprint = reader.U64();
-        record.updateTitle = reader.String();
-        record.updateIcon = reader.Bytes();
-        record.updateVersion = reader.String();
     }
 
     const uint32_t dirCount = reader.U32();
@@ -1058,16 +1118,17 @@ void GameListCache::Save() const
         writer.U64(record.stamp.size);
         writer.U64((uint64_t)record.stamp.modifiedTime);
         writer.U32(record.isGame ? 1 : 0);
-        if (record.isGame)
+        writer.U32((uint32_t)record.programs.size());
+        for (const ProgramRecord & program : record.programs)
         {
-            WriteMetadata(writer, record.base);
+            WriteMetadata(writer, program.base);
+            writer.U32(program.updateValid ? 1 : 0);
+            writer.U64(program.updateFingerprint);
+            writer.String(program.updateTitle);
+            writer.Bytes(program.updateIcon);
+            writer.String(program.updateVersion);
         }
         writeAddOns(record.addOns);
-        writer.U32(record.updateValid ? 1 : 0);
-        writer.U64(record.updateFingerprint);
-        writer.String(record.updateTitle);
-        writer.Bytes(record.updateIcon);
-        writer.String(record.updateVersion);
     }
 
     writer.U32((uint32_t)m_dirListIds.size());

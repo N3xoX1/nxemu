@@ -63,12 +63,9 @@ private:
         bool seen = false;
     };
 
-    struct GameFileRecord
+    struct ProgramRecord
     {
-        FileStamp stamp;
-        bool isGame = false;
         CachedGameMetadata base;
-        AddOnEntries addOns;
 
         bool updateValid = false;
         uint64_t updateFingerprint = 0;
@@ -77,6 +74,15 @@ private:
         std::string updateVersion;
 
         std::shared_ptr<const CachedGameMetadata> effective;
+    };
+    using ProgramRecords = std::vector<ProgramRecord>;
+
+    struct GameFileRecord
+    {
+        FileStamp stamp;
+        bool isGame = false;
+        ProgramRecords programs;
+        AddOnEntries addOns;
         bool seen = false;
     };
 
@@ -97,9 +103,11 @@ private:
     bool ScanGameDirectory(const std::string & gameDir, uint64_t addOnDirsId, const UpdateIndex & addOnIndex, IGameListScanCallback & callback);
     void ParseGameFile(const std::string & path, GameFileRecord & record) const;
     AddOnEntries ReadAddOnEntries(const std::string & path) const;
-    bool RefreshUpdate(GameFileRecord & record, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const;
-    void ReadUpdateMetadata(const UpdateCandidate & candidate, uint64_t updateTitleId, GameFileRecord & record) const;
+    bool RefreshUpdates(GameFileRecord & record, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const;
+    bool RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const;
+    void ReadUpdateMetadata(const UpdateCandidate & candidate, uint64_t updateTitleId, ProgramRecord & program) const;
     void ReportGame(const std::string & path, GameFileRecord & record, bool changed, IGameListScanCallback & callback);
+    void ReportProgram(const std::string & path, ProgramRecord & program, bool changed, IGameListScanCallback & callback);
 
     void Load();
     void Save() const;
