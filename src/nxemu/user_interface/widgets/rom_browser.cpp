@@ -1,18 +1,21 @@
 #include "rom_browser.h"
 #include "user_interface/html_utils.h"
 #include "user_interface/app_events.h"
+#include "user_interface/directory_watcher.h"
 #include "user_interface/sciter_main_window.h"
 #include "settings/ui_settings.h"
 #include <atomic>
 #include <chrono>
 #include <cstring>
 #include <map>
+#include <common/json.h>
 #include <common/path.h>
 #include <common/std_string.h>  
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
+#include <nxemu-loader/loader_settings_identifiers.h>
 #include <nxemu/settings/ui_identifiers.h>
 #include <sciter_handler.h>
 #include <sciter_element.h>
@@ -40,10 +43,12 @@ struct RomEntry
     bool newItem = false;
     bool found = false;
     bool removePending = false;
+    bool refreshPending = false;
 };
 using RomEntrys = std::unordered_map<std::string, RomEntry>;
 
-class RomListWorker
+class RomListWorker :
+    public IGameListScanCallback
 {
 public:
     RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories);
@@ -54,8 +59,10 @@ public:
 
 private:
     void Run();
-    void ScanFileSystem(const std::string & dir_path);
-    bool HasSupportedFileExtension(const std::string & file_name);
+
+    // IGameListScanCallback
+    bool ScanStopRequested() override;
+    void GameFound(const char * path, IRomInfo * romInfo, bool changed) override;
 
     ISystemModules & m_modules;
     std::mutex & m_romsMutex;
@@ -104,12 +111,14 @@ private:
 
     WidgetRomBrowser(ISciterUI & sciterUI);
     bool RenderUI();
+    void AddRomCardIcon(SciterElement & romCardContents, RomEntry & romEntry);
     void SelectRomCard(const SciterElement & card);
     bool StartGame(const SciterElement & card);
     SciterElement FindRomCard(SCITER_ELEMENT start) const;
     std::string GetContextMenuItemId(SCITER_ELEMENT start) const;
     bool HandleContextMenuCommand(const std::string & itemId);
     void AttachContextMenuHandlers();
+    void UpdateDirectoryWatcher();
 
     // IWidget
     void Attached(SCITER_ELEMENT element, IBaseElement * baseElement) override;
@@ -141,6 +150,9 @@ private:
     std::mutex m_romsMutex;
     RomEntrys m_roms;
     std::unique_ptr<RomListWorker> m_currentWorker;
+    DirectoryWatcher m_directoryWatcher;
+    Stringlist m_watchedGameDirs;
+    Stringlist m_watchedAddOnDirs;
     bool m_updatingUI;
     bool m_contextMenuHandlerAttached;
     static RomBrowsers m_instances;
@@ -222,6 +234,16 @@ bool WidgetRomBrowser::RenderUI()
             }
             if (romCard.IsValid())
             {
+                if (romEntry.refreshPending)
+                {
+                    SciterElement romCardContents = romCard.FindFirst(".rom-card-content");
+                    if (romCardContents.IsValid())
+                    {
+                        romCardContents.Clear();
+                        AddRomCardIcon(romCardContents, romEntry);
+                    }
+                    romEntry.refreshPending = false;
+                }
                 ++itr;
                 continue;
             }
@@ -237,21 +259,26 @@ bool WidgetRomBrowser::RenderUI()
             romCardContents.Create("div", "");
             romCardContents.SetAttribute("class", "rom-card-content");
             romCard.Insert(romCardContents, romCard.GetChildCount());
-
-            if (romEntry.icon.size() > 0)
-            {
-                SciterElement iconElement;
-                iconElement.Create("img", "");
-                iconElement.SetAttribute("class", "rom-icon");
-                iconElement.SetAttribute("src", ImageDataUri(romEntry.icon.data(), romEntry.icon.size()).c_str());
-                romCardContents.Insert(iconElement, romCardContents.GetChildCount());
-                romEntry.icon.clear();
-            }
+            AddRomCardIcon(romCardContents, romEntry);
+            romEntry.refreshPending = false;
             ++itr;
         }
     }
     m_updatingUI = false;
     return false;
+}
+
+void WidgetRomBrowser::AddRomCardIcon(SciterElement & romCardContents, RomEntry & romEntry)
+{
+    if (romEntry.icon.size() > 0)
+    {
+        SciterElement iconElement;
+        iconElement.Create("img", "");
+        iconElement.SetAttribute("class", "rom-icon");
+        iconElement.SetAttribute("src", ImageDataUri(romEntry.icon.data(), romEntry.icon.size()).c_str());
+        romCardContents.Insert(iconElement, romCardContents.GetChildCount());
+        romEntry.icon.clear();
+    }
 }
 
 bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t event_code, uint64_t /*reason*/)
@@ -261,6 +288,17 @@ bool WidgetRomBrowser::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT source, ui
         m_updatingUI = true;
         m_rootElement.SetTimer(250, (uint32_t *)TIMER_UPDATE_UI);
         return false;
+    }
+
+    if (event_code == EVENT_GAME_DIRS_CHANGED)
+    {
+        SettingsStore & settings = SettingsStore::GetInstance();
+        const EmulationState state = static_cast<EmulationState>(settings.GetInt(NXCoreSetting::EmulationState));
+        if (!settings.GetBool(NXCoreSetting::EmulationRunning) && state == EmulationState::Stopped)
+        {
+            PopulateAsync();
+        }
+        return true;
     }
 
     if (event_code == (uint32_t)SciterBehaviorEvent::MenuItemClick)
@@ -492,7 +530,7 @@ void WidgetRomBrowser::SettingChanged(const char * setting, void * userData)
     {
         impl->m_gameGrid.SetAttribute("data-size", stdstr_f("%d", settings.GetInt(NXUISetting::MyGameIconSize)).c_str());
     }
-    else if (strcmp(setting, NXUISetting::GameDirectories) == 0)
+    else if (strcmp(setting, NXUISetting::GameDirectories) == 0 || strcmp(setting, NXLoaderSetting::AddOnDirectories) == 0)
     {
         impl->PopulateAsync();
     }
@@ -528,12 +566,16 @@ void WidgetRomBrowser::Attached(SCITER_ELEMENT element, IBaseElement * baseEleme
     SettingsStore & settings = SettingsStore::GetInstance();
     settings.RegisterCallback(NXUISetting::MyGameIconSize, WidgetRomBrowser::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::GameDirectories, WidgetRomBrowser::SettingChanged, this);
+    settings.RegisterCallback(NXLoaderSetting::AddOnDirectories, WidgetRomBrowser::SettingChanged, this);
 
     RenderUI();
 }
 
 void WidgetRomBrowser::Detached(SCITER_ELEMENT /*element*/)
 {
+    m_directoryWatcher.Stop();
+    m_watchedGameDirs.clear();
+    m_watchedAddOnDirs.clear();
     m_baseElement = nullptr;
     m_rootElement = nullptr;
 }
@@ -554,12 +596,48 @@ void WidgetRomBrowser::PopulateAsync()
         m_currentWorker.reset();
         m_currentWorker = std::make_unique<RomListWorker>(*this, *m_modules, uiSettings.gameDirectories);
         m_currentWorker->Start();
+        UpdateDirectoryWatcher();
     }
 }
 
 void WidgetRomBrowser::StopScan()
 {
     m_currentWorker.reset();
+    m_directoryWatcher.Stop();
+    m_watchedGameDirs.clear();
+    m_watchedAddOnDirs.clear();
+}
+
+void WidgetRomBrowser::UpdateDirectoryWatcher()
+{
+    if (!m_rootElement.IsValid())
+    {
+        return;
+    }
+
+    Stringlist addOnDirs;
+    const std::string addOnJson = SettingsStore::GetInstance().GetString(NXLoaderSetting::AddOnDirectories);
+    JsonValue root;
+    JsonReader reader;
+    if (!addOnJson.empty() && reader.Parse(addOnJson.data(), addOnJson.data() + addOnJson.size(), root) && root.isArray())
+    {
+        for (uint32_t i = 0, n = root.size(); i < n; i++)
+        {
+            addOnDirs.push_back(root[i].asString());
+        }
+    }
+
+    if (addOnDirs == m_watchedAddOnDirs && uiSettings.gameDirectories == m_watchedGameDirs)
+    {
+        return;
+    }
+    m_watchedGameDirs = uiSettings.gameDirectories;
+    m_watchedAddOnDirs = std::move(addOnDirs);
+
+    SciterElement rootElement = m_rootElement;
+    m_directoryWatcher.Start(m_watchedGameDirs, m_watchedAddOnDirs, [rootElement]() {
+        rootElement.PostEvent(EVENT_GAME_DIRS_CHANGED);
+    });
 }
 
 void WidgetRomBrowser::SetMainWindow(SciterMainWindow * window, ISystemModules * modules)
@@ -644,16 +722,13 @@ void RomListWorker::Run()
         }
     }
 
+    std::vector<const char *> gameDirs;
     for (const std::string & game_dir : m_gameDirectories)
     {
-        if (m_stop)
-        {
-            return;
-        }
-        ScanFileSystem(game_dir);
+        gameDirs.push_back(game_dir.c_str());
     }
-
-    if (m_stop)
+    ISystemloader & systemloader = m_modules.Systemloader();
+    if (!systemloader.ScanGameList(gameDirs.data(), (uint32_t)gameDirs.size(), *this) || m_stop)
     {
         return;
     }
@@ -676,70 +751,66 @@ void RomListWorker::Run()
     }
 }
 
-void RomListWorker::ScanFileSystem(const std::string & dir_path)
+bool RomListWorker::ScanStopRequested()
 {
-    const auto callback = [this](const std::filesystem::path & path) -> bool {
-        if (m_stop)
-        {
-            // Breaks the callback loop.
-            return false;
-        }
-        const std::string physical_name = Common::FS::PathToUTF8String(path);
-        const bool is_dir = Common::FS::IsDir(path);
-        if (!is_dir && (HasSupportedFileExtension(physical_name)))
-        {
-            {
-                std::lock_guard<std::mutex> lock(m_romsMutex);
-                RomEntrys::iterator iter = m_roms.find(physical_name);
-                if (iter != m_roms.end())
-                {
-                    iter->second.found = true;
-                    return true;
-                }
-            }
-
-            ISystemloader & systemloader = m_modules.Systemloader();
-            RomEntry entry;
-            IRomInfoPtr romInfo(systemloader.RomInfo(physical_name.c_str(), 0, 0));
-            if (!romInfo)
-            {
-                return true;
-            }
-            entry.newItem = true;
-            entry.found = true;
-
-            uint32_t size = 0;
-            LoaderResultStatus res = romInfo->ReadIcon(nullptr, &size);
-            if (res == LoaderResultStatus::Success && size > 0)
-            {
-                entry.icon.resize(size);
-                romInfo->ReadIcon(entry.icon.data(), &size);
-            }
-
-            res = romInfo->ReadTitle(nullptr, &size);
-            if (res == LoaderResultStatus::Success)
-            {
-                entry.title.resize(size);
-                res = romInfo->ReadTitle(entry.title.data(), &size);
-            }
-
-            {
-                std::lock_guard<std::mutex> lock(m_romsMutex);
-                m_roms.emplace(physical_name, std::move(entry));
-            }
-            m_rootElement.PostEvent(EVENT_UPDATE_LIST);
-        }
-        return true;
-    };
-    Common::FS::IterateDirEntries(dir_path, callback, Common::FS::DirEntryFilter::File);
+    return m_stop;
 }
 
-bool RomListWorker::HasSupportedFileExtension(const std::string & file_name)
+void RomListWorker::GameFound(const char * path, IRomInfo * info, bool changed)
 {
-    static const std::unordered_set<std::string> supported_extensions = {
-        "nso", "nro", "nca",
-        "dxci", "dnsp", "kip"};
-    return supported_extensions.contains(stdstr(Path(file_name).GetExtension()).ToLower());
+    IRomInfoPtr romInfo(info);
+    if (!romInfo)
+    {
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_romsMutex);
+        RomEntrys::iterator iter = m_roms.find(path);
+        if (iter != m_roms.end() && !changed)
+        {
+            iter->second.found = true;
+            return;
+        }
+    }
+
+    RomEntry entry;
+    entry.newItem = true;
+    entry.found = true;
+
+    uint32_t size = 0;
+    LoaderResultStatus res = romInfo->ReadIcon(nullptr, &size);
+    if (res == LoaderResultStatus::Success && size > 0)
+    {
+        entry.icon.resize(size);
+        romInfo->ReadIcon(entry.icon.data(), &size);
+    }
+
+    size = 0;
+    res = romInfo->ReadTitle(nullptr, &size);
+    if (res == LoaderResultStatus::Success)
+    {
+        entry.title.resize(size);
+        res = romInfo->ReadTitle(entry.title.data(), &size);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_romsMutex);
+        RomEntrys::iterator iter = m_roms.find(path);
+        if (iter != m_roms.end())
+        {
+            RomEntry & existing = iter->second;
+            existing.title = std::move(entry.title);
+            existing.icon = std::move(entry.icon);
+            existing.found = true;
+            existing.removePending = false;
+            existing.refreshPending = true;
+        }
+        else
+        {
+            m_roms.emplace(path, std::move(entry));
+        }
+    }
+    m_rootElement.PostEvent(EVENT_UPDATE_LIST);
 }
 } // namespace
 

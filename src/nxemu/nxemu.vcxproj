@@ -71,6 +71,7 @@
     <ClCompile Include="user_interface\settings\system_config_input.cpp" />
     <ClCompile Include="user_interface\settings\system_config_hotkeys.cpp" />
     <ClCompile Include="user_interface\settings\system_config_logging.cpp" />
+    <ClCompile Include="user_interface\directory_watcher.cpp" />
     <ClCompile Include="user_interface\widgets\rom_browser.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -112,6 +113,7 @@
     <ClInclude Include="user_interface\settings\system_config_input.h" />
     <ClInclude Include="user_interface\settings\system_config_hotkeys.h" />
     <ClInclude Include="user_interface\settings\system_config_logging.h" />
+    <ClInclude Include="user_interface\directory_watcher.h" />
     <ClInclude Include="user_interface\widgets\rom_browser.h" />
   </ItemGroup>
   <ItemGroup>

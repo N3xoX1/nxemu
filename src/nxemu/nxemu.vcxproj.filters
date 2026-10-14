@@ -57,6 +57,9 @@
     <ClCompile Include="user_interface\notification.cpp">
       <Filter>Source Files\user_interface</Filter>
     </ClCompile>
+    <ClCompile Include="user_interface\directory_watcher.cpp">
+      <Filter>Source Files\user_interface</Filter>
+    </ClCompile>
     <ClCompile Include="user_interface\sciter_main_window.cpp">
       <Filter>Source Files\user_interface</Filter>
     </ClCompile>
@@ -264,6 +267,9 @@
       <Filter>Header Files\applets</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\app_events.h">
+      <Filter>Header Files\user_interface</Filter>
+    </ClInclude>
+    <ClInclude Include="user_interface\directory_watcher.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\file_dialogs.h">

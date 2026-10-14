@@ -1,10 +1,20 @@
 #pragma once
 #include "core/file_sys/vfs/vfs_types.h"
+#include <map>
 #include <memory>
 #include <nxemu-loader/core/loader/loader.h>
 
 class Systemloader;
 nxinterface IManualContentProvider;
+
+namespace FileSys
+{
+class NSP;
+}
+
+using UpdateVersionMap = std::map<uint64_t, uint32_t>;
+
+void CollectUpdateVersions(const FileSys::NSP & nsp, UpdateVersionMap & versions);
 
 class RomInfo :
     public IRomInfo
@@ -17,6 +27,7 @@ public:
     LoaderFileType GetFileType() const override;
     LoaderResultStatus ReadProgramId(uint64_t & out_program_id) override;
     LoaderResultStatus ReadTitle(char * buffer, uint32_t * bufferSize) override;
+    LoaderResultStatus ReadDisplayVersion(char * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadIcon(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadBanner(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadLogo(uint8_t * buffer, uint32_t * bufferSize) override;

@@ -132,6 +132,7 @@
     <ClInclude Include="core\loader\xci.h" />
     <ClInclude Include="loader_settings.h" />
     <ClInclude Include="loader_settings_identifiers.h" />
+    <ClInclude Include="game_list_cache.h" />
     <ClInclude Include="rom_info.h" />
     <ClInclude Include="system_loader.h" />
   </ItemGroup>
@@ -206,6 +207,7 @@
     <ClCompile Include="firmware_zip.cpp" />
     <ClCompile Include="loader_settings.cpp" />
     <ClCompile Include="nxemu-loader.cpp" />
+    <ClCompile Include="game_list_cache.cpp" />
     <ClCompile Include="rom_info.cpp" />
     <ClCompile Include="system_loader.cpp" />
   </ItemGroup>

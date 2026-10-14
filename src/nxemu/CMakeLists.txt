@@ -24,6 +24,8 @@ add_executable(nxemu
     user_interface/notification.cpp
     user_interface/notification.h
     user_interface/app_events.h
+    user_interface/directory_watcher.cpp
+    user_interface/directory_watcher.h
     user_interface/file_dialogs.cpp
     user_interface/file_dialogs.h
     user_interface/sciter_main_window.cpp
@@ -82,8 +84,10 @@ if(APPLE)
     find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
     find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
     find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
+    find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)
     target_link_libraries(nxemu PRIVATE
         ${APPKIT_FRAMEWORK}
+        ${CORESERVICES_FRAMEWORK}
         ${QUARTZCORE_FRAMEWORK}
         ${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}
     )

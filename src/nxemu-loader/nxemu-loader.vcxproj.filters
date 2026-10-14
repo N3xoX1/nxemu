@@ -291,6 +291,9 @@
     <ClCompile Include="rom_info.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="game_list_cache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="core\file_sys\vfs\vfs_ivirtualdirectory.cpp">
       <Filter>Source Files\core\file_sys\vfs</Filter>
     </ClCompile>
@@ -561,6 +564,9 @@
       <Filter>Header Files\core\loader</Filter>
     </ClInclude>
     <ClInclude Include="rom_info.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="game_list_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="core\file_sys\vfs\vfs_ivirtualdirectory.h">
