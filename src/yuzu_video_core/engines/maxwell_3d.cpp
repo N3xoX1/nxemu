@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_video_core/engines/maxwell_3d.h"
+#include <tuple>
 #include "nxemu-video/video_settings.h"
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/scope_exit.h"
@@ -388,9 +389,16 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
     }
     regs.reg_array[method] = argument;
 
-    for (const auto & table : dirty.tables)
-    {
-        dirty.flags[table[method]] = true;
+    static_assert(std::tuple_size_v<DirtyState::Tables> == 2);
+    const auto first = dirty.tables[0][method];
+    const auto second = dirty.tables[1][method];
+    if (first < 64 && second < 64) {
+        dirty.flags |= DirtyState::Flags{(u64{1} << first) | (u64{1} << second)};
+    } else {
+        dirty.flags[first] = true;
+        if (first != second) {
+            dirty.flags[second] = true;
+        }
     }
 }
 
