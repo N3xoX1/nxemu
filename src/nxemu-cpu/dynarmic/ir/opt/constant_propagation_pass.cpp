@@ -383,6 +383,20 @@ void ConstantPropagation(IR::Block& block) {
         const auto opcode = inst.GetOpcode();
 
         switch (opcode) {
+        case Op::VectorGetElement32: {
+            // Extracting the low word after zero-extending that same word
+            // returns the original U32, with no floating-point operation.
+            if (!inst.GetArg(1).IsImmediate() || inst.GetArg(1).GetU8() != 0 ||
+                inst.GetArg(0).IsImmediate()) break;
+            const auto* quad = inst.GetArg(0).GetInstRecursive();
+            if (quad->GetOpcode() != Op::ZeroExtendLongToQuad ||
+                quad->GetArg(0).IsImmediate()) break;
+            const auto* scalar = quad->GetArg(0).GetInstRecursive();
+            if (scalar->GetOpcode() == Op::ZeroExtendWordToLong) {
+                inst.ReplaceUsesWith(scalar->GetArg(0));
+            }
+            break;
+        }
         case Op::LeastSignificantWord:
             FoldLeastSignificantWord(inst);
             break;

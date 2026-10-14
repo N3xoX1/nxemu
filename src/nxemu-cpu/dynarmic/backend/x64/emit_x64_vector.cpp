@@ -225,7 +225,18 @@ void EmitX64::EmitVectorGetElement32(EmitContext& ctx, IR::Inst* inst) {
     ASSERT(args[1].IsImmediate());
     const u8 index = args[1].GetImmediateU8();
 
-    // TODO: DefineValue directly on Argument for index == 0
+    if (index == 0) {
+        const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
+        // Scalar FP post-processing also inspects upper lanes. Clear them so
+        // unrelated signaling NaNs cannot change the guest exception flags.
+        if (code.HasHostFeature(HostFeature::SSE41)) {
+            code.insertps(result, result, 0x0e);
+        } else {
+            code.pand(result, code.Const(xword, 0xffffffff));
+        }
+        ctx.reg_alloc.DefineValue(inst, result);
+        return;
+    }
 
     const Xbyak::Reg32 dest = ctx.reg_alloc.ScratchGpr().cvt32();
 
