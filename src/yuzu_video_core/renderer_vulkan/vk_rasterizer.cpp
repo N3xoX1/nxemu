@@ -1038,8 +1038,11 @@ void RasterizerVulkan::FlushWork() {
         return;
     }
     if (draw_counter < DRAWS_TO_DISPATCH) {
-        // Send recorded tasks to the worker thread
-        scheduler.DispatchWork();
+        // Batch opportunistic worker handoffs. Explicit guest flushes/waits
+        // and the periodic driver submission below retain their original cadence.
+        if ((draw_counter & 31) == 31) {
+            scheduler.DispatchWork();
+        }
         return;
     }
     // Otherwise (every certain number of draws) flush execution.
