@@ -7,6 +7,8 @@
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/common_funcs.h"
 #include "core/file_sys/patch_manager.h"
+#include "core/file_sys/control_metadata.h"
+#include "core/file_sys/nca_metadata.h"
 #include "core/loader/loader.h"
 #include <algorithm>
 #include <common/path.h>
@@ -14,37 +16,6 @@
 #include <filesystem>
 #include <map>
 #include <yuzu_common/fs/fs.h>
-
-namespace
-{
-
-using UpdateVersionMap = std::map<uint64_t, uint32_t>;
-
-std::string ToLowerAscii(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-    return value;
-}
-
-bool IsAddOnContentExtension(const char * fileName)
-{
-    static const char * supported_extensions[] = {
-        "nca",
-        "dxci",
-        "dnsp",
-    };
-
-    std::string ext = Path(fileName).GetExtension();
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    for (const char * supported : supported_extensions)
-    {
-        if (ext == supported)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 void CollectUpdateVersions(const FileSys::NSP & nsp, UpdateVersionMap & versions)
 {
@@ -78,6 +49,35 @@ void CollectUpdateVersions(const FileSys::NSP & nsp, UpdateVersionMap & versions
             }
         }
     }
+}
+
+namespace
+{
+
+std::string ToLowerAscii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+    return value;
+}
+
+bool IsAddOnContentExtension(const char * fileName)
+{
+    static const char * supported_extensions[] = {
+        "nca",
+        "dxci",
+        "dnsp",
+    };
+
+    std::string ext = Path(fileName).GetExtension();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    for (const char * supported : supported_extensions)
+    {
+        if (ext == supported)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void RegisterMatchingAddOnEntriesFromNsp(const FileSys::NSP & nsp, uint64_t base_program_id, IManualContentProvider & provider)
@@ -284,6 +284,36 @@ LoaderResultStatus RomInfo::ReadTitle(char * buffer, uint32_t * bufferSize)
         return m_loader->ReadTitle(buffer, bufferSize);
     }
     return LoaderResultStatus::ErrorNotInitialized;
+}
+
+LoaderResultStatus RomInfo::ReadDisplayVersion(char * buffer, uint32_t * bufferSize)
+{
+    if (!m_loader)
+    {
+        return LoaderResultStatus::ErrorNotInitialized;
+    }
+    FileSys::NACP nacp;
+    const LoaderResultStatus st = m_loader->ReadControlData(nacp);
+    if (st != LoaderResultStatus::Success)
+    {
+        return st;
+    }
+    if (bufferSize == nullptr)
+    {
+        return LoaderResultStatus::ErrorNotImplemented;
+    }
+    const std::string version = nacp.GetVersionString();
+    if (buffer != nullptr && *bufferSize < (uint32_t)version.size())
+    {
+        return LoaderResultStatus::ErrorBufferTooSmall;
+    }
+    *bufferSize = (uint32_t)version.size();
+    if (buffer == nullptr)
+    {
+        return LoaderResultStatus::Success;
+    }
+    std::memcpy(buffer, version.data(), version.size());
+    return LoaderResultStatus::Success;
 }
 
 LoaderResultStatus RomInfo::ReadIcon(uint8_t * buffer, uint32_t * bufferSize)

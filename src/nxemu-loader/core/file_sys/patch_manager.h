@@ -92,4 +92,6 @@ private:
     const ContentProvider& content_provider;
 };
 
+[[nodiscard]] PatchManager::Metadata ParseControlRomFS(VirtualFile romfs);
+
 } // namespace FileSys

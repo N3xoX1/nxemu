@@ -20,6 +20,7 @@
 #include "core/hle/service/set/settings_types.h"
 #include "core/loader/loader.h"
 #include "firmware_zip.h"
+#include "game_list_cache.h"
 #include "loader_settings.h"
 #include "loader_settings_identifiers.h"
 #include "rom_info.h"
@@ -475,6 +476,7 @@ struct Systemloader::Impl
         m_fsController(loader),
         m_manualContentProvider(std::make_unique<ManualContentProviderImpl>()),
         m_hostFilesystem(m_virtualFilesystem),
+        m_gameListCache(loader),
         m_processID(0),
         m_titleID(0)
     {
@@ -499,6 +501,7 @@ struct Systemloader::Impl
     ::FileSystemController m_fsController;
     std::unique_ptr<ManualContentProviderImpl> m_manualContentProvider;
     HostFilesystemImpl m_hostFilesystem;
+    GameListCache m_gameListCache;
     uint64_t m_processID;
     uint64_t m_titleID;
 };
@@ -683,6 +686,19 @@ IRomInfo * Systemloader::LoadedRomInfo()
 {
     std::unique_ptr<::RomInfo> info = std::make_unique<::RomInfo>(*this, impl->m_file, impl->m_appLoader);
     return info.release();
+}
+
+bool Systemloader::ScanGameList(const char * const * gameDirs, uint32_t gameDirCount, IGameListScanCallback & callback)
+{
+    std::vector<std::string> dirs;
+    for (uint32_t i = 0; i < gameDirCount; i++)
+    {
+        if (gameDirs[i] != nullptr && gameDirs[i][0] != '\0')
+        {
+            dirs.emplace_back(gameDirs[i]);
+        }
+    }
+    return impl->m_gameListCache.Scan(dirs, callback);
 }
 
 FileSys::VirtualFilesystem Systemloader::GetFilesystem()

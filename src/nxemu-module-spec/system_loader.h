@@ -332,6 +332,7 @@ nxinterface IRomInfo
     virtual LoaderFileType GetFileType() const = 0;
     virtual LoaderResultStatus ReadProgramId(uint64_t & out_program_id) = 0;
     virtual LoaderResultStatus ReadTitle(char * buffer, uint32_t * bufferSize) = 0;
+    virtual LoaderResultStatus ReadDisplayVersion(char * buffer, uint32_t * bufferSize) = 0;
     virtual LoaderResultStatus ReadIcon(uint8_t * buffer, uint32_t * bufferSize) = 0;
     virtual LoaderResultStatus ReadBanner(uint8_t * buffer, uint32_t * bufferSize) = 0;
     virtual LoaderResultStatus ReadLogo(uint8_t * buffer, uint32_t * bufferSize) = 0;
@@ -345,6 +346,12 @@ nxinterface IRomInfo
     virtual void Release() = 0;
 };
 
+nxinterface IGameListScanCallback
+{
+    virtual bool ScanStopRequested() = 0;
+    virtual void GameFound(const char * path, IRomInfo * romInfo, bool changed) = 0;
+};
+
 nxinterface ISystemloader
 {
     virtual bool Initialize() = 0;
@@ -353,6 +360,7 @@ nxinterface ISystemloader
     virtual IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * LoadedRomInfo() = 0;
+    virtual bool ScanGameList(const char * const * gameDirs, uint32_t gameDirCount, IGameListScanCallback & callback) = 0;
 
     virtual IContentProvider & ContentProvider() = 0;
     virtual IFilesystem & Filesystem() = 0;
