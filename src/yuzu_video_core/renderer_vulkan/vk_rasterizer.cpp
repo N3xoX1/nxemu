@@ -19,7 +19,6 @@
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 #include "yuzu_video_core/renderer_vulkan/blit_image.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
@@ -40,7 +39,6 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
-
 using Maxwell = Tegra::Engines::Maxwell3D::Regs;
 using MaxwellDrawState = Tegra::Engines::DrawManager::State;
 using VideoCommon::ImageViewId;
@@ -201,18 +199,15 @@ RasterizerVulkan::~RasterizerVulkan() = default;
 
 template <typename Func>
 void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
-    namespace Perf = VideoCommon::PerformanceDiagnostics;
-    Perf::Scope timing{Perf::Category::Draw};
     SCOPE_EXIT {
         gpu.TickWork();
     };
     FlushWork();
-    Perf::Measure(Perf::Category::GuestFlush, [&] { gpu_memory->FlushCaching(); });
+    gpu_memory->FlushCaching();
 
     query_cache.NotifySegment(true);
 
-    GraphicsPipeline* const pipeline{Perf::Measure(Perf::Category::GraphicsPipeline,
-        [&] { return pipeline_cache.CurrentGraphicsPipeline(); })};
+    GraphicsPipeline* const pipeline{pipeline_cache.CurrentGraphicsPipeline()};
     if (!pipeline) {
         return;
     }
@@ -224,14 +219,14 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // Host queries begin/end within that pass and accumulate across pass boundaries.
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                               maxwell3d->regs.zpass_pixel_count_enable);
-    Perf::Measure(Perf::Category::GraphicsConfigure, [&] { pipeline->Configure(is_indexed); });
+    pipeline->Configure(is_indexed);
     image_write_stages |= pipeline->ImageWriteStages();
 
-    Perf::Measure(Perf::Category::DynamicStates, [&] { UpdateDynamicStates(); });
+    UpdateDynamicStates();
 
     HandleTransformFeedback();
     draw_func(pipeline);
-    Perf::Measure(Perf::Category::SparseCopy, [&] { buffer_cache.CopySparseWrites(); });
+    buffer_cache.CopySparseWrites();
 }
 
 void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
@@ -405,7 +400,6 @@ void RasterizerVulkan::DrawTexture() {
 }
 
 void RasterizerVulkan::Clear(u32 layer_count) {
-
     FlushWork();
     gpu_memory->FlushCaching();
 
@@ -572,25 +566,20 @@ void RasterizerVulkan::Clear(u32 layer_count) {
 }
 
 void RasterizerVulkan::DispatchCompute() {
-    namespace Perf = VideoCommon::PerformanceDiagnostics;
-    Perf::Scope timing{Perf::Category::Compute};
     FlushWork();
-    Perf::Measure(Perf::Category::GuestFlush, [&] { gpu_memory->FlushCaching(); });
+    gpu_memory->FlushCaching();
 
-    ComputePipeline* const pipeline{Perf::Measure(Perf::Category::ComputePipeline,
-        [&] { return pipeline_cache.CurrentComputePipeline(); })};
+    ComputePipeline* const pipeline{pipeline_cache.CurrentComputePipeline()};
     if (!pipeline) {
         return;
     }
     std::scoped_lock lock{texture_cache.mutex, buffer_cache.mutex};
-    Perf::Measure(Perf::Category::ComputeConfigure, [&] {
-        pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
-    });
+    pipeline->Configure(*kepler_compute, *gpu_memory, scheduler, buffer_cache, texture_cache);
     if (pipeline->WritesImages()) {
         image_write_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }
     SCOPE_EXIT {
-        Perf::Measure(Perf::Category::SparseCopy, [&] { buffer_cache.CopySparseWrites(); });
+        buffer_cache.CopySparseWrites();
     };
 
     const auto& qmd{kepler_compute->launch_description};
@@ -675,22 +664,13 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
 }
 
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
-    namespace Perf = VideoCommon::PerformanceDiagnostics;
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
-        Perf::RecordEvent(Perf::Category::FlushBufferQuery);
-        // Texture retirement also holds the buffer mutex. A buffer-only clean
-        // proof does not cover texture RAM copies, so retain the historical
-        // policy on any page ever registered by the texture cache.
-        const bool allow_current = buffer_cache.HasGpuDirtySummary() &&
-            !True(device_memory.FilterFlushCaches(addr, size, VideoCommon::CacheType::TextureCache));
-        if (buffer_cache.MayHaveGpuWritesForRead(addr, size, allow_current)) {
+        if (buffer_cache.MayHaveGpuWrites(addr, size)) {
             std::scoped_lock lock{buffer_cache.mutex};
             if (buffer_cache.IsRegionGpuModified(addr, size)) {
                 return true;
             }
-        } else {
-            Perf::RecordEvent(Perf::Category::FlushBufferSkipped);
         }
     }
     if (!Settings::IsGPULevelHigh()) {
@@ -761,29 +741,23 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
 }
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
-    namespace Perf = VideoCommon::PerformanceDiagnostics;
     if (addr == 0 || size == 0) {
         return false;
     }
 
     const auto requested = VideoCommon::CacheType::BufferCache | VideoCommon::CacheType::TextureCache;
-    const auto caches = VideoCommon::GpuWriteFilterEnabled()
-        ? device_memory.FilterFlushCaches(addr, size, requested) : requested;
-    Perf::Scope timing{Perf::Category::CpuWriteQuery};
+    const auto caches = device_memory.FilterFlushCaches(addr, size, requested);
+
     if (True(caches & VideoCommon::CacheType::BufferCache)) {
         std::scoped_lock lock{buffer_cache.mutex};
         if (buffer_cache.OnCPUWrite(addr, size)) {
             return true;
         }
-    } else {
-        Perf::RecordEvent(Perf::Category::CpuWriteBufferSkipped);
     }
 
     if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
-    } else {
-        Perf::RecordEvent(Perf::Category::CpuWriteTextureSkipped);
     }
 
     pipeline_cache.InvalidateRegion(addr, size);
@@ -1803,5 +1777,4 @@ void RasterizerVulkan::ReleaseChannel(s32 channel_id) {
     pipeline_cache.EraseChannel(channel_id);
     query_cache.EraseChannel(channel_id);
 }
-
 } // namespace Vulkan

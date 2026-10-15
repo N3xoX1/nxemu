@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <iterator>
 #include <mutex>
 #include <numeric>
@@ -15,7 +14,6 @@
 #include "yuzu_common/fs/fs.h"
 #include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/settings.h"
-#include "yuzu_common/logging/log.h"
 #include "os_settings.h"
 #include "core/perf_stats.h"
 
@@ -117,17 +115,6 @@ PerfStatsResults PerfStats::GetAndResetStats(microseconds current_system_time_us
     system_frames = 0;
     game_frames.store(0, std::memory_order_relaxed);
     previous_fps = current_fps;
-
-    static const bool diagnose = [] {
-        const char* value = std::getenv("NXEMU_PERFORMANCE_DIAGNOSTICS");
-        return value && value[0] == '1' && value[1] == '\0';
-    }();
-    if (diagnose) {
-        LOG_INFO(Core, "Performance frames: title={:016X} interval_ms={:.3f} system_fps={:.3f} game_fps={:.3f} frame_ms={:.3f} speed={:.3f} multicore={} speed_limit={}",
-            title_id, interval * 1000.0, results.system_fps, current_fps,
-            results.frametime * 1000.0, results.emulation_speed,
-            osSettings.use_multi_core, osSettings.speed_limit);
-    }
 
     return results;
 }

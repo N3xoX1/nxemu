@@ -2,7 +2,6 @@
 #pragma once
 #include <array>
 #include <atomic>
-#include <cstdlib>
 #include <memory>
 #include <system_error>
 #include <thread>
@@ -90,16 +89,12 @@ private:
 
 // Counts include the calling thread. hardware_concurrency reports logical CPUs,
 // not physical cores, and may be unknown (zero). Leave capacity for emulation.
-inline unsigned ReadbackWorkerCountForHardware(const char* value, unsigned logical_cpus) {
-    if (!value) return logical_cpus >= 8 ? 4U : logical_cpus >= 4 ? 2U : 0U;
-    if ((value[0] != '2' && value[0] != '4') || value[1] != '\0') return 0U;
-    const unsigned requested = static_cast<unsigned>(value[0] - '0');
-    return logical_cpus >= requested + 2 ? requested : 0U;
+inline unsigned ReadbackWorkerCountForHardware(unsigned logical_cpus) {
+    return logical_cpus >= 8 ? 4U : logical_cpus >= 4 ? 2U : 0U;
 }
 
 inline unsigned ReadbackWorkerCount() {
-    static const unsigned count = ReadbackWorkerCountForHardware(
-        std::getenv("NXEMU_PARALLEL_READBACK_THREADS"), std::thread::hardware_concurrency());
+    static const unsigned count = ReadbackWorkerCountForHardware(std::thread::hardware_concurrency());
     return count;
 }
 
@@ -115,12 +110,10 @@ public:
     ReadbackCopyContext& operator=(const ReadbackCopyContext&) = delete;
 
     static ReadbackCopyContext* Current() noexcept { return current; }
-    std::size_t Copy(void* destination, const void* source, std::size_t size,
-                     bool* used_parallel) {
+    std::size_t Copy(void* destination, const void* source, std::size_t size) {
         if (!unavailable) {
             try {
                 if (!workers) workers = std::make_unique<ReadbackCopyWorkers>(ReadbackWorkerCount());
-                if (used_parallel) *used_parallel = workers->CanSplit(destination, source, size);
                 return workers->Copy(destination, source, size);
             } catch (const std::system_error&) {
                 unavailable = true;
@@ -138,12 +131,10 @@ private:
     bool unavailable{};
 };
 
-inline std::size_t CopyChangedMemoryForReadback(void* destination, const void* source, std::size_t size,
-                                             bool* used_parallel = nullptr) {
-    if (used_parallel) *used_parallel = false;
+inline std::size_t CopyChangedMemoryForReadback(void* destination, const void* source, std::size_t size) {
     if (size >= 2 * 1024 * 1024 && ReadbackWorkerCount() != 0) {
         if (auto* context = ReadbackCopyContext::Current()) {
-            return context->Copy(destination, source, size, used_parallel);
+            return context->Copy(destination, source, size);
         }
     }
     // Synchronous callers without an explicit retirement scope remain serial.

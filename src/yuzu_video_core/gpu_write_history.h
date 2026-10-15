@@ -5,23 +5,13 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 
 namespace VideoCommon {
-
-inline bool GpuWriteFilterEnabled() {
-    static const bool enabled = [] {
-        const char* value = std::getenv("NXEMU_GPU_WRITE_FILTER");
-        return !value || (value[0] == '1' && value[1] == '\0');
-    }();
-    return enabled;
-}
-
 // Only proves that a region has NEVER been GPU-dirty. No clearing means CPU
 // cancellation, pending downloads, canonical deletion and address reuse cannot
 // create false negatives. Publish before any dirty range or GPU write command.
 // Positive results must still consult the cache under its original mutex.
-template<unsigned AddressBits = 34, unsigned PageBits = 16, bool SkipPublished = true>
+template<unsigned AddressBits = 34, unsigned PageBits = 16>
 class GpuWriteHistory {
     static_assert(PageBits < AddressBits && AddressBits < 64);
     static constexpr std::uint64_t Limit = std::uint64_t{1} << AddressBits;
@@ -35,11 +25,8 @@ public:
             return;
         }
         VisitWords(address,size,[&](size_t word,std::uint64_t mask) {
-            if constexpr (SkipPublished) {
-                // Bits never clear. Repeated large writable bindings need no
-                // RMW or cache-line ownership transfer once published.
-                if ((pages[word].load(std::memory_order_relaxed)&mask)==mask) return false;
-            }
+            // Published bits never clear, so avoid rewriting an unchanged word.
+            if ((pages[word].load(std::memory_order_relaxed)&mask)==mask) return false;
             pages[word].fetch_or(mask,std::memory_order_release);
             return false;
         });

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#include <chrono>
 #include <cstring>
 #include <vector>
 
@@ -19,7 +18,6 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
-
 using Shader::ImageBufferDescriptor;
 using Shader::Backend::SPIRV::RESCALING_LAYOUT_WORDS_OFFSET;
 using Tegra::Texture::TexturePair;
@@ -338,11 +336,7 @@ void ComputePipeline::FinishRuntimeImageWrites(Scheduler& scheduler, TextureCach
     });
     // Guest image aliases must see precisely the images written before their next use.
     // This bounded readback is only needed by shaders with untrackable runtime handles.
-    const auto readback_start = std::chrono::steady_clock::now();
     scheduler.Finish();
-    const auto readback_us = std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now() - readback_start).count();
-    u32 modified = 0;
     for (u32 word = 0; word < info.runtime_image_write_mask_words; ++word) {
         u32 bits;
         std::memcpy(&bits, runtime_image_write_mask.mapped_span.data() + word * sizeof(u32), sizeof(bits));
@@ -351,16 +345,7 @@ void ComputePipeline::FinishRuntimeImageWrites(Scheduler& scheduler, TextureCach
             const auto id = runtime_image_views[word * 32U + bit];
             if (id == VideoCommon::NULL_IMAGE_VIEW_ID) continue;
             texture_cache.MarkModification(texture_cache.GetImageView(id).image_id);
-            ++modified;
         }
     }
-    ++runtime_image_dispatch_count;
-    if (runtime_image_dispatch_count <= 8 || runtime_image_dispatch_count % 128 == 0) {
-        LOG_INFO(Render_Vulkan,
-                 "Runtime storage images: dispatch={} modified={} write-mask={} bytes wait={} us",
-                 runtime_image_dispatch_count, modified,
-                 info.runtime_image_write_mask_words * sizeof(u32), readback_us);
-    }
 }
-
 } // namespace Vulkan

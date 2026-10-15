@@ -16,7 +16,6 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
-
 class Device;
 class DescriptorPool;
 class Scheduler;
@@ -186,7 +185,7 @@ private:
     std::shared_ptr<ReadbackShadowBudget> readback_shadow_budget;
     ComputePassDescriptorQueue& readback_descriptor_queue;
     DescriptorPool& readback_descriptor_pool;
-    bool differential_readback_enabled{};
+    bool differential_readback_enabled{true};
     bool has_readback_references{};
 };
 
@@ -207,5 +206,4 @@ struct BufferCacheParams {
 };
 
 using BufferCache = VideoCommon::BufferCache<BufferCacheParams>;
-
 } // namespace Vulkan

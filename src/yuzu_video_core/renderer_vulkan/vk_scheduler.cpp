@@ -10,7 +10,6 @@
 #include "yuzu_video_core/renderer_vulkan/vk_query_cache.h"
 
 #include "yuzu_common/thread.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 #include "yuzu_video_core/renderer_vulkan/vk_command_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -21,7 +20,6 @@
 #include "video_settings.h"
 
 namespace Vulkan {
-
 void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
                                          vk::CommandBuffer upload_cmdbuf) {
     auto command = first;
@@ -56,8 +54,6 @@ u64 Scheduler::Flush(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
 }
 
 void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::Finish};
     // When finishing, we need to wait for the submission to have executed on the device.
     const u64 presubmit_tick = CurrentTick();
     SubmitExecution(signal_semaphore, wait_semaphore);
@@ -66,8 +62,6 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore)
 }
 
 void Scheduler::WaitWorker() {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::WaitWorker};
     DispatchWork();
 
     // Ensure the queue is drained.
@@ -191,9 +185,7 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
             // Perform the work, tracking whether the chunk was a submission
             // before executing.
             const bool has_submit = work->HasSubmit();
-            VideoCommon::PerformanceDiagnostics::Measure(
-                VideoCommon::PerformanceDiagnostics::Category::DriverExecute,
-                [&] { work->ExecuteAll(current_cmdbuf, current_upload_cmdbuf); });
+            work->ExecuteAll(current_cmdbuf, current_upload_cmdbuf);
 
             // If the chunk was a submission, reallocate the command buffer.
             if (has_submit) {
@@ -250,8 +242,7 @@ u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_se
         }
 
         std::scoped_lock lock{submit_mutex};
-        VideoCommon::PerformanceDiagnostics::Scope timing{
-            VideoCommon::PerformanceDiagnostics::Category::DriverSubmit};
+
         switch (const VkResult result = master_semaphore->SubmitQueue(
                     cmdbuf, upload_cmdbuf, signal_semaphore, wait_semaphore, signal_value)) {
         case VK_SUCCESS:
@@ -387,5 +378,4 @@ void Scheduler::AcquireNewChunk() {
         chunk_reserve.pop_back();
     }
 }
-
 } // namespace Vulkan

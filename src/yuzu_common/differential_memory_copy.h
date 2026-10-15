@@ -129,8 +129,7 @@ inline bool HasAvx2() {
 
 inline Comparer SelectComparer() {
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC)
-    // Advanced SIMD is part of the AArch64 baseline, including Apple Silicon
-    // and Android arm64. No CPU-vendor or platform-specific tuning is needed.
+    // NEON is part of the AArch64 baseline.
     return EqualNeon;
 #elif defined(_M_X64) || defined(__x86_64__)
     return HasAvx2() ? EqualAvx2 : EqualSse2;

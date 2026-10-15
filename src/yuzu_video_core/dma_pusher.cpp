@@ -11,12 +11,10 @@
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/memory_manager.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 
 namespace Tegra
 {
-
 constexpr u32 MacroRegistersStart = 0xE00;
 constexpr u32 ComputeInline = 0x6D;
 
@@ -31,8 +29,6 @@ DmaPusher::~DmaPusher() = default;
 
 void DmaPusher::DispatchCalls()
 {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::CommandList};
     dma_pushbuffer_subindex = 0;
 
     dma_state.is_last_call = true;
@@ -379,5 +375,4 @@ void DmaPusher::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
     rasterizer = rasterizer_;
     puller.BindRasterizer(rasterizer_);
 }
-
 } // namespace Tegra

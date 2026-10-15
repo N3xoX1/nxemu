@@ -26,7 +26,6 @@ class ShaderNotify;
 }
 
 namespace Vulkan {
-
 class Device;
 class PipelineStatistics;
 class Scheduler;
@@ -70,7 +69,7 @@ private:
     StagingBufferRef runtime_image_write_mask{};
     std::vector<VideoCommon::ImageViewId> runtime_image_views;
     bool has_runtime_image_candidates{};
-    u64 runtime_image_dispatch_count{};
+
     u32 num_textures{};
     size_t num_descriptor_entries{};
 
@@ -92,5 +91,4 @@ private:
     std::atomic_bool is_built{false};
     std::atomic_bool build_failed{false};
 };
-
 } // namespace Vulkan

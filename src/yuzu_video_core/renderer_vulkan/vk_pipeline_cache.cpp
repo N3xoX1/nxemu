@@ -43,7 +43,6 @@
 #include "video_settings.h"
 
 namespace Vulkan {
-
 namespace {
 using Shader::Backend::SPIRV::EmitSPIRV;
 using Shader::Maxwell::ConvertLegacyToGeneric;
@@ -430,7 +429,6 @@ Shader::VtgVertexInputs MakeVtgVertexInputs(const FixedPipelineState& state) {
     }
     return inputs;
 }
-
 } // Anonymous namespace
 
 size_t ComputePipelineCacheKey::Hash() const noexcept {
@@ -590,7 +588,6 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
-
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
         return nullptr;
@@ -1081,7 +1078,6 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
         std::move(modules), infos, rasterizes_lines, std::move(vtg_info));
-
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();
     size_t env_index{0};
@@ -1199,11 +1195,6 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     }
 
     auto program{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
-    if (std::ranges::any_of(program.info.image_descriptors,
-                           [](const auto& desc) { return desc.is_direct; })) {
-        LOG_INFO(Render_Vulkan, "Compute shader {:#016x}: runtime TIC storage images, table size={}",
-                 key.unique_hash, key.texture_table_size);
-    }
     // Only where the host enforces its limit
     const u32 max_shared_memory{profile.max_compute_shared_memory_size};
     if (max_shared_memory != 0 && program.shared_memory_size > max_shared_memory &&
@@ -1226,7 +1217,6 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
                                              &shader_notify, program.info, std::move(spv_module), staging_pool);
-
 } catch (const Shader::Exception& exception) {
     env.Dump(key.Hash(), key.unique_hash);
     LOG_ERROR(Render_Vulkan, "Compute shader {:#016x}, TIC table size={}: {}",
@@ -1258,7 +1248,6 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
-
 } catch (const std::ios_base::failure& e) {
     LOG_ERROR(Common_Filesystem, "{}", e.what());
     if (!Common::FS::RemoveFile(filename)) {
@@ -1317,7 +1306,6 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
                  "Loaded Vulkan driver pipeline cache: ", Common::FS::PathToUTF8String(filename));
 
         return create_pipeline_cache(cache_size, cache_data.data());
-
     } catch (const std::ios_base::failure& e) {
         LOG_ERROR(Common_Filesystem, "{}", e.what());
         if (!Common::FS::RemoveFile(filename)) {
@@ -1328,5 +1316,4 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
         return create_pipeline_cache(0, nullptr);
     }
 }
-
 } // namespace Vulkan

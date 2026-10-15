@@ -4,7 +4,6 @@
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/thread.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 #include "frontend/emu_window.h"
 #include "yuzu_video_core/renderer_vulkan/vk_present_manager.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -13,9 +12,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_surface.h"
 
 namespace Vulkan {
-
 namespace {
-
 bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat format) {
     const VkFormatProperties props{physical_device.GetFormatProperties(format)};
     return (props.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT);
@@ -89,7 +86,6 @@ bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat form
             },
     };
 }
-
 } // Anonymous namespace
 
 PresentManager::PresentManager(const vk::Instance& instance_,
@@ -155,8 +151,6 @@ Frame* PresentManager::GetRenderFrame() {
 }
 
 void PresentManager::Present(Frame* frame) {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::Present};
     if (!use_present_thread) {
         scheduler.WaitWorker();
         CopyToSwapchain(frame);
@@ -333,8 +327,6 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
     }
 
     {
-        VideoCommon::PerformanceDiagnostics::Scope timing{
-            VideoCommon::PerformanceDiagnostics::Category::AcquireImage};
         while (swapchain.AcquireNextImage()) {
             RecreateSwapchain(frame);
         }
@@ -484,9 +476,6 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
     }
 
     // Present
-    VideoCommon::PerformanceDiagnostics::Measure(
-        VideoCommon::PerformanceDiagnostics::Category::QueuePresent,
-        [&] { swapchain.Present(render_semaphore); });
+    swapchain.Present(render_semaphore);
 }
-
 } // namespace Vulkan

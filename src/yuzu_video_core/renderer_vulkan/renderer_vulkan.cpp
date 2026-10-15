@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <optional>
@@ -17,7 +16,6 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/scope_exit.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/stb.h"
@@ -48,7 +46,6 @@ namespace Vulkan
 {
 namespace
 {
-
 constexpr VkExtent2D CaptureImageSize{
     .width = VideoCore::Capture::LinearWidth,
     .height = VideoCore::Capture::LinearHeight,
@@ -96,7 +93,6 @@ std::string BuildCommaSeparatedExtensions(
 {
     return fmt::format("{}", fmt::join(available_extensions, ","));
 }
-
 } // Anonymous namespace
 
 Device CreateDevice(const vk::Instance & instance, const vk::InstanceDispatch & dld,
@@ -164,26 +160,9 @@ RendererVulkan::~RendererVulkan()
 
 void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebuffers)
 {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::Composite};
     if (framebuffers.empty())
     {
         return;
-    }
-
-    static const bool diagnose = [] {
-        const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
-        return value && value[0] == '1' && value[1] == '\0';
-    }();
-    if (diagnose) {
-        static u64 composite_number = 0;
-        ++composite_number;
-        for (const auto& layer : framebuffers) {
-            LOG_INFO(Render_Vulkan,
-                     "Present composite: number={}, address={:#x}, offset={}, dimensions={}x{}, blending={}",
-                     composite_number, layer.address, layer.offset, layer.width, layer.height,
-                     static_cast<u32>(layer.blending));
-        }
     }
 
     SCOPE_EXIT
@@ -720,5 +699,4 @@ void RendererVulkan::RenderAppletCaptureLayer(std::span<const Tegra::Framebuffer
 
     blit_applet.DrawToFrame(rasterizer, &applet_frame, framebuffers, VideoCore::Capture::Layout, 1, CaptureFormat);
 }
-
 } // namespace Vulkan

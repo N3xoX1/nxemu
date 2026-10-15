@@ -4,14 +4,12 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <cstdlib>
 #include <cstring>
 #include <span>
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_common/readback_reference.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -351,9 +349,6 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
                       compute_pass_descriptor_queue),
       readback_descriptor_queue{compute_pass_descriptor_queue},
       readback_descriptor_pool{descriptor_pool} {
-    const char* difference = std::getenv("NXEMU_GPU_DIFFERENTIAL_READBACK");
-    differential_readback_enabled =
-        !difference || (difference[0] == '1' && difference[1] == '\0');
     readback_shadow_budget = std::make_shared<ReadbackShadowBudget>();
     readback_shadow_budget->capacity = std::min<u64>(512ULL << 20, GetDeviceLocalMemory() / 16);
     if (device.GetDriverID() != VK_DRIVER_ID_QUALCOMM_PROPRIETARY) {
@@ -378,24 +373,20 @@ StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool def
 bool BufferCacheRuntime::CanDifferentialReadback(const Buffer& buffer,
                                                 const VideoCommon::BufferCopy& copy) const {
     if (!differential_readback_enabled) return false;
-    using VideoCommon::PerformanceDiagnostics::Category;
-    using VideoCommon::PerformanceDiagnostics::RecordEvent;
+
     if (copy.size < (1ULL << 20) ||
         copy.size > Common::ReadbackReference::MaxCopySize ||
         ((copy.src_offset | copy.dst_offset | copy.size) & 3) != 0 ||
         copy.size + device.GetStorageBufferAlignment() > device.GetMaxStorageBufferRange()) {
-        RecordEvent(Category::ReadbackGpuRejectedSize, copy.size);
         return false;
     }
     if (buffer.SizeBytes() > (128ULL << 20)) {
-        RecordEvent(Category::ReadbackGpuRejectedBuffer, copy.size);
         return false;
     }
     if (buffer.readback_shadow) return true;
     const u64 used = readback_shadow_budget->used.load(std::memory_order_relaxed);
     const bool fits = used <= readback_shadow_budget->capacity &&
                       buffer.SizeBytes() <= readback_shadow_budget->capacity - used;
-    if (!fits) RecordEvent(Category::ReadbackGpuRejectedBudget, copy.size);
     return fits;
 }
 
@@ -780,5 +771,4 @@ vk::Buffer BufferCacheRuntime::CreateNullBuffer() {
 
     return ret;
 }
-
 } // namespace Vulkan

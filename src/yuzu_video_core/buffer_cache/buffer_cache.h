@@ -4,7 +4,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cstdlib>
 #include <memory>
 #include <numeric>
 
@@ -12,10 +11,8 @@
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
-#include "yuzu_video_core/performance_diagnostics.h"
 
 namespace VideoCommon {
-
 using Core::DEVICE_PAGESIZE;
 
 template <class P>
@@ -215,17 +212,6 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     const u64 src_contiguous = gpu_memory->MaxContinuousRange(src_address, amount);
     const u64 dst_contiguous = gpu_memory->MaxContinuousRange(dest_address, amount);
     if (src_contiguous != amount || dst_contiguous != amount) {
-        static const bool diagnostic = [] {
-            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
-            return value && value[0] == '1';
-        }();
-        static u32 diagnostic_count = 0;
-        if (diagnostic && diagnostic_count++ < 64) {
-            LOG_INFO(HW_GPU,
-                     "DMA copy uses mapped-page fallback: src={:#x}, dst={:#x}, size={}, "
-                     "src_contiguous={}, dst_contiguous={}",
-                     src_address, dest_address, amount, src_contiguous, dst_contiguous);
-        }
         return false;
     }
     const std::optional<DAddr> cpu_src_address = gpu_memory->GpuToCpuAddress(src_address);
@@ -239,17 +225,6 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
                                ? *cpu_dest_address - *cpu_src_address
                                : *cpu_src_address - *cpu_dest_address;
     if (distance < amount) {
-        static const bool diagnostic = [] {
-            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
-            return value && value[0] == '1';
-        }();
-        static u32 diagnostic_count = 0;
-        if (diagnostic && diagnostic_count++ < 64) {
-            LOG_INFO(HW_GPU,
-                     "DMA copy uses overlapping-range snapshot: src={:#x}, dst={:#x}, size={}, "
-                     "src_device={:#x}, dst_device={:#x}",
-                     src_address, dest_address, amount, *cpu_src_address, *cpu_dest_address);
-        }
         return false;
     }
     const bool source_dirty = IsRegionRegistered(*cpu_src_address, amount);
@@ -282,8 +257,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         const u64 size = base_address_end - base_address;
         const DAddr diff = base_address - *cpu_src_address;
         const DAddr new_base_address = *cpu_dest_address + diff;
-        if (GpuWriteFilterEnabled()) gpu_write_history.Mark(new_base_address, size);
-        if (gpu_dirty_summary) gpu_dirty_summary->Mark(new_base_address, size);
+        gpu_write_history.Mark(new_base_address, size);
         tmp_intervals.push_back({new_base_address, size});
         uncommitted_gpu_modified_ranges.Add(new_base_address, size);
     };
@@ -622,8 +596,6 @@ bool BufferCache<P>::ShouldWaitAsyncFlushes() const noexcept {
 
 template <class P>
 void BufferCache<P>::CommitAsyncFlushesHigh() {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::ReadbackPlan};
     AccumulateFlushes();
 
     if (committed_gpu_modified_ranges.empty()) {
@@ -750,8 +722,6 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
                 cpu_copies.push_back({runtime.GetReadbackCpuReference(buffer), copy.src_offset});
             }
             next_flag_offset += Common::DivCeil(copy.size, 65536ULL) * sizeof(u32);
-            VideoCommon::PerformanceDiagnostics::RecordEvent(
-                VideoCommon::PerformanceDiagnostics::Category::ReadbackGpu, copy.size);
         } else {
             if (flag_staging) flag_offsets.push_back(std::numeric_limits<u64>::max());
             if (flag_staging) cpu_copies.emplace_back();
@@ -780,8 +750,6 @@ void BufferCache<P>::PopAsyncFlushes() {
 
 template <class P>
 void BufferCache<P>::PopAsyncBuffers() {
-    VideoCommon::PerformanceDiagnostics::Scope timing{
-        VideoCommon::PerformanceDiagnostics::Category::ReadbackRetire};
     if (async_buffers.empty()) {
         return;
     }
@@ -819,25 +787,6 @@ void BufferCache<P>::PopAsyncBuffers() {
         // A range cancelled since this download was committed holds newer data in guest memory,
         // it belongs to a later download if any
         ranges.ForEachInRange(device_addr, copy.size, [&](DAddr alive_start, DAddr alive_end) {
-            VideoCommon::PerformanceDiagnostics::Scope copy_timing{
-                VideoCommon::PerformanceDiagnostics::Category::ReadbackCopy};
-            VideoCommon::PerformanceDiagnostics::RecordBytes(
-                VideoCommon::PerformanceDiagnostics::Category::ReadbackCopy,
-                alive_end - alive_start);
-            if (flag_staging && flag_offset != std::numeric_limits<u64>::max()) {
-                const auto* flags = reinterpret_cast<const u32*>(flag_staging->mapped_span.data());
-                constexpr u64 chunk_size = 65536;
-                const u64 first = (alive_start - device_addr) / chunk_size;
-                const u64 last = Common::DivCeil(alive_end - device_addr, chunk_size);
-                for (u64 chunk = first; chunk < last; ++chunk) {
-                    const DAddr begin = std::max(alive_start, device_addr + chunk * chunk_size);
-                    const DAddr end = std::min(alive_end, device_addr + (chunk + 1) * chunk_size);
-                    if (flags[flag_offset + chunk] == 0) {
-                        VideoCommon::PerformanceDiagnostics::RecordEvent(
-                            VideoCommon::PerformanceDiagnostics::Category::ReadbackGpuSkipped, end - begin);
-                    }
-                }
-            }
             // Compare the live guest destination even for unchanged GPU chunks:
             // other caches can write RAM without entering WriteMemory(). The
             // reference is regular host RAM, rather than GPU-written staging.
@@ -866,17 +815,7 @@ void BufferCache<P>::PopAsyncBuffers() {
                 });
             });
         });
-        if (gpu_dirty_summary) {
-            // The cache mutex still protects all canonical/alias metadata. The
-            // release publication is after every live RAM copy and preserves
-            // dirty bytes from later committed and uncommitted GPU epochs.
-            VideoCommon::PerformanceDiagnostics::Scope summary_timing{
-                VideoCommon::PerformanceDiagnostics::Category::DirtySummaryRefresh};
-            gpu_dirty_summary->Refresh(device_addr, copy.size,
-                [&](DAddr begin, u64 size, auto&& visitor) {
-                    gpu_modified_ranges.ForEachInRange(begin, size, visitor);
-                });
-        }
+
         ++copy_index;
     }
     async_buffers_death_ring.emplace_back(*async_buffer);
@@ -1241,21 +1180,7 @@ void BufferCache<P>::BindHostComputeUniformBuffers() {
 
         const u32 offset = buffer.Offset(binding.device_addr);
         buffer.MarkUsage(offset, size);
-        static const bool diagnose_uniforms = [] {
-            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
-            return value && value[0] == '1' && value[1] == '\0';
-        }();
-        if (diagnose_uniforms && index == 3 && size >= 144 && binding.device_addr != 0) {
-            const auto gpu_addr =
-                kepler_compute->launch_description.const_buffer_config[index].Address();
-            LOG_INFO(HW_GPU,
-                     "Compute cbuf3: gpu={:#x}, device={:#x}, host_base={:#x}, offset={}, size={}, "
-                     "cpu_words_128={:08x},{:08x},{:08x},{:08x}, gpu_modified={}",
-                     gpu_addr, binding.device_addr, buffer.CpuAddr(), offset, size,
-                     gpu_memory->Read<u32>(gpu_addr + 128), gpu_memory->Read<u32>(gpu_addr + 132),
-                     gpu_memory->Read<u32>(gpu_addr + 136), gpu_memory->Read<u32>(gpu_addr + 140),
-                     IsRegionGpuModified(binding.device_addr + 128, 16));
-        }
+
         if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
             runtime.BindComputeUniformBuffer(binding_index, buffer, offset, size);
             ++binding_index;
@@ -1620,8 +1545,7 @@ void BufferCache<P>::UpdateComputeTextureBuffers() {
 
 template <class P>
 void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size) {
-    if (GpuWriteFilterEnabled()) gpu_write_history.Mark(device_addr, size);
-    if (gpu_dirty_summary) gpu_dirty_summary->Mark(device_addr, size);
+    gpu_write_history.Mark(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
@@ -1854,7 +1778,6 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
     }
     return false;
 }
-
 
 template <class P>
 void BufferCache<P>::UploadMemory(Buffer& buffer, u64 total_size_bytes, u64 largest_copy,
@@ -2131,17 +2054,7 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
             const u32 sparse_size = static_cast<u32>(std::min(region_size, wanted_size));
             if (size == 0) {
                 const auto ranges = gpu_memory->GetSubmappedRange(aligned_gpu_addr, sparse_size);
-                static const bool diagnose_sparse = [] {
-                    const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
-                    return value && value[0] == '1' && value[1] == '\0';
-                }();
-                if (diagnose_sparse) {
-                    LOG_INFO(HW_GPU,
-                             "Sparse storage leading hole: cbuf={}, descriptor={:#x}, base={:#x}, "
-                             "size={}, mapped_parts={}, first_mapped={:#x}, written={}",
-                             cbuf_index, ssbo_addr, aligned_gpu_addr, sparse_size, ranges.size(),
-                             ranges.empty() ? 0 : ranges.front().first, is_written);
-                }
+
                 // A wholly unmapped descriptor has no bytes to assemble. In particular, do
                 // not bind an offset beyond a sparse buffer's last resident page.
                 if (ranges.empty()) {
@@ -2443,8 +2356,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         // The canonical buffer receives the bytes after the draw or dispatch is recorded.
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
-        if (GpuWriteFilterEnabled()) gpu_write_history.Mark(device_addr, write_size);
-        if (gpu_dirty_summary) gpu_dirty_summary->Mark(device_addr, write_size);
+        gpu_write_history.Mark(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);
@@ -2593,5 +2505,4 @@ std::pair<typename BufferCache<P>::Buffer*, u32> BufferCache<P>::GetDrawIndirect
     return std::make_pair(&buffer,
                           buffer.Offset(channel_state->indirect_buffer_binding.device_addr));
 }
-
 } // namespace VideoCommon

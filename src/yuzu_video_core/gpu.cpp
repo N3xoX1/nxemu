@@ -6,9 +6,7 @@
 
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
-#include <cstdlib>
 #include <list>
 #include <memory>
 
@@ -39,7 +37,6 @@
 
 namespace Tegra
 {
-
 struct GPU::Impl :
     public ICacheInvalidator
 {
@@ -387,35 +384,13 @@ struct GPU::Impl :
 
     void RequestComposite(std::vector<Tegra::FramebufferConfig> && layers, std::vector<Service::Nvidia::NvFence> && fences)
     {
-        static const bool diagnostics_enabled = [] {
-            const char* value = std::getenv("NXEMU_GPU_BINDING_DIAGNOSTICS");
-            return value && value[0] == '1' && value[1] == '\0';
-        }();
-        const bool diagnose = diagnostics_enabled;
-        if (diagnose) {
-            for (const auto& layer : layers) {
-                LOG_INFO(HW_GPU,
-                         "Present enqueue: address={:#x}, offset={}, dimensions={}x{}, fences={}",
-                         layer.address, layer.offset, layer.width, layer.height, fences.size());
-            }
-        }
         composite_requests.Submit(std::move(layers), fences.size(), [&](const auto& request) {
-            if (diagnose) {
-                for (const auto& fence : fences) {
-                    LOG_INFO(HW_GPU, "Present fence: request={:p}, id={}, value={}",
-                             static_cast<const void*>(request.get()), fence.id, fence.value);
-                }
-            }
             (void)RequestSyncOperation(
-                [this, request, composite_fences = std::move(fences), diagnose] {
+                [this, request, composite_fences = std::move(fences)] {
                     if (composite_fences.empty())
                     {
                         if (request->Signal())
                         {
-                            if (diagnose) {
-                                LOG_INFO(HW_GPU, "Present ready: request={:p}, no_fence=true",
-                                         static_cast<const void*>(request.get()));
-                            }
                             if (const auto event = gpu_thread.Wakeup().lock())
                             {
                                 event->NotifyComposite();
@@ -428,15 +403,11 @@ struct GPU::Impl :
                         return;
                     }
                     // Fence callbacks run under the syncpoint guard; only mark readiness and wake.
-                    const auto executer = [weak_request = std::weak_ptr{request}, wakeup = gpu_thread.Wakeup(), diagnose] {
+                    const auto executer = [weak_request = std::weak_ptr{request}, wakeup = gpu_thread.Wakeup()] {
                         if (const auto pending = weak_request.lock())
                         {
                             if (pending->Signal())
                             {
-                                if (diagnose) {
-                                    LOG_INFO(HW_GPU, "Present ready: request={:p}, no_fence=false",
-                                             static_cast<const void*>(pending.get()));
-                                }
                                 if (const auto event = wakeup.lock())
                                 {
                                     event->NotifyComposite();
@@ -788,5 +759,4 @@ void GPU::RegisterHostThread()
 {
     impl->RegisterHostThread();
 }
-
 } // namespace Tegra
