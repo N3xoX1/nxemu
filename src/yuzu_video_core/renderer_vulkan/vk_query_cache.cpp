@@ -651,9 +651,10 @@ class TFBCounterStreamer : public BaseStreamer {
 public:
     explicit TFBCounterStreamer(size_t id_, QueryCacheRuntime& runtime_, const Device& device_,
                                 Scheduler& scheduler_, const MemoryAllocator& memory_allocator_,
-                                StagingBufferPool& staging_pool_)
+                                StagingBufferPool& staging_pool_, BufferCacheRuntime& buffer_runtime_)
         : BaseStreamer(id_), runtime{runtime_}, device{device_}, scheduler{scheduler_},
-          memory_allocator{memory_allocator_}, staging_pool{staging_pool_} {
+          memory_allocator{memory_allocator_}, staging_pool{staging_pool_},
+          buffer_runtime{buffer_runtime_} {
         buffers_count = 0;
         current_bank = nullptr;
         counter_buffers.fill(VK_NULL_HANDLE);
@@ -755,6 +756,13 @@ public:
             return index;
         }
         const size_t subreport = static_cast<size_t>(*subreport_);
+        if (!device.IsExtTransformFeedbackSupported()) {
+            // The pipelines writing what transform feedback captures count its bytes on the CPU
+            const auto& buffers{buffer_runtime.EmulatedTransformFeedbackBuffers()};
+            new_query->value = subreport < buffers.size() ? buffers[subreport].written : 0;
+            new_query->flags |= VideoCommon::QueryFlagBits::IsFinalValueSynced;
+            return index;
+        }
         last_queries[subreport] = address;
         if ((streams_mask & (1ULL << subreport)) == 0) {
             new_query->flags |= VideoCommon::QueryFlagBits::IsFinalValueSynced;
@@ -955,6 +963,7 @@ private:
     Scheduler& scheduler;
     const MemoryAllocator& memory_allocator;
     StagingBufferPool& staging_pool;
+    BufferCacheRuntime& buffer_runtime;
     VideoCommon::BankPool<TFBQueryBank> bank_pool;
     size_t current_bank_id;
     TFBQueryBank* current_bank;
@@ -1170,7 +1179,7 @@ struct QueryCacheRuntimeImpl {
                           device, scheduler, memory_allocator, compute_pass_descriptor_queue,
                           descriptor_pool),
           tfb_streamer(static_cast<size_t>(QueryType::StreamingByteCount), runtime, device,
-                       scheduler, memory_allocator, staging_pool),
+                       scheduler, memory_allocator, staging_pool, buffer_cache_.runtime),
           primitives_succeeded_streamer(
               static_cast<size_t>(QueryType::StreamingPrimitivesSucceeded), runtime, tfb_streamer,
               device_memory_),

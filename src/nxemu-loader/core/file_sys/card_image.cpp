@@ -28,7 +28,7 @@ constexpr std::array partition_names{
     "logo",
 };
 
-XCI::XCI(VirtualFile file_, uint64_t program_id, size_t program_index) :
+XCI::XCI(VirtualFile file_, uint64_t program_id, size_t program_index, uint64_t content_filter_base_id) :
     file(std::move(file_)), program_nca_status{LoaderResultStatus::ErrorXCIMissingProgramNCA},
     partitions(partition_names.size()),
     partitions_raw(partition_names.size())
@@ -62,7 +62,7 @@ XCI::XCI(VirtualFile file_, uint64_t program_id, size_t program_index) :
 
     secure_partition = std::make_shared<NSP>(
         main_hfs.GetFile(partition_names[static_cast<std::size_t>(XCIPartition::Secure)]),
-        program_id, program_index);
+        program_id, program_index, content_filter_base_id);
 
     ncas = secure_partition->GetNCAsCollapsed();
     program =

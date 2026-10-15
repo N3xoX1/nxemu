@@ -16,6 +16,7 @@
 
 #include "dynarmic/backend/arm64/emit_arm64.h"
 #include "dynarmic/backend/arm64/fastmem.h"
+#include "dynarmic/backend/arm64/stack_layout.h"
 #include "dynarmic/interface/halt_reason.h"
 #include "dynarmic/ir/basic_block.h"
 #include "dynarmic/ir/location_descriptor.h"
@@ -38,6 +39,9 @@ public:
     CodePtr ReverseGetEntryPoint(CodePtr host_pc);
 
     CodePtr GetOrEmit(IR::LocationDescriptor descriptor);
+
+    // Like GetOrEmit, for a frame that is executing emitted code.
+    CodePtr GetOrEmitWhileRunning(IR::LocationDescriptor descriptor, StackLayout& stack_layout);
 
     void InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescriptor>& descriptors);
 
@@ -79,6 +83,9 @@ protected:
     std::map<CodePtr, IR::LocationDescriptor> reverse_block_entries;
     tsl::robin_map<CodePtr, EmittedBlockInfo> block_infos;
     tsl::robin_map<IR::LocationDescriptor, tsl::robin_set<CodePtr>> block_references;
+
+    // Incremented every time the code cache is cleared.
+    u64 cache_generation = 0;
 
     ExceptionHandler exception_handler;
     FastmemManager fastmem_manager;

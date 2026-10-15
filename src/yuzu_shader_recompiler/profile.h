@@ -30,6 +30,8 @@ struct Profile {
     bool support_fp64_signed_zero_nan_preserve{};
     bool support_explicit_workgroup_layout{};
     bool support_vote{};
+    /// Subgroup built-ins and operations are usable before the fragment stage
+    bool support_subgroup_in_vertex_stages{true};
     bool support_viewport_index_layer_non_geometry{};
     bool support_viewport_mask{};
     bool support_typeless_image_loads{};
@@ -55,6 +57,8 @@ struct Profile {
     /// Fragment outputs have to be declared even if they are not written to avoid undefined values.
     /// See Ori and the Blind Forest's main menu for reference.
     bool need_declared_frag_colors{};
+    /// The host rounds values halfway between two 8-bit normalized steps up instead of down
+    bool has_unorm8_round_half_up{};
     /// Prevents fast math optimizations that may cause inaccuracies
     bool need_fastmath_off{};
     /// Some GPU vendors use a different rounding precision when calculating texture pixel

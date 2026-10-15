@@ -149,6 +149,8 @@ void KProcess::Finalize()
     // Get the used memory size.
     const size_t used_memory_size = this->GetUsedNonSystemUserPhysicalMemorySize();
 
+    m_kernel.System().GetSystemModules().Cpu().FinalizeProcess(*this);
+
     // Finalize the page table.
     m_page_table.Finalize();
 
@@ -350,8 +352,12 @@ Result KProcess::Initialize(const Svc::CreateProcessParameter & params, const KP
                                       params.code_address, params.code_num_pages * PageSize,
                                       m_system_resource, res_limit, m_memory, 0));
     }
+    m_kernel.System().GetSystemModules().Cpu().PrepareProcess(
+        *this, True(params.flags & Svc::CreateProcessFlag::Is64Bit),
+        True(params.flags & Svc::CreateProcessFlag::IsApplication), m_kernel.IsMulticore());
     ON_RESULT_FAILURE_2
     {
+        m_kernel.System().GetSystemModules().Cpu().FinalizeProcess(*this);
         m_page_table.Finalize();
     };
 
@@ -453,8 +459,12 @@ Result KProcess::Initialize(const Svc::CreateProcessParameter & params,
                                       params.code_address, code_size, m_system_resource, res_limit,
                                       m_memory, aslr_space_start));
     }
+    m_kernel.System().GetSystemModules().Cpu().PrepareProcess(
+        *this, True(params.flags & Svc::CreateProcessFlag::Is64Bit),
+        True(params.flags & Svc::CreateProcessFlag::IsApplication), m_kernel.IsMulticore());
     ON_RESULT_FAILURE_2
     {
+        m_kernel.System().GetSystemModules().Cpu().FinalizeProcess(*this);
         m_page_table.Finalize();
     };
 

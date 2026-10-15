@@ -23,6 +23,7 @@ namespace NXVideoSetting
     constexpr const char * UseAsynchronousShaderBuilding = "nxvideo:UseAsynchronousShaderBuilding";
     constexpr const char * FastGPUTime = "nxvideo:FastGPUTime";
     constexpr const char * UseVulkanPipelineCache = "nxvideo:UseVulkanPipelineCache";
+    constexpr const char * UseNativeMetalCache = "nxvideo:UseNativeMetalCache";
     constexpr const char * SyncToFramerateOfVideoPlayback = "nxvideo:SyncToFramerateOfVideoPlayback";
     constexpr const char * BarrierFeedbackLoops = "nxvideo:BarrierFeedbackLoops";
     constexpr const char * AccuracyLevel = "nxvideo:AccuracyLevel";

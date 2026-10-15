@@ -11,6 +11,9 @@ Id SubgroupScope(EmitContext& ctx) {
 }
 
 Id GetThreadId(EmitContext& ctx) {
+    if (ctx.single_lane_subgroup) {
+        return ctx.u32_zero_value;
+    }
     return ctx.OpLoad(ctx.U32[1], ctx.subgroup_local_invocation_id);
 }
 
@@ -35,7 +38,10 @@ Id WarpExtract(EmitContext& ctx, Id value) {
     }
 }
 
-Id LoadMask(EmitContext& ctx, Id mask) {
+Id LoadMask(EmitContext& ctx, Id mask, u32 single_lane_value) {
+    if (ctx.single_lane_subgroup) {
+        return ctx.Const(single_lane_value);
+    }
     const Id value{ctx.OpLoad(ctx.U32[4], mask)};
     if (!ctx.profile.warp_size_potentially_larger_than_guest) {
         return ctx.OpCompositeExtract(ctx.U32[1], value, 0U);
@@ -68,6 +74,9 @@ Id GetMaxThreadId(EmitContext& ctx, Id thread_id, Id clamp, Id segmentation_mask
 }
 
 Id SelectValue(EmitContext& ctx, Id in_range, Id value, Id src_thread_id) {
+    if (ctx.single_lane_subgroup) {
+        return value;
+    }
     return ctx.OpSelect(
         ctx.U32[1], in_range,
         ctx.OpGroupNonUniformShuffle(ctx.U32[1], SubgroupScope(ctx), value, src_thread_id), value);
@@ -89,6 +98,9 @@ Id EmitLaneId(EmitContext& ctx) {
 }
 
 Id EmitVoteAll(EmitContext& ctx, Id pred) {
+    if (ctx.single_lane_subgroup) {
+        return pred;
+    }
     if (!ctx.profile.warp_size_potentially_larger_than_guest) {
         return ctx.OpGroupNonUniformAll(ctx.U1, SubgroupScope(ctx), pred);
     }
@@ -102,6 +114,9 @@ Id EmitVoteAll(EmitContext& ctx, Id pred) {
 }
 
 Id EmitVoteAny(EmitContext& ctx, Id pred) {
+    if (ctx.single_lane_subgroup) {
+        return pred;
+    }
     if (!ctx.profile.warp_size_potentially_larger_than_guest) {
         return ctx.OpGroupNonUniformAny(ctx.U1, SubgroupScope(ctx), pred);
     }
@@ -115,6 +130,9 @@ Id EmitVoteAny(EmitContext& ctx, Id pred) {
 }
 
 Id EmitVoteEqual(EmitContext& ctx, Id pred) {
+    if (ctx.single_lane_subgroup) {
+        return ctx.true_value;
+    }
     if (!ctx.profile.warp_size_potentially_larger_than_guest) {
         return ctx.OpGroupNonUniformAllEqual(ctx.U1, SubgroupScope(ctx), pred);
     }
@@ -129,6 +147,9 @@ Id EmitVoteEqual(EmitContext& ctx, Id pred) {
 }
 
 Id EmitSubgroupBallot(EmitContext& ctx, Id pred) {
+    if (ctx.single_lane_subgroup) {
+        return ctx.OpSelect(ctx.U32[1], pred, ctx.Const(1U), ctx.u32_zero_value);
+    }
     const Id ballot{ctx.OpGroupNonUniformBallot(ctx.U32[4], SubgroupScope(ctx), pred)};
     if (!ctx.profile.warp_size_potentially_larger_than_guest) {
         return ctx.OpCompositeExtract(ctx.U32[1], ballot, 0U);
@@ -137,23 +158,23 @@ Id EmitSubgroupBallot(EmitContext& ctx, Id pred) {
 }
 
 Id EmitSubgroupEqMask(EmitContext& ctx) {
-    return LoadMask(ctx, ctx.subgroup_mask_eq);
+    return LoadMask(ctx, ctx.subgroup_mask_eq, 1U);
 }
 
 Id EmitSubgroupLtMask(EmitContext& ctx) {
-    return LoadMask(ctx, ctx.subgroup_mask_lt);
+    return LoadMask(ctx, ctx.subgroup_mask_lt, 0U);
 }
 
 Id EmitSubgroupLeMask(EmitContext& ctx) {
-    return LoadMask(ctx, ctx.subgroup_mask_le);
+    return LoadMask(ctx, ctx.subgroup_mask_le, 1U);
 }
 
 Id EmitSubgroupGtMask(EmitContext& ctx) {
-    return LoadMask(ctx, ctx.subgroup_mask_gt);
+    return LoadMask(ctx, ctx.subgroup_mask_gt, 0U);
 }
 
 Id EmitSubgroupGeMask(EmitContext& ctx) {
-    return LoadMask(ctx, ctx.subgroup_mask_ge);
+    return LoadMask(ctx, ctx.subgroup_mask_ge, 1U);
 }
 
 Id EmitShuffleIndex(EmitContext& ctx, IR::Inst* inst, Id value, Id index, Id clamp,
@@ -222,7 +243,7 @@ Id EmitShuffleButterfly(EmitContext& ctx, IR::Inst* inst, Id value, Id index, Id
 
 Id EmitFSwizzleAdd(EmitContext& ctx, Id op_a, Id op_b, Id swizzle) {
     const Id three{ctx.Const(3U)};
-    Id mask{ctx.OpLoad(ctx.U32[1], ctx.subgroup_local_invocation_id)};
+    Id mask{GetThreadId(ctx)};
     mask = ctx.OpBitwiseAnd(ctx.U32[1], mask, three);
     mask = ctx.OpShiftLeftLogical(ctx.U32[1], mask, ctx.Const(1U));
     mask = ctx.OpShiftRightLogical(ctx.U32[1], swizzle, mask);

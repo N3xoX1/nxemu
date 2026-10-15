@@ -80,15 +80,21 @@ public:
 
     vk::DescriptorSetLayout CreateDescriptorSetLayout(bool use_push_descriptor) const {
         if (const auto* violation = DescriptorLimitViolation(
-                device->DescriptorLimits(), std::span{bindings.data(), bindings.size()},
-                color_attachments)) {
+                use_push_descriptor ? device->DescriptorLimits() : device->DescriptorSetLimits(),
+                std::span{bindings.data(), bindings.size()}, color_attachments)) {
             throw Shader::NotImplementedException("{}", violation);
         }
         if (bindings.empty()) {
             return nullptr;
         }
-        const VkDescriptorSetLayoutCreateFlags flags =
-            use_push_descriptor ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR : 0;
+        // The layout flag selects the argument-buffer resource limits. Bindings
+        // retain normal update synchronization; no updates after binding are needed.
+        VkDescriptorSetLayoutCreateFlags flags{};
+        if (use_push_descriptor) {
+            flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+        } else if (device->UsesUpdateAfterBindDescriptorSets()) {
+            flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+        }
         return device->GetLogical().CreateDescriptorSetLayout({
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .pNext = nullptr,

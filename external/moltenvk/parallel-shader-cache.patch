@@ -1,0 +1,168 @@
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
+index e385e9bd..15b6465a 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
+@@ -32,6 +32,7 @@
+ #include <unordered_map>
+ #include <unordered_set>
+ #include <ostream>
++#include <shared_mutex>
+ 
+ #import <Metal/Metal.h>
+ 
+@@ -521,7 +522,10 @@ protected:
+ 
+ 	std::unordered_map<MVKShaderModuleKey, MVKShaderLibraryCache*> _shaderCache;
+ 	size_t _dataSize = 0;
+-	std::mutex _shaderCacheLock;
++	// The shared gate permits independent shader compilations. Streaming and merging
++	// take it exclusively; the map mutex is held only while finding a cache entry.
++	std::shared_mutex _shaderCacheLock;
++	std::mutex _shaderCacheMapLock;
+ 	bool _isExternallySynchronized = false;
+ 	bool _isMergeInternallySynchronized = false;
+ };
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+index d932737a..b0b2e463 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+@@ -2476,7 +2476,7 @@ MVKShaderLibrary* MVKPipelineCache::getShaderLibrary(SPIRVToMSLConversionConfigu
+ 	if (_isExternallySynchronized) {
+ 		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
+ 	} else {
+-		lock_guard<mutex> lock(_shaderCacheLock);
++		shared_lock<shared_mutex> lock(_shaderCacheLock);
+ 		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
+ 	}
+ }
+@@ -2487,9 +2487,16 @@ MVKShaderLibrary* MVKPipelineCache::getShaderLibraryImpl(SPIRVToMSLConversionCon
+ 														 VkPipelineCreationFeedback* pShaderFeedback,
+ 														 uint64_t startTime) {
+ 	bool wasAdded = false;
+-	MVKShaderLibraryCache* slCache = getShaderLibraryCache(shaderModule->getKey());
++	MVKShaderLibraryCache* slCache;
++	{
++		lock_guard<mutex> lock(_shaderCacheMapLock);
++		slCache = getShaderLibraryCache(shaderModule->getKey());
++	}
+ 	MVKShaderLibrary* shLib = slCache->getShaderLibrary(pContext, shaderModule, pipeline, &wasAdded, pShaderFeedback, startTime);
+-	if (wasAdded) { markDirty(); }
++	if (wasAdded) {
++		lock_guard<mutex> lock(_shaderCacheMapLock);
++		markDirty();
++	}
+ 	else if (pShaderFeedback) { mvkEnableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT); }
+ 	return shLib;
+ }
+@@ -2542,7 +2549,7 @@ VkResult MVKPipelineCache::writeData(size_t* pDataSize, void* pData) {
+ 	if (_isExternallySynchronized) {
+ 		return writeDataImpl(pDataSize, pData);
+ 	} else {
+-		lock_guard<mutex> lock(_shaderCacheLock);
++		unique_lock<shared_mutex> lock(_shaderCacheLock);
+ 		return writeDataImpl(pDataSize, pData);
+ 	}
+ }
+@@ -2716,12 +2723,17 @@ void MVKPipelineCache::markDirty() {
+ }
+ 
+ VkResult MVKPipelineCache::mergePipelineCaches(uint32_t srcCacheCount, const VkPipelineCache* pSrcCaches) {
+-	if (!_isMergeInternallySynchronized) {
+-		return mergePipelineCachesImpl(srcCacheCount, pSrcCaches);
+-	} else {
+-		lock_guard<mutex> lock(_shaderCacheLock);
+-		return mergePipelineCachesImpl(srcCacheCount, pSrcCaches);
+-	}
++	// Protect both the destination and source vectors from concurrent compilation.
++	// A stable lock order also handles simultaneous merges in opposite directions.
++	vector<MVKPipelineCache*> caches{this};
++	for (uint32_t i = 0; i < srcCacheCount; ++i) {
++		caches.push_back((MVKPipelineCache*)pSrcCaches[i]);
++	}
++	std::sort(caches.begin(), caches.end(), std::less<MVKPipelineCache*>());
++	caches.erase(std::unique(caches.begin(), caches.end()), caches.end());
++	vector<unique_lock<shared_mutex>> locks;
++	for (auto* cache : caches) { locks.emplace_back(cache->_shaderCacheLock); }
++	return mergePipelineCachesImpl(srcCacheCount, pSrcCaches);
+ }
+ 
+ VkResult MVKPipelineCache::mergePipelineCachesImpl(uint32_t srcCacheCount, const VkPipelineCache* pSrcCaches) {
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+index c5b74991..f8265e82 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+@@ -159,6 +159,7 @@ protected:
+ 	bool _maySpecializeWithMacro;
+ 	/** Can only be populated when _maySpecializeWithMacro is true */
+ 	std::map<std::vector<std::pair<uint32_t, MVKShaderMacroValue>>, MVKShaderLibrary *> _specializationVariants;
++	std::mutex _specializationLock;
+ };
+ 
+ 
+@@ -206,6 +207,7 @@ protected:
+ 									   const MVKCompressor<std::string> compressedMSL);
+ 	void merge(MVKShaderLibraryCache* other);
+ 
++	std::mutex _compilationLock;
+ 	MVKVulkanAPIDeviceObject* _owner;
+ 	MVKSmallVector<std::pair<mvk::SPIRVToMSLConversionConfiguration, MVKShaderLibrary*>> _shaderLibraries;
+ };
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index 3aa44a44..f81ca656 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -80,6 +80,7 @@ MVKMTLFunction MVKShaderLibrary::getMTLFunction(const VkSpecializationInfo* pSpe
+ 	// If specialization happens on constants mapped to macro, find or compile a library variant
+ 	// with proper macro definition instead of the "generic" library
+ 	if (pSpecializationInfo && _maySpecializeWithMacro) {
++		lock_guard<mutex> lock(_specializationLock);
+ 		// Create the list of macro-value mapping
+ 		vector<pair<uint32_t, MVKShaderMacroValue>> spec_list;
+ 		for (uint32_t specIdx = 0; specIdx < pSpecializationInfo->mapEntryCount; specIdx++) {
+@@ -270,9 +271,11 @@ MVKShaderLibrary::MVKShaderLibrary(MVKVulkanAPIDeviceObject* owner,
+ MVKShaderLibrary::MVKShaderLibrary(const MVKShaderLibrary& other) :
+ 	MVKBaseDeviceObject(other._device),
+ 	_owner(other._owner),
+-	_maySpecializeWithMacro(other._maySpecializeWithMacro),
+-	_specializationVariants(other._specializationVariants) {
++	_maySpecializeWithMacro(other._maySpecializeWithMacro) {
+ 
++	// Macro variants belong to this library; sharing their owning pointers during
++	// a cache merge races specialization and destroys the same variants twice.
++	// They are recreated lazily from the copied source when needed.
+ 	_mtlLibrary = [other._mtlLibrary retain];
+ 	_shaderConversionResultInfo = other._shaderConversionResultInfo;
+ 	_compressedMSL = other._compressedMSL;
+@@ -321,6 +324,9 @@ MVKShaderLibrary* MVKShaderLibraryCache::getShaderLibrary(SPIRVToMSLConversionCo
+ 														  MVKShaderModule* shaderModule, MVKPipeline* pipeline,
+ 														  bool* pWasAdded, VkPipelineCreationFeedback* pShaderFeedback,
+ 														  uint64_t startTime) {
++	// Preserve single-flight reuse for identical shader modules without blocking
++	// conversion and Metal library compilation for unrelated modules.
++	lock_guard<mutex> lock(_compilationLock);
+ 	bool wasAdded = false;
+ 	MVKShaderLibrary* shLib = findShaderLibrary(pShaderConfig, pShaderFeedback, startTime);
+ 	if ( !shLib && !pipeline->shouldFailOnPipelineCompileRequired() ) {
+diff --git a/MoltenVK/MoltenVK/Utility/MVKBaseObject.h b/MoltenVK/MoltenVK/Utility/MVKBaseObject.h
+index d9e04de1..5d47ddec 100644
+--- a/MoltenVK/MoltenVK/Utility/MVKBaseObject.h
++++ b/MoltenVK/MoltenVK/Utility/MVKBaseObject.h
+@@ -200,7 +200,8 @@ public:
+ 
+ 	/** If the existing configuration result is VK_SUCCESS, it is set to the specified value. */
+ 	void setConfigurationResult(VkResult vkResult) {
+-		if (_configurationResult == VK_SUCCESS) { _configurationResult = vkResult; }
++		VkResult expected = VK_SUCCESS;
++		_configurationResult.compare_exchange_strong(expected, vkResult);
+ 	}
+ 
+ 	/** Returns whether the configuration was successful. */
+@@ -210,7 +211,7 @@ public:
+ 	void clearConfigurationResult() { _configurationResult = VK_SUCCESS; }
+ 
+ protected:
+-	VkResult _configurationResult = VK_SUCCESS;
++	std::atomic<VkResult> _configurationResult{VK_SUCCESS};
+ };
+ 
+ 

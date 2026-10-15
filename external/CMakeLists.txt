@@ -245,6 +245,9 @@ if(APPLE)
     set(_nxemu_moltenvk_source "${_nxemu_moltenvk_root}/src")
     set(_nxemu_moltenvk_runtime
         "${_nxemu_moltenvk_source}/MoltenVK/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
+    option(NXEMU_ENABLE_MOLTENVK_SHADER_CACHE "Build support for parallel MoltenVK compilation and optional Metal binary archives" ON)
+    file(CONFIGURE OUTPUT "${_nxemu_moltenvk_root}/shader-cache-option.txt"
+        CONTENT "@NXEMU_ENABLE_MOLTENVK_SHADER_CACHE@\n" @ONLY)
 
     ExternalProject_Add(nxemu_moltenvk
         GIT_REPOSITORY "https://github.com/V380-Ori/Ryujinx.MoltenVK.git"
@@ -256,10 +259,24 @@ if(APPLE)
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE TRUE
         BUILD_COMMAND /bin/sh -c
-            "cd MoltenVK && (git apply --reverse --check ../000*.patch || git apply --verbose ../000*.patch) && ./fetchDependencies --macos && make macos"
+            "cd MoltenVK && ./fetchDependencies --macos && make macos"
         BUILD_BYPRODUCTS "${_nxemu_moltenvk_runtime}"
         INSTALL_COMMAND ""
     )
+
+    ExternalProject_Add_Step(nxemu_moltenvk shader_cache
+        COMMAND "${CMAKE_COMMAND}"
+            "-DSOURCE_DIR=${_nxemu_moltenvk_source}"
+            "-DENABLE_SHADER_CACHE=${NXEMU_ENABLE_MOLTENVK_SHADER_CACHE}"
+            "-DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/moltenvk/parallel-shader-cache.patch"
+            "-DBINARY_PATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/moltenvk/binary-pipeline-cache.patch"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk/apply_shader_cache_patch.cmake"
+        DEPENDEES update
+        DEPENDERS configure
+        DEPENDS "${_nxemu_moltenvk_root}/shader-cache-option.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk/parallel-shader-cache.patch"
+            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk/binary-pipeline-cache.patch"
+            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk/apply_shader_cache_patch.cmake")
 
     set(NXEMU_MOLTENVK_RUNTIME "${_nxemu_moltenvk_runtime}" CACHE INTERNAL "" FORCE)
     unset(_nxemu_moltenvk_root)

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <bitset>
 #include <unordered_set>
 
 #include <sirit/sirit.h>
@@ -207,6 +208,8 @@ public:
     const Profile& profile;
     const RuntimeInfo& runtime_info;
     Stage stage{};
+    /// The stage has no host subgroups; warp operations see a single lane
+    bool single_lane_subgroup{};
 
     Id void_id{};
     Id U1{};
@@ -250,6 +253,8 @@ public:
 
     std::array<UniformDefinitions, Info::MAX_CBUFS> cbufs{};
     std::array<StorageDefinitions, Info::MAX_SSBOS> ssbos{};
+    /// Buffers accessed only by non-returning 64-bit additions in this shader.
+    std::bitset<Info::MAX_SSBOS> atomic64_add_reduction_buffers;
     std::vector<TextureBufferDefinition> texture_buffers;
     std::vector<ImageBufferDefinition> image_buffers;
     std::vector<TextureDefinition> textures;

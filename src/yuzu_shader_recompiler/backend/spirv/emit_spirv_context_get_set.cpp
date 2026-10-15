@@ -511,6 +511,11 @@ void EmitSetFragColor(EmitContext& ctx, u32 index, u32 component, Id value) {
         value = ctx.OpBitcast(ctx.S32[1], value);
         break;
     default:
+        if (ctx.profile.has_unorm8_round_half_up &&
+            ctx.runtime_info.color_output_unorm8.at(type_index)) {
+            // Games store integers as (n + 0.5) / 255 and expect to read n back
+            value = ctx.OpFSub(ctx.F32[1], value, ctx.Const(1.0f / (255.0f * 512.0f)));
+        }
         break;
     }
     const Id pointer{ctx.OpAccessChain(pointer_type, ctx.frag_color.at(index), component_id)};

@@ -245,7 +245,8 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
 
     // Enable direct memory mapping in case of NCE.
     uint64_t fastmem_base = 0;
-    if (g_settings->GetBool(NXCpuSetting::NceEnabled))
+    if (g_settings->GetBool(NXCpuSetting::NceEnabled) &&
+        modules.Cpu().RequiresDirectMemoryMapping())
     {
         IDeviceMemory & buffer = operatingSystem.DeviceMemory();
         buffer.EnableDirectMappedAddress();

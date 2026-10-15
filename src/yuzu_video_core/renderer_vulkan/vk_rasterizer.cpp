@@ -55,7 +55,36 @@ struct DrawParams {
     bool is_indexed;
 };
 
-VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t index, float scale) {
+/// Returns the depth offset that lets ordered depth tests pass on values a 24-bit buffer would
+/// store as equal, for hosts that keep those buffers in a floating point format
+// TODO: confirm on AMD for safety
+float EmulatedDepthCompareOffset(const Device& device, const Maxwell& regs) {
+    if (device.SupportsD24DepthBuffer() || regs.depth_test_enable == 0 ||
+        regs.depth_write_enabled != 0) {
+        return 0.0f;
+    }
+    const bool is_d24 = regs.zeta.format == Tegra::DepthFormat::Z24_UNORM_S8_UINT ||
+                        regs.zeta.format == Tegra::DepthFormat::X8Z24_UNORM ||
+                        regs.zeta.format == Tegra::DepthFormat::S8Z24_UNORM ||
+                        regs.zeta.format == Tegra::DepthFormat::V8Z24_UNORM;
+    if (!is_d24) {
+        return 0.0f;
+    }
+    static constexpr float step = 1.0f / 16777215.0f;
+    switch (regs.depth_test_func) {
+    case Maxwell::ComparisonOp::GreaterEqual_D3D:
+    case Maxwell::ComparisonOp::GreaterEqual_GL:
+        return step;
+    case Maxwell::ComparisonOp::LessEqual_D3D:
+    case Maxwell::ComparisonOp::LessEqual_GL:
+        return -step;
+    default:
+        return 0.0f;
+    }
+}
+
+VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t index, float scale,
+                            float depth_offset) {
     const auto& src = regs.viewport_transform[index];
     const auto conv = [scale](float value) {
         float new_value = value * scale;
@@ -93,8 +122,8 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
         .y = y,
         .width = width != 0.0f ? width : 1.0f,
         .height = height != 0.0f ? height : 1.0f,
-        .minDepth = src.translate_z - src.scale_z * reduce_z,
-        .maxDepth = src.translate_z + src.scale_z,
+        .minDepth = src.translate_z - src.scale_z * reduce_z + depth_offset,
+        .maxDepth = src.translate_z + src.scale_z + depth_offset,
     };
     if (!device.IsExtDepthRangeUnrestrictedSupported()) {
         viewport.minDepth = std::clamp(viewport.minDepth, 0.0f, 1.0f);
@@ -281,11 +310,16 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
 
 bool RasterizerVulkan::DrawIndirect() {
     const auto& params = maxwell3d->draw_manager->GetIndirectParams();
-    if (!device.IsGeometryShaderSupported() && !params.is_byte_count) {
+    if (params.is_byte_count && !device.IsExtTransformFeedbackSupported()) {
+        // The macro draws the vertices counted by the byte count it reads on the CPU
+        return false;
+    }
+    if (!params.is_byte_count &&
+        (!device.IsGeometryShaderSupported() || !device.IsExtTransformFeedbackSupported())) {
         // The stages running as compute need the parameters of the draw on the CPU
         gpu_memory->FlushCaching();
         const GraphicsPipeline* const pipeline{pipeline_cache.CurrentGraphicsPipeline()};
-        if (pipeline && pipeline->IsVtgAsCompute()) {
+        if (pipeline && (pipeline->IsVtgAsCompute() || pipeline->IsTransformFeedbackEmulated())) {
             return false;
         }
     }
@@ -985,6 +1019,16 @@ void RasterizerVulkan::FlushWork() {
     static constexpr u32 DRAWS_TO_DISPATCH = 4096;
 #endif // ANDROID
 
+    static constexpr u32 DRAWS_TO_SUBMIT_BETWEEN_PASSES = 64;
+
+    // Submit the passes already recorded when the guest moves to other render targets, so the
+    // host GPU works on them while the next ones are recorded. No render pass is split.
+    if (draw_counter >= DRAWS_TO_SUBMIT_BETWEEN_PASSES &&
+        maxwell3d->dirty.flags[VideoCommon::Dirty::RenderTargets]) {
+        scheduler.Flush();
+        draw_counter = 0;
+    }
+
     // Only check multiples of 8 draws
     static_assert(DRAWS_TO_DISPATCH % 8 == 0);
     if ((++draw_counter & 7) != 7) {
@@ -1103,13 +1147,11 @@ void RasterizerVulkan::UpdateDynamicStates() {
 }
 
 void RasterizerVulkan::HandleTransformFeedback() {
-    static std::once_flag warn_unsupported;
-
     const auto& regs = maxwell3d->regs;
     if (!device.IsExtTransformFeedbackSupported()) {
-        std::call_once(warn_unsupported, [&] {
-            LOG_ERROR(Render_Vulkan, "Transform feedbacks used but not supported");
-        });
+        // The pipelines write what transform feedback captures themselves
+        buffer_cache.runtime.SetEmulatedTransformFeedbackEnabled(
+            regs.transform_feedback_enabled != 0);
         return;
     }
     query_cache.CounterEnable(VideoCommon::QueryType::StreamingByteCount,
@@ -1121,6 +1163,11 @@ void RasterizerVulkan::HandleTransformFeedback() {
 }
 
 void RasterizerVulkan::UpdateViewportsState(Tegra::Engines::Maxwell3D::Regs& regs) {
+    const float depth_offset = EmulatedDepthCompareOffset(device, regs);
+    if (depth_compare_offset != depth_offset) {
+        depth_compare_offset = depth_offset;
+        state_tracker.InvalidateViewports();
+    }
     if (!state_tracker.TouchViewports()) {
         return;
     }
@@ -1153,15 +1200,13 @@ void RasterizerVulkan::UpdateViewportsState(Tegra::Engines::Maxwell3D::Regs& reg
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
     const float scale = is_rescaling ? videoSettings.resolution_info.up_factor : 1.0f;
+    const auto viewport = [&](size_t index) {
+        return GetViewportState(device, regs, index, scale, depth_offset);
+    };
     const std::array viewport_list{
-        GetViewportState(device, regs, 0, scale),  GetViewportState(device, regs, 1, scale),
-        GetViewportState(device, regs, 2, scale),  GetViewportState(device, regs, 3, scale),
-        GetViewportState(device, regs, 4, scale),  GetViewportState(device, regs, 5, scale),
-        GetViewportState(device, regs, 6, scale),  GetViewportState(device, regs, 7, scale),
-        GetViewportState(device, regs, 8, scale),  GetViewportState(device, regs, 9, scale),
-        GetViewportState(device, regs, 10, scale), GetViewportState(device, regs, 11, scale),
-        GetViewportState(device, regs, 12, scale), GetViewportState(device, regs, 13, scale),
-        GetViewportState(device, regs, 14, scale), GetViewportState(device, regs, 15, scale),
+        viewport(0),  viewport(1),  viewport(2),  viewport(3),  viewport(4),  viewport(5),
+        viewport(6),  viewport(7),  viewport(8),  viewport(9),  viewport(10), viewport(11),
+        viewport(12), viewport(13), viewport(14), viewport(15),
     };
     scheduler.Record([this, viewport_list](vk::CommandBuffer cmdbuf) {
         const u32 num_viewports = std::min<u32>(device.GetMaxViewports(), Maxwell::NumViewports);

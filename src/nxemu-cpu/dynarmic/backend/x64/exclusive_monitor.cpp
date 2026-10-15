@@ -36,6 +36,25 @@ void ExclusiveMonitor::Unlock()
     lock.Unlock();
 }
 
+// Emitted code takes the lock directly, so marking stays under the lock on this backend.
+std::uint32_t ExclusiveMonitor::BeginMark(size_t processor_id, VAddr masked_address)
+{
+    Lock();
+    exclusive_addresses[processor_id] = masked_address;
+    return 0;
+}
+
+bool ExclusiveMonitor::EndMark(std::uint32_t)
+{
+    Unlock();
+    return true;
+}
+
+void ExclusiveMonitor::EndExclusiveOperation()
+{
+    Unlock();
+}
+
 bool ExclusiveMonitor::CheckAndClear(size_t processor_id, VAddr address)
 {
     const VAddr masked_address = address & RESERVATION_GRANULE_MASK;

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <fstream>
 #include <memory>
@@ -145,6 +146,20 @@ Shader::AttributeType AttributeType(const FixedPipelineState& state, size_t inde
     return Shader::AttributeType::Disabled;
 }
 
+bool IsUnorm8(VideoCore::Surface::PixelFormat format) {
+    switch (format) {
+    case VideoCore::Surface::PixelFormat::A8B8G8R8_UNORM:
+    case VideoCore::Surface::PixelFormat::A8B8G8R8_SRGB:
+    case VideoCore::Surface::PixelFormat::B8G8R8A8_UNORM:
+    case VideoCore::Surface::PixelFormat::B8G8R8A8_SRGB:
+    case VideoCore::Surface::PixelFormat::R8G8_UNORM:
+    case VideoCore::Surface::PixelFormat::R8_UNORM:
+        return true;
+    default:
+        return false;
+    }
+}
+
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
@@ -246,6 +261,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
                         ? Shader::AttributeType::SignedInt
                         : Shader::AttributeType::UnsignedInt;
             }
+            info.color_output_unorm8[index] = IsUnorm8(pixel_format);
         }
         break;
     default:
@@ -331,6 +347,33 @@ std::optional<Shader::VtgTopology> MaxwellToVtgTopology(Maxwell::PrimitiveTopolo
         break;
     }
     return std::nullopt;
+}
+
+/// Where transform feedback captures each output attribute, from the guest layouts
+Shader::VtgTransformFeedback MakeVtgTransformFeedback(const VideoCommon::TransformFeedbackState& state,
+                                                      Shader::VtgTopology topology) {
+    Shader::VtgTransformFeedback xfb;
+    xfb.topology = topology;
+    for (size_t buffer = 0; buffer < state.layouts.size(); ++buffer) {
+        const auto& layout{state.layouts[buffer]};
+        // Without geometry shaders, every vertex goes to the first stream
+        if (layout.stream != 0 || layout.stride == 0) {
+            continue;
+        }
+        xfb.strides[buffer] = layout.stride;
+        const u32 count{std::min<u32>({layout.varying_count, layout.stride / 4,
+                                        static_cast<u32>(state.varyings[buffer].size() * 4)})};
+        for (u32 word = 0; word < count; ++word) {
+            const auto& locations{state.varyings[buffer][word / 4]};
+            const std::array attributes{locations.attribute0.Value(), locations.attribute1.Value(),
+                                        locations.attribute2.Value(), locations.attribute3.Value()};
+            xfb.targets[attributes[word % 4]] = {
+                .buffer = static_cast<s8>(buffer),
+                .offset = static_cast<u16>(word * 4),
+            };
+        }
+    }
+    return xfb;
 }
 
 /// Describes how a vertex shader running as compute reads its attributes from the vertex buffers
@@ -465,9 +508,15 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
       texture_cache{texture_cache_}, shader_notify{shader_notify_},
       use_asynchronous_shaders{videoSettings.use_asynchronous_shaders},
       use_vulkan_pipeline_cache{videoSettings.use_vulkan_driver_pipeline_cache},
+#if defined(NXEMU_MOLTENVK_SHADER_CACHE)
+      use_native_metal_cache{videoSettings.use_native_metal_cache},
+#endif
       workers(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers(),
               "VkPipelineBuilder"),
-      serialization_thread(1, "VkPipelineSerialization") {
+      serialization_thread(1, "VkPipelineSerialization"),
+      runtime_builds(use_asynchronous_shaders
+          ? (device.HasBrokenParallelShaderCompiling() ? 1ULL
+                : std::clamp<size_t>(GetTotalPipelineWorkers(), 1, 4)) : 1ULL) {
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     profile = Shader::Profile{
@@ -499,6 +548,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
             float_control.shaderSignedZeroInfNanPreserveFloat64 != VK_FALSE,
         .support_explicit_workgroup_layout = device.IsKhrWorkgroupMemoryExplicitLayoutSupported(),
         .support_vote = device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_VOTE_BIT),
+        .support_subgroup_in_vertex_stages =
+            device.IsSubgroupStageSupported(VK_SHADER_STAGE_VERTEX_BIT),
         .support_viewport_index_layer_non_geometry =
             device.IsExtShaderViewportIndexLayerSupported(),
         .support_viewport_mask = device.IsNvViewportArray2Supported(),
@@ -517,6 +568,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
 
         .lower_left_origin_mode = false,
         .need_declared_frag_colors = false,
+        .has_unorm8_round_half_up = driver_id == VK_DRIVER_ID_MOLTENVK,
         .need_gather_subpixel_offset = driver_id == VK_DRIVER_ID_AMD_PROPRIETARY ||
                                        driver_id == VK_DRIVER_ID_AMD_OPEN_SOURCE ||
                                        driver_id == VK_DRIVER_ID_MESA_RADV ||
@@ -556,13 +608,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .max_bindless_descriptors_per_stage = device.MaxBindlessDescriptorsPerStage(),
     };
 
-    if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes) {
-        LOG_WARNING(Render_Vulkan, "maxVertexInputAttributes is too low: {} < {}",
-                    device.GetMaxVertexInputAttributes(), Maxwell::NumVertexAttributes);
-    }
-    if (device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays) {
-        LOG_WARNING(Render_Vulkan, "maxVertexInputBindings is too low: {} < {}",
-                    device.GetMaxVertexInputBindings(), Maxwell::NumVertexArrays);
+    if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
+        device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays) {
+        LOG_INFO(Render_Vulkan, "Compacting guest vertex slots into {} host attributes / {} buffers",
+                 device.GetMaxVertexInputAttributes(), device.GetMaxVertexInputBindings());
     }
 
     dynamic_features = DynamicFeatures{
@@ -576,7 +625,17 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
     };
 }
 
+void PipelineCache::WaitForBuilds() {
+    // Builds can still refer to shader inputs and the Vulkan cache. Drain them before
+    // taking the final cache snapshot, then finish portable-cache serialization.
+    runtime_builds.WaitForRequests();
+    FinalizeReadyGraphicsPipelines();
+    workers.WaitForRequests();
+    serialization_thread.WaitForRequests();
+}
+
 PipelineCache::~PipelineCache() {
+    WaitForBuilds();
     if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
                                      CACHE_VERSION);
@@ -584,6 +643,7 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
+    FinalizeReadyGraphicsPipelines();
 
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
@@ -645,11 +705,17 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     pipeline_cache_filename = base_dir / "vulkan.bin";
 
-    if (use_vulkan_pipeline_cache) {
+    const bool molten_vk = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK;
+    const bool native_metal_cache = molten_vk && use_native_metal_cache;
+    if (use_vulkan_pipeline_cache && (!molten_vk || native_metal_cache)) {
         vulkan_pipeline_cache_filename = base_dir / "vulkan_pipelines.bin";
         vulkan_pipeline_cache =
             LoadVulkanPipelineCache(vulkan_pipeline_cache_filename, CACHE_VERSION);
     }
+    // MoltenVK imports disk MSL libraries serially. An empty shared driver
+    // cache also holds its shader-cache mutex while compiling each library,
+    // serialising our pipeline workers. Warm up from the portable shader cache
+    // without a VkPipelineCache; retain any existing driver blob on disk.
 
     struct {
         std::mutex mutex;
@@ -804,6 +870,12 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
 
     workers.WaitForRequests(stop_loading);
 
+    if (use_vulkan_pipeline_cache && molten_vk && !native_metal_cache) {
+        // The synchronous warmup jobs have finished. New runtime pipelines can
+        // now reuse an in-memory driver cache without slowing down startup.
+        vulkan_pipeline_cache = LoadVulkanPipelineCache({}, CACHE_VERSION);
+    }
+
     lock.lock();
     for (const auto& key : hle_shared_keys) {
         const auto it{graphics_cache.find(non_hle_twin(key))};
@@ -815,7 +887,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     lock.unlock();
 
-    if (use_vulkan_pipeline_cache) {
+    if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
                                      CACHE_VERSION);
     }
@@ -825,10 +897,162 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
 }
 
+bool PipelineCache::ShouldWaitForAsyncPipeline() const noexcept {
+    if (maxwell3d->regs.zeta_enable) {
+        return false;
+    }
+    const auto& draw = maxwell3d->draw_manager->GetDrawState();
+    // The unused count can be zero or stale after a different kind of draw.
+    return (draw.draw_indexed ? draw.index_buffer.count : draw.vertex_buffer.count) <= 6;
+}
+
+bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
+    // Backpressure falls back to synchronous compilation instead of holding an
+    // unbounded number of guest-memory snapshots or blocking on a queue slot.
+    constexpr size_t MaxPending = 128;
+    constexpr size_t MaxSnapshotBytes = 64 * 1024 * 1024;
+    if (pending_graphics.size() >= MaxPending) {
+        return false;
+    }
+    u32 stage_mask{};
+    for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
+        if (key.unique_hashes[index]) {
+            stage_mask |= 1U << (index == 0 ? 0 : index - 1);
+        }
+    }
+    if (VideoCommon::GraphicsEnvironment::SnapshotSize(*maxwell3d, stage_mask, snapshot_cache) >
+        MaxSnapshotBytes - pending_snapshot_bytes) {
+        return false;
+    }
+    size_t new_bytes{};
+    auto snapshot = VideoCommon::GraphicsEnvironment::CaptureSnapshot(
+        *maxwell3d, *gpu_memory, stage_mask, snapshot_cache, new_bytes);
+    if (!snapshot) {
+        return false;
+    }
+    auto job = std::make_shared<PendingGraphicsPipeline>();
+    // Charge shared descriptors to every job: conservative accounting keeps the
+    // bound valid even when the job that first allocated them finishes first.
+    job->snapshot_bytes = snapshot->constant_buffer_data.size() +
+        snapshot->texture_descriptors->size() * sizeof(Tegra::Texture::TICEntry) +
+        sizeof(*snapshot) + snapshot->cbuf_replacements.size() * 64;
+    if (job->snapshot_bytes > MaxSnapshotBytes - pending_snapshot_bytes) {
+        return false;
+    }
+    GetGraphicsEnvironments(job->environments, key.unique_hashes);
+    for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
+        if (key.unique_hashes[index]) {
+            job->environments.envs[index].SetSnapshot(snapshot);
+        }
+    }
+    pending_graphics.emplace(key, job);
+    pending_snapshot_bytes += job->snapshot_bytes;
+    try {
+        job->request = runtime_builds.QueueWork([this, key, job] {
+            if (!job->build.TryBuild([&] {
+                    // Reuse the IR pools on this compiler thread. All engine and
+                    // guest-memory reads use the immutable captured environments.
+                    thread_local ShaderPools pools;
+                    pools.ReleaseContents();
+                    return CreateGraphicsPipeline(pools, key, job->environments.Span(), nullptr, false);
+                })) {
+                return;
+            }
+            std::scoped_lock lock{completed_mutex};
+            completed_graphics.push_back(key);
+            has_completed_graphics.store(true, std::memory_order_release);
+        }, false);
+    } catch (...) {
+        pending_snapshot_bytes -= job->snapshot_bytes;
+        pending_graphics.erase(key);
+        throw;
+    }
+    return true;
+}
+
+void PipelineCache::SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
+                                                 GraphicsEnvironments& environments) {
+    if (pipeline_cache_filename.empty()) {
+        return;
+    }
+    for (auto& env : environments.envs) {
+        env.ReleaseSnapshot();
+    }
+    serialization_thread.QueueWork([this, key, envs = std::move(environments.envs)] {
+        boost::container::static_vector<const GenericEnvironment*, Maxwell::MaxShaderProgram> env_ptrs;
+        for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
+            if (key.unique_hashes[index]) {
+                env_ptrs.push_back(&envs[index]);
+            }
+        }
+        SerializePipeline(key, env_ptrs, pipeline_cache_filename, CACHE_VERSION);
+    });
+}
+
+void PipelineCache::FinishGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
+    const auto it = pending_graphics.find(key);
+    if (it == pending_graphics.end() || !it->second->build.IsComplete()) {
+        return;
+    }
+    auto job = it->second;
+    // The request owns its callback, which captures this job. Break that cycle
+    // once completion makes the callback's lifetime independent of the entry.
+    job->request.reset();
+    try {
+        auto pipeline = job->build.Take();
+        for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
+            cbuf_size_dependencies.Observe(key.unique_hashes[index],
+                                          job->environments.envs[index].CbufSizeMask());
+        }
+        if (pipeline) {
+            graphics_cache[key] = std::move(pipeline);
+            SerializeGraphicsEnvironments(key, job->environments);
+        }
+    } catch (const std::exception& exception) {
+        LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed: {}", key.Hash(), exception.what());
+    } catch (...) {
+        LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed", key.Hash());
+    }
+    pending_snapshot_bytes -= job->snapshot_bytes;
+    pending_graphics.erase(it);
+}
+
+void PipelineCache::FinalizeReadyGraphicsPipelines() {
+    if (!has_completed_graphics.load(std::memory_order_acquire)) {
+        return;
+    }
+    std::vector<GraphicsPipelineCacheKey> ready;
+    {
+        std::scoped_lock lock{completed_mutex};
+        ready.swap(completed_graphics);
+        has_completed_graphics.store(false, std::memory_order_release);
+    }
+    for (const auto& key : ready) {
+        FinishGraphicsPipeline(key);
+    }
+}
+
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
+    if (const auto it = pending_graphics.find(graphics_key); it != pending_graphics.end()) {
+        auto job = it->second;
+        if (!job->build.IsComplete() && ShouldWaitForAsyncPipeline()) {
+            runtime_builds.Promote(job->request);
+            runtime_builds.RunNow(job->request);
+            job->build.Wait();
+        }
+        if (!job->build.IsComplete()) {
+            return nullptr;
+        }
+        FinishGraphicsPipeline(graphics_key);
+    }
     const auto [pair, is_new]{graphics_cache.try_emplace(graphics_key)};
     auto& pipeline{pair->second};
     if (is_new) {
+        if (use_asynchronous_shaders && !ShouldWaitForAsyncPipeline() &&
+            graphics_key.state.app_stage != Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro &&
+            QueueGraphicsPipeline(graphics_key)) {
+            return nullptr;
+        }
         pipeline = CreateGraphicsPipeline();
     }
     if (!pipeline) {
@@ -851,19 +1075,7 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     if (!use_asynchronous_shaders) {
         return pipeline;
     }
-    // If something is using depth, we can assume that games are not rendering anything which
-    // will be used one time.
-    if (maxwell3d->regs.zeta_enable) {
-        return nullptr;
-    }
-    // If games are using a small index count, we can assume these are full screen quads.
-    // Usually these shaders are only used once for building textures so we can assume they
-    // can't be built async
-    const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
-    if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
-        return pipeline;
-    }
-    return nullptr;
+    return ShouldWaitForAsyncPipeline() ? pipeline : nullptr;
 }
 
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
@@ -879,6 +1091,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
     // Layer passthrough generation for devices without VK_EXT_shader_viewport_index_layer
     Shader::IR::Program* layer_source_program{};
+    Shader::Environment* vertex_env{};
 
     for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
@@ -894,6 +1107,9 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
+        if (index == 1) {
+            vertex_env = &env;
+        }
 
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
@@ -1014,6 +1230,68 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                      key.unique_hashes[1], key.unique_hashes[geometry_index]);
         }
     }
+    // Without host transform feedback, a copy of the vertex shader runs as compute before the draw
+    // and writes what it would capture
+    const bool emulates_xfb{key.state.xfb_enabled != 0 &&
+                            !device.IsExtTransformFeedbackSupported()};
+    const char* const xfb_limitation{[&]() -> const char* {
+        if (!emulates_xfb) {
+            return nullptr;
+        }
+        if (key.unique_hashes[geometry_index] != 0) {
+            return "a geometry shader";
+        }
+        if (key.unique_hashes[2] != 0 || key.unique_hashes[3] != 0) {
+            return "tessellation";
+        }
+        if (uses_vertex_a) {
+            return "a vertex A shader";
+        }
+        if (key.state.dynamic_vertex_input != 0) {
+            return "dynamic vertex input";
+        }
+        if (!vtg_topology) {
+            return "an unsupported topology";
+        }
+        return nullptr;
+    }()};
+    if (xfb_limitation) {
+        LOG_WARNING(Render_Vulkan,
+                    "Transform feedback of vertex shader {:016x} is not emulated, the pipeline "
+                    "uses {}",
+                    key.unique_hashes[1], xfb_limitation);
+    }
+    if (!vtg_info && emulates_xfb && !xfb_limitation && vertex_env) {
+        const u32 cfg_offset{
+            static_cast<u32>(vertex_env->StartAddress() + sizeof(Shader::ProgramHeader))};
+        Shader::Maxwell::Flow::CFG cfg(*vertex_env, pools.flow_block, cfg_offset, false);
+        Shader::IR::Program vertex{
+            TranslateProgram(pools.inst, pools.block, *vertex_env, cfg, host_info)};
+        const auto vertex_runtime{MakeRuntimeInfo(programs, key, vertex, nullptr)};
+        ConvertLegacyToGeneric(vertex, vertex_runtime);
+        auto info{std::make_unique<VtgPipelineInfo>()};
+        info->transform_feedback = MakeVtgTransformFeedback(key.state.xfb_state, *vtg_topology);
+        if (Shader::Optimization::VtgVertexToTransformFeedback(vertex, MakeVtgVertexInputs(key.state),
+                                                               info->transform_feedback,
+                                                               info->vertex_bindings)) {
+            Shader::Backend::Bindings compute_binding;
+            const std::vector<u32> code{EmitSPIRV(profile, vertex_runtime, vertex, compute_binding)};
+            device.SaveShader(code);
+            info->modules[VtgPipelineInfo::VERTEX] = BuildShader(device, code);
+            info->infos[VtgPipelineInfo::VERTEX] = vertex.info;
+            info->topology = *vtg_topology;
+            info->scratch = &vtg_scratch;
+            info->staging_pool = &staging_pool;
+            info->is_transform_feedback = true;
+            vtg_info = std::move(info);
+            LOG_INFO(Render_Vulkan, "Running vertex shader {:016x} as compute for transform feedback",
+                     key.unique_hashes[1]);
+        } else {
+            LOG_WARNING(Render_Vulkan, "Vertex shader {:016x} cannot emulate transform feedback",
+                        key.unique_hashes[1]);
+        }
+    }
+    const bool vtg_replaces_stages{vtg_info && !vtg_info->is_transform_feedback};
     for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0; index < Maxwell::MaxShaderProgram;
          ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
@@ -1024,7 +1302,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         if (forwarded_layer && index == geometry_index) {
             continue;
         }
-        if (vtg_info && (index == 1 || index == geometry_index)) {
+        if (vtg_replaces_stages && (index == 1 || index == geometry_index)) {
             continue;
         }
         UNIMPLEMENTED_IF(index == 0);
@@ -1039,6 +1317,20 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             runtime_info.convert_depth_mode = key.state.ndc_minus_one_to_one != 0;
         }
         ConvertLegacyToGeneric(program, runtime_info);
+        if (program.stage == Shader::Stage::VertexB && key.state.dynamic_vertex_input == 0 &&
+            (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
+             device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays)) {
+            const auto mapping = MakeVertexInputMapping(key.state, program.info.loads);
+            if (mapping.num_attributes > device.GetMaxVertexInputAttributes() ||
+                mapping.num_bindings > device.GetMaxVertexInputBindings()) {
+                LOG_ERROR(Render_Vulkan, "Vertex input needs {} attributes and {} buffers after "
+                                         "compaction, exceeding host limits {}/{}",
+                          mapping.num_attributes, mapping.num_bindings,
+                          device.GetMaxVertexInputAttributes(), device.GetMaxVertexInputBindings());
+                return nullptr;
+            }
+            runtime_info.vertex_input_locations = mapping.locations;
+        }
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
@@ -1054,7 +1346,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Maxwell::Tessellation::DomainType::Isolines};
     const auto output_topology{GetRasterizationOutputTopology(
         key.state.topology, has_tessellation, tessellation_isolines,
-        vtg_info ? std::optional{vtg_info->geometry_bindings.output_topology}
+        vtg_replaces_stages ? std::optional{vtg_info->geometry_bindings.output_topology}
                  : (modules[3] ? std::optional{programs[4].output_topology} : std::nullopt))};
     const bool rasterizes_lines{RasterizesLines(
         output_topology, FixedPipelineState::UnpackPolygonMode(key.state.polygon_mode))};
@@ -1212,8 +1504,17 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& filename,
                                                  const vk::PipelineCache& pipeline_cache,
                                                  u32 cache_version) try {
+    if (!pipeline_cache) {
+        return;
+    }
+    // Read before truncating the last disk cache. ReadData tolerates concurrent
+    // growth and only returns the bytes the driver actually wrote.
+    const auto cache_data = pipeline_cache.ReadData();
+    if (cache_data.empty()) {
+        return;
+    }
     std::ofstream file(filename, std::ios::binary);
-    file.exceptions(std::ifstream::failbit);
+    file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     if (!file.is_open()) {
         LOG_ERROR(Common_Filesystem, "Failed to open Vulkan driver pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
@@ -1222,14 +1523,8 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
     file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
         .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
 
-    size_t cache_size = 0;
-    std::vector<char> cache_data;
-    if (pipeline_cache) {
-        pipeline_cache.Read(&cache_size, nullptr);
-        cache_data.resize(cache_size);
-        pipeline_cache.Read(&cache_size, cache_data.data());
-    }
-    file.write(cache_data.data(), cache_size);
+    file.write(cache_data.data(), static_cast<std::streamsize>(cache_data.size()));
+    file.close();
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
@@ -1240,6 +1535,8 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
         LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
     }
+} catch (const vk::Exception& e) {
+    LOG_ERROR(Render_Vulkan, "Failed to read Vulkan driver pipeline cache: {}", e.what());
 }
 
 vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::path& filename,
@@ -1251,8 +1548,31 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
             .flags = 0,
             .initialDataSize = data_size,
             .pInitialData = data};
-        return device.GetLogical().CreatePipelineCache(pipeline_cache_ci);
+        const auto start = std::chrono::steady_clock::now();
+        auto cache = device.GetLogical().CreatePipelineCache(pipeline_cache_ci);
+#if defined(NXEMU_MOLTENVK_SHADER_CACHE)
+        if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && !use_native_metal_cache) {
+            // Configure the private bundled-runtime hook before any pipeline can
+            // use this cache. Keep MSL reuse, without native archive recording.
+            using DisableArchives = void(VKAPI_PTR*)(VkDevice, VkPipelineCache);
+            const auto disable = reinterpret_cast<DisableArchives>(
+                device.GetLogical().GetProcAddr("vkDisablePipelineCacheMetalArchivesNXEMU"));
+            if (disable) {
+                disable(*device.GetLogical(), *cache);
+            } else {
+                LOG_WARNING(Render_Vulkan, "MoltenVK lacks the native-cache control hook; disabling the driver cache");
+                return vk::PipelineCache{};
+            }
+        }
+#endif
+        LOG_INFO(Render_Vulkan, "Initialized Vulkan driver pipeline cache ({} bytes) in {} ms",
+                 data_size, std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - start).count());
+        return cache;
     };
+    if (filename.empty()) {
+        return create_pipeline_cache(0, nullptr);
+    }
     try {
         std::ifstream file(filename, std::ios::binary | std::ios::ate);
         if (!file.is_open()) {
@@ -1289,7 +1609,7 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
         file.read(cache_data.data(), cache_size);
 
         LOG_INFO(Render_Vulkan,
-                 "Loaded Vulkan driver pipeline cache: ", Common::FS::PathToUTF8String(filename));
+                 "Loaded Vulkan driver pipeline cache: {}", Common::FS::PathToUTF8String(filename));
 
         return create_pipeline_cache(cache_size, cache_data.data());
 

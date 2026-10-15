@@ -2,6 +2,8 @@
 #include "base.h"
 #include <stdint.h>
 
+namespace Common { class NativeMemoryObserver; }
+
 enum class CpuBackend : uint32_t
 {
     Dynarmic = 0,
@@ -83,6 +85,10 @@ nxinterface IMemory
     virtual void RasterizerMarkRegionCached(uint64_t vaddr, uint64_t size, bool cached) = 0;
     virtual uint8_t * GetPointerSilent(uint64_t vaddr) = 0;
     virtual bool InvalidateNCE(uint64_t vaddr, uint64_t size) = 0;
+    virtual bool InvalidateNCEAccess(uint64_t vaddr, uint64_t size, bool write) = 0;
+    // Validates the backing before changing only native GPU-tracking permissions.
+    virtual bool SetNativeMemoryReadProtection(uint64_t vaddr, const uint8_t* backing,
+                                               bool readable) = 0;
 
     virtual uint8_t Read8(uint64_t addr) = 0;
     virtual uint16_t Read16(uint64_t addr) = 0;
@@ -126,6 +132,7 @@ nxinterface IKProcessPageTable
     virtual uint32_t GetAddressSpaceWidth() const = 0;
     virtual uint8_t * FastmemArena() const = 0;
     virtual void ** PageTable() const = 0;
+    virtual void SetNativeMemoryObserver(Common::NativeMemoryObserver * observer) = 0;
 };
 
 nxinterface IKernelProcess
@@ -213,6 +220,10 @@ nxinterface ICpu
 
     virtual IExclusiveMonitor * CreateExclusiveMonitor(IMemory & memory) = 0;
     virtual IPatchCollection * CreatePatchCollection(bool is_application) = 0;
+    virtual void PrepareProcess(IKernelProcess & process, bool is64Bit, bool isApplication, bool usesWallClock) = 0;
+    virtual void FinalizeProcess(IKernelProcess & process) = 0;
+    virtual bool RequiresDirectMemoryMapping() const = 0;
+    virtual bool IsNativeExecutionPrepared(IKernelProcess & process) const = 0;
     virtual ICpuCore * CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex) = 0;
 };
 

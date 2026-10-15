@@ -81,6 +81,8 @@ struct TransformFeedbackVarying {
 
 struct RuntimeInfo {
     std::array<AttributeType, 32> generic_input_types{};
+    /// Dense host locations for sparse guest vertex inputs on devices with limited slots.
+    std::optional<std::array<u32, 32>> vertex_input_locations;
     VaryingState previous_stage_stores;
     std::map<IR::Attribute, IR::Attribute> previous_stage_legacy_stores_mapping;
 
@@ -113,6 +115,8 @@ struct RuntimeInfo {
     // Vulkan requires fragment outputs to match the attachment scalar type.
     // Float remains the default for other backends.
     std::array<AttributeType, 8> color_output_types{};
+    /// Fragment outputs bound to 8-bit normalized color attachments.
+    std::array<bool, 8> color_output_unorm8{};
 
     /// Whether fragment outputs 0 and 1 are the primary and secondary sources for attachment 0.
     bool dual_source_blend{};

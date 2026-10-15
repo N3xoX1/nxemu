@@ -461,7 +461,37 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     : Sirit::Module(profile_.supported_spirv), profile{profile_}, runtime_info{runtime_info_},
       stage{program.stage}, texture_rescaling_index{bindings.texture_scaling_index},
       image_rescaling_index{bindings.image_scaling_index} {
+    // Restrict this to a dedicated counter buffer. Multiple descriptors could alias the same
+    // allocation, making a read through another binding observe a partially updated value.
+    if (!profile.support_int64_atomics && !program.info.uses_global_memory &&
+        program.info.storage_buffers_descriptors.size() == 1 &&
+        program.info.storage_buffers_descriptors.front().count == 1) {
+        std::bitset<Info::MAX_SSBOS> incompatible_buffers;
+        for (const auto* block : program.blocks) {
+            for (const IR::Inst& inst : block->Instructions()) {
+                const auto name = IR::NameOf(inst.GetOpcode());
+                if (!name.starts_with("LoadStorage") && !name.starts_with("WriteStorage") &&
+                    !name.starts_with("StorageAtomic")) {
+                    continue;
+                }
+                const auto binding = inst.Arg(0);
+                if (!binding.IsImmediate()) {
+                    incompatible_buffers.set();
+                    break;
+                }
+                if ((inst.GetOpcode() != IR::Opcode::StorageAtomicIAdd64 &&
+                     inst.GetOpcode() != IR::Opcode::StorageAtomicIAdd32x2) || inst.HasUses()) {
+                    incompatible_buffers.set(binding.U32());
+                } else {
+                    atomic64_add_reduction_buffers.set(binding.U32());
+                }
+            }
+        }
+        atomic64_add_reduction_buffers &= ~incompatible_buffers;
+    }
     shared_memory_16_to_12_packing = program.shared_memory_16_to_12_packing;
+    single_lane_subgroup = !profile.support_subgroup_in_vertex_stages &&
+                           stage != Stage::Fragment && stage != Stage::Compute;
     const bool is_unified{profile.unified_descriptor_binding};
     u32& uniform_binding{is_unified ? bindings.unified : bindings.uniform_buffer};
     u32& storage_binding{is_unified ? bindings.unified : bindings.storage_buffer};
@@ -1303,8 +1333,11 @@ void EmitContext::DefineStorageBuffers(const Info& info, u32& binding) {
     }
     AddExtension("SPV_KHR_storage_buffer_storage_class");
 
-    const IR::Type used_types{profile.support_descriptor_aliasing ? info.used_storage_buffer_types
-                                                                  : IR::Type::U32};
+    IR::Type used_types{profile.support_descriptor_aliasing ? info.used_storage_buffer_types
+                                                            : IR::Type::U32};
+    if (atomic64_add_reduction_buffers.any()) {
+        used_types |= IR::Type::U32;
+    }
     if (profile.support_int8 && True(used_types & IR::Type::U8)) {
         DefineSsbos(*this, storage_types.U8, &StorageDefinitions::U8, info, binding, U8,
                     sizeof(u8));
@@ -1523,16 +1556,17 @@ void EmitContext::DefineInputs(const IR::Program& program) {
     if (info.uses_is_helper_invocation) {
         is_helper_invocation = DefineInput(*this, U1, false, spv::BuiltIn::HelperInvocation);
     }
-    if (info.uses_subgroup_mask) {
+    if (info.uses_subgroup_mask && !single_lane_subgroup) {
         subgroup_mask_eq = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupEqMaskKHR);
         subgroup_mask_lt = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupLtMaskKHR);
         subgroup_mask_le = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupLeMaskKHR);
         subgroup_mask_gt = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupGtMaskKHR);
         subgroup_mask_ge = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupGeMaskKHR);
     }
-    if (info.uses_fswzadd || info.uses_subgroup_invocation_id || info.uses_subgroup_shuffles ||
-        (profile.warp_size_potentially_larger_than_guest &&
-         (info.uses_subgroup_vote || info.uses_subgroup_mask))) {
+    if (!single_lane_subgroup &&
+        (info.uses_fswzadd || info.uses_subgroup_invocation_id || info.uses_subgroup_shuffles ||
+         (profile.warp_size_potentially_larger_than_guest &&
+          (info.uses_subgroup_vote || info.uses_subgroup_mask)))) {
         AddCapability(spv::Capability::GroupNonUniform);
         subgroup_local_invocation_id =
             DefineInput(*this, U32[1], false, spv::BuiltIn::SubgroupLocalInvocationId);
@@ -1629,7 +1663,10 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         }
         const Id type{GetAttributeType(*this, input_type)};
         const Id id{DefineInput(*this, type, true)};
-        Decorate(id, spv::Decoration::Location, static_cast<u32>(index));
+        const u32 location = stage == Stage::VertexB && runtime_info.vertex_input_locations
+                                 ? runtime_info.vertex_input_locations->at(index)
+                                 : static_cast<u32>(index);
+        Decorate(id, spv::Decoration::Location, location);
         Name(id, fmt::format("in_attr{}", index));
         input_generics[index] = GetAttributeInfo(*this, input_type, id);
 

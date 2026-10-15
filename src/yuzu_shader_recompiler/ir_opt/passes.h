@@ -41,6 +41,11 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
 // writing its outputs to a storage buffer. On failure the program is unchanged.
 [[nodiscard]] bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
                                       const VtgVaryingLayout& layout, VtgVertexBindings& bindings);
+// Turns a vertex shader into a compute shader writing the outputs transform feedback captures
+// to its buffers, one invocation per captured vertex. On failure the program is unchanged.
+[[nodiscard]] bool VtgVertexToTransformFeedback(IR::Program& program, const VtgVertexInputs& inputs,
+                                                const VtgTransformFeedback& xfb,
+                                                VtgVertexBindings& bindings);
 // Turns a geometry shader into a compute shader reading the outputs of the vertex stage and
 // writing its vertices and a strip index buffer. On failure the program is unchanged.
 [[nodiscard]] bool VtgGeometryToCompute(IR::Program& program, VtgTopology topology,

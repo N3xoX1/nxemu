@@ -146,6 +146,9 @@ public:
     u8* GetPointer(Common::ProcessAddress vaddr);
     u8* GetPointerSilent(uint64_t vaddr) override;
     bool InvalidateNCE(uint64_t vaddr, uint64_t size) override;
+    bool InvalidateNCEAccess(uint64_t vaddr, uint64_t size, bool write) override;
+    bool SetNativeMemoryReadProtection(uint64_t vaddr, const uint8_t* backing,
+                                      bool readable) override;
 
     template <typename T>
     T* GetPointer(Common::ProcessAddress vaddr) {

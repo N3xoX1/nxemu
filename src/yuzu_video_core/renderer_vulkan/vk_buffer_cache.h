@@ -10,6 +10,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
 #include "yuzu_video_core/renderer_vulkan/vk_staging_buffer_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_update_descriptor.h"
+#include "yuzu_video_core/renderer_vulkan/vertex_input_mapping.h"
 #include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
@@ -120,9 +121,45 @@ public:
 
     void BindVertexBuffers(VideoCommon::HostBindings<Buffer>& bindings);
 
+    bool SetVertexBindingMap(const std::array<u32, 32>& bindings) {
+        if (vertex_binding_map == bindings) {
+            return false;
+        }
+        vertex_binding_map = bindings;
+        compact_vertex_bindings = bindings != VertexInputMapping{}.bindings;
+        return true;
+    }
+
     void BindTransformFeedbackBuffer(u32 index, VkBuffer buffer, u32 offset, u32 size);
 
     void BindTransformFeedbackBuffers(VideoCommon::HostBindings<Buffer>& bindings);
+
+    /// Transform feedback buffer as bound by the guest, written by shaders on hosts without
+    /// transform feedback
+    struct EmulatedTransformFeedbackBuffer {
+        VkBuffer buffer{};
+        u32 offset{};
+        u32 size{};
+        /// Bytes from the offset to the end of the host buffer
+        u64 capacity{};
+        /// Bytes the draws captured since transform feedback started on this buffer
+        u32 written{};
+    };
+
+    [[nodiscard]] std::array<EmulatedTransformFeedbackBuffer, 4>& EmulatedTransformFeedbackBuffers() {
+        return emulated_xfb_buffers;
+    }
+
+    /// Tracks whether the draws capture. Capture starts from the beginning of the buffers again
+    /// when it resumes, while the byte counts stay readable after it stops.
+    void SetEmulatedTransformFeedbackEnabled(bool enabled) {
+        if (enabled && !emulated_xfb_enabled) {
+            for (EmulatedTransformFeedbackBuffer& buffer : emulated_xfb_buffers) {
+                buffer.written = 0;
+            }
+        }
+        emulated_xfb_enabled = enabled;
+    }
 
     std::span<u8> BindMappedUniformBuffer([[maybe_unused]] size_t stage,
                                           [[maybe_unused]] u32 binding_index, u32 size) {
@@ -163,6 +200,10 @@ private:
     std::shared_ptr<QuadStripIndexBuffer> quad_strip_index_buffer;
 
     vk::Buffer null_buffer;
+    std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;
+    bool compact_vertex_bindings{};
+    std::array<EmulatedTransformFeedbackBuffer, 4> emulated_xfb_buffers{};
+    bool emulated_xfb_enabled{};
 
     std::unique_ptr<Uint8Pass> uint8_pass;
     QuadIndexedPass quad_index_pass;

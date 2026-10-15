@@ -242,12 +242,18 @@ IR::U32 PrimitiveVertex(Emitter& ir, VtgTopology topology, const IR::U32& primit
     }
     return primitive;
 }
-} // Anonymous namespace
 
-bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
-                        const VtgVaryingLayout& layout, VtgVertexBindings& bindings) {
+/// Converts a vertex shader into a compute shader, writing its outputs to the varying layout of
+/// the stages running as compute or, given a transform feedback, to the buffers capturing them
+bool VertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
+                     const VtgVaryingLayout* layout, const VtgTransformFeedback* xfb,
+                     VtgVertexBindings& bindings) {
     Info& info{program.info};
     if (program.stage != Stage::VertexB || IsIndexedOrUnsupported(program)) {
+        return false;
+    }
+    const u32 captured_vertices{xfb ? VtgCapturedVertices(xfb->topology) : 0};
+    if (xfb && captured_vertices == 0) {
         return false;
     }
     std::array<bool, VtgDrawInfo::NUM_ATTRIBUTES> uses_buffer{};
@@ -263,7 +269,9 @@ bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
         num_buffers += uses_buffer[attribute.buffer] ? 0 : 1;
         uses_buffer[attribute.buffer] = true;
     }
-    if (info.storage_buffers_descriptors.size() + 3 + num_buffers > Info::MAX_SSBOS) {
+    const size_t num_xfb_buffers{xfb ? VtgDrawInfo::NUM_XFB_BUFFERS : 0};
+    if (info.storage_buffers_descriptors.size() + 3 + num_buffers + num_xfb_buffers >
+        Info::MAX_SSBOS) {
         return false;
     }
     bindings.base = static_cast<u32>(info.storage_buffers_descriptors.size());
@@ -278,17 +286,48 @@ bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
         buffer_bindings[buffer] = ReserveStorageBuffer(info, false);
         bindings.vertex_buffers.emplace_back(static_cast<u8>(buffer), buffer_bindings[buffer]);
     }
+    for (size_t buffer = 0; buffer < num_xfb_buffers; ++buffer) {
+        bindings.xfb_buffers[buffer] = ReserveStorageBuffer(info, true);
+    }
 
     IR::Block& entry{*program.blocks.front()};
     Emitter ir{entry, entry.begin()};
     const auto draw_info{[&](u32 word) { return ir.LoadWord(bindings.draw_info, word); }};
 
-    const IR::U32 invocation{GlobalInvocation(ir)};
     const IR::U32 vertex_count{ir.UMax(draw_info(VtgDrawInfo::VERTEX_COUNT), ir.Imm32(1U))};
     const IR::U32 last_instance{ir.Sub(draw_info(VtgDrawInfo::INSTANCE_COUNT), ir.Imm32(1U))};
-    // Invocations past the end of the draw repeat the last instance into unused output
-    const IR::U32 instance{ir.UMin(ir.IDiv(invocation, vertex_count), last_instance)};
-    const IR::U32 element{ir.Mod(invocation, vertex_count)};
+    IR::U32 invocation{GlobalInvocation(ir)};
+    IR::U32 instance;
+    IR::U32 element;
+    std::array<IR::U32, VtgDrawInfo::NUM_XFB_BUFFERS> xfb_bases;
+    if (xfb) {
+        // Invocations past the end of the draw write the last captured vertex again
+        const IR::U32 last_vertex{
+            ir.Sub(ir.UMax(draw_info(VtgDrawInfo::XFB_TOTAL), ir.Imm32(1U)), ir.Imm32(1U))};
+        invocation = ir.UMin(invocation, last_vertex);
+        const IR::U32 per_instance{ir.UMax(draw_info(VtgDrawInfo::XFB_VERTICES), ir.Imm32(1U))};
+        instance = ir.UMin(ir.IDiv(invocation, per_instance), last_instance);
+        // Each primitive is captured in turn, with the vertices it is drawn with
+        const IR::U32 captured{ir.Mod(invocation, per_instance)};
+        const IR::U32 primitive{ir.IDiv(captured, ir.Imm32(captured_vertices))};
+        const IR::U32 corner{ir.Mod(captured, ir.Imm32(captured_vertices))};
+        element = PrimitiveVertex(ir, xfb->topology, primitive, 0, vertex_count);
+        for (u32 vertex = 1; vertex < captured_vertices; ++vertex) {
+            element = IR::U32{
+                ir.Select(ir.IEqual(corner, ir.Imm32(vertex)),
+                          PrimitiveVertex(ir, xfb->topology, primitive, vertex, vertex_count),
+                          element)};
+        }
+        for (size_t buffer = 0; buffer < num_xfb_buffers; ++buffer) {
+            xfb_bases[buffer] =
+                ir.Add(draw_info(VtgDrawInfo::XFB_OFFSETS + static_cast<u32>(buffer)),
+                       ir.Mul(invocation, xfb->strides[buffer]));
+        }
+    } else {
+        // Invocations past the end of the draw repeat the last instance into unused output
+        instance = ir.UMin(ir.IDiv(invocation, vertex_count), last_instance);
+        element = ir.Mod(invocation, vertex_count);
+    }
     const IR::U32 base_vertex{draw_info(VtgDrawInfo::BASE_VERTEX)};
     const IR::U32 base_instance{draw_info(VtgDrawInfo::BASE_INSTANCE)};
     const IR::U32 index_size{draw_info(VtgDrawInfo::INDEX_SIZE)};
@@ -298,7 +337,8 @@ bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
                                       draw_info(VtgDrawInfo::INDEX_MASK))};
     const IR::U32 vertex_id{ir.Select(ir.IEqual(index_size, ir.Imm32(0U)), element, index)};
     const IR::U32 fetch_vertex{ir.Add(vertex_id, base_vertex)};
-    const IR::U32 output_base{ir.Mul(invocation, layout.stride * WORD_SIZE)};
+    const IR::U32 output_base{layout ? ir.Mul(invocation, layout->stride * WORD_SIZE)
+                                     : ir.Imm32(0U)};
 
     std::array<std::array<IR::F32, 4>, VtgDrawInfo::NUM_ATTRIBUTES> generics;
     for (size_t location = 0; location < inputs.size(); ++location) {
@@ -395,10 +435,18 @@ bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
             }
             case IR::Opcode::SetAttribute: {
                 const IR::Attribute attribute{inst.Arg(0).Attribute()};
-                if (const std::optional<u32> word{layout.Offset(attribute)}) {
+                const IR::U32 value{at.BitCast<IR::U32>(IR::F32{inst.Arg(1)})};
+                if (xfb) {
+                    const VtgTransformFeedback::Target& target{
+                        xfb->targets[static_cast<size_t>(attribute) % xfb->targets.size()]};
+                    if (target.buffer >= 0) {
+                        const size_t buffer{static_cast<size_t>(target.buffer)};
+                        at.WriteStorage(bindings.xfb_buffers[buffer],
+                                        at.Add(xfb_bases[buffer], at.Imm32(static_cast<u32>(target.offset))), value);
+                    }
+                } else if (const std::optional<u32> word{layout->Offset(attribute)}) {
                     at.WriteStorage(bindings.output,
-                                    at.Add(output_base, at.Imm32(*word * WORD_SIZE)),
-                                    at.BitCast<IR::U32>(IR::F32{inst.Arg(1)}));
+                                    at.Add(output_base, at.Imm32(*word * WORD_SIZE)), value);
                 }
                 inst.Invalidate();
                 break;
@@ -410,6 +458,17 @@ bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
     }
     FinishComputeProgram(program);
     return true;
+}
+} // Anonymous namespace
+
+bool VtgVertexToCompute(IR::Program& program, const VtgVertexInputs& inputs,
+                        const VtgVaryingLayout& layout, VtgVertexBindings& bindings) {
+    return VertexToCompute(program, inputs, &layout, nullptr, bindings);
+}
+
+bool VtgVertexToTransformFeedback(IR::Program& program, const VtgVertexInputs& inputs,
+                                  const VtgTransformFeedback& xfb, VtgVertexBindings& bindings) {
+    return VertexToCompute(program, inputs, nullptr, &xfb, bindings);
 }
 
 bool VtgGeometryToCompute(IR::Program& program, VtgTopology topology, u32 input_vertices,

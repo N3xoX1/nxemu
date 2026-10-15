@@ -46,7 +46,14 @@ inline constexpr u32 ATTRIBUTE_INSTANCED = 2;
 inline constexpr u32 ATTRIBUTE_DIVISOR = 3;
 inline constexpr u32 ATTRIBUTE_WORDS = 4;
 inline constexpr u32 NUM_ATTRIBUTES = 32;
-inline constexpr u32 NUM_WORDS = ATTRIBUTES + NUM_ATTRIBUTES * ATTRIBUTE_WORDS;
+/// Vertices captured by transform feedback for each instance
+inline constexpr u32 XFB_VERTICES = ATTRIBUTES + NUM_ATTRIBUTES * ATTRIBUTE_WORDS;
+/// Vertices captured by transform feedback for the whole draw, zero when none fits
+inline constexpr u32 XFB_TOTAL = XFB_VERTICES + 1;
+/// Byte offset where each transform feedback buffer receives the first vertex of the draw
+inline constexpr u32 XFB_OFFSETS = XFB_TOTAL + 1;
+inline constexpr u32 NUM_XFB_BUFFERS = 4;
+inline constexpr u32 NUM_WORDS = XFB_OFFSETS + NUM_XFB_BUFFERS;
 } // namespace VtgDrawInfo
 
 enum class VtgComponentType : u8 {
@@ -235,6 +242,44 @@ struct VtgVaryingLayout {
     }
 };
 
+/// Where transform feedback captures the outputs of a vertex stage, for hosts without it
+struct VtgTransformFeedback {
+    struct Target {
+        /// Buffer receiving the attribute, negative when it is not captured
+        s8 buffer{-1};
+        /// Byte offset of the attribute inside a captured vertex
+        u16 offset{};
+    };
+
+    /// Primitives whose vertices are captured, each one in turn
+    VtgTopology topology{};
+    /// Bytes between two vertices captured into each buffer, zero when the buffer is unused
+    std::array<u32, VtgDrawInfo::NUM_XFB_BUFFERS> strides{};
+    /// Indexed by attribute
+    std::array<Target, 256> targets{};
+};
+
+/// Vertices transform feedback captures from each primitive of a topology, zero when it is not
+/// supported
+[[nodiscard]] constexpr u32 VtgCapturedVertices(VtgTopology topology) noexcept {
+    switch (topology) {
+    case VtgTopology::Points:
+        return 1;
+    case VtgTopology::Lines:
+    case VtgTopology::LineLoop:
+    case VtgTopology::LineStrip:
+        return 2;
+    case VtgTopology::Triangles:
+    case VtgTopology::TriangleStrip:
+    case VtgTopology::TriangleFan:
+    case VtgTopology::Quads:
+    case VtgTopology::QuadStrip:
+        return 3;
+    default:
+        return 0;
+    }
+}
+
 /// Storage buffers added to a vertex stage running as compute
 struct VtgVertexBindings {
     /// Index of the first added storage buffer descriptor
@@ -244,6 +289,8 @@ struct VtgVertexBindings {
     u32 index_buffer{};
     /// Vertex buffers read by the stage and the storage buffer each one is bound to
     boost::container::static_vector<std::pair<u8, u32>, VtgDrawInfo::NUM_ATTRIBUTES> vertex_buffers;
+    /// Transform feedback buffers written by the stage, after the vertex buffers
+    std::array<u32, VtgDrawInfo::NUM_XFB_BUFFERS> xfb_buffers{};
 };
 
 /// Storage buffers added to a geometry stage running as compute

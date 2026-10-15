@@ -476,6 +476,16 @@ if(ARCHITECTURE_arm64)
             dynarmic/backend/exception_handler_macos.cpp
             dynarmic/backend/exception_handler_macos_mig.c
         )
+        option(NXEMU_ENABLE_APPLE_HV "Build the Apple Hypervisor CPU backend" ON)
+        if(NXEMU_ENABLE_APPLE_HV)
+            find_library(NXEMU_HYPERVISOR_FRAMEWORK Hypervisor REQUIRED)
+            target_compile_definitions(nxemu-cpu PRIVATE NXEMU_HAS_APPLE_HV=1)
+            target_sources(nxemu-cpu PRIVATE
+                apple_hv/optimization_flags.h
+                apple_hv/apple_hv_address_space.cpp
+                apple_hv/arm_apple_hv.cpp)
+            target_link_libraries(nxemu-cpu PRIVATE "${NXEMU_HYPERVISOR_FRAMEWORK}")
+        endif()
     elseif(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_definitions(nxemu-cpu PRIVATE NXEMU_HAS_NCE=1)
         target_sources(nxemu-cpu PRIVATE

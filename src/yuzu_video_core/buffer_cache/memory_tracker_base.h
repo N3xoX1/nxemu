@@ -94,6 +94,9 @@ public:
 
     /// Mark region as modified from the host GPU
     void MarkRegionAsGpuModified(VAddr dirty_cpu_addr, u64 query_size) noexcept {
+        if constexpr (requires { device_tracker->ReprotectNativeReads(dirty_cpu_addr, query_size); }) {
+            device_tracker->ReprotectNativeReads(dirty_cpu_addr, query_size);
+        }
         IteratePages<true>(dirty_cpu_addr, query_size,
                            [](Manager* manager, u64 offset, size_t size) {
                                manager->template ChangeRegionState<Type::GPU, true>(

@@ -1674,6 +1674,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             continue;
         }
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
+            ReprotectNativeReads(new_image);
             new_image.flags |= ImageFlagBits::GpuModified;
             const auto& resolution = videoSettings.resolution_info;
             const SubresourceBase base = new_image.TryFindBase(overlap.gpu_addr).value();
@@ -2107,6 +2108,7 @@ void TextureCache<P>::RegisterImage(ImageId image_id) {
     }
     total_used_memory += Common::AlignUp(tentative_size, 1024);
     image.lru_index = lru_cache.Insert(image_id, frame_tick);
+    image.gpu_page_table_index = channel_state->gpu_page_table_index;
 
     ForEachGPUPage(image.gpu_addr, image.guest_size_bytes, [this, image_id](u64 page) {
         (*channel_state->gpu_page_table)[page].push_back(image_id);
@@ -2162,9 +2164,11 @@ void TextureCache<P>::UnregisterImage(ImageId image_id) {
             }
             image_ids.erase(vector_it);
         };
-    ForEachGPUPage(image.gpu_addr, image.guest_size_bytes, [this, &clear_page_table](u64 page) {
-        clear_page_table(page, (*channel_state->gpu_page_table));
-    });
+    auto& image_page_table = gpu_page_table_storage[image.gpu_page_table_index];
+    ForEachGPUPage(image.gpu_addr, image.guest_size_bytes,
+                   [&image_page_table, &clear_page_table](u64 page) {
+                       clear_page_table(page, image_page_table);
+                   });
     if (False(image.flags & ImageFlagBits::Sparse)) {
         const auto map_id = image.map_view_id;
         ForEachCPUPage(image.cpu_addr, image.guest_size_bytes, [this, map_id](u64 page) {
@@ -2185,9 +2189,11 @@ void TextureCache<P>::UnregisterImage(ImageId image_id) {
         slot_map_views.erase(map_id);
         return;
     }
-    ForEachGPUPage(image.gpu_addr, image.guest_size_bytes, [this, &clear_page_table](u64 page) {
-        clear_page_table(page, (*channel_state->sparse_page_table));
-    });
+    auto& image_sparse_page_table = gpu_page_table_storage[image.gpu_page_table_index + 1];
+    ForEachGPUPage(image.gpu_addr, image.guest_size_bytes,
+                   [&image_sparse_page_table, &clear_page_table](u64 page) {
+                       clear_page_table(page, image_sparse_page_table);
+                   });
     auto it = sparse_views.find(image_id);
     ASSERT(it != sparse_views.end());
     auto& sparse_maps = it->second;
@@ -2395,7 +2401,20 @@ void TextureCache<P>::RemoveFramebuffers(std::span<const ImageViewId> removed_vi
 }
 
 template <class P>
+void TextureCache<P>::ReprotectNativeReads(ImageBase& image) noexcept {
+    if (False(image.flags & ImageFlagBits::Sparse)) {
+        if (image.cpu_addr < ~(1ULL << 40))
+            device_memory.ReprotectNativeReads(image.cpu_addr, image.guest_size_bytes);
+    } else {
+        ForEachSparseSegment(image, [this](GPUVAddr, DAddr addr, size_t size) {
+            device_memory.ReprotectNativeReads(addr, size);
+        });
+    }
+}
+
+template <class P>
 void TextureCache<P>::MarkModification(ImageBase& image) noexcept {
+    ReprotectNativeReads(image);
     image.flags |= ImageFlagBits::GpuModified;
     image.modification_tick = ++modification_tick;
 }
@@ -2487,6 +2506,7 @@ void TextureCache<P>::PrepareImageView(ImageViewId image_view_id, bool is_modifi
 template <class P>
 void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<ImageCopy> copies) {
     Image& dst = slot_images[dst_id];
+    ReprotectNativeReads(dst);
     Image& src = slot_images[src_id];
     const bool is_rescaled = True(src.flags & ImageFlagBits::Rescaled);
     if (is_rescaled) {
@@ -2644,6 +2664,7 @@ void TextureCache<P>::CreateChannel(struct Tegra::Control::ChannelState& channel
     const auto it = channel_map.find(channel.bind_id);
     auto* this_state = &channel_storage[it->second];
     const auto& this_as_ref = address_spaces[channel.memory_manager->GetID()];
+    this_state->gpu_page_table_index = this_as_ref.storage_id * 2;
     this_state->gpu_page_table = &gpu_page_table_storage[this_as_ref.storage_id * 2];
     this_state->sparse_page_table = &gpu_page_table_storage[this_as_ref.storage_id * 2 + 1];
 }

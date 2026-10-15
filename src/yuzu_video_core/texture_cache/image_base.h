@@ -95,6 +95,8 @@ struct ImageBase {
     bool has_scaled = false;
 
     size_t channel = 0;
+    // Page-table storage owning this image; garbage collection can run on another channel.
+    size_t gpu_page_table_index = SIZE_MAX;
 
     ImageFlagBits flags = ImageFlagBits::CpuModified;
 

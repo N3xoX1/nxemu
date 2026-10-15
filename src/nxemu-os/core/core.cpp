@@ -125,7 +125,7 @@ struct System::Impl {
 
     bool CpuHleUsesNativeClock() const
     {
-#if (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)) && (defined(__linux__) || defined(__ANDROID__))
+#if (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)) && (defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__))
         return cpu_hle_guest64 && g_settings->GetBool(NXCpuSetting::NceEnabled);
 #else
         return false;

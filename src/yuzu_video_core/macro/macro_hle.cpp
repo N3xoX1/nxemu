@@ -381,7 +381,9 @@ public:
         maxwell3d.regs.draw_auto_stride = parameters[1];
         maxwell3d.regs.draw_auto_byte_count = parameters[2];
 
-        maxwell3d.draw_manager->DrawArrayIndirect(topology);
+        if (!maxwell3d.draw_manager->DrawArrayIndirect(topology)) {
+            Fallback(parameters);
+        }
     }
 
 private:
@@ -391,6 +393,9 @@ private:
         maxwell3d.regs.draw.begin = parameters[0];
         maxwell3d.regs.draw_auto_stride = parameters[1];
         maxwell3d.regs.draw_auto_byte_count = parameters[2];
+        if (maxwell3d.regs.draw_auto_stride == 0) {
+            return;
+        }
 
         maxwell3d.draw_manager->DrawArray(
             maxwell3d.regs.draw.topology, 0,

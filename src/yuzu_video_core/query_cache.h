@@ -138,6 +138,7 @@ public:
         std::unique_lock lock{mutex};
         const std::optional<VAddr> cpu_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
         ASSERT(cpu_addr);
+        if (cpu_addr) device_memory.ReprotectNativeReads(*cpu_addr, timestamp ? 16 : 4);
 
         CachedQuery* query = TryGet(*cpu_addr);
         if (!query) {

@@ -377,6 +377,34 @@ struct GPU::Impl :
         return rasterizer->OnCPUWrite(addr, size);
     }
 
+    void SynchronizeNativeMemory(std::span<const DAddr> addresses, u64 size, bool write, const std::function<void()>& complete)
+    {
+        if (addresses.empty())
+        {
+            return;
+        }
+        // A native page fault covers the whole page, even for a one-byte store.
+        // Materialize before CPU access so partial stores preserve untouched GPU-owned bytes.
+        // Reads retain the GPU cache; only writes transfer ownership and invalidate it.
+        // Run on the GPU thread so read completion and subsequent GPU writes are ordered.
+        const auto fence = RequestSyncOperation([this, addresses, size, write, &complete] {
+            for (const DAddr address : addresses)
+            {
+                rasterizer->FlushRegion(address, size);
+            }
+            if (write) {
+                for (const DAddr address : addresses) {
+                    rasterizer->InvalidateRegion(address, size);
+                }
+            }
+            // Open a read-only page before the GPU thread encodes subsequent writes.
+            // A canceled lease is never reopened by completion of an older download.
+            complete();
+        });
+        gpu_thread.TickGPU();
+        WaitForSyncOperation(fence);
+    }
+
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, uint64_t size)
     {
@@ -744,6 +772,11 @@ void GPU::FlushRegion(DAddr addr, uint64_t size)
 void GPU::InvalidateRegion(DAddr addr, uint64_t size)
 {
     impl->InvalidateRegion(addr, size);
+}
+
+void GPU::SynchronizeNativeMemory(std::span<const DAddr> addresses, u64 size, bool write, const std::function<void()>& complete)
+{
+    impl->SynchronizeNativeMemory(addresses, size, write, complete);
 }
 
 bool GPU::OnCPUWrite(DAddr addr, uint64_t size)

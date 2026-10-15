@@ -87,6 +87,7 @@ public:
 
     TextureCacheGPUMap* gpu_page_table;
     TextureCacheGPUMap* sparse_page_table;
+    size_t gpu_page_table_index{};
 };
 
 template <class P>
@@ -395,6 +396,7 @@ private:
     void RemoveFramebuffers(std::span<const ImageViewId> removed_views);
 
     /// Mark an image as modified from the GPU
+    void ReprotectNativeReads(ImageBase& image) noexcept;
     void MarkModification(ImageBase& image) noexcept;
 
     /// Synchronize image aliases, copying data if needed

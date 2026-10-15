@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
 #include <span>
 #include <vector>
@@ -492,7 +493,7 @@ void BufferCacheRuntime::ClearBuffer(VkBuffer dest_buffer, u32 offset, size_t si
 
 void BufferCacheRuntime::BindIndexBuffer(PrimitiveTopology topology, IndexFormat index_format,
                                          u32 base_vertex, u32 num_indices, VkBuffer buffer,
-                                         u32 offset, [[maybe_unused]] u32 size) {
+                                         u32 offset, u32 size) {
     VkIndexType vk_index_type = MaxwellToVK::IndexFormat(index_format);
     VkDeviceSize vk_offset = offset;
     VkBuffer vk_buffer = buffer;
@@ -503,8 +504,10 @@ void BufferCacheRuntime::BindIndexBuffer(PrimitiveTopology topology, IndexFormat
                                      topology == PrimitiveTopology::QuadStrip);
     } else if (vk_index_type == VK_INDEX_TYPE_UINT8_EXT && !device.IsExtIndexTypeUint8Supported()) {
         vk_index_type = VK_INDEX_TYPE_UINT16;
-        if (uint8_pass) {
-            std::tie(vk_buffer, vk_offset) = uint8_pass->Assemble(num_indices, buffer, offset);
+        if (uint8_pass && size != 0 && buffer != VK_NULL_HANDLE) {
+            // The binding includes firstIndex's prefix; DrawIndexed still uses
+            // that firstIndex after conversion. Never read beyond the guest range.
+            std::tie(vk_buffer, vk_offset) = uint8_pass->Assemble(size, buffer, offset);
         }
     }
     if (vk_buffer == VK_NULL_HANDLE) {
@@ -537,6 +540,7 @@ void BufferCacheRuntime::BindQuadIndexBuffer(PrimitiveTopology topology, u32 fir
 
 void BufferCacheRuntime::BindVertexBuffer(u32 index, VkBuffer buffer, u32 offset, u32 size,
                                           u32 stride) {
+    index = vertex_binding_map[index];
     if (index >= device.GetMaxVertexInputBindings()) {
         return;
     }
@@ -560,6 +564,54 @@ void BufferCacheRuntime::BindVertexBuffer(u32 index, VkBuffer buffer, u32 offset
 }
 
 void BufferCacheRuntime::BindVertexBuffers(VideoCommon::HostBindings<Buffer>& bindings) {
+    if (compact_vertex_bindings) {
+        std::array<VkBuffer, 32> buffers{};
+        std::array<VkDeviceSize, 32> offsets{};
+        std::array<VkDeviceSize, 32> sizes{};
+        std::array<VkDeviceSize, 32> strides{};
+        u32 mask{};
+        for (u32 index = 0; index < bindings.buffers.size(); ++index) {
+            const u32 host = vertex_binding_map[bindings.min_index + index];
+            if (host >= device.GetMaxVertexInputBindings()) {
+                continue;
+            }
+            buffers[host] = bindings.buffers[index]->Handle();
+            offsets[host] = bindings.offsets[index];
+            sizes[host] = bindings.sizes[index];
+            strides[host] = bindings.strides[index];
+            if (buffers[host] == VK_NULL_HANDLE) {
+                offsets[host] = 0;
+                sizes[host] = VK_WHOLE_SIZE;
+                if (!device.HasNullDescriptor()) {
+                    ReserveNullBuffer();
+                    buffers[host] = *null_buffer;
+                }
+            }
+            mask |= 1U << host;
+        }
+        if (mask != 0) {
+            scheduler.Record([buffers, offsets, sizes, strides, mask,
+                              dynamic = device.IsExtExtendedDynamicStateSupported()]
+                             (vk::CommandBuffer cmdbuf) {
+                u32 remaining = mask;
+                while (remaining != 0) {
+                    const u32 first = static_cast<u32>(std::countr_zero(remaining));
+                    const u32 count = static_cast<u32>(std::countr_one(remaining >> first));
+                    if (dynamic) {
+                        cmdbuf.BindVertexBuffers2EXT(first, count, buffers.data() + first,
+                                                    offsets.data() + first, sizes.data() + first,
+                                                    strides.data() + first);
+                    } else {
+                        cmdbuf.BindVertexBuffers(first, count, buffers.data() + first,
+                                                 offsets.data() + first);
+                    }
+                    const u32 range = count == 32 ? ~0U : ((1U << count) - 1) << first;
+                    remaining &= ~range;
+                }
+            });
+        }
+        return;
+    }
     boost::container::small_vector<VkBuffer, 32> buffer_handles;
     for (u32 index = 0; index < bindings.buffers.size(); ++index) {
         auto handle = bindings.buffers[index]->Handle();
@@ -621,7 +673,25 @@ void BufferCacheRuntime::BindTransformFeedbackBuffer(u32 index, VkBuffer buffer,
 
 void BufferCacheRuntime::BindTransformFeedbackBuffers(VideoCommon::HostBindings<Buffer>& bindings) {
     if (!device.IsExtTransformFeedbackSupported()) {
-        // Already logged in the rasterizer
+        // Kept for the shaders writing what transform feedback would capture
+        for (size_t index = 0; index < emulated_xfb_buffers.size(); ++index) {
+            EmulatedTransformFeedbackBuffer next{};
+            if (index < bindings.buffers.size() && bindings.buffers[index] != nullptr) {
+                Buffer& buffer{*bindings.buffers[index]};
+                const u64 offset{bindings.offsets[index]};
+                next.buffer = buffer.Handle();
+                next.offset = static_cast<u32>(offset);
+                next.size = static_cast<u32>(bindings.sizes[index]);
+                next.capacity = buffer.SizeBytes() > offset ? buffer.SizeBytes() - offset : 0;
+            }
+            EmulatedTransformFeedbackBuffer& current{emulated_xfb_buffers[index]};
+            // Draws keep capturing after each other while the buffer stays the same
+            if (next.buffer == current.buffer && next.offset == current.offset &&
+                next.size == current.size) {
+                next.written = current.written;
+            }
+            current = next;
+        }
         return;
     }
     boost::container::small_vector<VkBuffer, 4> buffer_handles;

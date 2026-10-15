@@ -514,3 +514,27 @@ void VideoManager::InvalidateMemory(const uint8_t * pointer, uint64_t size)
         impl->m_gpuCore->InvalidateRegion(address, size);
     });
 }
+
+void VideoManager::SynchronizeNativeMemory(IMemory* memory, uint64_t vaddr, const uint8_t * pointer, uint64_t size, bool write)
+{
+    if (impl == nullptr || impl->m_gpuCore == nullptr || impl->m_host1x == nullptr ||
+        pointer == nullptr || size == 0)
+    {
+        return;
+    }
+    thread_local Common::ScratchBuffer<u32> scratch;
+    std::vector<DAddr> addresses;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        if (address != 0)
+        {
+            addresses.push_back(address);
+        }
+    });
+    if (addresses.empty()) return;
+    // Register before queueing the download: a racing GPU write cancels this lease.
+    auto& tracker = impl->m_host1x->MemoryManager().NativeReads();
+    auto lease = write ? Core::NativeReadTracker<IMemory>::Lease{} : tracker.Begin(memory, vaddr, pointer);
+    impl->m_gpuCore->SynchronizeNativeMemory(addresses, size, write, [&] {
+        if (lease) tracker.Complete(lease);
+    });
+}

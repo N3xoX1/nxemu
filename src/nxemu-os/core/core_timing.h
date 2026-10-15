@@ -173,6 +173,7 @@ private:
     std::mutex cpu_hle_transition_guard;
     std::mutex compilation_wait_guard;
     bool waiting_for_compilation{};
+    s64 compilation_wait_deadline{};
 
     s64 global_timer = 0;
 

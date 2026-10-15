@@ -28,17 +28,22 @@ public:
     DeviceMemory(const DeviceMemory&) = delete;
 
     //IDeviceMemory
-    const uint8_t * BackingBasePointer() const
+    const uint8_t * BackingBasePointer() const override
     {
         return buffer.BackingBasePointer();
     }
 
-    uint8_t * VirtualBasePointer()
+    uint64_t BackingSize() const override
+    {
+        return buffer.BackingSize();
+    }
+
+    uint8_t * VirtualBasePointer() override
     {
         return buffer.VirtualBasePointer();
     }
 
-    void EnableDirectMappedAddress()
+    void EnableDirectMappedAddress() override
     {
         buffer.EnableDirectMappedAddress();
     }
