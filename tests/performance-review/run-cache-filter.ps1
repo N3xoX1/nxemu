@@ -15,10 +15,12 @@ if($LASTEXITCODE -ne 0){throw 'History oracle failed'}
 Get-Content (Join-Path $filterOut 'history-results.txt')
 $filterPrevious=$env:NXEMU_GPU_WRITE_FILTER
 try {
-    foreach($filterMode in @('0','1')) {
-        $env:NXEMU_GPU_WRITE_FILTER=$filterMode
+    foreach($filterMode in @('default','0','1','invalid')) {
+        $env:NXEMU_GPU_WRITE_FILTER=if($filterMode -eq 'default'){$null}else{$filterMode}
         & (Join-Path $filterOut 'cache-filter.exe') > (Join-Path $filterOut "mode-$filterMode-results.txt")
         if($LASTEXITCODE -ne 0){Get-Content (Join-Path $filterOut "mode-$filterMode-results.txt");throw 'Cache predicate oracle failed'}
+        $filterExpected=if($filterMode -in @('default','1')){1}else{0}
+        if(!(Select-String -LiteralPath (Join-Path $filterOut "mode-$filterMode-results.txt") -Pattern "filter_enabled=$filterExpected$")){throw 'Unexpected filter configuration'}
         Get-Content (Join-Path $filterOut "mode-$filterMode-results.txt")
     }
 } finally {$env:NXEMU_GPU_WRITE_FILTER=$filterPrevious}

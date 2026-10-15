@@ -16,6 +16,19 @@
 unsigned failures{},checks{};
 void Check(const char* name,bool okay){++checks;failures+=!okay;std::cout<<(okay?"PASS ":"FAIL ")<<name<<'\n';}
 int main()try {
+    for (unsigned cpus : {0U, 1U, 2U, 3U, 4U, 6U, 7U, 8U, 16U, 64U}) {
+        const unsigned expected = cpus >= 8 ? 4 : cpus >= 4 ? 2 : 0;
+        Check("automatic_worker_budget_reserves_emulation_capacity",
+              Common::ReadbackWorkerCountForHardware(nullptr, cpus) == expected);
+        for (const char* invalid : {"", "0", "1", "8", "4x", "24", "auto"}) {
+            Check("disabled_or_invalid_worker_override_is_serial",
+                  Common::ReadbackWorkerCountForHardware(invalid, cpus) == 0);
+        }
+        Check("explicit_two_workers_respects_capacity",
+              Common::ReadbackWorkerCountForHardware("2", cpus) == (cpus >= 4 ? 2U : 0U));
+        Check("explicit_four_workers_respects_capacity",
+              Common::ReadbackWorkerCountForHardware("4", cpus) == (cpus >= 6 ? 4U : 0U));
+    }
     using Byte=unsigned char;constexpr size_t maximum=8388608+63;
     std::vector<Byte> src(maximum+256),dst(src.size()),expected(src.size());std::mt19937 rng{0xC0A4};
     for(unsigned count:{1u,2u,4u}) {

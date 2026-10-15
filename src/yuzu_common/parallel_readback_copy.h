@@ -88,13 +88,18 @@ private:
     std::array<std::thread, 3> workers;
 };
 
+// Counts include the calling thread. hardware_concurrency reports logical CPUs,
+// not physical cores, and may be unknown (zero). Leave capacity for emulation.
+inline unsigned ReadbackWorkerCountForHardware(const char* value, unsigned logical_cpus) {
+    if (!value) return logical_cpus >= 8 ? 4U : logical_cpus >= 4 ? 2U : 0U;
+    if ((value[0] != '2' && value[0] != '4') || value[1] != '\0') return 0U;
+    const unsigned requested = static_cast<unsigned>(value[0] - '0');
+    return logical_cpus >= requested + 2 ? requested : 0U;
+}
+
 inline unsigned ReadbackWorkerCount() {
-    static const unsigned count = [] {
-        const char* value = std::getenv("NXEMU_PARALLEL_READBACK_THREADS");
-        if (!value || (value[0] != '2' && value[0] != '4') || value[1] != '\0') return 0U;
-        const unsigned requested = static_cast<unsigned>(value[0] - '0');
-        return std::thread::hardware_concurrency() >= requested + 2 ? requested : 0U;
-    }();
+    static const unsigned count = ReadbackWorkerCountForHardware(
+        std::getenv("NXEMU_PARALLEL_READBACK_THREADS"), std::thread::hardware_concurrency());
     return count;
 }
 

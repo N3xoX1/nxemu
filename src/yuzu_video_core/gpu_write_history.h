@@ -12,7 +12,7 @@ namespace VideoCommon {
 inline bool GpuWriteFilterEnabled() {
     static const bool enabled = [] {
         const char* value = std::getenv("NXEMU_GPU_WRITE_FILTER");
-        return value && value[0] == '1' && value[1] == '\0';
+        return !value || (value[0] == '1' && value[1] == '\0');
     }();
     return enabled;
 }

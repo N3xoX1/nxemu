@@ -8,8 +8,8 @@ foreach($parallelLine in $parallelEnvironment){if($parallelLine -match '^([^=]+)
 if($LASTEXITCODE -ne 0){Get-Content (Join-Path $parallelOut 'build.log') -Tail 15;throw 'Parallel readback build failed'}
 $parallelPrevious=$env:NXEMU_PARALLEL_READBACK_THREADS
 try {
- foreach($parallelMode in @('0','2','4')) {
-  $env:NXEMU_PARALLEL_READBACK_THREADS=$parallelMode
+ foreach($parallelMode in @('default','0','2','4','invalid')) {
+  $env:NXEMU_PARALLEL_READBACK_THREADS=if($parallelMode -eq 'default'){$null}else{$parallelMode}
   & (Join-Path $parallelOut 'parallel.exe') *> (Join-Path $parallelOut "mode-$parallelMode-results.txt")
   if($LASTEXITCODE -ne 0){Get-Content (Join-Path $parallelOut "mode-$parallelMode-results.txt") -Tail 10;throw 'Parallel readback oracle failed'}
   Get-Content (Join-Path $parallelOut "mode-$parallelMode-results.txt") -Tail 1

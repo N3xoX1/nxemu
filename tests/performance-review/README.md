@@ -152,7 +152,7 @@ pass; each final guest byte is checked outside the timed interval. Command
 recording, descriptor allocation, source mutations, submit, fence wait, mask reads
 host snapshot updates, live RAM comparisons and retirement copies are timed.
 Initial resource allocation/seeding is excluded. Dense changes can regress.
-The opt-in emulator path retains FIFO retirement, invalidates reference proofs on
+The emulator path retains FIFO retirement, invalidates reference proofs on
 RAM changes and falls back for unsupported sizes, offsets or exhausted VRAM budget.
 A FIFO host snapshot preserves each GPU epoch and is compared against live RAM,
 including untracked RAM writes between queued epochs and canonical buffer removal.
@@ -165,8 +165,8 @@ Logical readbacks were 502.9 and 505.6 MB/frame respectively. The candidate avoi
 96.16% of readback payload; estimated transferred data fell to 19.42 MB/frame.
 Inclusive CPU readback-copy time fell from 20.18 to 10.16 ms/frame. These are game
 measurements on Ryzen 9800X3D/RTX 5070 Ti; other games and hardware are unmeasured.
-NXEMU_GPU_DIFFERENTIAL_READBACK=1 enables the GPU candidate; absent or 0 retains
-the CPU SIMD path. Reference buffers consume bounded additional VRAM and host RAM.
+GPU differential readback is enabled by default;
+NXEMU_GPU_DIFFERENTIAL_READBACK=0 retains the CPU SIMD path. Reference buffers consume bounded additional VRAM and host RAM.
 
 `run-host-reference-strategies.ps1` compares ten exact host retirement strategies
 over four working sets and three change patterns. It rotates order, includes
@@ -182,7 +182,7 @@ tails and CPU-consumer visibility are checked. The same portable fixture runs
 on AArch64 and x86 QEMU, with AVX2 enabled and disabled. Worker creation is lazy,
 failure keeps the serial path, and caller-owned TLS prevents overlapping jobs.
 `readback_parallel` counts actually split spans. GPU delta remains independent.
-`run-cache-filter.ps1` checks an opt-in monotonic GPU write-history filter and
+`run-cache-filter.ps1` checks the default-enabled monotonic GPU write-history filter and
 executes the production Vulkan flush/CPU-write predicates. Its writer variants
 compare unconditional atomic RMW at 4/64 KiB granularity and published-word loads.
 All historical positives keep the original mutex; only never-written negatives
@@ -190,7 +190,7 @@ bypass it. Publication precedes ordinary, DMA-mirrored and sparse dirty ranges.
 Existing resource-presence proofs omit absent buffer/texture CPU callbacks while
 preserving GPU-dirty early returns and shader invalidation. Real held-mutex tests
 verify that positives still block; independent byte/page oracles and concurrent
-writers cover false-negative risks. NXEMU_GPU_WRITE_FILTER=1 is required; absence
+writers cover false-negative risks. NXEMU_GPU_WRITE_FILTER=0
 keeps the previous path. The fixtures also pass native Linux and ARM64 QEMU.
 The retirement function now owns the workers through an explicit stack scope;
 only a nonowning pointer is TLS. `run-parallel-dll-shutdown.ps1` reproduces the
@@ -251,8 +251,71 @@ refreshes only after exact live-RAM reconciliation and preserves newer GPU
 epochs. Texture aliases retain the historical buffer-lock policy. Unsupported
 addresses or allocation failure use the conservative path. It is disabled by
 default. Tests cover independent byte oracles, publication, cancellation and
-held mutexes. In Immortals it bypassed about 43–44% of buffer consultations,
+held mutexes. In Immortals it bypassed about 43-44% of buffer consultations,
 versus 23% for v12, at about 0.028 ms/frame maintenance. Separate runs measured
-46.38 FPS for v14 and 46.21–46.78 FPS for v12: no demonstrated extra FPS gain.
+46.38 FPS for v14 and 46.21-46.78 FPS for v12: no demonstrated extra FPS gain.
 Worker polling, invalidation filtering, adaptive eight-thread pools and batching
 of memory protections were not retained after their game measurements.
+
+
+Production defaults (2026-10-15):
+
+| Variable | Unset default | Explicit override |
+| --- | --- | --- |
+| `NXEMU_GPU_DIFFERENTIAL_READBACK` | Enabled | `0` disables, `1` enables |
+| `NXEMU_GPU_WRITE_FILTER` | Enabled | `0` disables, `1` enables |
+| `NXEMU_CURRENT_GPU_DIRTY_FILTER` | Disabled | `1` enables |
+| `NXEMU_PARALLEL_READBACK_THREADS` | 4 with >=8 logical CPUs, 2 with >=4, otherwise 0 | `0`, `2`, `4` |
+
+Thread counts include the retirement caller: four means three helpers. Explicit
+2/4 retains the existing requirement of at least two additional logical CPUs.
+Unknown CPU capacity uses serial retirement. Copies below 2 MiB, overlapping
+spans and callers without a retirement scope remain serial; worker creation
+failure also retains the serial path. This is a conservative capacity policy,
+not a measured optimum for asymmetric mobile CPUs or a physical-core count.
+
+The default GPU paths retain the existing size/alignment and memory-budget
+fallbacks. Invalid overrides disable the corresponding optimization. Environment
+options are sampled once per process (differential readback per runtime).
+Mario, Zelda and Immortals rendering was validated with the first two options
+and four threads enabled in the comparison launchers. There is no isolated
+in-game 0-vs-4 thread comparison, nor measured ARM-device FPS claim. Historical
+percentage gains above describe separate complete build runs, not universal
+per-option guarantees. The current-dirty filter remains optional because its
+extra consultations avoided did not demonstrate an additional FPS gain.
+
+A follow-up OFF/ON comparison on 2026-10-15 used the same CPU/video/OS/loader
+DLLs and the same disposable benchmark frontend for every run. Differential
+readback and write-history filtering stayed enabled, with four retirement
+threads. Mario Odyssey, Zelda Tears of the Kingdom and Immortals each used a
+fixed camera after loading the same save. Thirteen 35-second captures were
+recorded; the first cold Mario capture was excluded from the primary comparison.
+The remaining two captures per condition use complete game-frame intervals
+within seconds 5..34, pooled below:
+
+| Game | OFF FPS | ON FPS | Observed change | OFF 1% low | ON 1% low |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Mario Odyssey | 197.90 | 198.70 | +0.41% | 146.05 | 143.31 |
+| Zelda Tears of the Kingdom | 82.11 | 83.29 | +1.45% | 63.82 | 68.59 |
+| Immortals Fenyx Rising | 48.32 | 47.92 | -0.83% | 39.81 | 35.99 |
+
+No graphical anomaly was observed in these scenes. Config/device metadata
+matched within each game, with no invalidations or dropped frame samples.
+Some captures had unfinished timing scopes at closure; call-duration totals
+are incomplete and are not used for the FPS conclusion. The last second is
+excluded from the complete frame intervals. Consecutive captures are correlated;
+these small differences do not establish a statistically certain causal gain
+or regression, and do not establish performance on ARM/mobile hardware.
+
+A separate synthetic test of the extracted production flush predicate showed
+why the filter is not uniformly beneficial: eligible retired-buffer queries
+fell from 15.27 to 6.14 ns, whereas dirty-positive queries rose from 15.21 to
+16.43 ns, texture-alias queries from 15.22 to 16.79 ns, and never-written queries
+from 4.93 to 6.16 ns. These are medians of seven rotating OFF/ON rounds with
+one million queries each, using an uncontended recursive mutex and simplified
+cache contents; they exclude summary maintenance and do not predict game FPS.
+The summary correctness fixture passed all 21 controls, including 40,000
+independent byte-oracle queries. Keep the current-dirty filter disabled by
+default because the game results are mixed, retaining explicit opt-in for
+targeted comparisons. The temporary frontend and controller settings were
+restored after measurement.

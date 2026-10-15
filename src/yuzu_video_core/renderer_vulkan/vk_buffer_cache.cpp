@@ -352,7 +352,8 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
       readback_descriptor_queue{compute_pass_descriptor_queue},
       readback_descriptor_pool{descriptor_pool} {
     const char* difference = std::getenv("NXEMU_GPU_DIFFERENTIAL_READBACK");
-    differential_readback_enabled = difference && difference[0] == '1' && difference[1] == '\0';
+    differential_readback_enabled =
+        !difference || (difference[0] == '1' && difference[1] == '\0');
     readback_shadow_budget = std::make_shared<ReadbackShadowBudget>();
     readback_shadow_budget->capacity = std::min<u64>(512ULL << 20, GetDeviceLocalMemory() / 16);
     if (device.GetDriverID() != VK_DRIVER_ID_QUALCOMM_PROPRIETARY) {
