@@ -143,7 +143,7 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
     }
 
     ISystemloader & loader = m_system_modules->Modules().Systemloader();
-    if (!loader.LoadRom(rom_path.c_str(), 0, -1, ApplicationLaunchType::FrontendInitiated))
+    if (!loader.LoadRom(rom_path.c_str(), 0, 0, -1, ApplicationLaunchType::FrontendInitiated))
     {
         RestoreStubModulesLocked();
         return false;
