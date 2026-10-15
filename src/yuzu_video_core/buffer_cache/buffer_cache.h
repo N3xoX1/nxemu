@@ -2100,14 +2100,11 @@ template <class P>
 Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
                                              bool is_written) const {
     const GPUVAddr gpu_addr = gpu_memory->Read<u64>(ssbo_addr);
+    // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size.
+    const u32 declared_size = cbuf_index == 0 ? gpu_memory->Read<u32>(ssbo_addr + 8) : 0;
     const auto requested_size = [&]() {
-        const bool is_nvn_cbuf = cbuf_index == 0;
-        // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size.
-        if (is_nvn_cbuf) {
-            const u32 ssbo_size = gpu_memory->Read<u32>(ssbo_addr + 8);
-            if (ssbo_size != 0) {
-                return ssbo_size;
-            }
+        if (declared_size != 0) {
+            return declared_size;
         }
         // Other titles (notably Doom Eternal) may use STG/LDG on buffer addresses in custom defined
         // cbufs, which do not store the sizes adjacent to the addresses, so use the fully
@@ -2162,8 +2159,12 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         // Ordinary mappings can also span physically disjoint pages, without a sparse
         // reservation. Assemble their mapped prefix, stopping at the first guest hole so
         // an oversized descriptor cannot expose a separate allocation beyond that hole.
+        // A written binding is copied back after every draw and marks the whole range as GPU
+        // modified. Without a declared size, the range is the mapped layout (up to 8 MiB) and
+        // usually covers neighbouring allocations, so keep the linear prefix for those.
         const u64 wanted_size = (gpu_addr - aligned_gpu_addr) + u64{requested_size};
-        if (aligned_device_addr && wanted_size <= std::numeric_limits<u32>::max()) {
+        const bool may_assemble = !is_written || declared_size != 0;
+        if (may_assemble && aligned_device_addr && wanted_size <= std::numeric_limits<u32>::max()) {
             const auto ranges = gpu_memory->GetSubmappedRange(aligned_gpu_addr, wanted_size);
             u64 mapped_size = 0;
             for (const auto& [part_addr, part_size] : ranges) {

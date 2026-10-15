@@ -1077,6 +1077,19 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                 return;
             }
             const vk::CommandBuffer cmdbuf{reorder ? upload_cmdbuf : main_cmdbuf};
+            if (reorder) {
+                // Moving the stage ahead also moves it ahead of guest barriers recorded in this
+                // context. Shader writes from previous submissions have no barrier of their own,
+                // order them explicitly. Writes of this context are excluded by IsBufferWritten.
+                static constexpr VkMemoryBarrier barrier{
+                    .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                    .pNext = nullptr,
+                    .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                };
+                cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, barrier);
+            }
             cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline);
             if (is_rescaling) {
                 cmdbuf.PushConstants(*stage.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,

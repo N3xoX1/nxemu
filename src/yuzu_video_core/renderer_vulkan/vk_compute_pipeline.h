@@ -69,6 +69,7 @@ private:
     StagingBufferPool& staging_pool;
     StagingBufferRef runtime_image_write_mask{};
     std::vector<VideoCommon::ImageViewId> runtime_image_views;
+    bool has_runtime_image_candidates{};
     u64 runtime_image_dispatch_count{};
     u32 num_textures{};
     size_t num_descriptor_entries{};

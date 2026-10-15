@@ -255,6 +255,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                                          runtime_image_write_mask.offset, mask_bytes);
         runtime_image_views.assign(info.runtime_image_write_mask_words * 32U,
                                    VideoCommon::NULL_IMAGE_VIEW_ID);
+        has_runtime_image_candidates = false;
         size_t image_index = num_textures + Shader::NumDescriptors(info.texture_buffer_descriptors) +
                              Shader::NumDescriptors(info.image_buffer_descriptors);
         for (const auto& desc : info.image_descriptors) {
@@ -262,9 +263,15 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                 const auto id = views[image_index++].id;
                 if (desc.is_direct && id != VideoCommon::NULL_IMAGE_VIEW_ID) {
                     runtime_image_views[handle] = id;
+                    has_runtime_image_candidates = true;
                 }
             }
         }
+    }
+    // Without a bound image the stores are discarded by null descriptors, and the mask
+    // cannot mark anything. It stays bound for the shader but is never read back.
+    if (has_runtime_image_candidates) {
+        const u32 mask_bytes = info.runtime_image_write_mask_words * sizeof(u32);
         scheduler.RequestOutsideRenderPassOperationContext();
         scheduler.Record([mask = runtime_image_write_mask, mask_bytes](vk::CommandBuffer cmdbuf) {
             cmdbuf.FillBuffer(mask.buffer, mask.offset, mask_bytes, 0U);
@@ -313,7 +320,8 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
 }
 
 void ComputePipeline::FinishRuntimeImageWrites(Scheduler& scheduler, TextureCache& texture_cache) {
-    if (info.runtime_image_write_mask_words == 0) {
+    // No bound image can have been written, so there is nothing to wait for
+    if (info.runtime_image_write_mask_words == 0 || !has_runtime_image_candidates) {
         return;
     }
     scheduler.Record([mask = runtime_image_write_mask,
