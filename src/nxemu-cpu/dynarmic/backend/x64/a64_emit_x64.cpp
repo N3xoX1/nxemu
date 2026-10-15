@@ -127,6 +127,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
     reg_alloc.AssertNoMoreUses();
 
+
     if (conf.enable_cycle_counting) {
         EmitAddCycles(block.CycleCount());
     }

@@ -15,6 +15,7 @@ struct EventType;
 namespace Kernel {
 
 class KHardwareTimer : /* public KInterruptTask, */ public KHardwareTimerBase {
+    friend class KernelStateSnapshot;
 public:
     // SVC timeouts include two guest timer ticks. Our deadlines remain in
     // nanoseconds, so round this margin up rather than adding two nanoseconds.

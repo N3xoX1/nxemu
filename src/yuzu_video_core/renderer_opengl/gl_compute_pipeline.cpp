@@ -30,9 +30,10 @@ bool ComputePipelineKey::operator==(const ComputePipelineKey& rhs) const noexcep
 ComputePipeline::ComputePipeline(const Device& device, TextureCache& texture_cache_,
                                  BufferCache& buffer_cache_, ProgramManager& program_manager_,
                                  const Shader::Info& info_, std::string code,
-                                 std::vector<u32> code_v, bool force_context_flush)
-    : texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
+                                 std::vector<u32> code_v, PerformanceCaptureSharedState& capture_, bool force_context_flush)
+    : capture{capture_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
       program_manager{program_manager_}, info{info_} {
+    PERF_CAPTURE_BUILD(capture);
     switch (device.GetShaderBackend()) {
     case ShaderBackend::Glsl:
         source_program = CreateProgram(code, GL_COMPUTE_SHADER);
@@ -250,6 +251,7 @@ void ComputePipeline::Configure() {
 }
 
 void ComputePipeline::WaitForBuild() {
+    PERF_CAPTURE_SCOPE(capture, pipeline_consumer_wait);
     if (built_fence.handle == 0) {
         std::unique_lock lock{built_mutex};
         built_condvar.wait(lock, [this] { return built_fence.handle != 0; });

@@ -140,14 +140,20 @@ PresentManager::~PresentManager() = default;
 Frame* PresentManager::GetRenderFrame() {
     // Wait for free presentation frames
     std::unique_lock lock{free_mutex};
-    free_cv.wait(lock, [this] { return !free_queue.empty(); });
+    if (free_queue.empty()) {
+        PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), present_free_queue_wait);
+        free_cv.wait(lock, [this] { return !free_queue.empty(); });
+    }
 
     // Take the frame from the queue
     Frame* frame = free_queue.front();
     free_queue.pop();
 
     // Wait for the presentation to be finished so all frame resources are free
-    frame->present_done.Wait();
+    {
+        PERF_CAPTURE_SCOPE(scheduler.PerformanceCaptureState(), present_fence_wait_call);
+        frame->present_done.Wait();
+    }
     frame->present_done.Reset();
 
     return frame;
@@ -164,6 +170,7 @@ void PresentManager::Present(Frame* frame) {
     scheduler.Record([this, frame](vk::CommandBuffer) {
         std::unique_lock lock{queue_mutex};
         present_queue.push(frame);
+        PERF_CAPTURE_MAX(scheduler.PerformanceCaptureState(), present_queue_depth_max, present_queue.size());
         frame_cv.notify_one();
     });
 }
@@ -285,6 +292,7 @@ void PresentManager::PresentThread(std::stop_token token) {
 }
 
 void PresentManager::RecreateSwapchain(Frame* frame) {
+    PERF_CAPTURE_ADD(scheduler.PerformanceCaptureState(), swapchain_recreations, 1);
     swapchain.Create(*surface, frame->width, frame->height);
     SetImageCount();
 }

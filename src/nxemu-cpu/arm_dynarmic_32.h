@@ -46,6 +46,7 @@ public:
     void SignalInterrupt(IKernelThread * thread) override;
 
     void Release() override;
+    bool GetRunDiagnostics(CpuRunDiagnostics &) const override { return false; }
 
 private:
     ICoreSystem & m_system;

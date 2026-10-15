@@ -33,6 +33,9 @@ struct RunCodeCallbacks {
     std::unique_ptr<Callback> AddTicks;
     std::unique_ptr<Callback> GetTicksRemaining;
     bool enable_cycle_counting;
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    int diagnostic_guest_entry_offset{-1};
+#endif
 };
 
 class BlockOfCode final : public Xbyak::CodeGenerator {

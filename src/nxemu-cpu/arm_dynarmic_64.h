@@ -39,6 +39,7 @@ public:
     void SignalInterrupt(IKernelThread * thread) override;
 
     void Release() override;
+    bool GetRunDiagnostics(CpuRunDiagnostics & out) const override;
 
 private:
     ArmDynarmic64() = delete;
@@ -61,4 +62,8 @@ private:
     IKernelProcess & m_process;
     uint32_t m_coreIndex;
     bool m_cpu_hle_synchronization{};
+#if NXEMU_ENABLE_PERF_CAPTURE_INSTRUMENTATION
+    std::atomic<uint64_t> m_diagnostic_interrupt_ns{};
+    uint64_t m_diagnostic_guest_ticks{};
+#endif
 };

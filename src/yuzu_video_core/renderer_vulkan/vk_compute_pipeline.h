@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <nxemu-module-spec/performance_capture.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -38,7 +39,7 @@ public:
                              Common::ThreadWorker* thread_worker,
                              PipelineStatistics* pipeline_statistics,
                              VideoCore::ShaderNotify* shader_notify, const Shader::Info& info,
-                             vk::ShaderModule spv_module);
+                             vk::ShaderModule spv_module, PerformanceCaptureSharedState& capture_);
 
     ComputePipeline& operator=(ComputePipeline&&) noexcept = delete;
     ComputePipeline(ComputePipeline&&) noexcept = delete;
@@ -60,6 +61,7 @@ public:
 
 private:
     const Device& device;
+    PerformanceCaptureSharedState& capture;
     vk::PipelineCache& pipeline_cache;
     GuestDescriptorQueue& guest_descriptor_queue;
     Shader::Info info;
