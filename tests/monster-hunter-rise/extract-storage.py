@@ -30,7 +30,7 @@ cases='''
     {Harness h;h.memory.prefix_mapped=true;h.memory.sparse=false;h.memory.continuous=4096;h.memory.size=16384;h.memory.ordinary_ranges={{0x10000,4096},{0x11000,4096},{0x13000,4096}};auto b=h.Resolve(true);Check("ordinary_disjoint_prefix_stops_at_guest_hole",b.is_sparse&&b.size==8192);}
     {Harness h;h.memory.prefix_mapped=true;h.memory.sparse=false;h.memory.continuous=4096;h.memory.size=12288;h.memory.ordinary_ranges={{0x10000,4096},{0x12000,4096}};auto b=h.Resolve(true);Check("ordinary_hole_does_not_expose_later_allocation",!b.is_sparse&&b.size==4096);}
     {Harness h;h.memory.prefix_mapped=true;h.memory.sparse=false;h.memory.continuous=4096;h.memory.size=0;h.memory.ordinary_ranges={{0x10000,4096},{0x11000,4096}};auto b=h.Resolve(false,3);Check("ordinary_custom_cbuf_assembles_layout",b.is_sparse&&b.size==8192);}
-    {Harness h;h.memory.prefix_mapped=true;h.memory.sparse=false;h.memory.continuous=4096;h.memory.size=0;h.memory.ordinary_ranges={{0x10000,4096},{0x11000,4096}};auto b=h.Resolve(true,3);Check("ordinary_custom_cbuf_write_keeps_linear_prefix",!b.is_sparse&&b.size==4096);}
+    {Harness h;h.memory.prefix_mapped=true;h.memory.sparse=false;h.memory.continuous=4096;h.memory.size=0;h.memory.ordinary_ranges={{0x10000,4096},{0x11000,4096}};auto b=h.Resolve(true,3);Check("ordinary_custom_cbuf_write_keeps_valid_second_page",b.is_sparse&&b.size==8192&&u64{5000}+sizeof(u32)<=b.size);}
 '''
 harness=harness.replace('    const auto begin=',cases+'    const auto begin=')
 (out/'storage-binding.cpp').write_text(harness)

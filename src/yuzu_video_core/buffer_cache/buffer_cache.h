@@ -2159,12 +2159,10 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         // Ordinary mappings can also span physically disjoint pages, without a sparse
         // reservation. Assemble their mapped prefix, stopping at the first guest hole so
         // an oversized descriptor cannot expose a separate allocation beyond that hole.
-        // A written binding is copied back after every draw and marks the whole range as GPU
-        // modified. Without a declared size, the range is the mapped layout (up to 8 MiB) and
-        // usually covers neighbouring allocations, so keep the linear prefix for those.
+        // An estimated size is not proof that a shader only writes the first physical
+        // segment. Keep later valid GPU pages accessible for both reads and writes.
         const u64 wanted_size = (gpu_addr - aligned_gpu_addr) + u64{requested_size};
-        const bool may_assemble = !is_written || declared_size != 0;
-        if (may_assemble && aligned_device_addr && wanted_size <= std::numeric_limits<u32>::max()) {
+        if (aligned_device_addr && wanted_size <= std::numeric_limits<u32>::max()) {
             const auto ranges = gpu_memory->GetSubmappedRange(aligned_gpu_addr, wanted_size);
             u64 mapped_size = 0;
             for (const auto& [part_addr, part_size] : ranges) {
