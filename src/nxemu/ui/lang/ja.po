@@ -2513,3 +2513,8 @@ msgstr "ライト"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "ダーク"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "バージョンをクリップボードにコピーしました"
+

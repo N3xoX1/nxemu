@@ -968,6 +968,10 @@ msgstr ""
 msgid "Window filter: only applies when the game's resolution is lower than the window size"
 msgstr ""
 
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr ""
+
 #: assets/profiles_dialog.rml
 msgid "Profiles"
 msgstr ""
