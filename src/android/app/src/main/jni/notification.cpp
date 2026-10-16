@@ -1,5 +1,4 @@
 #include "notification.h"
-#include "settings/ui_settings.h"
 #include <android/log.h>
 
 namespace
@@ -28,12 +27,6 @@ void AndroidNotification::BreakPoint(const char * fileName, uint32_t lineNumber)
 {
     __android_log_print(ANDROID_LOG_ERROR, kLogTag, "BreakPoint %s:%u",
                         fileName != nullptr ? fileName : "", lineNumber);
-}
-
-void AndroidNotification::AppInitDone()
-{
-    __android_log_print(ANDROID_LOG_INFO, kLogTag, "AppInit done");
-    SetupUISetting();
 }
 
 AndroidNotification & AndroidNotification::GetInstance()

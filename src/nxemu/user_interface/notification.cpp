@@ -1,5 +1,4 @@
 #include "notification.h"
-#include "settings/ui_settings.h"
 #include <sciter_element.h>
 #include <sciter_handler.h>
 #include <sciter_ui.h>
@@ -241,11 +240,6 @@ void Notification::BreakPoint(const char * fileName, uint32_t lineNumber)
 #else
     __builtin_trap();
 #endif
-}
-
-void Notification::AppInitDone(void)
-{
-    SetupUISetting();
 }
 
 Notification & Notification::GetInstance()

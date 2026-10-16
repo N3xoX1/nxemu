@@ -15,7 +15,6 @@ public:
     void DisplayError(const char* message, const char* title) const override;
     NotificationResponse Query(const char* message, const char* title) const override;
     void BreakPoint(const char* file_name, uint32_t line_number) override;
-    void AppInitDone() override;
 
     void BindWindow(SDL_Window* window);
     void Close();
