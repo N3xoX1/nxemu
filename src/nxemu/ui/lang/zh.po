@@ -76,7 +76,6 @@ msgstr "控制器"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "游戏文件夹"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "减少抖动；有些项目可能会晚出现。一个近似值。"
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "性能"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "窗口滤镜：仅在游戏分辨率小于窗口大小时生效"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "用户档案"
 
@@ -2203,17 +2200,15 @@ msgstr "历史显示的测量次数"
 msgid "Window size"
 msgstr "窗口大小"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "选项(&O)"
+msgid "Performance overlay"
+msgstr "性能叠加层"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "&参数"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "控制器(&N)"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"

@@ -76,7 +76,6 @@ msgstr "Mandos"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "Carpetas de juegos"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Menos tirones; algunos elementos pueden aparecer tarde. Es un truco de optimización."
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "Rendimiento"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "Filtro de ventana: solo se aplica si la resolución del juego es menor que el tamaño de la ventana"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "Perfiles"
 
@@ -2210,17 +2207,15 @@ msgstr "Cuántas medidas muestra el historial"
 msgid "Window size"
 msgstr "Tamaño de ventana"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "&Opciones"
+msgid "Performance overlay"
+msgstr "Superposición de rendimiento"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "&Ajustes"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "&Mandos"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"

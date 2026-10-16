@@ -76,7 +76,6 @@ msgstr "Controller"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "Cartelle dei giochi"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Meno scatti; alcuni elementi possono apparire in ritardo. È un espediente."
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "Prestazioni"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "Filtro della finestra: si applica solo se la risoluzione del gioco è inferiore alla dimensione della finestra"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "Profili"
 
@@ -2210,17 +2207,15 @@ msgstr "Quante misure mostra la cronologia"
 msgid "Window size"
 msgstr "Dimensioni della finestra"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "&Opzioni"
+msgid "Performance overlay"
+msgstr "Overlay delle prestazioni"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "&Impostazioni"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "&Controller"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"

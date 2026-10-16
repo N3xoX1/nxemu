@@ -76,7 +76,6 @@ msgstr "コントローラー"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "ゲームフォルダー"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "ぎくしゃく感が軽減されました。一部のアイテムは表示が遅れる場合があります。近似値。"
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "パフォーマンス"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "ウィンドウフィルター：ゲームの解像度がウィンドウより小さいときのみ適用されます"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "プロフィール"
 
@@ -2203,17 +2200,15 @@ msgstr "履歴に表示する測定数"
 msgid "Window size"
 msgstr "ウィンドウサイズ"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "オプション(&O)"
+msgid "Performance overlay"
+msgstr "パフォーマンスオーバーレイ"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "パラメータ(&P)"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "コントローラ(&C)"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"

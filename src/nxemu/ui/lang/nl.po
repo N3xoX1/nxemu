@@ -76,7 +76,6 @@ msgstr "Controllers"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "Spelmappen"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Minder schokkerigheid; sommige items kunnen te laat verschijnen. Een benadering."
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "Prestaties"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "Vensterfilter: wordt alleen toegepast als de resolutie van het spel kleiner is dan het venster"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "Profielen"
 
@@ -2210,17 +2207,15 @@ msgstr "Hoeveel metingen de geschiedenis toont"
 msgid "Window size"
 msgstr "Venstergrootte"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "&Opties"
+msgid "Performance overlay"
+msgstr "Prestatie-overlay"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "&Parameters"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "&Controllers"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"

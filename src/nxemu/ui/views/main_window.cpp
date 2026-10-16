@@ -1088,13 +1088,9 @@ void MainWindow::RebuildMenu()
                                                                 action(Action::OpenLogDirectory, Tr("&Log Folder")),
                                                             }));
     file.push_back(MenuItem::Separator());
+    file.push_back(action(Action::OpenSettings, Tr("&Settings")));
+    file.push_back(MenuItem::Separator());
     file.push_back(action(Action::InstallFirmware, Tr("Install &Firmware"), !running));
-    file.push_back(MenuItem::Submenu(Tr("&Options"), {
-                                                      action(Action::OpenSettings, Tr("&Settings")),
-                                                      action(Action::ConfigureControllers, Tr("&Controllers")),
-                                                      action(Action::OpenProfiles, Tr("Profiles")),
-                                                      action(Action::OpenGameDirectories, Tr("Game directories")),
-                                                  }));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::Exit, Tr("E&xit")));
 
@@ -1143,7 +1139,7 @@ void MainWindow::RebuildMenu()
         action(Action::ResetWindowSize1080p, "1080p"),
     }));
     emulation.push_back(MenuItem::Separator());
-    emulation.push_back(MenuItem::Submenu(Tr("Performance"), std::move(performance)));
+    emulation.push_back(MenuItem::Submenu(Tr("Performance overlay"), std::move(performance)));
     emulation.push_back(MenuItem::Separator());
     emulation.push_back(check(Action::ToggleStartGamesInFullscreen, Tr("Start games in fullscreen"), UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false)));
     emulation.push_back(check(Action::ToggleStartGamesWithUiHidden, Tr("Start games with UI hidden"), UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false)));

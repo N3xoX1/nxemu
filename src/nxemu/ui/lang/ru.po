@@ -76,7 +76,6 @@ msgstr "Контроллеры"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "Папки с играми"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Меньше дерганий; некоторые предметы могут появиться с опозданием. Приближение."
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "Производительность"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "Фильтр окна: применяется, только если разрешение игры меньше размера окна"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "Профили"
 
@@ -2217,17 +2214,15 @@ msgstr "Сколько измерений показывает история"
 msgid "Window size"
 msgstr "Размер окна"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "&Параметры"
+msgid "Performance overlay"
+msgstr "Оверлей производительности"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "&Параметры"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "&Контроллеры"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"
