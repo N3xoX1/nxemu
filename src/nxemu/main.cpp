@@ -1,5 +1,6 @@
 #include "settings/ui_settings.h"
 #include "startup_checks.h"
+#include "ui/ui_application.h"
 #include "user_interface/notification.h"
 #include "user_interface/sciter_main_window.h"
 #include <common/path.h>
@@ -35,11 +36,11 @@ void RegisterWidgets(ISciterUI & sciterUI)
     Register_WidgetRomBrowser(sciterUI);
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 extern "C"
 {
-    __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;         // NVIDIA
-    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;   // AMD
+    __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;       // NVIDIA
+    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1; // AMD
 }
 
 static void EnablePerMonitorDpiAwareness()
@@ -109,17 +110,24 @@ static void RaiseOpenFileLimit()
 }
 #endif
 
-static int RunApplication(const char * arg0) 
+static int RunApplication(int argc, char ** argv)
 {
 #ifdef __APPLE__
     RaiseOpenFileLimit();
 #endif
-    bool has_broken_vulkan = false;
-    bool is_child = false;
-    if (CheckEnvVars(&is_child)) {
+    bool isChild = false;
+    if (CheckEnvVars(&isChild))
+    {
         return 0;
     }
 
+    bool useRmlUI = false;
+    if (useRmlUI)
+    {
+        return RunUiApplication(argc, argv);
+    }
+
+    bool has_broken_vulkan = false;
 #ifdef WIN32
     EnablePerMonitorDpiAwareness();
 #endif
@@ -140,7 +148,8 @@ static int RunApplication(const char * arg0)
     }
 #endif
 
-    if (res && StartupChecks(arg0, &has_broken_vulkan, uiSettings.performVulkanCheck)) {
+    if (res && StartupChecks(argv[0], &has_broken_vulkan, uiSettings.performVulkanCheck))
+    {
         return 0;
     }
     uiSettings.hasBrokenVulkan = has_broken_vulkan;
@@ -169,13 +178,11 @@ static int RunApplication(const char * arg0)
 #ifdef _WIN32
 int WINAPI WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpszArgs*/, _In_ int /*nWinMode*/)
 {
-    char arg0[MAX_PATH]{};
-    GetModuleFileNameA(nullptr, arg0, MAX_PATH);
-    return RunApplication(arg0);
+    return RunApplication(__argc, __argv);
 }
 #else
 int main(int argc, char * argv[])
 {
-    return RunApplication((argc > 0 && argv[0] != nullptr) ? argv[0] : "nxemu");
+    return RunApplication(argc, argv);
 }
 #endif

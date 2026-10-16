@@ -65,8 +65,19 @@ struct VideoManager::Impl
         StopInitialization();
         m_gpuCore.reset();
         m_memoryManagerRegistry.Clear();
+        m_display.reset();
         m_emuWindow.reset();
         m_host1x.reset();
+    }
+
+    Vulkan::Display * EnsureDisplay()
+    {
+        if (m_display || m_emuWindow == nullptr || videoSettings.renderer_backend != RendererBackend::Vulkan)
+        {
+            return m_display.get();
+        }
+        m_display = VideoCore::CreateDisplay(*m_emuWindow);
+        return m_display.get();
     }
 
     bool Initialize()
@@ -91,7 +102,7 @@ struct VideoManager::Impl
         m_emuWindow = nullptr;
         m_emuWindow = std::make_unique<RenderWindow>(m_window);
         m_emuWindow->UpdateCurrentFramebufferLayout(layout.width, layout.height);
-        m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x);
+        m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x, EnsureDisplay());
         if (!m_gpuCore)
         {
             return;
@@ -147,6 +158,7 @@ struct VideoManager::Impl
     }
     std::unique_ptr<Tegra::Host1x::Host1x> m_host1x;
     std::unique_ptr<RenderWindow> m_emuWindow;
+    VideoCore::DisplayPtr m_display;
     std::unique_ptr<Tegra::GPU> m_gpuCore;
     IRenderWindow & m_window;
     ISystemModules & m_modules;
@@ -360,6 +372,34 @@ uint32_t VideoManager::GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_
     Tegra::Texture::UnswizzleTexture(linear, tiled, BytesPerPixel, LinearWidth, LinearHeight, LinearDepth, BlockHeight, BlockDepth);
     std::memcpy(out, linear.data(), linear_size);
     return linear_size;
+}
+
+bool VideoManager::AttachInterface(VideoInterfaceDevice * device)
+{
+    Vulkan::Display * display = impl->EnsureDisplay();
+    return display != nullptr && device != nullptr && VideoCore::AttachInterface(*display, *device);
+}
+
+bool VideoManager::BeginInterfaceFrame(uint32_t width, uint32_t height, VideoInterfaceFrame * frame)
+{
+    if (!impl->m_display || frame == nullptr || width == 0 || height == 0)
+    {
+        return false;
+    }
+    return VideoCore::BeginInterfaceFrame(*impl->m_display, width, height, *frame);
+}
+
+void VideoManager::EndInterfaceFrame(const VideoInterfaceArea * gameArea)
+{
+    VideoCore::EndInterfaceFrame(*impl->m_display, gameArea);
+}
+
+void VideoManager::WaitInterfaceIdle()
+{
+    if (impl->m_display)
+    {
+        VideoCore::WaitInterfaceIdle(*impl->m_display);
+    }
 }
 
 void VideoManager::NotifyWindowChanged()

@@ -97,7 +97,7 @@ public:
     MemoryAllocator& operator=(const MemoryAllocator&) = delete;
     MemoryAllocator(const MemoryAllocator&) = delete;
 
-    vk::Image CreateImage(const VkImageCreateInfo& ci) const;
+    vk::Image CreateImage(const VkImageCreateInfo& ci, bool dedicated = false) const;
     vk::Image CreateTransientImage(const VkImageCreateInfo& ci) const;
 
     vk::Buffer CreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const;

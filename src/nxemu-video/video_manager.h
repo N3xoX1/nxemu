@@ -38,6 +38,10 @@ public:
     void RequestComposite(VideoFramebufferConfig * layers, uint32_t layerCount, VideoNvFence * fences, uint32_t fenceCount) override;
     void WaitForComposite() override;
     void CancelPendingComposite() override;
+    bool AttachInterface(VideoInterfaceDevice * device) override;
+    bool BeginInterfaceFrame(uint32_t width, uint32_t height, VideoInterfaceFrame * frame) override;
+    void EndInterfaceFrame(const VideoInterfaceArea * gameArea) override;
+    void WaitInterfaceIdle() override;
     void UpdateFramebufferLayout(uint32_t width, uint32_t height) override;
     IChannelState * AllocateChannel() override;
     void PushGPUEntries(int32_t bindId, const uint64_t * commandList, uint32_t commandListSize, const uint32_t * prefetchCommandlist, uint32_t prefetchCommandlistSize) override;
