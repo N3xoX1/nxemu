@@ -83,7 +83,6 @@ msgstr ""
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr ""
 
@@ -279,7 +278,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr ""
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr ""
 
@@ -963,7 +961,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr ""
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr ""
 
@@ -2161,19 +2158,11 @@ msgid "&Log Folder"
 msgstr ""
 
 #: views/main_window.cpp
-msgid "Install &Firmware"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "&Options"
-msgstr ""
-
-#: views/main_window.cpp
 msgid "&Settings"
 msgstr ""
 
 #: views/main_window.cpp
-msgid "&Controllers"
+msgid "Install &Firmware"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2226,6 +2215,10 @@ msgstr ""
 
 #: views/main_window.cpp
 msgid "Window size"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Performance overlay"
 msgstr ""
 
 #: views/main_window.cpp

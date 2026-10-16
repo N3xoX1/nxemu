@@ -76,7 +76,6 @@ msgstr "Manettes"
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Game directories"
 msgstr "Dossiers de jeux"
 
@@ -272,7 +271,6 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Moins de saccades ; certains éléments peuvent apparaître en retard. Une approximation."
 
 #: assets/advanced_dialog.rml
-#: views/main_window.cpp
 msgid "Performance"
 msgstr "Performances"
 
@@ -950,7 +948,6 @@ msgid "Window filter: only applies when the game's resolution is lower than the 
 msgstr "Filtre de fenêtre : ne s'applique que si la résolution du jeu est inférieure à la taille de la fenêtre"
 
 #: assets/profiles_dialog.rml
-#: views/main_window.cpp
 msgid "Profiles"
 msgstr "Profils"
 
@@ -2210,17 +2207,15 @@ msgstr "Le nombre de mesures que montre l'historique"
 msgid "Window size"
 msgstr "Taille de la fenêtre"
 
+
 #: views/main_window.cpp
-msgid "&Options"
-msgstr "&Options"
+msgid "Performance overlay"
+msgstr "Superposition des performances"
+
 
 #: views/main_window.cpp
 msgid "&Settings"
 msgstr "&Paramètres"
-
-#: views/main_window.cpp
-msgid "&Controllers"
-msgstr "&Manettes"
 
 #: views/main_window.cpp
 msgid "Install &Firmware"
