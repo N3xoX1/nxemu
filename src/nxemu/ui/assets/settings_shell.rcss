@@ -1,0 +1,314 @@
+/* What the pages of the settings share: the panel, and the categories on its
+   left. Each page is a dialog of its own that looks like the others. */
+/* The title bar of the window stays in reach, however small the window. */
+body
+{
+    box-sizing: border-box;
+    padding-top: 38dp;
+}
+
+.settings-dialog
+{
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 1180dp;
+    max-width: 100%;
+    height: 700dp;
+    max-height: 100%;
+}
+
+body.narrow .settings-dialog
+{
+    width: 100%;
+    height: 100%;
+    border-width: 0;
+    border-radius: 0;
+}
+
+.settings-body
+{
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+/* What can be configured: one tab per category, in the title bar after the
+   name of the panel. */
+.settings-header
+{
+    height: 46dp;
+    padding-left: 16dp;
+}
+
+.settings-header .dialog-title
+{
+    flex: none;
+}
+
+.settings-separator
+{
+    flex: none;
+    width: 1dp;
+    height: 22dp;
+    margin: 0 12dp 0 18dp;
+    background-color: #24344f;
+}
+
+.settings-categories
+{
+    flex: 1;
+    display: flex;
+    align-self: stretch;
+    min-width: 0;
+}
+
+/* The one shown is underlined, on the edge of the bar. */
+.settings-category
+{
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    margin-right: 2dp;
+    padding: 2dp 12dp 0 12dp;
+    border-bottom: 2dp transparent;
+    color: #8f9bb0;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.settings-category img
+{
+    width: 16dp;
+    height: 16dp;
+    margin-right: 8dp;
+    image-color: #8f9bb0;
+}
+
+.settings-category:hover
+{
+    color: #ffffff;
+}
+
+.settings-category:hover img
+{
+    image-color: #ffffff;
+}
+
+.settings-category.selected
+{
+    border-bottom-color: #2f7df6;
+    color: #ffffff;
+}
+
+.settings-category.selected img
+{
+    image-color: #8fb8ff;
+}
+
+/* A page that is a title, a few words and what they are about. */
+.settings-page
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 18dp 24dp 0 24dp;
+}
+
+.settings-title
+{
+    font-size: 19dp;
+    font-weight: bold;
+}
+
+/* The page this one was opened from. */
+.settings-back
+{
+    color: #8f9bb0;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+.settings-back:hover
+{
+    color: #ffffff;
+}
+
+.settings-text
+{
+    margin-top: 6dp;
+    color: #8f9bb0;
+    font-size: 13dp;
+}
+
+/* Little room: the categories take less of it. */
+body.tight .settings-category
+{
+    padding-left: 9dp;
+    padding-right: 9dp;
+}
+
+/* A window too small for the panel: the panel takes all of it and the whole
+   scrolls. The categories are their names alone. */
+body.narrow .settings-body
+{
+    display: block;
+    overflow-y: auto;
+}
+
+body.narrow .settings-header .dialog-title,
+body.narrow .settings-separator,
+body.narrow .settings-category img
+{
+    display: none;
+}
+
+body.narrow .settings-category
+{
+    padding-left: 8dp;
+    padding-right: 8dp;
+    font-size: 14dp;
+}
+
+body.narrow .settings-page
+{
+    display: block;
+    padding: 14dp 16dp 0 16dp;
+}
+
+/* The parts of a page that has several: one tab each, above them. */
+.settings-tabs
+{
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10dp 20dp 0 24dp;
+    border-bottom: 1dp #16202f;
+    background-color: #0a0f1a;
+}
+
+.settings-tab
+{
+    display: flex;
+    align-items: center;
+    margin-right: 4dp;
+    padding: 8dp 14dp;
+    border-top-left-radius: 6dp;
+    border-top-right-radius: 6dp;
+    color: #8f9bb0;
+    cursor: pointer;
+}
+
+.settings-tab img
+{
+    width: 15dp;
+    height: 15dp;
+    margin-right: 8dp;
+    image-color: #8f9bb0;
+}
+
+.settings-tab:hover
+{
+    background-color: #111a2a;
+    color: #ffffff;
+}
+
+.settings-tab.selected
+{
+    background-color: #16305a;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.settings-tab:hover img,
+.settings-tab.selected img
+{
+    image-color: #ffffff;
+}
+
+body.tight .settings-tabs
+{
+    padding-left: 16dp;
+    padding-right: 14dp;
+}
+
+body.narrow .settings-tabs
+{
+    padding: 8dp 12dp 0 12dp;
+}
+
+.settings-scope { margin: 0dp 24dp 12dp; padding: 10dp 14dp; background: #ffffff08; border-radius: 8dp; color: #969cab; font-size: 12dp; }
+.scope-title { color: #e6e8ef; font-size: 14dp; font-weight: bold; margin-bottom: 3dp; }
+.settings-scope.save-error { color: #ff9d9d; }
+.settings-scope.empty { display: none; }
+/* The settings of one game only: said so that it cannot be missed. */
+.settings-scope.of-game { margin-top: 12dp; border: 1dp #2f7df6; background: #16305a; color: #c5d3ea; }
+.scope-id { margin-left: 10dp; color: #8fa9d6; font-weight: normal; font-size: 12dp; }
+.scope-controls { color: #8eb9ff; margin-top: 4dp; }
+.settings-scope .scope-controls:first-child { margin-top: 0; }
+.setting-origins
+{
+    display: none;
+    flex: 0 0 100%;
+    min-width: 0;
+    margin-top: 10dp;
+}
+
+.setting-overridden .setting-origins { display: block; padding-top: 10dp; border-top: 1dp #493725; }
+
+.setting-origin
+{
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    color: #919bad;
+    font-size: 11dp;
+    min-height: 26dp;
+}
+
+.setting-origin.source-global { display: none; }
+.setting-origin.source-user,
+.setting-origin.source-nxemu { margin-top: 4dp; }
+.origin-property { flex: 0 0 88dp; color: #a2adbd; }
+.origin-label { padding: 4dp 0dp; border-radius: 5dp; }
+.source-user .origin-label,
+.source-nxemu .origin-label
+{
+    padding: 4dp 9dp;
+    color: #ffbd7a;
+    background-color: #47301d;
+    font-weight: bold;
+}
+
+button.inherit-setting
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    font-size: 11dp;
+    line-height: 16dp;
+    height: 26dp;
+    padding: 0dp 12dp;
+    margin-left: auto;
+    min-width: 74dp;
+    flex-shrink: 0;
+}
+
+.source-user button.inherit-setting { border-color: #80542d; background-color: #382719; color: #ffd2a4; }
+.source-user button.inherit-setting:hover { border-color: #e69b4e; background-color: #51371f; color: #ffe4c9; }
+button.inherit-setting:disabled { opacity: 0.4; }
+.game-defaults { display: none; }
+.per-game .global-defaults { display: none; }
+.per-game .game-defaults { display: block; }
+
+.confirm-defaults .game-defaults.defaults-ask { display: none; }
+
+/* Kept at the start of the footer, across from Close. */
+.dialog-footer .footer-start
+{
+    float: left;
+    margin-left: 0;
+}

@@ -5,7 +5,7 @@ body
 {
     font-family: LatoLatin;
     font-size: 15dp;
-    color: var(--text);
+    color: #e6ebf2;
 }
 
 div, h1, p
@@ -23,71 +23,41 @@ button
 {
     display: inline-block;
     padding: 7dp 18dp;
-    border: 1dp var(--border);
+    border: 1dp #24344f;
     border-radius: 5dp;
-    background-color: var(--surface);
-    color: var(--text);
+    background-color: #111a2a;
+    color: #e6ebf2;
     text-align: center;
     cursor: pointer;
 }
 
 button:hover
 {
-    background-color: var(--hover);
-}
-
-/* Tint monochrome interface icons, while keeping game and profile artwork. */
-button img,
-.select-icon,
-.select-arrow,
-.card-title img,
-.settings-category img,
-.empty-state-icon,
-.view-button > img,
-.row-play img,
-#title-state,
-#window-close img
-{
-    image-color: var(--text-secondary);
-}
-
-button.primary img,
-button.danger img,
-.primary .select-icon,
-.emulation-button.active img,
-#title-stop:hover img,
-#window-close:hover img
-{
-    image-color: var(--on-accent);
-}
-
-.dialog-close:hover
-{
-    color: var(--on-accent);
+    background-color: #1b2a44;
 }
 
 button.primary
 {
-    border-color: var(--accent);
-    background-color: var(--accent);
-    color: var(--on-accent);
+    border-color: #2f7df6;
+    background-color: #2f7df6;
+    color: #ffffff;
 }
 
 button.primary:hover
 {
-    background-color: var(--accent-hover);
+    background-color: #4a90ff;
 }
 
 .link
 {
-    color: var(--accent-text);
+    color: #4aa3ff;
     text-decoration: underline;
     cursor: pointer;
 }
 
 .link:hover
 {
-    color: var(--accent-text);
+    color: #8cc4ff;
 }
 
 scrollbarvertical
@@ -98,7 +68,7 @@ scrollbarvertical
 
 scrollbarvertical slidertrack
 {
-    background-color: var(--chrome);
+    background-color: #0c1320;
     border-radius: 5dp;
 }
 
@@ -106,14 +76,14 @@ scrollbarvertical sliderbar
 {
     width: 10dp;
     min-height: 24dp;
-    background-color: var(--border);
+    background-color: #24344f;
     border-radius: 5dp;
 }
 
 scrollbarvertical sliderbar:hover,
 scrollbarvertical sliderbar:active
 {
-    background-color: var(--border-strong);
+    background-color: #33486c;
 }
 
 scrollbarvertical sliderarrowdec,
@@ -139,9 +109,9 @@ body.dialog-backdrop
 
 .dialog
 {
-    border: 1dp var(--border);
+    border: 1dp #1f2c44;
     border-radius: 6dp;
-    background-color: var(--canvas);
+    background-color: #070b14;
 }
 
 .dialog-header
@@ -150,8 +120,8 @@ body.dialog-backdrop
     align-items: center;
     height: 38dp;
     padding: 0 6dp 0 14dp;
-    border-bottom: 1dp var(--raised);
-    background-color: var(--chrome);
+    border-bottom: 1dp #16202f;
+    background-color: #0a0f1a;
 }
 
 .dialog-header img
@@ -202,7 +172,7 @@ body.dialog-backdrop
     height: 20dp;
     padding: 2dp;
     border-radius: 10dp;
-    background-color: var(--border-strong);
+    background-color: #33415a;
     cursor: pointer;
 }
 
@@ -211,18 +181,18 @@ body.dialog-backdrop
     width: 16dp;
     height: 16dp;
     border-radius: 8dp;
-    background-color: var(--text-secondary);
+    background-color: #c5cedb;
 }
 
 .switch.on
 {
-    background-color: var(--accent);
+    background-color: #2f7df6;
 }
 
 .switch.on .switch-knob
 {
     margin-left: 16dp;
-    background-color: var(--on-accent);
+    background-color: #ffffff;
 }
 
 /* A value chosen along a line. */
@@ -231,7 +201,7 @@ input.range slidertrack
     height: 4dp;
     margin-top: 6dp;
     border-radius: 2dp;
-    background-color: var(--border);
+    background-color: #24344f;
 }
 
 input.range sliderprogress
@@ -239,7 +209,7 @@ input.range sliderprogress
     height: 4dp;
     margin-top: 1dp;
     border-radius: 2dp;
-    background-color: var(--accent);
+    background-color: #2f7df6;
 }
 
 input.range sliderbar
@@ -248,7 +218,7 @@ input.range sliderbar
     height: 14dp;
     margin-top: 1dp;
     border-radius: 7dp;
-    background-color: var(--on-accent);
+    background-color: #ffffff;
     cursor: pointer;
 }
 
@@ -266,16 +236,16 @@ select
     box-sizing: border-box;
     width: 190dp;
     height: 28dp;
-    border: 1dp var(--border);
+    border: 1dp #24344f;
     border-radius: 6dp;
-    background-color: var(--surface);
+    background-color: #0f1a2b;
     cursor: pointer;
 }
 
 select:hover
 {
-    border-color: var(--border-strong);
-    background-color: var(--hover);
+    border-color: #3d5a8a;
+    background-color: #14233a;
 }
 
 select selectvalue
@@ -296,16 +266,16 @@ select selectarrow
     height: 12dp;
     margin: 7dp 8dp 0 0;
     decorator: image(images/chevron-down.png);
-    image-color: var(--text-muted);
+    image-color: #8fa0b8;
 }
 
 select selectbox
 {
     margin-top: 4dp;
     padding: 4dp;
-    border: 1dp var(--border);
+    border: 1dp #1f2c44;
     border-radius: 6dp;
-    background-color: var(--surface);
+    background-color: #0f1624;
 }
 
 select selectbox option
@@ -318,12 +288,12 @@ select selectbox option
 
 select selectbox option:hover
 {
-    background-color: var(--hover);
+    background-color: #1b2a44;
 }
 
 select selectbox option:checked
 {
-    color: var(--accent-text);
+    color: #8fb8ff;
 }
 
 /* The volume of games: a button that mutes them, the level, and a slider. */
@@ -346,7 +316,7 @@ select selectbox option:checked
 
 .volume-toggle:hover
 {
-    border-color: var(--border-strong);
+    border-color: #33486c;
 }
 
 .volume-icon
@@ -354,7 +324,7 @@ select selectbox option:checked
     width: 16dp;
     height: 16dp;
     margin-right: 6dp;
-    image-color: var(--text);
+    image-color: #dfe6f0;
 }
 
 .volume-text
@@ -379,7 +349,7 @@ select selectbox option:checked
     top: -3dp;
     width: 1dp;
     height: 22dp;
-    background-color: var(--border-strong);
+    background-color: #33415a;
 }
 
 .volume-slider
@@ -394,9 +364,9 @@ select selectbox option:checked
 /* A button that removes or undoes what cannot be had back. */
 button.danger
 {
-    border-color: var(--danger-button);
-    background-color: var(--danger-button);
-    color: var(--on-accent);
+    border-color: #b3403f;
+    background-color: #b3403f;
+    color: #ffffff;
 }
 
 button.danger:hover

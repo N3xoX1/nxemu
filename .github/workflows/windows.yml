@@ -1,0 +1,108 @@
+name: Windows
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_IDLE_TIMEOUT: '0'
+      NXEMU_BUILD_JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install compiler cache
+        id: compiler-cache
+        run: |
+          ./src/script/setup_sccache_windows.ps1
+          (Join-Path $PWD 'build/sccache-tools') >> $env:GITHUB_PATH
+          "SCCACHE_DIR=$(Join-Path $PWD 'build/sccache')" >> $env:GITHUB_ENV
+          sccache --version
+          if ($LASTEXITCODE -ne 0) { throw 'sccache installation failed' }
+      - name: Install shader compiler
+        run: |
+          # Only the offline shader compiler is needed; Vulkan headers are in-tree.
+          $version = '16.6.0'
+          $archive = Join-Path $env:RUNNER_TEMP glslang.zip
+          $toolDir = Join-Path $env:RUNNER_TEMP glslang
+          Invoke-WebRequest -Uri "https://github.com/KhronosGroup/glslang/releases/download/$version/glslang-$version-windows-x86_64-release.zip" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '82bf434e69b9bb4829de7e2b4bc2c5e7a7861e53d66cf75e5cc70f5f694a8d9b') {
+            throw 'The downloaded glslang archive failed its SHA256 check.'
+          }
+          Expand-Archive -Path $archive -DestinationPath $toolDir -Force
+          $binDir = Join-Path $toolDir bin
+          # Preserve the historical executable name expected by our shader generators.
+          Copy-Item (Join-Path $binDir glslang.exe) (Join-Path $binDir glslangValidator.exe)
+          $binDir >> $env:GITHUB_PATH
+          & (Join-Path $binDir glslangValidator.exe) --version
+          if ($LASTEXITCODE -ne 0) { throw 'glslang installation failed' }
+      - name: Identify cache toolchain
+        id: toolchain
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs = & $vswhere -latest -version '[17.0,18.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $versionFile = Join-Path $vs 'VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt'
+          $identity = (Get-Content $versionFile -Raw) + (& cmake --version | Out-String) + (& ninja --version | Out-String) + (& sccache --version | Out-String)
+          $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($identity))).ToLowerInvariant()
+          "fingerprint=$hash" >> $env:GITHUB_OUTPUT
+      - name: Restore compiler cache
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          restore-keys: |
+            windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-
+      - name: Reset compiler cache statistics
+        run: sccache --zero-stats
+      - name: Build
+        run: ./src/script/build_windows.ps1 Release -CMakeArguments @('-DNXEMU_USE_SCCACHE=ON', '-DNXEMU_USE_CCACHE=OFF', '-DNXEMU_BUILD_GAME_SETTINGS_TESTS=ON', '-DNXEMU_BUILD_LIBRARY_CACHE_TESTS=ON')
+      - name: Test
+        run: |
+          # Each step starts a fresh shell; initialise MSVC before further builds.
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs = & $vswhere -latest -version '[17.0,18.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          & (Join-Path $vs 'Common7/Tools/Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          cmake --build build/windows-x64-ninja --config Release --target nxemu_game_settings_tests nxemu_game_library_cache_tests nxemu_game_library_scan_tests --parallel $env:NXEMU_BUILD_JOBS
+          if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
+          ctest --test-dir build/windows-x64-ninja -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+      - name: Compiler cache statistics
+        if: ${{ always() && steps.compiler-cache.outcome == 'success' }}
+        run: |
+          sccache --show-stats
+          sccache --stop-server
+      - name: Save compiler cache
+        if: ${{ !cancelled() && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory -Force package | Out-Null
+          Compress-Archive -Path bin/x64/Release/nxemu.exe, bin/x64/Release/SDL2.dll, bin/x64/Release/modules, bin/x64/Release/ui -DestinationPath package/NxEmu-windows-x64.zip -Force
+          $symbols = @(Get-ChildItem bin/x64/Release, build/windows-x64-ninja/modules/x64/Release -Recurse -Filter *.pdb)
+          if ($symbols.Count -eq 0) { throw 'Linker debug symbols were not generated' }
+          Compress-Archive -Path $symbols.FullName -DestinationPath package/NxEmu-windows-x64-symbols.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NxEmu-windows-x64
+          path: package/NxEmu-windows-x64*.zip
+          if-no-files-found: error

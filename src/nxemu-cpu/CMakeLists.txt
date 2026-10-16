@@ -321,12 +321,32 @@ if(ARCHITECTURE_x86_64)
         ARCHITECTURE_x86_64=1
         XBYAK_STRICT_CHECK_MEM_REG_SIZE=0
         XBYAK_OLD_DISP_CHECK=1
+        # Let the JIT use what the host CPU offers beyond the x86-64 baseline.
+        DYNARMIC_ENABLE_CPU_FEATURE_DETECTION=1
     )
+    if(WIN32)
+        target_compile_definitions(nxemu-cpu PRIVATE
+            MCL_IGNORE_ASSERTS=1
+            BOOST_ASIO_DISABLE_CONCEPTS
+            _HAS_DEPRECATED_RESULT_OF
+            _WIN32_WINNT=0x0A00
+            WINVER=0x0A00
+        )
+    endif()
+    if(MSVC)
+        target_compile_options(nxemu-cpu PRIVATE /bigobj)
+        # Whole program optimization of the JIT in Release (/GL and /LTCG).
+        set_property(TARGET nxemu-cpu PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    endif()
+    if(WIN32)
+        target_sources(nxemu-cpu PRIVATE dynarmic/backend/x64/exception_handler_windows.cpp)
+    else()
+        target_sources(nxemu-cpu PRIVATE dynarmic/backend/exception_handler_posix.cpp)
+    endif()
  
     target_sources(nxemu-cpu PRIVATE
         dynarmic/common/spin_lock_x64.cpp
         dynarmic/common/x64_disassemble.cpp
-        dynarmic/backend/exception_handler_posix.cpp
         dynarmic/backend/x64/a32_emit_x64.cpp
         dynarmic/backend/x64/a32_emit_x64_memory.cpp
         dynarmic/backend/x64/a32_interface.cpp
@@ -538,6 +558,11 @@ target_link_libraries(nxemu-cpu PRIVATE
     merry::mcl
     yuzu_common
 )
+
+# libstdc++'s std::array deduction guide instantiates a fold over the full
+# opcode table (more than Clang's default 256 expression nesting levels).
+set_property(SOURCE dynarmic/ir/opcodes.cpp APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:Clang,AppleClang>:-fbracket-depth=1024>")
 
 if(ANDROID)
     target_link_libraries(nxemu-cpu PRIVATE log)

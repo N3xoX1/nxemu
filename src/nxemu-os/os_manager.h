@@ -12,6 +12,7 @@ public:
 
     void EmulationStarting();
     void EmulationStopping(bool wait);
+    void OperationModeChanged();
 
     // IOperatingSystem
     bool Initialize() override;
@@ -50,6 +51,7 @@ public:
     IParamPackage * GetNextInput() const override;
     void PumpInputEvents() const override;
     PerfStatsResults GetAndResetPerfStats() override;
+    void MeasureGameFrames(bool measure) override;
     void SetEmulationPaused(bool paused) override;
     bool IsEmulationPaused() const override;
     void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) override;
@@ -83,3 +85,6 @@ private:
     int32_t m_previousProgramIndex;
     ApplicationLaunchType m_launchType;
 };
+
+// The module's operating system, while one exists.
+extern std::unique_ptr<OSManager> g_osManager;

@@ -6,8 +6,8 @@
   </head>
   <body>
     <div id="title-bar" data-window="drag">
-      <img id="title-logo" src="images/window-icon.png" data-window="control" />
-      <div id="title-name" translate="no" data-window="control">NXEmu</div>
+      <img id="title-logo" src="images/window-icon.png" />
+      <div id="title-name" translate="no">NXEmu</div>
       <div class="title-separator" />
       <div id="title-version" translate="no" data-window="control" />
       <div id="menu-bar" data-window="control" />
@@ -18,7 +18,7 @@
         <div id="title-text" translate="no" />
       </div>
       <div id="title-spacer" />
-      <div id="title-settings-group" class="title-button-group" data-window="control">
+      <div id="title-settings-group" data-window="control">
         <button id="title-controllers" class="emulation-button" title="Controllers">
           <img src="images/gamepad.png" />
         </button>
@@ -26,8 +26,8 @@
           <img src="images/gear.png" />
         </button>
       </div>
-      <div id="title-controls-gap" />
-      <div id="emulation-controls" class="title-button-group" data-window="control">
+      <div id="title-controls-separator" />
+      <div id="emulation-controls" data-window="control">
         <button id="title-restart" class="emulation-button" title="Restart">
           <img src="images/restart.png" />
         </button>
@@ -38,7 +38,6 @@
           <img src="images/stop.png" />
         </button>
       </div>
-      <div id="window-controls-separator" />
       <div id="window-controls" data-window="control">
         <div id="window-minimise" class="window-button" title="Minimise"><div class="glyph-minimise" /></div>
         <div id="window-maximise" class="window-button" title="Maximise or restore">
@@ -197,7 +196,6 @@
       <div id="status-unlocked" translate="no">&#8734;</div>
     </div>
     <div id="game-hint"><div id="game-hint-text" /></div>
-    <div id="version-notification">Version copied to clipboard</div>
     <div id="popup-menu" class="menu-anchor" />
   </body>
 </rml>

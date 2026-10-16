@@ -926,11 +926,7 @@ PatchManager::Metadata PatchManager::ParseControlNCA(const NCA & nca) const
         return {};
     }
 
-    return ParseControlRomFS(PatchRomFS(&nca, base_romfs, LoaderContentRecordType::Control));
-}
-
-PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
-{
+    const auto romfs = PatchRomFS(&nca, base_romfs, LoaderContentRecordType::Control);
     if (romfs == nullptr)
     {
         return {};

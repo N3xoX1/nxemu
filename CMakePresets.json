@@ -1,0 +1,33 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "windows-x64",
+            "displayName": "Windows x64 (Visual Studio 2022)",
+            "description": "Generates build/windows-x64/nxemu.sln; Visual Studio also uses it when opening the folder.",
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build/windows-x64",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "windows-x64-ninja",
+            "displayName": "Windows x64 (Ninja, MSVC)",
+            "description": "Run from a Visual Studio x64 developer prompt.",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/windows-x64-ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "windows-x64-release", "displayName": "Release", "configurePreset": "windows-x64", "configuration": "Release" },
+        { "name": "windows-x64-debug", "displayName": "Debug", "configurePreset": "windows-x64", "configuration": "Debug" },
+        { "name": "windows-x64-ninja-release", "displayName": "Release", "configurePreset": "windows-x64-ninja", "configuration": "Release" },
+        { "name": "windows-x64-ninja-debug", "displayName": "Debug", "configurePreset": "windows-x64-ninja", "configuration": "Debug" }
+    ]
+}

@@ -47,6 +47,29 @@ enum class Region : uint32_t
     Taiwan,
 };
 
+// The region setting that follows the language instead of naming a region.
+constexpr int32_t kRegionOfLanguage = -1;
+
+// Where a console set to the language is sold: the region games are told
+// when none is chosen.
+constexpr Region RegionOfLanguage(Language language)
+{
+    switch (language)
+    {
+    case Language::Japanese: return Region::Japan;
+    case Language::EnglishAmerican:
+    case Language::FrenchCanadian:
+    case Language::SpanishLatin:
+    case Language::PortugueseBrazilian: return Region::Usa;
+    case Language::Korean: return Region::Korea;
+    case Language::Chinese:
+    case Language::ChineseSimplified: return Region::China;
+    case Language::Taiwanese:
+    case Language::ChineseTraditional: return Region::Taiwan;
+    default: return Region::Europe;
+    }
+}
+
 enum class TimeZone : uint32_t
 {
     Auto = 0,

@@ -1,0 +1,144 @@
+<rml>
+  <head>
+    <title>Settings</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="settings_shell.rcss" />
+    <link type="text/rcss" href="settings_cards.rcss" />
+  </head>
+  <body class="dialog-backdrop">
+    <div class="dialog settings-dialog">
+      <div class="dialog-header settings-header">
+        <img src="images/window-icon.png" />
+        <div class="dialog-title">Settings</div>
+        <div class="settings-separator" />
+        <div class="settings-categories">
+          <div class="settings-category selected"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category global-only" data-command="page:controllers"><img src="images/gamepad.png" /><div>Controllers</div></div>
+          <div class="settings-category global-only" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
+          <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
+        </div>
+        <div class="dialog-close" data-command="close">&#xD7;</div>
+      </div>
+      <div id="settings-scope" class="settings-scope" />
+      <div class="settings-body">
+        <div class="cards-page">
+          <div class="cards-column">
+            <div class="card">
+              <div class="card-title" data-upper=""><img src="images/docked.png" /><div>Display</div></div>
+              <div class="row global-only">
+                <div class="row-texts">
+                  <div class="row-label">Graphics device</div>
+                  <div id="device-text" class="row-text" />
+                </div>
+                <select id="device" />
+              </div>
+              <div id="device-note" class="row-note"><img src="images/alert.png" /><div id="device-note-text" /></div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Console mode</div>
+                  <div class="row-text">On the television, or in the hands.</div>
+                </div>
+                <div class="segments">
+                  <div id="mode-docked" class="segment" data-command="mode-docked" title="As on the television: games draw up to 1080p."><img src="images/docked.png" /><div>TV</div></div>
+                  <div id="mode-handheld" class="segment" data-command="mode-handheld" title="As on the console's own screen: games draw 720p, which asks less of the computer."><img src="images/handheld.png" /><div>Handheld</div></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Resolution</div>
+                  <div id="resolution-text" class="row-text" />
+                </div>
+                <select id="resolution" />
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Window filter</div>
+                  <div class="row-text">How the picture is fitted to the window.</div>
+                </div>
+                <div id="sharpness" class="row-range beside-list" title="Sharpness of the FSR filter">
+                  <input id="sharpness-range" class="range" type="range" min="0" max="200" step="1" value="25" />
+                  <div id="sharpness-text" class="row-value" />
+                </div>
+                <select id="filter" class="short" />
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Aspect ratio</div>
+                  <div class="row-text">The shape of the picture in the window.</div>
+                </div>
+                <select id="aspect" />
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Vertical sync</div>
+                  <div class="row-text">Whole pictures only: no tearing.</div>
+                </div>
+                <select id="vsync" />
+              </div>
+            </div>
+          </div>
+          <div class="cards-column">
+            <div class="card global-only">
+              <div class="card-title" data-upper=""><img src="images/user.png" /><div>Profile</div></div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Profile</div>
+                  <div class="row-text">Who plays, with saves of their own.</div>
+                </div>
+                <select id="profile" class="short" />
+                <button class="row-button" data-command="page:profiles" title="Add players, and change their names and pictures">Manage</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title" data-upper=""><img src="images/globe.png" /><div>Language</div></div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Console language</div>
+                  <div class="row-text">The language games are shown in.</div>
+                </div>
+                <select id="language" translate="no" />
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Region</div>
+                  <div id="region-text" class="row-text" />
+                </div>
+                <select id="region" class="short" />
+                <div id="region-chosen" class="switch" data-command="toggle-region" title="On, the region is the one chosen here. Off, it follows the console language."><div class="switch-knob" /></div>
+              </div>
+              <div class="row global-only">
+                <div class="row-texts">
+                  <div class="row-label">Interface language</div>
+                  <div id="interface-language-text" class="row-text" />
+                </div>
+                <select id="interface-language" class="short" translate="no" />
+                <div id="interface-language-chosen" class="switch" data-command="toggle-interface-language" title="On, the interface language is chosen here. Off, it follows the console language."><div class="switch-knob" /></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title" data-upper=""><img src="images/volume.png" /><div>Audio</div></div>
+              <div class="row global-only">
+                <div class="row-texts">
+                  <div class="row-label">Output device</div>
+                  <div class="row-text">Where the sound of games is played.</div>
+                </div>
+                <select id="audio-device" />
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Output mode</div>
+                  <div class="row-text">Surround needs speakers that play it.</div>
+                </div>
+                <select id="audio-mode" />
+              </div>
+            </div>
+            <div id="next-game" class="cards-note">A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts.</div>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button data-command="close">Close</button>
+      </div>
+    </div>
+  </body>
+</rml>

@@ -1,0 +1,92 @@
+<rml>
+  <head>
+    <title>Install firmware</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="firmware_dialog.rcss" />
+  </head>
+  <body class="dialog-backdrop">
+    <div id="firmware" class="dialog firmware-dialog at-source">
+      <div class="dialog-header">
+        <img src="images/window-icon.png" />
+        <div class="dialog-title">Install firmware</div>
+        <div class="dialog-close" data-command="close">&#xD7;</div>
+      </div>
+      <div class="wizard-steps">
+        <div id="step-source" class="wizard-step">
+          <div class="wizard-dot"><span>1</span><img src="images/check.png" /></div>
+          <div class="wizard-label">Source</div>
+        </div>
+        <div class="wizard-line" />
+        <div id="step-install" class="wizard-step">
+          <div class="wizard-dot"><span>2</span><img src="images/check.png" /></div>
+          <div class="wizard-label">Install</div>
+        </div>
+        <div class="wizard-line" />
+        <div id="step-done" class="wizard-step">
+          <div class="wizard-dot"><span>3</span><img src="images/check.png" /></div>
+          <div class="wizard-label">Finish</div>
+        </div>
+      </div>
+      <div class="wizard-body">
+        <div class="wizard-page page-source">
+          <div class="wizard-heading">Where is the firmware?</div>
+          <div class="wizard-text">Most games need the console's firmware. Choose the package to install it from, or drop it on this window.</div>
+          <div class="source-option" data-command="pick-file">
+            <img src="images/archive.png" />
+            <div class="source-texts">
+              <div class="source-title">Firmware file</div>
+              <div class="source-hint">A .zip archive, or a .dxci game card image that carries an update</div>
+            </div>
+            <div class="source-go">Browse</div>
+          </div>
+          <div class="source-option" data-command="pick-folder">
+            <img src="images/folder.png" />
+            <div class="source-texts">
+              <div class="source-title">Firmware folder</div>
+              <div class="source-hint">A folder that holds the firmware's .nca files</div>
+            </div>
+            <div class="source-go">Browse</div>
+          </div>
+          <div id="firmware-installed" class="wizard-note" />
+        </div>
+        <div class="wizard-page page-offer">
+          <div id="offer-title" class="wizard-heading" />
+          <div id="offer-text" class="wizard-text" />
+          <div class="wizard-text">The game starts afterwards, and without it if you would rather not.</div>
+        </div>
+        <div class="wizard-page page-install">
+          <div id="install-stage" class="wizard-heading" />
+          <div class="progress-track"><div id="install-fill" /></div>
+          <div id="install-detail" class="wizard-note" />
+          <div class="wizard-text">The installed firmware stays in place until the new one is complete.</div>
+        </div>
+        <div class="wizard-page page-ask">
+          <div class="wizard-heading">Replace the installed firmware?</div>
+          <div id="ask-text" class="wizard-text" />
+        </div>
+        <div class="wizard-page page-done">
+          <div class="result">
+            <div class="result-badge">
+              <img class="result-success" src="images/check.png" />
+              <img class="result-failure" src="images/alert.png" />
+            </div>
+            <div class="result-texts">
+              <div id="result-title" class="wizard-heading" />
+              <div id="result-text" class="wizard-text" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="for-source" data-command="close">Cancel</button>
+        <button class="for-offer" data-command="close">Start without it</button>
+        <button class="for-offer primary" data-command="install-offer">Install</button>
+        <button class="for-install" data-command="cancel-install">Cancel</button>
+        <button class="for-ask" data-command="keep">Keep the installed one</button>
+        <button class="for-ask primary" data-command="replace">Replace</button>
+        <button class="for-failed" data-command="again">Choose another source</button>
+        <button id="done-button" class="for-done primary" data-command="close">Close</button>
+      </div>
+    </div>
+  </body>
+</rml>

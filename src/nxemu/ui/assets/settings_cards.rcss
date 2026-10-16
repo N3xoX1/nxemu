@@ -1,0 +1,336 @@
+/* Settings in cards of a few lines each, in two columns. */
+.cards-page
+{
+    flex: 1;
+    display: flex;
+    min-width: 0;
+    padding: 18dp 14dp 0 24dp;
+    overflow-y: auto;
+}
+
+.cards-column
+{
+    flex: 1;
+    min-width: 0;
+    margin-right: 14dp;
+}
+
+.card
+{
+    margin-bottom: 14dp;
+    padding: 4dp 16dp 6dp 16dp;
+    border: 1dp #1c2940;
+    border-radius: 8dp;
+    background-color: #0c1422;
+}
+
+.card-title
+{
+    display: flex;
+    align-items: center;
+    padding: 10dp 0 8dp 0;
+    color: #8fb8ff;
+    font-size: 12dp;
+    font-weight: bold;
+    letter-spacing: 1dp;
+}
+
+.card-title img
+{
+    width: 15dp;
+    height: 15dp;
+    margin-right: 8dp;
+    image-color: #8fb8ff;
+}
+
+/* A setting: what it is on the left, its control on the right. */
+.row
+{
+    display: flex;
+    align-items: center;
+    min-height: 54dp;
+    border-top: 1dp #152033;
+}
+
+.row-texts
+{
+    flex: 1;
+    min-width: 0;
+    padding: 8dp 12dp 8dp 0;
+}
+
+.per-game .row
+{
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    margin: 6dp 0;
+    padding: 12dp 14dp;
+    border: 1dp transparent;
+    border-top-color: #18253a;
+    border-left-width: 3dp;
+    border-radius: 8dp;
+    background-color: transparent;
+}
+
+.per-game .row-texts { padding: 0dp 16dp 0dp 0dp; }
+
+.per-game .row.setting-overridden
+{
+    background-color: #251e18;
+    border-color: #64462b;
+    border-left-color: #f3a04d;
+}
+
+.row.setting-overridden .row-label { color: #ffd2a4; font-weight: bold; }
+.row.setting-overridden .row-text { color: #b8a99a; }
+
+.row-text
+{
+    margin-top: 2dp;
+    color: #8f9bb0;
+    font-size: 12dp;
+}
+
+.row select
+{
+    flex: none;
+    width: 210dp;
+}
+
+/* Beside a switch, the two as wide as a list alone. */
+.row select.short
+{
+    width: 160dp;
+}
+
+/* A few words typed, as wide as a list. */
+.row input.text
+{
+    flex: none;
+    box-sizing: border-box;
+    width: 210dp;
+    height: 30dp;
+    padding: 5dp 10dp;
+    border: 1dp #24344f;
+    border-radius: 6dp;
+    background-color: #0f1a2b;
+    line-height: 18dp;
+    color: #e6ebf2;
+}
+
+.row input.text:focus
+{
+    border-color: #2f7df6;
+}
+
+.row-button
+{
+    flex: none;
+    margin-left: 8dp;
+    padding: 6dp 12dp;
+    font-size: 13dp;
+}
+
+select:disabled
+{
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* What the user should know about the value chosen just above. */
+.row-note
+{
+    display: none;
+    align-items: center;
+    margin-bottom: 10dp;
+    padding: 8dp 10dp;
+    border: 1dp #5a4420;
+    border-radius: 6dp;
+    background-color: #2a2010;
+    color: #f0c27a;
+    font-size: 12dp;
+}
+
+.row-note.shown
+{
+    display: flex;
+}
+
+.row-note img
+{
+    flex: none;
+    width: 16dp;
+    height: 16dp;
+    margin-right: 10dp;
+    image-color: #f0b35a;
+}
+
+.row-note div
+{
+    flex: 1;
+}
+
+/* One of two values, both in view. */
+.segments
+{
+    flex: none;
+    display: flex;
+    box-sizing: border-box;
+    width: 210dp;
+    padding: 2dp;
+    border: 1dp #24344f;
+    border-radius: 6dp;
+    background-color: #0f1a2b;
+}
+
+.segment
+{
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24dp;
+    border-radius: 4dp;
+    color: #b4bfce;
+    font-size: 13dp;
+    cursor: pointer;
+}
+
+.segment img
+{
+    width: 14dp;
+    height: 14dp;
+    margin-right: 6dp;
+    image-color: #b4bfce;
+}
+
+.segment:hover
+{
+    color: #ffffff;
+}
+
+.segment.selected
+{
+    background-color: #2f7df6;
+    color: #ffffff;
+}
+
+.segment.selected img
+{
+    image-color: #ffffff;
+}
+
+.row-range
+{
+    flex: none;
+    display: flex;
+    align-items: center;
+}
+
+.row-range input.range
+{
+    width: 150dp;
+    height: 16dp;
+}
+
+.row-value
+{
+    width: 48dp;
+    color: #b4bfce;
+    font-size: 13dp;
+    text-align: right;
+}
+
+.row-range.off
+{
+    opacity: 0.35;
+}
+
+/* Beside a list, it leaves the row's texts their room. */
+.row-range.beside-list
+{
+    margin-right: 12dp;
+}
+
+.row-range.beside-list input.range
+{
+    width: 90dp;
+}
+
+/* One that only some choice of the list beside it has a use for. */
+.row-range.absent
+{
+    display: none;
+}
+
+.row .switch
+{
+    flex: none;
+    margin-left: 14dp;
+}
+
+/* Not to be changed now. */
+.switch.locked
+{
+    opacity: 0.4;
+    cursor: default;
+}
+
+.cards-note
+{
+    display: none;
+    margin: 0 4dp 14dp 4dp;
+    color: #8f9bb0;
+    font-size: 12dp;
+}
+
+body.game-running .cards-note
+{
+    display: block;
+}
+
+body.tight .cards-page
+{
+    padding-left: 16dp;
+    padding-right: 6dp;
+}
+
+body.tight .cards-column
+{
+    margin-right: 10dp;
+}
+
+body.tight .row select,
+body.tight .row input.text,
+body.tight .segments
+{
+    width: 180dp;
+}
+
+body.tight .row select.short
+{
+    width: 130dp;
+}
+
+body.tight .row-range input.range
+{
+    width: 120dp;
+}
+
+body.tight .row-range.beside-list input.range
+{
+    width: 70dp;
+}
+
+/* A small window: one column, which scrolls with the categories. */
+body.narrow .cards-page
+{
+    display: block;
+    padding: 14dp 16dp 0 16dp;
+    overflow-y: visible;
+}
+
+body.narrow .cards-column
+{
+    margin-right: 0;
+}

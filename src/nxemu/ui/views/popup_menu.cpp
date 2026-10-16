@@ -41,12 +41,15 @@ PopupMenu::PopupMenu(Rml::Element * anchor, std::function<void(int)> onAction, s
     });
     Rml::ElementDocument * document = m_anchor->GetOwnerDocument();
     UiEvents::Listen(document, "mousedown", [this](Rml::Event & event) {
+        // A press on the origin is left to its owner, which closes the menu
+        // instead of opening it again.
         Rml::Element * target = event.GetTargetElement();
         if (m_open && !m_anchor->Contains(target) && (m_origin == nullptr || !m_origin->Contains(target)))
         {
             Close();
         }
     });
+    // The origin moves away under a menu that stays where it is.
     UiEvents::Listen(document, "mousescroll", [this](Rml::Event &) { Close(); });
 }
 
@@ -69,6 +72,7 @@ void PopupMenu::ShowAt(const std::vector<MenuItem> & items, Rml::Vector2f point)
     const Rml::Vector2f size = Open(items, nullptr);
     Rml::ElementDocument * document = m_anchor->GetOwnerDocument();
     const float margin = kMargin * document->GetContext()->GetDensityIndependentPixelRatio();
+    // Without room under the point, the menu opens above it.
     if (point.y + size.y + margin > document->GetOffsetHeight())
     {
         point.y -= size.y;
@@ -82,6 +86,7 @@ void PopupMenu::Update(const std::vector<MenuItem> & items)
     {
         return;
     }
+    // The menu stays where it is, even when its origin changes size.
     m_anchor->RemoveProperty(Rml::PropertyId::Width);
     m_anchor->SetInnerRML(MenuPopupRml(items));
     m_anchor->GetOwnerDocument()->UpdateDocument();
@@ -102,6 +107,7 @@ Rml::Vector2f PopupMenu::Open(const std::vector<MenuItem> & items, Rml::Element 
     m_anchor->SetInnerRML(MenuPopupRml(items));
     m_anchor->SetClass("open", true);
 
+    // The menu's size is known once it is laid out.
     m_anchor->GetOwnerDocument()->UpdateDocument();
     Rml::Element * popup = m_anchor->GetFirstChild();
     return {popup->GetOffsetWidth(), popup->GetOffsetHeight()};
@@ -116,6 +122,7 @@ void PopupMenu::Place(Rml::Vector2f position, Rml::Vector2f size)
     m_position = {left, top};
     m_anchor->SetProperty(Rml::PropertyId::Left, Rml::Property(left, Rml::Unit::PX));
     m_anchor->SetProperty(Rml::PropertyId::Top, Rml::Property(top, Rml::Unit::PX));
+    // An anchor as wide as its menu does not reach past the document.
     m_anchor->SetProperty(Rml::PropertyId::Width, Rml::Property(size.x, Rml::Unit::PX));
 }
 
