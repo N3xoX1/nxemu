@@ -49,6 +49,11 @@ body.system-controls #window-controls
     display: none;
 }
 
+body.system-controls #window-controls-separator
+{
+    display: none;
+}
+
 #title-logo
 {
     flex-shrink: 0;
@@ -304,6 +309,15 @@ body.ui-hidden #title-controls-separator
     display: flex;
     align-self: stretch;
     flex-shrink: 0;
+}
+
+#window-controls-separator
+{
+    flex-shrink: 0;
+    width: 1dp;
+    height: 18dp;
+    margin: 0 12dp;
+    background-color: #223047;
 }
 
 .window-button

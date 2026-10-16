@@ -38,6 +38,7 @@
           <img src="images/stop.png" />
         </button>
       </div>
+      <div id="window-controls-separator" />
       <div id="window-controls" data-window="control">
         <div id="window-minimise" class="window-button" title="Minimise"><div class="glyph-minimise" /></div>
         <div id="window-maximise" class="window-button" title="Maximise or restore">
