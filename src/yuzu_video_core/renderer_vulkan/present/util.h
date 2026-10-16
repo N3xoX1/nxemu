@@ -42,11 +42,10 @@ vk::PipelineLayout CreateWrappedPipelineLayout(const Device& device,
                                                vk::DescriptorSetLayout& layout);
 vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderpass,
                                    vk::PipelineLayout& layout,
-                                   std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders,
-                                   bool write_alpha = true);
+                                   std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders);
 vk::Pipeline CreateWrappedPremultipliedBlendingPipeline(
     const Device& device, vk::RenderPass& renderpass, vk::PipelineLayout& layout,
-    std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders, bool write_alpha = true);
+    std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders);
 vk::Pipeline CreateWrappedCoverageBlendingPipeline(
     const Device& device, vk::RenderPass& renderpass, vk::PipelineLayout& layout,
     std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders);

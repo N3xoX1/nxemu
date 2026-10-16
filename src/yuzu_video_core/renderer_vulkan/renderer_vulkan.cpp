@@ -156,10 +156,7 @@ catch (const vk::Exception & exception)
 RendererVulkan::~RendererVulkan()
 {
     scheduler.RegisterOnSubmit([] {});
-    {
-        std::scoped_lock lock{device.QueueMutex()};
-        void(device.GetLogical().WaitIdle());
-    }
+    void(device.GetLogical().WaitIdle());
     CleanupWatermark();
 }
 

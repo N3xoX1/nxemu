@@ -492,9 +492,8 @@ static vk::Pipeline CreateWrappedPipelineImpl(
 
 vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderpass,
                                    vk::PipelineLayout& layout,
-                                   std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders,
-                                   bool write_alpha) {
-    const VkPipelineColorBlendAttachmentState color_blend_attachment_disabled{
+                                   std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders) {
+    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment_disabled{
         .blendEnable = VK_FALSE,
         .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
@@ -503,7 +502,7 @@ vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderp
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp = VK_BLEND_OP_ADD,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | (write_alpha ? VK_COLOR_COMPONENT_A_BIT : 0U),
+                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
 
     return CreateWrappedPipelineImpl(device, renderpass, layout, shaders,
@@ -512,8 +511,8 @@ vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderp
 
 vk::Pipeline CreateWrappedPremultipliedBlendingPipeline(
     const Device& device, vk::RenderPass& renderpass, vk::PipelineLayout& layout,
-    std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders, bool write_alpha) {
-    const VkPipelineColorBlendAttachmentState color_blend_attachment_premultiplied{
+    std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders) {
+    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment_premultiplied{
         .blendEnable = VK_TRUE,
         .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -522,7 +521,7 @@ vk::Pipeline CreateWrappedPremultipliedBlendingPipeline(
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp = VK_BLEND_OP_ADD,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | (write_alpha ? VK_COLOR_COMPONENT_A_BIT : 0U),
+                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
 
     return CreateWrappedPipelineImpl(device, renderpass, layout, shaders,

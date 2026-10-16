@@ -462,7 +462,7 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
 
     // Submit the image copy/blit to the swapchain
     {
-        std::scoped_lock submit_lock{device.QueueMutex()};
+        std::scoped_lock submit_lock{scheduler.submit_mutex};
         switch (const VkResult result =
                     device.GetGraphicsQueue().Submit(submit_info, *frame->present_done)) {
         case VK_SUCCESS:

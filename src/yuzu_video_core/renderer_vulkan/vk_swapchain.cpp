@@ -182,7 +182,7 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         .pImageIndices = &image_index,
         .pResults = nullptr,
     };
-    std::scoped_lock lock{device.QueueMutex()};
+    std::scoped_lock lock{scheduler.submit_mutex};
     switch (const VkResult result = present_queue.Present(present_info)) {
     case VK_SUCCESS:
         break;
