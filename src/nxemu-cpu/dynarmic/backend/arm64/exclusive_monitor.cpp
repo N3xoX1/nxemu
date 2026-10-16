@@ -6,6 +6,7 @@
 #include "dynarmic/interface/exclusive_monitor.h"
 
 #include <algorithm>
+#include <atomic>
 
 #include <mcl/assert.hpp>
 
@@ -14,12 +15,21 @@ namespace Dynarmic {
 namespace {
 
 // Exclusive reads do not take the lock, so the addresses are accessed atomically.
+// The NDK's libc++ has no std::atomic_ref yet, so fall back to the compiler builtins there.
 VAddr LoadAddress(VAddr& address) {
+#if defined(__cpp_lib_atomic_ref)
     return std::atomic_ref<VAddr>{address}.load();
+#else
+    return __atomic_load_n(&address, __ATOMIC_SEQ_CST);
+#endif
 }
 
 void StoreAddress(VAddr& address, VAddr value) {
+#if defined(__cpp_lib_atomic_ref)
     std::atomic_ref<VAddr>{address}.store(value);
+#else
+    __atomic_store_n(&address, value, __ATOMIC_SEQ_CST);
+#endif
 }
 
 }  // namespace
