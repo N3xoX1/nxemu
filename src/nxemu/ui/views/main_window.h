@@ -289,7 +289,7 @@ private:
     uint64_t m_hintUntil = 0; // when it stops being said; 0 when it is not
     uint64_t m_mouseMovedAt = 0; // when the mouse last moved or clicked
     bool m_mouseHidden = false;
-    uint64_t m_versionCopiedUntil = 0; // until when the version badge says it was copied; 0 when it does not
+    uint64_t m_versionCopiedUntil = 0; // Copy notification expiry; 0 when hidden.
     bool m_rescanGames = false;
     // Read when it may have changed, not every time the status bar is drawn:
     // reading it opens files of the system storage.
