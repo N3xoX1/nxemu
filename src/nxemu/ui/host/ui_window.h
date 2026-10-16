@@ -6,8 +6,12 @@
 #include <memory>
 #include <nxemu-module-spec/base.h>
 #include <string>
+#if defined(__linux__)
+#include <future>
+#endif
 
 class SystemInterface_SDL;
+class UiThemeFileInterface;
 nxinterface IVideo;
 namespace Rml
 {
@@ -72,6 +76,8 @@ public:
     float PixelScale() const { return m_pixelScale; }
 
     void SetTitle(const std::string & title);
+    // Applies to every document without resetting its controls or content.
+    void SetTheme(const std::string & choice);
     bool IsFullscreen() const;
     void SetFullscreen(bool fullscreen);
     bool IsMaximised() const;
@@ -109,11 +115,22 @@ private:
     bool LoadFonts(const std::filesystem::path & fontDir);
     void SetWindowIcon(const std::filesystem::path & iconFile);
     void UpdateDimensions();
+    void ApplyTheme(bool light, bool modeChanged);
+#if defined(__linux__)
+    void RefreshSystemTheme();
+#endif
     SDL_HitTestResult HitTest(const SDL_Point & point);
 
     SDL_Window * m_window = nullptr;
     SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
+    std::unique_ptr<UiThemeFileInterface> m_themeFiles;
+    std::string m_themeChoice = "system";
+#if defined(__linux__)
+    Uint32 m_themeEvent = Uint32(-1);
+    Uint32 m_themeRequest = 0;
+    std::future<void> m_themeQuery;
+#endif
     std::unique_ptr<UiRenderer> m_renderer;
     Rml::Context * m_context = nullptr;
     IVideo * m_video = nullptr;

@@ -17,8 +17,8 @@ body.narrow .controller-page
     display: flex;
     flex-wrap: wrap;
     padding: 10dp 20dp 0 20dp;
-    border-bottom: 1dp #16202f;
-    background-color: #0a0f1a;
+    border-bottom: 1dp var(--raised);
+    background-color: var(--chrome);
 }
 
 .player-tab
@@ -29,20 +29,20 @@ body.narrow .controller-page
     padding: 8dp 14dp;
     border-top-left-radius: 6dp;
     border-top-right-radius: 6dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     cursor: pointer;
 }
 
 .player-tab:hover
 {
-    background-color: #111a2a;
-    color: #ffffff;
+    background-color: var(--surface);
+    color: var(--text);
 }
 
 .player-tab.selected
 {
-    background-color: #16305a;
-    color: #ffffff;
+    background-color: var(--selection);
+    color: var(--text);
     font-weight: bold;
 }
 
@@ -52,12 +52,12 @@ body.narrow .controller-page
     height: 8dp;
     margin-right: 8dp;
     border-radius: 4dp;
-    background-color: #33415a;
+    background-color: var(--border-strong);
 }
 
 .player-tab.connected .player-dot
 {
-    background-color: #4ade80;
+    background-color: var(--success);
 }
 
 .player-page
@@ -208,7 +208,7 @@ body.stacked .footer-space
 .field-label
 {
     margin-right: 8dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 13dp;
 }
 
@@ -220,14 +220,14 @@ body.stacked .footer-space
 .controller-hint
 {
     flex: 1;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 13dp;
     text-align: right;
 }
 
 .controller-hint.listening
 {
-    color: #8fb8ff;
+    color: var(--accent-text);
 }
 
 .bind-columns
@@ -341,20 +341,20 @@ body.stacked .bind-column.side
 
 .mark:hover
 {
-    border-color: #8fb8ff;
-    background-color: #2f7df640;
+    border-color: var(--accent-text);
+    background-color: var(--accent-soft);
 }
 
 .mark.pressed
 {
-    border-color: #4ade80;
-    background-color: #4ade80b0;
+    border-color: var(--success);
+    background-color: var(--success-fill);
 }
 
 .mark.listening
 {
-    border-color: #2f7df6;
-    background-color: #2f7df6b0;
+    border-color: var(--accent);
+    background-color: var(--accent-fill);
 }
 
 .vibration
@@ -389,9 +389,9 @@ body.stacked .bind-columns
 {
     margin-bottom: 12dp;
     padding: 10dp 10dp 6dp 10dp;
-    border: 1dp #16202f;
+    border: 1dp var(--raised);
     border-radius: 8dp;
-    background-color: #0c1320;
+    background-color: var(--chrome);
 }
 
 .group-head
@@ -405,7 +405,7 @@ body.stacked .bind-columns
 .group-title
 {
     flex: 1;
-    color: #8fb8ff;
+    color: var(--accent-text);
     font-size: 13dp;
     font-weight: bold;
 }
@@ -428,10 +428,10 @@ body.stacked .bind-columns
     height: 32dp;
     margin-bottom: 7dp;
     padding: 0 3dp 0 8dp;
-    border: 1dp #1c2940;
+    border: 1dp var(--raised);
     font-size: 13dp;
     border-radius: 5dp;
-    background-color: #0f1a2b;
+    background-color: var(--surface);
     cursor: pointer;
 }
 
@@ -444,14 +444,14 @@ body.stacked .bind-columns
 
 .bind:hover
 {
-    border-color: #3d5a8a;
-    background-color: #14233a;
+    border-color: var(--border-strong);
+    background-color: var(--hover);
 }
 
 .bind-label
 {
     margin-right: 6dp;
-    color: #b4bfce;
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -468,7 +468,7 @@ body.stacked .bind-columns
 
 .bind.unset .bind-value
 {
-    color: #6f7d92;
+    color: var(--text-disabled);
     font-weight: normal;
 }
 
@@ -477,15 +477,15 @@ body.stacked .bind-columns
     width: 16dp;
     margin-left: 3dp;
     border-radius: 4dp;
-    color: #6f7d92;
+    color: var(--text-disabled);
     line-height: 20dp;
     text-align: center;
 }
 
 .bind-clear:hover
 {
-    background-color: #33415a;
-    color: #ffffff;
+    background-color: var(--border-strong);
+    color: var(--text);
 }
 
 .bind.unset .bind-clear
@@ -500,19 +500,19 @@ body.stacked .bind-columns
 
 .bind.pressed
 {
-    border-color: #4ade80;
-    background-color: #153f2a;
+    border-color: var(--success);
+    background-color: var(--success-surface);
 }
 
 .bind.listening
 {
-    border-color: #2f7df6;
-    background-color: #16305a;
+    border-color: var(--accent);
+    background-color: var(--selection);
 }
 
 .bind.listening .bind-value
 {
-    color: #8fb8ff;
+    color: var(--accent-text);
 }
 
 /* Where the stick is, in the circle of the picture that shows its travel. */
@@ -524,7 +524,7 @@ body.stacked .bind-columns
 .stick-zone
 {
     position: absolute;
-    border: 1dp #c0504d;
+    border: 1dp var(--danger);
     box-sizing: border-box;
 }
 
@@ -537,12 +537,12 @@ body.stacked .bind-columns
     height: 8dp;
     margin: -4dp 0 0 -4dp;
     border-radius: 4dp;
-    background-color: #8f9bb0;
+    background-color: var(--text-muted);
 }
 
 .stick-dot.moved
 {
-    background-color: #4ade80;
+    background-color: var(--success);
 }
 
 .stick-option
@@ -558,7 +558,7 @@ body.stacked .bind-columns
 .option-label
 {
     flex: 1;
-    color: #b4bfce;
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -566,7 +566,7 @@ body.stacked .bind-columns
 {
     width: 40dp;
     margin-right: 8dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     text-align: right;
 }
 
@@ -581,7 +581,7 @@ body.stacked .bind-columns
     display: flex;
     align-items: center;
     padding: 12dp 20dp 16dp 20dp;
-    border-top: 1dp #16202f;
+    border-top: 1dp var(--raised);
 }
 
 .controller-footer button:first-child

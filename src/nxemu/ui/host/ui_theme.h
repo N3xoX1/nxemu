@@ -3,6 +3,9 @@
 #include <string>
 #include <string_view>
 
+// RmlUi does not implement CSS custom properties. Resolve our palette tokens
+// when RCSS files are opened; parsed styles need no extra work while rendering.
+// The delegate stays owned by RmlUi and is used until Rml::Shutdown().
 class UiThemeFileInterface final : public Rml::FileInterface
 {
 public:

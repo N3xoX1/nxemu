@@ -1,5 +1,6 @@
 #include "translation.h"
 #include <nxemu/ui/host/system_fonts.h>
+#include <nxemu/ui/host/ui_theme.h>
 #include <nxemu/ui/library/ui_preferences.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-os/os_settings_identifiers.h>
@@ -46,12 +47,15 @@ int main(int argc, char ** argv)
     Rml::SetSystemInterface(&system);
     Rml::SetRenderInterface(&renderer);
     bool initialised = false;
+    std::unique_ptr<UiThemeFileInterface> themeFiles;
     try
     {
         Check(argc == 2, "Expected the UI source directory");
         const std::filesystem::path ui = argv[1];
         Check(Rml::Initialise(), "RmlUi initialisation failed");
         initialised = true;
+        themeFiles = std::make_unique<UiThemeFileInterface>(*Rml::GetFileInterface());
+        Rml::SetFileInterface(themeFiles.get());
         for (const char * font : {"LatoLatin-Regular.ttf", "LatoLatin-Bold.ttf"})
         {
             Check(Rml::LoadFontFace((ui / "assets" / "fonts" / font).string()), "Latin font failed to load");

@@ -19,9 +19,9 @@
 {
     margin-bottom: 14dp;
     padding: 4dp 16dp 6dp 16dp;
-    border: 1dp #1c2940;
+    border: 1dp var(--raised);
     border-radius: 8dp;
-    background-color: #0c1422;
+    background-color: var(--chrome);
 }
 
 .card-title
@@ -29,7 +29,7 @@
     display: flex;
     align-items: center;
     padding: 10dp 0 8dp 0;
-    color: #8fb8ff;
+    color: var(--accent-text);
     font-size: 12dp;
     font-weight: bold;
     letter-spacing: 1dp;
@@ -40,7 +40,7 @@
     width: 15dp;
     height: 15dp;
     margin-right: 8dp;
-    image-color: #8fb8ff;
+    image-color: var(--accent-text);
 }
 
 /* A setting: what it is on the left, its control on the right. */
@@ -49,7 +49,7 @@
     display: flex;
     align-items: center;
     min-height: 54dp;
-    border-top: 1dp #152033;
+    border-top: 1dp var(--surface);
 }
 
 .row-texts
@@ -66,7 +66,7 @@
     margin: 6dp 0;
     padding: 12dp 14dp;
     border: 1dp transparent;
-    border-top-color: #18253a;
+    border-top-color: var(--raised);
     border-left-width: 3dp;
     border-radius: 8dp;
     background-color: transparent;
@@ -76,18 +76,18 @@
 
 .per-game .row.setting-overridden
 {
-    background-color: #251e18;
-    border-color: #64462b;
-    border-left-color: #f3a04d;
+    background-color: var(--warning-surface);
+    border-color: var(--warning-border);
+    border-left-color: var(--warning);
 }
 
-.row.setting-overridden .row-label { color: #ffd2a4; font-weight: bold; }
-.row.setting-overridden .row-text { color: #b8a99a; }
+.row.setting-overridden .row-label { color: var(--warning); font-weight: bold; }
+.row.setting-overridden .row-text { color: var(--text-muted); }
 
 .row-text
 {
     margin-top: 2dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 12dp;
 }
 
@@ -111,16 +111,16 @@
     width: 210dp;
     height: 30dp;
     padding: 5dp 10dp;
-    border: 1dp #24344f;
+    border: 1dp var(--border);
     border-radius: 6dp;
-    background-color: #0f1a2b;
+    background-color: var(--surface);
     line-height: 18dp;
-    color: #e6ebf2;
+    color: var(--text);
 }
 
 .row input.text:focus
 {
-    border-color: #2f7df6;
+    border-color: var(--accent);
 }
 
 .row-button
@@ -144,10 +144,10 @@ select:disabled
     align-items: center;
     margin-bottom: 10dp;
     padding: 8dp 10dp;
-    border: 1dp #5a4420;
+    border: 1dp var(--warning-border);
     border-radius: 6dp;
-    background-color: #2a2010;
-    color: #f0c27a;
+    background-color: var(--warning-surface);
+    color: var(--warning);
     font-size: 12dp;
 }
 
@@ -162,7 +162,7 @@ select:disabled
     width: 16dp;
     height: 16dp;
     margin-right: 10dp;
-    image-color: #f0b35a;
+    image-color: var(--warning);
 }
 
 .row-note div
@@ -178,9 +178,9 @@ select:disabled
     box-sizing: border-box;
     width: 210dp;
     padding: 2dp;
-    border: 1dp #24344f;
+    border: 1dp var(--border);
     border-radius: 6dp;
-    background-color: #0f1a2b;
+    background-color: var(--surface);
 }
 
 .segment
@@ -191,7 +191,7 @@ select:disabled
     justify-content: center;
     height: 24dp;
     border-radius: 4dp;
-    color: #b4bfce;
+    color: var(--text-secondary);
     font-size: 13dp;
     cursor: pointer;
 }
@@ -201,23 +201,23 @@ select:disabled
     width: 14dp;
     height: 14dp;
     margin-right: 6dp;
-    image-color: #b4bfce;
+    image-color: var(--text-secondary);
 }
 
 .segment:hover
 {
-    color: #ffffff;
+    color: var(--text);
 }
 
 .segment.selected
 {
-    background-color: #2f7df6;
-    color: #ffffff;
+    background-color: var(--accent);
+    color: var(--on-accent);
 }
 
 .segment.selected img
 {
-    image-color: #ffffff;
+    image-color: var(--on-accent);
 }
 
 .row-range
@@ -236,7 +236,7 @@ select:disabled
 .row-value
 {
     width: 48dp;
-    color: #b4bfce;
+    color: var(--text-secondary);
     font-size: 13dp;
     text-align: right;
 }
@@ -280,7 +280,7 @@ select:disabled
 {
     display: none;
     margin: 0 4dp 14dp 4dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 12dp;
 }
 

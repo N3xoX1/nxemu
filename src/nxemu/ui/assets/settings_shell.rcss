@@ -52,7 +52,7 @@ body.narrow .settings-dialog
     width: 1dp;
     height: 22dp;
     margin: 0 12dp 0 18dp;
-    background-color: #24344f;
+    background-color: var(--border);
 }
 
 .settings-categories
@@ -72,7 +72,7 @@ body.narrow .settings-dialog
     margin-right: 2dp;
     padding: 2dp 12dp 0 12dp;
     border-bottom: 2dp transparent;
-    color: #8f9bb0;
+    color: var(--text-muted);
     white-space: nowrap;
     cursor: pointer;
 }
@@ -82,28 +82,28 @@ body.narrow .settings-dialog
     width: 16dp;
     height: 16dp;
     margin-right: 8dp;
-    image-color: #8f9bb0;
+    image-color: var(--text-muted);
 }
 
 .settings-category:hover
 {
-    color: #ffffff;
+    color: var(--text);
 }
 
 .settings-category:hover img
 {
-    image-color: #ffffff;
+    image-color: var(--text);
 }
 
 .settings-category.selected
 {
-    border-bottom-color: #2f7df6;
-    color: #ffffff;
+    border-bottom-color: var(--accent);
+    color: var(--text);
 }
 
 .settings-category.selected img
 {
-    image-color: #8fb8ff;
+    image-color: var(--accent-text);
 }
 
 /* A page that is a title, a few words and what they are about. */
@@ -125,20 +125,20 @@ body.narrow .settings-dialog
 /* The page this one was opened from. */
 .settings-back
 {
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-weight: normal;
     cursor: pointer;
 }
 
 .settings-back:hover
 {
-    color: #ffffff;
+    color: var(--text);
 }
 
 .settings-text
 {
     margin-top: 6dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 13dp;
 }
 
@@ -185,8 +185,8 @@ body.narrow .settings-page
     flex-wrap: wrap;
     align-items: center;
     padding: 10dp 20dp 0 24dp;
-    border-bottom: 1dp #16202f;
-    background-color: #0a0f1a;
+    border-bottom: 1dp var(--raised);
+    background-color: var(--chrome);
 }
 
 .settings-tab
@@ -197,7 +197,7 @@ body.narrow .settings-page
     padding: 8dp 14dp;
     border-top-left-radius: 6dp;
     border-top-right-radius: 6dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     cursor: pointer;
 }
 
@@ -206,26 +206,26 @@ body.narrow .settings-page
     width: 15dp;
     height: 15dp;
     margin-right: 8dp;
-    image-color: #8f9bb0;
+    image-color: var(--text-muted);
 }
 
 .settings-tab:hover
 {
-    background-color: #111a2a;
-    color: #ffffff;
+    background-color: var(--surface);
+    color: var(--text);
 }
 
 .settings-tab.selected
 {
-    background-color: #16305a;
-    color: #ffffff;
+    background-color: var(--selection);
+    color: var(--text);
     font-weight: bold;
 }
 
 .settings-tab:hover img,
 .settings-tab.selected img
 {
-    image-color: #ffffff;
+    image-color: var(--text);
 }
 
 body.tight .settings-tabs
@@ -239,14 +239,14 @@ body.narrow .settings-tabs
     padding: 8dp 12dp 0 12dp;
 }
 
-.settings-scope { margin: 0dp 24dp 12dp; padding: 10dp 14dp; background: #ffffff08; border-radius: 8dp; color: #969cab; font-size: 12dp; }
-.scope-title { color: #e6e8ef; font-size: 14dp; font-weight: bold; margin-bottom: 3dp; }
-.settings-scope.save-error { color: #ff9d9d; }
+.settings-scope { margin: 0dp 24dp 12dp; padding: 10dp 14dp; background-color: var(--raised); border-radius: 8dp; color: var(--text-muted); font-size: 12dp; }
+.scope-title { color: var(--text); font-size: 14dp; font-weight: bold; margin-bottom: 3dp; }
+.settings-scope.save-error { color: var(--danger); }
 .settings-scope.empty { display: none; }
 /* The settings of one game only: said so that it cannot be missed. */
-.settings-scope.of-game { margin-top: 12dp; border: 1dp #2f7df6; background: #16305a; color: #c5d3ea; }
-.scope-id { margin-left: 10dp; color: #8fa9d6; font-weight: normal; font-size: 12dp; }
-.scope-controls { color: #8eb9ff; margin-top: 4dp; }
+.settings-scope.of-game { margin-top: 12dp; border: 1dp var(--accent); background: var(--selection); color: var(--text-secondary); }
+.scope-id { margin-left: 10dp; color: var(--accent-text); font-weight: normal; font-size: 12dp; }
+.scope-controls { color: var(--accent-text); margin-top: 4dp; }
 .settings-scope .scope-controls:first-child { margin-top: 0; }
 .setting-origins
 {
@@ -256,14 +256,14 @@ body.narrow .settings-tabs
     margin-top: 10dp;
 }
 
-.setting-overridden .setting-origins { display: block; padding-top: 10dp; border-top: 1dp #493725; }
+.setting-overridden .setting-origins { display: block; padding-top: 10dp; border-top: 1dp var(--warning-surface); }
 
 .setting-origin
 {
     display: flex;
     align-items: center;
     min-width: 0;
-    color: #919bad;
+    color: var(--text-muted);
     font-size: 11dp;
     min-height: 26dp;
 }
@@ -271,14 +271,14 @@ body.narrow .settings-tabs
 .setting-origin.source-global { display: none; }
 .setting-origin.source-user,
 .setting-origin.source-nxemu { margin-top: 4dp; }
-.origin-property { flex: 0 0 88dp; color: #a2adbd; }
+.origin-property { flex: 0 0 88dp; color: var(--text-muted); }
 .origin-label { padding: 4dp 0dp; border-radius: 5dp; }
 .source-user .origin-label,
 .source-nxemu .origin-label
 {
     padding: 4dp 9dp;
-    color: #ffbd7a;
-    background-color: #47301d;
+    color: var(--warning);
+    background-color: var(--warning-surface);
     font-weight: bold;
 }
 
@@ -297,8 +297,8 @@ button.inherit-setting
     flex-shrink: 0;
 }
 
-.source-user button.inherit-setting { border-color: #80542d; background-color: #382719; color: #ffd2a4; }
-.source-user button.inherit-setting:hover { border-color: #e69b4e; background-color: #51371f; color: #ffe4c9; }
+.source-user button.inherit-setting { border-color: var(--warning-border); background-color: var(--warning-surface); color: var(--warning); }
+.source-user button.inherit-setting:hover { border-color: var(--warning); background-color: var(--warning-border); color: var(--warning); }
 button.inherit-setting:disabled { opacity: 0.4; }
 .game-defaults { display: none; }
 .per-game .global-defaults { display: none; }

@@ -2506,3 +2506,19 @@ msgstr "Neu starten"
 #: views/main_window.cpp
 msgid "Running"
 msgstr "Läuft"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "Oberflächendesign"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "Systemdarstellung verwenden oder ein helles oder dunkles Design wählen."
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "Hell"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "Dunkel"

@@ -222,6 +222,7 @@ struct PortalDirectory
 
 PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
 {
+    // Theme queries can use another connection from a background worker.
     if (!dbus_threads_init_default()) return {PortalStatus::Unavailable, {}};
     DBusError error;
     dbus_error_init(&error);

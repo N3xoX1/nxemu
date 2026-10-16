@@ -2506,3 +2506,19 @@ msgstr "Opnieuw starten"
 #: views/main_window.cpp
 msgid "Running"
 msgstr "Actief"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "Interfacethema"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "Gebruik de systeemweergave of kies een licht of donker thema."
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "Licht"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "Donker"
