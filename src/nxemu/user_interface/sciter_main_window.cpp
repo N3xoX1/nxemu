@@ -218,7 +218,7 @@ std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
     return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">%s</span>", verb, titleEsc.c_str());
 }
 
-uint64_t ReadProgramIdForGame(SystemModules & modules, const char * gamePath)
+uint64_t ReadProgramIdForGame(SystemModules & modules, const char * gamePath, uint64_t programId)
 {
     if (gamePath == nullptr || gamePath[0] == '\0' || !modules.IsValid())
     {
@@ -226,15 +226,15 @@ uint64_t ReadProgramIdForGame(SystemModules & modules, const char * gamePath)
     }
 
     ISystemloader & loader = modules.Modules().Systemloader();
-    IRomInfoPtr romInfo(loader.RomInfo(gamePath, 0, 0));
+    IRomInfoPtr romInfo(loader.RomInfo(gamePath, programId, 0));
     if (!romInfo)
     {
         return 0;
     }
 
-    uint64_t programId = 0;
-    romInfo->ReadProgramId(programId);
-    return programId;
+    uint64_t readProgramId = 0;
+    romInfo->ReadProgramId(readProgramId);
+    return readProgramId;
 }
 
 bool OpenFolderPath(const std::filesystem::path & path, void * ownerWindow)
@@ -254,6 +254,7 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_window(nullptr),
     m_renderWindow(nullptr),
     m_windowTitle(windowTitle),
+    m_pendingGameConfigProgramId(0),
     m_pendingSaveDataProgramId(0),
     m_emulationRunning(false),
     m_pendingStartInFullscreen(false),
@@ -270,6 +271,8 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_lastTrackedMouseX(0),
     m_lastTrackedMouseY(0),
     m_reloadingGame(false),
+    m_currentProgramId(0),
+    m_pendingReloadProgramId(0),
     m_currentProgramIndex(0),
     m_previousProgramIndex(-1),
     m_pendingReloadProgramIndex(-1),
@@ -504,7 +507,7 @@ void SciterMainWindow::OnExecuteProgram(uint64_t program_index)
         m_pendingUserChannel.clear();
         return;
     }
-    LoadGame(path.c_str(), (int32_t)program_index, ApplicationLaunchType::ApplicationInitiated);
+    LoadGame(path.c_str(), m_currentProgramId, (int32_t)program_index, ApplicationLaunchType::ApplicationInitiated);
 }
 
 void SciterMainWindow::OnExitProgram()
@@ -523,7 +526,7 @@ void SciterMainWindow::OnExitProgram()
         if (!path.empty())
         {
             const int32_t previous_index = m_previousProgramIndex >= 0 ? m_previousProgramIndex : 0;
-            LoadGame(path.c_str(), previous_index, ApplicationLaunchType::ApplicationInitiated);
+            LoadGame(path.c_str(), m_currentProgramId, previous_index, ApplicationLaunchType::ApplicationInitiated);
             return;
         }
     }
@@ -541,13 +544,14 @@ void SciterMainWindow::OnReloadProgram()
     }
 
     const std::string path = std::move(m_pendingReloadPath);
+    const uint64_t program_id = m_pendingReloadProgramId;
     const int32_t program_index = m_pendingReloadProgramIndex;
     const ApplicationLaunchType launch_type = m_pendingReloadLaunchType;
     m_pendingReloadPath.clear();
     m_pendingReloadProgramIndex = -1;
     m_pendingReloadLaunchType = ApplicationLaunchType::FrontendInitiated;
 
-    LoadGame(path.c_str(), program_index, launch_type);
+    LoadGame(path.c_str(), program_id, program_index, launch_type);
 }
 
 void SciterMainWindow::ResetMenu()
@@ -753,7 +757,7 @@ void SciterMainWindow::ShowConfig(const char * startPage)
     m_systemConfig->Display((void *)m_window->GetHandle(), startPage);
 }
 
-void SciterMainWindow::ShowGameConfig(const char * gamePath)
+void SciterMainWindow::ShowGameConfig(const char * gamePath, uint64_t programId)
 {
     if (gamePath == nullptr || gamePath[0] == '\0' || !m_rootElement.IsValid())
     {
@@ -761,16 +765,18 @@ void SciterMainWindow::ShowGameConfig(const char * gamePath)
     }
 
     m_pendingGameConfigPath = gamePath;
+    m_pendingGameConfigProgramId = programId;
     m_rootElement.SetTimer(1, (uint32_t *)TIMER_OPEN_GAME_CONFIG);
 }
 
-void SciterMainWindow::LoadGame(const char * path, int32_t program_index, ApplicationLaunchType launch_type)
+void SciterMainWindow::LoadGame(const char * path, uint64_t program_id, int32_t program_index, ApplicationLaunchType launch_type)
 {
     SettingsStore & settings = SettingsStore::GetInstance();
     const int32_t previous_program_index = launch_type == ApplicationLaunchType::ApplicationInitiated ? m_currentProgramIndex : -1;
     if (settings.GetBool(NXCoreSetting::EmulationRunning) && launch_type == ApplicationLaunchType::ApplicationInitiated)
     {
         m_pendingReloadPath = path != nullptr ? path : "";
+        m_pendingReloadProgramId = program_id;
         m_pendingReloadProgramIndex = program_index;
         m_pendingReloadLaunchType = launch_type;
         m_reloadingGame = true;
@@ -813,16 +819,17 @@ void SciterMainWindow::LoadGame(const char * path, int32_t program_index, Applic
     }
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
-    loader.LoadRom(path, program_index, previous_program_index, launch_type);
+    loader.LoadRom(path, program_id, program_index, previous_program_index, launch_type);
+    m_currentProgramId = program_id;
     m_currentProgramIndex = program_index;
     m_previousProgramIndex = previous_program_index;
     m_reloadingGame = false;
     UpdateEmulationStatusText();
 }
 
-void SciterMainWindow::OpenGameSaveDataLocation(const char * gamePath)
+void SciterMainWindow::OpenGameSaveDataLocation(const char * gamePath, uint64_t gameProgramId)
 {
-    const uint64_t programId = ReadProgramIdForGame(m_modules, gamePath);
+    const uint64_t programId = ReadProgramIdForGame(m_modules, gamePath, gameProgramId);
     if (programId == 0)
     {
         Notification::GetInstance().DisplayError("Unable to determine the title ID for this game.", "Open Save Data Location");
@@ -882,9 +889,9 @@ void SciterMainWindow::OpenSaveDataFolderForUser(uint64_t programId, const uint8
     }
 }
 
-void SciterMainWindow::OpenGameModDataLocation(const char * gamePath)
+void SciterMainWindow::OpenGameModDataLocation(const char * gamePath, uint64_t gameProgramId)
 {
-    const uint64_t programId = ReadProgramIdForGame(m_modules, gamePath);
+    const uint64_t programId = ReadProgramIdForGame(m_modules, gamePath, gameProgramId);
     if (programId == 0)
     {
         Notification::GetInstance().DisplayError("Unable to determine the title ID for this game.", "Open Mod Data Location");
@@ -1422,7 +1429,7 @@ void SciterMainWindow::OnOpenFile()
     {
         return;
     }
-    LoadGame(fileToOpen, 0, ApplicationLaunchType::FrontendInitiated);
+    LoadGame(fileToOpen, 0, 0, ApplicationLaunchType::FrontendInitiated);
 }
 
 void SciterMainWindow::OnInstallFirmwareFromFile()
@@ -2684,11 +2691,13 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     else if (timerId == (uint32_t *)TIMER_OPEN_GAME_CONFIG)
     {
         const std::string path = m_pendingGameConfigPath;
+        const uint64_t programId = m_pendingGameConfigProgramId;
         m_pendingGameConfigPath.clear();
+        m_pendingGameConfigProgramId = 0;
         if (!path.empty())
         {
             m_gameConfig.reset(new GameConfig(m_sciterUI, m_modules));
-            m_gameConfig->Display((void *)m_window->GetHandle(), path.c_str());
+            m_gameConfig->Display((void *)m_window->GetHandle(), path.c_str(), programId);
         }
         return false;
     }

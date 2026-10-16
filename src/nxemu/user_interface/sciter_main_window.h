@@ -100,10 +100,10 @@ public:
     void ResetMenu();
     bool Show();
     void ShowConfig(const char * startPage);
-    void ShowGameConfig(const char * gamePath);
-    void LoadGame(const char * path, int32_t program_index = 0, ApplicationLaunchType launch_type = ApplicationLaunchType::FrontendInitiated);
-    void OpenGameSaveDataLocation(const char * gamePath);
-    void OpenGameModDataLocation(const char * gamePath);
+    void ShowGameConfig(const char * gamePath, uint64_t programId = 0);
+    void LoadGame(const char * path, uint64_t program_id = 0, int32_t program_index = 0, ApplicationLaunchType launch_type = ApplicationLaunchType::FrontendInitiated);
+    void OpenGameSaveDataLocation(const char * gamePath, uint64_t programId = 0);
+    void OpenGameModDataLocation(const char * gamePath, uint64_t programId = 0);
     void OpenSaveDataFolderForUser(uint64_t programId, const uint8_t uuidBytes[HOST_PROFILE_UUID_SIZE]);
     static void OnSaveDataProfileSelected(void * user_data, bool has_uuid, const uint8_t uuid_bytes[16]);
 
@@ -237,6 +237,7 @@ private:
     std::unique_ptr<SystemConfig> m_systemConfig;
     std::unique_ptr<GameConfig> m_gameConfig;
     std::string m_pendingGameConfigPath;
+    uint64_t m_pendingGameConfigProgramId;
     uint64_t m_pendingSaveDataProgramId;
     std::unique_ptr<InputConfig> m_inputConfig;
     std::unique_ptr<AboutDialog> m_aboutDialog;
@@ -267,6 +268,8 @@ private:
     DiscordPresence m_discordPresence;
     std::deque<std::vector<uint8_t>> m_pendingUserChannel;
     std::string m_pendingReloadPath;
+    uint64_t m_currentProgramId;
+    uint64_t m_pendingReloadProgramId;
     int32_t m_currentProgramIndex;
     int32_t m_previousProgramIndex;
     int32_t m_pendingReloadProgramIndex;

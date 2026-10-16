@@ -547,7 +547,7 @@ uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint
     return kSupportedGameExtensionCount;
 }
 
-bool Systemloader::LoadRom(const char * fileName, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
+bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
     if (fileName == nullptr || fileName[0] == '\0')
     {
@@ -557,7 +557,7 @@ bool Systemloader::LoadRom(const char * fileName, int32_t program_index, int32_t
     impl->PrepareFirmwareForLoad(fileName);
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::LoadingRom);
     impl->m_file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
-    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, 0, program_index);
+    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, program_id, program_index);
     if (!impl->m_appLoader)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
@@ -574,8 +574,8 @@ bool Systemloader::LoadRom(const char * fileName, int32_t program_index, int32_t
         g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
-    uint64_t program_id = 0;
-    const LoaderResultStatus res = app_loader->ReadProgramId(program_id);
+    uint64_t loaded_program_id = 0;
+    const LoaderResultStatus res = app_loader->ReadProgramId(loaded_program_id);
     if (res == LoaderResultStatus::Success)
     {
         ManualContentProvider().ClearAllEntries();

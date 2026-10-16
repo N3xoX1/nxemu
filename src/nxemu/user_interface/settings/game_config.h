@@ -19,7 +19,7 @@ public:
     GameConfig(ISciterUI & sciterUI, SystemModules & modules);
     ~GameConfig();
 
-    void Display(void * parentWindow, const char * gamePath);
+    void Display(void * parentWindow, const char * gamePath, uint64_t programId = 0);
     uint64_t ProgramId() const { return m_programId; }
     const std::string & GamePath() const { return m_gamePath; }
     IRomInfo * RomInfo() const { return m_romInfo.Get(); }

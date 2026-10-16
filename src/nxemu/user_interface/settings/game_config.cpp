@@ -72,7 +72,7 @@ GameConfig::~GameConfig()
     }
 }
 
-void GameConfig::Display(void * parentWindow, const char * gamePath)
+void GameConfig::Display(void * parentWindow, const char * gamePath, uint64_t programId)
 {
     enum
     {
@@ -104,7 +104,7 @@ void GameConfig::Display(void * parentWindow, const char * gamePath)
     m_filename = pathObj.GetNameExtension();
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
-    m_romInfo = loader.RomInfo(gamePath, 0, 0);
+    m_romInfo = loader.RomInfo(gamePath, programId, 0);
     if (m_romInfo)
     {
         m_romInfo->ReadProgramId(m_programId);
