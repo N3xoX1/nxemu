@@ -110,6 +110,8 @@ static void RaiseOpenFileLimit()
 }
 #endif
 
+static int RunSciterApplication(int argc, char ** argv);
+
 static int RunApplication(int argc, char ** argv)
 {
 #ifdef __APPLE__
@@ -121,29 +123,19 @@ static int RunApplication(int argc, char ** argv)
         return 0;
     }
 
-    bool useRmlUI = false;
-    if (useRmlUI)
+    if (!AppInit(Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str()))
     {
-        return RunUiApplication(argc, argv);
+        AppCleanup();
+        return 1;
     }
-
-    bool has_broken_vulkan = false;
-#ifdef WIN32
-    EnablePerMonitorDpiAwareness();
-#endif
-    SetNotification(&Notification::GetInstance());
-    bool res = AppInit(Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
-    if (res)
-    {
-        SetupUISetting();
-    }
+    SetupUISetting();
 
 #ifdef __APPLE__
     const auto exe_dir = Common::FS::GetExeDirectory();
     const bool is_bundle = exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents";
     const bool has_local_runtime = std::filesystem::is_directory(exe_dir / "modules") &&
                                    std::filesystem::is_directory(exe_dir / "lang");
-    if (res && (is_bundle || has_local_runtime)) {
+    if (is_bundle || has_local_runtime) {
         // A bundle must load its matching modules/resources even when reusing a
         // development config. Keep the stored path values unchanged for raw runs.
         const auto module_dir = is_bundle ? exe_dir.parent_path() / "Frameworks/modules" : exe_dir / "modules";
@@ -153,17 +145,29 @@ static int RunApplication(int argc, char ** argv)
     }
 #endif
 
-    if (res && StartupChecks(argv[0], &has_broken_vulkan, uiSettings.performVulkanCheck))
+    int result = uiSettings.useRmlUI ? RunUiApplication(argc, argv) : RunSciterApplication(argc, argv);
+    AppCleanup();
+    return result;
+}
+
+static int RunSciterApplication(int /*argc*/, char ** argv)
+{
+#ifdef WIN32
+    EnablePerMonitorDpiAwareness();
+#endif
+    SetNotification(&Notification::GetInstance());
+
+    bool has_broken_vulkan = false;
+    if (StartupChecks(argv[0], &has_broken_vulkan, uiSettings.performVulkanCheck))
     {
+        SetNotification(nullptr);
+        Notification::CleanUp();
         return 0;
     }
     uiSettings.hasBrokenVulkan = has_broken_vulkan;
 
     ISciterUI * sciterUI = nullptr;
-    if (res && !SciterUIInit(uiSettings.languageDir, uiSettings.languageBase.c_str(), uiSettings.languageCurrent.c_str(), uiSettings.sciterConsole, sciterUI))
-    {
-        res = false;
-    }
+    bool res = SciterUIInit(uiSettings.languageDir, uiSettings.languageBase.c_str(), uiSettings.languageCurrent.c_str(), uiSettings.sciterConsole, sciterUI);
     if (res)
     {
         RegisterWidgets(*sciterUI);
@@ -175,7 +179,6 @@ static int RunApplication(int argc, char ** argv)
     {
         sciterUI->Shutdown();
     }
-    AppCleanup();
     SetNotification(nullptr);
     Notification::CleanUp();
     return res ? 0 : 1;
