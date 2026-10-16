@@ -170,10 +170,13 @@ int RunUiApplication(int argc, char ** argv)
 {
     UiNotification notification;
     const std::string appDir = Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir);
-    if (!AppInit(&notification, Path(Path::MODULE_DIRECTORY), appDir.c_str()))
+    SetNotification(&notification);
+    if (!AppInit(Path(Path::MODULE_DIRECTORY), appDir.c_str()))
     {
+        SetNotification(nullptr);
         return 1;
     }
+    SetupUISetting();
 
     int result = 1;
     if (argc > 0 && uiSettings.performVulkanCheck && !probeGraphics(argv[0]))
@@ -185,5 +188,6 @@ int RunUiApplication(int argc, char ** argv)
         result = Run(notification, argc > 1 ? argv[1] : "");
     }
     AppCleanup();
+    SetNotification(nullptr);
     return result;
 }

@@ -18,6 +18,7 @@
 #include "emulation_session.h"
 #include "notification.h"
 #include "settings/settings_bridge.h"
+#include "settings/ui_settings.h"
 
 namespace
 {
@@ -77,11 +78,13 @@ Java_org_nxemu_NativeLibrary_appInit(JNIEnv * env, jclass /*clazz*/, jstring app
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "baseDir: %s", baseDir.c_str());
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "moduleDir: %s", moduleDir.c_str());
 
-    if (!AppInit(&AndroidNotification::GetInstance(), moduleDir.c_str(), baseDir.c_str()))
+    SetNotification(&AndroidNotification::GetInstance());
+    if (!AppInit(moduleDir.c_str(), baseDir.c_str()))
     {
         __android_log_print(ANDROID_LOG_ERROR, kLogTag, "AppInit failed (app=%s module=%s)", baseDir.c_str(), moduleDir.c_str());
         return;
     }
+    SetupUISetting();
 
     SettingsStore & store = SettingsStore::GetInstance();
     store.SetString(NXCoreSetting::ModuleDirectory, moduleDir.c_str());

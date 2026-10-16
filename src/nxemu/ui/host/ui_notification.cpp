@@ -1,5 +1,4 @@
 #include "ui_notification.h"
-#include "settings/ui_settings.h"
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -20,11 +19,6 @@ NotificationResponse UiNotification::Query(const char * /*message*/, const char 
 
 void UiNotification::BreakPoint(const char * /*file_name*/, uint32_t /*line_number*/)
 {
-}
-
-void UiNotification::AppInitDone()
-{
-    SetupUISetting();
 }
 
 void UiNotification::BindWindow(SDL_Window* window)

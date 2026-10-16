@@ -131,7 +131,12 @@ static int RunApplication(int argc, char ** argv)
 #ifdef WIN32
     EnablePerMonitorDpiAwareness();
 #endif
-    bool res = AppInit(&Notification::GetInstance(), Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
+    SetNotification(&Notification::GetInstance());
+    bool res = AppInit(Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str());
+    if (res)
+    {
+        SetupUISetting();
+    }
 
 #ifdef __APPLE__
     const auto exe_dir = Common::FS::GetExeDirectory();
@@ -171,6 +176,7 @@ static int RunApplication(int argc, char ** argv)
         sciterUI->Shutdown();
     }
     AppCleanup();
+    SetNotification(nullptr);
     Notification::CleanUp();
     return res ? 0 : 1;
 }
