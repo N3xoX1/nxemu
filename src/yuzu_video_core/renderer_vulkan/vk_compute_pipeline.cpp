@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
@@ -17,7 +18,6 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
-
 using Shader::ImageBufferDescriptor;
 using Shader::Backend::SPIRV::RESCALING_LAYOUT_WORDS_OFFSET;
 using Tegra::Texture::TexturePair;
@@ -28,9 +28,10 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
                                  Common::ThreadWorker* thread_worker,
                                  PipelineStatistics* pipeline_statistics,
                                  VideoCore::ShaderNotify* shader_notify, const Shader::Info& info_,
-                                 vk::ShaderModule spv_module_)
+                                 vk::ShaderModule spv_module_, StagingBufferPool& staging_pool_)
     : device{device_},
       pipeline_cache(pipeline_cache_), guest_descriptor_queue{guest_descriptor_queue_}, info{info_},
+      staging_pool{staging_pool_},
       spv_module(std::move(spv_module_)) {
     num_descriptor_entries = NumDescriptorUpdateEntries(info);
     num_textures = Shader::NumDescriptors(info.texture_descriptors);
@@ -152,26 +153,37 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
         const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
         auto secondary = primary;
         bool has_secondary{};
-        u32 secondary_offset{}, primary_shift{}, secondary_shift{};
+        u32 secondary_offset{};
         if constexpr (requires { desc.has_secondary; }) {
             if (desc.has_secondary) {
                 ASSERT(((qmd.const_buffer_enable_mask >> desc.secondary_cbuf_index) & 1) != 0);
                 secondary = bind_cbuf(desc.secondary_cbuf_index, desc.count);
                 has_secondary = true;
                 secondary_offset = desc.secondary_cbuf_offset;
-                primary_shift = desc.shift_left;
-                secondary_shift = desc.secondary_shift_left;
             }
         }
         return [=](u32 index) {
             const u32 delta = index << desc.size_shift;
             const u32 raw = primary.Read(desc.cbuf_offset + delta);
-            return TexturePair(has_secondary ? (raw << primary_shift) |
-                                (secondary.Read(secondary_offset + delta) << secondary_shift) : raw,
+            return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                   desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
                                via_header_index);
         };
     }};
     const auto add_image{[&](const auto& desc, bool blacklist) {
+        if constexpr (requires { desc.is_direct; }) {
+            if (desc.is_direct) {
+                for (u32 index = 0; index < desc.count; ++index) {
+                    views[view_index++] = {
+                        .index = texture_cache.IsCompute3DImage(index, desc.is_integer, desc.is_signed)
+                                     ? index : UINT32_MAX,
+                        .blacklist = blacklist,
+                        .id = {},
+                    };
+                }
+                return;
+            }
+        }
         const auto read_handle = prepare_handle(desc);
         for (u32 index = 0; index < desc.count; ++index) {
             const auto handle{read_handle(index)};
@@ -234,6 +246,45 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     const VideoCommon::ImageViewInOut* views_it{views.data()};
     PushImageDescriptors(texture_cache, guest_descriptor_queue, info, rescaling, samplers_it,
                          views_it);
+    if (info.runtime_image_write_mask_words != 0) {
+        const u32 mask_bytes = info.runtime_image_write_mask_words * sizeof(u32);
+        runtime_image_write_mask = staging_pool.Request(mask_bytes, MemoryUsage::Download);
+        guest_descriptor_queue.AddBuffer(runtime_image_write_mask.buffer,
+                                         runtime_image_write_mask.offset, mask_bytes);
+        runtime_image_views.assign(info.runtime_image_write_mask_words * 32U,
+                                   VideoCommon::NULL_IMAGE_VIEW_ID);
+        has_runtime_image_candidates = false;
+        size_t image_index = num_textures + Shader::NumDescriptors(info.texture_buffer_descriptors) +
+                             Shader::NumDescriptors(info.image_buffer_descriptors);
+        for (const auto& desc : info.image_descriptors) {
+            for (u32 handle = 0; handle < desc.count; ++handle) {
+                const auto id = views[image_index++].id;
+                if (desc.is_direct && id != VideoCommon::NULL_IMAGE_VIEW_ID) {
+                    runtime_image_views[handle] = id;
+                    has_runtime_image_candidates = true;
+                }
+            }
+        }
+    }
+    // Without a bound image the stores are discarded by null descriptors, and the mask
+    // cannot mark anything. It stays bound for the shader but is never read back.
+    if (has_runtime_image_candidates) {
+        const u32 mask_bytes = info.runtime_image_write_mask_words * sizeof(u32);
+        scheduler.RequestOutsideRenderPassOperationContext();
+        scheduler.Record([mask = runtime_image_write_mask, mask_bytes](vk::CommandBuffer cmdbuf) {
+            cmdbuf.FillBuffer(mask.buffer, mask.offset, mask_bytes, 0U);
+            const VkBufferMemoryBarrier barrier{
+                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer = mask.buffer, .offset = mask.offset, .size = mask_bytes,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, barrier);
+        });
+    }
 
     if (!is_built.load(std::memory_order::relaxed)) {
         // Wait for the pipeline to be built
@@ -266,4 +317,35 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     });
 }
 
+void ComputePipeline::FinishRuntimeImageWrites(Scheduler& scheduler, TextureCache& texture_cache) {
+    // No bound image can have been written, so there is nothing to wait for
+    if (info.runtime_image_write_mask_words == 0 || !has_runtime_image_candidates) {
+        return;
+    }
+    scheduler.Record([mask = runtime_image_write_mask,
+                      bytes = info.runtime_image_write_mask_words * sizeof(u32)](vk::CommandBuffer cmdbuf) {
+        const VkBufferMemoryBarrier barrier{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT, .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .buffer = mask.buffer, .offset = mask.offset, .size = bytes,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                               VK_PIPELINE_STAGE_HOST_BIT, 0, barrier);
+    });
+    // Guest image aliases must see precisely the images written before their next use.
+    // This bounded readback is only needed by shaders with untrackable runtime handles.
+    scheduler.Finish();
+    for (u32 word = 0; word < info.runtime_image_write_mask_words; ++word) {
+        u32 bits;
+        std::memcpy(&bits, runtime_image_write_mask.mapped_span.data() + word * sizeof(u32), sizeof(bits));
+        for (u32 bit = 0; bit < 32; ++bit) {
+            if ((bits & (1U << bit)) == 0) continue;
+            const auto id = runtime_image_views[word * 32U + bit];
+            if (id == VideoCommon::NULL_IMAGE_VIEW_ID) continue;
+            texture_cache.MarkModification(texture_cache.GetImageView(id).image_id);
+        }
+    }
+}
 } // namespace Vulkan

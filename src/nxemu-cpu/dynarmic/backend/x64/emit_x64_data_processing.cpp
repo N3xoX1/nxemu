@@ -1514,6 +1514,14 @@ void EmitX64::EmitZeroExtendHalfToLong(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitZeroExtendWordToLong(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    if (args[0].IsInXmm() && code.HasHostFeature(HostFeature::SSE41)) {
+        const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
+        // Copy lane zero and clear lanes 1..3. Integer-domain bit operation;
+        // unlike a float conversion it preserves NaN payloads and FP status.
+        code.insertps(result, result, 0x0e);
+        ctx.reg_alloc.DefineValue(inst, result);
+        return;
+    }
     const Xbyak::Reg64 result = ctx.reg_alloc.UseScratchGpr(args[0]);
     code.mov(result.cvt32(), result.cvt32());  // x64 zeros upper 32 bits on a 32-bit move
     ctx.reg_alloc.DefineValue(inst, result);

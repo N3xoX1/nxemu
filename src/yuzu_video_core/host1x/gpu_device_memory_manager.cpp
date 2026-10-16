@@ -9,6 +9,9 @@
 #include "yuzu_common/address_space.h"
 #include "yuzu_common/address_space.inc"
 #include "yuzu_common/alignment.h"
+#include "yuzu_common/coalesced_memory_copy.h"
+#include "yuzu_common/differential_memory_copy.h"
+#include "yuzu_common/parallel_readback_copy.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/scope_exit.h"
@@ -148,7 +151,6 @@ private:
 struct EmptyAllocator {
     EmptyAllocator([[maybe_unused]] DAddr address) {}
 };
-
 } // namespace
 
 template <typename DTraits>
@@ -541,6 +543,45 @@ void DeviceMemoryManager<Traits>::WriteBlockUnsafe(DAddr address, const void* sr
 }
 
 template <typename Traits>
+void DeviceMemoryManager<Traits>::WriteBlockForGpuReadback(DAddr address,
+                                                         const void* src_pointer, size_t size)
+{
+    if (size < 96 * 1024 * 1024) {
+        // Retirement holds the cache mutex and excludes cancelled CPU writes.
+        WalkBlock(address, size, [&](size_t, DAddr current_vaddr)
+            {
+                LOG_ERROR(HW_Memory, "Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
+            },
+            [&](size_t copy_amount, u8* const dst_ptr)
+            {
+                Common::CopyChangedMemoryForReadback(dst_ptr, src_pointer, copy_amount);
+            },
+            [&](const std::size_t copy_amount)
+            {
+                src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
+            });
+        return;
+    }
+    Common::CoalescedMemoryCopy copies;
+    // Walk the original page mappings. Only combine the resulting host spans;
+    // do not infer continuity across a hole, alias or unrelated physical page.
+    WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr)
+        {
+            copies.Flush();
+            LOG_ERROR(HW_Memory,"Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
+        },
+        [&](size_t copy_amount, u8* const dst_ptr)
+        {
+            copies.Append(dst_ptr, src_pointer, copy_amount);
+        },
+        [&](const std::size_t copy_amount)
+        {
+            src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
+        });
+    copies.Flush();
+}
+
+template <typename Traits>
 Asid DeviceMemoryManager<Traits>::RegisterProcess(IMemory * memory_device_inter)
 {
     std::scoped_lock lk(process_guard);
@@ -672,12 +713,10 @@ void DeviceMemoryManager<Traits>::UpdatePagesCachedCount(DAddr addr, size_t size
     }
     release_pending();
 }
-
 } // namespace Core
 
 namespace Tegra
 {
-
 struct MaxwellDeviceMethods
 {
     static inline void MarkRegionCaching(IMemory * interface, VAddr address, size_t size, bool caching)
@@ -685,7 +724,6 @@ struct MaxwellDeviceMethods
         interface->RasterizerMarkRegionCached(address, size, caching);
     }
 };
-
 } // namespace Tegra
 
 template struct Core::DeviceMemoryManagerAllocator<Tegra::MaxwellDeviceTraits>;

@@ -12,6 +12,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <boost/container/small_vector.hpp>
 
@@ -35,6 +36,8 @@ namespace Vulkan {
 struct GraphicsPipelineCacheKey {
     std::array<u64, 6> unique_hashes;
     std::array<std::array<u32, 18>, 5> cbuf_sizes;
+    /// Texture and sampler table sizes, zero unless a shader indexes them with runtime handles
+    std::array<u32, 2> texture_pool;
     FixedPipelineState state;
 
     size_t Hash() const noexcept;
@@ -46,7 +49,7 @@ struct GraphicsPipelineCacheKey {
     }
 
     size_t Size() const noexcept {
-        return sizeof(unique_hashes) + sizeof(cbuf_sizes) + state.Size();
+        return sizeof(unique_hashes) + sizeof(cbuf_sizes) + sizeof(texture_pool) + state.Size();
     }
 };
 static_assert(std::has_unique_object_representations_v<GraphicsPipelineCacheKey>);
@@ -81,13 +84,15 @@ public:
     explicit VtgScratchAllocator(const Device& device, Scheduler& scheduler,
                                  StagingBufferPool& staging_pool);
 
-    /// Returns a buffer and the offset of a region that lives until the current tick completes
+    /// Returns a buffer and the offset of a region that lives until the tick following the
+    /// current one completes
     [[nodiscard]] std::pair<VkBuffer, VkDeviceSize> Allocate(VkDeviceSize size);
 
 private:
     Scheduler& scheduler;
     StagingBufferPool& staging_pool;
     VkDeviceSize alignment;
+    std::vector<StagingBufferRef> chunks;
     VkBuffer buffer{};
     VkDeviceSize base{};
     VkDeviceSize capacity{};
@@ -196,6 +201,7 @@ private:
 
     void ConfigureVtg(bool is_indexed);
 
+
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
 
@@ -238,6 +244,22 @@ private:
 
     vk::DescriptorSetLayout descriptor_set_layout;
     DescriptorAllocator descriptor_allocator;
+
+    // Texture and sampler tables indexed by runtime handles, bound as descriptor set 1.
+    // The set is only written again when its contents change or a new tick starts.
+    bool uses_texture_table{};
+    vk::DescriptorSetLayout texture_table_set_layout;
+    DescriptorAllocator texture_table_allocator;
+    boost::container::small_vector<VkDescriptorSetLayoutBinding, 4> texture_table_bindings;
+    // Used only by the GPU thread
+    std::vector<VkDescriptorImageInfo> texture_table_scratch;
+    std::shared_ptr<const std::vector<VkDescriptorImageInfo>> texture_table_data;
+    u64 texture_table_tick{};
+    u64 texture_table_version{};
+    // Used only by the scheduler worker
+    VkDescriptorSet texture_table_set{};
+    u64 texture_table_set_version{};
+
     vk::PipelineLayout pipeline_layout;
     vk::DescriptorUpdateTemplate descriptor_update_template;
     vk::Pipeline pipeline;

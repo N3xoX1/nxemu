@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -19,7 +20,6 @@
 #include "video_settings.h"
 
 namespace Vulkan {
-
 void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
                                          vk::CommandBuffer upload_cmdbuf) {
     auto command = first;
@@ -120,6 +120,9 @@ void Scheduler::RequestRenderpass(const Framebuffer* framebuffer, u32 color_scra
     num_renderpass_images = framebuffer->NumImages();
     renderpass_images = framebuffer->Images(color_scratch_mask);
     renderpass_image_ranges = framebuffer->ImageRanges(color_scratch_mask);
+    if (query_cache) {
+        query_cache->NotifyRenderPass(true);
+    }
 }
 
 void Scheduler::RequestOutsideRenderPassOperationContext() {
@@ -256,7 +259,27 @@ u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_se
     return signal_value;
 }
 
+void Scheduler::MarkBufferWrite(VkBuffer buffer) {
+    // Past this many buffers, searching them costs more than what reordering commands saves
+    static constexpr size_t MAX_WRITTEN_BUFFERS = 64;
+    if (buffer == VK_NULL_HANDLE || IsBufferWritten(buffer)) {
+        return;
+    }
+    if (written_buffers.size() == MAX_WRITTEN_BUFFERS) {
+        all_buffers_written = true;
+        return;
+    }
+    written_buffers.push_back(buffer);
+}
+
+bool Scheduler::IsBufferWritten(VkBuffer buffer) const noexcept {
+    return all_buffers_written ||
+           std::ranges::find(written_buffers, buffer) != written_buffers.end();
+}
+
 void Scheduler::AllocateNewContext() {
+    written_buffers.clear();
+    all_buffers_written = false;
     // Enable counters once again. These are disabled when a command buffer is finished.
     if (query_cache) {
 #if ANDROID
@@ -289,9 +312,25 @@ void Scheduler::EndPendingOperations() {
     EndRenderPass();
 }
 
+void Scheduler::ComputeMemoryBarrier(vk::CommandBuffer cmdbuf) {
+    static constexpr VkMemoryBarrier barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+    };
+    // Submission order alone does not make storage buffer/image writes visible. Include
+    // all consumers: compute, graphics, indirect commands and transfers to sparse aliases.
+    cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, barrier);
+}
+
 void Scheduler::EndRenderPass() {
     if (!state.renderpass) {
         return;
+    }
+    if (query_cache) {
+        query_cache->NotifyRenderPass(false);
     }
     Record([num_images = num_renderpass_images, images = renderpass_images,
             ranges = renderpass_image_ranges](vk::CommandBuffer cmdbuf) {
@@ -338,5 +377,4 @@ void Scheduler::AcquireNewChunk() {
         chunk_reserve.pop_back();
     }
 }
-
 } // namespace Vulkan

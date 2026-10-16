@@ -15,9 +15,8 @@
 
 namespace Tegra
 {
-
 constexpr u32 MacroRegistersStart = 0xE00;
-[[maybe_unused]] constexpr u32 ComputeInline = 0x6D;
+constexpr u32 ComputeInline = 0x6D;
 
 DmaPusher::DmaPusher(GPU & gpu_, MemoryManager & memory_manager_, Control::ChannelState & channel_state_) :
     gpu{gpu_},
@@ -108,16 +107,36 @@ bool DmaPusher::Step()
         ASSERT(memory_operation_sync_state == MemoryOperationSyncState::None);
     }
 
-    if (header.size > 0 && Settings::IsGPULevelHigh() &&
-        dma_state.method >= MacroRegistersStart && subchannels[dma_state.subchannel])
+    if (header.size > 0 && dma_state.method_count && subchannels[dma_state.subchannel])
     {
-        subchannels[dma_state.subchannel]->current_dirty =
-            memory_manager.IsMemoryDirty(dma_state.dma_get, header.size * sizeof(u32));
+        const auto engine = subchannel_type[dma_state.subchannel];
+        const bool compute_payload = engine == Engines::EngineTypes::KeplerCompute &&
+                                     dma_state.method == ComputeInline && dma_state.non_incrementing;
+        const bool macro_payload = Settings::IsGPULevelHigh() &&
+                                   engine == Engines::EngineTypes::Maxwell3D &&
+                                   dma_state.method >= MacroRegistersStart;
+        if (compute_payload || macro_payload)
+        {
+            // A safe fetch can download the parameters and clear their GPU dirty state. Keep
+            // their origin so compute launches can still consume the live GPU arguments.
+            const std::size_t words = std::min<std::size_t>(dma_state.method_count, header.size);
+            subchannels[dma_state.subchannel]->current_dirty =
+                memory_manager.IsMemoryDirty(dma_state.dma_get, words * sizeof(u32));
+        }
     }
 
     if (header.size > 0)
     {
-        const bool use_safe = Settings::UseSafeDMAReads();
+        // Only bypass readback when this entire entry continues a non-incrementing parameter
+        // command. A completed command leaves its method behind, and a partial continuation can
+        // be followed by new headers that the CPU must fetch safely.
+        const bool is_gpu_consumed =
+            Settings::IsDMALevelDefault() && dma_state.non_incrementing &&
+            dma_state.method_count >= header.size &&
+            (dma_state.method >= MacroRegistersStart ||
+             (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::KeplerCompute &&
+              dma_state.method == ComputeInline));
+        const bool use_safe = Settings::UseSafeDMAReads() && !is_gpu_consumed;
         if (use_safe)
         {
             Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::SafeRead> headers(
@@ -356,5 +375,4 @@ void DmaPusher::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
     rasterizer = rasterizer_;
     puller.BindRasterizer(rasterizer_);
 }
-
 } // namespace Tegra

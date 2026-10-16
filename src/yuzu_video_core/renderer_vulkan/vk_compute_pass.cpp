@@ -20,6 +20,7 @@
 #include "yuzu_video_core/host_shaders/queries_prefix_scan_sum_nosubgroups_comp_spv.h"
 #include "yuzu_video_core/host_shaders/resolve_conditional_render_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_quad_indexed_comp_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_readback_delta_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_uint8_comp_spv.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
@@ -96,6 +97,23 @@ constexpr DescriptorBankInfo INPUT_OUTPUT_BANK_INFO{
     .textures = 0,
     .images = 0,
     .score = 2,
+};
+
+constexpr std::array<VkDescriptorSetLayoutBinding, 4> READBACK_DELTA_BINDINGS{{
+    {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+    {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+    {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+    {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+}};
+constexpr std::array<VkDescriptorUpdateTemplateEntry, 4> READBACK_DELTA_TEMPLATES{{
+    {0, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0 * sizeof(VkDescriptorBufferInfo), sizeof(VkDescriptorBufferInfo)},
+    {1, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * sizeof(VkDescriptorBufferInfo), sizeof(VkDescriptorBufferInfo)},
+    {2, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * sizeof(VkDescriptorBufferInfo), sizeof(VkDescriptorBufferInfo)},
+    {3, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * sizeof(VkDescriptorBufferInfo), sizeof(VkDescriptorBufferInfo)},
+}};
+constexpr DescriptorBankInfo READBACK_DELTA_BANK{
+    .uniform_buffers = 0, .storage_buffers = 4, .texture_buffers = 0,
+    .image_buffers = 0, .textures = 0, .images = 0, .score = 4,
 };
 
 constexpr DescriptorBankInfo QUERIES_SCAN_BANK_INFO{
@@ -302,6 +320,54 @@ ComputePass::ComputePass(const Device& device_, DescriptorPool& descriptor_pool,
 
 ComputePass::~ComputePass() = default;
 
+ReadbackDeltaPass::ReadbackDeltaPass(const Device& device_, Scheduler& scheduler_,
+                                   DescriptorPool& pool, ComputePassDescriptorQueue& queue_)
+    : ComputePass(device_, pool, READBACK_DELTA_BINDINGS, READBACK_DELTA_TEMPLATES,
+                  READBACK_DELTA_BANK, COMPUTE_PUSH_CONSTANT_RANGE<8 * sizeof(u32)>,
+                  VULKAN_READBACK_DELTA_COMP_SPV), scheduler{scheduler_}, queue{queue_} {}
+
+void ReadbackDeltaPass::Copy(VkBuffer source, VkBuffer reference, VkBuffer destination,
+                            VkBuffer flags, u64 source_offset, u64 destination_offset,
+                            u64 size, u64 flag_offset, u64 flags_size,
+                            const std::array<u32, 4>& valid_mask) {
+    const u64 alignment = device.GetStorageBufferAlignment();
+    const u64 src_aligned = Common::AlignDown(source_offset, alignment);
+    const u64 dst_aligned = Common::AlignDown(destination_offset, alignment);
+    queue.Acquire(4);
+    queue.AddBuffer(source, src_aligned, size + source_offset - src_aligned);
+    queue.AddBuffer(reference, src_aligned, size + source_offset - src_aligned);
+    queue.AddBuffer(destination, dst_aligned, size + destination_offset - dst_aligned);
+    queue.AddBuffer(flags, 0, flags_size);
+    const void* descriptors = queue.UpdateData();
+    const std::array<u32, 8> parameters{
+        static_cast<u32>(size / 4), static_cast<u32>((source_offset - src_aligned) / 4),
+        static_cast<u32>((destination_offset - dst_aligned) / 4), static_cast<u32>(flag_offset / 4),
+        valid_mask[0], valid_mask[1], valid_mask[2], valid_mask[3],
+    };
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([this, descriptors, parameters](vk::CommandBuffer cb) {
+        // Serialize reference reads/updates across queued epochs, and make every
+        // original producer visible. Source usage tracking still prevents upload reorder.
+        const VkMemoryBarrier before{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                    VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT,
+                                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT};
+        cb.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, before);
+        const auto set = descriptor_allocator.Commit();
+        device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptors);
+        cb.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+        cb.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
+        cb.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(parameters), &parameters);
+        cb.Dispatch(Common::DivCeil(parameters[0], 16384U), 1, 1);
+        const VkMemoryBarrier after{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                                   VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT |
+                                       VK_ACCESS_HOST_READ_BIT};
+        cb.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0, after);
+    });
+}
+
 Uint8Pass::Uint8Pass(const Device& device_, Scheduler& scheduler_, DescriptorPool& descriptor_pool,
                      StagingBufferPool& staging_buffer_pool_,
                      ComputePassDescriptorQueue& compute_pass_descriptor_queue_)
@@ -473,7 +539,7 @@ void QueriesPrefixScanPass::Run(VkBuffer accumulation_buffer, VkBuffer dst_buffe
         static constexpr size_t DISPATCH_SIZE = 2048U;
         size_t runs_to_do = std::min<size_t>(current_runs, DISPATCH_SIZE);
         current_runs -= runs_to_do;
-        compute_pass_descriptor_queue.Acquire(2);
+        compute_pass_descriptor_queue.Acquire(3);
         compute_pass_descriptor_queue.AddBuffer(src_buffer, 0, number_of_sums * sizeof(u64));
         compute_pass_descriptor_queue.AddBuffer(dst_buffer, 0, number_of_sums * sizeof(u64));
         compute_pass_descriptor_queue.AddBuffer(accumulation_buffer, 0, sizeof(u64));

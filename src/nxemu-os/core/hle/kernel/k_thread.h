@@ -691,6 +691,10 @@ public:
         return this->RemoveWaiterByKey(out_has_waiters, key, true);
     }
 
+    /// Finds a user lock that still has waiters on this thread. Used by the abandoned lock
+    /// handoff, see KConditionVariable::ReleaseAbandonedUserLocks.
+    bool FindHeldUserLockKey(KProcessAddress * out_key);
+
     KProcessAddress GetAddressKey() const
     {
         return m_address_key;

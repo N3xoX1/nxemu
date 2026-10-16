@@ -66,9 +66,12 @@ public:
         if (revision != dependencies.Revision() || shader_hashes != hashes) {
             shader_hashes = hashes;
             revision = dependencies.Revision();
+            extra_mask = 0;
             for (size_t stage = 0; stage < NumStages; ++stage) {
-                const u32 mask = (dependencies.Mask(hashes[stage + 1]) |
-                    (stage == 0 ? dependencies.Mask(hashes[0]) : 0)) & ((1U << NumBanks) - 1);
+                const u32 full_mask = dependencies.Mask(hashes[stage + 1]) |
+                    (stage == 0 ? dependencies.Mask(hashes[0]) : 0);
+                extra_mask |= full_mask & ~((1U << NumBanks) - 1);
+                const u32 mask = full_mask & ((1U << NumBanks) - 1);
                 if (mask != stage_masks[stage]) {
                     sizes[stage].fill(0);
                     stage_masks[stage] = mask;
@@ -84,9 +87,13 @@ public:
             }
         }
     }
+
+    // Dependency bits above the bank range, combined over the current stages.
+    u32 ExtraMask() const noexcept { return extra_mask; }
 private:
     std::array<u64, NumStages + 1> shader_hashes{};
     std::array<u32, NumStages> stage_masks{};
+    u32 extra_mask{};
     u64 revision{std::numeric_limits<u64>::max()};
 };
 

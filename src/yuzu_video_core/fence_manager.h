@@ -15,6 +15,7 @@
 #include <queue>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/parallel_readback_copy.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/thread.h"
@@ -266,6 +267,9 @@ private:
     }
 
     void ReleaseThreadFunc(std::stop_token stop_token) {
+        // Join readback helpers before exiting the DLL thread, outside CRT TLS
+        // destruction and its Windows loader lock. All early returns unwind it.
+        Common::ReadbackCopyContext readback_context;
         // Cleanup
         Common::SetCurrentThreadName("GPUFencingThread");
         Common::SetCurrentThreadPriority(Common::ThreadPriority::High);
