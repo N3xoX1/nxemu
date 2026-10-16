@@ -4,6 +4,7 @@
 #pragma once
 
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
+#include "yuzu_common/readback_reference.h"
 #include "yuzu_video_core/buffer_cache/memory_tracker_base.h"
 #include "yuzu_video_core/buffer_cache/usage_tracker.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -15,15 +16,17 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
-
 class Device;
 class DescriptorPool;
 class Scheduler;
 struct HostVertexBinding;
 
 class BufferCacheRuntime;
+struct ReadbackShadow;
+struct ReadbackShadowBudget;
 
 class Buffer : public VideoCommon::BufferBase {
+    friend class BufferCacheRuntime;
 public:
     explicit Buffer(BufferCacheRuntime&, VideoCommon::NullBufferParams null_params);
     explicit Buffer(BufferCacheRuntime& runtime, VAddr cpu_addr_, u64 size_bytes_);
@@ -63,6 +66,7 @@ private:
     std::vector<BufferView> views;
     VideoCommon::UsageTracker tracker;
     bool is_null{};
+    std::shared_ptr<ReadbackShadow> readback_shadow;
 };
 
 class QuadArrayIndexBuffer;
@@ -82,6 +86,9 @@ public:
                                 DescriptorPool& descriptor_pool);
 
     void TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept;
+
+    /// Notes that the commands being recorded write to a buffer.
+    void MarkHostWrite(const Buffer& buffer);
 
     void Finish();
 
@@ -108,6 +115,14 @@ public:
                     bool can_reorder_upload = false);
 
     void PostCopyBarrier();
+
+    bool CanDifferentialReadback(const Buffer& buffer, const VideoCommon::BufferCopy& copy) const;
+    bool DifferentialReadback(Buffer& buffer, const StagingBufferRef& data,
+                              const StagingBufferRef& flags, const VideoCommon::BufferCopy& copy,
+                              u64 flag_offset);
+    bool HasReadbackReferences() const noexcept { return has_readback_references; }
+    void InvalidateReadbackReference(Buffer& buffer, u64 offset, u64 size);
+    std::shared_ptr<Common::ReadbackCpuReference> GetReadbackCpuReference(const Buffer& buffer) const;
 
     void ClearBuffer(VkBuffer dest_buffer, u32 offset, size_t size, u32 value);
 
@@ -166,6 +181,12 @@ private:
 
     std::unique_ptr<Uint8Pass> uint8_pass;
     QuadIndexedPass quad_index_pass;
+    std::unique_ptr<ReadbackDeltaPass> readback_delta_pass;
+    std::shared_ptr<ReadbackShadowBudget> readback_shadow_budget;
+    ComputePassDescriptorQueue& readback_descriptor_queue;
+    DescriptorPool& readback_descriptor_pool;
+    bool differential_readback_enabled{true};
+    bool has_readback_references{};
 };
 
 struct BufferCacheParams {
@@ -185,5 +206,4 @@ struct BufferCacheParams {
 };
 
 using BufferCache = VideoCommon::BufferCache<BufferCacheParams>;
-
 } // namespace Vulkan

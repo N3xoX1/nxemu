@@ -12,9 +12,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_surface.h"
 
 namespace Vulkan {
-
 namespace {
-
 bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat format) {
     const VkFormatProperties props{physical_device.GetFormatProperties(format)};
     return (props.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT);
@@ -88,7 +86,6 @@ bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat form
             },
     };
 }
-
 } // Anonymous namespace
 
 PresentManager::PresentManager(const vk::Instance& instance_,
@@ -329,8 +326,10 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
         RecreateSwapchain(frame);
     }
 
-    while (swapchain.AcquireNextImage()) {
-        RecreateSwapchain(frame);
+    {
+        while (swapchain.AcquireNextImage()) {
+            RecreateSwapchain(frame);
+        }
     }
 
     const vk::CommandBuffer cmdbuf{frame->cmdbuf};
@@ -479,5 +478,4 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
     // Present
     swapchain.Present(render_semaphore);
 }
-
 } // namespace Vulkan

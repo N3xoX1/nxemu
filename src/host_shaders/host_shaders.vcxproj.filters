@@ -163,6 +163,9 @@
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_quad_indexed.comp">
       <Filter>comp</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_readback_delta.comp">
+      <Filter>comp</Filter>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_turbo_mode.comp">
       <Filter>comp</Filter>
     </CustomBuild>

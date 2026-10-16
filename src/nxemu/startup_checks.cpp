@@ -410,6 +410,14 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
 
         PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)(GetProcAddress(library, "vkGetInstanceProcAddr"));
 
+        // The capture layer retains live instances for its later state snapshot.
+        // Destroy this probe before unloading its Vulkan dispatch functions.
+        const auto vkDestroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(
+            vkGetInstanceProcAddr(instance, "vkDestroyInstance"));
+        SCOPE_EXIT {
+            vkDestroyInstance(instance, nullptr);
+        };
+
         std::vector<VkPhysicalDevice> physical_devices = EnumeratePhysicalDevices(instance, vkGetInstanceProcAddr);
         PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
         PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR = (PFN_vkDestroySurfaceKHR)vkGetInstanceProcAddr(instance, "vkDestroySurfaceKHR");
@@ -430,6 +438,12 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
         {
             throw std::runtime_error("Failed to create surface");
         }
+        SCOPE_EXIT {
+            if (surface != VK_NULL_HANDLE && vkDestroySurfaceKHR)
+            {
+                vkDestroySurfaceKHR(instance, surface, nullptr);
+            }
+        };
 
         PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties)vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties");
         PFN_vkGetPhysicalDeviceProperties2 vkGetPhysicalDeviceProperties2 = (PFN_vkGetPhysicalDeviceProperties2)vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2");
@@ -471,10 +485,6 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
             }
             bool has_broken_compute = CheckBrokenCompute(driver_properties.driverID, properties2.properties.driverVersion);
             records.push_back(VkDeviceRecord(name, present_modes, has_broken_compute));
-        }
-        if (surface != VK_NULL_HANDLE && vkDestroySurfaceKHR)
-        {
-            vkDestroySurfaceKHR(instance, surface, nullptr);
         }
     }
     catch (const std::runtime_error& e)

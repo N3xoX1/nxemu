@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#version 450
+layout(local_size_x=128) in;
+layout(set=0,binding=0,std430) readonly buffer Source { uint source_data[]; };
+layout(set=0,binding=1,std430) buffer Reference { uint reference_data[]; };
+layout(set=0,binding=2,std430) writeonly buffer Destination { uint destination_data[]; };
+layout(set=0,binding=3,std430) writeonly buffer Flags { uint changed_blocks[]; };
+layout(push_constant) uniform Parameters {
+    uint words;
+    uint source_offset;
+    uint destination_offset;
+    uint flag_offset;
+    uvec4 valid_mask;
+} params;
+shared uint changed;
+void main() {
+    const uint block=gl_WorkGroupID.x;
+    const uint begin=block*16384u;
+    const bool valid=(params.valid_mask[block/32u]&(1u<<(block%32u)))!=0;
+    if(gl_LocalInvocationIndex==0)changed=valid?0u:1u;
+    barrier();
+    if(valid) {
+        for(uint i=gl_LocalInvocationIndex;i<16384u&&begin+i<params.words;i+=128u) {
+            const uint at=params.source_offset+begin+i;
+            if(source_data[at]!=reference_data[at]) {atomicOr(changed,1u);break;}
+        }
+    }
+    // Finish every reference read in this chunk before updating it in place.
+    barrier();
+    if(changed!=0) {
+        for(uint i=gl_LocalInvocationIndex;i<16384u&&begin+i<params.words;i+=128u) {
+            const uint value=source_data[params.source_offset+begin+i];
+            destination_data[params.destination_offset+begin+i]=value;
+            reference_data[params.source_offset+begin+i]=value;
+        }
+    }
+    if(gl_LocalInvocationIndex==0)changed_blocks[params.flag_offset+block]=changed;
+}

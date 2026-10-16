@@ -139,11 +139,12 @@ void MaxwellDMA::Launch() {
                 }
             } else {
                 if (!accelerate.BufferCopy(regs.offset_in, regs.offset_out, regs.line_length_in)) {
-                    Tegra::Memory::GpuGuestMemoryScoped<
-                        u8, GuestMemoryFlags::SafeReadCachedWrite>
-                        tmp_write_buffer(memory_manager, regs.offset_in, regs.line_length_in,
-                                         &read_buffer);
-                    tmp_write_buffer.SetAddressAndSize(regs.offset_out, regs.line_length_in);
+                    // Snapshot the source before writing. GPU virtual ranges can alias physical
+                    // memory, and a direct guest span would otherwise memcpy overlapping bytes.
+                    read_buffer.resize_destructive(regs.line_length_in);
+                    memory_manager.ReadBlock(regs.offset_in, read_buffer.data(), regs.line_length_in);
+                    memory_manager.WriteBlockCached(regs.offset_out, read_buffer.data(),
+                                                    regs.line_length_in);
                 }
             }
         }

@@ -153,6 +153,20 @@ union TextureHandle {
 };
 static_assert(sizeof(TextureHandle) == 4, "TextureHandle has wrong size");
 
+template <typename Descriptor>
+[[nodiscard]] constexpr u32 ComposeTextureHandle(const Descriptor& desc, u32 primary,
+                                                u32 secondary = 0) {
+    if constexpr (requires { desc.has_secondary; }) {
+        const u32 raw = desc.has_secondary
+                            ? (primary << desc.shift_left) |
+                                  (secondary << desc.secondary_shift_left)
+                            : primary;
+        return raw | desc.handle_or_bits;
+    } else {
+        return primary;
+    }
+}
+
 [[nodiscard]] inline std::pair<u32, u32> TexturePair(u32 raw, bool via_header_index) {
     if (via_header_index) {
         return {raw, raw};

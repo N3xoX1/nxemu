@@ -183,6 +183,7 @@ struct TextureBufferDescriptor {
     u32 secondary_shift_left;
     u32 count;
     u32 size_shift;
+    u32 handle_or_bits{};
 
     auto operator<=>(const TextureBufferDescriptor&) const = default;
 };
@@ -215,6 +216,10 @@ struct TextureDescriptor {
     u32 secondary_shift_left;
     u32 count;
     u32 size_shift;
+    /// Sampler-less array indexed by the TIC index of a runtime handle.
+    bool is_direct{};
+    /// Constant bits combined with the cbuf handle, including an immediate sampler index.
+    u32 handle_or_bits{};
 
     auto operator<=>(const TextureDescriptor&) const = default;
 };
@@ -230,12 +235,18 @@ struct ImageDescriptor {
     u32 cbuf_offset;
     u32 count;
     u32 size_shift;
+    bool is_direct;
+    bool is_signed{};
 
     auto operator<=>(const ImageDescriptor&) const = default;
 };
 using ImageDescriptors = boost::container::small_vector<ImageDescriptor, 4>;
 
 struct Info {
+    u32 runtime_image_write_mask_words{};
+    /// Size of the sampler array combined with direct texture descriptors. Zero when unused.
+    u32 runtime_sampler_count{};
+    bool runtime_samplers_linked{};
     static constexpr size_t MAX_INDIRECT_CBUFS{14};
     static constexpr size_t MAX_CBUFS{18};
     static constexpr size_t MAX_SSBOS{32};

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <cstring>
 #include <span>
 
 #include <boost/container/static_vector.hpp>
@@ -293,14 +294,23 @@ std::pair<VkBuffer, VkDeviceSize> VtgScratchAllocator::Allocate(VkDeviceSize siz
     static constexpr VkDeviceSize CHUNK_SIZE = 4ULL << 20;
     size = Common::AlignUp(size, alignment);
     const u64 current_tick{scheduler.CurrentTick()};
-    if (buffer == VK_NULL_HANDLE || tick != current_tick || used + size > capacity) {
-        // A chunk is only safe to write until the tick that requested it completes
+    if (tick != current_tick) {
+        // A draw may be recorded on the tick following the one its stages ran on, the chunks are
+        // kept from being reused until that tick completes
+        for (StagingBufferRef& chunk : chunks) {
+            staging_pool.FreeDeferred(chunk);
+        }
+        chunks.clear();
+        buffer = VK_NULL_HANDLE;
+        tick = current_tick;
+    }
+    if (buffer == VK_NULL_HANDLE || used + size > capacity) {
         capacity = std::max(CHUNK_SIZE, size);
-        const StagingBufferRef ref{staging_pool.Request(capacity, MemoryUsage::DeviceLocal)};
+        const StagingBufferRef ref{staging_pool.Request(capacity, MemoryUsage::DeviceLocal, true)};
+        chunks.push_back(ref);
         buffer = ref.buffer;
         base = ref.offset;
         used = 0;
-        tick = current_tick;
     }
     const VkDeviceSize offset{base + used};
     used += size;
@@ -386,7 +396,8 @@ GraphicsPipeline::GraphicsPipeline(
         }
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
-        num_textures += Shader::NumDescriptors(info->texture_descriptors);
+        num_textures += NumCombinedSamplers(*info);
+        uses_texture_table |= info->runtime_sampler_count != 0;
         num_descriptor_entries += NumDescriptorUpdateEntries(*info);
         num_image_elements += Shader::NumDescriptors(info->texture_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_buffer_descriptors);
@@ -408,7 +419,7 @@ GraphicsPipeline::GraphicsPipeline(
             stage.guest_info = stage.info;
             stage.guest_info.storage_buffers_descriptors.resize(guest_storage_buffers[index]);
             // The compute stages retain guest images absent from the generated vertex shader.
-            num_textures += Shader::NumDescriptors(stage.guest_info.texture_descriptors);
+            num_textures += NumCombinedSamplers(stage.guest_info);
             num_image_elements += Shader::NumDescriptors(stage.guest_info.texture_buffer_descriptors);
             num_image_elements += Shader::NumDescriptors(stage.guest_info.image_buffer_descriptors);
             num_image_elements += Shader::NumDescriptors(stage.guest_info.texture_descriptors);
@@ -457,7 +468,21 @@ GraphicsPipeline::GraphicsPipeline(
                 descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos);
             }
             const VkDescriptorSetLayout set_layout{*descriptor_set_layout};
-            pipeline_layout = builder.CreatePipelineLayout(set_layout);
+            if (builder.HasTextureTable()) {
+                const auto table_bindings{builder.TextureTableBindings()};
+                texture_table_bindings.assign(table_bindings.begin(), table_bindings.end());
+                DescriptorBankInfo bank{};
+                for (const auto& binding : table_bindings) {
+                    (binding.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ? bank.samplers
+                                                                          : bank.sampled_images) +=
+                        binding.descriptorCount;
+                }
+                bank.score = static_cast<s32>(bank.sampled_images + bank.samplers);
+                texture_table_set_layout = builder.CreateTextureTableSetLayout();
+                texture_table_allocator =
+                    descriptor_pool.Allocator(*texture_table_set_layout, bank);
+            }
+            pipeline_layout = builder.CreatePipelineLayout(set_layout, *texture_table_set_layout);
             descriptor_update_template =
                 builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
 
@@ -580,22 +605,20 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
             auto secondary = primary;
             bool has_secondary{};
-            u32 secondary_offset{}, primary_shift{}, secondary_shift{};
+            u32 secondary_offset{};
             if constexpr (requires { desc.has_secondary; }) {
                 if (desc.has_secondary) {
                     ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
                     secondary = bind_cbuf(desc.secondary_cbuf_index, desc.count);
                     has_secondary = true;
                     secondary_offset = desc.secondary_cbuf_offset;
-                    primary_shift = desc.shift_left;
-                    secondary_shift = desc.secondary_shift_left;
                 }
             }
             return [=](u32 index) {
                 const u32 delta = index << desc.size_shift;
                 const u32 raw = primary.Read(desc.cbuf_offset + delta);
-                return TexturePair(has_secondary ? (raw << primary_shift) |
-                                    (secondary.Read(secondary_offset + delta) << secondary_shift) : raw,
+                return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                       desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
                                    via_header_index);
             };
         }};
@@ -621,6 +644,13 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             }
         }
         for (const auto& desc : info.texture_descriptors) {
+            if (desc.is_direct) {
+                // The shader indexes the texture table itself
+                for (u32 index = 0; index < desc.count; ++index) {
+                    views[view_index++] = {.index = index, .is_table = true};
+                }
+                continue;
+            }
             const auto read_handle = prepare_handle(desc);
             for (u32 index = 0; index < desc.count; ++index) {
                 const auto handle{read_handle(index)};
@@ -713,6 +743,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     buffer_cache.BindHostGeometryBuffers(is_indexed);
 
     guest_descriptor_queue.Acquire(num_descriptor_entries);
+    texture_table_scratch.clear();
 
     RescalingPushConstant rescaling;
     RenderAreaPushConstant render_area;
@@ -721,7 +752,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     const auto prepare_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
         buffer_cache.BindHostStageBuffers(stage);
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage], rescaling,
-                             samplers_it, views_it);
+                             samplers_it, views_it, &texture_table_scratch);
         const auto& info{stage_infos[0]};
         if (info.uses_render_area) {
             render_area.uses_render_area = true;
@@ -802,8 +833,10 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                     const u32 lhs_raw{gpu_memory->Read<u32>(addr) << desc.shift_left};
                     const u32 rhs_raw{gpu_memory->Read<u32>(separate_addr)
                                       << desc.secondary_shift_left};
-                    return TexturePair(lhs_raw | rhs_raw, via_header_index);
+                    return TexturePair(lhs_raw | rhs_raw | desc.handle_or_bits, via_header_index);
                 }
+                return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                       desc, gpu_memory->Read<u32>(addr)), via_header_index);
             }
             return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
         }};
@@ -824,6 +857,12 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             add_image(desc, false);
         }
         for (const auto& desc : info.texture_descriptors) {
+            if (desc.is_direct) {
+                for (u32 index = 0; index < desc.count; ++index) {
+                    views[view_index++] = {.index = index, .is_table = true};
+                }
+                continue;
+            }
             for (u32 index = 0; index < desc.count; ++index) {
                 const auto handle{read_handle(desc, index)};
                 views[view_index++] = {handle.first};
@@ -984,6 +1023,9 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                                [this] { return build_complete.load(std::memory_order_acquire); });
         });
     }
+    // Commands on the upload buffer run before the ones of the execution context. The stages are
+    // recorded there, leaving the render pass open, unless they read what these commands write.
+    bool reorder{!videoSettings.disable_buffer_reorder};
     const VideoCommon::SamplerId* samplers_it{samplers.data()};
     const VideoCommon::ImageViewInOut* views_it{views.data()};
     const auto run_stage{[&](size_t index, size_t guest_stage,
@@ -994,6 +1036,17 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
         for (const VtgState::Buffer& buffer : buffers) {
             guest_descriptor_queue.AddBuffer(buffer.buffer, buffer.offset, buffer.size);
         }
+        const bool is_rescaling{!stage.guest_info.texture_descriptors.empty() ||
+                                !stage.guest_info.image_descriptors.empty()};
+        const bool reads_images{is_rescaling ||
+                                !stage.guest_info.texture_buffer_descriptors.empty() ||
+                                !stage.guest_info.image_buffer_descriptors.empty()};
+        // Only buffers have been added to the queue when the stage has no images
+        reorder = reorder && !reads_images &&
+                  std::ranges::none_of(guest_descriptor_queue.Entries(),
+                                       [this](const DescriptorUpdateEntry& entry) {
+                                           return scheduler.IsBufferWritten(entry.buffer.buffer);
+                                       });
         buffer_cache.BindHostStageTextureBuffers(guest_stage);
         RescalingPushConstant stage_rescaling;
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage.guest_info,
@@ -1002,14 +1055,30 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             return;
         }
         const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
-        const bool is_rescaling{!stage.guest_info.texture_descriptors.empty() ||
-                                !stage.guest_info.image_descriptors.empty()};
-        scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([this, &stage, descriptor_data, is_rescaling,
-                          rescaling_data = stage_rescaling.Data(),
-                          groups = invocations / VTG_LOCAL_SIZE](vk::CommandBuffer cmdbuf) {
+        if (!reorder) {
+            scheduler.RequestOutsideRenderPassOperationContext();
+        }
+        scheduler.RecordWithUploadBuffer([this, &stage, descriptor_data, is_rescaling, reorder,
+                                          rescaling_data = stage_rescaling.Data(),
+                                          groups = invocations / VTG_LOCAL_SIZE](
+                                             vk::CommandBuffer main_cmdbuf,
+                                             vk::CommandBuffer upload_cmdbuf) {
             if (!IsBuilt()) {
                 return;
+            }
+            const vk::CommandBuffer cmdbuf{reorder ? upload_cmdbuf : main_cmdbuf};
+            if (reorder) {
+                // Moving the stage ahead also moves it ahead of guest barriers recorded in this
+                // context. Shader writes from previous submissions have no barrier of their own,
+                // order them explicitly. Writes of this context are excluded by IsBufferWritten.
+                static constexpr VkMemoryBarrier barrier{
+                    .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                    .pNext = nullptr,
+                    .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                };
+                cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, barrier);
             }
             cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline);
             if (is_rescaling) {
@@ -1024,17 +1093,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline_layout, 0,
                                       descriptor_set, nullptr);
             cmdbuf.Dispatch(groups, 1, 1);
-            static constexpr VkMemoryBarrier barrier{
-                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                .pNext = nullptr,
-                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDEX_READ_BIT,
-            };
-            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
-                                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                                   0, barrier);
+            Scheduler::ComputeMemoryBarrier(cmdbuf);
         });
     }};
     run_stage(VtgPipelineInfo::VERTEX, 0, vertex_buffers, vertex_invocations);
@@ -1045,11 +1104,18 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                                            u64{output_vertices} * state.geometry_stride *
                                                sizeof(u32)};
         const VkDeviceSize sentinel_size{u64{state.geometry_stride} * sizeof(u32)};
-        scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([index_buffer = index_buffer, index_offset = index_offset, index_size,
-                          unused_index, geometry_buffer = geometry_buffer, sentinel_offset,
-                          sentinel_size, emits_points](vk::CommandBuffer cmdbuf) {
+        // This has to precede the geometry stage, which may still leave the upload buffer
+        if (!reorder) {
+            scheduler.RequestOutsideRenderPassOperationContext();
+        }
+        scheduler.RecordWithUploadBuffer([index_buffer = index_buffer, index_offset = index_offset,
+                                          index_size, unused_index,
+                                          geometry_buffer = geometry_buffer, sentinel_offset,
+                                          sentinel_size, emits_points,
+                                          reorder](vk::CommandBuffer main_cmdbuf,
+                                                   vk::CommandBuffer upload_cmdbuf) {
             static constexpr u32 QUIET_NAN = 0x7fc00000;
+            const vk::CommandBuffer cmdbuf{reorder ? upload_cmdbuf : main_cmdbuf};
             cmdbuf.FillBuffer(index_buffer, index_offset, index_size, unused_index);
             if (emits_points) {
                 cmdbuf.FillBuffer(geometry_buffer, sentinel_offset, sentinel_size, QUIET_NAN);
@@ -1069,12 +1135,13 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
     // The generated vertex shader reads the vertices written by the geometry stage
     guest_descriptor_queue.Acquire(num_descriptor_entries);
     guest_descriptor_queue.AddBuffer(geometry_buffer, geometry_offset, geometry_size);
+    texture_table_scratch.clear();
 
     RescalingPushConstant rescaling;
     RenderAreaPushConstant render_area;
     buffer_cache.BindHostStageBuffers(FRAGMENT_STAGE);
     PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[FRAGMENT_STAGE],
-                         rescaling, samplers_it, views_it);
+                         rescaling, samplers_it, views_it, &texture_table_scratch);
     if (stage_infos[FRAGMENT_STAGE].uses_render_area) {
         render_area.uses_render_area = true;
         render_area.words = {static_cast<float>(regs.surface_clip.width),
@@ -1126,45 +1193,138 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
     const bool bind_pipeline{scheduler.UpdateGraphicsPipeline(this)};
     const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
-    scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
-                      is_rescaling, update_rescaling,
-                      uses_render_area = render_area.uses_render_area,
-                      render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
-        if (!IsBuilt()) {
-            return;
+    if (uses_texture_table) {
+        // A committed set can be recycled once its tick completes, so it is not kept across
+        // ticks. Within a tick, draws share it for as long as the tables hold the same handles.
+        const u64 tick{scheduler.CurrentTick()};
+        const auto same_entry{[](const VkDescriptorImageInfo& lhs, const VkDescriptorImageInfo& rhs) {
+            return lhs.sampler == rhs.sampler && lhs.imageView == rhs.imageView;
+        }};
+        if (!texture_table_data || texture_table_tick != tick ||
+            !std::ranges::equal(texture_table_scratch, *texture_table_data, same_entry)) {
+            texture_table_data =
+                std::make_shared<const std::vector<VkDescriptorImageInfo>>(texture_table_scratch);
+            texture_table_tick = tick;
+            ++texture_table_version;
         }
-        if (bind_pipeline) {
-            cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
-        }
-        cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
-                             RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
-                             rescaling_data.data());
-        if (update_rescaling || bind_pipeline) {
-            const f32 config_down_factor{videoSettings.resolution_info.down_factor};
-            const f32 scale_down_factor{is_rescaling ? config_down_factor : 1.0f};
+    }
+    if (!uses_texture_table) {
+        scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
+                          is_rescaling, update_rescaling,
+                          uses_render_area = render_area.uses_render_area,
+                          render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
+            if (!IsBuilt()) {
+                return;
+            }
+            if (bind_pipeline) {
+                cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+            }
+            static_assert(RESCALING_LAYOUT_DOWN_FACTOR_OFFSET ==
+                          RESCALING_LAYOUT_WORDS_OFFSET + sizeof(rescaling_data));
+            static_assert(RENDERAREA_LAYOUT_OFFSET == RESCALING_LAYOUT_WORDS_OFFSET);
+            static_assert(sizeof(render_area_data) <= sizeof(rescaling_data));
+            struct ScalingData {
+                std::array<u32, sizeof(rescaling_data) / sizeof(u32)> words;
+                f32 down_factor;
+            };
+            static_assert(offsetof(ScalingData, down_factor) == sizeof(rescaling_data));
+            const bool update_factor{update_rescaling || bind_pipeline};
+            ScalingData scaling_data{
+                rescaling_data,
+                update_factor && is_rescaling ? videoSettings.resolution_info.down_factor : 1.0f};
+            if (uses_render_area) {
+                std::memcpy(scaling_data.words.data(), render_area_data.data(),
+                            sizeof(render_area_data));
+            }
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
-                                 RESCALING_LAYOUT_DOWN_FACTOR_OFFSET, sizeof(scale_down_factor),
-                                 &scale_down_factor);
-        }
-        if (uses_render_area) {
+                                 RESCALING_LAYOUT_WORDS_OFFSET,
+                                 sizeof(rescaling_data) + (update_factor ? sizeof(f32) : 0),
+                                 &scaling_data);
+            // An empty set 0 has a layout but nothing to update
+            if (!descriptor_update_template) {
+                return;
+            }
+            if (uses_push_descriptor) {
+                cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
+                                                        0, descriptor_data);
+            } else {
+                const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
+                const vk::Device& dev{device.GetLogical()};
+                dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
+                cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
+                                          descriptor_set, nullptr);
+            }
+        });
+    } else {
+        scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
+                          is_rescaling, update_rescaling,
+                          table_data = uses_texture_table ? texture_table_data : nullptr,
+                          table_version = texture_table_version,
+                          uses_render_area = render_area.uses_render_area,
+                          render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
+            if (!IsBuilt()) {
+                return;
+            }
+            if (bind_pipeline) {
+                cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+            }
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
-                                 RENDERAREA_LAYOUT_OFFSET, sizeof(render_area_data),
-                                 &render_area_data);
-        }
-        if (!descriptor_set_layout) {
-            return;
-        }
-        if (uses_push_descriptor) {
-            cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
-                                                    0, descriptor_data);
-        } else {
-            const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
-            const vk::Device& dev{device.GetLogical()};
-            dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
-            cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
-                                      descriptor_set, nullptr);
-        }
-    });
+                                 RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
+                                 rescaling_data.data());
+            if (update_rescaling || bind_pipeline) {
+                const f32 config_down_factor{videoSettings.resolution_info.down_factor};
+                const f32 scale_down_factor{is_rescaling ? config_down_factor : 1.0f};
+                cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
+                                     RESCALING_LAYOUT_DOWN_FACTOR_OFFSET, sizeof(scale_down_factor),
+                                     &scale_down_factor);
+            }
+            if (uses_render_area) {
+                cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
+                                     RENDERAREA_LAYOUT_OFFSET, sizeof(render_area_data),
+                                     &render_area_data);
+            }
+            if (table_data) {
+                if (texture_table_set_version != table_version) {
+                    texture_table_set = texture_table_allocator.Commit();
+                    boost::container::small_vector<VkWriteDescriptorSet, 4> writes;
+                    const VkDescriptorImageInfo* entries{table_data->data()};
+                    for (const auto& binding : texture_table_bindings) {
+                        writes.push_back({
+                            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                            .pNext = nullptr,
+                            .dstSet = texture_table_set,
+                            .dstBinding = binding.binding,
+                            .dstArrayElement = 0,
+                            .descriptorCount = binding.descriptorCount,
+                            .descriptorType = binding.descriptorType,
+                            .pImageInfo = entries,
+                            .pBufferInfo = nullptr,
+                            .pTexelBufferView = nullptr,
+                        });
+                        entries += binding.descriptorCount;
+                    }
+                    device.GetLogical().UpdateDescriptorSets(writes, {});
+                    texture_table_set_version = table_version;
+                }
+                cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 1,
+                                          texture_table_set, nullptr);
+            }
+            // An empty set 0 has a layout but nothing to update
+            if (!descriptor_update_template) {
+                return;
+            }
+            if (uses_push_descriptor) {
+                cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
+                                                        0, descriptor_data);
+            } else {
+                const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
+                const vk::Device& dev{device.GetLogical()};
+                dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
+                cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
+                                          descriptor_set, nullptr);
+            }
+        });
+    }
     if (bind_pipeline && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
         key.state.extended_dynamic_state_3_blend != 0) {
         std::array<VkBool32, Maxwell::NumRenderTargets> setup_enables{};
@@ -1618,5 +1778,4 @@ void GraphicsPipeline::Validate() {
     }
     ASSERT(num_images == num_image_elements);
 }
-
 } // namespace Vulkan

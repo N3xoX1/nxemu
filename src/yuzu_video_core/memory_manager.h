@@ -256,6 +256,7 @@ private:
     // Publish catalog emptiness under guard so empty lookups can avoid the mutex.
     std::atomic<bool> has_sparse_regions{};
     std::atomic<u64> mapping_generation{};
+    std::atomic<u32> mapping_updates_in_progress{};
     Common::VirtualBuffer<u32> big_page_table_dev;
 
     std::vector<u64> big_page_continuous;

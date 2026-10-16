@@ -46,7 +46,6 @@ namespace Vulkan
 {
 namespace
 {
-
 constexpr VkExtent2D CaptureImageSize{
     .width = VideoCore::Capture::LinearWidth,
     .height = VideoCore::Capture::LinearHeight,
@@ -94,7 +93,6 @@ std::string BuildCommaSeparatedExtensions(
 {
     return fmt::format("{}", fmt::join(available_extensions, ","));
 }
-
 } // Anonymous namespace
 
 Device CreateDevice(const vk::Instance & instance, const vk::InstanceDispatch & dld,
@@ -701,5 +699,4 @@ void RendererVulkan::RenderAppletCaptureLayer(std::span<const Tegra::Framebuffer
 
     blit_applet.DrawToFrame(rasterizer, &applet_frame, framebuffers, VideoCore::Capture::Layout, 1, CaptureFormat);
 }
-
 } // namespace Vulkan

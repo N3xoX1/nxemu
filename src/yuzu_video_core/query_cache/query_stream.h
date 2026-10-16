@@ -37,6 +37,11 @@ public:
         /* Do Nothing */
     }
 
+    // Occlusion counters can accumulate one host query per render pass.
+    virtual void NotifyRenderPass(bool /*begin*/) {
+        /* Do Nothing */
+    }
+
     virtual bool HasPendingSync() const {
         return false;
     }
