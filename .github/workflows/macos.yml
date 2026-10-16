@@ -21,6 +21,8 @@ jobs:
       CCACHE_MAXSIZE: 2G
       CCACHE_COMPILERCHECK: content
     steps:
+      - name: Fetch dependencies in parallel
+        run: git config --global submodule.fetchJobs 4
       - uses: actions/checkout@v4
         # act uses the current working tree, including uncommitted changes.
         if: ${{ !env.ACT }}
@@ -47,6 +49,7 @@ jobs:
           esac
           mkdir -p "$build_directory"
           {
+            echo "NXEMU_BUILD_JOBS=${NXEMU_BUILD_JOBS:-$(sysctl -n hw.logicalcpu)}"
             echo "NXEMU_MOLTENVK_CACHE_DIR=$build_directory/moltenvk-cache"
             echo "NXEMU_EFFECTIVE_BUILD_DIRECTORY=$build_directory"
             echo "CCACHE_DIR=$build_directory/ccache"

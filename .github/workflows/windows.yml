@@ -21,6 +21,8 @@ jobs:
       SCCACHE_IDLE_TIMEOUT: '0'
       NXEMU_BUILD_JOBS: '4'
     steps:
+      - name: Fetch dependencies in parallel
+        run: git config --global submodule.fetchJobs 4
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -67,10 +69,21 @@ jobs:
           key: windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
             windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-
+      # MSVC validates these intermediate optimization results at link time.
+      # Keep them separate so existing sccache archives remain reusable.
+      - name: Restore CPU link cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/windows-x64-ninja/modules/x64/Release/cpu/nxemu-cpu.iobj
+            build/windows-x64-ninja/modules/x64/Release/cpu/nxemu-cpu.ipdb
+          key: windows-cpu-ltcg-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('CMakeLists.txt', 'src/nxemu-cpu/CMakeLists.txt', 'src/cmake/modules/nxemu_linker.cmake') }}-${{ github.sha }}
+          restore-keys: |
+            windows-cpu-ltcg-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('CMakeLists.txt', 'src/nxemu-cpu/CMakeLists.txt', 'src/cmake/modules/nxemu_linker.cmake') }}-
       - name: Reset compiler cache statistics
         run: sccache --zero-stats
       - name: Build
-        run: ./src/script/build_windows.ps1 Release -CMakeArguments @('-DNXEMU_USE_SCCACHE=ON', '-DNXEMU_USE_CCACHE=OFF', '-DNXEMU_BUILD_GAME_SETTINGS_TESTS=ON', '-DNXEMU_BUILD_LIBRARY_CACHE_TESTS=ON')
+        run: ./src/script/build_windows.ps1 Release -CMakeArguments @('-DCMAKE_CONFIGURATION_TYPES=Release', '-DNXEMU_USE_SCCACHE=ON', '-DNXEMU_USE_CCACHE=OFF', '-DNXEMU_BUILD_GAME_SETTINGS_TESTS=ON', '-DNXEMU_BUILD_LIBRARY_CACHE_TESTS=ON')
       - name: Test
         run: |
           # Each step starts a fresh shell; initialise MSVC before further builds.
