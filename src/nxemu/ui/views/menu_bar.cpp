@@ -19,6 +19,9 @@ std::string LabelRml(const std::string & label)
     return Rml::StringUtilities::EncodeRml(text);
 }
 
+// A popup is as wide as its longest item. Its anchor is what gets positioned:
+// placed directly, the popup could be no wider than the title or the item
+// that opens it.
 void AppendPopup(std::string & rml, const std::vector<MenuItem> & items)
 {
     rml += "<div class=\"menu-anchor\">" + MenuPopupRml(items) + "</div>";
@@ -83,6 +86,7 @@ std::string MenuPopupRml(const std::vector<MenuItem> & items)
     {
         checks = checks || item.kind == MenuItem::Kind::Check || item.kind == MenuItem::Kind::Choice;
     }
+    // Only a popup with items to tick keeps a column for the marks.
     std::string rml = checks ? "<div class=\"menu-popup has-checks\">" : "<div class=\"menu-popup\">";
     for (const MenuItem & item : items)
     {
@@ -273,6 +277,7 @@ void MenuBar::OnClick(Rml::Event & event)
 
 void MenuBar::OnMouseOver(Rml::Event & event)
 {
+    // Once a menu is open, moving along the bar switches menus without a click.
     Rml::Element * menu = UiEvents::ClosestWithClass(event.GetTargetElement(), "menu");
     if (m_openMenu != nullptr && menu != nullptr)
     {

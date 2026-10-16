@@ -1,8 +1,13 @@
+// Layers, filters and gradients: everything the renderer draws by reading
+// back what it has already drawn.
 #include "ui_renderer.h"
 #include "ui_renderer_internal.h"
 #include <RmlUi/Core/DecorationTypes.h>
 #include <RmlUi/Core/Dictionary.h>
 #include <RmlUi/Core/Log.h>
+#include <RmlUi/Core/Math.h>
+#include <algorithm>
+#include <cmath>
 
 #include <ui_shaders/blend_mask_frag_spv.h>
 #include <ui_shaders/blur_frag_spv.h>
@@ -14,6 +19,8 @@
 #include <ui_shaders/gradient_frag_spv.h>
 #include <ui_shaders/passthrough_frag_spv.h>
 #include <ui_shaders/texture_frag_spv.h>
+
+static_assert(sizeof(UiRendererInternal::GeometryConstants) <= UiRendererInternal::kConstantSize);
 
 enum class FilterType
 {
@@ -40,6 +47,7 @@ struct UiRenderer::Filter
 
 namespace
 {
+// Must match the definitions in gradient.frag.
 enum class GradientFunction : int32_t
 {
     Linear,
@@ -50,6 +58,7 @@ enum class GradientFunction : int32_t
     RepeatingConic,
 };
 
+// The uniform block of gradient.frag, in std140 layout.
 struct GradientUniforms
 {
     int32_t function;
@@ -91,6 +100,8 @@ void SetBlurWeights(float weights[UiRendererInternal::kBlurWeights], float sigma
     }
 }
 
+// Limits texture reads to the centres of the texels inside `rect`, so
+// filtering does not pull in colour from outside it.
 template <typename Constants>
 void SetTexCoordLimits(Constants & effect, Rml::Rectanglei rect, VkExtent2D extent)
 {
@@ -167,6 +178,7 @@ void UiRenderer::DrawFullscreen(Program program, Target & source, Target & desti
 
 void UiRenderer::ResolveLayer(Target & layer)
 {
+    // Like every other draw, the copy is limited to the scissor region.
     const VkRect2D rect = ScissorRect();
     if (rect.extent.width == 0 || rect.extent.height == 0)
     {
@@ -218,6 +230,8 @@ void UiRenderer::BlitScaled(Target & source, Rml::Rectanglei sourceRect, Target 
 void UiRenderer::CompositeLayers(Rml::LayerHandle source, Rml::LayerHandle destination, Rml::BlendMode blendMode,
                                  Rml::Span<const Rml::CompiledFilterHandle> filters)
 {
+    // The source goes through the primary scratch target even without filters,
+    // since its samples have to be resolved before it can be read.
     ResolveLayer(*m_layers[source]);
     RenderFilters(filters);
     DrawFullscreen(Program::Passthrough, ScratchTarget(Scratch::Primary), *m_layers[destination],
@@ -365,6 +379,7 @@ void UiRenderer::ReleaseFilter(Rml::CompiledFilterHandle filter)
 
 void UiRenderer::RenderFilters(Rml::Span<const Rml::CompiledFilterHandle> filters)
 {
+    // Each filter reads the primary scratch target and leaves its result there.
     const Rml::Rectanglei window = m_scissor.Valid()
                                        ? m_scissor
                                        : Rml::Rectanglei::FromSize({static_cast<int>(m_extent.width), static_cast<int>(m_extent.height)});
@@ -392,6 +407,7 @@ void UiRenderer::RenderFilters(Rml::Span<const Rml::CompiledFilterHandle> filter
                 constants.effect.color[i] = filter.color[i] / 255.f;
             }
             SetTexCoordLimits(constants.effect, window, m_extent);
+            // The shadow at a point is the shape `offset` away from it.
             constants.uvOffset[0] = -filter.offset.x / static_cast<float>(m_extent.width);
             constants.uvOffset[1] = -filter.offset.y / static_cast<float>(m_extent.height);
             DrawFullscreen(Program::DropShadow, ScratchTarget(Scratch::Primary), ScratchTarget(Scratch::Secondary), Blend::Replace, constants);
@@ -399,6 +415,7 @@ void UiRenderer::RenderFilters(Rml::Span<const Rml::CompiledFilterHandle> filter
             {
                 RenderBlur(filter.sigma, Scratch::Secondary, Scratch::Tertiary, window);
             }
+            // The shape itself goes over its shadow.
             DrawFullscreen(Program::Passthrough, ScratchTarget(Scratch::Primary), ScratchTarget(Scratch::Secondary), Blend::Premultiplied, {});
             SwapScratch(Scratch::Primary, Scratch::Secondary);
             break;
@@ -435,9 +452,13 @@ void UiRenderer::RenderBlur(float sigma, Scratch sourceDestinationSlot, Scratch 
     SigmaToParameters(sigma, passLevel, sigma);
     const Rml::Rectanglei originalScissor = m_scissor;
 
+    // Large blurs are done at a reduced resolution: halve the image, with
+    // bilinear filtering against aliasing, until one pass covers the radius.
     Rml::Rectanglei scissor = window;
     SetViewportSize(width / 2, height / 2);
     FullscreenConstants downscale;
+    // With an odd size, scale the coordinates so that reads fall exactly
+    // between texels and average their neighbours.
     downscale.uvScale[0] = width % 2 == 1 ? 1.f - 1.f / static_cast<float>(width) : 1.f;
     downscale.uvScale[1] = height % 2 == 1 ? 1.f - 1.f / static_cast<float>(height) : 1.f;
     for (int i = 0; i < passLevel; i++)
@@ -452,6 +473,7 @@ void UiRenderer::RenderBlur(float sigma, Scratch sourceDestinationSlot, Scratch 
     SetViewportSize(width, height);
     SetScissor(scissor);
 
+    // The blur passes read from the temporary target first.
     if (passLevel % 2 == 0)
     {
         DrawFullscreen(Program::Passthrough, sourceDestination, temporary, Blend::Replace, {});
@@ -461,10 +483,13 @@ void UiRenderer::RenderBlur(float sigma, Scratch sourceDestinationSlot, Scratch 
     SetBlurWeights(blur.effect.weights, sigma);
     SetTexCoordLimits(blur.effect, scissor, m_extent);
 
+    // Vertical pass.
     blur.effect.texelOffset[0] = 0;
     blur.effect.texelOffset[1] = 1.f / static_cast<float>(height);
     DrawFullscreen(Program::Blur, temporary, sourceDestination, Blend::Replace, blur);
 
+    // Horizontal pass, inside a transparent one pixel border so that scaling
+    // the result back up does not pick up what lies around it.
     SetScissor(scissor.Extend(1));
     ClearColor(temporary, ScissorRect());
     SetScissor(scissor);
@@ -472,6 +497,9 @@ void UiRenderer::RenderBlur(float sigma, Scratch sourceDestinationSlot, Scratch 
     blur.effect.texelOffset[1] = 0;
     DrawFullscreen(Program::Blur, sourceDestination, temporary, Blend::Replace, blur);
 
+    // Scale the result back up over the window. That may be jittery at low
+    // resolutions, so follow with an exact power of two scale, which is stable
+    // but may not reach the edges of the window.
     BlitScaled(temporary, scissor, sourceDestination, window);
     const Rml::Rectanglei exact = Rml::Rectanglei::FromPositionSize(scissor.p0 * (1 << passLevel), scissor.Size() * (1 << passLevel));
     if (exact.p0 != window.p0 || exact.p1 != window.p1)

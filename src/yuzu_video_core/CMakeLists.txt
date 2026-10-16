@@ -368,6 +368,24 @@ if(APPLE AND NOT FFmpeg_LIBRARIES)
     set(FFmpeg_LIBRARIES ${_ffmpeg_macos_libs})
 endif()
 
+if(WIN32 AND NOT FFmpeg_LIBRARIES)
+    if(NOT ARCHITECTURE_x86_64)
+        message(FATAL_ERROR
+            "Bundled Windows FFmpeg libraries are x64-only. Provide "
+            "FFmpeg_INCLUDE_DIR and FFmpeg_LIBRARIES for the target architecture.")
+    endif()
+    set(_ffmpeg_windows_root "${CMAKE_SOURCE_DIR}/external/ffmpeg/lib")
+    set(_ffmpeg_windows_libs "")
+    foreach(_ffmpeg_lib avcodec avdevice avfilter avformat avutil swresample swscale)
+        if(NOT EXISTS "${_ffmpeg_windows_root}/lib${_ffmpeg_lib}.lib")
+            message(FATAL_ERROR "Missing FFmpeg Windows x64 library: lib${_ffmpeg_lib}.lib")
+        endif()
+        list(APPEND _ffmpeg_windows_libs "${_ffmpeg_windows_root}/lib${_ffmpeg_lib}.lib")
+    endforeach()
+    set(FFmpeg_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/ffmpeg/include")
+    set(FFmpeg_LIBRARIES ${_ffmpeg_windows_libs})
+endif()
+
 # Static link order: dependents before the libraries they use.
 if(NOT FFmpeg_LIBRARIES AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID AND ARCHITECTURE_x86_64)
     set(_ffmpeg_linux_root "${CMAKE_SOURCE_DIR}/external/ffmpeg/lib/linux-x64")
@@ -388,6 +406,12 @@ if(NOT FFmpeg_LIBRARIES AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID A
     set(FFmpeg_LIBRARIES ${_ffmpeg_linux_libs})
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT FFmpeg_LIBRARIES)
+    message(FATAL_ERROR
+        "No FFmpeg libraries for ${CMAKE_SYSTEM_PROCESSOR}. The bundled Linux libraries are x86-64 only; "
+        "provide matching FFmpeg_INCLUDE_DIR and FFmpeg_LIBRARIES for this architecture.")
+endif()
+
 if(NOT FFmpeg_INCLUDE_DIR)
     set(FFmpeg_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/ffmpeg/include")
 endif()
@@ -399,7 +423,7 @@ if(ANDROID AND NOT FFmpeg_LIBRARIES)
         set(FFmpeg_LIBRARIES "${_ffmpeg_android_root}/libffmpeg.so")
     else()
         set(_ffmpeg_android_names
-            libavutil libswresample libavcodec libavfilter libswscale)
+            libavfilter libavcodec libswscale libswresample libavutil)
         set(_ffmpeg_android_ok TRUE)
         foreach(_n IN LISTS _ffmpeg_android_names)
             if(NOT EXISTS "${_ffmpeg_android_root}/${_n}.a")
@@ -414,7 +438,7 @@ if(ANDROID AND NOT FFmpeg_LIBRARIES)
             endforeach()
             set(FFmpeg_LIBRARIES "${_ffmpeg_android_libs}")
         else()
-            message(WARNING
+            message(FATAL_ERROR
                 "Missing FFmpeg libraries in ${_ffmpeg_android_root} "
                 "(need libffmpeg.so or static: ${_ffmpeg_android_names}.a). "
                 "Cross-compile for ${ANDROID_ABI}, install them there, "
@@ -423,7 +447,8 @@ if(ANDROID AND NOT FFmpeg_LIBRARIES)
     endif()
 endif()
 
-target_include_directories(video_core PRIVATE ${FFmpeg_INCLUDE_DIR})
+# SYSTEM: the FFmpeg headers do not pass the conversion checks below.
+target_include_directories(video_core SYSTEM PRIVATE ${FFmpeg_INCLUDE_DIR})
 target_link_libraries(video_core PRIVATE ${FFmpeg_LIBRARIES})
 if(APPLE)
     foreach(framework CoreFoundation CoreMedia CoreVideo VideoToolbox)

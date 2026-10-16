@@ -4,7 +4,7 @@
 {
     display: none;
     margin-top: 10dp;
-    color: var(--warning);
+    color: #f0b35a;
     font-size: 13dp;
 }
 
@@ -37,23 +37,23 @@ body.profiles-locked .profiles-locked-note
     width: 132dp;
     margin: 0 12dp 12dp 0;
     padding: 14dp 8dp 10dp 8dp;
-    border: 1dp var(--raised);
+    border: 1dp #1c2940;
     border-radius: 8dp;
-    background-color: var(--chrome);
+    background-color: #0c1422;
     text-align: center;
     cursor: pointer;
 }
 
 .profile:hover
 {
-    border-color: var(--border-strong);
-    background-color: var(--surface);
+    border-color: #33486c;
+    background-color: #111c2e;
 }
 
 .profile.selected
 {
-    border-color: var(--accent);
-    background-color: var(--hover);
+    border-color: #2f7df6;
+    background-color: #13233d;
 }
 
 body.profiles-locked .profile
@@ -69,7 +69,7 @@ body.profiles-locked .profile
     margin: 0 auto;
     border-radius: 38dp;
     overflow: hidden;
-    background-color: var(--border);
+    background-color: #24344f;
 }
 
 .picture img
@@ -81,7 +81,7 @@ body.profiles-locked .profile
 .picture-initial
 {
     line-height: 76dp;
-    color: var(--text-secondary);
+    color: #c9d6ea;
     font-size: 32dp;
     font-weight: bold;
     text-align: center;
@@ -102,19 +102,19 @@ body.profiles-locked .profile
 
 .profile.add .picture
 {
-    border: 1dp var(--border-strong);
+    border: 1dp #33486c;
     background-color: transparent;
 }
 
 .profile.add .picture-initial
 {
-    color: var(--text-muted);
+    color: #8fa0b8;
     font-weight: normal;
 }
 
 .profile.add .profile-name
 {
-    color: var(--text-muted);
+    color: #8f9bb0;
 }
 
 .profile-name
@@ -132,8 +132,8 @@ body.profiles-locked .profile
     margin-top: 6dp;
     padding: 1dp 8dp;
     border-radius: 9dp;
-    background-color: var(--accent);
-    color: var(--on-accent);
+    background-color: #2f7df6;
+    color: #ffffff;
     font-size: 11dp;
     font-weight: bold;
 }
@@ -171,7 +171,7 @@ body.avatars-open .remove
 .avatars-title
 {
     margin-bottom: 10dp;
-    color: var(--accent-text);
+    color: #8fb8ff;
     font-size: 12dp;
     font-weight: bold;
     letter-spacing: 1dp;
@@ -200,12 +200,12 @@ body.avatars-open .remove
 
 .avatar:hover
 {
-    border-color: var(--border-strong);
+    border-color: #33486c;
 }
 
 .avatar.selected
 {
-    border-color: var(--accent);
+    border-color: #2f7df6;
 }
 
 .avatar .picture
@@ -220,7 +220,7 @@ body.avatars-open .remove
     display: none;
     flex: 1;
     padding: 28dp 20dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     text-align: center;
 }
 
@@ -256,7 +256,7 @@ body.no-avatar .avatars
 .colours-label
 {
     margin-right: 10dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     font-size: 13dp;
 }
 
@@ -271,14 +271,14 @@ body.no-avatar .avatars
     width: 20dp;
     height: 20dp;
     margin-right: 5dp;
-    border: 2dp var(--chrome);
+    border: 2dp #0a0f1a;
     border-radius: 10dp;
     cursor: pointer;
 }
 
 .colour.selected
 {
-    border-color: var(--text);
+    border-color: #ffffff;
 }
 
 /* Nothing to use until a picture is chosen. */
@@ -312,9 +312,9 @@ body.no-avatar .avatar-use
     margin-left: 8dp;
     margin-bottom: 4dp;
     padding: 20dp 18dp 16dp 18dp;
-    border: 1dp var(--raised);
+    border: 1dp #1c2940;
     border-radius: 8dp;
-    background-color: var(--chrome);
+    background-color: #0c1422;
 }
 
 body.no-profile .profile-editor
@@ -331,7 +331,7 @@ body.no-profile .profile-editor
 .editor-label
 {
     margin-top: 18dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     font-size: 13dp;
 }
 
@@ -342,16 +342,16 @@ body.no-profile .profile-editor
     height: 34dp;
     margin-top: 6dp;
     padding: 7dp 10dp;
-    border: 1dp var(--border);
+    border: 1dp #24344f;
     border-radius: 6dp;
-    background-color: var(--surface);
+    background-color: #0f1a2b;
     line-height: 18dp;
-    color: var(--text);
+    color: #e6ebf2;
 }
 
 .profile-editor input.text:focus
 {
-    border-color: var(--accent);
+    border-color: #2f7df6;
 }
 
 .profile-editor input.text:disabled
@@ -363,7 +363,7 @@ body.no-profile .profile-editor
 {
     display: none;
     margin-top: 8dp;
-    color: var(--warning);
+    color: #f0b35a;
     font-size: 12dp;
 }
 
@@ -377,7 +377,7 @@ body.picture-refused .picture-note
     display: none;
     align-items: center;
     margin-top: 14dp;
-    color: var(--accent-text);
+    color: #8fb8ff;
     font-size: 13dp;
 }
 
@@ -386,7 +386,7 @@ body.picture-refused .picture-note
     width: 14dp;
     height: 14dp;
     margin-right: 8dp;
-    image-color: var(--accent-text);
+    image-color: #8fb8ff;
 }
 
 body.active-selected .in-use
@@ -412,7 +412,7 @@ body.active-selected .use
 
 .remove-question
 {
-    color: var(--warning);
+    color: #f0b35a;
     font-size: 13dp;
 }
 

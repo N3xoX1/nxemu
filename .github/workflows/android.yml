@@ -1,0 +1,117 @@
+name: Android
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+      NXEMU_BUILD_JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        if: ${{ !env.ACT }}
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            src/android/*.gradle.kts
+            src/android/gradle/wrapper/gradle-wrapper.properties
+            src/android/app/build.gradle.kts
+      - uses: android-actions/setup-android@v3
+        if: ${{ !env.ACT }}
+        with:
+          # The obsolete 'tools' package is no longer published by Google.
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install build tools
+        id: build-tools
+        run: |
+          if [ "$(uname -s)" = Darwin ]; then
+            command -v ccache >/dev/null || brew install ccache
+            command -v glslangValidator >/dev/null || brew install glslang
+          else
+            sudo apt-get update
+            sudo apt-get install -y ccache glslang-tools
+          fi
+          if [ "${ACT:-}" = true ] && [ -d "$ANDROID_HOME/ndk/30.0.16248370" ] && [ -d "$ANDROID_HOME/cmake/3.22.1" ] && [ -d "$ANDROID_HOME/platforms/android-36" ]; then
+            echo 'Using the installed local Android toolchain'
+          elif command -v sdkmanager >/dev/null; then
+            sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;30.0.16248370' 'cmake;3.22.1'
+          elif [ "${ACT:-}" != true ]; then
+            echo 'sdkmanager is required to install the Android toolchain' >&2
+            exit 1
+          fi
+      - name: Prepare build cache paths
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          build_directory="${NXEMU_BUILD_DIRECTORY:-build/android}"
+          case "$build_directory" in
+            /*) ;;
+            *) build_directory="$PWD/$build_directory" ;;
+          esac
+          mkdir -p "$build_directory"
+          {
+            echo "NXEMU_EFFECTIVE_BUILD_DIRECTORY=$build_directory"
+            echo "CCACHE_DIR=$build_directory/ccache"
+            echo "CCACHE_BASEDIR=$PWD"
+            echo "NXEMU_THINLTO_CACHE_DIR=$build_directory/thinlto-cache"
+          } >> "$GITHUB_ENV"
+      - name: Identify cache toolchain
+        id: toolchain
+        run: |
+          fingerprint=$( { cat "$ANDROID_HOME/ndk/30.0.16248370/source.properties"; ccache --version; uname -s; } | shasum -a 256 | cut -d ' ' -f 1)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+      - name: Restore native build caches
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            ${{ env.NXEMU_THINLTO_CACHE_DIR }}
+          key: android-arm64-release-v1-${{ runner.os }}-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          restore-keys: |
+            android-arm64-release-v1-${{ runner.os }}-${{ steps.toolchain.outputs.fingerprint }}-
+      - name: Reset compiler cache statistics
+        run: ccache --zero-stats
+      - name: Build APK
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: sh src/script/build_android.sh Release "${NXEMU_BUILD_DIRECTORY:-build/android}"
+      - name: Test Android project
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}/src/android
+        run: sh ./gradlew :app:testReleaseUnitTest --build-cache "-PnxemuBuildDirectory=$NXEMU_EFFECTIVE_BUILD_DIRECTORY"
+      - name: Check APK native libraries
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: python3 src/script/check_android_apk.py "${NXEMU_BUILD_DIRECTORY:-build/android}"/app/outputs/apk/release/*.apk
+      - name: Compiler cache statistics
+        if: ${{ always() && steps.build-tools.outcome == 'success' }}
+        run: ccache --show-stats --verbose
+      - name: Save compiler cache
+        if: ${{ !cancelled() && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            ${{ env.NXEMU_THINLTO_CACHE_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NxEmu-android-arm64
+          path: ${{ env.NXEMU_EFFECTIVE_BUILD_DIRECTORY }}/app/outputs/apk/release/*.apk
+          if-no-files-found: error

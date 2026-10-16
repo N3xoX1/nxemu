@@ -61,6 +61,10 @@ int VirtualKey(SDL_Keycode key)
     }
 }
 
+
+// The key at the same place on a US keyboard. The emulator knows a key by
+// where it is, so that a binding holds whatever the keyboard's layout: the
+// default W, A, S and D are Z, Q, S and D on a French one.
 SDL_Keycode UsKeycode(SDL_Scancode scancode)
 {
     if (scancode >= SDL_SCANCODE_A && scancode <= SDL_SCANCODE_Z)
@@ -85,11 +89,13 @@ SDL_Keycode UsKeycode(SDL_Scancode scancode)
     }
 }
 
+// Whether the key's name depends on the keyboard's layout.
 bool Printed(int virtualKey)
 {
     return (virtualKey >= 'A' && virtualKey <= 'Z') || (virtualKey >= '0' && virtualKey <= '9') || (virtualKey >= 0xba && virtualKey <= 0xc0) ||
            (virtualKey >= 0xdb && virtualKey <= 0xde);
 }
+
 } // namespace
 
 void ForwardKeyboardEvent(const SDL_KeyboardEvent& event, IOperatingSystem& os)
@@ -110,6 +116,7 @@ std::string VirtualKeyName(int virtualKey)
 {
     if (Printed(virtualKey))
     {
+        // What this keyboard prints on the key at that place.
         for (int scancode = SDL_SCANCODE_A; scancode <= SDL_SCANCODE_SLASH; ++scancode)
         {
             if (VirtualKey(UsKeycode(static_cast<SDL_Scancode>(scancode))) == virtualKey)

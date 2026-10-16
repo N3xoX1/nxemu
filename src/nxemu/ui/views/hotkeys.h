@@ -2,6 +2,7 @@
 #include "shortcut.h"
 #include <nxemu/ui/i18n/translation.h>
 
+// What a key can start, in the order the settings list it.
 enum class HotkeyId
 {
     LoadFile,
@@ -18,14 +19,16 @@ enum class HotkeyId
     SpeedLimit,
 };
 
+// The key of each, which the user may change: the settings keep the ones
+// that are not the usual ones.
 namespace Hotkeys
 {
 struct Info
 {
     HotkeyId id;
-    const char * name;
+    const char * name; // in the settings file
     const char * label;
-    bool inGame;
+    bool inGame; // acts on the game that runs
 };
 inline constexpr Info kAll[] = {
     {HotkeyId::LoadFile, "LoadFile", TrMark("Load a file"), false},
@@ -44,9 +47,13 @@ inline constexpr Info kAll[] = {
 
 Shortcut Default(HotkeyId id);
 Shortcut Get(HotkeyId id);
+// A key can be a shortcut when it is not one that is typed: a function key,
+// Escape, or any key with Control, Command or Alt.
 bool Usable(const Shortcut & shortcut);
+// The other action that has the shortcut, or nullptr.
 const Info * Holder(const Shortcut & shortcut, HotkeyId except);
 void Set(HotkeyId id, const Shortcut & shortcut);
 void RestoreDefaults();
+// Changes each time a shortcut does, for those that show them.
 unsigned Revision();
 } // namespace Hotkeys

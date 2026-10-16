@@ -28,7 +28,7 @@ body.tab-shortcuts #tab-shortcuts
     display: none;
     flex: 1;
     padding: 8dp 4dp 8dp 14dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     font-size: 12dp;
     text-align: right;
 }
@@ -53,7 +53,7 @@ body.game-running .advanced-note
 {
     display: none;
     align-items: center;
-    color: var(--text-secondary);
+    color: #b4bfce;
     font-size: 13dp;
 }
 
@@ -107,19 +107,19 @@ body.narrow .advanced-note
 
 .hotkey.asking
 {
-    border-color: var(--accent);
-    color: var(--accent-text);
+    border-color: #2f7df6;
+    color: #8fb8ff;
 }
 
 .hotkey-help,
 .hotkey-note
 {
     margin: 0 4dp 8dp 4dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     font-size: 12dp;
 }
 
 .hotkey-note
 {
-    color: var(--warning);
+    color: #f0b35a;
 }

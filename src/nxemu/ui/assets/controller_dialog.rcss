@@ -17,8 +17,8 @@ body.narrow .controller-page
     display: flex;
     flex-wrap: wrap;
     padding: 10dp 20dp 0 20dp;
-    border-bottom: 1dp var(--raised);
-    background-color: var(--chrome);
+    border-bottom: 1dp #16202f;
+    background-color: #0a0f1a;
 }
 
 .player-tab
@@ -29,20 +29,20 @@ body.narrow .controller-page
     padding: 8dp 14dp;
     border-top-left-radius: 6dp;
     border-top-right-radius: 6dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     cursor: pointer;
 }
 
 .player-tab:hover
 {
-    background-color: var(--surface);
-    color: var(--text);
+    background-color: #111a2a;
+    color: #ffffff;
 }
 
 .player-tab.selected
 {
-    background-color: var(--selection);
-    color: var(--text);
+    background-color: #16305a;
+    color: #ffffff;
     font-weight: bold;
 }
 
@@ -52,12 +52,12 @@ body.narrow .controller-page
     height: 8dp;
     margin-right: 8dp;
     border-radius: 4dp;
-    background-color: var(--border-strong);
+    background-color: #33415a;
 }
 
 .player-tab.connected .player-dot
 {
-    background-color: var(--success);
+    background-color: #4ade80;
 }
 
 .player-page
@@ -208,7 +208,7 @@ body.stacked .footer-space
 .field-label
 {
     margin-right: 8dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     font-size: 13dp;
 }
 
@@ -220,14 +220,14 @@ body.stacked .footer-space
 .controller-hint
 {
     flex: 1;
-    color: var(--text-muted);
+    color: #8f9bb0;
     font-size: 13dp;
     text-align: right;
 }
 
 .controller-hint.listening
 {
-    color: var(--accent-text);
+    color: #8fb8ff;
 }
 
 .bind-columns
@@ -341,20 +341,20 @@ body.stacked .bind-column.side
 
 .mark:hover
 {
-    border-color: var(--accent-text);
-    background-color: var(--accent-soft);
+    border-color: #8fb8ff;
+    background-color: #2f7df640;
 }
 
 .mark.pressed
 {
-    border-color: var(--success);
-    background-color: var(--success-fill);
+    border-color: #4ade80;
+    background-color: #4ade80b0;
 }
 
 .mark.listening
 {
-    border-color: var(--accent);
-    background-color: var(--accent-fill);
+    border-color: #2f7df6;
+    background-color: #2f7df6b0;
 }
 
 .vibration
@@ -389,9 +389,9 @@ body.stacked .bind-columns
 {
     margin-bottom: 12dp;
     padding: 10dp 10dp 6dp 10dp;
-    border: 1dp var(--raised);
+    border: 1dp #16202f;
     border-radius: 8dp;
-    background-color: var(--chrome);
+    background-color: #0c1320;
 }
 
 .group-head
@@ -405,7 +405,7 @@ body.stacked .bind-columns
 .group-title
 {
     flex: 1;
-    color: var(--accent-text);
+    color: #8fb8ff;
     font-size: 13dp;
     font-weight: bold;
 }
@@ -428,10 +428,10 @@ body.stacked .bind-columns
     height: 32dp;
     margin-bottom: 7dp;
     padding: 0 3dp 0 8dp;
-    border: 1dp var(--raised);
+    border: 1dp #1c2940;
     font-size: 13dp;
     border-radius: 5dp;
-    background-color: var(--surface);
+    background-color: #0f1a2b;
     cursor: pointer;
 }
 
@@ -444,14 +444,14 @@ body.stacked .bind-columns
 
 .bind:hover
 {
-    border-color: var(--border-strong);
-    background-color: var(--hover);
+    border-color: #3d5a8a;
+    background-color: #14233a;
 }
 
 .bind-label
 {
     margin-right: 6dp;
-    color: var(--text-secondary);
+    color: #b4bfce;
     white-space: nowrap;
 }
 
@@ -468,7 +468,7 @@ body.stacked .bind-columns
 
 .bind.unset .bind-value
 {
-    color: var(--text-disabled);
+    color: #6f7d92;
     font-weight: normal;
 }
 
@@ -477,15 +477,15 @@ body.stacked .bind-columns
     width: 16dp;
     margin-left: 3dp;
     border-radius: 4dp;
-    color: var(--text-disabled);
+    color: #6f7d92;
     line-height: 20dp;
     text-align: center;
 }
 
 .bind-clear:hover
 {
-    background-color: var(--border-strong);
-    color: var(--text);
+    background-color: #33415a;
+    color: #ffffff;
 }
 
 .bind.unset .bind-clear
@@ -500,19 +500,19 @@ body.stacked .bind-columns
 
 .bind.pressed
 {
-    border-color: var(--success);
-    background-color: var(--success-surface);
+    border-color: #4ade80;
+    background-color: #153f2a;
 }
 
 .bind.listening
 {
-    border-color: var(--accent);
-    background-color: var(--selection);
+    border-color: #2f7df6;
+    background-color: #16305a;
 }
 
 .bind.listening .bind-value
 {
-    color: var(--accent-text);
+    color: #8fb8ff;
 }
 
 /* Where the stick is, in the circle of the picture that shows its travel. */
@@ -524,7 +524,7 @@ body.stacked .bind-columns
 .stick-zone
 {
     position: absolute;
-    border: 1dp var(--danger);
+    border: 1dp #c0504d;
     box-sizing: border-box;
 }
 
@@ -537,12 +537,12 @@ body.stacked .bind-columns
     height: 8dp;
     margin: -4dp 0 0 -4dp;
     border-radius: 4dp;
-    background-color: var(--text-muted);
+    background-color: #8f9bb0;
 }
 
 .stick-dot.moved
 {
-    background-color: var(--success);
+    background-color: #4ade80;
 }
 
 .stick-option
@@ -558,7 +558,7 @@ body.stacked .bind-columns
 .option-label
 {
     flex: 1;
-    color: var(--text-secondary);
+    color: #b4bfce;
     white-space: nowrap;
 }
 
@@ -566,7 +566,7 @@ body.stacked .bind-columns
 {
     width: 40dp;
     margin-right: 8dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     text-align: right;
 }
 
@@ -581,7 +581,7 @@ body.stacked .bind-columns
     display: flex;
     align-items: center;
     padding: 12dp 20dp 16dp 20dp;
-    border-top: 1dp var(--raised);
+    border-top: 1dp #16202f;
 }
 
 .controller-footer button:first-child
@@ -606,8 +606,4 @@ body.stacked .bind-columns
 .strength.hidden
 {
     display: none;
-}
-.settings-header .dialog-title
-{
-    flex: 1;
 }

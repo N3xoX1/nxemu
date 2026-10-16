@@ -2,6 +2,8 @@
 
 namespace
 {
+// Evaluates the expression of a rule for a count: the conditional, logical,
+// comparison and arithmetic operators of C, on whole numbers and n.
 class Evaluation
 {
 public:

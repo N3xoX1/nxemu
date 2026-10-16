@@ -1,6 +1,5 @@
 #include "ui_window.h"
 #include "system_fonts.h"
-#include "ui_theme.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
 #include <SDL_syswm.h>
@@ -121,8 +120,6 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail("RmlUi initialization failed");
     }
     m_rmlInitialised = true;
-    m_themeFiles = std::make_unique<UiThemeFileInterface>(*Rml::GetFileInterface());
-    Rml::SetFileInterface(m_themeFiles.get());
     if (!LoadFonts(assetDir / "fonts"))
     {
         return false;
@@ -166,6 +163,8 @@ void UiWindow::DetachVideo()
     {
         return;
     }
+    // The textures and geometry RmlUi holds live on the module's device. It
+    // builds them again when it next draws.
     m_video->WaitInterfaceIdle();
     Rml::ReleaseTextures();
     Rml::ReleaseCompiledGeometry();
@@ -196,6 +195,7 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     SDL_Event translated = event;
     if (translated.type == SDL_MOUSEMOTION)
     {
+        // SDL reports the pointer in window coordinates; RmlUi lays out in drawable pixels.
         translated.motion.x = static_cast<Sint32>(translated.motion.x * m_pixelScale);
         translated.motion.y = static_cast<Sint32>(translated.motion.y * m_pixelScale);
     }
@@ -228,6 +228,9 @@ void UiWindow::Render(const PixelRect * gameArea)
 
 void UiWindow::PaceFrame()
 {
+    // Presenting waits for the display where it is synchronised to it. This
+    // keeps the loop to the display's rate where it is not, and while there
+    // is nothing to present to.
     const uint64_t frequency = SDL_GetPerformanceFrequency();
     const uint64_t elapsed = SDL_GetPerformanceCounter() - m_lastFrame;
     if (elapsed < m_frameInterval)
@@ -385,6 +388,7 @@ void UiWindow::GetClientSize(int & width, int & height) const
 
 void UiWindow::SetClientSize(int width, int height)
 {
+    // No larger than the screen has room for, and not reaching out of it.
     SDL_Rect usable{};
     const bool bounded = SDL_GetDisplayUsableBounds(std::max(SDL_GetWindowDisplayIndex(m_window), 0), &usable) == 0;
     int top = 0, left = 0, bottom = 0, right = 0;
@@ -428,6 +432,8 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
             return Fail(std::string("Unable to load font ") + font);
         }
     }
+    // Use installed fonts for scripts absent from Lato, including game titles.
+    // A missing optional system font must not prevent the application opening.
     for (const SystemFont & font : SystemFallbackFonts())
     {
         Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
@@ -470,6 +476,8 @@ void UiWindow::UpdateDimensions()
     m_pixelScale = static_cast<float>(m_drawableWidth) / static_cast<float>(width);
     m_context->SetDimensions({m_drawableWidth, m_drawableHeight});
 
+    // Where the window already is in physical pixels, the display's scale
+    // still has to enlarge the content.
     float contentScale = m_pixelScale;
 #if defined(_WIN32)
     float dpi = 0;
@@ -512,6 +520,8 @@ SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
             return edges[row][column];
         }
     }
+    // The nearest element that says so decides: the bar moves the window, the
+    // buttons inside it do not.
     const Rml::Vector2f position(static_cast<float>(point.x) * m_pixelScale, static_cast<float>(point.y) * m_pixelScale);
     for (Rml::Element * element = m_context->GetElementAtPoint(position); element != nullptr; element = element->GetParentNode())
     {
@@ -522,6 +532,9 @@ SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
                 return SDL_HITTEST_NORMAL;
             }
 #if !defined(_WIN32)
+            // Windows maximises a window whose bar is double clicked by itself.
+            // Elsewhere SDL asks once for each press and keeps what lands on
+            // the bar to itself, so the double click is told apart here.
             const uint64_t now = SDL_GetTicks64();
             const bool again = now - m_barPressTime <= kDoubleClickMs && std::abs(point.x - m_barPress.x) <= kDoubleClickReach &&
                                std::abs(point.y - m_barPress.y) <= kDoubleClickReach;

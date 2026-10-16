@@ -1,4 +1,5 @@
 #include "os_settings.h"
+#include "os_manager.h"
 #include "os_enum_strings.h"
 #include "os_settings_identifiers.h"
 #include <algorithm>
@@ -486,6 +487,7 @@ static OsSetting settings[] = {
         {NXOsSetting::UseSpeedLimit, nullptr, &osSettings.use_speed_limit, true},
         {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
         {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Language::EnglishAmerican},
+        {NXOsSetting::Region, "system\\region", &osSettings.region_setting, kRegionOfLanguage},
         {NXOsSetting::CurrentUser, "system\\current_user", &osSettings.current_user, 0},
         {NXOsSetting::RngSeedEnabled, "system\\rng_seed_enabled", &osSettings.rng_seed_enabled, false},
         {NXOsSetting::RngSeed, "system\\rng_seed", &osSettings.rng_seed, 0u},
@@ -517,6 +519,16 @@ void ApplyRangedS64(OsSetting & osSetting, s64 value)
 }
 
 } // namespace
+
+Region ConsoleRegion()
+{
+    const s32 chosen = osSettings.region_setting;
+    if (chosen >= static_cast<s32>(Region::Japan) && chosen <= static_cast<s32>(Region::Taiwan))
+    {
+        return static_cast<Region>(chosen);
+    }
+    return RegionOfLanguage(osSettings.language_index);
+}
 
 void OsSettingChanged(const char * setting, void * /*userData*/)
 {
@@ -570,8 +582,17 @@ void OsSettingChanged(const char * setting, void * /*userData*/)
             *osSetting.value.language = static_cast<Language>(g_settings->GetInt(setting));
             break;
         case SettingType::DockedMode:
-            *osSetting.value.dockedMode = static_cast<DockedMode>(g_settings->GetInt(setting));
+        {
+            const DockedMode mode = static_cast<DockedMode>(g_settings->GetInt(setting));
+            const bool changed = *osSetting.value.dockedMode != mode;
+            *osSetting.value.dockedMode = mode;
+            if (changed && g_osManager != nullptr)
+            {
+                // A running game is told, as it is when a console is docked.
+                g_osManager->OperationModeChanged();
+            }
             break;
+        }
         case SettingType::MemoryLayout:
             *osSetting.value.memoryLayout = static_cast<MemoryLayout>(g_settings->GetInt(setting));
             break;
@@ -603,7 +624,6 @@ void InitializeOsSettingDefaults()
     osSettings.my_page_applet_mode = AppletMode::LLE;
 
     osSettings.dump_audio_commands = false;
-    osSettings.region_index = Region::Usa;
     osSettings.time_zone_index = TimeZone::Auto;
     osSettings.custom_rtc = 0;
     osSettings.device_name = "NxEmu";
@@ -881,6 +901,14 @@ void SetupOsSetting(void)
         }
         g_settings->RegisterCallback(osSetting.identifier, OsSettingChanged, nullptr);
     }
+    // Reconcile module state before constructing the emulated system.
+    for (const auto & setting : settings)
+    {
+        if (setting.identifier != nullptr)
+        {
+            OsSettingChanged(setting.identifier, nullptr);
+        }
+    }
 }
 
 void CleanupOsSetting(void)
@@ -908,30 +936,30 @@ void SaveOsSettings(void)
         switch (osSetting.settingType)
         {
         case SettingType::Boolean:
-            if (*osSetting.value.boolValue != osSetting.defaults.boolValue)
+            if ((osSetting.identifier != nullptr ? g_settings->GetBool(osSetting.identifier) : *osSetting.value.boolValue) != osSetting.defaults.boolValue)
             {
-                JsonSetNestedValue(root, osSetting.json_path, *osSetting.value.boolValue);
+                JsonSetNestedValue(root, osSetting.json_path, (osSetting.identifier != nullptr ? g_settings->GetBool(osSetting.identifier) : *osSetting.value.boolValue));
             }
             break;
         case SettingType::IntValue:
-            if (*osSetting.value.intValue != osSetting.defaults.intValue)
+            if ((osSetting.identifier != nullptr ? g_settings->GetInt(osSetting.identifier) : *osSetting.value.intValue) != osSetting.defaults.intValue)
             {
-                JsonSetNestedValue(root, osSetting.json_path, *osSetting.value.intValue);
+                JsonSetNestedValue(root, osSetting.json_path, (osSetting.identifier != nullptr ? g_settings->GetInt(osSetting.identifier) : *osSetting.value.intValue));
             }
             break;
         case SettingType::IntValueRanged:
-            if ((osSetting.rangedWidth == RangedWidth::U8 && *osSetting.value.u8Value != static_cast<u8>(osSetting.defaults.intValue)) ||
-                (osSetting.rangedWidth == RangedWidth::U16 && *osSetting.value.u16Value != static_cast<u16>(osSetting.defaults.intValue)))
+            if ((osSetting.rangedWidth == RangedWidth::U8 && (osSetting.identifier != nullptr ? static_cast<u8>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.u8Value) != static_cast<u8>(osSetting.defaults.intValue)) ||
+                (osSetting.rangedWidth == RangedWidth::U16 && (osSetting.identifier != nullptr ? static_cast<u16>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.u16Value) != static_cast<u16>(osSetting.defaults.intValue)))
             {
                 JsonSetNestedValue(root, osSetting.json_path,
-                                   osSetting.rangedWidth == RangedWidth::U8 ? static_cast<int32_t>(*osSetting.value.u8Value)
-                                                                            : static_cast<int32_t>(*osSetting.value.u16Value));
+                                   osSetting.rangedWidth == RangedWidth::U8 ? static_cast<int32_t>((osSetting.identifier != nullptr ? static_cast<u8>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.u8Value))
+                                                                            : static_cast<int32_t>((osSetting.identifier != nullptr ? static_cast<u16>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.u16Value)));
             }
             break;
         case SettingType::S32:
-            if (*osSetting.value.s32Value != osSetting.defaults.s32Value)
+            if ((osSetting.identifier != nullptr ? g_settings->GetInt(osSetting.identifier) : *osSetting.value.s32Value) != osSetting.defaults.s32Value)
             {
-                JsonSetNestedValue(root, osSetting.json_path, *osSetting.value.s32Value);
+                JsonSetNestedValue(root, osSetting.json_path, (osSetting.identifier != nullptr ? g_settings->GetInt(osSetting.identifier) : *osSetting.value.s32Value));
             }
             break;
         case SettingType::S64Ranged:
@@ -971,27 +999,27 @@ void SaveOsSettings(void)
             }
             break;
         case SettingType::AudioMode:
-            if (*osSetting.value.audioMode != osSetting.defaults.audioMode)
+            if ((osSetting.identifier != nullptr ? static_cast<AudioMode>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.audioMode) != osSetting.defaults.audioMode)
             {
-                JsonSetNestedValue(root, osSetting.json_path, AudioModeToString(*osSetting.value.audioMode));
+                JsonSetNestedValue(root, osSetting.json_path, AudioModeToString((osSetting.identifier != nullptr ? static_cast<AudioMode>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.audioMode)));
             }
             break;
         case SettingType::Language:
-            if (*osSetting.value.language != osSetting.defaults.language)
+            if ((osSetting.identifier != nullptr ? static_cast<Language>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.language) != osSetting.defaults.language)
             {
-                JsonSetNestedValue(root, osSetting.json_path, LanguageToString(*osSetting.value.language));
+                JsonSetNestedValue(root, osSetting.json_path, LanguageToString((osSetting.identifier != nullptr ? static_cast<Language>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.language)));
             }
             break;
         case SettingType::DockedMode:
-            if (*osSetting.value.dockedMode != osSetting.defaults.dockedMode)
+            if ((osSetting.identifier != nullptr ? static_cast<DockedMode>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.dockedMode) != osSetting.defaults.dockedMode)
             {
-                JsonSetNestedValue(root, osSetting.json_path, DockedModeToString(*osSetting.value.dockedMode));
+                JsonSetNestedValue(root, osSetting.json_path, DockedModeToString((osSetting.identifier != nullptr ? static_cast<DockedMode>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.dockedMode)));
             }
             break;
         case SettingType::MemoryLayout:
-            if (*osSetting.value.memoryLayout != osSetting.defaults.memoryLayout)
+            if ((osSetting.identifier != nullptr ? static_cast<MemoryLayout>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.memoryLayout) != osSetting.defaults.memoryLayout)
             {
-                JsonSetNestedValue(root, osSetting.json_path, MemoryLayoutToString(*osSetting.value.memoryLayout));
+                JsonSetNestedValue(root, osSetting.json_path, MemoryLayoutToString((osSetting.identifier != nullptr ? static_cast<MemoryLayout>(g_settings->GetInt(osSetting.identifier)) : *osSetting.value.memoryLayout)));
             }
             break;
         default:

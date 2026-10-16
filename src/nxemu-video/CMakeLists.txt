@@ -34,13 +34,10 @@ target_include_directories(nxemu-video PRIVATE
 target_link_libraries(nxemu-video PRIVATE yuzu_common)
 target_link_libraries(nxemu-video PRIVATE video_core)
 
-if(NOT ANDROID)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(PkgConfig REQUIRED)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        find_package(X11 REQUIRED)
-        pkg_check_modules(WAYLAND_CLIENT wayland-client REQUIRED IMPORTED_TARGET)
-        target_link_libraries(nxemu-video PRIVATE X11::X11 PkgConfig::WAYLAND_CLIENT)
-    endif()
+    pkg_check_modules(WAYLAND_CLIENT wayland-client REQUIRED IMPORTED_TARGET)
+    target_link_libraries(nxemu-video PRIVATE PkgConfig::WAYLAND_CLIENT)
 endif()
 
 if(ANDROID)

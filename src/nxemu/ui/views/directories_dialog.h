@@ -7,13 +7,18 @@
 class GameLibrary;
 class UiWindow;
 
+// The page of the settings that says where the games are. A change is kept as
+// it is made.
 class DirectoriesDialog final : public Dialog
 {
 public:
     struct Host
     {
+        // Whether the game directories may change now: not while a game runs.
         std::function<bool()> canChangeLibrary;
+        // The game directories are no longer the ones the games shown came from.
         std::function<void()> libraryChanged;
+        // Shows another page of the settings in place of this one.
         OpenSettingsPage openPage;
     };
 
@@ -31,5 +36,5 @@ private:
     UiWindow & m_window;
     GameLibrary & m_library;
     const Host m_host;
-    bool m_libraryChanged = false;
+    bool m_libraryChanged = false; // since the dialog opened
 };

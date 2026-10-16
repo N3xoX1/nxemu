@@ -161,6 +161,14 @@ void OSManager::EmulationStarting()
     m_emuThread->Start();
 }
 
+void OSManager::OperationModeChanged()
+{
+    if (m_coreSystem.IsPoweredOn())
+    {
+        m_coreSystem.GetAppletManager().OperationModeChanged();
+    }
+}
+
 void OSManager::EmulationStopping(bool wait)
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
@@ -185,6 +193,20 @@ void OSManager::EmulationStopping(bool wait)
 bool OSManager::Initialize(void)
 {
     SetupOsSetting();
+    // Once: a profile still showing the logo NXEmu had gets the one it has.
+    static bool formerPicturesReplaced = false;
+    if (!formerPicturesReplaced)
+    {
+        formerPicturesReplaced = true;
+        Service::Account::ProfileManager manager;
+        for (std::size_t index = 0; index < manager.GetUserCount(); ++index)
+        {
+            if (const auto user = manager.GetUser(index); user && user->IsValid())
+            {
+                ReplaceFormerDefaultProfileJpeg(ProfileImageFilesystemPath(*user));
+            }
+        }
+    }
     m_coreSystem.Initialize();
     m_coreSystem.HIDCore().ReloadInputDevices();
     return true;
@@ -319,7 +341,12 @@ void OSManager::KeyboardKeyPress(int modifier, int keyIndex, int keyCode)
     std::shared_ptr<InputCommon::InputSubsystem> & input_subsystem = m_coreSystem.InputSubsystem();
     input_subsystem->GetKeyboard()->SetKeyboardModifiers(modifier);
     input_subsystem->GetKeyboard()->PressKeyboardKey(keyIndex);
-    input_subsystem->GetKeyboard()->PressKey(keyCode);
+    // A key without a code is not one a control can be bound to: 0 is what
+    // the controls bound to nothing have.
+    if (keyCode != 0)
+    {
+        input_subsystem->GetKeyboard()->PressKey(keyCode);
+    }
     input_subsystem->PumpEvents();
 }
 
@@ -328,7 +355,10 @@ void OSManager::KeyboardKeyRelease(int modifier, int keyIndex, int keyCode)
     std::shared_ptr<InputCommon::InputSubsystem> & input_subsystem = m_coreSystem.InputSubsystem();
     input_subsystem->GetKeyboard()->SetKeyboardModifiers(modifier);
     input_subsystem->GetKeyboard()->ReleaseKeyboardKey(keyIndex);
-    input_subsystem->GetKeyboard()->ReleaseKey(keyCode);
+    if (keyCode != 0)
+    {
+        input_subsystem->GetKeyboard()->ReleaseKey(keyCode);
+    }
     input_subsystem->PumpEvents();
 }
 
@@ -506,6 +536,11 @@ void OSManager::PumpInputEvents() const
 PerfStatsResults OSManager::GetAndResetPerfStats()
 {
     return m_coreSystem.GetAndResetPerfStats();
+}
+
+void OSManager::MeasureGameFrames(bool measure)
+{
+    m_coreSystem.GetPerfStats().MeasureGameFrames(measure);
 }
 
 void OSManager::SetEmulationPaused(bool paused)

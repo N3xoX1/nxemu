@@ -14,6 +14,7 @@
         <div class="settings-separator" />
         <div class="settings-categories">
           <div class="settings-category" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category global-only" data-command="page:controllers"><img src="images/gamepad.png" /><div>Controllers</div></div>
           <div class="settings-category global-only" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
           <div class="settings-category selected"><img src="images/gear.png" /><div>Advanced</div></div>
         </div>

@@ -1,8 +1,7 @@
 # SPDX-FileCopyrightText: 2023 yuzu Emulator Project
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-# Visual Studio generates these headers with nx_tzdb_create_header.exe.
-# CMake (Android/Linux) generates them the same way yuzu does: cmake -P
+# The headers are generated the same way yuzu does: cmake -P
 # NxTzdbCreateHeader.cmake, writing into the build tree.
 
 set(NX_TZDB_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")

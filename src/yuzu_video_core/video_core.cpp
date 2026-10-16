@@ -13,6 +13,7 @@
 #include "yuzu_video_core/renderer_base.h"
 #include "yuzu_video_core/renderer_null/renderer_null.h"
 #include "yuzu_video_core/renderer_opengl/renderer_opengl.h"
+#include "frontend/graphics_context.h"
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
 #include "yuzu_video_core/renderer_vulkan/vk_display.h"
 #include "yuzu_video_core/video_core.h"

@@ -13,6 +13,7 @@
         <div class="settings-separator" />
         <div class="settings-categories">
           <div class="settings-category selected"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category global-only" data-command="page:controllers"><img src="images/gamepad.png" /><div>Controllers</div></div>
           <div class="settings-category global-only" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
           <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
         </div>
@@ -96,6 +97,22 @@
                   <div class="row-text">The language games are shown in.</div>
                 </div>
                 <select id="language" translate="no" />
+              </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Region</div>
+                  <div id="region-text" class="row-text" />
+                </div>
+                <select id="region" class="short" />
+                <div id="region-chosen" class="switch" data-command="toggle-region" title="On, the region is the one chosen here. Off, it follows the console language."><div class="switch-knob" /></div>
+              </div>
+              <div class="row global-only">
+                <div class="row-texts">
+                  <div class="row-label">Interface language</div>
+                  <div id="interface-language-text" class="row-text" />
+                </div>
+                <select id="interface-language" class="short" translate="no" />
+                <div id="interface-language-chosen" class="switch" data-command="toggle-interface-language" title="On, the interface language is chosen here. Off, it follows the console language."><div class="switch-knob" /></div>
               </div>
             </div>
             <div class="card">

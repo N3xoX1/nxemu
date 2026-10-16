@@ -311,7 +311,7 @@ ISystemSettingsServer::ISystemSettingsServer(Core::System & system_) :
 
     SetupSettings();
 
-    m_system_settings.region_code = static_cast<SystemRegionCode>(osSettings.region_index);
+    m_system_settings.region_code = static_cast<SystemRegionCode>(ConsoleRegion());
 
     // TODO: Remove this when starter applet is fully functional
     EulaVersion eula_version{

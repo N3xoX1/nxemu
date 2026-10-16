@@ -1,0 +1,10 @@
+<rml>
+  <head>
+    <title>Tooltip</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="tooltip.rcss" />
+  </head>
+  <body>
+    <div id="tip" />
+  </body>
+</rml>

@@ -617,6 +617,11 @@ void SetupVideoSetting(void)
         }
         g_settings->RegisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
     }
+    // Module state uses the effective layer; registration above keeps globals.
+    for (const auto & setting : settings)
+    {
+        VideoSettingChanged(setting.identifier, nullptr);
+    }
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();
@@ -641,100 +646,100 @@ void SaveVideoSettings(void)
         switch (videoSetting.settingType)
         {
         case SettingType::Boolean:
-            if (*videoSetting.value.boolValue != videoSetting.defaults.boolValue)
+            if (g_settings->GetBool(videoSetting.identifier) != videoSetting.defaults.boolValue)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = *videoSetting.value.boolValue;
+                sections[videoSetting.json_section][videoSetting.json_key] = g_settings->GetBool(videoSetting.identifier);
             }
             break;
         case SettingType::IntValue:
         case SettingType::IntValueRanged:
-            if (*videoSetting.value.intValue != videoSetting.defaults.intValue)
+            if (g_settings->GetInt(videoSetting.identifier) != videoSetting.defaults.intValue)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = *videoSetting.value.intValue;
+                sections[videoSetting.json_section][videoSetting.json_key] = g_settings->GetInt(videoSetting.identifier);
             }
             break;
         case SettingType::RendererBackend:
-            if (*videoSetting.value.rendererBackend != videoSetting.defaults.rendererBackend)
+            if (static_cast<RendererBackend>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.rendererBackend)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = RendererBackendToString(*videoSetting.value.rendererBackend);
+                sections[videoSetting.json_section][videoSetting.json_key] = RendererBackendToString(static_cast<RendererBackend>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::ShaderBackend:
-            if (*videoSetting.value.shaderBackend != videoSetting.defaults.shaderBackend)
+            if (static_cast<ShaderBackend>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.shaderBackend)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = ShaderBackendToString(*videoSetting.value.shaderBackend);
+                sections[videoSetting.json_section][videoSetting.json_key] = ShaderBackendToString(static_cast<ShaderBackend>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::AstcDecodeMode:
-            if (*videoSetting.value.astcDecodeMode != videoSetting.defaults.astcDecodeMode)
+            if (static_cast<AstcDecodeMode>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.astcDecodeMode)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = AstcDecodeModeToString(*videoSetting.value.astcDecodeMode);
+                sections[videoSetting.json_section][videoSetting.json_key] = AstcDecodeModeToString(static_cast<AstcDecodeMode>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::VSyncMode:
-            if (*videoSetting.value.vSyncMode != videoSetting.defaults.vSyncMode)
+            if (static_cast<VSyncMode>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.vSyncMode)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = VSyncModeToString(*videoSetting.value.vSyncMode);
+                sections[videoSetting.json_section][videoSetting.json_key] = VSyncModeToString(static_cast<VSyncMode>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::NvdecEmulation:
-            if (*videoSetting.value.nvdecEmulation != videoSetting.defaults.nvdecEmulation)
+            if (static_cast<NvdecEmulation>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.nvdecEmulation)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = NvdecEmulationToString(*videoSetting.value.nvdecEmulation);
+                sections[videoSetting.json_section][videoSetting.json_key] = NvdecEmulationToString(static_cast<NvdecEmulation>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::FullscreenMode:
-            if (*videoSetting.value.fullscreenMode != videoSetting.defaults.fullscreenMode)
+            if (static_cast<FullscreenMode>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.fullscreenMode)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = FullscreenModeToString(*videoSetting.value.fullscreenMode);
+                sections[videoSetting.json_section][videoSetting.json_key] = FullscreenModeToString(static_cast<FullscreenMode>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::AspectRatio:
-            if (*videoSetting.value.aspectRatio != videoSetting.defaults.aspectRatio)
+            if (static_cast<AspectRatio>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.aspectRatio)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = AspectRatioToString(*videoSetting.value.aspectRatio);
+                sections[videoSetting.json_section][videoSetting.json_key] = AspectRatioToString(static_cast<AspectRatio>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::ResolutionSetup:
-            if (*videoSetting.value.resolutionSetup != videoSetting.defaults.resolutionSetup)
+            if (static_cast<ResolutionSetup>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.resolutionSetup)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = ResolutionSetupToString(*videoSetting.value.resolutionSetup);
+                sections[videoSetting.json_section][videoSetting.json_key] = ResolutionSetupToString(static_cast<ResolutionSetup>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::ScalingFilter:
-            if (*videoSetting.value.scalingFilter != videoSetting.defaults.scalingFilter)
+            if (static_cast<ScalingFilter>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.scalingFilter)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = ScalingFilterToString(*videoSetting.value.scalingFilter);
+                sections[videoSetting.json_section][videoSetting.json_key] = ScalingFilterToString(static_cast<ScalingFilter>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::AntiAliasing:
-            if (*videoSetting.value.antiAliasing != videoSetting.defaults.antiAliasing)
+            if (static_cast<AntiAliasing>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.antiAliasing)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = AntiAliasingToString(*videoSetting.value.antiAliasing);
+                sections[videoSetting.json_section][videoSetting.json_key] = AntiAliasingToString(static_cast<AntiAliasing>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::GpuAccuracy:
-            if (*videoSetting.value.gpuAccuracy != videoSetting.defaults.gpuAccuracy)
+            if (static_cast<GpuAccuracy>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.gpuAccuracy)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = GpuAccuracyToString(*videoSetting.value.gpuAccuracy);
+                sections[videoSetting.json_section][videoSetting.json_key] = GpuAccuracyToString(static_cast<GpuAccuracy>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::AnisotropyMode:
-            if (*videoSetting.value.anisotropyMode != videoSetting.defaults.anisotropyMode)
+            if (static_cast<AnisotropyMode>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.anisotropyMode)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = AnisotropyModeToString(*videoSetting.value.anisotropyMode);
+                sections[videoSetting.json_section][videoSetting.json_key] = AnisotropyModeToString(static_cast<AnisotropyMode>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::AstcRecompression:
-            if (*videoSetting.value.astcRecompression != videoSetting.defaults.astcRecompression)
+            if (static_cast<AstcRecompression>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.astcRecompression)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = AstcRecompressionToString(*videoSetting.value.astcRecompression);
+                sections[videoSetting.json_section][videoSetting.json_key] = AstcRecompressionToString(static_cast<AstcRecompression>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         case SettingType::VramUsageMode:
-            if (*videoSetting.value.vramUsageMode != videoSetting.defaults.vramUsageMode)
+            if (static_cast<VramUsageMode>(g_settings->GetInt(videoSetting.identifier)) != videoSetting.defaults.vramUsageMode)
             {
-                sections[videoSetting.json_section][videoSetting.json_key] = VramUsageModeToString(*videoSetting.value.vramUsageMode);
+                sections[videoSetting.json_section][videoSetting.json_key] = VramUsageModeToString(static_cast<VramUsageMode>(g_settings->GetInt(videoSetting.identifier)));
             }
             break;
         default:

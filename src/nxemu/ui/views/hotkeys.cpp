@@ -13,6 +13,7 @@ struct State
     unsigned revision = 0;
 };
 
+// Read from the settings the first time it is asked for.
 State & Current()
 {
     static State state = [] {
@@ -36,6 +37,7 @@ Shortcut Hotkeys::Default(HotkeyId id)
     case HotkeyId::Settings: return {SDLK_t, true};
     case HotkeyId::Controllers: return {SDLK_c, true};
     case HotkeyId::Exit: return {SDLK_q, true};
+    // macOS keeps F11 for itself.
     case HotkeyId::Fullscreen: return CommandKeyboard() ? Shortcut{SDLK_f, true, false, true} : Shortcut{SDLK_F11};
     case HotkeyId::ExitFullscreen: return {SDLK_ESCAPE};
     case HotkeyId::HideUi: return {SDLK_F4};
@@ -76,6 +78,7 @@ void Hotkeys::Set(HotkeyId id, const Shortcut & shortcut)
     State & state = Current();
     state.shortcuts[static_cast<size_t>(id)] = shortcut;
     state.revision++;
+    // The usual key is not written: it may change with the version.
     UiPreferences::SetString((std::string(kSection) + kAll[static_cast<size_t>(id)].name).c_str(), shortcut == Default(id) ? std::string() : shortcut.Text());
 }
 

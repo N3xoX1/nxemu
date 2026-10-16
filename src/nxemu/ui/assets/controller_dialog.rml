@@ -9,8 +9,14 @@
     <div class="dialog settings-dialog">
       <div class="dialog-header settings-header">
         <img src="images/window-icon.png" />
-        <div class="dialog-title">Controllers</div>
-
+        <div class="dialog-title">Settings</div>
+        <div class="settings-separator" />
+        <div class="settings-categories">
+          <div class="settings-category" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category selected"><img src="images/gamepad.png" /><div>Controllers</div></div>
+          <div class="settings-category" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
+          <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
+        </div>
         <div class="dialog-close" data-command="cancel">&#xD7;</div>
       </div>
       <div class="settings-body">

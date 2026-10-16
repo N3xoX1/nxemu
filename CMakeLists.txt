@@ -1,12 +1,24 @@
 cmake_minimum_required(VERSION 3.22)
 
+# Let CMake select /Zi or /Z7 for MSVC, including cached compilations.
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0141 NEW)
+endif()
+
 # Match the minimum supported by the bundled MoltenVK runtime, instead of
 # silently targeting the macOS version of the developer's machine.
-if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+if(CMAKE_HOST_APPLE AND NOT CMAKE_TOOLCHAIN_FILE AND
+   (NOT CMAKE_SYSTEM_NAME OR CMAKE_SYSTEM_NAME STREQUAL "Darwin") AND
+   NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
 
 project(nxemu)
+
+# Make opt-in tests in subdirectories discoverable from the build root.
+enable_testing()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(APPLE)
     if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "12.0")
@@ -15,17 +27,34 @@ if(APPLE)
     enable_language(OBJC OBJCXX)
 endif()
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build configuration" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
+endif()
+
 find_package(Threads REQUIRED)
 
-if(APPLE)
+if(NOT ANDROID)
     option(ENABLE_SDL2 "Enable SDL game controller input" ON)
+    option(ENABLE_LIBUSB "Enable direct GameCube USB adapter input" ON)
+endif()
+if(APPLE)
     # Use Boost.Container for overlapping ICL interval lookups on libc++.
     add_compile_definitions(ICL_USE_BOOST_MOVE_IMPLEMENTATION)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND ENABLE_SDL2)
+    find_package(SDL2 REQUIRED CONFIG)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(ANDROID)
+    # NDK r26 defaults to 4 KiB ELF alignment. Also allow Android devices
+    # using 16 KiB host pages; the guest's 4 KiB pages remain unchanged.
+    add_link_options("LINKER:-z,max-page-size=16384" "LINKER:-z,common-page-size=16384")
+endif()
 
 # ============================================================
 # Architecture detection
@@ -56,7 +85,21 @@ endif()
 # ============================================================
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/src/cmake/modules")
 include("${CMAKE_SOURCE_DIR}/src/cmake/modules/create_target_directory_groups.cmake")
+include(nxemu_msvc)
 include(nxemu_output_directories)
+include(nxemu_ccache)
+include(nxemu_lto)
+
+set(NXEMU_COMPILE_JOBS "" CACHE STRING "Optional maximum concurrent Ninja compile jobs")
+if(NXEMU_COMPILE_JOBS)
+    if(NOT NXEMU_COMPILE_JOBS MATCHES "^[1-9][0-9]*$")
+        message(FATAL_ERROR "NXEMU_COMPILE_JOBS must be a positive integer")
+    endif()
+    if(CMAKE_GENERATOR MATCHES "Ninja")
+        set_property(GLOBAL APPEND PROPERTY JOB_POOLS nxemu_compile=${NXEMU_COMPILE_JOBS})
+        set(CMAKE_JOB_POOL_COMPILE nxemu_compile)
+    endif()
+endif()
 
 # ============================================================
 # Version
@@ -83,6 +126,9 @@ add_subdirectory(external)
 # ============================================================
 # Include source code
 # ============================================================
+if(WIN32)
+    add_compile_definitions(NOMINMAX BOOST_ALL_NO_LIB)
+endif()
 add_subdirectory(src/3rd_party/lz4)
 add_subdirectory(src/3rd_party/glad)
 add_subdirectory(src/3rd_party/bc_decoder)
@@ -108,4 +154,6 @@ if(ANDROID)
 endif()
 if(NOT ANDROID)
     add_subdirectory(src/nxemu)
+    # Visual Studio starts the emulator, not ALL_BUILD.
+    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT nxemu)
 endif()
