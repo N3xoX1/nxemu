@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <optional>
+
+#include "yuzu_common/logging/log.h"
 #include "core/core.h"
 #include "core/hle/kernel/k_condition_variable.h"
 #include "core/hle/kernel/k_process.h"
@@ -149,6 +152,37 @@ Result KConditionVariable::SignalToAddress(KernelCore& kernel, KProcessAddress a
     }
 }
 
+// Compatibility workaround: pass locks left by an exiting thread to their waiters.
+// Immortals can wait forever on a locked copy of its VP9 worker's ThreadType.
+// Also handle waiters that arrive after the owner has terminated.
+// This differs from native-kernel behavior and cannot repair the protected data.
+void KConditionVariable::ReleaseAbandonedUserLocks(KernelCore& kernel) {
+    ASSERT(KScheduler::IsSchedulerLockedByCurrentThread(kernel));
+    KThread* const owner_thread = GetCurrentThreadPointer(kernel);
+
+    KProcessAddress addr{};
+    while (owner_thread->FindHeldUserLockKey(std::addressof(addr))) {
+        bool has_waiters{};
+        KThread* const next_owner_thread =
+            owner_thread->RemoveUserWaiterByKey(std::addressof(has_waiters), addr);
+        ASSERT(next_owner_thread != nullptr);
+
+        u32 next_value = next_owner_thread->GetAddressKeyValue();
+        if (has_waiters) {
+            next_value |= Svc::HandleWaitMask;
+        }
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        const Result result = WriteToUser(kernel, addr, std::addressof(next_value))
+                                  ? ResultSuccess
+                                  : ResultInvalidCurrentMemory;
+        LOG_WARNING(Kernel,
+                    "Abandoned lock handoff at exit: lock={:#x}, exited_thread={}, new_owner={}",
+                    addr.GetValue(), owner_thread->GetThreadId(),
+                    next_owner_thread->GetThreadId());
+        next_owner_thread->EndWait(result);
+    }
+}
+
 Result KConditionVariable::WaitForAddress(KernelCore& kernel, Handle handle, KProcessAddress addr,
                                           u32 value) {
     KThread* cur_thread = GetCurrentThreadPointer(kernel);
@@ -156,6 +190,7 @@ Result KConditionVariable::WaitForAddress(KernelCore& kernel, Handle handle, KPr
 
     // Wait for the address.
     KThread* owner_thread{};
+    std::optional<Result> handoff_result;
     {
         KScopedSchedulerLock sl(kernel);
 
@@ -176,17 +211,33 @@ Result KConditionVariable::WaitForAddress(KernelCore& kernel, Handle handle, KPr
                            .ReleasePointerUnsafe();
         R_UNLESS(owner_thread != nullptr, ResultInvalidHandle);
 
-        // Update the lock.
-        cur_thread->SetUserAddressKey(addr, value);
-        owner_thread->AddWaiter(cur_thread);
+        // NXEmu workaround, see ReleaseAbandonedUserLocks: a terminated owner never releases
+        // this lock, so take it instead of waiting forever.
+        if (owner_thread->GetState() == ThreadState::Terminated) {
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+            handoff_result = WriteToUser(kernel, addr, std::addressof(value))
+                                 ? ResultSuccess
+                                 : ResultInvalidCurrentMemory;
+            LOG_WARNING(Kernel,
+                        "Abandoned lock handoff on wait: lock={:#x}, exited_thread={}, "
+                        "new_owner={}",
+                        addr.GetValue(), owner_thread->GetThreadId(), cur_thread->GetThreadId());
+        } else {
+            // Update the lock.
+            cur_thread->SetUserAddressKey(addr, value);
+            owner_thread->AddWaiter(cur_thread);
 
-        // Begin waiting.
-        cur_thread->BeginWait(std::addressof(wait_queue));
-        cur_thread->SetWaitReasonForDebugging(ThreadWaitReasonForDebugging::ConditionVar);
+            // Begin waiting.
+            cur_thread->BeginWait(std::addressof(wait_queue));
+            cur_thread->SetWaitReasonForDebugging(ThreadWaitReasonForDebugging::ConditionVar);
+        }
     }
 
     // Close our reference to the owner thread, now that the wait is over.
     owner_thread->Close();
+    if (handoff_result) {
+        R_RETURN(*handoff_result);
+    }
 
     // Get the wait result.
     R_RETURN(cur_thread->GetWaitResult());
@@ -227,8 +278,23 @@ void KConditionVariable::SignalImpl(KThread* thread) {
                                         .ReleasePointerUnsafe();
 
             if (owner_thread) [[likely]] {
-                // Add the thread as a waiter on the owner.
-                owner_thread->AddWaiter(thread);
+                if (owner_thread->GetState() == ThreadState::Terminated) [[unlikely]] {
+                    // Exit already released this owner's waiters. Do not attach a newly
+                    // signalled condition-variable waiter to a thread that cannot wake it.
+                    std::atomic_thread_fence(std::memory_order_seq_cst);
+                    const Result result = WriteToUser(m_kernel, address, std::addressof(own_tag))
+                                              ? ResultSuccess
+                                              : ResultInvalidCurrentMemory;
+                    LOG_WARNING(Kernel,
+                                "Abandoned lock handoff on condition signal: lock={:#x}, "
+                                "exited_thread={}, new_owner={}",
+                                address.GetValue(), owner_thread->GetThreadId(),
+                                thread->GetThreadId());
+                    thread->EndWait(result);
+                } else {
+                    // Add the thread as a waiter on the owner.
+                    owner_thread->AddWaiter(thread);
+                }
                 owner_thread->Close();
             } else {
                 // The lock was tagged with a thread that doesn't exist.

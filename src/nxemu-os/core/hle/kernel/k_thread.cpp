@@ -1107,6 +1107,17 @@ void KThread::RemoveWaiter(KThread* thread) {
     }
 }
 
+bool KThread::FindHeldUserLockKey(KProcessAddress* out_key) {
+    ASSERT(KScheduler::IsSchedulerLockedByCurrentThread(m_kernel));
+    for (auto& lock_info : m_held_lock_info_list) {
+        if (!lock_info.GetIsKernelAddressKey() && lock_info.GetWaiterCount() > 0) {
+            *out_key = lock_info.GetAddressKey();
+            return true;
+        }
+    }
+    return false;
+}
+
 KThread* KThread::RemoveWaiterByKey(bool* out_has_waiters, KProcessAddress key,
                                     bool is_kernel_address_key_) {
     ASSERT(KScheduler::IsSchedulerLockedByCurrentThread(m_kernel));
@@ -1223,6 +1234,9 @@ void KThread::Exit() {
 
         // Disallow all suspension.
         m_suspend_allowed_flags = 0;
+
+        // Hand abandoned locks to their waiters before marking this thread terminated.
+        KConditionVariable::ReleaseAbandonedUserLocks(m_kernel);
 
         // Start termination.
         this->StartTermination();
