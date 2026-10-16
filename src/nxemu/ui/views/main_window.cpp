@@ -782,9 +782,11 @@ void MainWindow::Run(Action action)
     case Action::OpenReportIssues: OpenUrl(kReportUrl); break;
     case Action::OpenAbout: m_aboutDialog->Show(); break;
     case Action::CopyVersion:
-        SDL_SetClipboardText(VER_FILE_VERSION_STR);
-        m_versionCopiedUntil = SDL_GetTicks64() + kVersionCopiedMs;
-        ShowVersion();
+        if (SDL_SetClipboardText(VER_FILE_VERSION_STR) == 0)
+        {
+            m_versionCopiedUntil = SDL_GetTicks64() + kVersionCopiedMs;
+            ShowVersion();
+        }
         break;
     case Action::ConfigureControllers:
         if (m_session.IsValid())
@@ -970,6 +972,8 @@ void MainWindow::BindEvents()
     onClick("title-settings", Action::OpenSettings);
     onClick("title-controllers", Action::ConfigureControllers);
     onClick("title-restart", Action::Restart);
+    onClick("title-logo", Action::CopyVersion);
+    onClick("title-name", Action::CopyVersion);
     onClick("title-version", Action::CopyVersion);
     onClick("title-pause", Action::PauseOrContinue);
     onClick("title-stop", Action::Stop);
@@ -1934,6 +1938,7 @@ void MainWindow::SetTitle(const std::string & game)
 
 void MainWindow::ShowVersion()
 {
+    m_document->GetElementById("version-notification")->SetClass("shown", m_versionCopiedUntil != 0);
     // The badge keeps to the release and the build; the whole version shows on hover.
     const std::string version = VER_FILE_VERSION_STR;
     const size_t dash = version.find('-');
