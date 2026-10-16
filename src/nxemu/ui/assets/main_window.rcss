@@ -182,8 +182,6 @@ body.compact .title-separator
 #emulation-controls
 {
     display: none;
-    align-items: center;
-    flex-shrink: 0;
     margin-right: 10dp;
 }
 
@@ -192,39 +190,54 @@ body.game-controls-visible #emulation-controls
     display: flex;
 }
 
+.title-button-group
+{
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border: 1dp #26364f;
+    border-radius: 5dp;
+    background-color: #111b2d;
+    overflow: hidden;
+}
+
 .emulation-button
 {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34dp;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 36dp;
     height: 28dp;
     padding: 0;
-    margin-left: 5dp;
-    border: 1dp #26364f;
-    border-radius: 5dp;
+    margin: 0;
+    border: 0dp #26364f;
+    border-left: 1dp #26364f;
+    border-radius: 0;
     background-color: #111b2d;
     cursor: pointer;
 }
 
 .emulation-button:hover
 {
-    border-color: #4b6387;
     background-color: #20314d;
 }
 
 #title-settings-group
 {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
     margin-right: 10dp;
 }
 
-#title-settings-group .emulation-button:first-child,
-#emulation-controls .emulation-button:first-child
+.title-button-group .emulation-button:first-child
 {
-    margin-left: 0;
+    border-left-width: 0;
+    border-radius: 4dp 0 0 4dp;
+}
+
+.title-button-group .emulation-button:last-child
+{
+    border-radius: 0 4dp 4dp 0;
 }
 
 #title-settings-group img,
@@ -244,18 +257,16 @@ body.ui-hidden #title-settings-group
     display: none;
 }
 
-#title-controls-separator
+#title-controls-gap
 {
     display: none;
     flex-shrink: 0;
     width: 4dp;
     height: 4dp;
-    border-radius: 2dp;
-    background-color: #64748b;
     margin: 0 12dp;
 }
 
-body.game-controls-visible #title-controls-separator
+body.game-controls-visible #title-controls-gap
 {
     display: block;
 }
@@ -270,21 +281,26 @@ body.game-controls-visible #title-controls-separator
 }
 
 body.title-hide-settings #title-settings-group,
-body.title-hide-settings #title-controls-separator,
+body.title-hide-settings #title-controls-gap,
 body.title-hide-text #title-game,
 body.title-hide-secondary #emulation-controls,
-body.title-hide-secondary #title-controls-separator,
+body.title-hide-secondary #title-controls-gap,
 body.title-minimal #title-game,
 body.title-minimal #title-controllers,
-body.title-minimal #title-controls-separator,
-body.ui-hidden #title-controls-separator
+body.title-minimal #title-controls-gap,
+body.ui-hidden #title-controls-gap
 {
     display: none;
 }
 
+body.title-minimal #title-settings
+{
+    border-left-width: 0;
+    border-radius: 4dp;
+}
+
 #title-pause.active
 {
-    border-color: #368bff;
     background-color: #1458ad;
 }
 
@@ -295,7 +311,6 @@ body.ui-hidden #title-controls-separator
 
 #title-stop:hover
 {
-    border-color: #e05262;
     background-color: #872735;
 }
 
