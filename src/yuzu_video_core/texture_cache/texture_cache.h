@@ -1674,7 +1674,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             continue;
         }
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
-            ReprotectNativeReads(new_image);
             new_image.flags |= ImageFlagBits::GpuModified;
             const auto& resolution = videoSettings.resolution_info;
             const SubresourceBase base = new_image.TryFindBase(overlap.gpu_addr).value();
@@ -2401,20 +2400,7 @@ void TextureCache<P>::RemoveFramebuffers(std::span<const ImageViewId> removed_vi
 }
 
 template <class P>
-void TextureCache<P>::ReprotectNativeReads(ImageBase& image) noexcept {
-    if (False(image.flags & ImageFlagBits::Sparse)) {
-        if (image.cpu_addr < ~(1ULL << 40))
-            device_memory.ReprotectNativeReads(image.cpu_addr, image.guest_size_bytes);
-    } else {
-        ForEachSparseSegment(image, [this](GPUVAddr, DAddr addr, size_t size) {
-            device_memory.ReprotectNativeReads(addr, size);
-        });
-    }
-}
-
-template <class P>
 void TextureCache<P>::MarkModification(ImageBase& image) noexcept {
-    ReprotectNativeReads(image);
     image.flags |= ImageFlagBits::GpuModified;
     image.modification_tick = ++modification_tick;
 }
@@ -2506,7 +2492,6 @@ void TextureCache<P>::PrepareImageView(ImageViewId image_view_id, bool is_modifi
 template <class P>
 void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<ImageCopy> copies) {
     Image& dst = slot_images[dst_id];
-    ReprotectNativeReads(dst);
     Image& src = slot_images[src_id];
     const bool is_rescaled = True(src.flags & ImageFlagBits::Rescaled);
     if (is_rescaled) {

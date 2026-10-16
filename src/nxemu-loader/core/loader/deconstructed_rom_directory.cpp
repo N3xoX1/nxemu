@@ -192,8 +192,7 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
 
     // Enable direct memory mapping in case of NCE.
     uint64_t fastmem_base = 0;
-    if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled) &&
-        systemModules.Cpu().RequiresDirectMemoryMapping())
+    if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         IDeviceMemory & buffer = operatingSystem.DeviceMemory();
         buffer.EnableDirectMappedAddress();

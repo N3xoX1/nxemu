@@ -85,7 +85,6 @@ struct VideoSettings
     bool use_asynchronous_shaders;
     bool use_fast_gpu_time;
     bool use_vulkan_driver_pipeline_cache;
-    bool use_native_metal_cache;
     bool enable_compute_pipelines;
     bool use_video_framerate;
     bool barrier_feedback_loops;

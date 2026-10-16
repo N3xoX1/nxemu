@@ -105,8 +105,8 @@ void ShaderCache::GetGraphicsEnvironments(GraphicsEnvironments& result,
         const auto program{static_cast<Tegra::Engines::Maxwell3D::Regs::ShaderType>(index)};
         auto& env{result.envs[index]};
         const u32 start_address{maxwell3d->regs.pipelines[index].offset};
-        env = GraphicsEnvironment{*maxwell3d, *gpu_memory, program, base_addr, start_address,
-                                  shader_infos[index]->code, shader_infos[index]->size_bytes};
+        env = GraphicsEnvironment{*maxwell3d, *gpu_memory, program, base_addr, start_address};
+        env.SetCachedSize(shader_infos[index]->size_bytes);
         result.env_ptrs[env_index++] = &env;
     }
 }
@@ -244,7 +244,6 @@ const ShaderInfo* ShaderCache::MakeShaderInfo(GenericEnvironment& env, VAddr cpu
     }
     const size_t size_bytes{info->size_bytes};
     const ShaderInfo* const result{info.get()};
-    info->code = env.ShareCachedCode(info->size_bytes);
     Register(std::move(info), cpu_addr, size_bytes);
     return result;
 }

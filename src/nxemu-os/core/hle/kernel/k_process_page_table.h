@@ -30,11 +30,6 @@ public:
         return (void **)(GetImpl().pointers.data());
     }
 
-    void SetNativeMemoryObserver(Common::NativeMemoryObserver * observer) override
-    {
-        GetImpl().native_memory_observer = observer;
-    }
-
     Result Initialize(Svc::CreateProcessFlag as_type, bool enable_aslr, bool enable_das_merge,
                       bool from_back, KMemoryManager::Pool pool, KProcessAddress code_address,
                       size_t code_size, KSystemResource* system_resource,

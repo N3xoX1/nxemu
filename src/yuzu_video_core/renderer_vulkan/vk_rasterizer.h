@@ -81,7 +81,6 @@ public:
                               const Device& device_, MemoryAllocator& memory_allocator_,
                               StateTracker& state_tracker_, Scheduler& scheduler_);
     ~RasterizerVulkan() override;
-    void WaitForShaderBuilds() { pipeline_cache.WaitForBuilds(); }
 
     void Draw(bool is_indexed, u32 instance_count) override;
     bool DrawIndirect() override;

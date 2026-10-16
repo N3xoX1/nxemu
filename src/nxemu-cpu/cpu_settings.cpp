@@ -67,8 +67,6 @@ static CpuSetting settings[] = {
     {NXCpuSetting::CpuoptFastmem, "cpu", "cpuopt_fastmem", &cpuSettings.cpuopt_fastmem, true},
     {NXCpuSetting::CpuoptFastmemExclusives, "cpu", "cpuopt_fastmem_exclusives", &cpuSettings.cpuopt_fastmem_exclusives, true},
     {NXCpuSetting::CpuoptRecompileExclusives, "cpu", "cpuopt_recompile_exclusives", &cpuSettings.cpuopt_recompile_exclusives, true},
-    // Dynarmic's legacy fast path. AppleHV handles unresolved hardware faults strictly,
-    // independently of this JIT setting, including when a process falls back to Dynarmic.
     {NXCpuSetting::CpuoptIgnoreMemoryAborts, "cpu", "cpuopt_ignore_memory_aborts", &cpuSettings.cpuopt_ignore_memory_aborts, true},
     {NXCpuSetting::CpuoptUnsafeUnfuseFma, "cpu", "cpuopt_unsafe_unfuse_fma", &cpuSettings.cpuopt_unsafe_unfuse_fma, true},
     {NXCpuSetting::CpuoptUnsafeReduceFpError, "cpu", "cpuopt_unsafe_reduce_fp_error", &cpuSettings.cpuopt_unsafe_reduce_fp_error, true},
@@ -112,17 +110,21 @@ CpuSetting::CpuSetting(const char * id, const char * section, const char * key, 
 
 bool IsFastmemEnabled()
 {
-    return !cpuSettings.cpu_debug_mode || cpuSettings.cpuopt_fastmem;
+    if (cpuSettings.cpu_debug_mode)
+    {
+        return cpuSettings.cpuopt_fastmem;
+    }
+    return true;
 }
 
 void UpdateNceEnabled()
 {
-#if defined(NXEMU_HAS_APPLE_HV)
-    const bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
-    g_settings->SetBool(NXCpuSetting::NceEnabled, is_nce);
-#elif defined(NXEMU_HAS_NCE)
     const bool has_39bit = g_settings->GetBool(NXCoreSetting::Has39BitAddressSpace);
+#if defined(NXEMU_HAS_NCE)
     const bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
+#else
+    const bool is_nce = false;
+#endif
     if (is_nce && !IsFastmemEnabled())
     {
         LOG_WARNING(Common, "Fastmem is required to natively execute code in a performant manner, falling back to Dynarmic");
@@ -132,21 +134,14 @@ void UpdateNceEnabled()
         LOG_WARNING(Common, "Program does not utilize 39-bit address space, unable to natively execute code");
     }
     g_settings->SetBool(NXCpuSetting::NceEnabled, IsFastmemEnabled() && is_nce && has_39bit);
-#else
-    g_settings->SetBool(NXCpuSetting::NceEnabled, false);
-#endif
 }
 
 bool AffectsNceEnabled(const char * setting)
 {
-#if defined(NXEMU_HAS_APPLE_HV)
-    return strcmp(setting, NXCpuSetting::CpuBackend) == 0;
-#else
     return strcmp(setting, NXCpuSetting::CpuBackend) == 0 ||
            strcmp(setting, NXCpuSetting::CpuDebugMode) == 0 ||
            strcmp(setting, NXCpuSetting::CpuoptFastmem) == 0 ||
            strcmp(setting, NXCoreSetting::Has39BitAddressSpace) == 0;
-#endif
 }
 
 void CpuSettingChanged(const char * setting, void * /*userData*/)
@@ -246,7 +241,7 @@ void SetupCpuSetting(void)
         }
     }
 
-#if !defined(NXEMU_HAS_NCE) && !defined(NXEMU_HAS_APPLE_HV)
+#if !defined(NXEMU_HAS_NCE)
     if (cpuSettings.cpu_backend == CpuBackend::Nce)
     {
         LOG_WARNING(Common, "NCE is unavailable on this host; using Dynarmic");
@@ -276,10 +271,6 @@ void SetupCpuSetting(void)
         g_settings->RegisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
     }
 
-    for (const auto & setting : settings)
-    {
-        CpuSettingChanged(setting.identifier, nullptr);
-    }
     g_settings->RegisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
 
     g_settings->SetDefaultBool(NXCpuSetting::NceEnabled, false);

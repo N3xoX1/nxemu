@@ -33,7 +33,6 @@ class GenericEnvironment;
 struct ShaderInfo {
     u64 unique_hash{};
     size_t size_bytes{};
-    std::shared_ptr<const std::vector<u64>> code;
 };
 
 class ShaderCache : public VideoCommon::ChannelSetupCaches<VideoCommon::ChannelInfo> {

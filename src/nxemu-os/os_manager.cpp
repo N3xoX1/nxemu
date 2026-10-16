@@ -754,8 +754,3 @@ void OSManager::PushUserChannelEntry(const uint8_t * data, uint32_t size)
     }
     m_coreSystem.GetUserChannel().emplace_back(data, data + size);
 }
-
-IKernelProcess * OSManager::ApplicationProcess()
-{
-    return m_applicationProcess;
-}

@@ -626,42 +626,6 @@ void PipelineCache::SetObjectNameEXT(const char* name) const {
     SetObjectName(dld, owner, handle, VK_OBJECT_TYPE_PIPELINE_CACHE, name);
 }
 
-std::vector<char> PipelineCache::ReadData() const {
-    // Adapted from Eden c9499a0f77. Asynchronous pipeline builds can grow the cache
-    // between the size query and the data query. VK_INCOMPLETE still returns valid
-    // cache data, so bounded retries can fall back to the final partial snapshot.
-    constexpr size_t MaxAttempts = 3;
-    std::vector<char> data;
-    size_t valid_size = 0;
-
-    for (size_t attempt = 0; attempt < MaxAttempts; ++attempt) {
-        size_t required_size = 0;
-        Check(Read(&required_size, nullptr));
-        if (required_size == 0) {
-            return {};
-        }
-
-        data.resize(required_size);
-        size_t written_size = data.size();
-        const VkResult result = Read(&written_size, data.data());
-        if (result == VK_SUCCESS) {
-            data.resize(written_size);
-            return data;
-        }
-        if (result != VK_INCOMPLETE) {
-            Check(result);
-        }
-        valid_size = written_size;
-    }
-
-    LOG_DEBUG(Render_Vulkan,
-              "Pipeline cache kept growing during {} read attempts; using a valid {}-byte partial "
-              "snapshot",
-              MaxAttempts, valid_size);
-    data.resize(valid_size);
-    return data;
-}
-
 void Semaphore::SetObjectNameEXT(const char* name) const {
     SetObjectName(dld, owner, handle, VK_OBJECT_TYPE_SEMAPHORE, name);
 }

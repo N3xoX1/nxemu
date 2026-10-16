@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
-#include <span>
 
 #include "yuzu_common/bit_field.h"
 #include "yuzu_common/common_types.h"
@@ -263,8 +261,6 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be invalidated
     void InvalidateRegion(DAddr addr, u64 size);
-
-    void SynchronizeNativeMemory(std::span<const DAddr> addresses, u64 size, bool write, const std::function<void()>& complete);
 
     /// Notify rasterizer that CPU is trying to write this area. It returns true if the area is
     /// sensible, false otherwise

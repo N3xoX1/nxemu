@@ -285,7 +285,6 @@ void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size
 template <typename Traits>
 void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
 {
-    ReprotectNativeReads(address, size);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
     device_inter->InvalidateRegion(address, size);
@@ -558,7 +557,6 @@ template <typename Traits>
 void DeviceMemoryManager<Traits>::UnregisterProcess(Asid asid)
 {
     std::scoped_lock lk(process_guard);
-    native_reads.Forget(registered_processes[asid.id]);
     registered_processes[asid.id] = nullptr;
     id_pool.push_front(asid.id);
 }

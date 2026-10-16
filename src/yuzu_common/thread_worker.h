@@ -5,7 +5,6 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <deque>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -54,7 +53,7 @@ public:
                             break;
                         }
                         task = std::move(requests.front());
-                        requests.pop_front();
+                        requests.pop();
                     }
                     if constexpr (with_state) {
                         task(&state);
@@ -79,14 +78,10 @@ public:
     StatefulThreadWorker& operator=(StatefulThreadWorker&&) = delete;
     StatefulThreadWorker(StatefulThreadWorker&&) = delete;
 
-    void QueueWork(Task work, bool high_priority = false) {
+    void QueueWork(Task work) {
         {
             std::unique_lock lock{queue_mutex};
-            if (high_priority) {
-                requests.emplace_front(std::move(work));
-            } else {
-                requests.emplace_back(std::move(work));
-            }
+            requests.emplace(std::move(work));
             ++work_scheduled;
         }
         condition.notify_one();
@@ -105,7 +100,7 @@ public:
     }
 
 private:
-    std::deque<Task> requests;
+    std::queue<Task> requests;
     std::mutex queue_mutex;
     std::condition_variable_any condition;
     std::condition_variable wait_condition;

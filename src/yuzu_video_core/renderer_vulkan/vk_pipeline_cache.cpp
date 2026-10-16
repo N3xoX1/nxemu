@@ -508,15 +508,9 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
       texture_cache{texture_cache_}, shader_notify{shader_notify_},
       use_asynchronous_shaders{videoSettings.use_asynchronous_shaders},
       use_vulkan_pipeline_cache{videoSettings.use_vulkan_driver_pipeline_cache},
-#if defined(NXEMU_MOLTENVK_SHADER_CACHE)
-      use_native_metal_cache{videoSettings.use_native_metal_cache},
-#endif
       workers(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers(),
               "VkPipelineBuilder"),
-      serialization_thread(1, "VkPipelineSerialization"),
-      runtime_builds(use_asynchronous_shaders
-          ? (device.HasBrokenParallelShaderCompiling() ? 1ULL
-                : std::clamp<size_t>(GetTotalPipelineWorkers(), 1, 4)) : 1ULL) {
+      serialization_thread(1, "VkPipelineSerialization") {
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     profile = Shader::Profile{
@@ -625,17 +619,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
     };
 }
 
-void PipelineCache::WaitForBuilds() {
-    // Builds can still refer to shader inputs and the Vulkan cache. Drain them before
-    // taking the final cache snapshot, then finish portable-cache serialization.
-    runtime_builds.WaitForRequests();
-    FinalizeReadyGraphicsPipelines();
-    workers.WaitForRequests();
-    serialization_thread.WaitForRequests();
-}
-
 PipelineCache::~PipelineCache() {
-    WaitForBuilds();
     if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
                                      CACHE_VERSION);
@@ -643,7 +627,6 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
-    FinalizeReadyGraphicsPipelines();
 
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
@@ -706,8 +689,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     pipeline_cache_filename = base_dir / "vulkan.bin";
 
     const bool molten_vk = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK;
-    const bool native_metal_cache = molten_vk && use_native_metal_cache;
-    if (use_vulkan_pipeline_cache && (!molten_vk || native_metal_cache)) {
+    if (use_vulkan_pipeline_cache && !molten_vk) {
         vulkan_pipeline_cache_filename = base_dir / "vulkan_pipelines.bin";
         vulkan_pipeline_cache =
             LoadVulkanPipelineCache(vulkan_pipeline_cache_filename, CACHE_VERSION);
@@ -870,7 +852,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
 
     workers.WaitForRequests(stop_loading);
 
-    if (use_vulkan_pipeline_cache && molten_vk && !native_metal_cache) {
+    if (use_vulkan_pipeline_cache && molten_vk) {
         // The synchronous warmup jobs have finished. New runtime pipelines can
         // now reuse an in-memory driver cache without slowing down startup.
         vulkan_pipeline_cache = LoadVulkanPipelineCache({}, CACHE_VERSION);
@@ -897,162 +879,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
 }
 
-bool PipelineCache::ShouldWaitForAsyncPipeline() const noexcept {
-    if (maxwell3d->regs.zeta_enable) {
-        return false;
-    }
-    const auto& draw = maxwell3d->draw_manager->GetDrawState();
-    // The unused count can be zero or stale after a different kind of draw.
-    return (draw.draw_indexed ? draw.index_buffer.count : draw.vertex_buffer.count) <= 6;
-}
-
-bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
-    // Backpressure falls back to synchronous compilation instead of holding an
-    // unbounded number of guest-memory snapshots or blocking on a queue slot.
-    constexpr size_t MaxPending = 128;
-    constexpr size_t MaxSnapshotBytes = 64 * 1024 * 1024;
-    if (pending_graphics.size() >= MaxPending) {
-        return false;
-    }
-    u32 stage_mask{};
-    for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
-        if (key.unique_hashes[index]) {
-            stage_mask |= 1U << (index == 0 ? 0 : index - 1);
-        }
-    }
-    if (VideoCommon::GraphicsEnvironment::SnapshotSize(*maxwell3d, stage_mask, snapshot_cache) >
-        MaxSnapshotBytes - pending_snapshot_bytes) {
-        return false;
-    }
-    size_t new_bytes{};
-    auto snapshot = VideoCommon::GraphicsEnvironment::CaptureSnapshot(
-        *maxwell3d, *gpu_memory, stage_mask, snapshot_cache, new_bytes);
-    if (!snapshot) {
-        return false;
-    }
-    auto job = std::make_shared<PendingGraphicsPipeline>();
-    // Charge shared descriptors to every job: conservative accounting keeps the
-    // bound valid even when the job that first allocated them finishes first.
-    job->snapshot_bytes = snapshot->constant_buffer_data.size() +
-        snapshot->texture_descriptors->size() * sizeof(Tegra::Texture::TICEntry) +
-        sizeof(*snapshot) + snapshot->cbuf_replacements.size() * 64;
-    if (job->snapshot_bytes > MaxSnapshotBytes - pending_snapshot_bytes) {
-        return false;
-    }
-    GetGraphicsEnvironments(job->environments, key.unique_hashes);
-    for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
-        if (key.unique_hashes[index]) {
-            job->environments.envs[index].SetSnapshot(snapshot);
-        }
-    }
-    pending_graphics.emplace(key, job);
-    pending_snapshot_bytes += job->snapshot_bytes;
-    try {
-        job->request = runtime_builds.QueueWork([this, key, job] {
-            if (!job->build.TryBuild([&] {
-                    // Reuse the IR pools on this compiler thread. All engine and
-                    // guest-memory reads use the immutable captured environments.
-                    thread_local ShaderPools pools;
-                    pools.ReleaseContents();
-                    return CreateGraphicsPipeline(pools, key, job->environments.Span(), nullptr, false);
-                })) {
-                return;
-            }
-            std::scoped_lock lock{completed_mutex};
-            completed_graphics.push_back(key);
-            has_completed_graphics.store(true, std::memory_order_release);
-        }, false);
-    } catch (...) {
-        pending_snapshot_bytes -= job->snapshot_bytes;
-        pending_graphics.erase(key);
-        throw;
-    }
-    return true;
-}
-
-void PipelineCache::SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
-                                                 GraphicsEnvironments& environments) {
-    if (pipeline_cache_filename.empty()) {
-        return;
-    }
-    for (auto& env : environments.envs) {
-        env.ReleaseSnapshot();
-    }
-    serialization_thread.QueueWork([this, key, envs = std::move(environments.envs)] {
-        boost::container::static_vector<const GenericEnvironment*, Maxwell::MaxShaderProgram> env_ptrs;
-        for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
-            if (key.unique_hashes[index]) {
-                env_ptrs.push_back(&envs[index]);
-            }
-        }
-        SerializePipeline(key, env_ptrs, pipeline_cache_filename, CACHE_VERSION);
-    });
-}
-
-void PipelineCache::FinishGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
-    const auto it = pending_graphics.find(key);
-    if (it == pending_graphics.end() || !it->second->build.IsComplete()) {
-        return;
-    }
-    auto job = it->second;
-    // The request owns its callback, which captures this job. Break that cycle
-    // once completion makes the callback's lifetime independent of the entry.
-    job->request.reset();
-    try {
-        auto pipeline = job->build.Take();
-        for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
-            cbuf_size_dependencies.Observe(key.unique_hashes[index],
-                                          job->environments.envs[index].CbufSizeMask());
-        }
-        if (pipeline) {
-            graphics_cache[key] = std::move(pipeline);
-            SerializeGraphicsEnvironments(key, job->environments);
-        }
-    } catch (const std::exception& exception) {
-        LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed: {}", key.Hash(), exception.what());
-    } catch (...) {
-        LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed", key.Hash());
-    }
-    pending_snapshot_bytes -= job->snapshot_bytes;
-    pending_graphics.erase(it);
-}
-
-void PipelineCache::FinalizeReadyGraphicsPipelines() {
-    if (!has_completed_graphics.load(std::memory_order_acquire)) {
-        return;
-    }
-    std::vector<GraphicsPipelineCacheKey> ready;
-    {
-        std::scoped_lock lock{completed_mutex};
-        ready.swap(completed_graphics);
-        has_completed_graphics.store(false, std::memory_order_release);
-    }
-    for (const auto& key : ready) {
-        FinishGraphicsPipeline(key);
-    }
-}
-
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
-    if (const auto it = pending_graphics.find(graphics_key); it != pending_graphics.end()) {
-        auto job = it->second;
-        if (!job->build.IsComplete() && ShouldWaitForAsyncPipeline()) {
-            runtime_builds.Promote(job->request);
-            runtime_builds.RunNow(job->request);
-            job->build.Wait();
-        }
-        if (!job->build.IsComplete()) {
-            return nullptr;
-        }
-        FinishGraphicsPipeline(graphics_key);
-    }
     const auto [pair, is_new]{graphics_cache.try_emplace(graphics_key)};
     auto& pipeline{pair->second};
     if (is_new) {
-        if (use_asynchronous_shaders && !ShouldWaitForAsyncPipeline() &&
-            graphics_key.state.app_stage != Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro &&
-            QueueGraphicsPipeline(graphics_key)) {
-            return nullptr;
-        }
         pipeline = CreateGraphicsPipeline();
     }
     if (!pipeline) {
@@ -1075,7 +905,19 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     if (!use_asynchronous_shaders) {
         return pipeline;
     }
-    return ShouldWaitForAsyncPipeline() ? pipeline : nullptr;
+    // If something is using depth, we can assume that games are not rendering anything which
+    // will be used one time.
+    if (maxwell3d->regs.zeta_enable) {
+        return nullptr;
+    }
+    // If games are using a small index count, we can assume these are full screen quads.
+    // Usually these shaders are only used once for building textures so we can assume they
+    // can't be built async
+    const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
+    if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
+        return pipeline;
+    }
+    return nullptr;
 }
 
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
@@ -1504,17 +1346,8 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& filename,
                                                  const vk::PipelineCache& pipeline_cache,
                                                  u32 cache_version) try {
-    if (!pipeline_cache) {
-        return;
-    }
-    // Read before truncating the last disk cache. ReadData tolerates concurrent
-    // growth and only returns the bytes the driver actually wrote.
-    const auto cache_data = pipeline_cache.ReadData();
-    if (cache_data.empty()) {
-        return;
-    }
     std::ofstream file(filename, std::ios::binary);
-    file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+    file.exceptions(std::ifstream::failbit);
     if (!file.is_open()) {
         LOG_ERROR(Common_Filesystem, "Failed to open Vulkan driver pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
@@ -1523,8 +1356,14 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
     file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
         .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
 
-    file.write(cache_data.data(), static_cast<std::streamsize>(cache_data.size()));
-    file.close();
+    size_t cache_size = 0;
+    std::vector<char> cache_data;
+    if (pipeline_cache) {
+        pipeline_cache.Read(&cache_size, nullptr);
+        cache_data.resize(cache_size);
+        pipeline_cache.Read(&cache_size, cache_data.data());
+    }
+    file.write(cache_data.data(), cache_size);
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
@@ -1535,8 +1374,6 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
         LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
     }
-} catch (const vk::Exception& e) {
-    LOG_ERROR(Render_Vulkan, "Failed to read Vulkan driver pipeline cache: {}", e.what());
 }
 
 vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::path& filename,
@@ -1550,21 +1387,6 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
             .pInitialData = data};
         const auto start = std::chrono::steady_clock::now();
         auto cache = device.GetLogical().CreatePipelineCache(pipeline_cache_ci);
-#if defined(NXEMU_MOLTENVK_SHADER_CACHE)
-        if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && !use_native_metal_cache) {
-            // Configure the private bundled-runtime hook before any pipeline can
-            // use this cache. Keep MSL reuse, without native archive recording.
-            using DisableArchives = void(VKAPI_PTR*)(VkDevice, VkPipelineCache);
-            const auto disable = reinterpret_cast<DisableArchives>(
-                device.GetLogical().GetProcAddr("vkDisablePipelineCacheMetalArchivesNXEMU"));
-            if (disable) {
-                disable(*device.GetLogical(), *cache);
-            } else {
-                LOG_WARNING(Render_Vulkan, "MoltenVK lacks the native-cache control hook; disabling the driver cache");
-                return vk::PipelineCache{};
-            }
-        }
-#endif
         LOG_INFO(Render_Vulkan, "Initialized Vulkan driver pipeline cache ({} bytes) in {} ms",
                  data_size, std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - start).count());

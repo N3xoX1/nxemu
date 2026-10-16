@@ -200,7 +200,6 @@ nxinterface IVideo
     virtual uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) = 0;
     virtual void WaitForComposite() = 0;
     virtual void CancelPendingComposite() = 0;
-    virtual void SynchronizeNativeMemory(IMemory* memory, uint64_t vaddr, const uint8_t * pointer, uint64_t size, bool write) = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

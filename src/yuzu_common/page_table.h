@@ -4,36 +4,12 @@
 #pragma once
 
 #include <atomic>
-#include <span>
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/typed_address.h"
 #include "yuzu_common/virtual_buffer.h"
 
 namespace Common {
-
-enum class MemoryPermission : u32;
-
-struct NativeMemoryTrackRange {
-    ProcessAddress virtual_address{};
-    u64 size{};
-    MemoryPermission permissions{};
-};
-
-class NativeMemoryObserver {
-public:
-    virtual ~NativeMemoryObserver() = default;
-    virtual void Map(ProcessAddress virtual_address, PhysicalAddress physical_address, u64 size,
-                     MemoryPermission permissions) = 0;
-    virtual void Track(ProcessAddress virtual_address, u64 size, MemoryPermission permissions) = 0;
-    virtual void TrackBatch(std::span<const NativeMemoryTrackRange> ranges) {
-        for (const auto& range : ranges) {
-            Track(range.virtual_address, range.size, range.permissions);
-        }
-    }
-    virtual void Unmap(ProcessAddress virtual_address, u64 size) = 0;
-    virtual void Protect(ProcessAddress virtual_address, u64 size, MemoryPermission permissions) = 0;
-};
 
 enum class PageType : u8 {
     /// Page is unmapped and should cause an access error.
@@ -164,7 +140,6 @@ struct PageTable {
     std::size_t current_address_space_width_in_bits{};
 
     u8* fastmem_arena{};
-    NativeMemoryObserver* native_memory_observer{};
 
     std::size_t page_size{};
 };

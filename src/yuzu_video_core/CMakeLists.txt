@@ -497,7 +497,3 @@ if(ANDROID)
 endif()
 
 create_target_directory_groups(video_core)
-if(APPLE AND NXEMU_ENABLE_MOLTENVK_SHADER_CACHE)
-    set_property(SOURCE renderer_vulkan/vk_pipeline_cache.cpp APPEND PROPERTY
-        COMPILE_DEFINITIONS NXEMU_MOLTENVK_SHADER_CACHE=1)
-endif()

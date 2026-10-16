@@ -259,7 +259,6 @@ static VideoSetting settings[] = {
     {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
     {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, false},
     {NXVideoSetting::FastGPUTime, "video", "use_fast_gpu_time", &videoSettings.use_fast_gpu_time, true},
-    {NXVideoSetting::UseNativeMetalCache, "video", "use_native_metal_cache", &videoSettings.use_native_metal_cache, false},
     {NXVideoSetting::UseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, true},
     {NXVideoSetting::SyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, false},
     {NXVideoSetting::BarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, true},

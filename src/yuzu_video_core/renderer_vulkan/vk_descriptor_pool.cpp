@@ -155,13 +155,6 @@ DescriptorBank& DescriptorPool::Bank(const DescriptorBankInfo& reqs) {
     read_lock.unlock();
 
     std::unique_lock write_lock{banks_mutex};
-    // A compiler can have created the bank while this thread upgraded its lock.
-    const auto existing = std::ranges::find_if(bank_infos, [&reqs](const DescriptorBankInfo& bank) {
-        return std::abs(bank.score - reqs.score) < SCORE_THRESHOLD && bank.IsSuperset(reqs);
-    });
-    if (existing != bank_infos.end()) {
-        return *banks[std::distance(bank_infos.begin(), existing)];
-    }
     bank_infos.push_back(reqs);
 
     auto& bank = *banks.emplace_back(std::make_unique<DescriptorBank>());

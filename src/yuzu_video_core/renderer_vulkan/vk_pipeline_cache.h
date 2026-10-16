@@ -25,8 +25,6 @@
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "yuzu_video_core/renderer_vulkan/cbuf_size_dependencies.h"
-#include "yuzu_video_core/renderer_vulkan/async_pipeline_build.h"
-#include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pipeline.h"
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
@@ -114,8 +112,6 @@ public:
                            StagingBufferPool& staging_pool);
     ~PipelineCache();
 
-    void WaitForBuilds();
-
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipeline();
 
     [[nodiscard]] ComputePipeline* CurrentComputePipeline();
@@ -124,20 +120,6 @@ public:
                            const VideoCore::DiskResourceLoadCallback& callback);
 
 private:
-    struct PendingGraphicsPipeline {
-        GraphicsEnvironments environments;
-        AsyncPipelineBuild<GraphicsPipeline> build;
-        NativePipelineBuildQueue::Handle request;
-        size_t snapshot_bytes{};
-    };
-
-    bool ShouldWaitForAsyncPipeline() const noexcept;
-    bool QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key);
-    void FinishGraphicsPipeline(const GraphicsPipelineCacheKey& key);
-    void FinalizeReadyGraphicsPipelines();
-    void SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
-                                       GraphicsEnvironments& environments);
-
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipelineSlowPath();
 
     [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) const noexcept;
@@ -176,7 +158,6 @@ private:
     VideoCore::ShaderNotify& shader_notify;
     bool use_asynchronous_shaders{};
     bool use_vulkan_pipeline_cache{};
-    bool use_native_metal_cache{};
 
     GraphicsPipelineCacheKey graphics_key{};
     GraphicsPipeline* current_pipeline{};
@@ -203,14 +184,6 @@ private:
     Common::ThreadWorker workers;
     Common::ThreadWorker serialization_thread;
     DynamicFeatures dynamic_features;
-    VideoCommon::GraphicsEnvironment::SnapshotCache snapshot_cache;
-    std::unordered_map<GraphicsPipelineCacheKey, std::shared_ptr<PendingGraphicsPipeline>> pending_graphics;
-    size_t pending_snapshot_bytes{};
-    std::mutex completed_mutex;
-    std::vector<GraphicsPipelineCacheKey> completed_graphics;
-    std::atomic_bool has_completed_graphics{};
-    // Declared last: every compiler stops before its inputs and Vulkan objects are released.
-    NativePipelineBuildQueue runtime_builds;
 };
 
 } // namespace Vulkan

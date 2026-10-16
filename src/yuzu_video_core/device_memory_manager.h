@@ -9,7 +9,6 @@
 #include <deque>
 #include <memory>
 #include <mutex>
-#include "yuzu_common/native_read_tracker.h"
 
 #include "yuzu_common/nvdata.h"
 #include "yuzu_common/common_types.h"
@@ -112,23 +111,6 @@ public:
     void UnregisterProcess(Asid id);
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
-    NativeReadTracker<IMemory>& NativeReads() { return native_reads; }
-    void ReprotectNativeReads(DAddr address, size_t size) {
-        if (!native_reads.Active() || size == 0 || address >= device_as_size ||
-            size > device_as_size - address) return;
-        // Resolve physical backing at write time, covering aliases created after the read.
-        // Walk known contiguous allocations, just like WalkBlock/GetSpan. Scanning every
-        // 4 KiB page here makes each draw proportional to the size of its render targets.
-        const u64 end = (address + size + DEVICE_PAGEMASK) & ~DEVICE_PAGEMASK;
-        for (u64 page = address & ~DEVICE_PAGEMASK; page < end;) {
-            const u64 contiguous_bytes =
-                static_cast<u64>(std::max(1U, continuity_tracker[page >> DEVICE_PAGEBITS])) << DEVICE_PAGEBITS;
-            const u64 bytes = std::min(contiguous_bytes, end - page);
-            const auto ptr = reinterpret_cast<uintptr_t>(GetPointer<u8>(page));
-            if (ptr) native_reads.Reprotect(ptr, bytes);
-            page += bytes;
-        }
-    }
 
     // Presence remains conservative across deletion, remapping and address reuse.
     void RegisterFlushCacheRegion(DAddr addr, u64 size, VideoCommon::CacheType types) {
@@ -189,7 +171,6 @@ private:
     std::deque<IMemory*> registered_processes;
     std::mutex process_guard;
     IMemory* GetRegisteredProcess(Asid asid);
-    NativeReadTracker<IMemory> native_reads;
 
     // Memory protection management
 

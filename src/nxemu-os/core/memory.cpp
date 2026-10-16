@@ -5,10 +5,8 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
-#include <condition_variable>
 #include <mutex>
 #include <span>
-#include <unordered_set>
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/atomic_ops.h"
@@ -55,8 +53,7 @@ struct Memory::Impl {
 
         const bool fastmem = !g_settings->GetBool(NXCpuSetting::CpuDebugMode) ||
                              g_settings->GetBool(NXCpuSetting::CpuoptFastmem);
-        if (std::addressof(process) == system.ApplicationProcess() && fastmem &&
-            !current_page_table->native_memory_observer) {
+        if (std::addressof(process) == system.ApplicationProcess() && fastmem) {
             current_page_table->fastmem_arena = system.DeviceMemory().buffer.VirtualBasePointer();
         } else {
             current_page_table->fastmem_arena = nullptr;
@@ -80,10 +77,6 @@ struct Memory::Impl {
         MapPages(page_table, base / YUZU_PAGESIZE, size / YUZU_PAGESIZE, target,
                  Common::PageType::Memory);
 
-        if (page_table.native_memory_observer) {
-            page_table.native_memory_observer->Map(base, target, size, perms);
-        }
-
         if (current_page_table->fastmem_arena) {
             buffer->Map(base.GetValue(), target.GetValue() - DramMemoryMap::Base, size, perms,
                         separate_heap);
@@ -97,10 +90,6 @@ struct Memory::Impl {
         MapPages(page_table, base / YUZU_PAGESIZE, size / YUZU_PAGESIZE, 0,
                  Common::PageType::Unmapped);
 
-        if (page_table.native_memory_observer) {
-            page_table.native_memory_observer->Unmap(base, size);
-        }
-
         if (current_page_table->fastmem_arena) {
             buffer->Unmap(base.GetValue(), size, separate_heap);
         }
@@ -111,17 +100,8 @@ struct Memory::Impl {
         ASSERT_MSG((size & YUZU_PAGEMASK) == 0, "non-page aligned size: {:016X}", size);
         ASSERT_MSG((vaddr & YUZU_PAGEMASK) == 0, "non-page aligned base: {:016X}", vaddr);
 
-        const bool has_fastmem = current_page_table->fastmem_arena != nullptr;
-        const bool has_native_observer = page_table.native_memory_observer != nullptr;
-        if (!has_fastmem && !has_native_observer) {
+        if (!current_page_table->fastmem_arena) {
             return;
-        }
-
-        if (has_native_observer) {
-            page_table.native_memory_observer->Protect(vaddr, size, perms);
-            if (!has_fastmem) {
-                return;
-            }
         }
 
         u64 protect_bytes{};
@@ -604,152 +584,96 @@ struct Memory::Impl {
         }
     }
 
-    bool BeginNativeFault(u64 vaddr, u64 size)
-    {
-        if (!current_page_table->native_memory_observer || size == 0)
-        {
-            return true;
-        }
-        const u64 begin = Common::AlignDown(vaddr, YUZU_PAGESIZE);
-        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
-        std::unique_lock lock{native_tracking_mutex};
-        const auto overlaps = [&] {
-            for (u64 page = begin; page < end; page += YUZU_PAGESIZE)
-            {
-                if (native_fault_inflight_pages.contains(page))
-                {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        bool waited = false;
-        while (overlaps())
-        {
-            waited = true;
-            native_fault_cv.wait(lock);
-        }
-        if (waited)
-        {
-            return false;
-        }
-        for (u64 page = begin; page < end; page += YUZU_PAGESIZE)
-        {
-            native_fault_inflight_pages.insert(page);
-        }
-        return true;
-    }
-
-    void EndNativeFault(u64 vaddr, u64 size)
-    {
-        if (size == 0)
-        {
-            return;
-        }
-        const u64 begin = Common::AlignDown(vaddr, YUZU_PAGESIZE);
-        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
-        {
-            std::scoped_lock lock{native_tracking_mutex};
-            for (u64 page = begin; page < end; page += YUZU_PAGESIZE)
-            {
-                native_fault_inflight_pages.erase(page);
-            }
-        }
-        native_fault_cv.notify_all();
-    }
-
     void RasterizerMarkRegionCached(u64 vaddr, u64 size, bool cached)
     {
-        std::unique_lock tracking_lock{native_tracking_mutex, std::defer_lock};
-        const bool has_native_observer = current_page_table->native_memory_observer != nullptr;
-        if (has_native_observer) {
-            tracking_lock.lock();
-        }
-        if (vaddr == 0 || size == 0 || !AddressSpaceContains(*current_page_table, vaddr, size)) {
+        if (vaddr == 0 || !AddressSpaceContains(*current_page_table, vaddr, size))
+        {
             return;
         }
 
-        const auto tracking_permission = [&] {
+        if (current_page_table->fastmem_arena)
+        {
             Common::MemoryPermission perm{};
-            if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing) || !cached) {
+            if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing) || !cached)
+            {
                 perm |= Common::MemoryPermission::Read;
             }
-            if (!cached) {
+            if (!cached)
+            {
                 perm |= Common::MemoryPermission::Write;
             }
-            return perm;
-        }();
-
-        const auto protect_fastmem = [&] {
-            if (current_page_table->fastmem_arena) {
-                buffer->Protect(vaddr, size, tracking_permission);
-            }
-        };
-
-        const auto publish_page_types = [&] {
-            u64 address = vaddr;
-            const u64 num_pages =
-                ((vaddr + size - 1) >> YUZU_PAGEBITS) - (vaddr >> YUZU_PAGEBITS) + 1;
-            for (u64 i = 0; i < num_pages; ++i, address += YUZU_PAGESIZE) {
-                const Common::PageType page_type{
-                    current_page_table->pointers[address >> YUZU_PAGEBITS].Type()};
-                if (cached) {
-                    switch (page_type) {
-                    case Common::PageType::Unmapped:
-                    case Common::PageType::RasterizerCachedMemory:
-                        break;
-                    case Common::PageType::DebugMemory:
-                    case Common::PageType::Memory:
-                        current_page_table->pointers[address >> YUZU_PAGEBITS].Store(
-                            0, Common::PageType::RasterizerCachedMemory);
-                        break;
-                    default:
-                        UNREACHABLE();
-                    }
-                } else {
-                    switch (page_type) {
-                    case Common::PageType::Unmapped:
-                    case Common::PageType::DebugMemory:
-                    case Common::PageType::Memory:
-                        break;
-                    case Common::PageType::RasterizerCachedMemory: {
-                        u8* const pointer =
-                            GetPointerFromRasterizerCachedMemory(address & ~YUZU_PAGEMASK);
-                        if (pointer == nullptr) {
-                            current_page_table->pointers[address >> YUZU_PAGEBITS].Store(
-                                0, Common::PageType::Unmapped);
-                        } else {
-                            current_page_table->pointers[address >> YUZU_PAGEBITS].Store(
-                                reinterpret_cast<uintptr_t>(pointer) -
-                                    (address & ~YUZU_PAGEMASK),
-                                Common::PageType::Memory);
-                        }
-                        break;
-                    }
-                    default:
-                        UNREACHABLE();
-                    }
-                }
-            }
-        };
-
-        if (!has_native_observer) {
-            protect_fastmem();
-            publish_page_types();
-            return;
+            buffer->Protect(vaddr, size, perm);
         }
 
-        if (cached) {
-            // Tightening: hardware permissions first, software tracking state last.
-            protect_fastmem();
-            current_page_table->native_memory_observer->Track(vaddr, size, tracking_permission);
-            publish_page_types();
-        } else {
-            // Relaxing: publish normal software access before reopening hardware mappings.
-            publish_page_types();
-            protect_fastmem();
-            current_page_table->native_memory_observer->Track(vaddr, size, tracking_permission);
+        // Iterate over a contiguous CPU address space, which corresponds to the specified GPU
+        // address space, marking the region as un/cached. The region is marked un/cached at a
+        // granularity of CPU pages, hence why we iterate on a CPU page basis (note: GPU page size
+        // is different). This assumes the specified GPU address region is contiguous as well.
+
+        const u64 num_pages = ((vaddr + size - 1) >> YUZU_PAGEBITS) - (vaddr >> YUZU_PAGEBITS) + 1;
+        for (u64 i = 0; i < num_pages; ++i, vaddr += YUZU_PAGESIZE)
+        {
+            const Common::PageType page_type{
+                current_page_table->pointers[vaddr >> YUZU_PAGEBITS].Type()};
+            if (cached)
+            {
+                // Switch page type to cached if now cached
+                switch (page_type)
+                {
+                case Common::PageType::Unmapped:
+                    // It is not necessary for a process to have this region mapped into its address
+                    // space, for example, a system module need not have a VRAM mapping.
+                    break;
+                case Common::PageType::DebugMemory:
+                case Common::PageType::Memory:
+                    current_page_table->pointers[vaddr >> YUZU_PAGEBITS].Store(
+                        0, Common::PageType::RasterizerCachedMemory);
+                    break;
+                case Common::PageType::RasterizerCachedMemory:
+                    // There can be more than one GPU region mapped per CPU region, so it's common
+                    // that this area is already marked as cached.
+                    break;
+                default:
+                    UNREACHABLE();
+                }
+            }
+            else
+            {
+                // Switch page type to uncached if now uncached
+                switch (page_type)
+                {
+                case Common::PageType::Unmapped: // NOLINT(bugprone-branch-clone)
+                    // It is not necessary for a process to have this region mapped into its address
+                    // space, for example, a system module need not have a VRAM mapping.
+                    break;
+                case Common::PageType::DebugMemory:
+                case Common::PageType::Memory:
+                    // There can be more than one GPU region mapped per CPU region, so it's common
+                    // that this area is already unmarked as cached.
+                    break;
+                case Common::PageType::RasterizerCachedMemory:
+                {
+                    u8 * const pointer{GetPointerFromRasterizerCachedMemory(vaddr & ~YUZU_PAGEMASK)};
+                    if (pointer == nullptr)
+                    {
+                        // It's possible that this function has been called while updating the
+                        // pagetable after unmapping a VMA. In that case the underlying VMA will no
+                        // longer exist, and we should just leave the pagetable entry blank.
+                        current_page_table->pointers[vaddr >> YUZU_PAGEBITS].Store(
+                            0, Common::PageType::Unmapped);
+                    }
+                    else
+                    {
+                        current_page_table->pointers[vaddr >> YUZU_PAGEBITS].Store(
+                            reinterpret_cast<uintptr_t>(pointer) - (vaddr & ~YUZU_PAGEMASK),
+                            Common::PageType::Memory);
+                    }
+                    break;
+                }
+                default:
+                    UNREACHABLE();
+                }
+            }
         }
     }
 
@@ -1020,9 +944,6 @@ struct Memory::Impl {
 
     Core::System& system;
     Common::PageTable* current_page_table = nullptr;
-    std::mutex native_tracking_mutex;
-    std::condition_variable native_fault_cv;
-    std::unordered_set<u64> native_fault_inflight_pages;
     std::array<RasterizerDownloadArea, Hardware::NUM_CPU_CORES> rasterizer_read_areas{};
     std::array<GPUDirtyState, Hardware::NUM_CPU_CORES> rasterizer_write_areas{};
     std::span<Core::GPUDirtyMemoryManager> gpu_dirty_managers;
@@ -1263,57 +1184,6 @@ void Memory::MarkRegionDebug(Common::ProcessAddress vaddr, u64 size, bool debug)
 
 bool Memory::InvalidateNCE(uint64_t vaddr, uint64_t size) {
     return InvalidateNCE(Common::ProcessAddress(vaddr), static_cast<size_t>(size));
-}
-
-bool Memory::SetNativeMemoryReadProtection(uint64_t vaddr, const uint8_t* backing, bool readable) {
-    std::scoped_lock lock{impl->native_tracking_mutex};
-    auto* table = impl->current_page_table;
-    if (!table || !table->native_memory_observer ||
-        !AddressSpaceContains(*table, vaddr, YUZU_PAGESIZE) ||
-        table->pointers[vaddr >> YUZU_PAGEBITS].Type() != Common::PageType::RasterizerCachedMemory ||
-        impl->GetPointerFromRasterizerCachedMemory(vaddr) != backing) {
-        return false;
-    }
-    table->native_memory_observer->Track(vaddr, YUZU_PAGESIZE,
-        readable ? Common::MemoryPermission::Read : Common::MemoryPermission{});
-    return true;
-}
-
-bool Memory::InvalidateNCEAccess(uint64_t vaddr, uint64_t size, bool write) {
-    std::unique_lock tracking_lock{impl->native_tracking_mutex, std::defer_lock};
-    if (impl->current_page_table->native_memory_observer) {
-        tracking_lock.lock();
-    }
-
-    bool mapped = true;
-    bool rasterizer = false;
-    u8* const ptr = impl->GetPointerImpl(
-        vaddr,
-        [&] { mapped = false; },
-        [&] { rasterizer = true; });
-
-    if (tracking_lock.owns_lock()) {
-        if (!rasterizer && mapped && ptr) {
-            impl->current_page_table->native_memory_observer->Track(
-                Common::ProcessAddress(vaddr), size, Common::MemoryPermission::ReadWrite);
-        }
-        tracking_lock.unlock();
-    }
-
-    if (rasterizer && ptr) {
-        if (!impl->BeginNativeFault(vaddr, size)) {
-            return true;
-        }
-        SCOPE_EXIT { impl->EndNativeFault(vaddr, size); };
-        // Reads and partial stores both need the entire current page before CPU access.
-        // Invalidation alone would discard GPU-owned bytes without downloading them.
-        impl->system.GetVideo().SynchronizeNativeMemory(this, vaddr, ptr, size, write);
-    }
-
-    if (impl->current_page_table->native_memory_observer) {
-        return rasterizer && mapped && ptr != nullptr;
-    }
-    return mapped && ptr != nullptr;
 }
 
 bool Memory::InvalidateNCE(Common::ProcessAddress vaddr, size_t size) {

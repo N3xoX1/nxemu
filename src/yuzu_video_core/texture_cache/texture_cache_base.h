@@ -396,7 +396,6 @@ private:
     void RemoveFramebuffers(std::span<const ImageViewId> removed_views);
 
     /// Mark an image as modified from the GPU
-    void ReprotectNativeReads(ImageBase& image) noexcept;
     void MarkModification(ImageBase& image) noexcept;
 
     /// Synchronize image aliases, copying data if needed

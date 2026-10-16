@@ -58,10 +58,6 @@ public:
         return backing_base;
     }
 
-    [[nodiscard]] size_t BackingSize() const noexcept {
-        return backing_size;
-    }
-
     [[nodiscard]] u8* VirtualBasePointer() noexcept {
         return virtual_base;
     }

@@ -156,8 +156,6 @@ catch (const vk::Exception & exception)
 RendererVulkan::~RendererVulkan()
 {
     scheduler.RegisterOnSubmit([] {});
-    rasterizer.WaitForShaderBuilds();
-    scheduler.Finish();
     {
         std::scoped_lock lock{device.QueueMutex()};
         void(device.GetLogical().WaitIdle());

@@ -234,7 +234,6 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     const auto& copy = copies[0];
     src_buffer.MarkUsage(copy.src_offset, copy.size);
     dest_buffer.MarkUsage(copy.dst_offset, copy.size);
-    device_memory.ReprotectNativeReads(*cpu_dest_address, amount);
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     MarkBufferContentChanged(dest_buffer);
     if (has_new_downloads) {
@@ -264,7 +263,6 @@ bool BufferCache<P>::DMAClear(GPUVAddr dst_address, u64 amount, u32 value) {
     const BufferId buffer = FindBuffer(*cpu_dst_address, static_cast<u32>(size));
     Buffer& dest_buffer = slot_buffers[buffer];
     const u32 offset = dest_buffer.Offset(*cpu_dst_address);
-    device_memory.ReprotectNativeReads(*cpu_dst_address, size);
     runtime.ClearBuffer(dest_buffer, offset, size, value);
     MarkBufferContentChanged(dest_buffer);
     dest_buffer.MarkUsage(offset, size);
