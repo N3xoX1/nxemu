@@ -693,6 +693,9 @@
     <ClInclude Include="watermark.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_display.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="buffer_cache\buffer_cache.cpp">
@@ -1108,6 +1111,9 @@
     </ClCompile>
     <ClCompile Include="watermark.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_display.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -19,10 +19,10 @@
 #include <string>
 #include <string_view>
 
-#include <fmt/core.h>
 #include "startup_checks.h"
 #include "vulkan_probe.h"
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/format.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 
@@ -72,22 +72,25 @@ bool CheckEnvVars(bool* is_child) {
     return false;
 }
 
-bool StartupChecks(const char* arg0, bool* has_broken_vulkan, bool perform_vulkan_check) {
+bool StartupChecks(const char * arg0, bool * has_broken_vulkan, bool perform_vulkan_check)
+{
 #ifdef _WIN32
     // Set the startup variable for child processes
     const bool env_var_set = SetEnvironmentVariableA(STARTUP_CHECK_ENV_VAR, ENV_VAR_ENABLED_TEXT);
-    if (!env_var_set) {
-        fmt::print(stderr, "SetEnvironmentVariableA failed to set {} with error {}\n",
-                   STARTUP_CHECK_ENV_VAR, GetLastError());
+    if (!env_var_set)
+    {
+        fmt::print(stderr, "SetEnvironmentVariableA failed to set {} with error {}\n", STARTUP_CHECK_ENV_VAR, GetLastError());
         return false;
     }
 
-    if (perform_vulkan_check) {
+    if (perform_vulkan_check)
+    {
         // Spawn child process that performs Vulkan check
         PROCESS_INFORMATION process_info;
         std::memset(&process_info, '\0', sizeof(process_info));
 
-        if (!SpawnChild(arg0, &process_info, 0)) {
+        if (!SpawnChild(arg0, &process_info, 0))
+        {
             return false;
         }
 
@@ -95,44 +98,51 @@ bool StartupChecks(const char* arg0, bool* has_broken_vulkan, bool perform_vulka
         WaitForSingleObject(process_info.hProcess, INFINITE);
         DWORD exit_code = STILL_ACTIVE;
         const int err = GetExitCodeProcess(process_info.hProcess, &exit_code);
-        if (err == 0) {
+        if (err == 0)
+        {
             fmt::print(stderr, "GetExitCodeProcess failed with error {}\n", GetLastError());
         }
 
         // Vulkan is broken if the child crashed (return value is not zero)
         *has_broken_vulkan = (exit_code != 0);
 
-        if (CloseHandle(process_info.hProcess) == 0) {
+        if (CloseHandle(process_info.hProcess) == 0)
+        {
             fmt::print(stderr, "CloseHandle failed with error {}\n", GetLastError());
         }
-        if (CloseHandle(process_info.hThread) == 0) {
+        if (CloseHandle(process_info.hThread) == 0)
+        {
             fmt::print(stderr, "CloseHandle failed with error {}\n", GetLastError());
         }
     }
 
-    if (!SetEnvironmentVariableA(STARTUP_CHECK_ENV_VAR, nullptr)) {
-        fmt::print(stderr, "SetEnvironmentVariableA failed to clear {} with error {}\n",
-                   STARTUP_CHECK_ENV_VAR, GetLastError());
+    if (!SetEnvironmentVariableA(STARTUP_CHECK_ENV_VAR, nullptr))
+    {
+        fmt::print(stderr, "SetEnvironmentVariableA failed to clear {} with error {}\n", STARTUP_CHECK_ENV_VAR, GetLastError());
     }
 
 #elif defined(NXEMU_UNIX)
     const int env_var_set = setenv(STARTUP_CHECK_ENV_VAR, ENV_VAR_ENABLED_TEXT, 1);
-    if (env_var_set == -1) {
+    if (env_var_set == -1)
+    {
         const int err = errno;
         fmt::print(stderr, "setenv failed to set {} with error {}\n", STARTUP_CHECK_ENV_VAR, err);
         return false;
     }
 
-    if (perform_vulkan_check) {
+    if (perform_vulkan_check)
+    {
         const pid_t pid = SpawnChild(arg0);
-        if (pid == -1) {
+        if (pid == -1)
+        {
             return false;
         }
 
         // Get exit code from child process
         int status;
         const int r_val = waitpid(pid, &status, 0);
-        if (r_val == -1) {
+        if (r_val == -1)
+        {
             const int err = errno;
             fmt::print(stderr, "wait failed with error {}\n", err);
             return false;
@@ -142,7 +152,8 @@ bool StartupChecks(const char* arg0, bool* has_broken_vulkan, bool perform_vulka
     }
 
     const int env_var_cleared = unsetenv(STARTUP_CHECK_ENV_VAR);
-    if (env_var_cleared == -1) {
+    if (env_var_cleared == -1)
+    {
         const int err = errno;
         fmt::print(stderr, "unsetenv failed to clear {} with error {}\n", STARTUP_CHECK_ENV_VAR,
                    err);
@@ -410,6 +421,14 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
 
         PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)(GetProcAddress(library, "vkGetInstanceProcAddr"));
 
+        // The capture layer retains live instances for its later state snapshot.
+        // Destroy this probe before unloading its Vulkan dispatch functions.
+        const auto vkDestroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(
+            vkGetInstanceProcAddr(instance, "vkDestroyInstance"));
+        SCOPE_EXIT {
+            vkDestroyInstance(instance, nullptr);
+        };
+
         std::vector<VkPhysicalDevice> physical_devices = EnumeratePhysicalDevices(instance, vkGetInstanceProcAddr);
         PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
         PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR = (PFN_vkDestroySurfaceKHR)vkGetInstanceProcAddr(instance, "vkDestroySurfaceKHR");
@@ -430,6 +449,12 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
         {
             throw std::runtime_error("Failed to create surface");
         }
+        SCOPE_EXIT {
+            if (surface != VK_NULL_HANDLE && vkDestroySurfaceKHR)
+            {
+                vkDestroySurfaceKHR(instance, surface, nullptr);
+            }
+        };
 
         PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties)vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties");
         PFN_vkGetPhysicalDeviceProperties2 vkGetPhysicalDeviceProperties2 = (PFN_vkGetPhysicalDeviceProperties2)vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2");
@@ -471,10 +496,6 @@ void PopulateVulkanRecords(std::vector<VkDeviceRecord> & records, void * renderS
             }
             bool has_broken_compute = CheckBrokenCompute(driver_properties.driverID, properties2.properties.driverVersion);
             records.push_back(VkDeviceRecord(name, present_modes, has_broken_compute));
-        }
-        if (surface != VK_NULL_HANDLE && vkDestroySurfaceKHR)
-        {
-            vkDestroySurfaceKHR(instance, surface, nullptr);
         }
     }
     catch (const std::runtime_error& e)

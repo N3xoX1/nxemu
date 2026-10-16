@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <optional>
 #include <span>
 #include <utility>
@@ -47,6 +48,18 @@ protected:
 
 private:
     vk::ShaderModule module;
+};
+
+class ReadbackDeltaPass final : public ComputePass {
+public:
+    ReadbackDeltaPass(const Device& device, Scheduler& scheduler, DescriptorPool& pool,
+                     ComputePassDescriptorQueue& queue);
+    void Copy(VkBuffer source, VkBuffer reference, VkBuffer destination, VkBuffer flags,
+              u64 source_offset, u64 destination_offset, u64 size, u64 flag_offset,
+              u64 flags_size, const std::array<u32, 4>& valid_mask);
+private:
+    Scheduler& scheduler;
+    ComputePassDescriptorQueue& queue;
 };
 
 class Uint8Pass final : public ComputePass {

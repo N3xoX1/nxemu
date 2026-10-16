@@ -29,6 +29,10 @@ public:
     static Result WaitForAddress(KernelCore& kernel, Handle handle, KProcessAddress addr,
                                  u32 value);
 
+    /// NXEmu workaround for locks abandoned by an exiting thread, called by KThread::Exit with
+    /// the scheduler locked. See the comment in k_condition_variable.cpp before removing it.
+    static void ReleaseAbandonedUserLocks(KernelCore& kernel);
+
     // Condition variable.
     void Signal(u64 cv_key, s32 count);
     Result Wait(KProcessAddress addr, u64 key, u32 value, s64 timeout);

@@ -45,12 +45,13 @@ vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, 
 
 void TransitionImageLayout(vk::CommandBuffer& cmdbuf, VkImage image, VkImageLayout target_layout,
                            VkImageLayout source_layout) {
-    constexpr VkFlags flags{VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT};
+    // Presentation images can be uploaded or downloaded as well as sampled/rendered.
+    // Layout transitions must include transfer writes, including the initial upload.
+    constexpr VkFlags flags{VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT};
     const VkImageMemoryBarrier barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = nullptr,
-        .srcAccessMask = flags,
+        .srcAccessMask = source_layout == VK_IMAGE_LAYOUT_UNDEFINED ? 0U : flags,
         .dstAccessMask = flags,
         .oldLayout = source_layout,
         .newLayout = target_layout,
@@ -492,8 +493,9 @@ static vk::Pipeline CreateWrappedPipelineImpl(
 
 vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderpass,
                                    vk::PipelineLayout& layout,
-                                   std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders) {
-    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment_disabled{
+                                   std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders,
+                                   bool write_alpha) {
+    const VkPipelineColorBlendAttachmentState color_blend_attachment_disabled{
         .blendEnable = VK_FALSE,
         .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
@@ -502,7 +504,7 @@ vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderp
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp = VK_BLEND_OP_ADD,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                          VK_COLOR_COMPONENT_B_BIT | (write_alpha ? VK_COLOR_COMPONENT_A_BIT : 0U),
     };
 
     return CreateWrappedPipelineImpl(device, renderpass, layout, shaders,
@@ -511,8 +513,8 @@ vk::Pipeline CreateWrappedPipeline(const Device& device, vk::RenderPass& renderp
 
 vk::Pipeline CreateWrappedPremultipliedBlendingPipeline(
     const Device& device, vk::RenderPass& renderpass, vk::PipelineLayout& layout,
-    std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders) {
-    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment_premultiplied{
+    std::tuple<vk::ShaderModule&, vk::ShaderModule&> shaders, bool write_alpha) {
+    const VkPipelineColorBlendAttachmentState color_blend_attachment_premultiplied{
         .blendEnable = VK_TRUE,
         .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -521,7 +523,7 @@ vk::Pipeline CreateWrappedPremultipliedBlendingPipeline(
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp = VK_BLEND_OP_ADD,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                          VK_COLOR_COMPONENT_B_BIT | (write_alpha ? VK_COLOR_COMPONENT_A_BIT : 0U),
     };
 
     return CreateWrappedPipelineImpl(device, renderpass, layout, shaders,

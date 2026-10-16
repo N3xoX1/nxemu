@@ -5,102 +5,20 @@
 #include "video_settings.h"
 #include "yuzu_common/thread.h"
 #include "frontend/emu_window.h"
+#include "yuzu_video_core/renderer_vulkan/vk_display.h"
 #include "yuzu_video_core/renderer_vulkan/vk_present_manager.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_swapchain.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
-#include "yuzu_video_core/vulkan_common/vulkan_surface.h"
 
 namespace Vulkan {
 
-namespace {
-
-bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat format) {
-    const VkFormatProperties props{physical_device.GetFormatProperties(format)};
-    return (props.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT);
-}
-
-[[nodiscard]] VkImageSubresourceLayers MakeImageSubresourceLayers() {
-    return VkImageSubresourceLayers{
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .mipLevel = 0,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-    };
-}
-
-[[nodiscard]] VkImageBlit MakeImageBlit(s32 frame_width, s32 frame_height, s32 swapchain_width,
-                                        s32 swapchain_height) {
-    return VkImageBlit{
-        .srcSubresource = MakeImageSubresourceLayers(),
-        .srcOffsets =
-            {
-                {
-                    .x = 0,
-                    .y = 0,
-                    .z = 0,
-                },
-                {
-                    .x = frame_width,
-                    .y = frame_height,
-                    .z = 1,
-                },
-            },
-        .dstSubresource = MakeImageSubresourceLayers(),
-        .dstOffsets =
-            {
-                {
-                    .x = 0,
-                    .y = 0,
-                    .z = 0,
-                },
-                {
-                    .x = swapchain_width,
-                    .y = swapchain_height,
-                    .z = 1,
-                },
-            },
-    };
-}
-
-[[nodiscard]] VkImageCopy MakeImageCopy(u32 frame_width, u32 frame_height, u32 swapchain_width,
-                                        u32 swapchain_height) {
-    return VkImageCopy{
-        .srcSubresource = MakeImageSubresourceLayers(),
-        .srcOffset =
-            {
-                .x = 0,
-                .y = 0,
-                .z = 0,
-            },
-        .dstSubresource = MakeImageSubresourceLayers(),
-        .dstOffset =
-            {
-                .x = 0,
-                .y = 0,
-                .z = 0,
-            },
-        .extent =
-            {
-                .width = std::min(frame_width, swapchain_width),
-                .height = std::min(frame_height, swapchain_height),
-                .depth = 1,
-            },
-    };
-}
-
-} // Anonymous namespace
-
-PresentManager::PresentManager(const vk::Instance& instance_,
-                               Core::Frontend::EmuWindow& render_window_, const Device& device_,
+PresentManager::PresentManager(Core::Frontend::EmuWindow& render_window_, const Device& device_,
                                MemoryAllocator& memory_allocator_, Scheduler& scheduler_,
-                               Swapchain& swapchain_, vk::SurfaceKHR& surface_)
-    : instance{instance_}, render_window{render_window_}, device{device_},
-      memory_allocator{memory_allocator_}, scheduler{scheduler_}, swapchain{swapchain_},
-      surface{surface_}, blit_supported{CanBlitToSwapchain(device.GetPhysical(),
-                                                           swapchain.GetImageViewFormat())},
-      use_present_thread{videoSettings.async_presentation},
-      presented_window{render_window.GetWindowInfo().render_surface} {
+                               Display& display_)
+    : render_window{render_window_}, device{device_}, memory_allocator{memory_allocator_},
+      scheduler{scheduler_}, display{display_}, swapchain{display_.GetSwapchain()},
+      use_present_thread{videoSettings.async_presentation} {
     SetImageCount();
 
     auto& dld = device.GetLogical();
@@ -135,7 +53,14 @@ PresentManager::PresentManager(const vk::Instance& instance_,
     }
 }
 
-PresentManager::~PresentManager() = default;
+PresentManager::~PresentManager() {
+    present_thread.request_stop();
+    if (present_thread.joinable()) {
+        present_thread.join();
+    }
+    // The display may be keeping one of the frames about to be destroyed.
+    display.ReleaseFrame();
+}
 
 Frame* PresentManager::GetRenderFrame() {
     // Wait for free presentation frames
@@ -157,7 +82,6 @@ void PresentManager::Present(Frame* frame) {
     if (!use_present_thread) {
         scheduler.WaitWorker();
         CopyToSwapchain(frame);
-        free_queue.push(frame);
         return;
     }
 
@@ -175,6 +99,13 @@ void PresentManager::RecreateFrame(Frame* frame, u32 width, u32 height, VkFormat
     frame->width = width;
     frame->height = height;
 
+    // Views and framebuffers must be released before their old image.
+    frame->watermark_framebuffer.reset();
+    frame->framebuffer.reset();
+    frame->composite_pool.reset();
+    frame->composite_view.reset();
+    frame->image_view.reset();
+    frame->composite_set = VK_NULL_HANDLE;
     frame->image = memory_allocator.CreateImage({
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .pNext = nullptr,
@@ -191,7 +122,9 @@ void PresentManager::RecreateFrame(Frame* frame, u32 width, u32 height, VkFormat
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                 VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                 (display.HasInterface() ? VK_IMAGE_USAGE_SAMPLED_BIT : 0U),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
@@ -234,7 +167,7 @@ void PresentManager::RecreateFrame(Frame* frame, u32 width, u32 height, VkFormat
         .height = height,
         .layers = 1,
     });
-    frame->watermark_framebuffer = {};
+    display.PrepareFrame(*frame, swapchain.GetImageFormat());
 }
 
 void PresentManager::WaitPresent() {
@@ -276,17 +209,7 @@ void PresentManager::PresentThread(std::stop_token token) {
         std::exchange(lock, std::unique_lock{swapchain_mutex});
 
         CopyToSwapchain(frame);
-
-        // Free the frame for reuse
-        std::scoped_lock fl{free_mutex};
-        free_queue.push(frame);
-        free_cv.notify_one();
     }
-}
-
-void PresentManager::RecreateSwapchain(Frame* frame) {
-    swapchain.Create(*surface, frame->width, frame->height);
-    SetImageCount();
 }
 
 void PresentManager::SetImageCount() {
@@ -297,187 +220,13 @@ void PresentManager::SetImageCount() {
 }
 
 void PresentManager::CopyToSwapchain(Frame* frame) {
-    const void* window = render_window.GetWindowInfo().render_surface;
-    if (window == nullptr) {
-        presented_window = nullptr;
-        return;
+    Frame* const reusable = display.Present(frame, render_window.GetWindowInfo());
+    SetImageCount();
+    if (reusable != nullptr) {
+        std::scoped_lock lock{free_mutex};
+        free_queue.push(reusable);
+        free_cv.notify_one();
     }
-
-    try {
-        if (window != presented_window) {
-            surface = CreateSurface(instance, render_window.GetWindowInfo());
-            presented_window = window;
-            RecreateSwapchain(frame);
-        }
-        CopyToSwapchainImpl(frame);
-    } catch (const vk::Exception& except) {
-        if (except.GetResult() != VK_ERROR_SURFACE_LOST_KHR &&
-            except.GetResult() != VK_ERROR_INITIALIZATION_FAILED) {
-            throw;
-        }
-        presented_window = nullptr;
-    }
-}
-
-void PresentManager::CopyToSwapchainImpl(Frame* frame) {
-    // If the size of the incoming frames has changed, recreate the swapchain
-    // to account for that.
-    const bool is_suboptimal = swapchain.NeedsRecreation();
-    const bool size_changed =
-        swapchain.GetWidth() != frame->width || swapchain.GetHeight() != frame->height;
-    if (is_suboptimal || size_changed) {
-        RecreateSwapchain(frame);
-    }
-
-    while (swapchain.AcquireNextImage()) {
-        RecreateSwapchain(frame);
-    }
-
-    const vk::CommandBuffer cmdbuf{frame->cmdbuf};
-    cmdbuf.Begin({
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    });
-
-    const VkImage image{swapchain.CurrentImage()};
-    const VkExtent2D extent = swapchain.GetExtent();
-    const std::array pre_barriers{
-        VkImageMemoryBarrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image,
-            .subresourceRange{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        },
-        VkImageMemoryBarrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = *frame->image,
-            .subresourceRange{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        },
-    };
-    const std::array post_barriers{
-        VkImageMemoryBarrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image,
-            .subresourceRange{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        },
-        VkImageMemoryBarrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = *frame->image,
-            .subresourceRange{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        },
-    };
-
-    cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {},
-                           {}, {}, pre_barriers);
-
-    if (blit_supported) {
-        cmdbuf.BlitImage(*frame->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         MakeImageBlit(frame->width, frame->height, extent.width, extent.height),
-                         VK_FILTER_LINEAR);
-    } else {
-        cmdbuf.CopyImage(*frame->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         MakeImageCopy(frame->width, frame->height, extent.width, extent.height));
-    }
-
-    cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, {},
-                           {}, {}, post_barriers);
-
-    cmdbuf.End();
-
-    const VkSemaphore present_semaphore = swapchain.CurrentPresentSemaphore();
-    const VkSemaphore render_semaphore = swapchain.CurrentRenderSemaphore();
-    const std::array wait_semaphores = {present_semaphore, *frame->render_ready};
-
-    static constexpr std::array<VkPipelineStageFlags, 2> wait_stage_masks{
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-    };
-
-    const VkSubmitInfo submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 2U,
-        .pWaitSemaphores = wait_semaphores.data(),
-        .pWaitDstStageMask = wait_stage_masks.data(),
-        .commandBufferCount = 1,
-        .pCommandBuffers = cmdbuf.address(),
-        .signalSemaphoreCount = 1U,
-        .pSignalSemaphores = &render_semaphore,
-    };
-
-    // Submit the image copy/blit to the swapchain
-    {
-        std::scoped_lock submit_lock{scheduler.submit_mutex};
-        switch (const VkResult result =
-                    device.GetGraphicsQueue().Submit(submit_info, *frame->present_done)) {
-        case VK_SUCCESS:
-            break;
-        case VK_ERROR_DEVICE_LOST:
-            device.ReportLoss();
-            [[fallthrough]];
-        default:
-            vk::Check(result);
-            break;
-        }
-    }
-
-    // Present
-    swapchain.Present(render_semaphore);
 }
 
 } // namespace Vulkan

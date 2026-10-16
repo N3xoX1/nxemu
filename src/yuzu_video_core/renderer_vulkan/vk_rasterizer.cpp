@@ -39,7 +39,6 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
-
 using Maxwell = Tegra::Engines::Maxwell3D::Regs;
 using MaxwellDrawState = Tegra::Engines::DrawManager::State;
 using VideoCommon::ImageViewId;
@@ -221,8 +220,7 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
                      render_pass_cache, buffer_cache, texture_cache, gpu.ShaderNotify(),
                      staging_pool),
       accelerate_dma(buffer_cache, texture_cache, scheduler),
-      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler),
-      wfi_event(device.GetLogical().CreateEvent()) {
+      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler) {
     scheduler.SetQueryCache(query_cache);
 }
 
@@ -246,15 +244,18 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
+    // Update the guest counter state before Configure opens the draw's render pass.
+    // Host queries begin/end within that pass and accumulate across pass boundaries.
+    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
+                              maxwell3d->regs.zpass_pixel_count_enable);
     pipeline->Configure(is_indexed);
     image_write_stages |= pipeline->ImageWriteStages();
 
     UpdateDynamicStates();
 
     HandleTransformFeedback();
-    query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
-                              maxwell3d->regs.zpass_pixel_count_enable);
     draw_func(pipeline);
+    buffer_cache.CopySparseWrites();
 }
 
 void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
@@ -433,7 +434,6 @@ void RasterizerVulkan::DrawTexture() {
 }
 
 void RasterizerVulkan::Clear(u32 layer_count) {
-
     FlushWork();
     gpu_memory->FlushCaching();
 
@@ -612,13 +612,17 @@ void RasterizerVulkan::DispatchCompute() {
     if (pipeline->WritesImages()) {
         image_write_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }
+    SCOPE_EXIT {
+        buffer_cache.CopySparseWrites();
+    };
 
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
     if (indirect_address) {
         // DispatchIndirect
         static constexpr auto sync_info = VideoCommon::ObtainBufferSynchronize::FullSynchronize;
-        const auto post_op = VideoCommon::ObtainBufferOperation::DiscardWrite;
+        // The parameters are only read, what the GPU wrote there still has to reach the guest
+        const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
         const auto [buffer, offset] =
             buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
         scheduler.RequestOutsideRenderPassOperationContext();
@@ -628,7 +632,9 @@ void RasterizerVulkan::DispatchCompute() {
                 return;
             }
             cmdbuf.DispatchIndirect(indirect_buffer, indirect_offset);
+            Scheduler::ComputeMemoryBarrier(cmdbuf);
         });
+        pipeline->FinishRuntimeImageWrites(scheduler, texture_cache);
         return;
     }
     const std::array<u32, 3> dim{qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z};
@@ -638,7 +644,9 @@ void RasterizerVulkan::DispatchCompute() {
             return;
         }
         cmdbuf.Dispatch(dim[0], dim[1], dim[2]);
+        Scheduler::ComputeMemoryBarrier(cmdbuf);
     });
+    pipeline->FinishRuntimeImageWrites(scheduler, texture_cache);
 }
 
 void RasterizerVulkan::ResetCounter(VideoCommon::QueryType type) {
@@ -690,10 +698,13 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
 }
 
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
+    which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
-        std::scoped_lock lock{buffer_cache.mutex};
-        if (buffer_cache.IsRegionGpuModified(addr, size)) {
-            return true;
+        if (buffer_cache.MayHaveGpuWrites(addr, size)) {
+            std::scoped_lock lock{buffer_cache.mutex};
+            if (buffer_cache.IsRegionGpuModified(addr, size)) {
+                return true;
+            }
         }
     }
     if (!Settings::IsGPULevelHigh()) {
@@ -707,7 +718,7 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
 }
 
 RasterizerDownloadArea RasterizerVulkan::GetFlushArea(DAddr addr, u64 size) {
-    {
+    if (True(device_memory.FilterFlushCaches(addr, size, VideoCommon::CacheType::TextureCache))) {
         std::scoped_lock lock{texture_cache.mutex};
         auto area = texture_cache.GetFlushArea(addr, size);
         if (area) {
@@ -768,14 +779,17 @@ bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
         return false;
     }
 
-    {
+    const auto requested = VideoCommon::CacheType::BufferCache | VideoCommon::CacheType::TextureCache;
+    const auto caches = device_memory.FilterFlushCaches(addr, size, requested);
+
+    if (True(caches & VideoCommon::CacheType::BufferCache)) {
         std::scoped_lock lock{buffer_cache.mutex};
         if (buffer_cache.OnCPUWrite(addr, size)) {
             return true;
         }
     }
 
-    {
+    if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
     }
@@ -875,9 +889,16 @@ void RasterizerVulkan::WaitForIdle() {
     query_cache.NotifyWFI();
 
     scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([event = *wfi_event, flags](vk::CommandBuffer cmdbuf) {
-        cmdbuf.SetEvent(event, flags);
-        cmdbuf.WaitEvents(event, flags, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, {}, {}, {});
+    scheduler.Record([flags](vk::CommandBuffer cmdbuf) {
+        // WFI must publish prior writes, not just order execution. In particular, compute
+        // output may become a vertex buffer or an indirect draw argument after this point.
+        static constexpr VkMemoryBarrier barrier{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+        };
+        cmdbuf.PipelineBarrier(flags, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, barrier);
     });
     fence_manager.SignalOrdering();
 }
@@ -1035,8 +1056,11 @@ void RasterizerVulkan::FlushWork() {
         return;
     }
     if (draw_counter < DRAWS_TO_DISPATCH) {
-        // Send recorded tasks to the worker thread
-        scheduler.DispatchWork();
+        // Batch opportunistic worker handoffs. Explicit guest flushes/waits
+        // and the periodic driver submission below retain their original cadence.
+        if ((draw_counter & 31) == 31) {
+            scheduler.DispatchWork();
+        }
         return;
     }
     // Otherwise (every certain number of draws) flush execution.
@@ -1127,12 +1151,16 @@ void RasterizerVulkan::UpdateDynamicStates() {
             if (device.IsExtExtendedDynamicState2Supported()) {
                 UpdatePrimitiveRestartEnable(regs);
                 UpdateRasterizerDiscardEnable(regs);
-                UpdateDepthBiasEnable(regs);
             }
             if (device.IsExtExtendedDynamicState3EnablesSupported()) {
                 UpdateLogicOpEnable(regs);
                 UpdateDepthClampEnable(regs);
             }
+        }
+        // Topology can select a different polygon-offset enable without writing any
+        // of the StateEnable registers. Check it even when that group is clean.
+        if (device.IsExtExtendedDynamicState2Supported()) {
+            UpdateDepthBiasEnable(regs);
         }
         if (device.IsExtExtendedDynamicState2ExtrasSupported()) {
             UpdateLogicOp(regs);
@@ -1493,7 +1521,11 @@ void RasterizerVulkan::UpdateRasterizerDiscardEnable(Tegra::Engines::Maxwell3D::
 }
 
 void RasterizerVulkan::UpdateDepthBiasEnable(Tegra::Engines::Maxwell3D::Regs& regs) {
-    if (!state_tracker.TouchDepthBiasEnable()) {
+    // The guest has separate point, line and polygon enables. Changing topology
+    // selects a different enable even when none of those registers were written.
+    const auto topology = maxwell3d->draw_manager->GetDrawState().topology;
+    const bool topology_changed = state_tracker.ChangePrimitiveTopology(topology);
+    if (!state_tracker.TouchDepthBiasEnable() && !topology_changed) {
         return;
     }
     constexpr size_t POINT = 0;
@@ -1521,7 +1553,7 @@ void RasterizerVulkan::UpdateDepthBiasEnable(Tegra::Engines::Maxwell3D::Regs& re
         regs.polygon_offset_line_enable,
         regs.polygon_offset_fill_enable,
     };
-    const u32 topology_index = static_cast<u32>(maxwell3d->draw_manager->GetDrawState().topology);
+    const u32 topology_index = static_cast<u32>(topology);
     const u32 enable = enabled_lut[POLYGON_OFFSET_ENABLE_LUT[topology_index]];
     scheduler.Record(
         [enable](vk::CommandBuffer cmdbuf) { cmdbuf.SetDepthBiasEnableEXT(enable != 0); });
@@ -1790,5 +1822,4 @@ void RasterizerVulkan::ReleaseChannel(s32 channel_id) {
     pipeline_cache.EraseChannel(channel_id);
     query_cache.EraseChannel(channel_id);
 }
-
 } // namespace Vulkan

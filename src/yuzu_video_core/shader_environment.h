@@ -26,6 +26,13 @@ class Memorymanager;
 
 namespace VideoCommon {
 
+/// Bit of the size dependency mask set by shaders specialized on the texture pool sizes.
+inline constexpr u32 TEXTURE_POOL_SIZE_BIT = 1U << 31;
+
+/// Sizes of the graphics texture and sampler tables indexed by runtime handles.
+[[nodiscard]] Shader::TexturePoolInfo GraphicsTexturePoolInfo(
+    const Tegra::Engines::Maxwell3D::Regs& regs);
+
 class GenericEnvironment : public Shader::Environment {
 public:
     explicit GenericEnvironment() = default;
@@ -122,6 +129,8 @@ public:
 
     u32 ReadCbufSize(u32 cbuf_index) override;
 
+    std::optional<Shader::TexturePoolInfo> ReadTexturePoolInfo() override;
+
     Shader::TextureType ReadTextureType(u32 handle) override;
 
     Shader::TexturePixelFormat ReadTexturePixelFormat(u32 handle) override;
@@ -149,6 +158,8 @@ public:
     u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
 
     u32 ReadCbufSize(u32 cbuf_index) override;
+
+    u32 ReadTextureTableSize() override;
 
     Shader::TextureType ReadTextureType(u32 handle) override;
 
@@ -185,6 +196,10 @@ public:
     [[nodiscard]] u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
 
     [[nodiscard]] u32 ReadCbufSize(u32 cbuf_index) override;
+
+    [[nodiscard]] u32 ReadTextureTableSize() override;
+
+    [[nodiscard]] std::optional<Shader::TexturePoolInfo> ReadTexturePoolInfo() override;
 
     [[nodiscard]] u32 CbufSizeMask() const noexcept;
 

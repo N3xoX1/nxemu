@@ -148,9 +148,12 @@ public:
     ~SamplesStreamer() = default;
 
     void StartCounter() override {
-        if (has_started) {
+        counter_enabled = true;
+        if (has_started || !scheduler.IsInsideRenderPass()) {
             return;
         }
+        // A host query stays within one render pass. The existing query accumulator
+        // sums its segments when a guest counter spans several passes.
         ReserveHostQuery();
         scheduler.Record([query_pool = current_query_pool,
                           query_index = current_bank_slot](vk::CommandBuffer cmdbuf) {
@@ -162,9 +165,25 @@ public:
     }
 
     void PauseCounter() override {
+        counter_enabled = false;
+        EndQuery();
+    }
+
+    void NotifyRenderPass(bool begin) override {
+        if (begin) {
+            if (counter_enabled) {
+                StartCounter();
+            }
+        } else {
+            EndQuery();
+        }
+    }
+
+    void EndQuery() {
         if (!has_started) {
             return;
         }
+        ASSERT(scheduler.IsInsideRenderPass());
         scheduler.Record([query_pool = current_query_pool,
                           query_index = current_bank_slot](vk::CommandBuffer cmdbuf) {
             cmdbuf.EndQuery(query_pool, static_cast<u32>(query_index));
@@ -585,6 +604,7 @@ private:
     bool accumulation_since_last_sync{};
     VideoCommon::HostQueryBase* current_query;
     bool has_started{};
+    bool counter_enabled{};
     std::mutex flush_guard;
 
     std::unique_ptr<QueriesPrefixScanPass> queries_prefix_scan_pass;
@@ -1455,7 +1475,8 @@ VideoCommon::StreamerInterface* QueryCacheRuntime::GetStreamerInterface(QueryTyp
     }
 }
 
-void QueryCacheRuntime::Barriers(bool is_prebarrier) {
+namespace {
+void QueryCopyBarrier(vk::CommandBuffer cmdbuf, bool is_prebarrier) {
     static constexpr VkMemoryBarrier READ_BARRIER{
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .pNext = nullptr,
@@ -1468,18 +1489,21 @@ void QueryCacheRuntime::Barriers(bool is_prebarrier) {
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
     };
-    impl->scheduler.RequestOutsideRenderPassOperationContext();
     if (is_prebarrier) {
-        impl->scheduler.Record([](vk::CommandBuffer cmdbuf) {
-            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, READ_BARRIER);
-        });
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               0, READ_BARRIER);
     } else {
-        impl->scheduler.Record([](vk::CommandBuffer cmdbuf) {
-            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, WRITE_BARRIER);
-        });
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               0, WRITE_BARRIER);
     }
+}
+} // namespace
+
+void QueryCacheRuntime::Barriers(bool is_prebarrier) {
+    impl->scheduler.RequestOutsideRenderPassOperationContext();
+    impl->scheduler.Record([is_prebarrier](vk::CommandBuffer cmdbuf) {
+        QueryCopyBarrier(cmdbuf, is_prebarrier);
+    });
 }
 
 template <typename SyncValuesType>
@@ -1531,6 +1555,7 @@ void QueryCacheRuntime::SyncValues(std::span<SyncValuesType> values, VkBuffer ba
             const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
             const auto [buffer, offset] = impl->buffer_cache.ObtainCPUBuffer(
                 pair.first, static_cast<u32>(pair.second - pair.first), sync_info, post_op);
+            buffer->MarkUsage(offset, pair.second - pair.first);
             impl->buffers_to_upload_to.emplace_back(buffer->Handle(), offset);
         }
     });
@@ -1569,13 +1594,22 @@ void QueryCacheRuntime::SyncValues(std::span<SyncValuesType> values, VkBuffer ba
         src_buffer = base_src_buffer;
     }
 
+    for (const auto& [buffer, offset] : impl->buffers_to_upload_to) {
+        impl->scheduler.MarkBufferWrite(buffer);
+    }
+    // Query destinations may still be in use by shaders or indirect draws. Order that
+    // usage before overwriting them, then make the copied results visible to consumers.
+    // Keep the barrier/copy/barrier sequence in one worker command. Nothing can be
+    // interleaved between these operations, and the memory dependencies stay identical.
     impl->scheduler.RequestOutsideRenderPassOperationContext();
     impl->scheduler.Record([src_buffer, dst_buffers = std::move(impl->buffers_to_upload_to),
                             vk_copies = std::move(impl->copies_setup)](vk::CommandBuffer cmdbuf) {
+        QueryCopyBarrier(cmdbuf, true);
         size_t size = dst_buffers.size();
         for (size_t i = 0; i < size; i++) {
             cmdbuf.CopyBuffer(src_buffer, dst_buffers[i].first, vk_copies[i]);
         }
+        QueryCopyBarrier(cmdbuf, false);
     });
 }
 

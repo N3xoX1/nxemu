@@ -24,7 +24,11 @@ struct DescriptorUsage {
             storage_buffers += count;
             break;
         case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+        case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
             sampled_images += count;
+            break;
+        case VK_DESCRIPTOR_TYPE_SAMPLER:
+            samplers += count;
             break;
         case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
         case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:

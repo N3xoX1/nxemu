@@ -48,6 +48,7 @@ public:
         upload[written++] = value;
     }
     const Entry* Data() const noexcept { return upload; }
+    size_t Size() const noexcept { return written; }
 
 private:
     static_assert(FrameCapacity > 0 && Frames > 0);

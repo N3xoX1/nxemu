@@ -34,6 +34,8 @@ struct ConstBufferAddr {
     u32 count;
     u32 size_shift{DESCRIPTOR_SIZE_SHIFT};
     bool has_secondary;
+    bool is_direct{};
+    u32 handle_or_bits{};
 };
 
 struct TextureInst {
@@ -344,6 +346,18 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     default:
         return std::nullopt;
     case IR::Opcode::BitwiseOr32: {
+        // TEX.B can combine a cbuf TIC handle with an immediate TSC index in bits 20..31.
+        // Keep the constant in the descriptor instead of finding only the cbuf below the OR.
+        for (size_t immediate = 0; immediate < 2; ++immediate) {
+            if (inst->Arg(immediate).IsImmediate() &&
+                (inst->Arg(immediate).U32() & 0xfffffU) == 0) {
+                auto source = Track(inst->Arg(1 - immediate), env);
+                if (source) {
+                    source->handle_or_bits |= inst->Arg(immediate).U32();
+                }
+                return source;
+            }
+        }
         std::optional lhs{Track(inst->Arg(0), env)};
         std::optional rhs{Track(inst->Arg(1), env)};
         if (!lhs || !rhs) {
@@ -368,6 +382,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
             .dynamic_offset = {},
             .count = 1,
             .has_secondary = true,
+            .handle_or_bits = lhs->handle_or_bits | rhs->handle_or_bits,
         };
     }
     case IR::Opcode::ShiftLeftLogical32: {
@@ -378,6 +393,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         std::optional lhs{Track(inst->Arg(0), env)};
         if (lhs) {
             lhs->shift_left = shift.U32();
+            lhs->handle_or_bits = shift.U32() < 32 ? lhs->handle_or_bits << shift.U32() : 0;
         }
         return lhs;
         break;
@@ -407,6 +423,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         std::optional lhs{Track(op1, env)};
         if (lhs) {
             lhs->shift_left = static_cast<u32>(std::countr_zero(op2.U32()));
+            lhs->handle_or_bits &= op2.U32();
         }
         return lhs;
         break;
@@ -463,6 +480,37 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     };
 }
 
+// Sampling instructions the backends can emit against separate image and sampler arrays.
+bool IsRuntimeSampled(const IR::Inst& inst) {
+    switch (inst.GetOpcode()) {
+    case IR::Opcode::BindlessImageSampleImplicitLod:
+    case IR::Opcode::BindlessImageSampleExplicitLod:
+    case IR::Opcode::BindlessImageSampleDrefImplicitLod:
+    case IR::Opcode::BindlessImageSampleDrefExplicitLod:
+    case IR::Opcode::BindlessImageQueryLod:
+    case IR::Opcode::BindlessImageGradient:
+        return inst.Flags<IR::TextureInstInfo>().type != TextureType::Buffer;
+    default:
+        return false;
+    }
+}
+
+// True when the handle is an unmodified shader input, such as a per-vertex texture handle.
+bool IsShaderInput(const IR::Value& value) {
+    if (value.IsImmediate()) {
+        return false;
+    }
+    const IR::Inst* inst{value.InstRecursive()};
+    if (inst->GetOpcode() == IR::Opcode::BitCastU32F32) {
+        if (inst->Arg(0).IsImmediate()) {
+            return false;
+        }
+        inst = inst->Arg(0).InstRecursive();
+    }
+    return inst->GetOpcode() == IR::Opcode::GetAttribute ||
+           inst->GetOpcode() == IR::Opcode::GetAttributeU32;
+}
+
 std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block, IR::Inst& inst) {
     std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
     if (!track_addr) {
@@ -471,12 +519,40 @@ std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block,
     return track_addr;
 }
 
-TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst) {
+TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
+                     const HostTranslateInfo& host_info) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
         const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst)};
         if (!track_addr) {
-            throw NotImplementedException("Failed to track bindless texture constant buffer");
+            // A handle read from a shader input is only known when the shader runs. Index
+            // the whole texture and sampler tables with it and combine them in the shader.
+            if (host_info.support_separate_sampler && IsRuntimeSampled(inst) &&
+                IsShaderInput(inst.Arg(0))) {
+                const auto pool = env.ReadTexturePoolInfo();
+                if (pool && pool->num_textures != 0) {
+                    // One element is not declared as an array.
+                    addr = ConstBufferAddr{.dynamic_offset = IR::U32{inst.Arg(0)},
+                                           .count = std::max(pool->num_textures, 2U),
+                                           .is_direct = true};
+                    return TextureInst{addr, &inst, block};
+                }
+            }
+            // Handles passed through SSBOs/shared memory have no constant-buffer address.
+            // Keep the runtime handle and index the TIC table directly instead of guessing
+            // a cbuf from the address expression. Typeless 3D stores are the supported case.
+            const auto flags = inst.Flags<IR::TextureInstInfo>();
+            if (inst.GetOpcode() == IR::Opcode::BindlessImageWrite &&
+                flags.type == TextureType::Color3D && flags.image_format == ImageFormat::Typeless) {
+                const u32 size = env.ReadTextureTableSize();
+                if (size != 0) {
+                    addr = ConstBufferAddr{.dynamic_offset = IR::U32{inst.Arg(0)},
+                                          .count = size + 1, .is_direct = true};
+                    return TextureInst{addr, &inst, block};
+                }
+            }
+            throw NotImplementedException("Failed to track bindless texture constant buffer\n{}",
+                                          IR::DumpBlock(*block));
         }
         addr = *track_addr;
     } else {
@@ -505,7 +581,7 @@ u32 GetTextureHandle(Environment& env, const ConstBufferAddr& cbuf) {
     const u32 lhs_raw{env.ReadCbufValue(cbuf.index, cbuf.offset) << cbuf.shift_left};
     const u32 rhs_raw{env.ReadCbufValue(secondary_index, secondary_offset)
                       << cbuf.secondary_shift_left};
-    return lhs_raw | rhs_raw;
+    return lhs_raw | rhs_raw | cbuf.handle_or_bits;
 }
 
 TextureType ReadTextureType(Environment& env, const ConstBufferAddr& cbuf) {
@@ -567,6 +643,7 @@ public:
                    desc.secondary_cbuf_offset == existing.secondary_cbuf_offset &&
                    desc.secondary_shift_left == existing.secondary_shift_left &&
                    desc.count == existing.count && desc.size_shift == existing.size_shift &&
+                   desc.handle_or_bits == existing.handle_or_bits &&
                    desc.has_secondary == existing.has_secondary;
         });
     }
@@ -593,7 +670,9 @@ public:
                    desc.secondary_cbuf_index == existing.secondary_cbuf_index &&
                    desc.secondary_cbuf_offset == existing.secondary_cbuf_offset &&
                    desc.secondary_shift_left == existing.secondary_shift_left &&
-                   desc.count == existing.count && desc.size_shift == existing.size_shift;
+                   desc.count == existing.count && desc.size_shift == existing.size_shift &&
+                   desc.handle_or_bits == existing.handle_or_bits &&
+                   desc.is_direct == existing.is_direct;
         })};
         // TODO: Read this from TIC
         texture_descriptors[index].is_multisample |= desc.is_multisample;
@@ -605,7 +684,9 @@ public:
             return desc.type == existing.type && desc.format == existing.format &&
                    desc.cbuf_index == existing.cbuf_index &&
                    desc.cbuf_offset == existing.cbuf_offset && desc.count == existing.count &&
-                   desc.size_shift == existing.size_shift;
+                   desc.size_shift == existing.size_shift && desc.is_direct == existing.is_direct &&
+                   (!desc.is_direct || (desc.is_integer == existing.is_integer &&
+                                        desc.is_signed == existing.is_signed));
         })};
         image_descriptors[index].is_written |= desc.is_written;
         image_descriptors[index].is_read |= desc.is_read;
@@ -701,14 +782,14 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             if (!IsTextureInstruction(inst)) {
                 continue;
             }
-            to_replace.push_back(MakeInst(env, block, inst));
+            to_replace.push_back(MakeInst(env, block, inst, host_info));
         }
     }
     // All source expressions are still unchanged here. Share SSA results across accesses.
     std::unordered_set<const IR::Inst*> alignment_visiting;
     std::unordered_map<const IR::Inst*, u32> offset_alignments;
     for (auto& texture : to_replace) {
-        if (texture.cbuf.count <= 1) continue;
+        if (texture.cbuf.count <= 1 || texture.cbuf.is_direct) continue;
         const u32 buffer_size = env.ReadCbufSize(texture.cbuf.index);
         if (buffer_size == 0) {
             throw NotImplementedException("Bindless constant buffer size is unavailable");
@@ -759,7 +840,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             inst->SetFlags(flags);
             break;
         case IR::Opcode::ImageSampleImplicitLod:
-            if (flags.type != TextureType::Color2D) {
+            if (flags.type != TextureType::Color2D || cbuf.is_direct) {
                 break;
             }
             if (ReadTextureType(env, cbuf) == TextureType::Color2DRect) {
@@ -807,7 +888,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             }
             const bool is_written{inst->GetOpcode() != IR::Opcode::ImageRead};
             const bool is_read{inst->GetOpcode() != IR::Opcode::ImageWrite};
-            if (inst->GetOpcode() == IR::Opcode::ImageRead &&
+            if (!cbuf.is_direct && inst->GetOpcode() == IR::Opcode::ImageRead &&
                 flags.type != TextureType::Buffer && flags.image_format != ImageFormat::Typeless) {
                 flags.image_format.Assign(RawImageReadFormat(flags.image_format,
                                                             ReadTexturePixelFormat(env, cbuf)));
@@ -815,7 +896,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             // Explicit formats describe raw integer accesses, even when the
             // original surface stores floating-point texels.
             const bool is_integer{flags.image_format != ImageFormat::Typeless ||
-                                  IsTexturePixelFormatInteger(env, cbuf)};
+                                  (!cbuf.is_direct && IsTexturePixelFormatInteger(env, cbuf))};
             if (flags.type == TextureType::Buffer) {
                 index = descriptors.Add(ImageBufferDescriptor{
                     .format = flags.image_format,
@@ -838,6 +919,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .cbuf_offset = cbuf.offset,
                     .count = cbuf.count,
                     .size_shift = size_shift,
+                    .is_direct = cbuf.is_direct,
                 });
             }
             break;
@@ -854,6 +936,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .secondary_shift_left = cbuf.secondary_shift_left,
                     .count = cbuf.count,
                     .size_shift = size_shift,
+                    .handle_or_bits = cbuf.handle_or_bits,
                 });
             } else {
                 index = descriptors.Add(TextureDescriptor{
@@ -869,6 +952,8 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .secondary_shift_left = cbuf.secondary_shift_left,
                     .count = cbuf.count,
                     .size_shift = size_shift,
+                    .is_direct = cbuf.is_direct,
+                    .handle_or_bits = cbuf.handle_or_bits,
                 });
             }
             break;
@@ -876,7 +961,48 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         flags.descriptor_index.Assign(index);
         inst->SetFlags(flags);
 
-        if (cbuf.count > 1) {
+        if (cbuf.is_direct && inst->GetOpcode() != IR::Opcode::ImageWrite) {
+            const TexturePoolInfo pool{env.ReadTexturePoolInfo().value()};
+            const u32 num_samplers{pool.linked_samplers ? cbuf.count
+                                                        : std::max(pool.num_samplers, 2U)};
+            program.info.runtime_sampler_count = num_samplers;
+            program.info.runtime_samplers_linked = pool.linked_samplers;
+            IR::IREmitter ir{*texture_inst.block, IR::Block::InstructionList::s_iterator_to(*inst)};
+            const IR::U32 handle{cbuf.dynamic_offset};
+            // Out of range indices select the last element instead of reading past the arrays.
+            if (pool.linked_samplers) {
+                inst->SetArg(0, ir.UMin(handle, ir.Imm32(cbuf.count - 1)));
+            } else {
+                // Keep the guest layout: texture index in the low 20 bits, sampler index above.
+                const IR::U32 tic{ir.UMin(ir.BitwiseAnd(handle, ir.Imm32(0xfffffU)),
+                                          ir.Imm32(cbuf.count - 1))};
+                const IR::U32 tsc{ir.UMin(ir.ShiftRightLogical(handle, ir.Imm32(20)),
+                                          ir.Imm32(num_samplers - 1))};
+                inst->SetArg(0, ir.BitwiseOr(tic, ir.ShiftLeftLogical(tsc, ir.Imm32(20))));
+            }
+        } else if (cbuf.is_direct) {
+            if (!host_info.support_null_descriptor) {
+                throw NotImplementedException("Runtime storage image table requires null descriptors");
+            }
+            program.info.runtime_image_write_mask_words = (cbuf.count + 31U) / 32U;
+            IR::IREmitter ir{*texture_inst.block, IR::Block::InstructionList::s_iterator_to(*inst)};
+            const auto tic_index = ir.BitwiseAnd(cbuf.dynamic_offset, ir.Imm32(0xfffffU));
+            // The final descriptor is a null image for handles outside the bound table.
+            inst->SetArg(0, ir.UMin(tic_index, ir.Imm32(cbuf.count - 1)));
+            // A runtime TIC can select float, unsigned or signed storage. Bind the
+            // matching view in one typed table and null descriptors in the other two.
+            // nullDescriptor discards their stores without interpreting the texel bits.
+            auto typed_desc = program.info.image_descriptors[index];
+            typed_desc.is_integer = true;
+            for (const bool is_signed : {false, true}) {
+                typed_desc.is_signed = is_signed;
+                auto typed_flags = flags;
+                typed_flags.descriptor_index.Assign(descriptors.Add(typed_desc));
+                auto clone = texture_inst.block->PrependNewInst(
+                    IR::Block::InstructionList::s_iterator_to(*inst), *inst);
+                clone->SetFlags(typed_flags);
+            }
+        } else if (cbuf.count > 1) {
             const auto insert_point{IR::Block::InstructionList::s_iterator_to(*inst)};
             IR::IREmitter ir{*texture_inst.block, insert_point};
             const IR::U32 shift{ir.Imm32(size_shift)};
@@ -897,12 +1023,17 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
     // Count actual bindings after deduplication, rather than texture instructions.
     // Never map a valid guest index to another handle to satisfy host resource limits.
     const u64 sampled_count = u64{NumDescriptors(program.info.texture_descriptors)} +
-                              NumDescriptors(program.info.texture_buffer_descriptors);
+                              NumDescriptors(program.info.texture_buffer_descriptors) +
+                              program.info.runtime_sampler_count;
     if (std::ranges::any_of(to_replace, [](const auto& texture) {
             return !texture.cbuf.dynamic_offset.IsEmpty();
         }) && sampled_count > host_info.max_bindless_descriptors_per_stage) {
         throw NotImplementedException("Sampled texture bindings exceed the host descriptor budget ({} > {})",
                                       sampled_count, host_info.max_bindless_descriptors_per_stage);
+    }
+    if (NumDescriptors(program.info.image_descriptors) > host_info.max_storage_images_per_stage &&
+        std::ranges::any_of(program.info.image_descriptors, [](const auto& desc) { return desc.is_direct; })) {
+        throw NotImplementedException("Runtime storage image table exceeds the host descriptor budget");
     }
 }
 
@@ -913,6 +1044,9 @@ void JoinTextureInfo(Info& base, Info& source) {
         base.texture_descriptors,
         base.image_descriptors,
     };
+    base.runtime_sampler_count =
+        std::max(base.runtime_sampler_count, source.runtime_sampler_count);
+    base.runtime_samplers_linked |= source.runtime_samplers_linked;
     for (auto& desc : source.texture_buffer_descriptors) {
         descriptors.Add(desc);
     }

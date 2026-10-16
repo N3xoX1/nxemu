@@ -112,6 +112,8 @@ public:
 
     void NotifySegment(bool resume);
 
+    void NotifyRenderPass(bool begin);
+
     void BindToChannel(s32 id) override;
 
 protected:

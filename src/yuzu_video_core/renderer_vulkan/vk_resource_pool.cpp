@@ -12,6 +12,18 @@ ResourcePool::ResourcePool(MasterSemaphore& master_semaphore_, size_t grow_step_
     : master_semaphore{&master_semaphore_}, grow_step{grow_step_} {}
 
 size_t ResourcePool::CommitResource() {
+    // Completion already observed with acquire is sufficient to reuse the hint.
+    // A stale known tick can only send us through the original refresh path.
+    if (hint_iterator < ticks.size() &&
+        master_semaphore->KnownGpuTick() >= ticks[hint_iterator]) {
+        const size_t resource = hint_iterator;
+        ticks[resource] = master_semaphore->CurrentTick();
+        hint_iterator = resource + 1;
+        if (hint_iterator == ticks.size()) {
+            hint_iterator = 0;
+        }
+        return resource;
+    }
     // Refresh semaphore to query updated results
     master_semaphore->Refresh();
     const u64 gpu_tick = master_semaphore->KnownGpuTick();
@@ -38,7 +50,10 @@ size_t ResourcePool::CommitResource() {
         }
     }
     // Free iterator is hinted to the resource after the one that's been committed.
-    hint_iterator = (*found + 1) % ticks.size();
+    hint_iterator = *found + 1;
+    if (hint_iterator == ticks.size()) {
+        hint_iterator = 0;
+    }
     return *found;
 }
 

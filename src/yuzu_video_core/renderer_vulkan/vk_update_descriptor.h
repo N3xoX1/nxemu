@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <span>
+
 #include "yuzu_video_core/renderer_vulkan/descriptor_payload.h"
 
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
@@ -44,6 +46,11 @@ public:
 
     const DescriptorUpdateEntry* UpdateData() const noexcept {
         return payload.Data();
+    }
+
+    /// Returns the entries added since the queue was acquired.
+    std::span<const DescriptorUpdateEntry> Entries() const noexcept {
+        return {payload.Data(), payload.Size()};
     }
 
     void AddSampledImage(VkImageView image_view, VkSampler sampler) {

@@ -3,12 +3,14 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cstring>
 #include <span>
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
+#include "yuzu_common/readback_reference.h"
 
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -20,6 +22,21 @@
 #include "video_settings.h"
 
 namespace Vulkan {
+struct ReadbackShadowBudget {
+    std::atomic<u64> used{};
+    u64 capacity{};
+};
+struct ReadbackShadow {
+    std::shared_ptr<ReadbackShadowBudget> budget;
+    u64 bytes;
+    vk::Buffer buffer;
+    Common::ReadbackReference reference;
+    std::shared_ptr<Common::ReadbackCpuReference> cpu_reference;
+    ReadbackShadow(std::shared_ptr<ReadbackShadowBudget> budget_, u64 bytes_, vk::Buffer buffer_)
+        : budget{std::move(budget_)}, bytes{bytes_}, buffer{std::move(buffer_)},
+          cpu_reference{std::make_shared<Common::ReadbackCpuReference>(bytes_)} {}
+    ~ReadbackShadow() { budget->used.fetch_sub(bytes, std::memory_order_relaxed); }
+};
 namespace {
 VkBufferCopy MakeBufferCopy(const VideoCommon::BufferCopy& copy) {
     return VkBufferCopy{
@@ -330,7 +347,11 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
     : device{device_}, memory_allocator{memory_allocator_}, scheduler{scheduler_},
       staging_pool{staging_pool_}, guest_descriptor_queue{guest_descriptor_queue_},
       quad_index_pass(device, scheduler, descriptor_pool, staging_pool,
-                      compute_pass_descriptor_queue) {
+                      compute_pass_descriptor_queue),
+      readback_descriptor_queue{compute_pass_descriptor_queue},
+      readback_descriptor_pool{descriptor_pool} {
+    readback_shadow_budget = std::make_shared<ReadbackShadowBudget>();
+    readback_shadow_budget->capacity = std::min<u64>(512ULL << 20, GetDeviceLocalMemory() / 16);
     if (device.GetDriverID() != VK_DRIVER_ID_QUALCOMM_PROPRIETARY) {
         // TODO: FixMe: Uint8Pass compute shader does not build on some Qualcomm drivers.
         uint8_pass = std::make_unique<Uint8Pass>(device, scheduler, descriptor_pool, staging_pool,
@@ -348,6 +369,81 @@ StagingBufferRef BufferCacheRuntime::UploadStagingBuffer(size_t size) {
 
 StagingBufferRef BufferCacheRuntime::DownloadStagingBuffer(size_t size, bool deferred) {
     return staging_pool.Request(size, MemoryUsage::Download, deferred);
+}
+
+bool BufferCacheRuntime::CanDifferentialReadback(const Buffer& buffer,
+                                                const VideoCommon::BufferCopy& copy) const {
+    if (!differential_readback_enabled) return false;
+
+    if (copy.size < (1ULL << 20) ||
+        copy.size > Common::ReadbackReference::MaxCopySize ||
+        ((copy.src_offset | copy.dst_offset | copy.size) & 3) != 0 ||
+        copy.size + device.GetStorageBufferAlignment() > device.GetMaxStorageBufferRange()) {
+        return false;
+    }
+    if (buffer.SizeBytes() > (128ULL << 20)) {
+        return false;
+    }
+    if (buffer.readback_shadow) return true;
+    const u64 used = readback_shadow_budget->used.load(std::memory_order_relaxed);
+    const bool fits = used <= readback_shadow_budget->capacity &&
+                      buffer.SizeBytes() <= readback_shadow_budget->capacity - used;
+    return fits;
+}
+
+void BufferCacheRuntime::InvalidateReadbackReference(Buffer& buffer, u64 offset, u64 size) {
+    if (buffer.readback_shadow) buffer.readback_shadow->reference.Invalidate(offset, size);
+}
+
+std::shared_ptr<Common::ReadbackCpuReference>
+BufferCacheRuntime::GetReadbackCpuReference(const Buffer& buffer) const {
+    return buffer.readback_shadow->cpu_reference;
+}
+
+bool BufferCacheRuntime::DifferentialReadback(Buffer& buffer, const StagingBufferRef& data,
+                                             const StagingBufferRef& flags,
+                                             const VideoCommon::BufferCopy& copy,
+                                             u64 flag_offset) {
+    if (!CanDifferentialReadback(buffer, copy)) return false;
+    try {
+        if (!readback_delta_pass) {
+            readback_delta_pass = std::make_unique<ReadbackDeltaPass>(
+                device, scheduler, readback_descriptor_pool, readback_descriptor_queue);
+        }
+        if (!buffer.readback_shadow) {
+            const u64 bytes = buffer.SizeBytes();
+            u64 used = readback_shadow_budget->used.load(std::memory_order_relaxed);
+            do {
+                if (used > readback_shadow_budget->capacity ||
+                    bytes > readback_shadow_budget->capacity - used) return false;
+            } while (!readback_shadow_budget->used.compare_exchange_weak(
+                used, used + bytes, std::memory_order_relaxed));
+            try {
+                buffer.readback_shadow = std::make_shared<ReadbackShadow>(
+                    readback_shadow_budget, bytes, CreateBuffer(device, memory_allocator, bytes));
+            } catch (...) {
+                readback_shadow_budget->used.fetch_sub(bytes, std::memory_order_relaxed);
+                throw;
+            }
+            has_readback_references = true;
+        }
+        auto& reference = buffer.readback_shadow->reference;
+        const auto valid = reference.ValidMask(copy.src_offset, copy.size);
+        readback_delta_pass->Copy(buffer.Handle(), *buffer.readback_shadow->buffer,
+                                 data.buffer, flags.buffer, copy.src_offset, copy.dst_offset,
+                                 copy.size, flags.offset + flag_offset,
+                                 flags.offset + flags.mapped_span.size(), valid);
+        reference.Scheduled(copy.src_offset, copy.size);
+        return true;
+    } catch (const vk::Exception& exception) {
+        LOG_WARNING(Render_Vulkan, "Differential GPU readback disabled: {}", exception.what());
+        differential_readback_enabled = false;
+        return false;
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING(Render_Vulkan, "Differential GPU readback disabled: host reference allocation failed");
+        differential_readback_enabled = false;
+        return false;
+    }
 }
 
 void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) {
@@ -374,6 +470,10 @@ void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noe
     for (auto it = slot_buffers.begin(); it != slot_buffers.end(); it++) {
         it->ResetUsageTracking();
     }
+}
+
+void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {
+    scheduler.MarkBufferWrite(buffer.Handle());
 }
 
 void BufferCacheRuntime::Finish() {
@@ -422,6 +522,7 @@ void BufferCacheRuntime::CopyBuffer(VkBuffer dst_buffer, VkBuffer src_buffer,
         return;
     }
 
+    scheduler.MarkBufferWrite(dst_buffer);
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([src_buffer, dst_buffer, vk_copies, barrier](vk::CommandBuffer cmdbuf) {
         if (barrier) {
@@ -481,6 +582,7 @@ void BufferCacheRuntime::ClearBuffer(VkBuffer dest_buffer, u32 offset, size_t si
         .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
     };
 
+    scheduler.MarkBufferWrite(dest_buffer);
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([dest_buffer, offset, size, value](vk::CommandBuffer cmdbuf) {
         cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -739,5 +841,4 @@ vk::Buffer BufferCacheRuntime::CreateNullBuffer() {
 
     return ret;
 }
-
 } // namespace Vulkan

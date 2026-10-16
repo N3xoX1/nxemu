@@ -43,7 +43,6 @@
 #include "video_settings.h"
 
 namespace Vulkan {
-
 namespace {
 using Shader::Backend::SPIRV::EmitSPIRV;
 using Shader::Maxwell::ConvertLegacyToGeneric;
@@ -56,7 +55,7 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 16;
+constexpr u32 CACHE_VERSION = 20;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 template <typename Container>
@@ -472,7 +471,6 @@ Shader::VtgVertexInputs MakeVtgVertexInputs(const FixedPipelineState& state) {
     }
     return inputs;
 }
-
 } // Anonymous namespace
 
 size_t ComputePipelineCacheKey::Hash() const noexcept {
@@ -518,6 +516,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_descriptor_aliasing = device.IsDescriptorAliasingSupported(),
         .support_sampled_image_array_nonuniform_indexing =
             device.IsSampledImageArrayNonUniformIndexingSupported(),
+        .support_storage_image_array_nonuniform_indexing =
+            device.IsStorageImageArrayNonUniformIndexingSupported(),
         .disable_uniform_buffer_descriptor_aliasing =
             device.IsDescriptorAliasingSupported() && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
         .support_int8 = device.IsInt8Supported(),
@@ -599,6 +599,11 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_geometry_shader_passthrough = device.IsNvGeometryShaderPassthroughSupported(),
         .support_conditional_barrier = device.SupportsConditionalBarriers(),
         .max_bindless_descriptors_per_stage = device.MaxBindlessDescriptorsPerStage(),
+        .max_storage_images_per_stage =
+            std::min(device.DescriptorSetLimits().maxPerStageDescriptorStorageImages,
+                     device.DescriptorSetLimits().maxDescriptorSetStorageImages),
+        .support_null_descriptor = device.HasNullDescriptor(),
+        .support_separate_sampler = true,
     };
 
     if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
@@ -626,7 +631,6 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
-
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
         return nullptr;
@@ -637,6 +641,12 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
             const auto& buffer = maxwell3d->state.shader_stages[stage].const_buffers[bank];
             return buffer.enabled ? buffer.size : 0;
         });
+    graphics_key.texture_pool = {};
+    if ((graphics_cbuf_size_state.ExtraMask() & VideoCommon::TEXTURE_POOL_SIZE_BIT) != 0) {
+        const auto pool = VideoCommon::GraphicsTexturePoolInfo(maxwell3d->regs);
+        graphics_key.texture_pool = {pool.num_textures,
+                                     pool.linked_samplers ? 0U : pool.num_samplers};
+    }
 
     if (current_pipeline) {
         GraphicsPipeline* const next{current_pipeline->Next(graphics_key)};
@@ -658,6 +668,7 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
         .unique_hash = shader->unique_hash,
         .shared_memory_size = qmd.shared_alloc,
         .workgroup_size{qmd.block_dim_x, qmd.block_dim_y, qmd.block_dim_z},
+        .texture_table_size = std::min(kepler_compute->regs.tic.limit + 1U, 1U << 20),
     };
     const u32 size_mask = qmd.const_buffer_enable_mask.Value() &
                           cbuf_size_dependencies.Mask(shader->unique_hash);
@@ -793,6 +804,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             const u32 mask = cbuf_size_dependencies.Mask(key.unique_hashes[stage + 1]) |
                 (stage == 0 ? cbuf_size_dependencies.Mask(key.unique_hashes[0]) : 0);
             CbufSizeDependencies::Normalize(key.cbuf_sizes[stage], mask);
+        }
+        if (std::ranges::none_of(key.unique_hashes, [this](u64 hash) {
+                return (cbuf_size_dependencies.Mask(hash) & VideoCommon::TEXTURE_POOL_SIZE_BIT) != 0;
+            })) {
+            key.texture_pool = {};
         }
         if (!loaded_graphics_keys.insert(key).second) {
             return;
@@ -1189,7 +1205,6 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
         std::move(modules), infos, rasterizes_lines, std::move(vtg_info));
-
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();
     size_t env_index{0};
@@ -1328,10 +1343,11 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
-                                             &shader_notify, program.info, std::move(spv_module));
-
+                                             &shader_notify, program.info, std::move(spv_module), staging_pool);
 } catch (const Shader::Exception& exception) {
-    LOG_ERROR(Render_Vulkan, "{}", exception.what());
+    env.Dump(key.Hash(), key.unique_hash);
+    LOG_ERROR(Render_Vulkan, "Compute shader {:#016x}, TIC table size={}: {}",
+              key.unique_hash, key.texture_table_size, exception.what());
     return nullptr;
 }
 
@@ -1359,7 +1375,6 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
-
 } catch (const std::ios_base::failure& e) {
     LOG_ERROR(Common_Filesystem, "{}", e.what());
     if (!Common::FS::RemoveFile(filename)) {
@@ -1418,7 +1433,6 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
                  "Loaded Vulkan driver pipeline cache: {}", Common::FS::PathToUTF8String(filename));
 
         return create_pipeline_cache(cache_size, cache_data.data());
-
     } catch (const std::ios_base::failure& e) {
         LOG_ERROR(Common_Filesystem, "{}", e.what());
         if (!Common::FS::RemoveFile(filename)) {
@@ -1429,5 +1443,4 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
         return create_pipeline_cache(0, nullptr);
     }
 }
-
 } // namespace Vulkan

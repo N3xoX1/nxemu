@@ -6,13 +6,13 @@
 
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <list>
 #include <memory>
 
 #include "frontend/emu_window.h"
 #include "frontend/graphics_context.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/nvdata.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -37,7 +37,6 @@
 
 namespace Tegra
 {
-
 struct GPU::Impl :
     public ICacheInvalidator
 {
@@ -760,5 +759,4 @@ void GPU::RegisterHostThread()
 {
     impl->RegisterHostThread();
 }
-
 } // namespace Tegra

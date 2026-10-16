@@ -17,6 +17,10 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
+  <PropertyGroup>
+    <GlslangValidator Condition="'$(VULKAN_SDK)' != ''">$(VULKAN_SDK)\Bin\glslangValidator.exe</GlslangValidator>
+    <GlslangValidator Condition="'$(VULKAN_SDK)' == ''">glslangValidator.exe</GlslangValidator>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <ImportGroup Label="PropertySheets">
     <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
@@ -24,9 +28,9 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ui\host\shaders;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\rmlui\Backends;$(SolutionDir)external\rmlui\Include;$(SolutionDir)external\sdl\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
-      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;RMLUI_STATIC_LIB;RMLUI_SDL_VERSION_MAJOR=2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PreBuildEvent>
       <Command>IF NOT EXIST "$(SolutionDir)config\NxEmu.config" (copy  "$(SolutionDir)config\NxEmu.config.development" "$(SolutionDir)config\NxEmu.config")
@@ -42,6 +46,16 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="settings\ui_settings.cpp" />
     <ClCompile Include="startup_checks.cpp" />
+    <ClCompile Include="ui\emulation\emulator_session.cpp" />
+    <ClCompile Include="ui\host\ui_notification.cpp" />
+    <ClCompile Include="ui\host\ui_renderer.cpp" />
+    <ClCompile Include="ui\host\ui_renderer_effects.cpp" />
+    <ClCompile Include="ui\host\ui_window.cpp" />
+    <ClCompile Include="ui\host\vulkan\vma.cpp" />
+    <ClCompile Include="..\..\external\rmlui\Backends\RmlUi_Platform_SDL.cpp" />
+    <ClCompile Include="ui\host\vulkan\vulkan_api.cpp" />
+    <ClCompile Include="ui\ui_application.cpp" />
+    <ClCompile Include="ui\views\main_window.cpp" />
     <ClCompile Include="vulkan_probe.cpp" />
     <ClCompile Include="user_interface\file_dialogs.cpp" />
     <ClCompile Include="user_interface\game_list_worker.cpp" />
@@ -81,6 +95,11 @@
     <ClInclude Include="settings\ui_settings.h" />
     <ClInclude Include="settings\ui_settings_identifiers.h" />
     <ClInclude Include="startup_checks.h" />
+    <ClInclude Include="ui\emulation\emulator_session.h" />
+    <ClInclude Include="ui\host\ui_notification.h" />
+    <ClInclude Include="ui\host\ui_window.h" />
+    <ClInclude Include="ui\ui_application.h" />
+    <ClInclude Include="ui\views\main_window.h" />
     <ClInclude Include="vulkan_probe.h" />
     <ClInclude Include="user_interface\app_events.h" />
     <ClInclude Include="user_interface\file_dialogs.h" />
@@ -117,8 +136,17 @@
     <ClInclude Include="user_interface\widgets\rom_browser.h" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\external\freetype.vcxproj">
+      <Project>{a042d74b-bb84-4487-b406-4633320364e7}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\external\rmlui_core.vcxproj">
+      <Project>{978d165d-6513-497e-b12c-ca016a6fa48f}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\external\sciterui\src\sciterui\sciterui.vcxproj">
       <Project>{847b64ee-2c78-48f9-912b-d700f2a5cb91}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\external\sdl.vcxproj">
+      <Project>{c44840a5-59bc-4ca0-85c2-b51f0ba6e3bd}</Project>
     </ProjectReference>
     <ProjectReference Include="..\common\common.vcxproj">
       <Project>{ec81be93-8316-4db6-8a26-b13fb5b13848}</Project>
@@ -129,6 +157,68 @@
     <ProjectReference Include="..\3rd_party\discord-rpc\discord-rpc.vcxproj">
       <Project>{7e4c9f2a-1b83-4d6e-9a05-c8f3d2e1b4a7}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ui\host\shaders\blend_mask.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name blend_mask_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\blend_mask_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\blend_mask_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\blur.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name blur_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\blur_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\blur_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\color.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name color_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\color_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\color_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\color_matrix.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name color_matrix_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\color_matrix_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\color_matrix_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\drop_shadow.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name drop_shadow_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\drop_shadow_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\drop_shadow_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\fullscreen.vert">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name fullscreen_vert_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\fullscreen_vert_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\fullscreen_vert_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\geometry.vert">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name geometry_vert_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\geometry_vert_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\geometry_vert_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\gradient.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name gradient_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\gradient_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\gradient_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\passthrough.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name passthrough_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\passthrough_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\passthrough_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\texture.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>"$(GlslangValidator)" -V --quiet --variable-name texture_frag_spv -o "$(ProjectDir)ui\host\shaders\ui_shaders\texture_frag_spv.h" "%(FullPath)"</Command>
+      <Outputs>$(ProjectDir)ui\host\shaders\ui_shaders\texture_frag_spv.h</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="user_interface\nxemu.rc" />

@@ -319,9 +319,11 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                     const u32 lhs_raw{gpu_memory->Read<u32>(addr) << desc.shift_left};
                     const u32 rhs_raw{gpu_memory->Read<u32>(separate_addr)
                                       << desc.secondary_shift_left};
-                    const u32 raw{lhs_raw | rhs_raw};
+                    const u32 raw{lhs_raw | rhs_raw | desc.handle_or_bits};
                     return TexturePair(raw, via_header_index);
                 }
+                return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                       desc, gpu_memory->Read<u32>(addr)), via_header_index);
             }
             return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
         }};
