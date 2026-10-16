@@ -231,6 +231,7 @@ MemoryAllocator::MemoryAllocator(const Device& device_)
 MemoryAllocator::~MemoryAllocator() = default;
 
 vk::Image MemoryAllocator::CreateImage(const VkImageCreateInfo& ci, bool dedicated) const {
+    const auto image_allocator = device.GetImageAllocator();
     const VmaAllocationCreateInfo alloc_ci = {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT |
                  (dedicated ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : 0U),
@@ -246,13 +247,14 @@ vk::Image MemoryAllocator::CreateImage(const VkImageCreateInfo& ci, bool dedicat
     VkImage handle{};
     VmaAllocation allocation{};
 
-    vk::Check(vmaCreateImage(allocator, &ci, &alloc_ci, &handle, &allocation, nullptr));
+    vk::Check(vmaCreateImage(image_allocator, &ci, &alloc_ci, &handle, &allocation, nullptr));
 
-    return vk::Image(handle, *device.GetLogical(), allocator, allocation,
+    return vk::Image(handle, *device.GetLogical(), image_allocator, allocation,
                      device.GetDispatchLoader());
 }
 
 vk::Image MemoryAllocator::CreateTransientImage(const VkImageCreateInfo& ci) const {
+    const auto image_allocator = device.GetImageAllocator();
     const VmaAllocationCreateInfo alloc_ci = {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -267,9 +269,9 @@ vk::Image MemoryAllocator::CreateTransientImage(const VkImageCreateInfo& ci) con
     VkImage handle{};
     VmaAllocation allocation{};
 
-    vk::Check(vmaCreateImage(allocator, &ci, &alloc_ci, &handle, &allocation, nullptr));
+    vk::Check(vmaCreateImage(image_allocator, &ci, &alloc_ci, &handle, &allocation, nullptr));
 
-    return vk::Image(handle, *device.GetLogical(), allocator, allocation,
+    return vk::Image(handle, *device.GetLogical(), image_allocator, allocation,
                      device.GetDispatchLoader());
 }
 

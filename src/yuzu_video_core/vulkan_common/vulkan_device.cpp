@@ -753,6 +753,11 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
 
     if (is_mvk)
     {
+        // Metal has no uint8 index buffers. MoltenVK converts the entire bound
+        // buffer for every draw, including unused parts of our merged cache
+        // allocations. Use our draw-sized uint8 conversion instead.
+        RemoveExtensionFeature(extensions.index_type_uint8, features.index_type_uint8,
+                               VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME);
         LOG_WARNING(Render_Vulkan, "MVK driver breaks when using more than 16 vertex attributes/bindings");
         properties.properties.limits.maxVertexInputAttributes = std::min(properties.properties.limits.maxVertexInputAttributes, 16U);
         properties.properties.limits.maxVertexInputBindings = std::min(properties.properties.limits.maxVertexInputBindings, 16U);
@@ -776,6 +781,41 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
         RemoveExtensionFeature(extensions.extended_dynamic_state3, features.extended_dynamic_state3, VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
         dynamic_state3_blending = false;
         dynamic_state3_enables = false;
+    }
+
+    // MoltenVK's large Metal argument-buffer limits apply only to layouts/pools
+    // created with UPDATE_AFTER_BIND. Keep the ordinary (including push) limits intact.
+    const auto& indexing = properties.descriptor_indexing;
+    update_after_bind_descriptor_sets =
+        is_mvk && indexing.maxPerStageDescriptorUpdateAfterBindSamplers >
+                      properties.properties.limits.maxPerStageDescriptorSamplers;
+    descriptor_set_limits = properties.properties.limits;
+    if (update_after_bind_descriptor_sets) {
+        descriptor_set_limits.maxPerStageDescriptorSamplers =
+            indexing.maxPerStageDescriptorUpdateAfterBindSamplers;
+        descriptor_set_limits.maxPerStageDescriptorSampledImages =
+            indexing.maxPerStageDescriptorUpdateAfterBindSampledImages;
+        descriptor_set_limits.maxPerStageDescriptorStorageImages =
+            indexing.maxPerStageDescriptorUpdateAfterBindStorageImages;
+        descriptor_set_limits.maxPerStageDescriptorUniformBuffers =
+            indexing.maxPerStageDescriptorUpdateAfterBindUniformBuffers;
+        descriptor_set_limits.maxPerStageDescriptorStorageBuffers =
+            indexing.maxPerStageDescriptorUpdateAfterBindStorageBuffers;
+        descriptor_set_limits.maxPerStageResources = indexing.maxPerStageUpdateAfterBindResources;
+        descriptor_set_limits.maxDescriptorSetSamplers =
+            indexing.maxDescriptorSetUpdateAfterBindSamplers;
+        descriptor_set_limits.maxDescriptorSetSampledImages =
+            indexing.maxDescriptorSetUpdateAfterBindSampledImages;
+        descriptor_set_limits.maxDescriptorSetStorageImages =
+            indexing.maxDescriptorSetUpdateAfterBindStorageImages;
+        descriptor_set_limits.maxDescriptorSetUniformBuffers =
+            indexing.maxDescriptorSetUpdateAfterBindUniformBuffers;
+        descriptor_set_limits.maxDescriptorSetStorageBuffers =
+            indexing.maxDescriptorSetUpdateAfterBindStorageBuffers;
+        LOG_INFO(Render_Vulkan, "Using MoltenVK argument-buffer descriptor sets: {} samplers, "
+                               "{} sampled images per stage",
+                 descriptor_set_limits.maxPerStageDescriptorSamplers,
+                 descriptor_set_limits.maxPerStageDescriptorSampledImages);
     }
 
     logical = vk::Device::Create(physical, queue_cis, ExtensionListForVulkan(loaded_extensions), first_next, dld);
@@ -802,10 +842,26 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
     };
 
     vk::Check(vmaCreateAllocator(&allocator_info, &allocator));
+    if (is_mvk)
+    {
+        // Mixed buffer/image heaps on MoltenVK can corrupt optimal image contents
+        // during buffer writes (observed with BC1 startup textures). Separate
+        // their backing allocations while retaining suballocation within each heap.
+        const VkResult result = vmaCreateAllocator(&allocator_info, &image_allocator);
+        if (result != VK_SUCCESS)
+        {
+            vmaDestroyAllocator(allocator);
+            vk::Check(result);
+        }
+    }
 }
 
 Device::~Device()
 {
+    if (image_allocator)
+    {
+        vmaDestroyAllocator(image_allocator);
+    }
     vmaDestroyAllocator(allocator);
 }
 
@@ -1200,6 +1256,11 @@ bool Device::GetSuitability(bool requires_swapchain)
     {
         properties.transform_feedback.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_PROPERTIES_EXT;
         SetNext(next, properties.transform_feedback);
+    }
+    if (extensions.descriptor_indexing || instance_version >= VK_API_VERSION_1_2)
+    {
+        properties.descriptor_indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+        SetNext(next, properties.descriptor_indexing);
     }
 
     if (instance_version >= VK_API_VERSION_1_2)

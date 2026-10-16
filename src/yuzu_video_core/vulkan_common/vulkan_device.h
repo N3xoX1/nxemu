@@ -232,6 +232,10 @@ public:
         return allocator;
     }
 
+    VmaAllocator GetImageAllocator() const {
+        return image_allocator ? image_allocator : allocator;
+    }
+
     /// Returns the logical device.
     const vk::Device& GetLogical() const {
         return logical;
@@ -393,6 +397,11 @@ public:
         return properties.subgroup_size_control.requiredSubgroupSizeStages & stage;
     }
 
+    /// Returns true if subgroup operations are supported in the provided stage.
+    bool IsSubgroupStageSupported(VkShaderStageFlagBits stage) const {
+        return properties.subgroup_properties.supportedStages & stage;
+    }
+
     /// Returns true if the device supports the provided subgroup feature.
     bool IsSubgroupFeatureSupported(VkSubgroupFeatureFlagBits feature) const {
         return properties.subgroup_properties.supportedOperations & feature;
@@ -407,9 +416,17 @@ public:
         return properties.properties.limits;
     }
 
+    bool UsesUpdateAfterBindDescriptorSets() const noexcept {
+        return update_after_bind_descriptor_sets;
+    }
+
+    const VkPhysicalDeviceLimits& DescriptorSetLimits() const noexcept {
+        return descriptor_set_limits;
+    }
+
     /// Single-stage upper bound; the complete pipeline layout checks actual resource usage.
     u32 MaxBindlessDescriptorsPerStage() const {
-        const auto& limits = DescriptorLimits();
+        const auto& limits = DescriptorSetLimits();
         return std::min({limits.maxPerStageDescriptorSampledImages,
                          limits.maxPerStageDescriptorSamplers, limits.maxDescriptorSetSampledImages,
                          limits.maxDescriptorSetSamplers, limits.maxPerStageResources});
@@ -847,6 +864,11 @@ private:
     u32 graphics_family{};       ///< Main graphics queue family index.
     u32 present_family{};        ///< Main present queue family index.
 
+    /// Separate image heaps on MoltenVK.
+    VmaAllocator image_allocator{};
+    bool update_after_bind_descriptor_sets{};
+    VkPhysicalDeviceLimits descriptor_set_limits{};
+
     struct Extensions {
 #define EXTENSION(prefix, macro_name, var_name) bool var_name{};
 #define FEATURE(prefix, struct_name, macro_name, var_name) bool var_name{};
@@ -880,6 +902,7 @@ private:
 
     struct Properties {
         VkPhysicalDeviceDepthStencilResolveProperties depth_stencil_resolve{};
+        VkPhysicalDeviceDescriptorIndexingProperties descriptor_indexing{};
         VkPhysicalDeviceDriverProperties driver{};
         VkPhysicalDeviceSubgroupProperties subgroup_properties{};
         VkPhysicalDeviceFloatControlsProperties float_controls{};

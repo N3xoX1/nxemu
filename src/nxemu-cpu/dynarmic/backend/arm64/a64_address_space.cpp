@@ -496,12 +496,13 @@ void A64AddressSpace::EmitPrelude() {
 
         code.LDR(X0, l_this);
         code.MOV(X1, Xstate);
+        code.MOV(X2, SP);
         code.LDR(Xscratch0, l_addr);
         code.BLR(Xscratch0);
         code.BR(X0);
 
-        const auto fn = [](A64AddressSpace& self, A64JitState& context) -> CodePtr {
-            return self.GetOrEmit(context.GetLocationDescriptor());
+        const auto fn = [](A64AddressSpace& self, A64JitState& context, StackLayout& stack_layout) -> CodePtr {
+            return self.GetOrEmitWhileRunning(context.GetLocationDescriptor(), stack_layout);
         };
 
         code.align(8);

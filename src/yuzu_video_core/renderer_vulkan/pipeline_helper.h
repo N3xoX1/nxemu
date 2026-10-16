@@ -104,7 +104,8 @@ public:
         return device->GetLogical().CreateDescriptorSetLayout({
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .pNext = nullptr,
-            .flags = 0,
+            .flags = device->UsesUpdateAfterBindDescriptorSets()
+                         ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0U,
             .bindingCount = static_cast<u32>(table_bindings.size()),
             .pBindings = table_bindings.data(),
         });
@@ -114,17 +115,33 @@ public:
         boost::container::small_vector<VkDescriptorSetLayoutBinding, 36> all_bindings{
             bindings.begin(), bindings.end()};
         all_bindings.insert(all_bindings.end(), table_bindings.begin(), table_bindings.end());
+        // Push descriptors retain the ordinary limits even when set 1 uses
+        // MoltenVK argument buffers with the larger update-after-bind limits.
+        if (use_push_descriptor && device->UsesUpdateAfterBindDescriptorSets()) {
+            if (const auto* violation = DescriptorLimitViolation(
+                    device->DescriptorLimits(), std::span{bindings.data(), bindings.size()},
+                    color_attachments)) {
+                throw Shader::NotImplementedException("{}", violation);
+            }
+        }
         if (const auto* violation = DescriptorLimitViolation(
-                device->DescriptorLimits(), std::span{all_bindings.data(), all_bindings.size()},
-                color_attachments)) {
+                (use_push_descriptor && table_bindings.empty())
+                    ? device->DescriptorLimits() : device->DescriptorSetLimits(),
+                std::span{all_bindings.data(), all_bindings.size()}, color_attachments)) {
             throw Shader::NotImplementedException("{}", violation);
         }
         // Set 1 needs a set 0 layout, even when it is empty.
         if (bindings.empty() && table_bindings.empty()) {
             return nullptr;
         }
-        const VkDescriptorSetLayoutCreateFlags flags =
-            use_push_descriptor ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR : 0;
+        // The layout flag selects the argument-buffer resource limits. Bindings
+        // retain normal update synchronization; no updates after binding are needed.
+        VkDescriptorSetLayoutCreateFlags flags{};
+        if (use_push_descriptor) {
+            flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+        } else if (device->UsesUpdateAfterBindDescriptorSets()) {
+            flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+        }
         return device->GetLogical().CreateDescriptorSetLayout({
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .pNext = nullptr,

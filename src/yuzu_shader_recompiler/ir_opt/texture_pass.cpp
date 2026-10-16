@@ -596,6 +596,34 @@ bool IsTexturePixelFormatInteger(Environment& env, const ConstBufferAddr& cbuf) 
     return env.IsTexturePixelFormatInteger(GetTextureHandle(env, cbuf));
 }
 
+ImageFormat RawImageReadFormat(ImageFormat access, TexturePixelFormat texture) {
+    // A narrow raw load still addresses a texel of the bound surface. Use a
+    // bit-compatible integer view of that whole texel; SULD's destination
+    // register count already selects the requested leading words. Shrinking
+    // the view format changes the texel size and is invalid on Vulkan/Metal.
+    if (access == ImageFormat::R32_UINT) {
+        switch (texture) {
+        case TexturePixelFormat::R32G32_FLOAT:
+        case TexturePixelFormat::R32G32_UINT:
+        case TexturePixelFormat::R32G32_SINT:
+            return ImageFormat::R32G32_UINT;
+        default:
+            break;
+        }
+    }
+    if (access == ImageFormat::R32_UINT || access == ImageFormat::R32G32_UINT) {
+        switch (texture) {
+        case TexturePixelFormat::R32G32B32A32_FLOAT:
+        case TexturePixelFormat::R32G32B32A32_UINT:
+        case TexturePixelFormat::R32G32B32A32_SINT:
+            return ImageFormat::R32G32B32A32_UINT;
+        default:
+            break;
+        }
+    }
+    return access;
+}
+
 class Descriptors {
 public:
     explicit Descriptors(TextureBufferDescriptors& texture_buffer_descriptors_,
@@ -860,7 +888,15 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             }
             const bool is_written{inst->GetOpcode() != IR::Opcode::ImageRead};
             const bool is_read{inst->GetOpcode() != IR::Opcode::ImageWrite};
-            const bool is_integer{!cbuf.is_direct && IsTexturePixelFormatInteger(env, cbuf)};
+            if (!cbuf.is_direct && inst->GetOpcode() == IR::Opcode::ImageRead &&
+                flags.type != TextureType::Buffer && flags.image_format != ImageFormat::Typeless) {
+                flags.image_format.Assign(RawImageReadFormat(flags.image_format,
+                                                            ReadTexturePixelFormat(env, cbuf)));
+            }
+            // Explicit formats describe raw integer accesses, even when the
+            // original surface stores floating-point texels.
+            const bool is_integer{flags.image_format != ImageFormat::Typeless ||
+                                  (!cbuf.is_direct && IsTexturePixelFormatInteger(env, cbuf))};
             if (flags.type == TextureType::Buffer) {
                 index = descriptors.Add(ImageBufferDescriptor{
                     .format = flags.image_format,
@@ -992,7 +1028,8 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
     if (std::ranges::any_of(to_replace, [](const auto& texture) {
             return !texture.cbuf.dynamic_offset.IsEmpty();
         }) && sampled_count > host_info.max_bindless_descriptors_per_stage) {
-        throw NotImplementedException("Sampled texture bindings exceed the host descriptor budget");
+        throw NotImplementedException("Sampled texture bindings exceed the host descriptor budget ({} > {})",
+                                      sampled_count, host_info.max_bindless_descriptors_per_stage);
     }
     if (NumDescriptors(program.info.image_descriptors) > host_info.max_storage_images_per_stage &&
         std::ranges::any_of(program.info.image_descriptors, [](const auto& desc) { return desc.is_direct; })) {

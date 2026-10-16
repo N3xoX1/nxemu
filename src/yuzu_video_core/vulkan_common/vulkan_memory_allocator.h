@@ -97,6 +97,7 @@ public:
     MemoryAllocator& operator=(const MemoryAllocator&) = delete;
     MemoryAllocator(const MemoryAllocator&) = delete;
 
+    /// Dedicated images bypass the allocator's shared memory blocks.
     vk::Image CreateImage(const VkImageCreateInfo& ci, bool dedicated = false) const;
     vk::Image CreateTransientImage(const VkImageCreateInfo& ci) const;
 

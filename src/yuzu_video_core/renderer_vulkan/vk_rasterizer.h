@@ -217,6 +217,7 @@ private:
 
     VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;
+    float depth_compare_offset = 0.0f;
 };
 
 } // namespace Vulkan

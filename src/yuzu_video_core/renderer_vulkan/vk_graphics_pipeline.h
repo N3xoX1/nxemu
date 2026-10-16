@@ -117,6 +117,10 @@ struct VtgPipelineInfo {
     u32 geometry_stride{};
     VtgScratchAllocator* scratch{};
     StagingBufferPool* staging_pool{};
+    /// Only the vertex stage runs as compute, to write what transform feedback captures on hosts
+    /// without it. The pipeline draws with its own shaders.
+    bool is_transform_feedback{};
+    Shader::VtgTransformFeedback transform_feedback;
 };
 
 class GraphicsPipeline {
@@ -148,9 +152,7 @@ public:
         has_shared_key = true;
     }
 
-    void Configure(bool is_indexed) {
-        configure_func(this, is_indexed);
-    }
+    void Configure(bool is_indexed);
 
     [[nodiscard]] GraphicsPipeline* Next(const GraphicsPipelineCacheKey& current_key) noexcept {
         if (key == current_key || (has_shared_key && shared_key == current_key)) {
@@ -183,7 +185,13 @@ public:
         return vtg != nullptr;
     }
 
-    /// Sets the number of instances of the next draw, zero when it cannot run as compute
+    /// Returns true when the vertex stage runs as compute to write what transform feedback captures
+    [[nodiscard]] bool IsTransformFeedbackEmulated() const noexcept {
+        return xfb != nullptr;
+    }
+
+    /// Sets the number of instances of the next draw, zero when its vertex stage cannot run as
+    /// compute
     void SetVtgInstanceCount(u32 instance_count) noexcept;
 
     /// Index buffer, its offset and the number of indices drawing the output of the stages
@@ -201,6 +209,8 @@ private:
 
     void ConfigureVtg(bool is_indexed);
 
+    /// Runs the vertex stage as compute to write what transform feedback captures
+    void ConfigureTransformFeedback(bool is_indexed);
 
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
@@ -230,6 +240,7 @@ private:
 
     std::array<Shader::Info, NUM_STAGES> stage_infos;
     std::array<u8, Maxwell::NumVertexAttributes> vertex_attribute_components{};
+    VertexInputMapping vertex_input_mapping;
     VkPipelineStageFlags image_write_stages{};
     std::array<u32, 5> enabled_uniform_buffer_masks{};
     VideoCommon::UniformBufferSizes uniform_buffer_sizes{};
@@ -273,6 +284,9 @@ private:
 
     struct VtgState;
     std::unique_ptr<VtgState> vtg;
+
+    struct XfbState;
+    std::unique_ptr<XfbState> xfb;
 };
 
 } // namespace Vulkan

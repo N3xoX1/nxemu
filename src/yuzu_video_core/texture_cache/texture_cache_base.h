@@ -89,6 +89,7 @@ public:
 
     TextureCacheGPUMap* gpu_page_table;
     TextureCacheGPUMap* sparse_page_table;
+    size_t gpu_page_table_index{};
 };
 
 template <class P>

@@ -223,6 +223,8 @@ add_library(video_core STATIC
     renderer_vulkan/vk_compute_pipeline.h
     renderer_vulkan/vk_descriptor_pool.cpp
     renderer_vulkan/vk_descriptor_pool.h
+    renderer_vulkan/vk_display.cpp
+    renderer_vulkan/vk_display.h
     renderer_vulkan/vk_fence_manager.cpp
     renderer_vulkan/vk_fence_manager.h
     renderer_vulkan/vk_graphics_pipeline.cpp

@@ -85,7 +85,9 @@ static void AllocatePool(const Device& device, DescriptorBank& bank) {
     bank.pools.push_back(device.GetLogical().CreateDescriptorPool({
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = nullptr,
-        .flags = 0,
+        .flags = device.UsesUpdateAfterBindDescriptorSets()
+                     ? VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
+                     : 0U,
         .maxSets = sets_per_pool,
         .poolSizeCount = static_cast<u32>(pool_cursor),
         .pPoolSizes = std::data(pool_sizes),

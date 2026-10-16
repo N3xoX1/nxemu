@@ -11,6 +11,7 @@
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/bit_field.h"
+#include "yuzu_common/div_ceil.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_statistics.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
@@ -355,11 +356,23 @@ struct GraphicsPipeline::VtgState {
     u32 index_count{};
 };
 
+struct GraphicsPipeline::XfbState {
+    VtgState::Stage stage;
+    Shader::VtgVertexBindings bindings;
+    Shader::VtgTransformFeedback layout;
+    VtgScratchAllocator* scratch{};
+    StagingBufferPool* staging_pool{};
+    u32 instance_count{};
+};
+
 GraphicsPipeline::~GraphicsPipeline() = default;
 
 void GraphicsPipeline::SetVtgInstanceCount(u32 instance_count) noexcept {
     if (vtg) {
         vtg->instance_count = instance_count;
+    }
+    if (xfb) {
+        xfb->instance_count = instance_count;
     }
 }
 
@@ -404,7 +417,34 @@ GraphicsPipeline::GraphicsPipeline(
         num_image_elements += Shader::NumDescriptors(info->texture_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_descriptors);
     }
-    if (vtg_info) {
+    if (vtg_info && vtg_info->is_transform_feedback) {
+        // The compute stage reuses the guest resources bound for the vertex stage
+        const Shader::Info& info{vtg_info->infos[VtgPipelineInfo::VERTEX]};
+        const Shader::Info& vertex{stage_infos[0]};
+        const auto same_count{[](const auto& lhs, const auto& rhs) {
+            return Shader::NumDescriptors(lhs) == Shader::NumDescriptors(rhs);
+        }};
+        if (vtg_info->vertex_bindings.base == vertex.storage_buffers_descriptors.size() &&
+            same_count(info.texture_buffer_descriptors, vertex.texture_buffer_descriptors) &&
+            same_count(info.image_buffer_descriptors, vertex.image_buffer_descriptors) &&
+            same_count(info.texture_descriptors, vertex.texture_descriptors) &&
+            same_count(info.image_descriptors, vertex.image_descriptors) &&
+            info.constant_buffer_mask == vertex.constant_buffer_mask) {
+            xfb = std::make_unique<XfbState>();
+            xfb->stage.info = info;
+            xfb->stage.num_descriptor_entries = NumDescriptorUpdateEntries(info);
+            xfb->stage.guest_info = info;
+            xfb->stage.guest_info.storage_buffers_descriptors.resize(vtg_info->vertex_bindings.base);
+            xfb->stage.module = std::move(vtg_info->modules[VtgPipelineInfo::VERTEX]);
+            xfb->bindings = vtg_info->vertex_bindings;
+            xfb->layout = vtg_info->transform_feedback;
+            xfb->scratch = vtg_info->scratch;
+            xfb->staging_pool = vtg_info->staging_pool;
+        } else {
+            LOG_ERROR(Render_Vulkan, "Transform feedback stage of pipeline {:016x} does not use the "
+                                     "resources of its vertex stage", key.Hash());
+        }
+    } else if (vtg_info) {
         static constexpr std::array<size_t, VtgPipelineInfo::NUM_COMPUTE_STAGES> compute_stages{
             0, 3};
         const std::array<u32, VtgPipelineInfo::NUM_COMPUTE_STAGES> guest_storage_buffers{
@@ -442,6 +482,11 @@ GraphicsPipeline::GraphicsPipeline(
     // Number of leading components the vertex shader may read from each attribute. Used to keep
     // vertex formats within their binding stride without discarding data the shader reads.
     const Shader::Info& vertex_info{stage_infos[0]};
+    if (!vtg && key.state.dynamic_vertex_input == 0 &&
+        (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
+         device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays)) {
+        vertex_input_mapping = MakeVertexInputMapping(key.state, vertex_info.loads);
+    }
     for (size_t index = 0; index < vertex_attribute_components.size(); ++index) {
         if (!vertex_info.loads.Generic(index)) {
             continue;
@@ -486,36 +531,42 @@ GraphicsPipeline::GraphicsPipeline(
             descriptor_update_template =
                 builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
 
-            if (vtg) {
-                for (VtgState::Stage& stage : vtg->stages) {
-                    DescriptorLayoutBuilder stage_builder{device};
-                    stage_builder.Add(stage.info, VK_SHADER_STAGE_COMPUTE_BIT);
-                    stage.descriptor_set_layout = stage_builder.CreateDescriptorSetLayout(false);
-                    stage.pipeline_layout =
-                        stage_builder.CreatePipelineLayout(*stage.descriptor_set_layout);
-                    stage.descriptor_update_template = stage_builder.CreateTemplate(
-                        *stage.descriptor_set_layout, *stage.pipeline_layout, false);
-                    stage.descriptor_allocator =
-                        descriptor_pool.Allocator(*stage.descriptor_set_layout, stage.info);
-                    stage.pipeline = device.GetLogical().CreateComputePipeline(
-                        {
-                            .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+            const auto build_compute_stage{[&](VtgState::Stage& stage) {
+                DescriptorLayoutBuilder stage_builder{device};
+                stage_builder.Add(stage.info, VK_SHADER_STAGE_COMPUTE_BIT);
+                stage.descriptor_set_layout = stage_builder.CreateDescriptorSetLayout(false);
+                stage.pipeline_layout =
+                    stage_builder.CreatePipelineLayout(*stage.descriptor_set_layout);
+                stage.descriptor_update_template = stage_builder.CreateTemplate(
+                    *stage.descriptor_set_layout, *stage.pipeline_layout, false);
+                stage.descriptor_allocator =
+                    descriptor_pool.Allocator(*stage.descriptor_set_layout, stage.info);
+                stage.pipeline = device.GetLogical().CreateComputePipeline(
+                    {
+                        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+                        .pNext = nullptr,
+                        .flags = 0,
+                        .stage{
+                            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                             .pNext = nullptr,
                             .flags = 0,
-                            .stage{
-                                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                                .pNext = nullptr,
-                                .flags = 0,
-                                .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-                                .module = *stage.module,
-                                .pName = "main",
-                                .pSpecializationInfo = nullptr,
-                            },
-                            .layout = *stage.pipeline_layout,
-                            .basePipelineHandle = 0,
-                            .basePipelineIndex = 0,
+                            .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+                            .module = *stage.module,
+                            .pName = "main",
+                            .pSpecializationInfo = nullptr,
                         },
-                        *pipeline_cache);
+                        .layout = *stage.pipeline_layout,
+                        .basePipelineHandle = 0,
+                        .basePipelineIndex = 0,
+                    },
+                    *pipeline_cache);
+            }};
+            if (xfb) {
+                build_compute_stage(xfb->stage);
+            }
+            if (vtg) {
+                for (VtgState::Stage& stage : vtg->stages) {
+                    build_compute_stage(stage);
                 }
             }
             const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(key.state))};
@@ -550,6 +601,18 @@ GraphicsPipeline::GraphicsPipeline(
     } else {
         configure_func = ConfigureFunc(spv_modules, stage_infos);
     }
+}
+
+void GraphicsPipeline::Configure(bool is_indexed) {
+    if ((device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
+         device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays) &&
+        buffer_cache.runtime.SetVertexBindingMap(vertex_input_mapping.bindings)) {
+        // A new dense mapping changes host bindings even if the guest buffers stayed the same.
+        for (size_t index = 0; index < Maxwell::NumVertexArrays; ++index) {
+            maxwell3d->dirty.flags[VideoCommon::Dirty::VertexBuffer0 + index] = true;
+        }
+    }
+    configure_func(this, is_indexed);
 }
 
 // A pipeline can be shared by several keys, so the transition is keyed explicitly.
@@ -741,6 +804,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
 
     buffer_cache.UpdateGraphicsBuffers(is_indexed);
     buffer_cache.BindHostGeometryBuffers(is_indexed);
+    if (xfb) {
+        ConfigureTransformFeedback(is_indexed);
+    }
 
     guest_descriptor_queue.Acquire(num_descriptor_entries);
     texture_table_scratch.clear();
@@ -1158,6 +1224,186 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
     }
 }
 
+void GraphicsPipeline::ConfigureTransformFeedback(bool is_indexed) {
+    using Shader::VTG_LOCAL_SIZE;
+    namespace DrawInfo = Shader::VtgDrawInfo;
+    static constexpr u64 MAX_INVOCATIONS = 1U << 22;
+
+    XfbState& state{*xfb};
+    const auto& regs{maxwell3d->regs};
+    if (regs.transform_feedback_enabled == 0 || state.instance_count == 0) {
+        return;
+    }
+    const auto& draw_state{maxwell3d->draw_manager->GetDrawState()};
+    const u32 vertex_count{is_indexed ? draw_state.index_buffer.count
+                                      : draw_state.vertex_buffer.count};
+    const u32 per_instance{Shader::VtgPrimitiveCount(state.layout.topology, vertex_count) *
+                           Shader::VtgCapturedVertices(state.layout.topology)};
+    // Like the hardware, the capture stops at the first vertex that does not fit in a buffer
+    u64 total{u64{per_instance} * state.instance_count};
+    auto& targets{buffer_cache.runtime.EmulatedTransformFeedbackBuffers()};
+    for (size_t index = 0; index < targets.size(); ++index) {
+        const u32 stride{state.layout.strides[index]};
+        if (stride == 0) {
+            continue;
+        }
+        const auto& target{targets[index]};
+        const u64 size{std::min<u64>(target.size, target.capacity)};
+        const u64 room{target.buffer != VK_NULL_HANDLE && size > target.written
+                           ? size - target.written
+                           : 0};
+        total = std::min(total, room / stride);
+    }
+    if (total > MAX_INVOCATIONS) {
+        LOG_WARNING(Render_Vulkan, "Transform feedback of {} vertices is too large to emulate",
+                    total);
+        return;
+    }
+    if (total == 0) {
+        return;
+    }
+
+    // Describe the draw to the stage running as compute
+    const StagingBufferRef info_ref{
+        state.staging_pool->Request(DrawInfo::NUM_WORDS * sizeof(u32), MemoryUsage::Upload)};
+    const VtgState::Buffer info_buffer{info_ref.buffer, info_ref.offset,
+                                       DrawInfo::NUM_WORDS * sizeof(u32)};
+    std::array<u32, DrawInfo::NUM_WORDS> words{};
+    const VkDeviceSize alignment{
+        std::max<VkDeviceSize>(device.GetStorageBufferAlignment(), sizeof(u32))};
+    // Guest buffers are bound from an aligned offset, the remainder is added by the shader
+    const auto aligned_buffer{[&](VkBuffer handle, u64 offset, u64 size, u64 capacity,
+                                  u32& misalignment) {
+        const VkDeviceSize aligned{Common::AlignDown(VkDeviceSize{offset}, alignment)};
+        misalignment = static_cast<u32>(offset - aligned);
+        const VkDeviceSize available{
+            Common::AlignDown(VkDeviceSize{capacity} + misalignment, sizeof(u32))};
+        const VkDeviceSize wanted{Common::AlignUp(VkDeviceSize{size} + misalignment, 8)};
+        return VtgState::Buffer{handle, aligned, std::min(wanted, available)};
+    }};
+    const auto guest_buffer{[&](const std::tuple<Buffer*, u32, u32>& binding, u32& misalignment) {
+        const auto [buffer, offset, size]{binding};
+        misalignment = 0;
+        if (!buffer || buffer->Handle() == VK_NULL_HANDLE) {
+            return info_buffer;
+        }
+        return aligned_buffer(buffer->Handle(), offset, size, buffer->SizeBytes() - offset,
+                              misalignment);
+    }};
+    static_vector<VtgState::Buffer, 3 + DrawInfo::NUM_ATTRIBUTES + DrawInfo::NUM_XFB_BUFFERS>
+        buffers;
+    std::array<u32, Maxwell::NumVertexArrays> misalignments{};
+    u32 index_misalignment{};
+    const u32 index_bytes{is_indexed ? draw_state.index_buffer.FormatSizeInBytes() : 0};
+    buffers.push_back(info_buffer);
+    // The stage writes no varyings of its own
+    buffers.push_back(info_buffer);
+    buffers.push_back(is_indexed
+                          ? guest_buffer(buffer_cache.IndexBufferBinding(), index_misalignment)
+                          : info_buffer);
+    for (const auto& [stream, binding] : state.bindings.vertex_buffers) {
+        buffers.push_back(
+            guest_buffer(buffer_cache.VertexBufferBinding(stream), misalignments[stream]));
+    }
+    for (size_t index = 0; index < targets.size(); ++index) {
+        auto& target{targets[index]};
+        const u32 stride{state.layout.strides[index]};
+        if (stride == 0) {
+            buffers.push_back(info_buffer);
+            continue;
+        }
+        u32 misalignment{};
+        buffers.push_back(aligned_buffer(target.buffer, target.offset, target.size,
+                                         target.capacity, misalignment));
+        words[DrawInfo::XFB_OFFSETS + index] = misalignment + target.written;
+        target.written += static_cast<u32>(total * stride);
+    }
+    words[DrawInfo::VERTEX_COUNT] = vertex_count;
+    words[DrawInfo::INSTANCE_COUNT] = state.instance_count;
+    words[DrawInfo::BASE_VERTEX] =
+        is_indexed ? draw_state.base_index : draw_state.vertex_buffer.first;
+    words[DrawInfo::BASE_INSTANCE] = draw_state.base_instance;
+    words[DrawInfo::INDEX_SIZE] = index_bytes;
+    words[DrawInfo::INDEX_OFFSET] =
+        index_misalignment + (is_indexed ? draw_state.index_buffer.first * index_bytes : 0);
+    words[DrawInfo::INDEX_MASK] =
+        index_bytes == 1 ? 0xffU : (index_bytes == 2 ? 0xffffU : 0xffffffffU);
+    words[DrawInfo::XFB_VERTICES] = per_instance;
+    words[DrawInfo::XFB_TOTAL] = static_cast<u32>(total);
+    for (size_t index = 0; index < DrawInfo::NUM_ATTRIBUTES; ++index) {
+        const auto& attribute{regs.vertex_attrib_format[index]};
+        const u32 stream{attribute.buffer};
+        u32* const attribute_words{&words[DrawInfo::ATTRIBUTES + index * DrawInfo::ATTRIBUTE_WORDS]};
+        attribute_words[DrawInfo::ATTRIBUTE_OFFSET] = misalignments[stream] + attribute.offset;
+        attribute_words[DrawInfo::ATTRIBUTE_STRIDE] = regs.vertex_streams[stream].stride;
+        attribute_words[DrawInfo::ATTRIBUTE_INSTANCED] =
+            regs.vertex_stream_instances.IsInstancingEnabled(stream) ? 1 : 0;
+        attribute_words[DrawInfo::ATTRIBUTE_DIVISOR] = regs.vertex_streams[stream].frequency;
+    }
+    std::memcpy(info_ref.mapped_span.data(), words.data(), sizeof(words));
+
+    if (!build_complete.load(std::memory_order_acquire)) {
+        scheduler.Record([this](vk::CommandBuffer) {
+            std::unique_lock lock{build_mutex};
+            build_condvar.wait(lock,
+                               [this] { return build_complete.load(std::memory_order_acquire); });
+        });
+    }
+    // The stage reads the resources of the vertex stage, which come first
+    const VideoCommon::SamplerId* samplers_it{descriptor_samplers.data()};
+    const VideoCommon::ImageViewInOut* views_it{descriptor_views.data()};
+    VtgState::Stage& stage{state.stage};
+    guest_descriptor_queue.Acquire(stage.num_descriptor_entries);
+    buffer_cache.BindHostStageUniformAndStorageBuffers(0);
+    for (const VtgState::Buffer& buffer : buffers) {
+        guest_descriptor_queue.AddBuffer(buffer.buffer, buffer.offset, buffer.size);
+    }
+    buffer_cache.BindHostStageTextureBuffers(0);
+    RescalingPushConstant stage_rescaling;
+    PushImageDescriptors(texture_cache, guest_descriptor_queue, stage.guest_info, stage_rescaling,
+                         samplers_it, views_it);
+    const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
+    const bool is_rescaling{!stage.guest_info.texture_descriptors.empty() ||
+                            !stage.guest_info.image_descriptors.empty()};
+    const u32 groups{static_cast<u32>(Common::DivCeil(total, u64{VTG_LOCAL_SIZE}))};
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([this, &stage, descriptor_data, is_rescaling,
+                      rescaling_data = stage_rescaling.Data(), groups](vk::CommandBuffer cmdbuf) {
+        if (!IsBuilt()) {
+            return;
+        }
+        // Earlier draws may still read or write the captured buffers
+        static constexpr VkMemoryBarrier before{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, before);
+        cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline);
+        if (is_rescaling) {
+            cmdbuf.PushConstants(*stage.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                                 RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
+                                 rescaling_data.data());
+        }
+        const VkDescriptorSet descriptor_set{stage.descriptor_allocator.Commit()};
+        device.GetLogical().UpdateDescriptorSet(descriptor_set, *stage.descriptor_update_template,
+                                                descriptor_data);
+        cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *stage.pipeline_layout, 0,
+                                  descriptor_set, nullptr);
+        cmdbuf.Dispatch(groups, 1, 1);
+        static constexpr VkMemoryBarrier after{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                               VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, after);
+    });
+}
+
 void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
@@ -1352,20 +1598,23 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
     static_vector<VkVertexInputBindingDivisorDescriptionEXT, 32> vertex_binding_divisors;
     static_vector<VkVertexInputAttributeDescription, 32> vertex_attributes;
     if (!key.state.dynamic_vertex_input) {
-        const size_t num_vertex_arrays = std::min(
-            Maxwell::NumVertexArrays, static_cast<size_t>(device.GetMaxVertexInputBindings()));
+        const size_t num_vertex_arrays = Maxwell::NumVertexArrays;
         for (size_t index = 0; index < num_vertex_arrays; ++index) {
+            const u32 host_binding = vertex_input_mapping.bindings[index];
+            if (host_binding >= device.GetMaxVertexInputBindings()) {
+                continue;
+            }
             const bool instanced = key.state.binding_divisors[index] != 0;
             const auto rate =
                 instanced ? VK_VERTEX_INPUT_RATE_INSTANCE : VK_VERTEX_INPUT_RATE_VERTEX;
             vertex_bindings.push_back({
-                .binding = static_cast<u32>(index),
+                .binding = host_binding,
                 .stride = key.state.vertex_strides[index],
                 .inputRate = rate,
             });
             if (instanced) {
                 vertex_binding_divisors.push_back({
-                    .binding = static_cast<u32>(index),
+                    .binding = host_binding,
                     .divisor = key.state.binding_divisors[index],
                 });
             }
@@ -1383,8 +1632,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
                                                 vertex_attribute_components[index])
                     : MaxwellToVK::VertexFormat(device, attribute.Type(), attribute.Size());
             vertex_attributes.push_back({
-                .location = static_cast<u32>(index),
-                .binding = attribute.buffer,
+                .location = vertex_input_mapping.locations[index],
+                .binding = vertex_input_mapping.bindings[attribute.buffer],
                 .format = format,
                 .offset = attribute.offset,
             });

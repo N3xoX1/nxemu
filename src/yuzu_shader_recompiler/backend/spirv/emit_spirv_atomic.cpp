@@ -91,6 +91,37 @@ Id StorageAtomicU64(EmitContext& ctx, const IR::Value& binding, const IR::Value&
     return original_value;
 }
 
+// A reduction has no observer of the intermediate 64-bit value in this shader. Each low-word
+// wrap contributes exactly one carry to the high word, so concurrent additions lose no updates.
+// Do not use this for returning atomics or buffers also read/written by the shader: two word
+// operations do not provide an indivisible 64-bit snapshot.
+Id StorageAddReduction64(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
+                         Id words) {
+    const Id ssbo{ctx.ssbos[binding.U32()].U32};
+    const Id index{StorageIndex(ctx, offset, sizeof(u32))};
+    const Id low_pointer{ctx.OpAccessChain(ctx.storage_types.U32.element, ssbo,
+                                          ctx.u32_zero_value, index)};
+    const Id high_index{ctx.OpIAdd(ctx.U32[1], index, ctx.Const(1U))};
+    const Id high_pointer{ctx.OpAccessChain(ctx.storage_types.U32.element, ssbo,
+                                           ctx.u32_zero_value, high_index)};
+    const Id low{ctx.OpCompositeExtract(ctx.U32[1], words, 0)};
+    const Id high{ctx.OpCompositeExtract(ctx.U32[1], words, 1)};
+    const auto [scope, semantics]{AtomicArgs(ctx)};
+    const Id original_low{ctx.OpAtomicIAdd(ctx.U32[1], low_pointer, scope, semantics, low)};
+    const Id sum_low{ctx.OpIAdd(ctx.U32[1], original_low, low)};
+    const Id overflow{ctx.OpULessThan(ctx.U1, sum_low, original_low)};
+    const Id carry{ctx.OpSelect(ctx.U32[1], overflow, ctx.Const(1U), ctx.u32_zero_value)};
+    const Id increment_high{ctx.OpIAdd(ctx.U32[1], high, carry)};
+    ctx.OpAtomicIAdd(ctx.U32[1], high_pointer, scope, semantics, increment_high);
+    return ctx.ConstantNull(ctx.U32[2]);
+}
+
+bool CanSplitAddReduction(const EmitContext& ctx, const IR::Inst& inst,
+                          const IR::Value& binding) {
+    return !ctx.profile.support_int64_atomics && !inst.HasUses() && binding.IsImmediate() &&
+           ctx.atomic64_add_reduction_buffers.test(binding.U32());
+}
+
 Id StorageAtomicU32x2(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset, Id value,
                       Id (Sirit::Module::*non_atomic_func)(Id, Id, Id)) {
     if (!ctx.profile.support_descriptor_aliasing) {
@@ -250,8 +281,12 @@ Id EmitStorageAtomicExchange32(EmitContext& ctx, const IR::Value& binding, const
     return StorageAtomicU32(ctx, binding, offset, value, &Sirit::Module::OpAtomicExchange);
 }
 
-Id EmitStorageAtomicIAdd64(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
-                           Id value) {
+Id EmitStorageAtomicIAdd64(EmitContext& ctx, IR::Inst* inst, const IR::Value& binding,
+                           const IR::Value& offset, Id value) {
+    if (CanSplitAddReduction(ctx, *inst, binding)) {
+        StorageAddReduction64(ctx, binding, offset, ctx.OpBitcast(ctx.U32[2], value));
+        return ctx.ConstantNull(ctx.U64);
+    }
     return StorageAtomicU64(ctx, binding, offset, value, &Sirit::Module::OpAtomicIAdd,
                             &Sirit::Module::OpIAdd);
 }
@@ -319,8 +354,11 @@ Id EmitStorageAtomicExchange64(EmitContext& ctx, const IR::Value& binding, const
     return original;
 }
 
-Id EmitStorageAtomicIAdd32x2(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
-                             Id value) {
+Id EmitStorageAtomicIAdd32x2(EmitContext& ctx, IR::Inst* inst, const IR::Value& binding,
+                             const IR::Value& offset, Id value) {
+    if (CanSplitAddReduction(ctx, *inst, binding)) {
+        return StorageAddReduction64(ctx, binding, offset, value);
+    }
     return StorageAtomicU32x2(ctx, binding, offset, value, &Sirit::Module::OpIAdd);
 }
 

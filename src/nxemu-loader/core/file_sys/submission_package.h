@@ -18,7 +18,8 @@ class PartitionFilesystem;
 
 class NSP : public ReadOnlyVfsDirectory {
 public:
-    explicit NSP(VirtualFile file_, uint64_t title_id = 0, std::size_t program_index_ = 0);
+    explicit NSP(VirtualFile file_, uint64_t title_id = 0, std::size_t program_index_ = 0,
+                 uint64_t content_filter_base_id = 0);
     ~NSP() override;
 
     LoaderResultStatus GetStatus() const;
@@ -60,6 +61,7 @@ private:
 
     const uint64_t expected_program_id;
     const std::size_t program_index;
+    const uint64_t content_filter_base_id;
 
     bool extracted = false;
     LoaderResultStatus status;

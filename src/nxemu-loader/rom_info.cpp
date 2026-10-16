@@ -135,11 +135,11 @@ void RegisterMatchingAddOnEntriesFromFile(FileSys::VirtualFile file,
     const std::string ext = ToLowerAscii(file->GetExtension());
     if (ext == "dnsp")
     {
-        RegisterMatchingAddOnEntriesFromNsp(FileSys::NSP(file), base_program_id, provider);
+        RegisterMatchingAddOnEntriesFromNsp(FileSys::NSP(file, 0, 0, base_program_id), base_program_id, provider);
     }
     else if (ext == "dxci")
     {
-        const FileSys::XCI xci(file);
+        const FileSys::XCI xci(file, 0, 0, base_program_id);
         if (xci.GetStatus() == LoaderResultStatus::Success)
         {
             const std::shared_ptr<FileSys::NSP> nsp = xci.GetSecurePartitionNSP();

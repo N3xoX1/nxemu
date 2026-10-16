@@ -36,11 +36,15 @@ public:
         static_assert(std::is_trivially_copyable_v<T>);
         const VAddr masked_address = address & RESERVATION_GRANULE_MASK;
 
-        Lock();
-        exclusive_addresses[processor_id] = masked_address;
-        const T value = op();
+        T value;
+        while (true) {
+            const std::uint32_t sequence = BeginMark(processor_id, masked_address);
+            value = op();
+            if (EndMark(sequence)) {
+                break;
+            }
+        }
         std::memcpy(exclusive_values[processor_id].data(), &value, sizeof(T));
-        Unlock();
         return value;
     }
 
@@ -59,7 +63,7 @@ public:
         std::memcpy(&saved_value, exclusive_values[processor_id].data(), sizeof(T));
         const bool result = op(saved_value);
 
-        Unlock();
+        EndExclusiveOperation();
         return result;
     }
 
@@ -70,6 +74,12 @@ public:
 
 private:
     bool CheckAndClear(size_t processor_id, VAddr address);
+    void EndExclusiveOperation();
+
+    /// Marks the address for processor_id before the value is read. EndMark returns false when
+    /// the read may have overlapped an exclusive operation, in which case it has to be redone.
+    std::uint32_t BeginMark(size_t processor_id, VAddr masked_address);
+    bool EndMark(std::uint32_t sequence);
 
     void Lock();
     void Unlock();
@@ -82,6 +92,8 @@ private:
     static constexpr VAddr RESERVATION_GRANULE_MASK = 0xFFFF'FFFF'FFFF'FFFFull;
     static constexpr VAddr INVALID_EXCLUSIVE_ADDRESS = 0xDEAD'DEAD'DEAD'DEADull;
     SpinLock lock;
+    /// Odd while an exclusive operation is in progress.
+    std::atomic<std::uint32_t> operation_sequence{0};
     std::vector<VAddr> exclusive_addresses;
     std::vector<Vector> exclusive_values;
 };

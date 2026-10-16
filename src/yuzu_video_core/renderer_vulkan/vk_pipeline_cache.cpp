@@ -144,6 +144,20 @@ Shader::AttributeType AttributeType(const FixedPipelineState& state, size_t inde
     return Shader::AttributeType::Disabled;
 }
 
+bool IsUnorm8(VideoCore::Surface::PixelFormat format) {
+    switch (format) {
+    case VideoCore::Surface::PixelFormat::A8B8G8R8_UNORM:
+    case VideoCore::Surface::PixelFormat::A8B8G8R8_SRGB:
+    case VideoCore::Surface::PixelFormat::B8G8R8A8_UNORM:
+    case VideoCore::Surface::PixelFormat::B8G8R8A8_SRGB:
+    case VideoCore::Surface::PixelFormat::R8G8_UNORM:
+    case VideoCore::Surface::PixelFormat::R8_UNORM:
+        return true;
+    default:
+        return false;
+    }
+}
+
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
@@ -245,6 +259,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
                         ? Shader::AttributeType::SignedInt
                         : Shader::AttributeType::UnsignedInt;
             }
+            info.color_output_unorm8[index] = IsUnorm8(pixel_format);
         }
         break;
     default:
@@ -330,6 +345,33 @@ std::optional<Shader::VtgTopology> MaxwellToVtgTopology(Maxwell::PrimitiveTopolo
         break;
     }
     return std::nullopt;
+}
+
+/// Where transform feedback captures each output attribute, from the guest layouts
+Shader::VtgTransformFeedback MakeVtgTransformFeedback(const VideoCommon::TransformFeedbackState& state,
+                                                      Shader::VtgTopology topology) {
+    Shader::VtgTransformFeedback xfb;
+    xfb.topology = topology;
+    for (size_t buffer = 0; buffer < state.layouts.size(); ++buffer) {
+        const auto& layout{state.layouts[buffer]};
+        // Without geometry shaders, every vertex goes to the first stream
+        if (layout.stream != 0 || layout.stride == 0) {
+            continue;
+        }
+        xfb.strides[buffer] = layout.stride;
+        const u32 count{std::min<u32>({layout.varying_count, layout.stride / 4,
+                                        static_cast<u32>(state.varyings[buffer].size() * 4)})};
+        for (u32 word = 0; word < count; ++word) {
+            const auto& locations{state.varyings[buffer][word / 4]};
+            const std::array attributes{locations.attribute0.Value(), locations.attribute1.Value(),
+                                        locations.attribute2.Value(), locations.attribute3.Value()};
+            xfb.targets[attributes[word % 4]] = {
+                .buffer = static_cast<s8>(buffer),
+                .offset = static_cast<u16>(word * 4),
+            };
+        }
+    }
+    return xfb;
 }
 
 /// Describes how a vertex shader running as compute reads its attributes from the vertex buffers
@@ -499,6 +541,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
             float_control.shaderSignedZeroInfNanPreserveFloat64 != VK_FALSE,
         .support_explicit_workgroup_layout = device.IsKhrWorkgroupMemoryExplicitLayoutSupported(),
         .support_vote = device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_VOTE_BIT),
+        .support_subgroup_in_vertex_stages =
+            device.IsSubgroupStageSupported(VK_SHADER_STAGE_VERTEX_BIT),
         .support_viewport_index_layer_non_geometry =
             device.IsExtShaderViewportIndexLayerSupported(),
         .support_viewport_mask = device.IsNvViewportArray2Supported(),
@@ -517,6 +561,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
 
         .lower_left_origin_mode = false,
         .need_declared_frag_colors = false,
+        .has_unorm8_round_half_up = driver_id == VK_DRIVER_ID_MOLTENVK,
         .need_gather_subpixel_offset = driver_id == VK_DRIVER_ID_AMD_PROPRIETARY ||
                                        driver_id == VK_DRIVER_ID_AMD_OPEN_SOURCE ||
                                        driver_id == VK_DRIVER_ID_MESA_RADV ||
@@ -554,19 +599,17 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_geometry_shader_passthrough = device.IsNvGeometryShaderPassthroughSupported(),
         .support_conditional_barrier = device.SupportsConditionalBarriers(),
         .max_bindless_descriptors_per_stage = device.MaxBindlessDescriptorsPerStage(),
-        .max_storage_images_per_stage = std::min(device.DescriptorLimits().maxPerStageDescriptorStorageImages,
-                                                 device.DescriptorLimits().maxDescriptorSetStorageImages),
+        .max_storage_images_per_stage =
+            std::min(device.DescriptorSetLimits().maxPerStageDescriptorStorageImages,
+                     device.DescriptorSetLimits().maxDescriptorSetStorageImages),
         .support_null_descriptor = device.HasNullDescriptor(),
         .support_separate_sampler = true,
     };
 
-    if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes) {
-        LOG_WARNING(Render_Vulkan, "maxVertexInputAttributes is too low: {} < {}",
-                    device.GetMaxVertexInputAttributes(), Maxwell::NumVertexAttributes);
-    }
-    if (device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays) {
-        LOG_WARNING(Render_Vulkan, "maxVertexInputBindings is too low: {} < {}",
-                    device.GetMaxVertexInputBindings(), Maxwell::NumVertexArrays);
+    if (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
+        device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays) {
+        LOG_INFO(Render_Vulkan, "Compacting guest vertex slots into {} host attributes / {} buffers",
+                 device.GetMaxVertexInputAttributes(), device.GetMaxVertexInputBindings());
     }
 
     dynamic_features = DynamicFeatures{
@@ -660,6 +703,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         vulkan_pipeline_cache =
             LoadVulkanPipelineCache(vulkan_pipeline_cache_filename, CACHE_VERSION);
     }
+    // MoltenVK imports disk MSL libraries serially. An empty shared driver
+    // cache also holds its shader-cache mutex while compiling each library,
+    // serialising our pipeline workers. Warm up from the portable shader cache
+    // without a VkPipelineCache; retain any existing driver blob on disk.
 
     struct {
         std::mutex mutex;
@@ -830,7 +877,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     lock.unlock();
 
-    if (use_vulkan_pipeline_cache) {
+    if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
                                      CACHE_VERSION);
     }
@@ -894,6 +941,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
     // Layer passthrough generation for devices without VK_EXT_shader_viewport_index_layer
     Shader::IR::Program* layer_source_program{};
+    Shader::Environment* vertex_env{};
 
     for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
@@ -909,6 +957,9 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
+        if (index == 1) {
+            vertex_env = &env;
+        }
 
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
@@ -1029,6 +1080,68 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                      key.unique_hashes[1], key.unique_hashes[geometry_index]);
         }
     }
+    // Without host transform feedback, a copy of the vertex shader runs as compute before the draw
+    // and writes what it would capture
+    const bool emulates_xfb{key.state.xfb_enabled != 0 &&
+                            !device.IsExtTransformFeedbackSupported()};
+    const char* const xfb_limitation{[&]() -> const char* {
+        if (!emulates_xfb) {
+            return nullptr;
+        }
+        if (key.unique_hashes[geometry_index] != 0) {
+            return "a geometry shader";
+        }
+        if (key.unique_hashes[2] != 0 || key.unique_hashes[3] != 0) {
+            return "tessellation";
+        }
+        if (uses_vertex_a) {
+            return "a vertex A shader";
+        }
+        if (key.state.dynamic_vertex_input != 0) {
+            return "dynamic vertex input";
+        }
+        if (!vtg_topology) {
+            return "an unsupported topology";
+        }
+        return nullptr;
+    }()};
+    if (xfb_limitation) {
+        LOG_WARNING(Render_Vulkan,
+                    "Transform feedback of vertex shader {:016x} is not emulated, the pipeline "
+                    "uses {}",
+                    key.unique_hashes[1], xfb_limitation);
+    }
+    if (!vtg_info && emulates_xfb && !xfb_limitation && vertex_env) {
+        const u32 cfg_offset{
+            static_cast<u32>(vertex_env->StartAddress() + sizeof(Shader::ProgramHeader))};
+        Shader::Maxwell::Flow::CFG cfg(*vertex_env, pools.flow_block, cfg_offset, false);
+        Shader::IR::Program vertex{
+            TranslateProgram(pools.inst, pools.block, *vertex_env, cfg, host_info)};
+        const auto vertex_runtime{MakeRuntimeInfo(programs, key, vertex, nullptr)};
+        ConvertLegacyToGeneric(vertex, vertex_runtime);
+        auto info{std::make_unique<VtgPipelineInfo>()};
+        info->transform_feedback = MakeVtgTransformFeedback(key.state.xfb_state, *vtg_topology);
+        if (Shader::Optimization::VtgVertexToTransformFeedback(vertex, MakeVtgVertexInputs(key.state),
+                                                               info->transform_feedback,
+                                                               info->vertex_bindings)) {
+            Shader::Backend::Bindings compute_binding;
+            const std::vector<u32> code{EmitSPIRV(profile, vertex_runtime, vertex, compute_binding)};
+            device.SaveShader(code);
+            info->modules[VtgPipelineInfo::VERTEX] = BuildShader(device, code);
+            info->infos[VtgPipelineInfo::VERTEX] = vertex.info;
+            info->topology = *vtg_topology;
+            info->scratch = &vtg_scratch;
+            info->staging_pool = &staging_pool;
+            info->is_transform_feedback = true;
+            vtg_info = std::move(info);
+            LOG_INFO(Render_Vulkan, "Running vertex shader {:016x} as compute for transform feedback",
+                     key.unique_hashes[1]);
+        } else {
+            LOG_WARNING(Render_Vulkan, "Vertex shader {:016x} cannot emulate transform feedback",
+                        key.unique_hashes[1]);
+        }
+    }
+    const bool vtg_replaces_stages{vtg_info && !vtg_info->is_transform_feedback};
     for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0; index < Maxwell::MaxShaderProgram;
          ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
@@ -1039,7 +1152,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         if (forwarded_layer && index == geometry_index) {
             continue;
         }
-        if (vtg_info && (index == 1 || index == geometry_index)) {
+        if (vtg_replaces_stages && (index == 1 || index == geometry_index)) {
             continue;
         }
         UNIMPLEMENTED_IF(index == 0);
@@ -1054,6 +1167,20 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             runtime_info.convert_depth_mode = key.state.ndc_minus_one_to_one != 0;
         }
         ConvertLegacyToGeneric(program, runtime_info);
+        if (program.stage == Shader::Stage::VertexB && key.state.dynamic_vertex_input == 0 &&
+            (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
+             device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays)) {
+            const auto mapping = MakeVertexInputMapping(key.state, program.info.loads);
+            if (mapping.num_attributes > device.GetMaxVertexInputAttributes() ||
+                mapping.num_bindings > device.GetMaxVertexInputBindings()) {
+                LOG_ERROR(Render_Vulkan, "Vertex input needs {} attributes and {} buffers after "
+                                         "compaction, exceeding host limits {}/{}",
+                          mapping.num_attributes, mapping.num_bindings,
+                          device.GetMaxVertexInputAttributes(), device.GetMaxVertexInputBindings());
+                return nullptr;
+            }
+            runtime_info.vertex_input_locations = mapping.locations;
+        }
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
@@ -1069,7 +1196,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Maxwell::Tessellation::DomainType::Isolines};
     const auto output_topology{GetRasterizationOutputTopology(
         key.state.topology, has_tessellation, tessellation_isolines,
-        vtg_info ? std::optional{vtg_info->geometry_bindings.output_topology}
+        vtg_replaces_stages ? std::optional{vtg_info->geometry_bindings.output_topology}
                  : (modules[3] ? std::optional{programs[4].output_topology} : std::nullopt))};
     const bool rasterizes_lines{RasterizesLines(
         output_topology, FixedPipelineState::UnpackPolygonMode(key.state.polygon_mode))};
@@ -1303,7 +1430,7 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
         file.read(cache_data.data(), cache_size);
 
         LOG_INFO(Render_Vulkan,
-                 "Loaded Vulkan driver pipeline cache: ", Common::FS::PathToUTF8String(filename));
+                 "Loaded Vulkan driver pipeline cache: {}", Common::FS::PathToUTF8String(filename));
 
         return create_pipeline_cache(cache_size, cache_data.data());
     } catch (const std::ios_base::failure& e) {

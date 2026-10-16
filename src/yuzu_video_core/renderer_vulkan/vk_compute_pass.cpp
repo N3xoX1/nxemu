@@ -396,7 +396,7 @@ std::pair<VkBuffer, VkDeviceSize> Uint8Pass::Assemble(u32 num_vertices, VkBuffer
             .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
             .pNext = nullptr,
             .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+            .dstAccessMask = VK_ACCESS_INDEX_READ_BIT,
         };
         const VkDescriptorSet set = descriptor_allocator.Commit();
         device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptor_data);
@@ -539,7 +539,7 @@ void QueriesPrefixScanPass::Run(VkBuffer accumulation_buffer, VkBuffer dst_buffe
         static constexpr size_t DISPATCH_SIZE = 2048U;
         size_t runs_to_do = std::min<size_t>(current_runs, DISPATCH_SIZE);
         current_runs -= runs_to_do;
-        compute_pass_descriptor_queue.Acquire(3);
+        compute_pass_descriptor_queue.Acquire(QUERIES_SCAN_DESCRIPTOR_SET_BINDINGS.size());
         compute_pass_descriptor_queue.AddBuffer(src_buffer, 0, number_of_sums * sizeof(u64));
         compute_pass_descriptor_queue.AddBuffer(dst_buffer, 0, number_of_sums * sizeof(u64));
         compute_pass_descriptor_queue.AddBuffer(accumulation_buffer, 0, sizeof(u64));

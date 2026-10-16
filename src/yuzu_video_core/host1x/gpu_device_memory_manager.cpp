@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <atomic>
 #include <limits>
 #include <memory>
@@ -202,18 +203,11 @@ DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_me
     impl = std::make_unique<DeviceMemoryManagerAllocator<Traits>>();
     cached_pages = std::make_unique<CachedPages>();
 
+    // VirtualBuffer uses fresh, zero-filled OS pages. Leave the address tables
+    // untouched so unmapped pages do not consume physical memory. Only the
+    // continuity table has a nonzero initial value.
     const size_t total_virtual = device_as_size >> DEVICE_PAGEBITS;
-    for (size_t i = 0; i < total_virtual; i++)
-    {
-        compressed_physical_ptr[i] = 0;
-        continuity_tracker[i] = 1;
-        cpu_backing_address[i] = 0;
-    }
-    const size_t total_phys = 1ULL << ((g_settings->GetInt(NXOsSetting::MemoryLayout) == (int32_t)MemoryLayout::Memory_4Gb ? physical_min_bits : physical_max_bits) - DEVICE_PAGEBITS);
-    for (size_t i = 0; i < total_phys; i++)
-    {
-        compressed_device_addr[i] = 0;
-    }
+    std::fill_n(continuity_tracker.data(), total_virtual, 1U);
 }
 
 template <typename Traits>
