@@ -549,7 +549,10 @@ if(ARCHITECTURE_x86_64 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
                 COMPILE_OPTIONS "$<$<CONFIG:Release>:/GL>")
         endif()
     endforeach()
-    target_link_options(nxemu-cpu PRIVATE "$<$<CONFIG:Release>:/LTCG>")
+    # Reuse native MSVC link-time optimization results between Release builds.
+    target_link_options(nxemu-cpu PRIVATE
+        "$<$<CONFIG:Release>:/LTCG:INCREMENTAL>"
+        "$<$<CONFIG:Release>:/LTCGOUT:$<TARGET_FILE_DIR:nxemu-cpu>/nxemu-cpu.iobj>")
 endif()
 
 target_link_libraries(nxemu-cpu PRIVATE
