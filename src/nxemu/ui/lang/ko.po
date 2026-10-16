@@ -2513,3 +2513,8 @@ msgstr "밝게"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "어둡게"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "버전을 클립보드에 복사했습니다"
+

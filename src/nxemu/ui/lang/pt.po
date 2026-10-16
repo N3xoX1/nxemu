@@ -2522,3 +2522,8 @@ msgstr "Claro"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "Escuro"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "Versão copiada para a área de transferência"
+

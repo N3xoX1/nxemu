@@ -2522,3 +2522,8 @@ msgstr "Licht"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "Donker"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "Versie naar klembord gekopieerd"
+

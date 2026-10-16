@@ -2531,3 +2531,8 @@ msgstr "Светлая"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "Тёмная"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "Версия скопирована в буфер обмена"
+

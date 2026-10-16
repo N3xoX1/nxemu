@@ -54,6 +54,32 @@ body.system-controls #window-controls-separator
     display: none;
 }
 
+#version-notification
+{
+    display: none;
+    position: absolute;
+    top: 44dp;
+    left: 16dp;
+    z-index: 30;
+    padding: 8dp 12dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: 13dp;
+    pointer-events: none;
+}
+
+#version-notification.shown
+{
+    display: block;
+}
+
+#title-logo, #title-name
+{
+    cursor: pointer;
+}
+
 #title-logo
 {
     flex-shrink: 0;
@@ -859,10 +885,22 @@ body.compact .games-toolbar .select-icon
     position: relative;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
     width: 36dp;
     height: 34dp;
-    border-radius: 5dp;
+    border-radius: 0;
     cursor: pointer;
+}
+
+.view-button:first-child
+{
+    border-radius: 5dp 0 0 5dp;
+}
+
+.view-button:last-child
+{
+    border-left: 1dp var(--border);
+    border-radius: 0 5dp 5dp 0;
 }
 
 .view-button > img
@@ -1752,7 +1790,13 @@ img[data-icon]
 {
     align-items: center;
     justify-content: center;
-    background-color: var(--canvas);
+}
+
+/* Game-provided logos expect a black background in either interface theme. */
+#loading-panel
+{
+    background-color: #000000;
+    color: #e6ebf2;
 }
 
 #pause-panel
@@ -1827,7 +1871,7 @@ img[data-icon]
     margin-top: 9dp;
     font-size: 13dp;
     line-height: 18dp;
-    color: var(--text-muted);
+    color: #8f9bb0;
     white-space: nowrap;
 }
 
@@ -1838,14 +1882,14 @@ img[data-icon]
 
 #loading-count
 {
-    color: var(--text-secondary);
+    color: #b4bfce;
 }
 
 .loading-track
 {
     height: 8dp;
     border-radius: 4dp;
-    background-color: var(--raised);
+    background-color: #18233a;
     overflow: hidden;
 }
 

@@ -2522,3 +2522,8 @@ msgstr "Clair"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "Sombre"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "Version copiée dans le presse-papiers"
+

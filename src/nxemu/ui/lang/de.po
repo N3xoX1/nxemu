@@ -2522,3 +2522,8 @@ msgstr "Hell"
 #: views/general_dialog.cpp
 msgid "Dark"
 msgstr "Dunkel"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "Version in die Zwischenablage kopiert"
+

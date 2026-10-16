@@ -6,8 +6,8 @@
   </head>
   <body>
     <div id="title-bar" data-window="drag">
-      <img id="title-logo" src="images/window-icon.png" />
-      <div id="title-name" translate="no">NXEmu</div>
+      <img id="title-logo" src="images/window-icon.png" data-window="control" />
+      <div id="title-name" translate="no" data-window="control">NXEmu</div>
       <div class="title-separator" />
       <div id="title-version" translate="no" data-window="control" />
       <div id="menu-bar" data-window="control" />
@@ -197,6 +197,7 @@
       <div id="status-unlocked" translate="no">&#8734;</div>
     </div>
     <div id="game-hint"><div id="game-hint-text" /></div>
+    <div id="version-notification">Version copied to clipboard</div>
     <div id="popup-menu" class="menu-anchor" />
   </body>
 </rml>
