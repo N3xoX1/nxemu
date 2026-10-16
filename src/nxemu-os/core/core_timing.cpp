@@ -344,7 +344,6 @@ void CoreTiming::ThreadLoop() {
                             {
                                 std::scoped_lock lock{compilation_wait_guard};
                                 blocked = UsesSharedCpuClock() && shared_clock.CompilationBlocks(*next_time);
-                                compilation_wait_deadline = *next_time;
                                 waiting_for_compilation = blocked;
                             }
                             bool ok;
@@ -382,7 +381,6 @@ void CoreTiming::ThreadLoop() {
                     if (UsesSharedCpuClock()) {
                         std::scoped_lock lock{compilation_wait_guard};
                         blocked = shared_clock.CompilationBlocks(*next_time);
-                        compilation_wait_deadline = *next_time;
                         waiting_for_compilation = blocked;
                     }
                     if (blocked) event.Wait();
@@ -483,14 +481,7 @@ void CoreTiming::CpuCompilation(uint32_t core, bool compiling) {
     shared_clock.Compile(core, compiling);
     if (!compiling) {
         std::scoped_lock lock{compilation_wait_guard};
-        // A different CPU may still freeze this deadline. Wake only when the
-        // wait can make progress, and consume its notification before releasing
-        // the guard so subsequent blocks cannot repeatedly signal the same wait.
-        if (waiting_for_compilation &&
-            !shared_clock.CompilationBlocks(compilation_wait_deadline)) {
-            waiting_for_compilation = false;
-            NotifyEvent();
-        }
+        if (waiting_for_compilation) NotifyEvent();
     }
 }
 

@@ -172,9 +172,7 @@ public:
     void Compile(u32 core, bool value) {
         std::scoped_lock lock{writers};
         if (!(running.load(std::memory_order_relaxed) & (1U << core))) return;
-        // Accumulate preserves this slot's time at the transition. Unlike a
-        // participant change, toggling compilation needs no global clock sample;
-        // readers publish the unchanged minimum through their normal snapshot.
+        Now();
         sequence.fetch_add(1, std::memory_order_acq_rel);
         std::atomic_thread_fence(std::memory_order_release);
         auto& slot = slots.at(core);
