@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <fstream>
 #include <memory>
@@ -688,8 +687,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     pipeline_cache_filename = base_dir / "vulkan.bin";
 
-    const bool molten_vk = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK;
-    if (use_vulkan_pipeline_cache && !molten_vk) {
+    if (use_vulkan_pipeline_cache) {
         vulkan_pipeline_cache_filename = base_dir / "vulkan_pipelines.bin";
         vulkan_pipeline_cache =
             LoadVulkanPipelineCache(vulkan_pipeline_cache_filename, CACHE_VERSION);
@@ -851,12 +849,6 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     lock.unlock();
 
     workers.WaitForRequests(stop_loading);
-
-    if (use_vulkan_pipeline_cache && molten_vk) {
-        // The synchronous warmup jobs have finished. New runtime pipelines can
-        // now reuse an in-memory driver cache without slowing down startup.
-        vulkan_pipeline_cache = LoadVulkanPipelineCache({}, CACHE_VERSION);
-    }
 
     lock.lock();
     for (const auto& key : hle_shared_keys) {
@@ -1385,16 +1377,8 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
             .flags = 0,
             .initialDataSize = data_size,
             .pInitialData = data};
-        const auto start = std::chrono::steady_clock::now();
-        auto cache = device.GetLogical().CreatePipelineCache(pipeline_cache_ci);
-        LOG_INFO(Render_Vulkan, "Initialized Vulkan driver pipeline cache ({} bytes) in {} ms",
-                 data_size, std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::steady_clock::now() - start).count());
-        return cache;
+        return device.GetLogical().CreatePipelineCache(pipeline_cache_ci);
     };
-    if (filename.empty()) {
-        return create_pipeline_cache(0, nullptr);
-    }
     try {
         std::ifstream file(filename, std::ios::binary | std::ios::ate);
         if (!file.is_open()) {
