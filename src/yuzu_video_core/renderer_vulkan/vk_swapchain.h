@@ -15,12 +15,10 @@ struct FramebufferLayout;
 namespace Vulkan {
 
 class Device;
-class Scheduler;
 
 class Swapchain {
 public:
-    explicit Swapchain(VkSurfaceKHR surface, const Device& device, Scheduler& scheduler, u32 width,
-                       u32 height);
+    explicit Swapchain(VkSurfaceKHR surface, const Device& device, u32 width, u32 height);
     ~Swapchain();
 
     /// Creates (or recreates) the swapchain with a given size.
@@ -112,13 +110,11 @@ private:
 
     VkSurfaceKHR surface;
     const Device& device;
-    Scheduler& scheduler;
 
     vk::SwapchainKHR swapchain;
 
     std::size_t image_count{};
     std::vector<VkImage> images;
-    std::vector<u64> resource_ticks;
     std::vector<vk::Semaphore> present_semaphores;
     std::vector<vk::Semaphore> render_semaphores;
 

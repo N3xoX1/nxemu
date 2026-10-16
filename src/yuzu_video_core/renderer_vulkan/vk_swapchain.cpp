@@ -11,7 +11,6 @@
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/settings.h"
 #include <nxemu-module-spec/base.h>
-#include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_swapchain.h"
 #include "yuzu_video_core/vulkan_common/vk_enum_string_helper.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
@@ -109,9 +108,8 @@ VkCompositeAlphaFlagBitsKHR ChooseAlphaFlags(const VkSurfaceCapabilitiesKHR& cap
 
 } // Anonymous namespace
 
-Swapchain::Swapchain(VkSurfaceKHR surface_, const Device& device_, Scheduler& scheduler_,
-                     u32 width_, u32 height_)
-    : surface{surface_}, device{device_}, scheduler{scheduler_} {
+Swapchain::Swapchain(VkSurfaceKHR surface_, const Device& device_, u32 width_, u32 height_)
+    : surface{surface_}, device{device_} {
     Create(surface_, width_, height_);
 }
 
@@ -134,9 +132,6 @@ void Swapchain::Create(VkSurfaceKHR surface_, u32 width_, u32 height_) {
 
     CreateSwapchain(capabilities);
     CreateSemaphores();
-
-    resource_ticks.clear();
-    resource_ticks.resize(image_count);
 }
 
 bool Swapchain::AcquireNextImage() {
@@ -162,9 +157,6 @@ bool Swapchain::AcquireNextImage() {
         break;
     }
 
-    scheduler.Wait(resource_ticks[image_index]);
-    resource_ticks[image_index] = scheduler.CurrentTick();
-
     // VK_SUBOPTIMAL_KHR is still a successful acquire. Consume the acquire
     // semaphore and present this image before recreating on the next frame.
     return false;
@@ -182,7 +174,7 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         .pImageIndices = &image_index,
         .pResults = nullptr,
     };
-    std::scoped_lock lock{scheduler.submit_mutex};
+    std::scoped_lock lock{device.QueueMutex()};
     switch (const VkResult result = present_queue.Present(present_info)) {
     case VK_SUCCESS:
         break;
@@ -290,6 +282,9 @@ void Swapchain::CreateSwapchain(const VkSurfaceCapabilitiesKHR& capabilities) {
 
     images = swapchain.GetImages();
     image_count = static_cast<u32>(images.size());
+    LOG_INFO(Render_Vulkan, "Swapchain {}x{}, {} images (requested {}), {}, mailbox={}, immediate={}",
+             extent.width, extent.height, image_count, requested_image_count,
+             string_VkPresentModeKHR(present_mode), has_mailbox, has_imm);
 #ifdef ANDROID
     // Android is already ordered the same as Switch.
     image_view_format = VK_FORMAT_R8G8B8A8_UNORM;

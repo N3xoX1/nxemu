@@ -113,21 +113,14 @@ Device CreateDevice(const vk::Instance & instance, const vk::InstanceDispatch & 
 
 RendererVulkan::RendererVulkan(Core::Frontend::EmuWindow & emu_window,
                                Tegra::MaxwellDeviceMemoryManager & device_memory_, Tegra::GPU & gpu_,
-                               std::unique_ptr<Core::Frontend::GraphicsContext> context_)
+                               std::unique_ptr<Core::Frontend::GraphicsContext> context_,
+                               Display & display_)
 try :
     RendererBase(emu_window, std::move(context_)),
-    device_memory(device_memory_), gpu(gpu_), library(OpenLibrary(context.get())),
-    instance(CreateInstance(*library, dld, VK_API_VERSION_1_1, render_window.GetWindowInfo().type,
-                            videoSettings.renderer_debug)),
-    debug_messenger(videoSettings.renderer_debug ? CreateDebugUtilsCallback(instance)
-                                                    : vk::DebugUtilsMessenger{}),
-    surface(CreateSurface(instance, render_window.GetWindowInfo())),
-    device(CreateDevice(instance, dld, *surface)), memory_allocator(device), state_tracker(),
+    device_memory(device_memory_), gpu(gpu_), display(display_), device(display.GetDevice()),
+    memory_allocator(display.GetAllocator()), swapchain(display.GetSwapchain()), state_tracker(),
     scheduler(device, state_tracker),
-    swapchain(*surface, device, scheduler, render_window.GetFramebufferLayout().width,
-              render_window.GetFramebufferLayout().height),
-    present_manager(instance, render_window, device, memory_allocator, scheduler, swapchain,
-                    surface),
+    present_manager(render_window, device, memory_allocator, scheduler, display),
     blit_swapchain(device_memory, device, memory_allocator, present_manager, scheduler,
                    PresentFiltersForDisplay),
     blit_capture(device_memory, device, memory_allocator, present_manager, scheduler,
@@ -141,7 +134,7 @@ try :
 {
     if (videoSettings.renderer_force_max_clock && device.ShouldBoostClocks())
     {
-        turbo_mode.emplace(instance, dld);
+        turbo_mode.emplace(display.GetInstance(), display.GetDispatch());
         scheduler.RegisterOnSubmit([this] { turbo_mode->QueueSubmitted(); });
     }
     InitializeWatermark();
@@ -156,7 +149,10 @@ catch (const vk::Exception & exception)
 RendererVulkan::~RendererVulkan()
 {
     scheduler.RegisterOnSubmit([] {});
-    void(device.GetLogical().WaitIdle());
+    {
+        std::scoped_lock lock{device.QueueMutex()};
+        void(device.GetLogical().WaitIdle());
+    }
     CleanupWatermark();
 }
 

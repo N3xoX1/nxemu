@@ -157,6 +157,29 @@ nxinterface IChannelState
     virtual void Release() = 0;
 };
 
+struct VideoInterfaceDevice
+{
+    void * getInstanceProcAddr; // PFN_vkGetInstanceProcAddr
+    void * instance;            // VkInstance
+    void * physicalDevice;      // VkPhysicalDevice
+    void * device;              // VkDevice
+};
+
+struct VideoInterfaceFrame
+{
+    void * commandBuffer; // VkCommandBuffer to record the frame into
+    uint64_t image;       // VkImage: R8G8B8A8_UNORM, in TRANSFER_DST_OPTIMAL.
+                          // Write premultiplied alpha, leave in SHADER_READ_ONLY_OPTIMAL.
+};
+
+struct VideoInterfaceArea
+{
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
+};
+
 typedef void (*HostActionCallback)(uint32_t slot, void * userData);
 typedef void (*RasterizerDirtyCollect)(uint64_t device_address, uint64_t size, void * user_data);
 
@@ -200,6 +223,10 @@ nxinterface IVideo
     virtual uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) = 0;
     virtual void WaitForComposite() = 0;
     virtual void CancelPendingComposite() = 0;
+    virtual bool AttachInterface(VideoInterfaceDevice * device) = 0;
+    virtual bool BeginInterfaceFrame(uint32_t width, uint32_t height, VideoInterfaceFrame * frame) = 0;
+    virtual void EndInterfaceFrame(const VideoInterfaceArea * gameArea) = 0;
+    virtual void WaitInterfaceIdle() = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

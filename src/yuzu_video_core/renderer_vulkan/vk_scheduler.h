@@ -122,8 +122,6 @@ public:
         return *master_semaphore;
     }
 
-    std::mutex submit_mutex;
-
 private:
     class Command {
     public:

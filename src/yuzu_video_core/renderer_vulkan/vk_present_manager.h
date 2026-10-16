@@ -19,6 +19,7 @@ class EmuWindow;
 namespace Vulkan {
 
 class Device;
+class Display;
 class Scheduler;
 class Swapchain;
 
@@ -29,6 +30,9 @@ struct Frame {
     vk::ImageView image_view;
     vk::Framebuffer framebuffer;
     vk::Framebuffer watermark_framebuffer;
+    vk::ImageView composite_view;
+    vk::DescriptorPool composite_pool;
+    VkDescriptorSet composite_set{};
     vk::CommandBuffer cmdbuf;
     vk::Semaphore render_ready;
     vk::Fence present_done;
@@ -36,9 +40,8 @@ struct Frame {
 
 class PresentManager {
 public:
-    PresentManager(const vk::Instance& instance, Core::Frontend::EmuWindow& render_window,
-                   const Device& device, MemoryAllocator& memory_allocator, Scheduler& scheduler,
-                   Swapchain& swapchain, vk::SurfaceKHR& surface);
+    PresentManager(Core::Frontend::EmuWindow& render_window, const Device& device,
+                   MemoryAllocator& memory_allocator, Scheduler& scheduler, Display& display);
     ~PresentManager();
 
     /// Returns the last used presentation frame
@@ -57,22 +60,19 @@ public:
 private:
     void PresentThread(std::stop_token token);
 
+    /// Hands a frame to the display, and to the free queue the frame the
+    /// display gives back.
     void CopyToSwapchain(Frame* frame);
-
-    void CopyToSwapchainImpl(Frame* frame);
-
-    void RecreateSwapchain(Frame* frame);
 
     void SetImageCount();
 
 private:
-    const vk::Instance& instance;
     Core::Frontend::EmuWindow& render_window;
     const Device& device;
     MemoryAllocator& memory_allocator;
     Scheduler& scheduler;
-    Swapchain& swapchain;
-    vk::SurfaceKHR& surface;
+    Display& display;
+    const Swapchain& swapchain;
     vk::CommandPool cmdpool;
     std::vector<Frame> frames;
     std::queue<Frame*> present_queue;
@@ -83,10 +83,8 @@ private:
     std::mutex queue_mutex;
     std::mutex free_mutex;
     std::jthread present_thread;
-    bool blit_supported;
     bool use_present_thread;
     std::size_t image_count{};
-    const void * presented_window = nullptr;
 };
 
 } // namespace Vulkan

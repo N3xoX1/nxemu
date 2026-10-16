@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <set>
 #include <span>
 #include <string>
@@ -249,6 +250,12 @@ public:
     /// Returns the main present queue.
     vk::Queue GetPresentQueue() const {
         return present_queue;
+    }
+
+    /// Serializes every use of the device's queues: submissions and presents
+    /// come from several threads, and Vulkan leaves that ordering to the caller.
+    std::mutex& QueueMutex() const {
+        return queue_mutex;
     }
 
     /// Returns main graphics queue family index.
@@ -787,6 +794,8 @@ public:
     }
 
 private:
+    mutable std::mutex queue_mutex;
+
     /// Checks if the physical device is suitable and configures the object state
     /// with all necessary info about its properties.
     bool GetSuitability(bool requires_swapchain);

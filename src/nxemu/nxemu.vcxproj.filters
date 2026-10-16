@@ -43,6 +43,24 @@
     <Filter Include="Source Files\applets">
       <UniqueIdentifier>{7c84bbd1-3d6a-4327-9c0e-84e51ef5164d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ui">
+      <UniqueIdentifier>{14e36445-f296-47af-9634-ec64083d9bac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui">
+      <UniqueIdentifier>{0bcec997-51b3-448c-9f71-34191c890c46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui\host">
+      <UniqueIdentifier>{c4f8bbfd-b3b9-4be4-a5fd-3f5d13ea3a78}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ui\host">
+      <UniqueIdentifier>{86ac0b06-6b42-4d61-9904-da25878ffa99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ui\host\vulkan">
+      <UniqueIdentifier>{5d0f2b8e-3c41-4f7a-9a6e-2b8c1e7d4f63}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{7c2e9a41-58d3-4b6f-a0e2-3f91c4d8b7a5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -152,6 +170,24 @@
     </ClCompile>
     <ClCompile Include="user_interface\file_dialogs.cpp">
       <Filter>Source Files\user_interface</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\ui_application.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\ui_notification.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\ui_window.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\vulkan\vma.cpp">
+      <Filter>Source Files\ui\host\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\external\rmlui\Backends\RmlUi_Platform_SDL.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\ui_renderer.cpp">
+      <Filter>Source Files\ui\host</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -275,6 +311,15 @@
     <ClInclude Include="user_interface\file_dialogs.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
+    <ClInclude Include="ui\ui_application.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\ui_notification.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\ui_window.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="user_interface\nxemu.rc">
@@ -288,5 +333,37 @@
     <Image Include="user_interface\icons\nxemu.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ui\host\shaders\blend_mask.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\blur.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\color.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\color_matrix.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\drop_shadow.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\fullscreen.vert">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\geometry.vert">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\gradient.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\passthrough.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\host\shaders\texture.frag">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

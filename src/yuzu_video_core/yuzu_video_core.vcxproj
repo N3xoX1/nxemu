@@ -159,6 +159,7 @@
     <ClInclude Include="renderer_vulkan\cbuf_size_dependencies.h" />
     <ClInclude Include="renderer_vulkan\vk_compute_pipeline.h" />
     <ClInclude Include="renderer_vulkan\vk_descriptor_pool.h" />
+    <ClInclude Include="renderer_vulkan\vk_display.h" />
     <ClInclude Include="renderer_vulkan\vk_fence_manager.h" />
     <ClInclude Include="renderer_vulkan\vk_graphics_pipeline.h" />
     <ClInclude Include="renderer_vulkan\vk_master_semaphore.h" />
@@ -337,6 +338,7 @@
     <ClCompile Include="renderer_vulkan\vk_compute_pass.cpp" />
     <ClCompile Include="renderer_vulkan\vk_compute_pipeline.cpp" />
     <ClCompile Include="renderer_vulkan\vk_descriptor_pool.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_display.cpp" />
     <ClCompile Include="renderer_vulkan\vk_fence_manager.cpp" />
     <ClCompile Include="renderer_vulkan\vk_graphics_pipeline.cpp" />
     <ClCompile Include="renderer_vulkan\vk_master_semaphore.cpp" />
