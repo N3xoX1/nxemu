@@ -668,6 +668,14 @@ msgid "Display"
 msgstr ""
 
 #: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr ""
+
+#: assets/general_dialog.rml
 #: views/advanced_dialog.cpp
 #: views/settings_context.cpp
 msgid "Graphics device"
@@ -1969,6 +1977,14 @@ msgstr ""
 
 #: views/general_dialog.cpp
 msgid "Pictures are shown as soon as they are drawn. The least delay, but the picture can tear."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Dark"
 msgstr ""
 
 #: views/general_dialog.cpp

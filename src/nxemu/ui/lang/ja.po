@@ -2497,3 +2497,19 @@ msgstr "再起動"
 #: views/main_window.cpp
 msgid "Running"
 msgstr "実行中"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "インターフェースのテーマ"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "システムの外観を使用するか、ライトテーマまたはダークテーマを選択します。"
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "ライト"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "ダーク"

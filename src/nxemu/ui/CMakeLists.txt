@@ -31,6 +31,8 @@ add_library(nxemu_ui STATIC
     host/ui_renderer_internal.h
     host/ui_window.cpp
     host/ui_window.h
+    host/ui_theme.cpp
+    host/ui_theme.h
     host/vulkan/vma.cpp
     host/vulkan/vma.h
     host/vulkan/vulkan_api.cpp
@@ -65,6 +67,8 @@ add_library(nxemu_ui STATIC
     platform/file_dialogs.cpp
     platform/file_dialogs.h
     platform/native_window.h
+    platform/system_theme.cpp
+    platform/system_theme.h
     views/about_dialog.cpp
     views/about_dialog.h
     views/advanced_dialog.cpp
@@ -150,6 +154,7 @@ if(NXEMU_BUILD_TRANSLATION_TESTS)
         i18n/translation.cpp
         i18n/plural_rule.cpp
         host/system_fonts.cpp
+        host/ui_theme.cpp
         library/ui_preferences.cpp)
     target_link_libraries(nxemu_translation_tests PRIVATE RmlUi::RmlUi nxemu_core common yuzu_common)
     add_test(NAME nxemu_translations COMMAND nxemu_translation_tests "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -205,11 +210,11 @@ if(APPLE)
         endif()
     endforeach()
 elseif(WIN32)
-    target_link_libraries(nxemu_ui PRIVATE comdlg32 ole32 shell32)
+    target_link_libraries(nxemu_ui PRIVATE comdlg32 ole32 shell32 advapi32)
 elseif(UNIX)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)
-    target_link_libraries(nxemu_ui PRIVATE ${CMAKE_DL_LIBS} PkgConfig::DBUS)
+    target_link_libraries(nxemu_ui PRIVATE ${CMAKE_DL_LIBS} PkgConfig::DBUS Threads::Threads)
     find_package(Fontconfig QUIET)
     if(Fontconfig_FOUND)
         foreach(_nxemu_font_target nxemu_ui nxemu_translation_tests)

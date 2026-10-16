@@ -2515,3 +2515,19 @@ msgstr "Перезапустить"
 #: views/main_window.cpp
 msgid "Running"
 msgstr "Запущено"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "Тема интерфейса"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "Использовать оформление системы или выбрать светлую либо тёмную тему."
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "Светлая"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "Тёмная"

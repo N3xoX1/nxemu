@@ -26,7 +26,7 @@ body.narrow .firmware-dialog
 {
     display: flex;
     align-items: center;
-    color: #6f7d92;
+    color: var(--text-disabled);
 }
 
 .wizard-dot
@@ -35,7 +35,7 @@ body.narrow .firmware-dialog
     width: 24dp;
     height: 24dp;
     margin-right: 8dp;
-    border: 1dp #33415a;
+    border: 1dp var(--border-strong);
     border-radius: 12dp;
     line-height: 22dp;
     font-size: 13dp;
@@ -57,19 +57,19 @@ body.narrow .firmware-dialog
 
 .wizard-step.current
 {
-    color: #e6ebf2;
+    color: var(--text);
 }
 
 .wizard-step.current .wizard-dot
 {
-    border-color: #2f7df6;
-    background-color: #2f7df6;
-    color: #ffffff;
+    border-color: var(--accent);
+    background-color: var(--accent);
+    color: var(--on-accent);
 }
 
 .wizard-step.passed .wizard-dot
 {
-    border-color: #2f7df6;
+    border-color: var(--accent);
 }
 
 .wizard-step.passed .wizard-dot span
@@ -80,7 +80,7 @@ body.narrow .firmware-dialog
 .wizard-step.passed .wizard-dot img
 {
     display: block;
-    image-color: #4a90ff;
+    image-color: var(--accent-hover);
 }
 
 .wizard-line
@@ -88,7 +88,7 @@ body.narrow .firmware-dialog
     flex: 1;
     height: 1dp;
     margin: 0 12dp;
-    background-color: #24344f;
+    background-color: var(--border);
 }
 
 .wizard-body
@@ -126,14 +126,14 @@ body.narrow .wizard-body
 .wizard-text
 {
     margin-bottom: 16dp;
-    color: #b4bfce;
+    color: var(--text-secondary);
     line-height: 21dp;
 }
 
 .wizard-note
 {
     margin-bottom: 14dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 13dp;
 }
 
@@ -143,16 +143,16 @@ body.narrow .wizard-body
     align-items: center;
     margin-bottom: 10dp;
     padding: 12dp 14dp;
-    border: 1dp #24344f;
+    border: 1dp var(--border);
     border-radius: 8dp;
-    background-color: #0f1a2b;
+    background-color: var(--surface);
     cursor: pointer;
 }
 
 .source-option:hover
 {
-    border-color: #2f7df6;
-    background-color: #14233a;
+    border-color: var(--accent);
+    background-color: var(--hover);
 }
 
 .source-option img
@@ -160,7 +160,7 @@ body.narrow .wizard-body
     width: 26dp;
     height: 26dp;
     margin-right: 14dp;
-    image-color: #8fb8ff;
+    image-color: var(--accent-text);
 }
 
 .source-texts
@@ -176,14 +176,14 @@ body.narrow .wizard-body
 
 .source-hint
 {
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 13dp;
 }
 
 .source-go
 {
     margin-left: 12dp;
-    color: #4aa3ff;
+    color: var(--accent-text);
 }
 
 .progress-track
@@ -191,7 +191,7 @@ body.narrow .wizard-body
     height: 8dp;
     margin: 14dp 0 10dp 0;
     border-radius: 4dp;
-    background-color: #18242f;
+    background-color: var(--raised);
     overflow: hidden;
 }
 
@@ -200,7 +200,7 @@ body.narrow .wizard-body
     width: 0%;
     height: 100%;
     border-radius: 4dp;
-    background-color: #2f7df6;
+    background-color: var(--accent);
 }
 
 /* Nothing to measure: the bar moves instead of filling. */
@@ -229,7 +229,7 @@ body.narrow .wizard-body
     height: 44dp;
     margin-right: 16dp;
     border-radius: 22dp;
-    background-color: #153f2a;
+    background-color: var(--success-surface);
 }
 
 .result-badge img
@@ -241,18 +241,18 @@ body.narrow .wizard-body
 
 .result-success
 {
-    image-color: #4ade80;
+    image-color: var(--success);
 }
 
 .result-failure
 {
     display: none;
-    image-color: #fbbf24;
+    image-color: var(--warning);
 }
 
 .failed .result-badge
 {
-    background-color: #43330f;
+    background-color: var(--warning-surface);
 }
 
 .failed .result-success

@@ -17,6 +17,7 @@ void SetNativeWindowFullscreen(SDL_Window * window, bool fullscreen);
 // window's title bar.
 void PerformNativeTitleBarDoubleClick(SDL_Window * window);
 void ReleaseNativeWindowStyle(SDL_Window * window);
+void SetNativeWindowTheme(SDL_Window * window, const char * choice);
 #else
 inline int ApplyNativeWindowStyle(SDL_Window * /*window*/)
 {
@@ -24,4 +25,5 @@ inline int ApplyNativeWindowStyle(SDL_Window * /*window*/)
 }
 inline bool SyncNativeWindowState(SDL_Window * /*window*/) { return false; }
 inline void ReleaseNativeWindowStyle(SDL_Window * /*window*/) {}
+inline void SetNativeWindowTheme(SDL_Window * /*window*/, const char * /*choice*/) {}
 #endif

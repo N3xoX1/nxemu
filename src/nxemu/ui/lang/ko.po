@@ -2497,3 +2497,19 @@ msgstr "다시 시작"
 #: views/main_window.cpp
 msgid "Running"
 msgstr "실행 중"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "인터페이스 테마"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "시스템 모양을 따르거나 밝은 테마 또는 어두운 테마를 선택합니다."
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "밝게"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "어둡게"

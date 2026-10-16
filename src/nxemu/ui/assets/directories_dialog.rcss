@@ -12,9 +12,9 @@
     align-items: center;
     margin-bottom: 6dp;
     padding: 8dp 8dp 8dp 12dp;
-    border: 1dp #1c2940;
+    border: 1dp var(--raised);
     border-radius: 6dp;
-    background-color: #0f1a2b;
+    background-color: var(--surface);
 }
 
 .directory img
@@ -40,13 +40,13 @@
 .directory-note
 {
     margin-top: 2dp;
-    color: #f0b35a;
+    color: var(--warning);
     font-size: 12dp;
 }
 
 .directory.missing .directory-path
 {
-    color: #8f9bb0;
+    color: var(--text-muted);
 }
 
 .directory button
@@ -57,7 +57,7 @@
 .directory-none
 {
     padding: 28dp 0;
-    color: #8f9bb0;
+    color: var(--text-muted);
     text-align: center;
 }
 
@@ -65,7 +65,7 @@
 {
     display: none;
     padding-top: 7dp;
-    color: #8f9bb0;
+    color: var(--text-muted);
     font-size: 13dp;
 }
 

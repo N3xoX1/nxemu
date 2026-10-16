@@ -174,6 +174,12 @@ void GeneralDialog::FillLists()
     SettingsContext & settings = m_settings;
     Choices choices;
 
+    Fill(Select(Document(), "interface-theme"), {
+        {Tr("System default"), "system", {}},
+        {Tr("Light"), "light", {}},
+        {Tr("Dark"), "dark", {}},
+    }, UiPreferences::GetString(UiPreferences::InterfaceTheme, "system"));
+
     m_devices = m_window.Renderer().GraphicsDevices();
     for (size_t index = 0; index < m_devices.size(); ++index)
     {
@@ -351,8 +357,19 @@ void GeneralDialog::ApplyChange(const std::string & id)
     {
         return;
     }
-    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "audio-device" || id == "interface-language")) return;
+    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "audio-device" || id == "interface-language" || id == "interface-theme")) return;
     const int value = std::atoi(text.c_str());
+
+    if (id == "interface-theme")
+    {
+        if ((text == "system" || text == "light" || text == "dark") &&
+            text != UiPreferences::GetString(UiPreferences::InterfaceTheme, "system"))
+        {
+            UiPreferences::SetString(UiPreferences::InterfaceTheme, text);
+            m_window.SetTheme(text);
+        }
+        return;
+    }
 
     if (id == "interface-language")
     {

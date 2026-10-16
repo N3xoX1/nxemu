@@ -2506,3 +2506,19 @@ msgstr "Redémarrer"
 #: views/main_window.cpp
 msgid "Running"
 msgstr "En cours"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "Thème de l'interface"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "Suivre l'apparence du système ou choisir un thème clair ou sombre."
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "Clair"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "Sombre"

@@ -42,7 +42,7 @@
 
 .about-body .about-muted
 {
-    color: #9aa7b8;
+    color: var(--text-muted);
 }
 
 .about-body .about-small

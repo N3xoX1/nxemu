@@ -18,10 +18,10 @@ body
     box-sizing: border-box;
     max-width: 290dp;
     padding: 7dp 10dp;
-    border: 1dp #2c3d5c;
+    border: 1dp var(--border-strong);
     border-radius: 6dp;
-    background-color: #17233a;
-    color: #dbe3ee;
+    background-color: var(--raised);
+    color: var(--text);
     font-size: 13dp;
     pointer-events: none;
 }

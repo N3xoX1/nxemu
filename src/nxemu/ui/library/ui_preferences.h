@@ -25,6 +25,7 @@ constexpr const char * ConsoleLanguageSet = "ConsoleLanguageSet";
 constexpr const char * PerformVulkanCheck = "PerformVulkanCheck";
 constexpr const char * EnableDiscordPresence = "EnableDiscordPresence";
 constexpr const char * InterfaceLanguage = "InterfaceLanguage";
+constexpr const char * InterfaceTheme = "InterfaceTheme"; // system, light or dark
 
 std::string InterfaceLanguageChoice(); // Empty means follow the global console language.
 std::string InterfaceLanguageCode();
