@@ -8,6 +8,7 @@
 #include <string>
 
 class SystemInterface_SDL;
+class UiThemeFileInterface;
 nxinterface IVideo;
 namespace Rml
 {
@@ -83,6 +84,7 @@ private:
     SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
     std::unique_ptr<UiRenderer> m_renderer;
+    std::unique_ptr<UiThemeFileInterface> m_themeFiles;
     Rml::Context * m_context = nullptr;
     IVideo * m_video = nullptr;
     int m_drawableWidth = 0;

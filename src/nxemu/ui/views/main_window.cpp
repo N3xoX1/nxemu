@@ -3,11 +3,14 @@
 #include "rml_events.h"
 #include <RmlUi/Core.h>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/version.h>
 #include <nxemu/ui/host/shell.h>
+#include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
+#include <tuple>
 #include <yuzu_common/fs/path_util.h>
 
 namespace
@@ -17,12 +20,42 @@ constexpr const char * kReportUrl = "https://report.nxemu.com/";
 constexpr float kNarrowWidth = 800.0f;
 constexpr float kCompactWidth = 560.0f;
 constexpr uint64_t kVersionCopiedMs = 1500;
+constexpr int kGameIconDefault = 146;
+constexpr int kGameIconSteps[] = {108, 146, 176, 216};
+constexpr int kGameIconStepCount = static_cast<int>(sizeof(kGameIconSteps) / sizeof(kGameIconSteps[0]));
+constexpr int kCardGap = 16; // between cards, and 10 between the smallest: see the style sheet
+constexpr int kSmallCardGap = 10;
+constexpr int kCardBorder = 2;           // .rom-card's, on each side
+constexpr size_t kUnmeasuredRows = 3;    // rows of games shown before the height of one is known
+constexpr size_t kIconsPerFrame = 2;     // pictures decoded in one frame, each taking a millisecond or two
+constexpr size_t kMaxLoadedIcons = 256;  // pictures kept as textures, unless more are on screen at once
+constexpr size_t kMinMarginRows = 2;     // rows kept ready beyond those in sight, each way
+constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse that stays
+
+int GameIconStep(int size)
+{
+    int step = 1;
+    while (step < kGameIconStepCount && size >= (kGameIconSteps[step - 1] + kGameIconSteps[step]) / 2)
+    {
+        step++;
+    }
+    return step;
+}
+
+std::string Folded(const std::string & text)
+{
+    std::string result = text;
+    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+    return result;
+}
 } // namespace
 
-MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, std::filesystem::path assetDir) :
+MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary & library, std::filesystem::path assetDir) :
     m_window(window),
     m_session(session),
-    m_assetDir(std::move(assetDir))
+    m_library(library),
+    m_assetDir(std::move(assetDir)),
+    m_iconSize(kGameIconDefault)
 {
     m_session.SetListener(this);
 }
@@ -55,6 +88,9 @@ bool MainWindow::Create()
     SetTitle({});
     ShowPanel(Panel::RomBrowser);
     UpdateStatusText();
+    ApplyIconSize();
+    m_library.StartScan(m_session.Modules());
+    RenderGames();
     m_document->Show(Rml::ModalFlag::None, Rml::FocusFlag::Document);
     return true;
 }
@@ -90,6 +126,22 @@ void MainWindow::HandleEvent(const SDL_Event & event)
 void MainWindow::Update()
 {
     RunPendingWork();
+    if (m_library.Scanning() != m_gamesScanning)
+    {
+        m_gamesScanning = !m_gamesScanning;
+        m_gamesDirty = true;
+    }
+    std::vector<FoundGame> found;
+    if (m_library.TakeFound(found))
+    {
+        AddGames(std::move(found));
+    }
+    if (m_gamesDirty)
+    {
+        RenderGames();
+    }
+    RenderVisibleGames();
+    LoadPendingIcons();
     SyncWindowState();
     if (m_menuDirty && !m_menuBar->IsOpen())
     {
@@ -187,6 +239,13 @@ void MainWindow::BindEvents()
     onClick("title-pause", Action::PauseOrContinue);
     onClick("title-stop", Action::Stop);
     onClick("window-close", Action::Exit);
+    UiEvents::Listen(m_document->GetElementById("games-search"), "change", [this](Rml::Event & event) {
+        m_gameSearch = event.GetParameter<Rml::String>("value", "");
+        m_gamesDirty = true;
+    });
+    UiEvents::Listen(m_document->GetElementById("games-grid"), "click", [this](Rml::Event & event) {
+        SelectGame(UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-game"));
+    });
     UiEvents::Listen(m_document->GetElementById("window-minimise"), "click", [this](Rml::Event &) { m_window.Minimise(); });
     UiEvents::Listen(m_document->GetElementById("window-maximise"), "click", [this](Rml::Event &) { m_window.SetMaximised(!m_window.IsMaximised()); });
 
@@ -256,6 +315,304 @@ void MainWindow::RebuildMenu()
                                                    action(Action::OpenAbout, Tr("&About NXEmu")),
                                                }));
     m_menuBar->SetMenus(menus);
+}
+
+void MainWindow::AddGames(std::vector<FoundGame> found)
+{
+    for (FoundGame & entry : found)
+    {
+        if (!entry.icon.empty())
+        {
+            entry.game.icon = m_window.Renderer().AddMemoryImage(std::move(entry.icon));
+        }
+        m_games.push_back(std::move(entry.game));
+    }
+    std::stable_sort(m_games.begin(), m_games.end(), [](const GameEntry & left, const GameEntry & right) {
+        return std::forward_as_tuple(Folded(left.title), left.path) < std::forward_as_tuple(Folded(right.title), right.path);
+    });
+    m_gamesDirty = true;
+}
+
+void MainWindow::RenderGames()
+{
+    m_gamesDirty = false;
+    Rml::Element * grid = m_document->GetElementById("games-grid");
+    if (grid == nullptr)
+    {
+        return;
+    }
+    m_selectedGame = nullptr;
+
+    const std::string search = Folded(m_gameSearch);
+    std::vector<size_t> shown;
+    for (size_t i = 0; i < m_games.size(); i++)
+    {
+        if (search.empty() || Folded(m_games[i].title).find(search) != std::string::npos)
+        {
+            shown.push_back(i);
+        }
+    }
+
+    std::string count = TrCount("%n game", "%n games", m_games.size());
+    if (shown.size() != m_games.size())
+    {
+        count = Tr("%1 of %2", {std::to_string(shown.size()), count});
+    }
+    SetText("games-count", count);
+
+    m_shownGames = std::move(shown);
+    m_shownDirty = true;
+    grid->SetClass("empty", m_shownGames.empty());
+    if (m_games.empty() && m_library.Scanning() && !m_library.Directories().empty())
+    {
+        grid->SetInnerRML("");
+        return;
+    }
+    if (m_shownGames.empty())
+    {
+        const auto message = [](const std::string & text) {
+            return "<div class=\"games-empty\"><img class=\"empty-state-icon\" src=\"images/gamepad.png\" /><div>" + Rml::StringUtilities::EncodeRml(text) +
+                   "</div></div>";
+        };
+        grid->SetInnerRML(!m_games.empty()                  ? message(Tr("No game matches your search."))
+                          : m_library.Directories().empty() ? message(Tr("No game directory yet."))
+                                                            : message(Tr("No games found in your game directories.")));
+        return;
+    }
+    RenderVisibleGames();
+}
+
+void MainWindow::RenderVisibleGames()
+{
+    Rml::Element * grid = m_document->GetElementById("games-grid");
+    if (grid == nullptr || m_shownGames.empty())
+    {
+        return;
+    }
+    float rowHeight = m_gameRowHeight;
+    if (Rml::Element * item = grid->QuerySelector(".rom-game"))
+    {
+        const float height = item->GetOffsetHeight() + item->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom);
+        rowHeight = height > 0.0f ? height : rowHeight;
+    }
+    const size_t columns = static_cast<size_t>(std::max(grid->GetClientWidth() / CardStep(), 1.0f));
+    const size_t rows = (m_shownGames.size() + columns - 1) / columns;
+    size_t firstInSight = 0;
+    size_t lastInSight = std::min<size_t>(rows, kUnmeasuredRows);
+    if (rowHeight > 0.0f)
+    {
+        firstInSight = std::min(static_cast<size_t>(grid->GetScrollTop() / rowHeight), rows);
+        lastInSight = std::min(static_cast<size_t>(std::ceil((grid->GetScrollTop() + grid->GetClientHeight()) / rowHeight)), rows);
+    }
+    const size_t margin = std::max<size_t>((lastInSight - firstInSight) / 2, kMinMarginRows);
+    const size_t firstRow = firstInSight > margin ? firstInSight - margin : 0;
+    const size_t lastRow = std::min(lastInSight + margin, rows);
+    const bool sameLayout = !m_shownDirty && columns == m_gameColumns && rowHeight == m_gameRowHeight;
+    if (sameLayout && firstRow == m_firstGameRow && lastRow == m_lastGameRow)
+    {
+        return;
+    }
+    const size_t count = m_shownGames.size();
+    const auto itemsRml = [this, columns, count](size_t fromRow, size_t toRow) {
+        std::string rml;
+        for (size_t position = fromRow * columns; position < std::min(toRow * columns, count); position++)
+        {
+            rml += CardRml(m_shownGames[position]);
+        }
+        return rml;
+    };
+    const auto spacerHeight = [rowHeight](size_t spacerRows) { return Rml::Property(static_cast<float>(spacerRows) * rowHeight, Rml::Unit::PX); };
+
+    Rml::Element * above = grid->GetFirstChild();
+    Rml::Element * below = grid->GetLastChild();
+    if (sameLayout && firstRow < m_lastGameRow && lastRow > m_firstGameRow && above != below && above->IsClassSet("games-spacer") &&
+        below->IsClassSet("games-spacer"))
+    {
+        const auto drop = [grid, columns, count](size_t fromRow, size_t toRow, bool atStart) {
+            for (size_t dropped = std::min(toRow * columns, count) - fromRow * columns; dropped > 0; dropped--)
+            {
+                grid->RemoveChild(grid->GetChild(atStart ? 1 : grid->GetNumChildren() - 2));
+            }
+        };
+        const auto add = [this, grid](const std::string & rml, Rml::Element * before) {
+            Rml::ElementPtr holder = m_document->CreateElement("div");
+            holder->SetInnerRML(rml);
+            while (holder->GetNumChildren() > 0)
+            {
+                SizeCard(grid->InsertBefore(holder->RemoveChild(holder->GetFirstChild()), before));
+            }
+        };
+        if (firstRow > m_firstGameRow)
+        {
+            drop(m_firstGameRow, firstRow, true);
+        }
+        if (lastRow < m_lastGameRow)
+        {
+            drop(lastRow, m_lastGameRow, false);
+        }
+        if (firstRow < m_firstGameRow)
+        {
+            add(itemsRml(firstRow, m_firstGameRow), grid->GetChild(1));
+        }
+        if (lastRow > m_lastGameRow)
+        {
+            add(itemsRml(m_lastGameRow, lastRow), below);
+        }
+        above->SetProperty(Rml::PropertyId::Height, spacerHeight(firstRow));
+        below->SetProperty(Rml::PropertyId::Height, spacerHeight(rows - lastRow));
+    }
+    else
+    {
+        grid->SetInnerRML("<div class=\"games-spacer\"/>" + itemsRml(firstRow, lastRow) + "<div class=\"games-spacer\"/>");
+        grid->GetFirstChild()->SetProperty(Rml::PropertyId::Height, spacerHeight(firstRow));
+        grid->GetLastChild()->SetProperty(Rml::PropertyId::Height, spacerHeight(rows - lastRow));
+        ApplyIconSize();
+    }
+    m_shownDirty = false;
+    m_gameColumns = columns;
+    m_gameRowHeight = rowHeight;
+    m_firstGameRow = firstRow;
+    m_lastGameRow = lastRow;
+    m_selectedGame = grid->QuerySelector(".rom-game.selected");
+    ReleaseUnusedIcons(2 * (std::min(lastRow * columns, count) - firstRow * columns));
+}
+
+std::string MainWindow::IconRml(const std::string & icon)
+{
+    if (icon.empty())
+    {
+        return {};
+    }
+    if (const auto loaded = m_loadedIcons.find(icon); loaded != m_loadedIcons.end())
+    {
+        loaded->second = ++m_iconUse;
+        return "<img src=\"" + Rml::StringUtilities::EncodeRml(icon) + "\"/>";
+    }
+    m_iconsPending = true;
+    return "<img data-icon=\"" + Rml::StringUtilities::EncodeRml(icon) + "\"/>";
+}
+
+void MainWindow::LoadPendingIcons()
+{
+    Rml::Element * grid = m_iconsPending ? m_document->GetElementById("games-grid") : nullptr;
+    if (grid == nullptr)
+    {
+        return;
+    }
+    Rml::ElementList pending;
+    grid->QuerySelectorAll(pending, "img[data-icon]");
+    m_iconsPending = pending.size() > kIconsPerFrame;
+    const float top = grid->GetAbsoluteOffset(Rml::BoxArea::Border).y;
+    const float bottom = top + grid->GetClientHeight();
+    std::stable_partition(pending.begin(), pending.end(), [top, bottom](Rml::Element * image) {
+        const float y = image->GetAbsoluteOffset(Rml::BoxArea::Border).y;
+        return y + image->GetOffsetHeight() > top && y < bottom;
+    });
+    for (size_t i = 0; i < pending.size() && i < kIconsPerFrame; i++)
+    {
+        const std::string icon = pending[i]->GetAttribute<Rml::String>("data-icon", "");
+        pending[i]->RemoveAttribute("data-icon");
+        pending[i]->SetAttribute("src", icon);
+        m_loadedIcons[icon] = ++m_iconUse;
+    }
+}
+
+void MainWindow::ReleaseUnusedIcons(size_t inUse)
+{
+    const size_t kept = std::max(kMaxLoadedIcons, inUse);
+    if (m_loadedIcons.size() <= kept)
+    {
+        return;
+    }
+    std::vector<std::pair<uint64_t, std::string>> byUse;
+    for (const auto & [icon, use] : m_loadedIcons)
+    {
+        byUse.emplace_back(use, icon);
+    }
+    std::sort(byUse.begin(), byUse.end());
+    byUse.resize(byUse.size() - kept);
+    for (const auto & [use, icon] : byUse)
+    {
+        Rml::ReleaseTexture(icon);
+        m_loadedIcons.erase(icon);
+    }
+}
+
+std::string MainWindow::CardRml(size_t index)
+{
+    const GameEntry & game = m_games[index];
+    const bool selected = game.path == m_selectedPath && game.programId == m_selectedProgramId;
+    std::string rml = std::string("<div class=\"rom-game rom-card") + (selected ? " selected" : "") + "\" data-game=\"" + std::to_string(index) +
+                      "\"><div class=\"rom-art\" data-title-delay=\"" + std::to_string(kCoverTitleDelayMs) + "\" title=\"" +
+                      Rml::StringUtilities::EncodeRml(game.title) + "\">";
+    rml += IconRml(game.icon);
+    std::string details;
+    if (!game.version.empty())
+    {
+        details += "<div class=\"rom-chip rom-version\"><img src=\"images/gear.png\"/><div>v" + Rml::StringUtilities::EncodeRml(game.version) + "</div></div>";
+    }
+    rml += "</div><div class=\"rom-info\"><div class=\"rom-title\">" + Rml::StringUtilities::EncodeRml(game.title) + "</div>" +
+           (details.empty() ? std::string() : "<div class=\"rom-details\">" + details + "</div>") + "</div></div>";
+    return rml;
+}
+
+void MainWindow::ApplyIconSize()
+{
+    Rml::Element * grid = m_document->GetElementById("games-grid");
+    if (grid == nullptr)
+    {
+        return;
+    }
+    const int step = GameIconStep(m_iconSize);
+    for (int other = 1; other <= kGameIconStepCount; other++)
+    {
+        grid->SetClass("size-" + std::to_string(other), other == step);
+    }
+    for (int i = 0; i < grid->GetNumChildren(); i++)
+    {
+        SizeCard(grid->GetChild(i));
+    }
+}
+
+void MainWindow::SizeCard(Rml::Element * card) const
+{
+    Rml::Element * art = card->IsClassSet("rom-card") ? card->GetFirstChild() : nullptr;
+    if (art != nullptr)
+    {
+        card->SetProperty(Rml::PropertyId::Width, Rml::Property(static_cast<float>(m_iconSize + 2 * kCardBorder), Rml::Unit::DP));
+        art->SetProperty(Rml::PropertyId::Height, Rml::Property(static_cast<float>(m_iconSize), Rml::Unit::DP));
+    }
+}
+
+float MainWindow::CardStep() const
+{
+    const float ratio = m_document->GetContext()->GetDensityIndependentPixelRatio();
+    return static_cast<float>(m_iconSize + 2 * kCardBorder + (GameIconStep(m_iconSize) == 1 ? kSmallCardGap : kCardGap)) * ratio;
+}
+
+void MainWindow::SelectGame(Rml::Element * card)
+{
+    if (card == m_selectedGame && (card != nullptr || m_selectedPath.empty()))
+    {
+        return;
+    }
+    if (m_selectedGame != nullptr)
+    {
+        m_selectedGame->SetClass("selected", false);
+    }
+    m_selectedGame = card;
+    m_selectedPath.clear();
+    m_selectedProgramId = 0;
+    if (m_selectedGame != nullptr)
+    {
+        m_selectedGame->SetClass("selected", true);
+        const size_t index = static_cast<size_t>(m_selectedGame->GetAttribute<int>("data-game", -1));
+        if (index < m_games.size())
+        {
+            m_selectedPath = m_games[index].path;
+            m_selectedProgramId = m_games[index].programId;
+        }
+    }
 }
 
 void MainWindow::ShowPanel(Panel panel)

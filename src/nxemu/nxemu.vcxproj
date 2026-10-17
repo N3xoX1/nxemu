@@ -50,6 +50,7 @@
     <ClCompile Include="ui\host\ui_notification.cpp" />
     <ClCompile Include="ui\host\ui_renderer.cpp" />
     <ClCompile Include="ui\host\ui_renderer_effects.cpp" />
+    <ClCompile Include="ui\host\ui_theme.cpp" />
     <ClCompile Include="ui\host\ui_window.cpp" />
     <ClCompile Include="ui\host\vulkan\vma.cpp" />
     <ClCompile Include="..\..\external\rmlui\Backends\RmlUi_Platform_SDL.cpp" />
@@ -63,6 +64,8 @@
     <ClCompile Include="ui\i18n\plural_rule.cpp" />
     <ClCompile Include="ui\host\system_fonts.cpp" />
     <ClCompile Include="ui\host\shell.cpp" />
+    <ClCompile Include="ui\library\game_library.cpp" />
+    <ClCompile Include="ui\library\rom_properties.cpp" />
     <ClCompile Include="vulkan_probe.cpp" />
     <ClCompile Include="user_interface\file_dialogs.cpp" />
     <ClCompile Include="user_interface\game_list_worker.cpp" />
@@ -105,6 +108,7 @@
     <ClInclude Include="ui\emulation\emulator_session.h" />
     <ClInclude Include="ui\host\ui_notification.h" />
     <ClInclude Include="ui\host\ui_window.h" />
+    <ClInclude Include="ui\host\ui_theme.h" />
     <ClInclude Include="ui\ui_application.h" />
     <ClInclude Include="ui\views\main_window.h" />
     <ClInclude Include="ui\views\menu_bar.h" />
@@ -115,6 +119,8 @@
     <ClInclude Include="ui\host\system_fonts.h" />
     <ClInclude Include="ui\host\shell.h" />
     <ClInclude Include="ui\platform\native_window.h" />
+    <ClInclude Include="ui\library\game_library.h" />
+    <ClInclude Include="ui\library\rom_properties.h" />
     <ClInclude Include="vulkan_probe.h" />
     <ClInclude Include="user_interface\app_events.h" />
     <ClInclude Include="user_interface\file_dialogs.h" />

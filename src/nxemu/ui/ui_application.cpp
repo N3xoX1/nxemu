@@ -3,6 +3,7 @@
 #include "ui/emulation/emulator_session.h"
 #include "ui/host/ui_notification.h"
 #include "ui/host/ui_window.h"
+#include "ui/library/game_library.h"
 #include "ui/views/main_window.h"
 #include <iostream>
 #include <nxemu-core/app_init.h>
@@ -102,7 +103,8 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
         notification.DisplayError(window.Error().c_str(), "NXEmu");
         return 1;
     }
-    MainWindow mainWindow(window, session, assetDir);
+    GameLibrary library;
+    MainWindow mainWindow(window, session, library, assetDir);
     if (!mainWindow.Create())
     {
         std::cerr << "NXEmu: unable to load the main window document\n";

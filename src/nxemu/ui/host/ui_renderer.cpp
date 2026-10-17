@@ -10,6 +10,7 @@ namespace
 constexpr VkFormat kColorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 constexpr uint32_t kSetsPerPool = 256;
 constexpr VkDeviceSize kMemoryBlockBytes = 16 * 1024 * 1024;
+constexpr const char * kMemoryScheme = "nxmem:";
 
 std::vector<uint8_t> ReadFile(const Rml::String & source)
 {
@@ -639,6 +640,21 @@ void UiRenderer::FlushUploads()
         Retire([this, staging = upload.staging]() mutable { DestroyBuffer(staging); });
     }
     m_uploads.clear();
+}
+
+std::string UiRenderer::AddMemoryImage(std::vector<uint8_t> encoded)
+{
+    std::string source = kMemoryScheme + std::to_string(m_nextMemoryImage++);
+    m_memoryImages.emplace(source, std::move(encoded));
+    return source;
+}
+
+void UiRenderer::RemoveMemoryImage(const std::string & source)
+{
+    if (m_memoryImages.erase(source) != 0)
+    {
+        Rml::ReleaseTexture(source);
+    }
 }
 
 void UiRenderer::BeginFrame(VkCommandBuffer commandBuffer, int width, int height)
