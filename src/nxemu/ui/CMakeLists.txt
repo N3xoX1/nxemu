@@ -21,6 +21,8 @@ add_library(nxemu_ui STATIC
     host/ui_renderer.h
     host/ui_renderer_effects.cpp
     host/ui_renderer_internal.h
+    host/ui_theme.cpp
+    host/ui_theme.h
     host/ui_window.cpp
     host/ui_window.h
     host/vulkan/vma.cpp
@@ -31,6 +33,10 @@ add_library(nxemu_ui STATIC
     i18n/plural_rule.h
     i18n/translation.cpp
     i18n/translation.h
+    library/game_library.cpp
+    library/game_library.h
+    library/rom_properties.cpp
+    library/rom_properties.h
     platform/native_window.h
     views/main_window.cpp
     views/main_window.h

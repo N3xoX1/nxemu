@@ -21,6 +21,9 @@ public:
     bool IsBound() const { return m_context.device != VK_NULL_HANDLE; }
     const std::string & Error() const { return m_error; }
 
+    std::string AddMemoryImage(std::vector<uint8_t> encoded);
+    void RemoveMemoryImage(const std::string & source);
+
     void BeginFrame(VkCommandBuffer commandBuffer, int width, int height);
     void EndFrame(VkImage output);
 
@@ -223,6 +226,7 @@ private:
     std::vector<std::function<void()>> m_retired;
     std::vector<Upload> m_uploads;
     std::unordered_map<std::string, std::vector<uint8_t>> m_memoryImages;
+    uint64_t m_nextMemoryImage = 0;
 
     Image m_stencil;
     bool m_stencilReady = false;

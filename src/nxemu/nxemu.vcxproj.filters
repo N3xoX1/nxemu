@@ -76,6 +76,12 @@
     <Filter Include="Header Files\ui\platform">
       <UniqueIdentifier>{da3e8eb0-7cdf-43e4-ba22-3e05287a5bf4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ui\library">
+      <UniqueIdentifier>{4f1d6a3c-9b2e-4c87-a5d0-7e3b8c19f264}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui\library">
+      <UniqueIdentifier>{b83e2c57-61fa-4d09-9c4e-2a7f5d0e1b93}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -335,6 +341,12 @@
     <ClInclude Include="ui\host\ui_window.h">
       <Filter>Header Files\ui\host</Filter>
     </ClInclude>
+    <ClInclude Include="ui\host\ui_theme.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClCompile Include="ui\host\ui_theme.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="user_interface\nxemu.rc">
@@ -403,6 +415,18 @@
     <ClCompile Include="ui\host\shell.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
+    <ClCompile Include="ui\library\game_library.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\library\rom_properties.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
+    <ClInclude Include="ui\library\game_library.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\rom_properties.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
     <ClInclude Include="ui\views\menu_bar.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>

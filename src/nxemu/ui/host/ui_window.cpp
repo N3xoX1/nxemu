@@ -1,5 +1,6 @@
 #include "ui_window.h"
 #include "system_fonts.h"
+#include "ui_theme.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
 #include <SDL_syswm.h>
@@ -120,6 +121,8 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail("RmlUi initialization failed");
     }
     m_rmlInitialised = true;
+    m_themeFiles = std::make_unique<UiThemeFileInterface>(*Rml::GetFileInterface());
+    Rml::SetFileInterface(m_themeFiles.get());
     if (!LoadFonts(assetDir / "fonts"))
     {
         return false;
