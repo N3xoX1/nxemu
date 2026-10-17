@@ -8,7 +8,7 @@
 std::string GameSettingText(const std::string & text)
 {
     constexpr struct { const char * core; const char * ui; } names[] = {
-        {"Docked", TrMark("TV")},
+        {"Docked", TrMark("Docked")},
         {"VSync", TrMark("Vertical sync")},
         {"Console region", TrMark("Region")},
         {"Speed limit", TrMark("Limit speed")},

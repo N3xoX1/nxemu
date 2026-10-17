@@ -696,7 +696,7 @@ msgstr ""
 #: assets/general_dialog.rml
 #: views/main_window.cpp
 #: views/settings_context.cpp
-msgid "TV"
+msgid "Docked"
 msgstr ""
 
 #: assets/general_dialog.rml
@@ -947,7 +947,6 @@ msgstr ""
 
 #: assets/main_window.rml
 #: views/loading_screen.cpp
-#: views/main_window.cpp
 msgid "Loading"
 msgstr ""
 
@@ -2119,7 +2118,7 @@ msgid "Stop the game"
 msgstr ""
 
 #: views/hotkeys.h
-msgid "TV or handheld"
+msgid "Docked or handheld"
 msgstr ""
 
 #: views/loading_screen.cpp
@@ -2203,6 +2202,10 @@ msgstr ""
 
 #: views/main_window.cpp
 msgid "&Stop"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2317,10 +2320,6 @@ msgstr ""
 
 #: views/main_window.cpp
 msgid "Open Containing Folder"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Running"
 msgstr ""
 
 #: views/main_window.cpp

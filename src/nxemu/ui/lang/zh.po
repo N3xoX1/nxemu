@@ -681,8 +681,8 @@ msgstr "就像在电视上一样：游戏的显示分辨率高达 1080p。"
 #: assets/general_dialog.rml
 #: views/main_window.cpp
 #: views/settings_context.cpp
-msgid "TV"
-msgstr "TV"
+msgid "Docked"
+msgstr "Docked"
 
 #: assets/general_dialog.rml
 msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
@@ -2083,8 +2083,8 @@ msgid "Stop the game"
 msgstr "停止游戏"
 
 #: views/hotkeys.h
-msgid "TV or handheld"
-msgstr "电视或掌机模式"
+msgid "Docked or handheld"
+msgstr "Docked 或掌机模式"
 
 #: views/loading_screen.cpp
 msgid "Opening the game..."
@@ -2494,10 +2494,6 @@ msgstr "静音"
 msgid "Restart"
 msgstr "重新启动"
 
-#: views/main_window.cpp
-msgid "Running"
-msgstr "运行中"
-
 #: assets/general_dialog.rml
 msgid "Interface theme"
 msgstr "界面主题"
@@ -2518,3 +2514,7 @@ msgstr "深色"
 msgid "Version copied to clipboard"
 msgstr "版本已复制到剪贴板"
 
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
+msgstr "显示模拟控制按钮"

@@ -10,6 +10,7 @@ gear.png: icons/settings.svg
 restart.png: icons/rotate-cw.svg
 pause.png: icons/pause.svg
 stop.png: icons/square.svg
+move-diagonal.png: icons/move-diagonal.svg
 
 ISC License
 

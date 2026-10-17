@@ -43,7 +43,6 @@ void AppendItem(std::string & rml, const MenuItem & item)
     {
         rml += " data-action=\"" + std::to_string(item.id) + "\"";
         rml += item.kind == MenuItem::Kind::Check ? " data-check=\"\"" : "";
-        rml += item.stays ? " data-stay=\"\"" : "";
     }
     if (!item.hint.empty())
     {
@@ -112,11 +111,6 @@ bool MenuToggleCheck(Rml::Element * item)
         check->SetClass("checked", !check->IsClassSet("checked"));
     }
     return true;
-}
-
-bool MenuItemStays(Rml::Element * item)
-{
-    return item->HasAttribute("data-stay");
 }
 
 bool MenuRangeChange(Rml::Event & event, int & id, int & value)

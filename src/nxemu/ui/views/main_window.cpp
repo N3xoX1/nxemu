@@ -33,6 +33,17 @@ constexpr uint64_t kStatusIntervalMs = 1000;
 constexpr float kScanStepShare = 0.85f;  // of a game's step, shown while it is read
 constexpr float kScanEaseSeconds = 0.7f; // time for the bar to cover 63% of what is left
 
+#ifdef __APPLE__
+constexpr bool kShowEmulationControlsDefault = true;
+#else
+constexpr bool kShowEmulationControlsDefault = false;
+#endif
+
+bool ShowEmulationControls()
+{
+    return UiPreferences::GetBool(UiPreferences::ShowEmulationControls, kShowEmulationControlsDefault);
+}
+
 
 // The orders the games can be shown in; the preference stores the index.
 const char * const kGameSorts[] = {TrMark("Name"), TrMark("Publisher"), TrMark("Recent"), TrMark("Play time"), TrMark("Size")};
@@ -674,6 +685,10 @@ void MainWindow::Run(Action action)
             }
         }
         break;
+    case Action::ToggleEmulationControls:
+        UiPreferences::SetBool(UiPreferences::ShowEmulationControls, !ShowEmulationControls());
+        SyncPhase();
+        break;
     case Action::ToggleSpeedLimit:
         settings.SetBool(NXOsSetting::UseSpeedLimit, !settings.GetBool(NXOsSetting::UseSpeedLimit));
         m_session.FlushSettings();
@@ -1106,13 +1121,17 @@ void MainWindow::RebuildMenu()
         action(Action::PauseOrContinue, m_session.IsPaused() ? Tr("Continue") : Tr("Pause")),
         action(Action::Stop, Tr("&Stop")),
         action(Action::Restart, Tr("Restart")),
-        MenuItem::Separator(),
-        check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit)),
     };
     for (MenuItem & item : emulation)
     {
         item.enabled = item.id == static_cast<int>(Action::Stop) ? canStop : playing;
     }
+
+    emulation.push_back(check(Action::ToggleEmulationControls, Tr("Show emulation controls"), ShowEmulationControls()));
+    emulation.push_back(MenuItem::Separator());
+    MenuItem speedLimit = check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
+    speedLimit.enabled = playing;
+    emulation.push_back(std::move(speedLimit));
 
     // Fullscreen and the hidden interface are for a game: without one, the
     // menu says how the next starts.
@@ -1798,15 +1817,8 @@ void MainWindow::SyncPhase()
     m_document->SetClass("emulating", emulating);
     const bool paused = emulating && phase == EmulatorSession::Phase::Paused;
     m_document->SetClass("game-paused", paused);
-    const bool loading = !m_pendingGame.empty() || phase == EmulatorSession::Phase::Loading;
-    const bool controlsVisible = m_session.IsRunning() || !m_pendingGame.empty();
+    const bool controlsVisible = ShowEmulationControls() && (m_session.IsRunning() || !m_pendingGame.empty());
     m_document->SetClass("game-controls-visible", controlsVisible);
-    if (Rml::Element * state = m_document->GetElementById("title-state"))
-    {
-        const std::string source = paused ? "images/state-pause.png" : "images/state-play.png";
-        if (state->GetAttribute<Rml::String>("src", "") != source) state->SetAttribute("src", source);
-        state->SetAttribute("title", paused ? Tr("Paused") : loading ? Tr("Loading") : Tr("Running"));
-    }
     for (const char * id : {"title-pause", "title-restart"})
     {
         if (Rml::Element * button = m_document->GetElementById(id))
@@ -2212,8 +2224,8 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
     else if (origin->GetId() == "docked-mode")
     {
         const bool docked = IsDocked();
-        choice(static_cast<int>(Action::SetDockedMode), Tr("TV"), docked).stays = true;
-        choice(static_cast<int>(Action::SetHandheldMode), Tr("Handheld"), !docked).stays = true;
+        choice(static_cast<int>(Action::SetDockedMode), Tr("Docked"), docked);
+        choice(static_cast<int>(Action::SetHandheldMode), Tr("Handheld"), !docked);
     }
     else if (origin->GetId() == "scaling-filter")
     {
@@ -2222,11 +2234,11 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
         for (const auto & filter : kScalingFilters)
         {
             const int value = static_cast<int>(filter.value);
-            MenuItem & item = choice(static_cast<int>(Action::ScalingFilterFirst) + value, Tr(filter.label), value == current);
+            items.push_back(MenuItem::Check(static_cast<int>(Action::ScalingFilterFirst) + value, Tr(filter.label), value == current));
+            MenuItem & item = items.back();
             // The filter the game settings choose
             item.tag = value == game ? Tr("Default") : std::string();
             item.hint = Tr(filter.hint);
-            item.stays = true;
             if (filter.value == ScalingFilter::Fsr)
             {
                 // Only FSR has a sharpness; it is set once FSR is the filter.
@@ -2247,7 +2259,7 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
         const int current = ResolutionScale();
         for (int scale = 0; scale < kResolutionScaleCount; scale++)
         {
-            choice(static_cast<int>(Action::ResolutionScaleFirst) + scale, kResolutionScales[scale].label, scale == current).stays = true;
+            choice(static_cast<int>(Action::ResolutionScaleFirst) + scale, kResolutionScales[scale].label, scale == current);
         }
     }
     if (items.empty())
@@ -2283,7 +2295,7 @@ void MainWindow::UpdateStatusWidgets()
     SettingsStore & settings = SettingsStore::GetInstance();
     const bool docked = IsDocked();
     const auto & scale = kResolutionScales[ResolutionScale()];
-    SetText("docked-text", docked ? Tr("TV") : Tr("Handheld"));
+    SetText("docked-text", docked ? Tr("Docked") : Tr("Handheld"));
     if (Rml::Element * icon = m_document->GetElementById("docked-icon"))
     {
         const char * image = docked ? "images/docked.png" : "images/handheld.png";

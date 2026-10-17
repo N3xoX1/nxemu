@@ -143,14 +143,6 @@ body.has-game-icon #title-game-icon
     background-color: var(--border);
 }
 
-#title-state
-{
-    width: 13dp;
-    height: 13dp;
-    flex-shrink: 0;
-    margin-right: 10dp;
-}
-
 #title-text
 {
     flex: 0 1 auto;

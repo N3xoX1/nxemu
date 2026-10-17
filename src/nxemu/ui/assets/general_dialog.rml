@@ -46,7 +46,7 @@
                   <div class="row-text">On the television, or in the hands.</div>
                 </div>
                 <div class="segments">
-                  <div id="mode-docked" class="segment" data-command="mode-docked" title="As on the television: games draw up to 1080p."><img src="images/docked.png" /><div>TV</div></div>
+                  <div id="mode-docked" class="segment" data-command="mode-docked" title="As on the television: games draw up to 1080p."><img src="images/docked.png" /><div>Docked</div></div>
                   <div id="mode-handheld" class="segment" data-command="mode-handheld" title="As on the console's own screen: games draw 720p, which asks less of the computer."><img src="images/handheld.png" /><div>Handheld</div></div>
                 </div>
               </div>
