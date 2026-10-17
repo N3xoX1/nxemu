@@ -1,10 +1,12 @@
 #include "game_library_cache.h"
 #include "game_cache.h"
+#include <nxemu-module-spec/game_content_cache_store.h>
 #include "library_files.h"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <iostream>
 #include <string_view>
 #include <thread>
 #include <yuzu_common/fs/fs_util.h>
@@ -43,6 +45,24 @@ struct TemporaryDirectory
     std::filesystem::path path;
 };
 
+void TestContainerCacheFormat()
+{
+    JsonValue item(JsonValueType::Object);
+    item["path"] = "/updates/title.dnsp";
+    item["file"] = "128:9876";
+    JsonValue apps(JsonValueType::Array);
+    apps.Append(JsonValue("0000000000000029"));
+    item["applications"] = apps;
+    std::string path, signature;
+    std::vector<uint64_t> ids;
+    Check(GameContentCacheStore::ReadContainer(item, path, signature, ids) &&
+          path == "/updates/title.dnsp" && signature == "128:9876" &&
+          ids.size() == 1 && ids.front() == 41, "shared cache format accepts valid title IDs");
+    item["applications"][0] = JsonValue("wrong!");
+    Check(!GameContentCacheStore::ReadContainer(item, path, signature, ids),
+          "shared cache format rejects invalid title IDs");
+}
+
 void TestListings(const std::filesystem::path & root)
 {
     const std::filesystem::path games = root / "games";
@@ -58,8 +78,39 @@ void TestListings(const std::filesystem::path & root)
     Check(direct.files[0].path == games / "homebrew.NRO" && direct.files[1].path == games / "zelda.dnsp", "listing order");
     const LibraryListing containers = LibraryFiles::ListContainers(games);
     Check(containers.complete && containers.files.size() == 2, "containers below the directory");
+    const auto combined = LibraryFiles::ListGameContent(games);
+    std::atomic<bool> cancelled{true};
+    const auto interrupted = LibraryFiles::ListGameContent(games, &cancelled);
+    Check(!interrupted.containers.complete && interrupted.containers.files.empty(),
+          "cancelled filesystem traversal cannot look like a complete empty directory");
+    Check(combined.games.complete && combined.containers.complete &&
+          LibraryFiles::Fingerprint(combined.games) == LibraryFiles::Fingerprint(direct) &&
+          LibraryFiles::Fingerprint(combined.containers) == LibraryFiles::Fingerprint(containers),
+          "one-pass listing agrees with separate listings");
     Check(LibraryFiles::ListAll(games).files.size() == 5, "every file below the directory");
 
+    const auto absentBoth = LibraryFiles::ListGameContent(root / "absent");
+    Check(absentBoth.games.complete && absentBoth.games.missing && absentBoth.games.files.empty() &&
+          absentBoth.containers.complete && absentBoth.containers.missing && absentBoth.containers.files.empty(),
+          "single-pass missing root is represented consistently");
+    Check(absentBoth.modifications.complete && absentBoth.modifications.missing &&
+          absentBoth.modifications.files.empty(), "missing root includes mod status");
+    const std::filesystem::path modRoot = games / "custom" / "0000000000000001";
+    std::filesystem::create_directories(modRoot / "romfs");
+    auto mods = LibraryFiles::ListGameContent(games).modifications;
+    Check(mods.complete && mods.files.size() == 1, "only the mod root is indexed");
+    const std::string firstMod = LibraryFiles::Fingerprint(mods);
+    Write(modRoot / "romfs" / "patch.bin", "first");
+    mods = LibraryFiles::ListGameContent(games).modifications;
+    Check(mods.files.size() == 1 && LibraryFiles::Fingerprint(mods) == firstMod,
+          "mod files remain live under the indexed directory");
+    const auto secondMod = LibraryFiles::Fingerprint(mods);
+    Write(modRoot / "romfs" / "patch.bin", "changed payload");
+    mods = LibraryFiles::ListGameContent(games).modifications;
+    Check(LibraryFiles::Fingerprint(mods) == secondMod, "mod file changes do not require rebuilding directory lookup");
+    std::filesystem::remove_all(modRoot);
+    mods = LibraryFiles::ListGameContent(games).modifications;
+    Check(mods.files.empty(), "removing a mod tree changes fingerprint");
     const LibraryListing absent = LibraryFiles::ListGames(root / "absent");
     Check(absent.complete && absent.missing && absent.files.empty(), "missing directory");
     const LibraryListing notDirectory = LibraryFiles::ListGames(games / "notes.txt");
@@ -119,9 +170,39 @@ void TestCache(const std::filesystem::path & root)
           "icons no game uses are removed");
 
     const std::filesystem::path index = directory / "index.json";
+    const std::filesystem::path contentIndex = GameContentCacheStore::IndexPath(directory.parent_path());
+    Check(std::filesystem::exists(contentIndex), "independent content cache was written");
+    GameContentCacheStore::Entries persisted;
+    Check(GameContentCacheStore::Read(contentIndex, persisted) && persisted.size() == 2 &&
+        persisted.at("/addons/update.dnsp").applications.size() == 2,
+        "shared cache round trip includes Title IDs");
+    std::ifstream uiInput(index);
+    const std::string uiJson((std::istreambuf_iterator<char>(uiInput)), std::istreambuf_iterator<char>());
+    uiInput.close();
+    JsonValue uiRoot;
+    Check(JsonReader().Parse(uiJson.data(), uiJson.data() + uiJson.size(), uiRoot) &&
+        uiRoot["schema"].asInt64() == GameContentCacheStore::LibrarySchema &&
+        uiRoot["containers"].isNull(), "UI cache no longer owns container index");
+    const auto contentWritten = std::filesystem::last_write_time(contentIndex);
     const auto written = std::filesystem::last_write_time(index);
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    Check(cache.Save() && std::filesystem::last_write_time(index) == written, "an unchanged cache is not rewritten");
+    Check(cache.Save() && std::filesystem::last_write_time(index) == written &&
+          std::filesystem::last_write_time(contentIndex) == contentWritten,
+          "unchanged UI and content caches are not rewritten");
+
+    // The two indexes should be written independently, not merely stored
+    // in different paths while every UI edit rewrites the content metadata.
+    cache.PutContainer("/addons/other.dnsp", {"8:9", {0x0100000000010000ull}});
+    Check(cache.Save() && std::filesystem::last_write_time(index) == written,
+          "content-only update does not rewrite UI game metadata");
+    const auto contentOnlyWritten = std::filesystem::last_write_time(contentIndex);
+    CachedGame renamed = game;
+    renamed.game.title = "Renamed in frontend";
+    cache.PutGame(renamed);
+    Check(cache.Save() && std::filesystem::last_write_time(contentIndex) == contentOnlyWritten,
+          "UI-only update does not rewrite content index");
+    cache.PutGame(game);
+    Check(cache.Save(), "restore original UI title");
 
     GameLibraryCache reloaded(directory);
     Check(reloaded.Load(), "reload");
@@ -147,19 +228,50 @@ void TestCache(const std::filesystem::path & root)
     GameLibraryCache withoutIcon(directory);
     Check(withoutIcon.Load() && !withoutIcon.FindGame(game.game.path) && withoutIcon.FindGame(plain.game.path), "missing icon file");
 
-    Write(index, "{ \"schema\": 1, \"games\": [], \"containers\": [] }");
+    Write(index, "{ \"schema\": 2, \"games\": [], \"rejected\": [] }");
     Check(!GameLibraryCache(directory).Load(), "index of another version");
     Write(index, "corrupt");
     GameLibraryCache corrupt(directory);
     Check(!corrupt.Load() && corrupt.Games().empty(), "damaged index");
 }
-} // namespace
+
+void TestIndependentCacheRecovery(const std::filesystem::path & root)
+{
+    const auto directory = root / "recovery" / "game_library";
+    const auto uiIndex = directory / "index.json";
+    const auto contentIndex = GameContentCacheStore::IndexPath(directory.parent_path());
+    GameLibraryCache cache(directory);
+    cache.PutContainer("/addons/old.dnsp", {"25:30", {0x0100000000010000ull}});
+    Check(cache.Save(), "content cache can be saved before any game is scanned");
+    Check(std::filesystem::exists(contentIndex) && !std::filesystem::exists(uiIndex),
+          "content cache is independent of the UI cache");
+    GameLibraryCache reloaded(directory);
+    Check(!reloaded.Load() && reloaded.FindContainer("/addons/old.dnsp"),
+          "missing UI index does not discard content cache");
+    Write(contentIndex, "broken");
+    GameLibraryCache corruptContent(directory);
+    Check(!corruptContent.Load() && !corruptContent.FindContainer("/addons/old.dnsp"),
+          "corrupt content cache is rejected");
+    Check(corruptContent.Save(false), "partial scan cannot overwrite content index");
+    std::ifstream input(contentIndex);
+    Check(std::string((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>()) == "broken",
+          "partial scan preserved old content cache");
+    input.close();
+    Check(corruptContent.Save(), "complete scan can repair broken content cache");
+    GameContentCacheStore::Entries repaired;
+    Check(GameContentCacheStore::Read(contentIndex, repaired) && repaired.empty(),
+          "repaired content cache is readable");
+}
+ } // namespace
 
 int main()
 {
+    try {
     TemporaryDirectory temporary;
+    TestContainerCacheFormat();
     TestListings(temporary.path);
     TestCache(temporary.path);
+    TestIndependentCacheRecovery(temporary.path);
     const auto shaders = temporary.path / "shader";
     const auto title = GameCache::Directory(shaders, 0x0100000000010000ull);
     const auto other = GameCache::Directory(shaders, 0x0100000000020000ull);
@@ -193,4 +305,5 @@ int main()
     }
 
     return 0;
+    } catch (const std::exception & error) { std::cerr << error.what() << std::endl; return 1; }
 }

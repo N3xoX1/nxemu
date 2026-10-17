@@ -23,7 +23,7 @@
       <div class="settings-body">
         <div class="settings-page">
           <div class="settings-title">Game directories</div>
-          <div class="settings-text">Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched.</div>
+          <div class="settings-text">Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders.</div>
           <div id="directories" class="directories" />
         </div>
       </div>

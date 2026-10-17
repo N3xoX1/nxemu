@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <atomic>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -28,6 +29,16 @@ namespace LibraryFiles
 bool IsGame(const std::filesystem::path & path);
 // A file that can hold a game, an update or add-on content.
 bool IsContainer(const std::filesystem::path & path);
+
+// One filesystem walk for both the flat game list and recursive add-on index.
+// Both are sorted and share conservative completeness status.
+struct GameContentListings
+{
+    LibraryListing games;
+    LibraryListing containers;
+    LibraryListing modifications; // Title ID directories; files are read live by the loader
+};
+GameContentListings ListGameContent(const std::filesystem::path & directory, const std::atomic<bool> * cancelled = nullptr);
 
 // The game files directly in a game directory.
 LibraryListing ListGames(const std::filesystem::path & directory);

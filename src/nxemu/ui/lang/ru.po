@@ -1013,18 +1013,6 @@ msgstr ""
 msgid "Required modules failed to load."
 msgstr "Не удалось загрузить необходимые модули."
 
-#: emulation/emulator_session.cpp
-msgid ""
-"Could not load the game:\n"
-"%1"
-msgstr ""
-"Не удалось загрузить игру:\n"
-"%1"
-
-#: host/ui_notification.cpp
-msgid "Yes"
-msgstr "Да"
-
 #: host/ui_notification.cpp
 msgid "No"
 msgstr "Нет"
@@ -2174,11 +2162,9 @@ msgstr "Сколько измерений показывает история"
 msgid "Window size"
 msgstr "Размер окна"
 
-
 #: views/main_window.cpp
 msgid "Performance overlay"
 msgstr "Оверлей производительности"
-
 
 #: views/main_window.cpp
 msgid "&Settings"
@@ -2488,11 +2474,9 @@ msgstr "Тёмная"
 msgid "Version copied to clipboard"
 msgstr "Версия скопирована в буфер обмена"
 
-
 #: views/main_window.cpp
 msgid "Show emulation controls"
 msgstr "Показывать кнопки эмуляции"
-
 
 msgid "Debug"
 msgstr "Отладка"
@@ -2521,9 +2505,8 @@ msgstr "Портативный режим: игры работают в 720p, к
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "Игра запущена: недоступные параметры можно изменить после её остановки. Языки применяются при запуске игры."
 
-
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
-msgstr "Игры, обновления и DLC можно хранить вместе или в разных папках. NXEmu автоматически связывает их. Вложенные папки не просматриваются."
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
+msgstr "Игры, обновления и DLC можно хранить вместе или в разных папках. NXEmu автоматически связывает их. Игры ищутся непосредственно в каждой папке, дополнения — также во вложенных папках."
 
 msgid "Profile"
 msgstr "Профиль"
@@ -2540,13 +2523,20 @@ msgstr "Управление"
 msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr "Режим консоли: на телевизоре (1080p) или в портативном режиме (720p)"
 
-
 msgid "Clear shortcut"
 msgstr "Удалить сочетание"
 
 msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
 msgstr "Выберите сочетание и нажмите клавиши либо удерживайте и отпустите кнопки геймпада. Чтобы удалить назначение, нажмите крестик рядом или выберите сочетание и нажмите Delete."
 
-
 msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
 msgstr "Масштаб разрешения: чем выше значение, тем чётче изображение, но тем больше требуется мощности видеокарты."
+
+msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
+msgstr "В игре нет пригодного исполняемого файла (ExeFS).\n\nЕсли этой копии требуется обновление, добавьте его папку в Настройки > Папки игр и включите обновление в сведениях об игре. Если оно уже включено, проверьте полноту и доступность его файлов.\n\nИгра: %1"
+
+msgid "Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr "Не удалось загрузить игру:\n%1\n\nОшибка загрузчика: %2. Проверьте полноту файлов игры и наличие необходимых ключей и прошивки."
+
+msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
+msgstr "Не удалось загрузить интерфейс. Проверьте полноту папки ui в NXEmu."

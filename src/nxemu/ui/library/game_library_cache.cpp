@@ -1,4 +1,5 @@
 #include "game_library_cache.h"
+#include <nxemu-module-spec/game_content_cache_store.h>
 #include "library_files.h"
 #include <cinttypes>
 #include <common/json.h>
@@ -12,7 +13,7 @@
 namespace
 {
 // Raised whenever an index written before could be misread.
-constexpr int64_t kSchema = 3;
+constexpr int64_t kSchema = GameContentCacheStore::LibrarySchema;
 constexpr uintmax_t kMaxIndexBytes = 32 * 1024 * 1024;
 constexpr size_t kMaxIconBytes = 8 * 1024 * 1024;
 
@@ -40,51 +41,6 @@ bool ReadApplication(const std::string & text, uint64_t & application)
     return std::sscanf(text.c_str(), "%16" SCNx64 "%n", &application, &length) == 1 && static_cast<size_t>(length) == text.size();
 }
 
-bool ReadApplications(const JsonValue & list, std::vector<uint64_t> & applications)
-{
-    if (!list.isArray())
-    {
-        return false;
-    }
-    for (uint32_t i = 0; i < list.size(); i++)
-    {
-        const std::string text = list[i].isString() ? list[i].asString() : std::string();
-        uint64_t application = 0;
-        if (!ReadApplication(text, application))
-        {
-            return false;
-        }
-        applications.push_back(application);
-    }
-    return true;
-}
-
-// Replaces the file in one step: a reader sees the old contents or the new,
-// never part of either.
-bool WriteFile(const std::filesystem::path & path, const char * data, size_t size)
-{
-    std::filesystem::path temporary = path;
-    temporary += ".tmp";
-    std::error_code error;
-    {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        output.write(data, static_cast<std::streamsize>(size));
-        output.flush();
-        if (!output)
-        {
-            output.close();
-            std::filesystem::remove(temporary, error);
-            return false;
-        }
-    }
-    std::filesystem::rename(temporary, path, error);
-    if (error)
-    {
-        std::filesystem::remove(temporary, error);
-        return false;
-    }
-    return true;
-}
 } // namespace
 
 GameLibraryCache::GameLibraryCache(std::filesystem::path directory) :
@@ -99,6 +55,18 @@ bool GameLibraryCache::Load()
     m_containers.clear();
     m_rejections.clear();
     m_dirty = false;
+    m_containersDirty = false;
+
+    // Load shared content associations independently of the UI listing.
+    // This still works when the UI index is absent or damaged.
+    GameContentCacheStore::Entries shared;
+    const bool sharedLoaded = GameContentCacheStore::Read(
+        GameContentCacheStore::IndexPath(m_directory.parent_path()), shared);
+    m_containersDirty = !sharedLoaded;
+    if (sharedLoaded)
+        for (auto & [path, entry] : shared)
+            m_containers.emplace(std::move(path), CachedContainer{std::move(entry.signature), std::move(entry.applications)});
+    // Missing content cache is rebuilt only after a complete library scan.
 
     const std::filesystem::path index = m_directory / "index.json";
     std::error_code error;
@@ -115,7 +83,8 @@ bool GameLibraryCache::Load()
     }
     JsonValue root;
     if (!JsonReader().Parse(contents.data(), contents.data() + contents.size(), root) || !root.isObject() ||
-        !root["schema"].isInt() || root["schema"].asInt64() != kSchema || !root["games"].isArray() || !root["containers"].isArray())
+        !root["schema"].isInt() || root["schema"].asInt64() != kSchema ||
+        !root["games"].isArray() || !root["rejected"].isArray())
     {
         return false;
     }
@@ -153,21 +122,6 @@ bool GameLibraryCache::Load()
         }
         m_games.insert_or_assign(cached.game.path, std::move(cached));
     }
-    const JsonValue & containers = root["containers"];
-    for (uint32_t i = 0; i < containers.size(); i++)
-    {
-        const JsonValue & item = containers[i];
-        std::string path;
-        CachedContainer cached;
-        if (!item.isObject() || !ReadString(item, "path", path) || path.empty() || !ReadString(item, "file", cached.fileSignature) ||
-            !ReadApplications(item["applications"], cached.applications))
-        {
-            m_dirty = true;
-            continue;
-        }
-        m_containers.insert_or_assign(std::move(path), std::move(cached));
-    }
-    // Absent from the indexes written before rejections were kept.
     const JsonValue & rejections = root["rejected"];
     for (uint32_t i = 0; rejections.isArray() && i < rejections.size(); i++)
     {
@@ -185,13 +139,25 @@ bool GameLibraryCache::Load()
     return true;
 }
 
-bool GameLibraryCache::Save()
+bool GameLibraryCache::Save(bool completeContentScan)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_dirty)
-    {
+    if (!m_dirty && !m_containersDirty)
         return true;
+    // A partial scan cannot replace a previously complete content index.
+    if (!completeContentScan && m_containersDirty)
+        return true;
+    if (m_containersDirty)
+    {
+        GameContentCacheStore::Entries shared;
+        shared.reserve(m_containers.size());
+        for (const auto & [path, cached] : m_containers)
+            shared.emplace(path, GameContentCacheStore::Entry{cached.fileSignature, cached.applications});
+        if (!GameContentCacheStore::Write(GameContentCacheStore::IndexPath(m_directory.parent_path()), shared))
+            return false;
+        m_containersDirty = false;
     }
+    if (!m_dirty) return true;
     JsonValue games(JsonValueType::Array);
     for (const auto & [path, cached] : m_games)
     {
@@ -207,20 +173,6 @@ bool GameLibraryCache::Save()
         item["icon"] = Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(cached.game.icon)}.filename());
         games.Append(std::move(item));
     }
-    JsonValue containers(JsonValueType::Array);
-    for (const auto & [path, cached] : m_containers)
-    {
-        JsonValue item(JsonValueType::Object);
-        item["path"] = path;
-        item["file"] = cached.fileSignature;
-        JsonValue applications(JsonValueType::Array);
-        for (const uint64_t application : cached.applications)
-        {
-            applications.Append(ApplicationToText(application));
-        }
-        item["applications"] = std::move(applications);
-        containers.Append(std::move(item));
-    }
     JsonValue rejections(JsonValueType::Array);
     for (const auto & [path, cached] : m_rejections)
     {
@@ -233,13 +185,12 @@ bool GameLibraryCache::Save()
     JsonValue root(JsonValueType::Object);
     root["schema"] = kSchema;
     root["games"] = std::move(games);
-    root["containers"] = std::move(containers);
     root["rejected"] = std::move(rejections);
     const std::string contents = JsonStyledWriter().write(root);
 
     std::error_code error;
     std::filesystem::create_directories(m_directory, error);
-    if (error || contents.size() > kMaxIndexBytes || !WriteFile(m_directory / "index.json", contents.data(), contents.size()))
+    if (error || contents.size() > kMaxIndexBytes || !Common::WriteFileAtomically(m_directory / "index.json", contents.data(), contents.size()))
     {
         return false;
     }
@@ -301,17 +252,17 @@ void GameLibraryCache::PutContainer(const std::string & path, CachedContainer co
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_containers.insert_or_assign(path, std::move(container));
-    m_dirty = true;
+    m_containersDirty = true;
 }
 
 void GameLibraryCache::Prune(const std::function<bool(const std::string & path)> & keep)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     const auto rejected = [&keep](const auto & entry) { return !keep(entry.first); };
-    if (std::erase_if(m_games, rejected) + std::erase_if(m_containers, rejected) + std::erase_if(m_rejections, rejected) != 0)
-    {
+    if (std::erase_if(m_containers, rejected) != 0)
+        m_containersDirty = true;
+    if (std::erase_if(m_games, rejected) + std::erase_if(m_rejections, rejected) != 0)
         m_dirty = true;
-    }
 }
 
 std::string GameLibraryCache::StoreIcon(const std::vector<uint8_t> & image)
@@ -330,7 +281,7 @@ std::string GameLibraryCache::StoreIcon(const std::vector<uint8_t> & image)
     if (!std::filesystem::is_regular_file(file, error))
     {
         std::filesystem::create_directories(IconDirectory(), error);
-        if (error || !WriteFile(file, data, image.size()))
+        if (error || !Common::WriteFileAtomically(file, data, image.size()))
         {
             return {};
         }

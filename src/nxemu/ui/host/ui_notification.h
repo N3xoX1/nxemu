@@ -4,6 +4,7 @@
 
 #include <deque>
 #include <future>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -21,6 +22,8 @@ public:
     void BreakPoint(const char* file_name, uint32_t line_number) override;
 
     void BindWindow(SDL_Window* window);
+    using Presenter = std::function<NotificationResponse(bool, const std::string &, const std::string &)>;
+    void SetPresenter(Presenter presenter);
     void Pump();
     void Close();
 
@@ -40,4 +43,5 @@ private:
     mutable std::mutex mutex_;
     mutable std::deque<Message> messages_;
     SDL_Window* window_ = nullptr;
+    Presenter presenter_;
 };

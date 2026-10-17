@@ -1,4 +1,5 @@
 #include "game_library.h"
+#include <yuzu_common/scope_exit.h>
 #include "game_library_cache.h"
 #include "library_files.h"
 #include "rom_properties.h"
@@ -11,6 +12,8 @@
 #include <common/json_util.h>
 #include <common/sha256.h>
 #include <filesystem>
+#include <functional>
+#include <iterator>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <optional>
@@ -62,26 +65,12 @@ bool RefreshVersion(ISystemloader & loader, CachedGame & cached)
     return true;
 }
 
-std::vector<std::string> AddOnDirectories(const JsonValue & loaderSettings)
-{
-    std::vector<std::string> directories;
-    const JsonValue list = JsonGetNestedValue(loaderSettings, "AddOnDirectories");
-    for (uint32_t i = 0; list.isArray() && i < list.size(); i++)
-    {
-        if (list[i].isString() && !list[i].asString().empty())
-        {
-            directories.push_back(list[i].asString());
-        }
-    }
-    return directories;
-}
-
 // Installed content can affect every game. Loader preferences and another
 // game's disabled add-ons must not invalidate the whole library.
 // Empty when the installed content could not be listed reliably.
 std::string CommonDependencies()
 {
-    std::string dependencies = "game-library-dependencies-v4";
+    std::string dependencies = "game-library-dependencies-v5";
     const std::filesystem::path nand = Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir);
     const std::filesystem::path sdmc = Common::FS::GetYuzuPath(Common::FS::YuzuPath::SDMCDir);
     for (const std::filesystem::path & directory : {
@@ -174,6 +163,8 @@ public:
         }
         m_reading = true;
         ++m_reads;
+        // A changed container must be read directly, not from the loader's
+        // previous snapshot. This does not enumerate other directories.
         // The size query parses the container too. Read the usual small list
         // in one call, and retry only for a container with many applications.
         applications.resize(16);
@@ -211,9 +202,6 @@ GameLibrary::GameLibrary() :
                                                "game_library"))
 {
     m_cache->Load();
-    // The single file that held the cache before it became a directory.
-    std::error_code error;
-    std::filesystem::remove(Common::FS::GetYuzuPath(Common::FS::YuzuPath::CacheDir) / "game-library-v1.cache", error);
 }
 
 GameLibrary::~GameLibrary()
@@ -401,38 +389,52 @@ bool GameLibrary::TakeScanResult(std::vector<GameEntry> & games)
 
 void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> & directories)
 {
-    std::lock_guard<std::mutex> loaderLock(m_loaderMutex);
+    SCOPE_EXIT { m_scanning = false; m_readingGames = false; };
+    // Directory enumeration does not touch the loader; allow game details
+    // requests to finish while the (potentially slow) filesystem is scanned.
+    std::unique_lock<std::mutex> loaderLock(m_loaderMutex, std::defer_lock);
     const auto started = std::chrono::steady_clock::now();
-    ISystemloader & loader = modules.Systemloader();
 
     // What the file system says, before any game is opened.
     struct Directory
     {
         std::string path;
         LibraryListing listing;
-        std::unordered_map<uint64_t, std::vector<const LibraryFile *>> applications;
     };
     const JsonValue loaderSettings = SettingsStore::GetInstance().GetSettings("nxemu-loader");
     std::string commonDependencies = CommonDependencies();
     const auto disabledAddOns = DisabledAddOnDependencies(loaderSettings);
     std::vector<Directory> gameDirectories;
-    std::vector<Directory> addOnDirectories;
+    std::vector<Directory> contentDirectories;
+    std::vector<LibraryFile> modificationEntries;
+    bool rootsComplete = true;
     uint32_t fileCount = 0;
+    // Enumerate each configured root once. A flat game list and recursive
+    // container index are produced from the same set of filesystem entries.
+    std::unordered_set<std::string> seenRoots;
     for (const std::string & directory : directories)
     {
-        gameDirectories.push_back({directory, LibraryFiles::ListGames(std::filesystem::path{Common::FS::ToU8String(directory)})});
-        fileCount += static_cast<uint32_t>(gameDirectories.back().listing.files.size());
-    }
-    for (const std::string & directory : AddOnDirectories(loaderSettings))
-    {
-        addOnDirectories.push_back({directory, LibraryFiles::ListContainers(std::filesystem::path{Common::FS::ToU8String(directory)})});
-        if (!addOnDirectories.back().listing.complete)
-        {
-            // An update may be among the files that could not be listed.
-            commonDependencies.clear();
-        }
+        if (!seenRoots.insert(directory).second) continue;
+        auto listing = LibraryFiles::ListGameContent(std::filesystem::path{Common::FS::ToU8String(directory)}, &m_stop);
+        fileCount += static_cast<uint32_t>(listing.games.files.size());
+        if (!listing.containers.complete || listing.containers.missing)
+            commonDependencies.clear(); // An unlisted update may change any game.
+        if (!listing.containers.complete || listing.containers.missing ||
+            !listing.modifications.complete || listing.modifications.missing)
+            rootsComplete = false;
+        modificationEntries.insert(modificationEntries.end(),
+            std::make_move_iterator(listing.modifications.files.begin()),
+            std::make_move_iterator(listing.modifications.files.end()));
+        gameDirectories.push_back({directory, std::move(listing.games)});
+        contentDirectories.push_back({directory, std::move(listing.containers)});
     }
     m_filesToScan = fileCount;
+    std::vector<std::string> modificationRoots;
+    for (const auto & item : modificationEntries)
+        modificationRoots.push_back(Common::FS::PathToUTF8String(item.path));
+
+    loaderLock.lock();
+    ISystemloader & loader = modules.Systemloader();
 
     // Identifies what decides the version of one game: the common part, and
     // the other files holding content for the same application, which are the
@@ -440,21 +442,35 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
     // game, leaves it unchanged.
     const auto listed = std::chrono::steady_clock::now();
     Containers containers(loader, *m_cache, m_readingGames);
-    // Index once by application instead of comparing every game with every
-    // other container. Unrelated additions leave existing dependencies intact.
-    const auto index = [&](std::vector<Directory> & list) {
-        for (Directory & directory : list)
+    // A single global application -> content index; once built, related file
+    // lookup costs O(related files), independent of the number of roots.
+    std::unordered_map<uint64_t, std::vector<const LibraryFile *>> applicationsByTitle;
+    const auto index = [&](const std::vector<Directory> & list) {
+        for (const Directory & directory : list)
             for (const LibraryFile & file : directory.listing.files)
             {
                 if (m_stop) return;
                 for (uint64_t application : containers.Applications(file))
-                    directory.applications[application].push_back(&file);
+                    applicationsByTitle[application].push_back(&file);
             }
     };
-    if (!commonDependencies.empty())
+    if (rootsComplete && !m_stop)
     {
-        index(gameDirectories);
-        index(addOnDirectories);
+        index(contentDirectories);
+        if (!m_stop)
+        {
+            GameContentSnapshot snapshot;
+            snapshot.directories.assign(seenRoots.begin(), seenRoots.end());
+            snapshot.modificationRoots = std::move(modificationRoots);
+            for (const Directory & directory : contentDirectories)
+                for (const LibraryFile & file : directory.listing.files)
+                {
+                    const std::string path = Common::FS::PathToUTF8String(file.path);
+                    snapshot.files.push_back({path, file.signature, containers.Applications(file)});
+                }
+            if (!loader.PublishGameContentSnapshot(snapshot))
+                return; // A new configuration superseded this scan.
+        }
     }
     const auto dependenciesOf = [&](const LibraryFile & game, const Directory & directory) -> std::string {
         if (commonDependencies.empty() || !directory.listing.complete)
@@ -464,17 +480,11 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
         std::string dependencies = commonDependencies;
         const std::vector<uint64_t> applications = containers.Applications(game);
         std::vector<const LibraryFile *> related;
-        const auto add = [&](const Directory & source) {
-            for (uint64_t application : applications)
-            {
-                const auto found = source.applications.find(application);
-                if (found != source.applications.end()) related.insert(related.end(), found->second.begin(), found->second.end());
-            }
-        };
-        add(directory);
-        for (const Directory & addOns : addOnDirectories)
+        for (uint64_t application : applications)
         {
-            add(addOns);
+            const auto found = applicationsByTitle.find(application);
+            if (found != applicationsByTitle.end())
+                related.insert(related.end(), found->second.begin(), found->second.end());
         }
         std::sort(related.begin(), related.end(), [](const LibraryFile * left, const LibraryFile * right) { return left->path < right->path; });
         related.erase(std::unique(related.begin(), related.end(), [](const LibraryFile * left, const LibraryFile * right) { return left->path == right->path; }), related.end());
@@ -489,7 +499,11 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
     };
 
     std::vector<GameEntry> games;
+    // Only games actually returned by ListGames count as present for the
+    // incomplete-listing fallback. A recursive content listing may see a game
+    // missed by an incomplete flat listing; it must not hide the cached game.
     std::unordered_set<std::string> present;
+    std::unordered_set<std::string> presentContent;
     size_t reused = 0;
     size_t refreshed = 0;
     size_t read = 0;
@@ -527,7 +541,15 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
             // The other files are looked at first: opening the game is then
             // the only slow step left, and often not needed.
             const std::string dependencies = dependenciesOf(file, directory);
-            if (known && !dependencies.empty() && known->dependencySignature == dependencies)
+            // An incomplete content listing cannot prove that the game's
+            // dependencies changed. Do not parse or rewrite its cached version.
+            if (known && dependencies.empty())
+            {
+                games.push_back(std::move(known->game));
+                reused++;
+                continue;
+            }
+            if (known && known->dependencySignature == dependencies)
             {
                 games.push_back(std::move(known->game));
                 reused++;
@@ -569,11 +591,11 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
             m_cache->PutGame(std::move(cached));
         }
     }
-    for (const Directory & directory : addOnDirectories)
+    for (const Directory & directory : contentDirectories)
     {
         for (const LibraryFile & file : directory.listing.files)
         {
-            present.insert(Common::FS::PathToUTF8String(file.path));
+            presentContent.insert(Common::FS::PathToUTF8String(file.path));
         }
     }
     // A directory that could not be listed to the end says nothing of the
@@ -583,7 +605,7 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
         std::vector<GameEntry> before;
         for (const Directory & directory : gameDirectories)
         {
-            if (directory.listing.complete)
+            if (directory.listing.complete && !directory.listing.missing)
             {
                 continue;
             }
@@ -595,7 +617,8 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
             {
                 std::error_code error;
                 if (!game.path.empty() && !present.contains(game.path) && IsInside(game.path, directory.path) &&
-                    std::filesystem::is_regular_file(std::filesystem::path{Common::FS::ToU8String(game.path)}, error))
+                    (directory.listing.missing ||
+                     std::filesystem::is_regular_file(std::filesystem::path{Common::FS::ToU8String(game.path)}, error)))
                 {
                     present.insert(game.path);
                     games.push_back(std::move(game));
@@ -613,7 +636,7 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
     if (finished)
     {
         m_cache->Prune([&](const std::string & path) {
-            if (present.contains(path))
+            if (present.contains(path) || presentContent.contains(path))
             {
                 return true;
             }
@@ -622,10 +645,10 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
                     return (!directory.listing.complete || directory.listing.missing) && IsInside(path, directory.path);
                 });
             };
-            return unknownIn(gameDirectories) || unknownIn(addOnDirectories);
+            return unknownIn(gameDirectories) || unknownIn(contentDirectories);
         });
     }
-    if (!m_cache->Save())
+    if (!m_cache->Save(rootsComplete && !m_stop))
     {
         LOG_WARNING(Frontend, "Could not save the game library cache");
     }
@@ -642,6 +665,4 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
     std::lock_guard<std::mutex> lock(m_resultMutex);
     m_result = std::move(games);
     m_resultReady = true;
-    m_scanning = false;
-    m_readingGames = false;
 }

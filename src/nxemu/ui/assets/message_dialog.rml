@@ -1,0 +1,21 @@
+<rml>
+  <head>
+    <title>NXEmu</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="message_dialog.rcss" />
+  </head>
+  <body class="dialog-backdrop">
+    <div id="message-box" class="dialog message-dialog">
+      <div class="dialog-header">
+        <img src="images/window-icon.png" />
+        <div id="message-title" class="dialog-title" translate="no" />
+        <div class="dialog-close" data-command="close">&#xD7;</div>
+      </div>
+      <div id="message-text" class="message-body" translate="no" />
+      <div class="dialog-footer">
+        <button id="message-cancel" data-command="close">No</button>
+        <button id="message-accept" class="primary" data-command="accept" translate="no">OK</button>
+      </div>
+    </div>
+  </body>
+</rml>

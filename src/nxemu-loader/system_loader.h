@@ -1,6 +1,8 @@
 #pragma once
 #include <nxemu-module-spec/system_loader.h>
 #include <memory>
+#include <string>
+#include <vector>
 #include "core/file_sys/vfs/vfs_types.h"
 #include "core/file_sys/registered_cache.h"
 
@@ -54,6 +56,11 @@ public:
     LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,
                                        uint32_t buffer_size, uint32_t & actual_size) override;
     uint32_t GetContainerApplications(const char * utf8_path, uint64_t * application_ids, uint32_t max_count) override;
+    void RefreshGameContentIndex() override;
+    bool PublishGameContentSnapshot(const GameContentSnapshot & snapshot) override;
+    std::vector<std::string> GameContentFiles(uint64_t base_program_id);
+    std::vector<std::string> GameModificationRoots(uint64_t program_id);
+    bool IsInGameDirectory(const std::string & file_path) const;
 
 private:
     Systemloader() = delete;

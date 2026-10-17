@@ -16,6 +16,8 @@
 #include <nxemu/ui/library/game_library.h>
 #include <nxemu/ui/library/ui_preferences.h>
 #include <nxemu/ui/views/main_window.h>
+#include <nxemu/ui/views/message_dialog.h>
+#include <RmlUi/Core/Context.h>
 #include <string>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
@@ -122,7 +124,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
     const std::filesystem::path assetDir = FindAssetDirectory();
     if (assetDir.empty())
     {
-        std::cerr << "NXEmu: the interface files are missing\n";
+        notification.DisplayError("The interface files are missing. Reinstall NXEmu with its ui folder.", "NXEmu");
         return 1;
     }
 
@@ -137,7 +139,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
     const std::string title = std::string("NXEmu ") + VER_FILE_VERSION_STR;
     if (!window.Create(title.c_str(), kInitialWidth, kInitialHeight, assetDir))
     {
-        std::cerr << "NXEmu: " << window.Error() << '\n';
+        notification.DisplayError(window.Error().c_str(), "NXEmu");
         return 1;
     }
 
@@ -161,7 +163,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
     MainWindow mainWindow(window, session, library, assetDir);
     if (!mainWindow.Create())
     {
-        std::cerr << "NXEmu: unable to load the main window document\n";
+        notification.DisplayError(Tr("Unable to load the interface. Check that NXEmu's ui folder is complete.").c_str(), "NXEmu");
         return 1;
     }
     if (!gamePath.empty())
@@ -170,6 +172,39 @@ int Run(UiNotification & notification, const std::string & gamePath)
     }
 
     LiveResize liveResize{window, mainWindow};
+    notification.SetPresenter([&](bool question, const std::string & title, const std::string & text) {
+        // Module queries are synchronous. Process only modal input and drawing
+        // here: reentering MainWindow::Update could destroy the asking module.
+        const bool wasBusy = liveResize.busy;
+        liveResize.busy = true;
+        MessageDialog dialog(window.Context(), assetDir, question, title, text);
+        dialog.Show();
+        SDL_Event deferred{};
+        bool quitting = false;
+        while (dialog.IsVisible())
+        {
+            SDL_Event event;
+            while (SDL_PollEvent(&event))
+            {
+                if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
+                {
+                    deferred = event;
+                    quitting = true;
+                    dialog.Dismiss();
+                    break;
+                }
+                window.HandleEvent(event);
+            }
+            dialog.Update();
+            window.SyncNativeState();
+            window.Context()->Update();
+            window.PaceFrame();
+            window.Render(mainWindow.GameArea());
+        }
+        liveResize.busy = wasBusy;
+        if (quitting) SDL_PushEvent(&deferred);
+        return dialog.Response();
+    });
     SDL_AddEventWatch(&DrawWhileResizing, &liveResize);
 
     uint64_t lastChange = SDL_GetTicks64();
@@ -212,6 +247,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
         liveResize.busy = false;
     }
     SDL_DelEventWatch(&DrawWhileResizing, &liveResize);
+    notification.SetPresenter({});
     return 0;
 }
 } // namespace

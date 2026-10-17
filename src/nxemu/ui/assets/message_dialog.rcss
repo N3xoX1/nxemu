@@ -1,0 +1,24 @@
+.message-dialog
+{
+    width: 580dp;
+    max-width: 92vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+.message-dialog .dialog-header, .message-dialog .dialog-footer { flex-shrink: 0; }
+.message-body
+{
+    padding: 24dp 28dp;
+    max-height: 55vh;
+    min-height: 0;
+    flex-shrink: 1;
+    overflow-y: auto;
+    word-break: break-all;
+    font-size: 16dp;
+    line-height: 1.5;
+}
+body.narrow .message-dialog
+{
+    width: 92vw;
+}
