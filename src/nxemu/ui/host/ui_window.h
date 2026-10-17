@@ -1,10 +1,18 @@
 #pragma once
 #include "ui_renderer.h"
 #include <SDL.h>
+#include <SDL_metal.h>
 #include <filesystem>
+#include <memory>
 #include <nxemu-module-spec/base.h>
+#include <string>
 
 class SystemInterface_SDL;
+nxinterface IVideo;
+namespace Rml
+{
+class Context;
+}
 
 struct PixelRect
 {
@@ -35,9 +43,25 @@ public:
 
     SDL_Window * Handle() const { return m_window; }
     Rml::Context * Context() const { return m_context; }
+    UiRenderer & Renderer() { return *m_renderer; }
 
+    // RmlUi pixels per window coordinate unit.
+    float PixelScale() const { return m_pixelScale; }
+
+    void SetTitle(const std::string & title);
     bool IsFullscreen() const;
+    void SetFullscreen(bool fullscreen);
     bool IsMaximised() const;
+    void SetMaximised(bool maximised);
+    void Minimise();
+    void TitleBarDoubleClicked();
+
+    bool DrawsWindowControls() const { return m_frameless; }
+    int SystemTitleBarHeight() const { return m_systemTitleBar; }
+    int HiddenFrame() const { return m_hiddenFrame; }
+    void GetClientSize(int & width, int & height) const;
+    void SetClientSize(int width, int height);
+    void Centre();
 
     // IRenderWindow
     void * RenderSurface() const override;
@@ -50,9 +74,13 @@ private:
     UiWindow & operator=(const UiWindow &) = delete;
 
     bool Fail(const std::string & message);
+    bool LoadFonts(const std::filesystem::path & fontDir);
+    void SetWindowIcon(const std::filesystem::path & iconFile);
     void UpdateDimensions();
+    SDL_HitTestResult HitTest(const SDL_Point & point);
 
     SDL_Window * m_window = nullptr;
+    SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
     std::unique_ptr<UiRenderer> m_renderer;
     Rml::Context * m_context = nullptr;
@@ -61,7 +89,10 @@ private:
     int m_drawableHeight = 0;
     float m_pixelScale = 1.0f;
     bool m_frameless = false;
+    int m_systemTitleBar = 0;
     int m_hiddenFrame = 0;
+    uint64_t m_barPressTime = 0;
+    SDL_Point m_barPress{};
     uint64_t m_lastFrame = 0;
     uint64_t m_frameInterval = 0;
     bool m_sdlInitialised = false;

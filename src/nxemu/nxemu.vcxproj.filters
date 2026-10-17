@@ -61,6 +61,21 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{7c2e9a41-58d3-4b6f-a0e2-3f91c4d8b7a5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ui\views">
+      <UniqueIdentifier>{2ec3e075-c86d-4296-be48-9c42fd277d80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ui\i18n">
+      <UniqueIdentifier>{bf70b67e-19f4-4d1e-8a90-2035f81e0e24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui\views">
+      <UniqueIdentifier>{6e7b0f16-213a-4d72-b2de-67219738af4d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui\i18n">
+      <UniqueIdentifier>{c76bc9eb-ddd1-419d-b197-dc01f0c70987}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui\platform">
+      <UniqueIdentifier>{da3e8eb0-7cdf-43e4-ba22-3e05287a5bf4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -365,5 +380,52 @@
     <CustomBuild Include="ui\host\shaders\texture.frag">
       <Filter>Shaders</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ui\views\menu_bar.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\popup_menu.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\rml_events.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\i18n\translation.cpp">
+      <Filter>Source Files\ui\i18n</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\i18n\plural_rule.cpp">
+      <Filter>Source Files\ui\i18n</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\system_fonts.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\shell.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClInclude Include="ui\views\menu_bar.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\popup_menu.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\rml_events.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\i18n\translation.h">
+      <Filter>Header Files\ui\i18n</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\i18n\plural_rule.h">
+      <Filter>Header Files\ui\i18n</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\system_fonts.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\shell.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\platform\native_window.h">
+      <Filter>Header Files\ui\platform</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
