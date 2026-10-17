@@ -52,6 +52,11 @@ struct KernelCore::Impl {
     static constexpr size_t BlockInfoSlabHeapSize = 4000;
     static constexpr size_t ReservedDynamicPageCount = 64;
 
+    // A frontend may recreate the kernel on a host thread that survives it.
+    // Addresses can be reused, so TLS bindings need an identity per instance.
+    static inline std::atomic<u64> next_instance_id{1};
+    const u64 instance_id = next_instance_id.fetch_add(1, std::memory_order_relaxed);
+
     explicit Impl(Core::System& system_, KernelCore& kernel_) : system{system_} {}
 
     void SetMulticore(bool is_multi) {
@@ -373,16 +378,28 @@ struct KernelCore::Impl {
         return host_thread_id;
     }
 
-    // Gets the dummy KThread for the caller, allocating a new one if this is the first time
+    // A dummy thread contains references to its kernel. Recreate it when a
+    // persistent host thread enters a replacement kernel, before taking locks.
     LTO_NOINLINE KThread* GetHostDummyThread(KThread* existing_thread) {
-        const auto initialize{[](KThread* thread) LTO_NOINLINE {
-            ASSERT(KThread::InitializeDummyThread(thread, nullptr).IsSuccess());
-            return thread;
-        }};
-
-        thread_local KThread raw_thread{system.Kernel()};
-        thread_local KThread* thread = existing_thread ? existing_thread : initialize(&raw_thread);
-        return thread;
+        struct HostBinding {
+            u64 instance_id{};
+            std::unique_ptr<KThread> dummy;
+            KThread* thread{};
+        };
+        thread_local HostBinding binding;
+        if (binding.instance_id != instance_id) {
+            binding.thread = nullptr;
+            binding.dummy.reset();
+            binding.instance_id = instance_id;
+        }
+        if (existing_thread != nullptr) {
+            binding.thread = existing_thread;
+        } else if (binding.thread == nullptr) {
+            binding.dummy = std::make_unique<KThread>(system.Kernel());
+            ASSERT(KThread::InitializeDummyThread(binding.dummy.get(), nullptr).IsSuccess());
+            binding.thread = binding.dummy.get();
+        }
+        return binding.thread;
     }
 
     /// Registers a CPU core thread by allocating a host thread ID for it
@@ -423,15 +440,18 @@ struct KernelCore::Impl {
     }
 
     static inline thread_local KThread* current_thread{nullptr};
+    static inline thread_local u64 current_thread_instance_id{};
 
     LTO_NOINLINE KThread* GetCurrentEmuThread() {
-        if (!current_thread) {
+        if (!current_thread || current_thread_instance_id != instance_id) {
             current_thread = GetHostDummyThread(nullptr);
+            current_thread_instance_id = instance_id;
         }
         return current_thread;
     }
 
     LTO_NOINLINE void SetCurrentEmuThread(KThread* thread) {
+        current_thread_instance_id = instance_id;
         current_thread = thread;
     }
 

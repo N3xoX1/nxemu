@@ -40,9 +40,6 @@
 [submodule "external/vulkan_utility_libraries"]
 	path = external/vulkan_utility_libraries
 	url = https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-[submodule "external/sciterui"]
-	path = external/sciterui
-	url = https://github.com/N3xoX1/sciterui.git
 [submodule "external/tzdb_to_nx"]
 	path = external/tzdb_to_nx
 	url = https://github.com/lat9nq/tzdb_to_nx.git

@@ -1,0 +1,41 @@
+<rml>
+  <head>
+    <title>About NXEmu</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="about_dialog.rcss" />
+  </head>
+  <body class="dialog-backdrop">
+    <div class="dialog about-dialog">
+      <div class="dialog-header">
+        <img src="images/window-icon.png" />
+        <div class="dialog-title">About NXEmu</div>
+        <div class="dialog-close" data-command="close">&#xD7;</div>
+      </div>
+      <div class="about-body">
+        <div class="about-top">
+          <img class="about-logo" src="images/nxemu-logo.png" />
+          <div class="about-product">
+            <div class="about-name" translate="no">NXEmu</div>
+            <div id="about-version" class="about-muted" />
+            <div id="about-copyright" class="about-muted about-small" />
+          </div>
+        </div>
+        <p>NXEmu is an experimental open-source Nintendo Switch emulator.</p>
+        <p class="about-muted">You are responsible for ensuring your use of this software complies with the laws in your jurisdiction.</p>
+        <p class="about-credits-title">With thanks to</p>
+        <p class="about-muted">the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector</p>
+        <p>
+          <span class="link" data-url="https://www.nxemu.com/">Website</span>
+          <span class="about-muted"> | </span>
+          <span class="link" data-url="https://github.com/N3xoX1/nxemu">Source Code</span>
+          <span class="about-muted"> | </span>
+          <span class="link" data-url="https://discord.gg/hEa4hNyFWU" translate="no">Discord</span>
+        </p>
+        <p class="about-small">"Nintendo Switch" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way.</p>
+      </div>
+      <div class="dialog-footer">
+        <button class="primary" data-command="close">OK</button>
+      </div>
+    </div>
+  </body>
+</rml>

@@ -1,0 +1,70 @@
+<rml>
+  <head>
+    <title>Settings</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="settings_shell.rcss" />
+    <link type="text/rcss" href="profiles_dialog.rcss" />
+  </head>
+  <body class="dialog-backdrop">
+    <div class="dialog settings-dialog">
+      <div class="dialog-header settings-header">
+        <img src="images/window-icon.png" />
+        <div class="dialog-title">Settings</div>
+        <div class="settings-separator" />
+        <div class="settings-categories">
+          <div class="settings-category" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category selected"><img src="images/user.png" /><div>Profiles</div></div>
+          <div class="settings-category" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
+          <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
+          <div class="settings-category" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
+        </div>
+        <div class="dialog-close" data-command="close">&#xD7;</div>
+      </div>
+      <div class="settings-body">
+        <div class="settings-page">
+          <div class="settings-title">Profiles</div>
+          <div class="settings-text">The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one.</div>
+          <div class="profiles-locked-note">Profiles cannot change while a game is running.</div>
+          <div class="profiles-body">
+            <div id="profiles" class="profiles" />
+            <div class="avatars-panel">
+              <div class="avatars-title" data-upper="">Pictures of the console</div>
+              <div id="avatars" class="avatars" />
+              <div class="avatars-note loading">Reading the pictures of the console...</div>
+              <div class="avatars-note none">The console has no picture to offer: they come with its firmware. Install it from the File menu.</div>
+              <div class="avatars-actions">
+                <div class="colours-label">Background</div>
+                <div id="colours" class="colours" />
+                <div class="footer-space" />
+                <button data-command="avatars-back">Back</button>
+                <button class="primary avatar-use" data-command="avatar-use">Use this picture</button>
+              </div>
+            </div>
+            <div class="profile-editor">
+              <div id="picture" class="picture large" />
+              <button class="editor-button picture-button" data-command="avatars" title="One of the pictures the console offers its players">Choose a picture</button>
+              <button class="editor-button picture-button" data-command="picture" title="A picture of yours: it is resized to what the console uses">Picture from a file</button>
+              <div class="picture-note">This file is not a picture NXEmu can read.</div>
+              <div class="editor-label">Name</div>
+              <input id="name" type="text" maxlength="32" />
+              <button class="primary editor-button use" data-command="use" title="Games start as this player, with these saves">Play as this profile</button>
+              <div class="in-use"><img src="images/check.png" /><div>Games start as this profile</div></div>
+              <div class="editor-space" />
+              <button class="editor-button remove" data-command="remove">Delete profile</button>
+              <div class="remove-confirm">
+                <div id="remove-question" class="remove-question" />
+                <div class="remove-buttons">
+                  <button data-command="keep">Keep</button>
+                  <button class="danger" data-command="remove-confirmed">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button data-command="close">Close</button>
+      </div>
+    </div>
+  </body>
+</rml>

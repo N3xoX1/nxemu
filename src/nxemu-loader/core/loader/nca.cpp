@@ -56,20 +56,73 @@ AppLoader_NCA::LoadResult AppLoader_NCA::Load(Systemloader & loader, ISystemModu
     auto exefs = nca->GetExeFS();
     if (exefs == nullptr)
     {
-        LOG_INFO(Loader, "No ExeFS found in NCA, looking for ExeFS from update");
+        LOG_INFO(Loader, "No ExeFS found in NCA, looking for an enabled update ExeFS");
 
         // This NCA may be a sparse base of an installed title.
-        // Try to fetch the ExeFS from the installed update.
+        // Try to fetch the ExeFS from an enabled installed update.
         const auto& installed = loader.GetContentProvider();
-        const auto update_nca = installed.GetEntryNCA(FileSys::GetUpdateTitleID(nca->GetTitleId()), LoaderContentRecordType::Program);
+        const uint64_t title_id = nca->GetTitleId();
+        const uint64_t update_title_id = FileSys::GetUpdateTitleID(title_id);
+        const FileSys::ManualContentProvider *manual_provider = installed.GetManualContentProvider();
+        bool checked_manual_updates = false;
 
-        if (update_nca)
+        if (manual_provider != nullptr)
         {
-            exefs = update_nca->GetExeFS();
+            const std::vector<FileSys::ManualUpdateEntry> update_versions =
+                manual_provider->ListUpdateVersions(update_title_id);
+            if (!update_versions.empty())
+            {
+                checked_manual_updates = true;
+                for (const FileSys::ManualUpdateEntry& update_entry : update_versions)
+                {
+                    const std::string disabled_key =
+                        "Update@" + std::to_string(update_entry.version);
+                    if (loader.IsAddonDisabled(title_id, "Update") ||
+                        loader.IsAddonDisabled(title_id, disabled_key.c_str()))
+                    {
+                        continue;
+                    }
+
+                    const FileSys::VirtualFile update_file = manual_provider->GetEntryForVersion(
+                        update_title_id, LoaderContentRecordType::Program, update_entry.version);
+                    if (update_file != nullptr)
+                    {
+                        const FileSys::NCA update_nca(update_file);
+                        // BKTR needs the base for RomFS, but its standalone
+                        // ExeFS is already readable. This is a valid update.
+                        if (update_nca.GetStatus() == LoaderResultStatus::Success ||
+                            update_nca.GetStatus() == LoaderResultStatus::ErrorMissingBKTRBaseRomFS)
+                        {
+                            exefs = update_nca.GetExeFS();
+                        }
+                    }
+                    // PatchManager uses the first enabled version too. Never
+                    // mix an older update's executable with its RomFS.
+                    break;
+                }
+            }
+        }
+
+        if (!checked_manual_updates && !loader.IsAddonDisabled(title_id, "Update"))
+        {
+            const auto version = installed.GetEntryVersion(update_title_id);
+            const std::string disabled_key = "Update@" + std::to_string(version.value_or(0));
+            if (!loader.IsAddonDisabled(title_id, disabled_key.c_str()))
+            {
+                const auto update_nca = installed.GetEntryNCA(update_title_id, LoaderContentRecordType::Program);
+                if (update_nca && (update_nca->GetStatus() == LoaderResultStatus::Success ||
+                                   update_nca->GetStatus() == LoaderResultStatus::ErrorMissingBKTRBaseRomFS))
+                {
+                    exefs = update_nca->GetExeFS();
+                }
+            }
         }
 
         if (exefs == nullptr)
         {
+            LOG_ERROR(Loader,
+                      "No ExeFS is available for title_id={:016X}; the base has none and no enabled update provides one",
+                      title_id);
             return { LoaderResultStatus::ErrorNoExeFS, {}};
         }
     }

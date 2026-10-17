@@ -3,10 +3,17 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// The command-line script keeps Gradle outputs and native caches under build/.
+// Android Studio keeps its usual directories unless this property is supplied.
+val nxemuBuildDirectory = providers.gradleProperty("nxemuBuildDirectory").orNull?.let { file(it) }
+if (nxemuBuildDirectory != null) {
+    layout.buildDirectory.set(nxemuBuildDirectory.resolve("app"))
+}
+
 android {
     namespace = "org.nxemu"
     compileSdk = 36
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "30.0.16248370"
 
     defaultConfig {
         applicationId = "org.nxemu"
@@ -22,6 +29,11 @@ android {
         externalNativeBuild {
             cmake {
                 arguments("-DANDROID_ARM_NEON=true")
+                // Gradle's worker limit does not limit Ninja's compilation jobs.
+                arguments("-DNXEMU_COMPILE_JOBS=${providers.environmentVariable("NXEMU_BUILD_JOBS").getOrElse("2")}")
+                providers.environmentVariable("NXEMU_THINLTO_CACHE_DIR").orNull?.let {
+                    arguments("-DNXEMU_THINLTO_CACHE_DIR=$it")
+                }
                 abiFilters("arm64-v8a")
             }
         }
@@ -63,6 +75,9 @@ android {
         cmake {
             version = "3.22.1"
             path = file("../../../CMakeLists.txt")
+            if (nxemuBuildDirectory != null) {
+                buildStagingDirectory = nxemuBuildDirectory.resolve("native")
+            }
         }
     }
 }

@@ -1,0 +1,32 @@
+/* The explanation of what the mouse rests on. It lies over everything and
+   takes nothing from the mouse. */
+body
+{
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 100;
+    pointer-events: none;
+}
+
+#tip
+{
+    display: none;
+    position: absolute;
+    box-sizing: border-box;
+    max-width: 290dp;
+    padding: 7dp 10dp;
+    border: 1dp var(--border-strong);
+    border-radius: 6dp;
+    background-color: var(--raised);
+    color: var(--text);
+    font-size: 13dp;
+    pointer-events: none;
+}
+
+#tip.shown
+{
+    display: block;
+}

@@ -1,6 +1,8 @@
 #pragma once
 #include <nxemu-module-spec/system_loader.h>
 #include <memory>
+#include <string>
+#include <vector>
 #include "core/file_sys/vfs/vfs_types.h"
 #include "core/file_sys/registered_cache.h"
 
@@ -29,11 +31,10 @@ public:
     //ISystemloader
     bool Initialize() override;
     uint32_t GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const override;
-    bool LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
+    bool LoadRom(const char * fileName, uint64_t selected_program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
     IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * LoadedRomInfo() override;
-    bool ScanGameList(const char * const * gameDirs, uint32_t gameDirCount, IGameListScanCallback & callback) override;
 
     IFileSystemController & FileSystemController() override;
     IContentProvider & ContentProvider() override;
@@ -47,11 +48,19 @@ public:
     IFileSysNACP * GetPMControlMetadata(uint64_t programID) override;
     IManualContentProvider & ManualContentProvider() override;
     uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const override;
-    bool InstallFirmwarePackage(const char * utf8_path) override;
+    uint32_t GetGameCardFirmwareUpdate(const char * utf8_path, char * versionBuffer, uint32_t versionBufferSize) const override;
+    FirmwareInstallStatus InstallFirmwarePackage(const char * utf8_path, IFirmwareInstallObserver * observer, char * versionBuffer,
+                                                 uint32_t versionBufferSize) override;
     void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) override;
     bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
     LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,
                                        uint32_t buffer_size, uint32_t & actual_size) override;
+    uint32_t GetContainerApplications(const char * utf8_path, uint64_t * application_ids, uint32_t max_count) override;
+    void RefreshGameContentIndex() override;
+    bool PublishGameContentSnapshot(const GameContentSnapshot & snapshot) override;
+    std::vector<std::string> GameContentFiles(uint64_t base_program_id);
+    std::vector<std::string> GameModificationRoots(uint64_t program_id);
+    bool IsInGameDirectory(const std::string & file_path) const;
 
 private:
     Systemloader() = delete;

@@ -8,14 +8,18 @@ bool VulkanApi::Load(PFN_vkGetInstanceProcAddr getInstanceProcAddr, VkInstance i
         return false;
     }
     bool complete = true;
-#define NXEMU_VK_LOAD(name)                                                                 name = reinterpret_cast<PFN_vk##name>(GetInstanceProcAddr(instance, "vk" #name));     complete = complete && name != nullptr;
+#define NXEMU_VK_LOAD(name)                                                             \
+    name = reinterpret_cast<PFN_vk##name>(GetInstanceProcAddr(instance, "vk" #name)); \
+    complete = complete && name != nullptr;
     NXEMU_VK_INSTANCE_FUNCTIONS(NXEMU_VK_LOAD)
 #undef NXEMU_VK_LOAD
     if (!complete)
     {
         return false;
     }
-#define NXEMU_VK_LOAD(name)                                                             name = reinterpret_cast<PFN_vk##name>(GetDeviceProcAddr(device, "vk" #name));     complete = complete && name != nullptr;
+#define NXEMU_VK_LOAD(name)                                                         \
+    name = reinterpret_cast<PFN_vk##name>(GetDeviceProcAddr(device, "vk" #name)); \
+    complete = complete && name != nullptr;
     NXEMU_VK_DEVICE_FUNCTIONS(NXEMU_VK_LOAD)
 #undef NXEMU_VK_LOAD
     return complete;

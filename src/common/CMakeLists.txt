@@ -1,4 +1,6 @@
 add_library(common STATIC
+    atomic_file.cpp
+    atomic_file.h
     base64.cpp
     dynamic_library.cpp
     file.cpp

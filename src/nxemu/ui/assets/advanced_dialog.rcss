@@ -1,0 +1,209 @@
+/* The settings few need, in tabs of cards. */
+.advanced-page
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* One at a time: the one of the tab chosen. */
+.tab-page
+{
+    display: none;
+}
+
+body.tab-graphics #tab-graphics,
+body.tab-system #tab-system,
+body.tab-application #tab-application,
+body.tab-shortcuts #tab-shortcuts,
+body.page-debug #tab-debug
+{
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+.advanced-note
+{
+    display: none;
+    flex: 1;
+    padding: 8dp 4dp 8dp 14dp;
+    color: var(--text-muted);
+    font-size: 12dp;
+    text-align: right;
+}
+
+body.game-running .advanced-note
+{
+    display: block;
+}
+
+.advanced-footer
+{
+    display: flex;
+    align-items: center;
+}
+
+.advanced-footer button
+{
+    margin-left: 0;
+}
+
+.defaults-confirm
+{
+    display: none;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 13dp;
+}
+
+.defaults-confirm button
+{
+    margin-left: 10dp;
+}
+
+body.confirm-defaults .defaults-ask
+{
+    display: none;
+}
+
+body.confirm-defaults .defaults-confirm
+{
+    display: flex;
+}
+
+.footer-space
+{
+    flex: 1;
+}
+
+body.narrow .advanced-page
+{
+    display: block;
+}
+
+body.narrow.tab-graphics #tab-graphics,
+body.narrow.tab-system #tab-system,
+body.narrow.tab-application #tab-application,
+body.narrow.tab-shortcuts #tab-shortcuts,
+body.narrow.page-debug #tab-debug
+{
+    display: block;
+}
+
+body.narrow .advanced-note
+{
+    flex: none;
+    width: 100%;
+    padding: 8dp 4dp;
+    text-align: left;
+}
+
+/* A shortcut: its keys, on the button that asks for others. */
+.hotkey
+{
+    box-sizing: border-box;
+    width: 150dp;
+}
+
+.hotkey-binding
+{
+    display: flex;
+    align-items: center;
+    flex: none;
+    width: 150dp;
+    margin-left: 8dp;
+}
+
+.hotkey-binding .hotkey
+{
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    margin-left: 0;
+    padding: 6dp;
+}
+
+.hotkey-clear
+{
+    flex: none;
+    box-sizing: border-box;
+    width: 22dp;
+    margin-left: 4dp;
+    padding: 4dp 0;
+    color: var(--text-muted);
+}
+
+#tab-shortcuts .row
+{
+    min-height: 46dp;
+}
+
+body.tab-shortcuts .settings-dialog
+{
+    height: 1000dp;
+}
+
+#tab-shortcuts .cards-page
+{
+    flex-direction: column;
+}
+
+#tab-shortcuts .cards-column
+{
+    flex: none;
+}
+
+.hotkey-columns
+{
+    color: var(--text-muted);
+    font-size: 12dp;
+    min-height: 32dp;
+}
+
+.hotkey-columns .hotkey
+{
+    flex: none;
+    margin-left: 8dp;
+    text-align: center;
+}
+
+body.narrow #tab-shortcuts .hotkey-columns .hotkey,
+body.narrow #tab-shortcuts .hotkey-binding
+{
+    width: 130dp;
+}
+
+/* Keep the sections stacked when they fit. A short, wide window uses its
+   width to keep both sections in view; narrow windows retain scrolling. */
+@media (min-width: 1024dp) and (max-height: 1040dp)
+{
+    #tab-shortcuts .cards-page { flex-direction: row; }
+    #tab-shortcuts .cards-column:first-child { flex: 2; }
+    #tab-shortcuts .cards-column:last-child { flex: 3; }
+}
+
+.hotkey.asking
+{
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.hotkey-help,
+.hotkey-note
+{
+    margin: 0 4dp 8dp 4dp;
+    color: var(--text-muted);
+    font-size: 12dp;
+}
+
+.hotkey-note
+{
+    color: var(--warning);
+}
+
+body.page-debug .settings-tabs
+{
+    display: none;
+}

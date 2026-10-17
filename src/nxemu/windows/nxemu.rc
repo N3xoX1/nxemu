@@ -1,0 +1,36 @@
+// Windows resources of the NxEmu executable: its icon and version details.
+#include <winres.h>
+#include <nxemu-core/version.h>
+
+// The icon with the lowest identifier is the one Windows shows for the
+// executable, and the one the main window takes.
+1 ICON "icons\\nxemu.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION VER_FILE_VERSION
+ PRODUCTVERSION VER_PRODUCT_VERSION
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS VER_FILEFLAGS
+ FILEOS VER_FILEOS
+ FILETYPE VER_FILETYPE
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "0c0904b0"
+        BEGIN
+            VALUE "CompanyName", "Nxemu"
+            VALUE "FileDescription", VER_FILE_DESCRIPTION_STR "\0"
+            VALUE "FileVersion", VER_FILE_VERSION_STR "\0"
+            VALUE "InternalName", VER_INTERNAL_NAME_STR "\0"
+            VALUE "LegalCopyright", VER_COPYRIGHT_STR "\0"
+            VALUE "OriginalFilename", VER_ORIGINAL_FILENAME_STR "\0"
+            VALUE "ProductName", VER_PRODUCTNAME_STR
+            VALUE "ProductVersion", VER_PRODUCT_VERSION_STR "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0xc09, 1200
+    END
+END

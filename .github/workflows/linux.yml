@@ -1,0 +1,86 @@
+name: Linux
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CC: clang
+      CXX: clang++
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+      NXEMU_BUILD_JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang lld cmake ninja-build pkg-config ccache glslang-tools libsdl2-dev libdbus-1-dev libvulkan-dev libwayland-dev libasound2-dev libpulse-dev libusb-1.0-0-dev python3
+      - name: Prepare build cache paths
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          build_directory="${NXEMU_BUILD_DIRECTORY:-build/linux}"
+          case "$build_directory" in
+            /*) ;;
+            *) build_directory="$PWD/$build_directory" ;;
+          esac
+          mkdir -p "$build_directory"
+          {
+            echo "CCACHE_DIR=$build_directory/ccache"
+            echo "CCACHE_BASEDIR=$PWD"
+            echo "NXEMU_THINLTO_CACHE_DIR=$build_directory/thinlto-cache"
+          } >> "$GITHUB_ENV"
+      - name: Identify cache toolchain
+        id: toolchain
+        run: |
+          fingerprint=$( { clang --version; ld.lld --version; cmake --version; ninja --version; ccache --version; } | sha256sum | cut -d ' ' -f 1)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+      - name: Restore build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            ${{ env.NXEMU_THINLTO_CACHE_DIR }}
+          key: linux-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          restore-keys: |
+            linux-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-
+      - name: Reset compiler cache statistics
+        run: ccache --zero-stats
+      - name: Build
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: >-
+          sh src/script/build_linux.sh Release "${NXEMU_BUILD_DIRECTORY:-build/linux}"
+          -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF
+          -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR"
+          -DNXEMU_BUILD_GAME_SETTINGS_TESTS=ON -DNXEMU_BUILD_LIBRARY_CACHE_TESTS=ON
+      - name: Test
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build/linux}" --target nxemu_game_settings_tests nxemu_game_library_cache_tests nxemu_game_library_scan_tests --parallel "$NXEMU_BUILD_JOBS"
+          ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build/linux}" --output-on-failure
+      - name: Compiler cache statistics
+        if: ${{ always() }}
+        run: ccache --show-stats --verbose
+      - name: Package
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          mkdir -p package
+          tar -C bin/x64/Release -czf package/NxEmu-linux-x64.tar.gz nxemu modules ui
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NxEmu-linux-x64
+          path: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}/package/NxEmu-linux-x64.tar.gz
+          if-no-files-found: error

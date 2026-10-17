@@ -1,0 +1,485 @@
+/* The players of the console as tiles, and beside them what the selected one
+   is called and looks like. */
+.profiles-locked-note
+{
+    display: none;
+    margin-top: 10dp;
+    color: var(--warning);
+    font-size: 13dp;
+}
+
+body.profiles-locked .profiles-locked-note
+{
+    display: block;
+}
+
+.profiles-body
+{
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    margin-top: 16dp;
+}
+
+.profiles
+{
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+.profile
+{
+    box-sizing: border-box;
+    width: 132dp;
+    margin: 0 12dp 12dp 0;
+    padding: 14dp 8dp 10dp 8dp;
+    border: 1dp var(--raised);
+    border-radius: 8dp;
+    background-color: var(--chrome);
+    text-align: center;
+    cursor: pointer;
+}
+
+.profile:hover
+{
+    border-color: var(--border-strong);
+    background-color: var(--surface);
+}
+
+.profile.selected
+{
+    border-color: var(--accent);
+    background-color: var(--hover);
+}
+
+body.profiles-locked .profile
+{
+    cursor: default;
+}
+
+/* A picture, or the first letter of the name on a disc. */
+.picture
+{
+    width: 76dp;
+    height: 76dp;
+    margin: 0 auto;
+    border-radius: 38dp;
+    overflow: hidden;
+    background-color: var(--border);
+}
+
+.picture img
+{
+    width: 100%;
+    height: 100%;
+}
+
+.picture-initial
+{
+    line-height: 76dp;
+    color: var(--text-secondary);
+    font-size: 32dp;
+    font-weight: bold;
+    text-align: center;
+}
+
+.picture.large
+{
+    width: 120dp;
+    height: 120dp;
+    border-radius: 60dp;
+}
+
+.picture.large .picture-initial
+{
+    line-height: 120dp;
+    font-size: 50dp;
+}
+
+.profile.add .picture
+{
+    border: 1dp var(--border-strong);
+    background-color: transparent;
+}
+
+.profile.add .picture-initial
+{
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.profile.add .profile-name
+{
+    color: var(--text-muted);
+}
+
+.profile-name
+{
+    margin-top: 10dp;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-active
+{
+    display: inline-block;
+    visibility: hidden;
+    margin-top: 6dp;
+    padding: 1dp 8dp;
+    border-radius: 9dp;
+    background-color: var(--accent);
+    color: var(--on-accent);
+    font-size: 11dp;
+    font-weight: bold;
+}
+
+.profile.active .profile-active
+{
+    visibility: visible;
+}
+
+/* The pictures of the console, shown in place of the profiles while one is
+   chosen. */
+.avatars-panel
+{
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    margin-right: 6dp;
+}
+
+body.avatars-open .avatars-panel
+{
+    display: flex;
+}
+
+body.avatars-open .profiles,
+body.avatars-open .picture-button,
+body.avatars-open .use,
+body.avatars-open .remove
+{
+    display: none;
+}
+
+.avatars-title
+{
+    margin-bottom: 10dp;
+    color: var(--accent-text);
+    font-size: 12dp;
+    font-weight: bold;
+    letter-spacing: 1dp;
+}
+
+.avatars
+{
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.avatar
+{
+    flex: none;
+    width: 72dp;
+    margin: 0 6dp 6dp 0;
+    padding: 3dp;
+    border: 2dp transparent;
+    border-radius: 43dp;
+    cursor: pointer;
+}
+
+.avatar:hover
+{
+    border-color: var(--border-strong);
+}
+
+.avatar.selected
+{
+    border-color: var(--accent);
+}
+
+.avatar .picture
+{
+    width: 72dp;
+    height: 72dp;
+    border-radius: 36dp;
+}
+
+.avatars-note
+{
+    display: none;
+    flex: 1;
+    padding: 28dp 20dp;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+body.avatars-waiting .avatars-note.loading,
+body.no-avatar .avatars-note.none
+{
+    display: block;
+}
+
+body.avatars-waiting .avatars,
+body.no-avatar .avatars
+{
+    display: none;
+}
+
+.avatars-actions
+{
+    display: flex;
+    align-items: center;
+    padding: 10dp 0 4dp 0;
+}
+
+.avatars-actions button
+{
+    margin-left: 8dp;
+}
+
+.avatars-actions .footer-space
+{
+    flex: 1;
+}
+
+.colours-label
+{
+    margin-right: 10dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.colours
+{
+    display: flex;
+}
+
+.colour
+{
+    box-sizing: border-box;
+    width: 20dp;
+    height: 20dp;
+    margin-right: 5dp;
+    border: 2dp var(--chrome);
+    border-radius: 10dp;
+    cursor: pointer;
+}
+
+.colour.selected
+{
+    border-color: var(--text);
+}
+
+/* Nothing to use until a picture is chosen. */
+.avatar-use
+{
+    opacity: 0.4;
+    cursor: default;
+}
+
+body.avatar-chosen .avatar-use
+{
+    opacity: 1;
+    cursor: pointer;
+}
+
+body.no-avatar .colours-label,
+body.no-avatar .colours,
+body.no-avatar .avatar-use
+{
+    display: none;
+}
+
+/* The selected profile. */
+.profile-editor
+{
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 280dp;
+    margin-left: 8dp;
+    margin-bottom: 4dp;
+    padding: 20dp 18dp 16dp 18dp;
+    border: 1dp var(--raised);
+    border-radius: 8dp;
+    background-color: var(--chrome);
+}
+
+body.no-profile .profile-editor
+{
+    display: none;
+}
+
+.editor-button
+{
+    display: block;
+    margin-top: 12dp;
+}
+
+.editor-label
+{
+    margin-top: 18dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.profile-editor input.text
+{
+    box-sizing: border-box;
+    width: 100%;
+    height: 34dp;
+    margin-top: 6dp;
+    padding: 7dp 10dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+    line-height: 18dp;
+    color: var(--text);
+}
+
+.profile-editor input.text:focus
+{
+    border-color: var(--accent);
+}
+
+.profile-editor input.text:disabled
+{
+    opacity: 0.5;
+}
+
+.picture-note
+{
+    display: none;
+    margin-top: 8dp;
+    color: var(--warning);
+    font-size: 12dp;
+}
+
+body.picture-refused .picture-note
+{
+    display: block;
+}
+
+.in-use
+{
+    display: none;
+    align-items: center;
+    margin-top: 14dp;
+    color: var(--accent-text);
+    font-size: 13dp;
+}
+
+.in-use img
+{
+    width: 14dp;
+    height: 14dp;
+    margin-right: 8dp;
+    image-color: var(--accent-text);
+}
+
+body.active-selected .in-use
+{
+    display: flex;
+}
+
+body.active-selected .use
+{
+    display: none;
+}
+
+.editor-space
+{
+    flex: 1;
+    min-height: 16dp;
+}
+
+.remove-confirm
+{
+    display: none;
+}
+
+.remove-question
+{
+    color: var(--warning);
+    font-size: 13dp;
+}
+
+.remove-buttons
+{
+    display: flex;
+    margin-top: 10dp;
+}
+
+.remove-buttons button
+{
+    flex: 1;
+    margin-right: 8dp;
+}
+
+body.confirm-remove .remove-confirm
+{
+    display: block;
+}
+
+body.confirm-remove .remove,
+body.only-profile .remove
+{
+    display: none;
+}
+
+/* Nothing changes while a game runs. */
+body.profiles-locked .profile-editor button,
+body.profiles-locked .remove-confirm
+{
+    display: none;
+}
+
+/* A window too small: the editor goes under the tiles. */
+body.narrow .profiles-body
+{
+    display: block;
+}
+
+body.narrow .avatars
+{
+    overflow-y: visible;
+}
+
+body.narrow .avatars-actions
+{
+    flex-wrap: wrap;
+}
+
+body.narrow .profiles
+{
+    overflow-y: visible;
+}
+
+body.narrow .profile-editor
+{
+    width: auto;
+    margin: 4dp 0 16dp 0;
+}
+
+body.tight .profile
+{
+    width: 118dp;
+    margin-right: 8dp;
+}
+
+body.tight .profile-editor
+{
+    width: 240dp;
+}

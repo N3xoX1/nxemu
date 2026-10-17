@@ -1,0 +1,2561 @@
+# The texts of the interface of NXEmu.
+# Made from the sources by extract_strings.py: not to be edited by hand.
+#
+# A translation is a copy of this file named after its language, fr.po
+# for French, with each text of the language as its msgstr. %1, %2 and %n
+# stand for values and stay as they are; & comes before the letter that
+# opens a menu from the keyboard.
+msgid ""
+msgstr ""
+"Project-Id-Version: NXEmu\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: assets/about_dialog.rml
+msgid "About NXEmu"
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "NXEmu is an experimental open-source Nintendo Switch emulator."
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "You are responsible for ensuring your use of this software complies with the laws in your jurisdiction."
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "With thanks to"
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector"
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "Website"
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "Source Code"
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way."
+msgstr ""
+
+#: assets/about_dialog.rml
+msgid "OK"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/main_window.rml
+#: assets/profiles_dialog.rml
+#: views/hotkeys.h
+msgid "Settings"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "General"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Profiles"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Game directories"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Advanced"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Debug"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Graphics"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "System"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Application"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shortcuts"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Picture"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Anti-aliasing"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Smooths jagged edges."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Anisotropic filtering"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Keeps textures sharp seen at a slant."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Accuracy"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Accuracy level"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "How closely the graphics chip is imitated."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Videos at their own speed"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Even when the speed is not limited."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Textures and video"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "ASTC recompression"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Less graphics memory, for a lesser picture."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Graphics memory"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "How much of it games may take."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shaders"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep shaders on the disk"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Games stutter less from their second start."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Off only to look for a fault."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Build shaders in the background"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Less stutter; things can show late. A hack."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Performance"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep the graphics device busy"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "So that it does not slow its clock. Uses more power."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Processor and memory"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Console memory"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "More than the console has: for heavy mods."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Emulation"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/hotkeys.h
+#: views/settings_context.cpp
+msgid "Limit speed"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Off: as fast as the computer can."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "On, games run at the speed chosen: 100% is the speed of the console."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Audio"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Output device"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Where the sound of games is played."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Output mode"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Output engine"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "What plays the sound on this computer."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Input device"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "The microphone games listen to."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/main_window.rml
+#: views/hotkeys.h
+#: views/main_window.cpp
+msgid "Controllers"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Vibration"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "For every player. Each has a switch of their own."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Behaviour"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games in fullscreen"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games with UI hidden"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Confirm before stopping"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Asks before a running game is stopped."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Discord presence"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shows what you play in Discord when it runs."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Emulation diagnostics"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Processor engine"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "How the game's code is run."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Processor accuracy"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "For the engine that translates the code."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Driver pipeline cache"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shaders load faster with some drivers."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Memory reads"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "How carefully the chip reads what games write."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Command synchronization"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Keeps the order games give their commands in."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Slower, and steadier. Off, some games show faults, hang or crash."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Reactive flushing"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Brings memory up to date when it is read."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "More exact than guessing ahead when it will be read."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Barrier feedback loops"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Draws transparent things right in some games."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Video decoding"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "What decodes the videos of games."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Threads and input"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Graphics on their own thread"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Should stay on."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Presentation on its own thread"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "A little faster on some computers."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Multicore"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "The cores of the console on as many threads."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Off, games run on one thread: much slower, to look for a fault."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "CPU and system in step"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Keeps the processor and the system's answers in order."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Needs multicore."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Log"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Show the log console"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "The log is also written as it comes."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Log filter"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "What is written, as class:level."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "In game"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Restore defaults"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Inherit all settings"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Restore the defaults of all the tabs?"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Remove your overrides and re-enable NXEmu settings for this game?"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Keep"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Restore"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/firmware_dialog.rml
+#: assets/general_dialog.rml
+#: assets/main_window.rml
+#: assets/profiles_dialog.rml
+#: views/firmware_dialog.cpp
+msgid "Close"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "On, games see this player's controller as plugged into the console."
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Connected"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Controller"
+msgstr ""
+
+#: assets/controller_dialog.rml
+#: views/controller_dialog.cpp
+msgid "Left stick"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Deadzone"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Range"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Modifier range"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "D-pad"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "On, the controller shakes when games ask it to."
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Face buttons"
+msgstr ""
+
+#: assets/controller_dialog.rml
+#: views/controller_dialog.cpp
+msgid "Right stick"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Asks for each control in turn"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Bind all controls"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Binds this player's controls as the input device suggests"
+msgstr ""
+
+#: assets/controller_dialog.rml
+#: assets/firmware_dialog.rml
+msgid "Cancel"
+msgstr ""
+
+#: assets/controller_dialog.rml
+msgid "Save"
+msgstr ""
+
+#: assets/directories_dialog.rml
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
+msgstr ""
+
+#: assets/directories_dialog.rml
+msgid "Add a directory"
+msgstr ""
+
+#: assets/directories_dialog.rml
+msgid "The game directories cannot change while a game is running."
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Install firmware"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Source"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Install"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Finish"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Where is the firmware?"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Most games need the console's firmware. Choose the package to install it from, or drop it on this window."
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Firmware file"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "A .zip archive, or a .dxci game card image that carries an update"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Browse"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Firmware folder"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "A folder that holds the firmware's .nca files"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "The game starts afterwards, and without it if you would rather not."
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "The installed firmware stays in place until the new one is complete."
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Replace the installed firmware?"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Start without it"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Keep the installed one"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Replace"
+msgstr ""
+
+#: assets/firmware_dialog.rml
+msgid "Choose another source"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Display"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Graphics device"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Console mode"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "As on the television: games draw up to 1080p."
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+#: views/settings_context.cpp
+msgid "Docked"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/controller_dialog.cpp
+#: views/main_window.cpp
+msgid "Handheld"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Resolution"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Window filter"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "How the picture is fitted to the window."
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+msgid "Sharpness of the FSR filter"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Aspect ratio"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "The shape of the picture in the window."
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Vertical sync"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Whole pictures only: no tearing."
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Profile"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Who plays, with saves of their own."
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Add players, and change their names and pictures"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Manage"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Language"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Console language"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "The language games are shown in."
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Region"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "On, the region is the one chosen here. Off, it follows the console language."
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Interface language"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "On, the interface language is chosen here. Off, it follows the console language."
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Restart"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Pause emulation (F2)"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Stop emulation (F5)"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Minimise"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Maximise or restore"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Library"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Search games..."
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Sort games"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Icon size"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Title"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Card information"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Play time"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "List view"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Shows or hides the details of the selected game"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Details"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Cover"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Game"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Publisher"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Version"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Last played"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Format"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Size"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Actions"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Select a game to see its details."
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Play"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Configure"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Saves"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Cache"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Mods"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Scanning games..."
+msgstr ""
+
+#: assets/main_window.rml
+#: views/loading_screen.cpp
+msgid "Loading"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Paused"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "The resolution games are drawn at"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Window filter: only applies when the game's resolution is lower than the window size"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr ""
+
+#: assets/message_dialog.rml
+msgid "No"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Profiles cannot change while a game is running."
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Pictures of the console"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Reading the pictures of the console..."
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "The console has no picture to offer: they come with its firmware. Install it from the File menu."
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Background"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Back"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Use this picture"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "One of the pictures the console offers its players"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Choose a picture"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "A picture of yours: it is resized to what the console uses"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Picture from a file"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "This file is not a picture NXEmu can read."
+msgstr ""
+
+#: assets/profiles_dialog.rml
+#: views/main_window.cpp
+msgid "Name"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Games start as this player, with these saves"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Play as this profile"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Games start as this profile"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Delete profile"
+msgstr ""
+
+#: assets/profiles_dialog.rml
+msgid "Delete"
+msgstr ""
+
+#: emulation/emulator_session.cpp
+msgid "Stop the current game before opening another one."
+msgstr ""
+
+#: emulation/emulator_session.cpp
+msgid "Required modules failed to reload after stopping the game."
+msgstr ""
+
+#: emulation/emulator_session.cpp
+msgid ""
+"The game file does not exist:\n"
+"%1"
+msgstr ""
+
+#: emulation/emulator_session.cpp
+#: ui_application.cpp
+msgid "Required modules failed to load."
+msgstr ""
+
+#: emulation/emulator_session.cpp
+msgid ""
+"This game has no usable executable (ExeFS).\n"
+"\n"
+"If this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n"
+"\n"
+"Game: %1"
+msgstr ""
+
+#: emulation/emulator_session.cpp
+msgid ""
+"Could not load the game:\n"
+"%1\n"
+"\n"
+"Loader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Left"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Right"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Down"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Up"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Plus"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Minus"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Home"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Capture"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Stick L"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Stick R"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Start"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Circle"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Cross"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Square"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Triangle"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Share"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Options"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Touch"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Wheel"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Backward"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Forward"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Task"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Extra"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Turbo"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Toggle"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Not"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Invalid"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Hat %1"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Axis %1"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Axes %1, %2, %3"
+msgstr ""
+
+#: input/input_text.cpp
+msgid "Motion %1"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/hotkeys.cpp
+msgid "Button %1"
+msgstr ""
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Unknown"
+msgstr ""
+
+#: library/play_time.cpp
+msgid "< 1m"
+msgstr ""
+
+#. a time played, in minutes, then in hours and minutes.
+#: library/play_time.cpp
+msgid "%1m"
+msgstr ""
+
+#. a time played, in minutes, then in hours and minutes.
+#: library/play_time.cpp
+msgid "%1h %2m"
+msgstr ""
+
+#. a date and a time, in the syntax of strftime. The names of the months it gives are English: use %m where they would not do.
+#: library/play_time.cpp
+msgid "%b %d, %Y  %H:%M"
+msgstr ""
+
+#: library/play_time.cpp
+msgid "Just now"
+msgstr ""
+
+#: library/play_time.cpp
+msgid "%n minute ago"
+msgid_plural "%n minutes ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: library/play_time.cpp
+msgid "%n hour ago"
+msgid_plural "%n hours ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: library/play_time.cpp
+msgid "%n day ago"
+msgid_plural "%n days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: library/play_time.cpp
+msgid "%n week ago"
+msgid_plural "%n weeks ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: library/play_time.cpp
+msgid "%n month ago"
+msgid_plural "%n months ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: library/play_time.cpp
+msgid "%n year ago"
+msgid_plural "%n years ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui_application.cpp
+msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
+msgstr ""
+
+#: ui_application.cpp
+msgid "Vulkan could not be initialised. Update the graphics driver and try again."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "None"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The picture as the game draws it."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Light work, a little blur. The steadier picture at low resolutions."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The best picture, for more work."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Automatic"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Follows the resolution chosen."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "As the game asks"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "What the console would do."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The sharpest. Light work for most graphics devices."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Normal"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The fastest. Most games look right; particles often do not."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "High"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "What some games need to look right. Some need it from their start."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Extreme"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Slow: to look for a fault."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "As the accuracy level"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Safe when the accuracy level is High or Extreme."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Unsafe"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Faster."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Safe"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Steadier: it fixes some games."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Processor"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The slowest, and the safest."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The usual choice."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Processor, in the background"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "No stutter, but textures show wrong until they are decoded."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The best picture, and the most memory."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "BC1 (low quality)"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The least memory."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "BC3 (medium quality)"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Less memory."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Conservative"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Leaves memory to the other applications."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Aggressive"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Takes what there is: other applications can slow down. No effect on graphics built into the processor."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The fastest in most cases."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "When the graphics device shows videos wrong."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Videos stay black."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Translated (Dynarmic)"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The code is translated for this computer's processor. Runs every game."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Native (NCE)"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The code runs as it is on this computer's processor. The fastest; the games it cannot run are translated."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Accurate"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Slower: for a game that misbehaves."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Faster, and some games break."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Paranoid"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Very slow: to look for a fault."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "4 GB"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "What the console has."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "6 GB"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "For mods that need more console memory."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "8 GB"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "None (no sound)"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The one that suits this computer."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/general_dialog.cpp
+msgid "System default"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The one the computer records from."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "%1 (not connected)"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Games listen to the default of the computer until it is back."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The one the computer plays its sounds on."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Games play on the default of the computer until it is back."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Stereo"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Surround"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Mono"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "One channel."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "A shortcut is a function key, or a key with %1 or Alt."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "%1 is already the shortcut of \"%2\"."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Press the buttons..."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Press the keys..."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/hotkeys.cpp
+msgid "Not assigned"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Clear shortcut"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/controller_dialog.cpp
+msgid "Keyboard"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Gamepad"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Pressed"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Modifier"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Left SL"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Left SR"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Right SL"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Right SR"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Motion 1"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Motion 2"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Pro Controller"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Dual Joy-Cons"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Left Joy-Con"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Right Joy-Con"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "GameCube Controller"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "The controller's gyroscope, for games played by tilting or shaking it"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Unbind"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Any device"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Not connected"
+msgstr ""
+
+#: views/controller_dialog.cpp
+#: views/profiles_dialog.cpp
+msgid "Player %1"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Press..."
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Not set"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Control stick"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "C-stick"
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Click a control or a button of the picture to bind it."
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Press a key, or move the stick sideways and then up and down."
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Shake a controller that has a gyroscope, or press a key that will stand for a shake."
+msgstr ""
+
+#: views/controller_dialog.cpp
+msgid "Press a key or a button."
+msgstr ""
+
+#. %1 is what to do, %2 the seconds left to do it.
+#: views/controller_dialog.cpp
+msgid "%1 Esc cancels. (%2)"
+msgstr ""
+
+#: views/directories_dialog.cpp
+msgid "Not found: the games in it are not shown."
+msgstr ""
+
+#: views/directories_dialog.cpp
+msgid "Remove"
+msgstr ""
+
+#: views/directories_dialog.cpp
+msgid "No game directory yet. Add the folders your games are in."
+msgstr ""
+
+#: views/directories_dialog.cpp
+msgid "Choose a game directory"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+#: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 MB"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Firmware installed"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Games can use it from now on."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Installation cancelled"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The source could not be read"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Check that the file or the folder is still there and that NXEmu may read it."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "No firmware found there"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The console's storage cannot be written"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Check that NXEmu may write to its data folder, then try again."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The firmware could not be replaced"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was put back. The log tells what went wrong."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Copying the firmware failed"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was. Check the free disk space; the log tells what went wrong."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Start the game"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "This game carries firmware %1"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "No firmware is installed yet, and most games need one. NXEmu can install the game's before starting it."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Firmware"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+#: views/main_window.cpp
+msgid "All files"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Choose the folder that holds the firmware"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "No firmware is installed yet."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 is installed."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Copying the firmware..."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+#: views/main_window.cpp
+msgid "%1 of %2"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Checking the firmware..."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "File %1 of %2"
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Putting the firmware in place..."
+msgstr ""
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 installed"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Updates"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "DLC"
+msgstr ""
+
+#: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 GB"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "%1 KB"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Version %1, title ID %2"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "DLC %1"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "This game has not saved anything yet"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder this game saves in"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "This game has no shader cache yet"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder of this game's shader cache"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder this game's mods go in"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Add-on content"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "%n item"
+msgid_plural "%n items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: views/game_details_panel.cpp
+msgid "No update, DLC or mod found for this game."
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Remove User override; inherit NXEmu or global settings"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Disable NXEmu override for this game"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Enable NXEmu override for this game"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Replaced by User"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Disabled"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "User"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "User overrides"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "NXEmu overrides"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Japan"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Americas"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Europe"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Australia"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "China"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Korea"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Taiwan"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "For games modified to draw this shape. The others are squeezed into it."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "The shape of the console's picture. The right choice for nearly every game."
+msgstr ""
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "Stretch to the window"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Fills the window whatever its shape. The picture is deformed."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "On"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Each picture waits for the screen. No tearing: the usual choice."
+msgstr ""
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "On, late pictures tear"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "As On, but a picture that comes late is shown at once. It tears instead of stuttering."
+msgstr ""
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "On, lowest delay"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "The screen always gets the newest picture. No tearing and less delay, for more work. Not every computer can do it."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Off"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Pictures are shown as soon as they are drawn. The least delay, but the picture can tear."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Built into the processor."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "A graphics card."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Not available"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "What the console draws."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Less than the console draws: blurrier, for a computer that struggles."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "More than the console draws: sharper, and more work for the graphics device."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "%1 (native)"
+msgstr ""
+
+#: views/general_dialog.cpp
+#: views/main_window.cpp
+msgid "Gaussian"
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Games are drawn in %1p."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Chosen here, whatever the language."
+msgstr ""
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "Follows the console language."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "This is the graphics built into the processor. Games run better on %1."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "Used from the next game on."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "What draws the games: this computer has %1."
+msgstr ""
+
+#: views/general_dialog.cpp
+msgid "What draws the games."
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Load a file"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Exit"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Fullscreen"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Leave fullscreen"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Hide or show the interface"
+msgstr ""
+
+#: views/hotkeys.h
+#: views/main_window.cpp
+msgid "Show performance"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Pause or continue"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Stop the game"
+msgstr ""
+
+#: views/hotkeys.h
+msgid "Docked or handheld"
+msgstr ""
+
+#: views/loading_screen.cpp
+msgid "Opening the game..."
+msgstr ""
+
+#: views/loading_screen.cpp
+msgid "Preparing shaders"
+msgstr ""
+
+#: views/loading_screen.cpp
+msgid "Starting..."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Recent"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "NXEmu - Exit"
+msgstr ""
+
+#: views/main_window.cpp
+msgid ""
+"Clear the shader cache for %1?\n"
+"\n"
+"Shaders will be rebuilt the next time you play."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Clear cache"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Could not clear the cache: %1"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Load File"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Recent File"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open &NXEmu Folders"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&App Directory"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Log Folder"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Settings"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Install &Firmware"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "E&xit"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&File"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Continue"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Pause"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Stop"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Limit &Speed"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Fullscreen"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Show &UI"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Hide &UI"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Measures per second"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "History length"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "How many measures the history shows"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Window size"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Performance overlay"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Emulation"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Help"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Discord"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&Report Issues"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "&About NXEmu"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "%n game"
+msgid_plural "%n games"
+msgstr[0] ""
+msgstr[1] ""
+
+#: views/main_window.cpp
+msgid "No game matches your search."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "No game directory yet."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Add one in the settings"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "No games found in your game directories."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Change them in the settings"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Never"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "More actions"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Title ID"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Start Game"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Game settings"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open saves"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open cache"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open Containing Folder"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Resume emulation (F2)"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Press %1 or %2 to leave fullscreen"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Press %1 to show the interface"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Manage profiles"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Default"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Sharpness: once FSR is the filter"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Use game settings"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "The resolution scale cannot change while a game is running"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "The profile cannot change while a game is running"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "The profile games start as: its saves are the ones used"
+msgstr ""
+
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "Building: %n shader"
+msgid_plural "Building: %n shaders"
+msgstr[0] ""
+msgstr[1] ""
+
+#: views/main_window.cpp
+msgid "Firmware: %1"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Switch games"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "NXEmu - Stop Emulation"
+msgstr ""
+
+#: views/main_window.cpp
+msgid ""
+"The currently running application has requested NXEmu to not exit.\n"
+"\n"
+"Would you like to bypass this and stop emulation anyway?"
+msgstr ""
+
+#: views/main_window.cpp
+msgid ""
+"Are you sure you want to stop the emulation?\n"
+"\n"
+"Any unsaved progress will be lost."
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "History"
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "Lowest, average and highest"
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "Frame time"
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "Longest frame"
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "Emulation speed"
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "Processor use"
+msgstr ""
+
+#: views/performance_overlay.h
+msgid "Memory use"
+msgstr ""
+
+#: views/profiles_dialog.cpp
+msgid "Active"
+msgstr ""
+
+#: views/profiles_dialog.cpp
+msgid "A new player, with saves of their own"
+msgstr ""
+
+#: views/profiles_dialog.cpp
+msgid "New profile"
+msgstr ""
+
+#: views/profiles_dialog.cpp
+msgid "Delete %1? Its saves stay on the disk."
+msgstr ""
+
+#: views/profiles_dialog.cpp
+msgid "Pictures"
+msgstr ""
+
+#: views/scaling_filters.h
+#: views/settings_context.cpp
+msgid "Nearest neighbour"
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Sharp squares, for pixel art. The lightest."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Bilinear"
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Smooth. The usual choice, and light."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Bicubic"
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "A little sharper than bilinear, for slightly more work."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Sharp edges, best for 2D games and drawings. Heavier."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Volume"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Sharpness"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Settings for %1"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Global < NXEmu < User. Editing a setting creates a User override; Inherit removes it. Changes apply on the next launch."
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Choices in the status bar take priority over these settings."
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "User override"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "NXEmu override"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Inherit"
+msgstr ""
+
+#: views/volume_control.cpp
+msgid "Muted: click to hear the games again"
+msgstr ""
+
+#: views/volume_control.cpp
+msgid "Mute"
+msgstr ""

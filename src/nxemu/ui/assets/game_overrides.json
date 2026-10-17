@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "games": {
+        "0100000000010000": {
+            "name": "Super Mario Odyssey",
+            "settings": {
+                "nxvideo:AccuracyLevel": 1
+            }
+        }
+    }
+}

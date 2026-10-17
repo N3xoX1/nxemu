@@ -1,20 +1,15 @@
 #pragma once
 #include "core/file_sys/vfs/vfs_types.h"
-#include <map>
 #include <memory>
 #include <nxemu-loader/core/loader/loader.h>
+#include <vector>
 
 class Systemloader;
 nxinterface IManualContentProvider;
-
 namespace FileSys
 {
-class NSP;
+struct Patch;
 }
-
-using UpdateVersionMap = std::map<uint64_t, uint32_t>;
-
-void CollectUpdateVersions(const FileSys::NSP & nsp, UpdateVersionMap & versions);
 
 class RomInfo :
     public IRomInfo
@@ -36,11 +31,16 @@ public:
     void AddToManualContentProvider(IManualContentProvider & provider) override;
     void PrepareManualContent() override;
     uint32_t GetGamePatches(GamePatchInfo * patches, uint32_t maxCount) override;
+    uint32_t GetAddOnContents(GameAddOnContentInfo * contents, uint32_t maxCount) override;
+    LoaderResultStatus ReadActiveUpdateVersion(char * buffer, uint32_t * bufferSize) override;
+    IFileSysNACP * GetBaseControlMetadata() override;
     IFileSysNACP * GetControlMetadata() override;
     void Release() override;
     IVirtualFile * ReadManualRomFS() override;
 
 private:
+    void PrepareManualContentFor(IManualContentProvider & provider);
+    std::vector<FileSys::Patch> GetPatchesForThisRom();
     RomInfo() = delete;
     RomInfo(const RomInfo &) = delete;
     RomInfo & operator=(const RomInfo &) = delete;

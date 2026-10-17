@@ -11,6 +11,8 @@
 
 namespace
 {
+// The attributes whose value is shown: an explanation, and the hint of an
+// empty field.
 constexpr const char * kShownAttributes[] = {"title", "placeholder"};
 
 struct Catalogue
@@ -26,6 +28,8 @@ Catalogue & Current()
     return catalogue;
 }
 
+// A text as the catalogue has it: spaces and line ends as one space, none
+// at the ends. How a document is laid out in its file does not matter.
 std::string Normalised(const std::string & text)
 {
     std::string result;
@@ -56,6 +60,8 @@ void Replace(std::string & text, const std::string & what, const std::string & w
     }
 }
 
+// The text between the quotes of a line of a catalogue, with its escapes
+// read. False when the line has no quoted text.
 bool Quoted(const std::string & line, std::string & text)
 {
     const size_t first = line.find('"');
@@ -77,6 +83,7 @@ bool Quoted(const std::string & line, std::string & text)
     return true;
 }
 
+// An entry of a catalogue, as it is read.
 struct Entry
 {
     std::string text;
@@ -92,6 +99,7 @@ struct Entry
         }
         if (text.empty())
         {
+            // The heading of the catalogue: it tells how the language counts.
             const size_t at = forms[0].find("Plural-Forms:");
             if (at != std::string::npos)
             {
@@ -114,6 +122,8 @@ bool StartsWith(const std::string & line, const char * prefix)
     return line.rfind(prefix, 0) == 0;
 }
 
+// The translation of a text of a document. False when it has none, or one
+// that RmlUi would read as markup rather than show.
 bool Translated(const std::string & text, std::string & translated)
 {
     const Catalogue & catalogue = Current();
@@ -130,6 +140,8 @@ bool Translated(const std::string & text, std::string & translated)
     return true;
 }
 
+// Keep English sources on the original DOM nodes. Replacing a node's
+// contents in a view removes that source along with the old text node.
 void DocumentTexts(Rml::Element & element, bool remember, bool upper = false)
 {
     upper = upper || element.HasAttribute("data-upper");
@@ -162,11 +174,14 @@ void DocumentTexts(Rml::Element & element, bool remember, bool upper = false)
     for (int index = 0; index < element.GetNumChildren(); ++index) DocumentTexts(*element.GetChild(index), remember, upper);
 }
 
+// The capital of a letter of the Latin, Greek and Cyrillic alphabets; any
+// other character is returned as it is.
 char32_t UpperLetter(char32_t letter)
 {
     if (letter >= U'a' && letter <= U'z') return letter - 0x20;
     if (letter >= 0xE0 && letter <= 0xFE && letter != 0xF7) return letter - 0x20;
     if (letter == 0xFF) return 0x178;
+    // Latin Extended-A: pairs of a capital and its small letter.
     if ((letter >= 0x100 && letter <= 0x137) || (letter >= 0x14A && letter <= 0x177)) return letter & ~char32_t(1);
     if ((letter >= 0x139 && letter <= 0x148) || (letter >= 0x179 && letter <= 0x17E)) return letter % 2 == 0 ? letter - 1 : letter;
     if (letter == 0x3C2) return 0x3A3;
@@ -183,6 +198,7 @@ std::string TrUpper(const std::string & text)
     upper.reserve(text.size());
     for (size_t index = 0; index < text.size();)
     {
+        // Letters with a capital take one or two bytes; the rest is copied.
         const unsigned char lead = static_cast<unsigned char>(text[index]);
         const bool pair = (lead & 0xE0) == 0xC0 && index + 1 < text.size();
         if (lead >= 0x80 && !pair)
@@ -215,6 +231,7 @@ std::string Tr(const char * text)
 std::string Tr(const char * text, std::initializer_list<std::string> values)
 {
     std::string result = Tr(text);
+    // From the last, so that %1 does not take the start of %10.
     size_t number = values.size();
     for (auto value = values.end(); value != values.begin(); --number)
     {
@@ -315,6 +332,7 @@ bool Load(const std::filesystem::path & file)
         }
         if (StartsWith(line, "msgid_plural"))
         {
+            // The English text for the other counts: the entry is found by the one for one.
             entry.counted = true;
             continued = nullptr;
         }
@@ -357,6 +375,8 @@ void Clear()
 
 Rml::ElementDocument * LoadDocument(Rml::Context & context, const std::filesystem::path & file)
 {
+    // RmlUi finds the directory that a document's images are relative to by
+    // forward slashes only.
     Rml::ElementDocument * document = context.LoadDocument(Common::FS::PathToUTF8String(file.generic_u8string()));
     if (document != nullptr) DocumentTexts(*document, true);
     return document;

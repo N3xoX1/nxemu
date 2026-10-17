@@ -257,6 +257,7 @@ void SystemModules::ShutDown()
 
 void SystemModules::FlushSettings(void)
 {
+    SettingsStore::GlobalReadScope globalSettings;
     for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
     {
         (*itr)->FlushSettings();

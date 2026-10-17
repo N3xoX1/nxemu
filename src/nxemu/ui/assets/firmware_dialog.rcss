@@ -1,0 +1,286 @@
+.firmware-dialog
+{
+    width: 560dp;
+}
+
+body.narrow .firmware-dialog
+{
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    border-width: 0;
+    border-radius: 0;
+}
+
+/* Where the installation has got to. */
+.wizard-steps
+{
+    display: flex;
+    align-items: center;
+    padding: 18dp 30dp 4dp 30dp;
+}
+
+.wizard-step
+{
+    display: flex;
+    align-items: center;
+    color: var(--text-disabled);
+}
+
+.wizard-dot
+{
+    box-sizing: border-box;
+    width: 24dp;
+    height: 24dp;
+    margin-right: 8dp;
+    border: 1dp var(--border-strong);
+    border-radius: 12dp;
+    line-height: 22dp;
+    font-size: 13dp;
+    text-align: center;
+}
+
+.wizard-dot span
+{
+    display: block;
+}
+
+.wizard-dot img
+{
+    display: none;
+    width: 14dp;
+    height: 14dp;
+    margin: 4dp;
+}
+
+.wizard-step.current
+{
+    color: var(--text);
+}
+
+.wizard-step.current .wizard-dot
+{
+    border-color: var(--accent);
+    background-color: var(--accent);
+    color: var(--on-accent);
+}
+
+.wizard-step.passed .wizard-dot
+{
+    border-color: var(--accent);
+}
+
+.wizard-step.passed .wizard-dot span
+{
+    display: none;
+}
+
+.wizard-step.passed .wizard-dot img
+{
+    display: block;
+    image-color: var(--accent-hover);
+}
+
+.wizard-line
+{
+    flex: 1;
+    height: 1dp;
+    margin: 0 12dp;
+    background-color: var(--border);
+}
+
+.wizard-body
+{
+    height: 262dp;
+    padding: 20dp 30dp 6dp 30dp;
+}
+
+body.narrow .wizard-body
+{
+    flex: 1;
+}
+
+.wizard-page
+{
+    display: none;
+}
+
+.at-source .page-source,
+.at-offer .page-offer,
+.at-install .page-install,
+.at-ask .page-ask,
+.at-done .page-done
+{
+    display: block;
+}
+
+.wizard-heading
+{
+    margin-bottom: 8dp;
+    font-size: 19dp;
+    font-weight: bold;
+}
+
+.wizard-text
+{
+    margin-bottom: 16dp;
+    color: var(--text-secondary);
+    line-height: 21dp;
+}
+
+.wizard-note
+{
+    margin-bottom: 14dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.source-option
+{
+    display: flex;
+    align-items: center;
+    margin-bottom: 10dp;
+    padding: 12dp 14dp;
+    border: 1dp var(--border);
+    border-radius: 8dp;
+    background-color: var(--surface);
+    cursor: pointer;
+}
+
+.source-option:hover
+{
+    border-color: var(--accent);
+    background-color: var(--hover);
+}
+
+.source-option img
+{
+    width: 26dp;
+    height: 26dp;
+    margin-right: 14dp;
+    image-color: var(--accent-text);
+}
+
+.source-texts
+{
+    flex: 1;
+}
+
+.source-title
+{
+    margin-bottom: 2dp;
+    font-weight: bold;
+}
+
+.source-hint
+{
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.source-go
+{
+    margin-left: 12dp;
+    color: var(--accent-text);
+}
+
+.progress-track
+{
+    height: 8dp;
+    margin: 14dp 0 10dp 0;
+    border-radius: 4dp;
+    background-color: var(--raised);
+    overflow: hidden;
+}
+
+#install-fill
+{
+    width: 0%;
+    height: 100%;
+    border-radius: 4dp;
+    background-color: var(--accent);
+}
+
+/* Nothing to measure: the bar moves instead of filling. */
+#install-fill.indeterminate
+{
+    width: 40%;
+    animation: 0.85s cubic-in-out infinite alternate firmware-pulse;
+}
+
+@keyframes firmware-pulse
+{
+    from { opacity: 0.5; transform: translateX(0%); }
+    to { opacity: 1; transform: translateX(150%); }
+}
+
+.result
+{
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10dp;
+}
+
+.result-badge
+{
+    width: 44dp;
+    height: 44dp;
+    margin-right: 16dp;
+    border-radius: 22dp;
+    background-color: var(--success-surface);
+}
+
+.result-badge img
+{
+    width: 24dp;
+    height: 24dp;
+    margin: 10dp;
+}
+
+.result-success
+{
+    image-color: var(--success);
+}
+
+.result-failure
+{
+    display: none;
+    image-color: var(--warning);
+}
+
+.failed .result-badge
+{
+    background-color: var(--warning-surface);
+}
+
+.failed .result-success
+{
+    display: none;
+}
+
+.failed .result-failure
+{
+    display: block;
+}
+
+.result-texts
+{
+    flex: 1;
+}
+
+.dialog-footer button
+{
+    display: none;
+}
+
+.at-source button.for-source,
+.at-offer button.for-offer,
+.at-install button.for-install,
+.at-ask button.for-ask,
+.at-done button.for-done,
+.at-done.failed button.for-failed
+{
+    display: inline-block;
+}

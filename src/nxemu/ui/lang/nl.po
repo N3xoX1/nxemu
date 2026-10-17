@@ -1,0 +1,2533 @@
+# NXEmu interface translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: NXEmu\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: assets/about_dialog.rml
+msgid "About NXEmu"
+msgstr "Over NXEmu"
+
+#: assets/about_dialog.rml
+msgid "NXEmu is an experimental open-source Nintendo Switch emulator."
+msgstr "NXEmu is een experimentele en open source Nintendo Switch-emulator."
+
+#: assets/about_dialog.rml
+msgid "You are responsible for ensuring your use of this software complies with the laws in your jurisdiction."
+msgstr "Het is uw verantwoordelijkheid om ervoor te zorgen dat uw gebruik van deze software voldoet aan de wetten van uw land."
+
+#: assets/about_dialog.rml
+msgid "With thanks to"
+msgstr "Met dank aan"
+
+#: assets/about_dialog.rml
+msgid "the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector"
+msgstr "het projectteam yuzu, Fabrice, Alexwpi, Stardust en NullVector"
+
+#: assets/about_dialog.rml
+msgid "Website"
+msgstr "Website"
+
+#: assets/about_dialog.rml
+msgid "Source Code"
+msgstr "Broncode"
+
+#: assets/about_dialog.rml
+msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way."
+msgstr "“Nintendo Switch” is een handelsmerk van Nintendo. NXEmu is op geen enkele wijze verbonden met Nintendo."
+
+#: assets/about_dialog.rml
+msgid "OK"
+msgstr "OK"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/main_window.rml
+#: assets/profiles_dialog.rml
+#: views/hotkeys.h
+msgid "Settings"
+msgstr "Instellingen"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "General"
+msgstr "Algemeen"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+#: views/hotkeys.h
+msgid "Controllers"
+msgstr "Controllers"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Game directories"
+msgstr "Spelmappen"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Advanced"
+msgstr "Geavanceerd"
+
+#: assets/advanced_dialog.rml
+msgid "Graphics"
+msgstr "Grafische instellingen"
+
+#: assets/advanced_dialog.rml
+msgid "System"
+msgstr "Systeem"
+
+#: assets/advanced_dialog.rml
+msgid "Application"
+msgstr "Toepassing"
+
+#: assets/advanced_dialog.rml
+msgid "Shortcuts"
+msgstr "Sneltoetsen"
+
+#: assets/advanced_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops."
+msgstr "Er draait een spel: grijs weergegeven opties kunnen pas na het stoppen worden gewijzigd."
+
+#: assets/advanced_dialog.rml
+msgid "Picture"
+msgstr "Beeld"
+
+#: assets/advanced_dialog.rml
+msgid "Anti-aliasing"
+msgstr "Anti-aliasing"
+
+#: assets/advanced_dialog.rml
+msgid "Smooths jagged edges."
+msgstr "Maakt gekartelde randen glad."
+
+#: assets/advanced_dialog.rml
+msgid "Anisotropic filtering"
+msgstr "Anisotrope filtering"
+
+#: assets/advanced_dialog.rml
+msgid "Keeps textures sharp seen at a slant."
+msgstr "Behoudt de scherpte van texturen vanuit een hoek."
+
+#: assets/advanced_dialog.rml
+msgid "Accuracy"
+msgstr "Nauwkeurigheid"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Accuracy level"
+msgstr "Precisieniveau"
+
+#: assets/advanced_dialog.rml
+msgid "How closely the graphics chip is imitated."
+msgstr "De betrouwbaarheid waarmee de grafische chip wordt geëmuleerd."
+
+#: assets/advanced_dialog.rml
+msgid "Memory reads"
+msgstr "Geheugen lezen"
+
+#: assets/advanced_dialog.rml
+msgid "How carefully the chip reads what games write."
+msgstr "Hoe strikt de chip gegevens leest die door games zijn geschreven."
+
+#: assets/advanced_dialog.rml
+msgid "Command synchronization"
+msgstr "Commandosynchronisatie"
+
+#: assets/advanced_dialog.rml
+msgid "Keeps the order games give their commands in."
+msgstr "Respecteert de volgorde van opdrachten die door games worden verzonden."
+
+#: assets/advanced_dialog.rml
+msgid "Slower, and steadier. Off, some games show faults, hang or crash."
+msgstr "Langzamer, maar stabieler. Zonder deze optie vertonen sommige spellen fouten, lopen ze vast of crashen ze."
+
+#: assets/advanced_dialog.rml
+msgid "Reactive flushing"
+msgstr "Reactief flushen"
+
+#: assets/advanced_dialog.rml
+msgid "Brings memory up to date when it is read."
+msgstr "Werkt het geheugen bij terwijl het wordt gelezen."
+
+#: assets/advanced_dialog.rml
+msgid "More exact than guessing ahead when it will be read."
+msgstr "Nauwkeuriger dan voorspellen wanneer het geheugen gelezen zal worden."
+
+#: assets/advanced_dialog.rml
+msgid "Barrier feedback loops"
+msgstr "Barrière-feedbacklussen"
+
+#: assets/advanced_dialog.rml
+msgid "Draws transparent things right in some games."
+msgstr "Geeft transparante elementen correct weer in sommige games."
+
+#: assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr "Snelle GPU-tijd"
+
+#: assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr "De meeste games gebruiken dan hun maximale resolutie."
+
+#: assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgstr "Meldt een snelle grafische chip aan spellen die bij een trage chip hun resolutie verlagen."
+
+#: assets/advanced_dialog.rml
+msgid "Videos at their own speed"
+msgstr "Video's op normale snelheid"
+
+#: assets/advanced_dialog.rml
+msgid "Even when the speed is not limited."
+msgstr "Zelfs als de snelheid niet beperkt is."
+
+#: assets/advanced_dialog.rml
+msgid "Textures and video"
+msgstr "Texturen en video"
+
+#: assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr "ASTC decoderen"
+
+#: assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr "Welke texturen van dit type decodeert."
+
+#: assets/advanced_dialog.rml
+msgid "ASTC recompression"
+msgstr "Hercompressie ASTC"
+
+#: assets/advanced_dialog.rml
+msgid "Less graphics memory, for a lesser picture."
+msgstr "Minder grafisch geheugen, ten koste van een minder natuurgetrouw beeld."
+
+#: assets/advanced_dialog.rml
+msgid "Graphics memory"
+msgstr "Grafisch geheugen"
+
+#: assets/advanced_dialog.rml
+msgid "How much of it games may take."
+msgstr "De hoeveelheid die games kunnen gebruiken."
+
+#: assets/advanced_dialog.rml
+msgid "Video decoding"
+msgstr "Videodecodering"
+
+#: assets/advanced_dialog.rml
+msgid "What decodes the videos of games."
+msgstr "Welke gamevideo's decodeert."
+
+#: assets/advanced_dialog.rml
+msgid "Shaders"
+msgstr "Shaders"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep shaders on the disk"
+msgstr "Shaders op schijf bewaren"
+
+#: assets/advanced_dialog.rml
+msgid "Games stutter less from their second start."
+msgstr "Spellen haperen minder vanaf de tweede keer dat je ze start."
+
+#: assets/advanced_dialog.rml
+msgid "Off only to look for a fault."
+msgstr "Alleen uitschakelen om problemen op te lossen."
+
+#: assets/advanced_dialog.rml
+msgid "Driver pipeline cache"
+msgstr "Pipelinecache van het stuurprogramma"
+
+#: assets/advanced_dialog.rml
+msgid "Shaders load faster with some drivers."
+msgstr "Shaders laden sneller met sommige stuurprogramma's."
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Build shaders in the background"
+msgstr "Shaders op de achtergrond compileren"
+
+#: assets/advanced_dialog.rml
+msgid "Less stutter; things can show late. A hack."
+msgstr "Minder schokkerigheid; sommige items kunnen te laat verschijnen. Een benadering."
+
+#: assets/advanced_dialog.rml
+msgid "Performance"
+msgstr "Prestaties"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Graphics on their own thread"
+msgstr "Grafische verwerking in een eigen thread"
+
+#: assets/advanced_dialog.rml
+msgid "Should stay on."
+msgstr "Laat ingeschakeld."
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Presentation on its own thread"
+msgstr "Beeldweergave in een eigen thread"
+
+#: assets/advanced_dialog.rml
+msgid "A little faster on some computers."
+msgstr "Op sommige computers iets sneller."
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep the graphics device busy"
+msgstr "Houd het grafische apparaat bezig"
+
+#: assets/advanced_dialog.rml
+msgid "So that it does not slow its clock. Uses more power."
+msgstr "Voorkomt dat de frequentie wordt verlaagd. Verbruikt meer energie."
+
+#: assets/advanced_dialog.rml
+msgid "Processor and memory"
+msgstr "Processor en geheugen"
+
+#: assets/advanced_dialog.rml
+msgid "Processor engine"
+msgstr "Processor-engine"
+
+#: assets/advanced_dialog.rml
+msgid "How the game's code is run."
+msgstr "De manier waarop de spelcode wordt uitgevoerd."
+
+#: assets/advanced_dialog.rml
+msgid "Processor accuracy"
+msgstr "Processornauwkeurigheid"
+
+#: assets/advanced_dialog.rml
+msgid "For the engine that translates the code."
+msgstr "Voor de engine die de code vertaalt."
+
+#: assets/advanced_dialog.rml
+msgid "Console memory"
+msgstr "Consolegeheugen"
+
+#: assets/advanced_dialog.rml
+msgid "More than the console has: for heavy mods."
+msgstr "Meer dan op de console: voor veeleisende mods."
+
+#: assets/advanced_dialog.rml
+msgid "Multicore"
+msgstr "Multicore"
+
+#: assets/advanced_dialog.rml
+msgid "The cores of the console on as many threads."
+msgstr "Elke consolekern draait in een eigen thread."
+
+#: assets/advanced_dialog.rml
+msgid "Off, games run on one thread: much slower, to look for a fault."
+msgstr "Uitgeschakeld draaien spellen in één thread. Veel langzamer; bedoeld voor foutopsporing."
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "CPU and system in step"
+msgstr "CPU en systeem synchroniseren"
+
+#: assets/advanced_dialog.rml
+msgid "Keeps the processor and the system's answers in order."
+msgstr "Respecteert de volgorde tussen processor- en systeemreacties."
+
+#: assets/advanced_dialog.rml
+msgid "Needs multicore."
+msgstr "Vereist multi-coremodus."
+
+#: assets/advanced_dialog.rml
+msgid "Emulation"
+msgstr "Emulatie"
+
+#: assets/advanced_dialog.rml
+#: views/hotkeys.h
+#: views/settings_context.cpp
+msgid "Limit speed"
+msgstr "Limietsnelheid"
+
+#: assets/advanced_dialog.rml
+msgid "Off: as fast as the computer can."
+msgstr "Uitgeschakeld: zo snel als de computer toelaat."
+
+#: assets/advanced_dialog.rml
+msgid "On, games run at the speed chosen: 100% is the speed of the console."
+msgstr "Indien ingeschakeld, draaien games op de gekozen snelheid: 100% komt overeen met de consolesnelheid."
+
+#: assets/advanced_dialog.rml
+#: assets/general_dialog.rml
+msgid "Audio"
+msgstr "Audio"
+
+#: assets/advanced_dialog.rml
+msgid "Output engine"
+msgstr "Audio-uitvoerbackend"
+
+#: assets/advanced_dialog.rml
+msgid "What plays the sound on this computer."
+msgstr "Wat geluid afspeelt op deze computer."
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Input device"
+msgstr "Invoerapparaat"
+
+#: assets/advanced_dialog.rml
+msgid "The microphone games listen to."
+msgstr "De microfoon die door games wordt gebruikt."
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Vibration"
+msgstr "Vibratie"
+
+#: assets/advanced_dialog.rml
+msgid "For every player. Each has a switch of their own."
+msgstr "Voor alle spelers. Elk heeft ook zijn eigen instelling."
+
+#: assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr "Nauwkeurige vibratie"
+
+#: assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr "Elke variatie wordt verzonden: sommige controllers reageren laat."
+
+#: assets/advanced_dialog.rml
+msgid "Behaviour"
+msgstr "Gedrag"
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games in fullscreen"
+msgstr "Start games op volledig scherm"
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games with UI hidden"
+msgstr "Spellen starten met verborgen interface"
+
+#: assets/advanced_dialog.rml
+msgid "Confirm before stopping"
+msgstr "Bevestigen voordat een spel stopt"
+
+#: assets/advanced_dialog.rml
+msgid "Asks before a running game is stopped."
+msgstr "Vraagt om bevestiging voordat een spel dat bezig is, wordt gestopt."
+
+#: assets/advanced_dialog.rml
+msgid "Discord presence"
+msgstr "Aanwezigheid Discord"
+
+#: assets/advanced_dialog.rml
+msgid "Shows what you play in Discord when it runs."
+msgstr "Toont in Discord welk spel je speelt, wanneer Discord actief is."
+
+#: assets/advanced_dialog.rml
+msgid "Log"
+msgstr "Logboek"
+
+#: assets/advanced_dialog.rml
+msgid "Show the log console"
+msgstr "Logconsole weergeven"
+
+#: assets/advanced_dialog.rml
+msgid "The log is also written as it comes."
+msgstr "Het logboek wordt daar ook weergegeven terwijl u bezig bent."
+
+#: assets/advanced_dialog.rml
+msgid "Log filter"
+msgstr "Logboekfilter"
+
+#: assets/advanced_dialog.rml
+msgid "What is written, as class:level."
+msgstr "Wat wordt gelogd, in de vorm klasse:niveau."
+
+#: assets/advanced_dialog.rml
+msgid "In game"
+msgstr "In het spel"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Restore defaults"
+msgstr "Standaardwaarden herstellen"
+
+#: assets/advanced_dialog.rml
+msgid "Inherit all settings"
+msgstr "Alle instellingen overnemen"
+
+#: assets/advanced_dialog.rml
+msgid "Restore the defaults of all the tabs?"
+msgstr "De standaardwaarden van alle tabbladen herstellen?"
+
+#: assets/advanced_dialog.rml
+msgid "Remove your overrides and re-enable NXEmu settings for this game?"
+msgstr "Je aanpassingen verwijderen en de NXEmu-instellingen voor deze game opnieuw inschakelen?"
+
+#: assets/advanced_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Keep"
+msgstr "Behouden"
+
+#: assets/advanced_dialog.rml
+msgid "Restore"
+msgstr "Opnieuw uitvoeren"
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/firmware_dialog.rml
+#: assets/general_dialog.rml
+#: assets/main_window.rml
+#: assets/profiles_dialog.rml
+#: views/firmware_dialog.cpp
+msgid "Close"
+msgstr "Sluiten"
+
+#: assets/controller_dialog.rml
+msgid "On, games see this player's controller as plugged into the console."
+msgstr "Als deze optie is ingeschakeld, beschouwt de game de controller van deze speler als verbonden met de console."
+
+#: assets/controller_dialog.rml
+msgid "Connected"
+msgstr "Verbonden"
+
+#: assets/controller_dialog.rml
+msgid "Controller"
+msgstr "Controller"
+
+#: assets/controller_dialog.rml
+#: views/controller_dialog.cpp
+msgid "Left stick"
+msgstr "Linker joystick"
+
+#: assets/controller_dialog.rml
+msgid "Deadzone"
+msgstr "Deadzone"
+
+#: assets/controller_dialog.rml
+msgid "Range"
+msgstr "Bereik"
+
+#: assets/controller_dialog.rml
+msgid "Modifier range"
+msgstr "Bereik met modificator"
+
+#: assets/controller_dialog.rml
+msgid "D-pad"
+msgstr "Richtingspad"
+
+#: assets/controller_dialog.rml
+msgid "On, the controller shakes when games ask it to."
+msgstr "Ingeschakeld trilt de controller wanneer de game daarom vraagt."
+
+#: assets/controller_dialog.rml
+msgid "Face buttons"
+msgstr "Actieknoppen"
+
+#: assets/controller_dialog.rml
+#: views/controller_dialog.cpp
+msgid "Right stick"
+msgstr "Rechter joystick"
+
+#: assets/controller_dialog.rml
+msgid "Asks for each control in turn"
+msgstr "Vraag elk commando achtereenvolgens aan"
+
+#: assets/controller_dialog.rml
+msgid "Bind all controls"
+msgstr "Alle besturingselementen toewijzen"
+
+#: assets/controller_dialog.rml
+msgid "Binds this player's controls as the input device suggests"
+msgstr "Wijst de besturing van deze speler toe volgens de suggesties van het invoerapparaat"
+
+#: assets/controller_dialog.rml
+#: assets/firmware_dialog.rml
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: assets/controller_dialog.rml
+msgid "Save"
+msgstr "Opslaan"
+
+#: assets/directories_dialog.rml
+msgid "Add a directory"
+msgstr "Map toevoegen"
+
+#: assets/directories_dialog.rml
+msgid "The game directories cannot change while a game is running."
+msgstr "Gamemappen kunnen niet worden bewerkt terwijl een game bezig is."
+
+#: assets/firmware_dialog.rml
+msgid "Install firmware"
+msgstr "Firmware installeren"
+
+#: assets/firmware_dialog.rml
+msgid "Source"
+msgstr "Bron"
+
+#: assets/firmware_dialog.rml
+msgid "Install"
+msgstr "Installeer"
+
+#: assets/firmware_dialog.rml
+msgid "Finish"
+msgstr "Voltooien"
+
+#: assets/firmware_dialog.rml
+msgid "Where is the firmware?"
+msgstr "Waar is de firmware?"
+
+#: assets/firmware_dialog.rml
+msgid "Most games need the console's firmware. Choose the package to install it from, or drop it on this window."
+msgstr "Voor de meeste games is consolefirmware vereist. Kies het bestand dat u wilt installeren of plaats het in dit venster."
+
+#: assets/firmware_dialog.rml
+msgid "Firmware file"
+msgstr "Firmwarebestand"
+
+#: assets/firmware_dialog.rml
+msgid "A .zip archive, or a .dxci game card image that carries an update"
+msgstr "Een .zip-archief of .dxci-gamekaartimage met een update"
+
+#: assets/firmware_dialog.rml
+msgid "Browse"
+msgstr "Bladeren"
+
+#: assets/firmware_dialog.rml
+msgid "Firmware folder"
+msgstr "Firmware-map"
+
+#: assets/firmware_dialog.rml
+msgid "A folder that holds the firmware's .nca files"
+msgstr "Een map met de .nca-firmwarebestanden"
+
+#: assets/firmware_dialog.rml
+msgid "The game starts afterwards, and without it if you would rather not."
+msgstr "Het spel start dan, of zonder firmware als je dat liever hebt."
+
+#: assets/firmware_dialog.rml
+msgid "The installed firmware stays in place until the new one is complete."
+msgstr "De geïnstalleerde firmware blijft aanwezig totdat de nieuwe gereed is."
+
+#: assets/firmware_dialog.rml
+msgid "Replace the installed firmware?"
+msgstr "Geïnstalleerde firmware vervangen?"
+
+#: assets/firmware_dialog.rml
+msgid "Start without it"
+msgstr "Opstarten zonder firmware"
+
+#: assets/firmware_dialog.rml
+msgid "Keep the installed one"
+msgstr "Geïnstalleerde versie behouden"
+
+#: assets/firmware_dialog.rml
+msgid "Replace"
+msgstr "Vervangen"
+
+#: assets/firmware_dialog.rml
+msgid "Choose another source"
+msgstr "Kies een andere bron"
+
+#: assets/general_dialog.rml
+msgid "Display"
+msgstr "Weergave"
+
+#: assets/general_dialog.rml
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Graphics device"
+msgstr "Grafisch apparaat"
+
+#: assets/general_dialog.rml
+msgid "Console mode"
+msgstr "Consolemodus"
+
+#: assets/general_dialog.rml
+msgid "As on the television: games draw up to 1080p."
+msgstr "Net als op de tv: games worden weergegeven tot 1080p."
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+#: views/settings_context.cpp
+msgid "Docked"
+msgstr "Docked"
+
+#: assets/general_dialog.rml
+msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
+msgstr "Net als op het consolescherm: games worden weergegeven in 720p, wat de computer minder belast."
+
+#: assets/general_dialog.rml
+#: views/controller_dialog.cpp
+#: views/main_window.cpp
+msgid "Handheld"
+msgstr "Handheld"
+
+#: assets/general_dialog.rml
+msgid "Resolution"
+msgstr "Resolutie"
+
+#: assets/general_dialog.rml
+msgid "Window filter"
+msgstr "Schaalfilter"
+
+#: assets/general_dialog.rml
+msgid "How the picture is fitted to the window."
+msgstr "Hoe het beeld in het venster past."
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+msgid "Sharpness of the FSR filter"
+msgstr "Scherpte van het FSR-filter"
+
+#: assets/general_dialog.rml
+msgid "Aspect ratio"
+msgstr "Beeldverhouding"
+
+#: assets/general_dialog.rml
+msgid "The shape of the picture in the window."
+msgstr "De verhoudingen van het beeld in het venster."
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Vertical sync"
+msgstr "Verticale synchronisatie"
+
+#: assets/general_dialog.rml
+msgid "Whole pictures only: no tearing."
+msgstr "Volledige beelden, zonder scheuren."
+
+#: assets/general_dialog.rml
+msgid "Language"
+msgstr "Taal"
+
+#: assets/general_dialog.rml
+msgid "Console language"
+msgstr "Consoletaal"
+
+#: assets/general_dialog.rml
+msgid "The language games are shown in."
+msgstr "De taal waarin games worden weergegeven."
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Region"
+msgstr "Regio"
+
+#: assets/general_dialog.rml
+msgid "On, the region is the one chosen here. Off, it follows the console language."
+msgstr "Indien ingeschakeld, wordt de regio hier gekozen. Uitgeschakeld volgt het de consoletaal."
+
+#: assets/general_dialog.rml
+msgid "Interface language"
+msgstr "Interfacetaal"
+
+#: assets/general_dialog.rml
+msgid "On, the interface language is chosen here. Off, it follows the console language."
+msgstr "Ingeschakeld wordt de interfacetaal hier gekozen. Uitgeschakeld volgt deze de consoletaal."
+
+#: assets/general_dialog.rml
+msgid "Output device"
+msgstr "Uitvoerapparaat"
+
+#: assets/general_dialog.rml
+msgid "Where the sound of games is played."
+msgstr "Waar game-audio wordt afgespeeld."
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Output mode"
+msgstr "Uitgangsmodus"
+
+#: assets/general_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "Voor surroundgeluid zijn compatibele luidsprekers vereist."
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Pause emulation (F2)"
+msgstr "Emulatie pauzeren (F2)"
+
+#: assets/main_window.rml
+msgid "Stop emulation (F5)"
+msgstr "Emulatie stoppen (F5)"
+
+#: assets/main_window.rml
+msgid "Minimise"
+msgstr "Verkleinen"
+
+#: assets/main_window.rml
+msgid "Maximise or restore"
+msgstr "Vergroten of herstellen"
+
+#: assets/main_window.rml
+msgid "Library"
+msgstr "Bibliotheek"
+
+#: assets/main_window.rml
+msgid "Search games..."
+msgstr "Spelletjes zoeken..."
+
+#: assets/main_window.rml
+msgid "Sort games"
+msgstr "Sorteer spellen"
+
+#: assets/main_window.rml
+msgid "Icon size"
+msgstr "Pictogramgrootte"
+
+#: assets/main_window.rml
+msgid "Title"
+msgstr "Titel"
+
+#: assets/main_window.rml
+msgid "Card information"
+msgstr "Kaartinformatie"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Play time"
+msgstr "Speelduur"
+
+#: assets/main_window.rml
+msgid "List view"
+msgstr "Lijstweergave"
+
+#: assets/main_window.rml
+msgid "Shows or hides the details of the selected game"
+msgstr "Toon of verberg details van het geselecteerde spel"
+
+#: assets/main_window.rml
+msgid "Details"
+msgstr "Details"
+
+#: assets/main_window.rml
+msgid "Cover"
+msgstr "Omslag"
+
+#: assets/main_window.rml
+msgid "Game"
+msgstr "Spel"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Publisher"
+msgstr "Bewerker"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Version"
+msgstr "Versie"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Last played"
+msgstr "Laatste deel"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Format"
+msgstr "Formaat"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Size"
+msgstr "Groote"
+
+#: assets/main_window.rml
+msgid "Actions"
+msgstr "Acties"
+
+#: assets/main_window.rml
+msgid "Select a game to see its details."
+msgstr "Selecteer een game om de details ervan te bekijken."
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Play"
+msgstr "Spelen"
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr "Spelinformatie lezen"
+
+#: assets/main_window.rml
+msgid "Configure"
+msgstr "Configureer"
+
+#: assets/main_window.rml
+msgid "Saves"
+msgstr "Opgeslagen spellen"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Cache"
+msgstr "Cache"
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Mods"
+msgstr "Mod"
+
+#: assets/main_window.rml
+msgid "Scanning games..."
+msgstr "Zoeken naar games..."
+
+#: assets/main_window.rml
+#: views/loading_screen.cpp
+msgid "Loading"
+msgstr "Bezig met laden"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Paused"
+msgstr "Gepauzeerd"
+
+#: assets/main_window.rml
+msgid "The resolution games are drawn at"
+msgstr "De resolutie waarmee games worden weergegeven"
+
+#: assets/main_window.rml
+msgid "Window filter: only applies when the game's resolution is lower than the window size"
+msgstr "Vensterfilter: wordt alleen toegepast als de resolutie van het spel kleiner is dan het venster"
+
+#: assets/profiles_dialog.rml
+msgid "Profiles"
+msgstr "Profielen"
+
+#: assets/profiles_dialog.rml
+msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
+msgstr "De spelers van de console. Elke speler heeft eigen opgeslagen spellen. Spellen tonen hun naam en afbeelding en starten met het actieve profiel."
+
+#: assets/profiles_dialog.rml
+msgid "Profiles cannot change while a game is running."
+msgstr "Profielen kunnen niet worden bewerkt terwijl een game bezig is."
+
+#: assets/profiles_dialog.rml
+msgid "Pictures of the console"
+msgstr "Console-afbeeldingen"
+
+#: assets/profiles_dialog.rml
+msgid "Reading the pictures of the console..."
+msgstr "Profielafbeeldingen van de console laden..."
+
+#: assets/profiles_dialog.rml
+msgid "The console has no picture to offer: they come with its firmware. Install it from the File menu."
+msgstr "Er zijn geen profielafbeeldingen beschikbaar. Deze worden met de consolefirmware geleverd. Installeer die via het menu Bestand."
+
+#: assets/profiles_dialog.rml
+msgid "Background"
+msgstr "Achtergrond"
+
+#: assets/profiles_dialog.rml
+msgid "Back"
+msgstr "Terug"
+
+#: assets/profiles_dialog.rml
+msgid "Use this picture"
+msgstr "Gebruik deze afbeelding"
+
+#: assets/profiles_dialog.rml
+msgid "One of the pictures the console offers its players"
+msgstr "Een van de afbeeldingen die de console aan zijn spelers biedt"
+
+#: assets/profiles_dialog.rml
+msgid "Choose a picture"
+msgstr "Kies een afbeelding"
+
+#: assets/profiles_dialog.rml
+msgid "A picture of yours: it is resized to what the console uses"
+msgstr "Een persoonlijke afbeelding, verkleind naar consoleformaat"
+
+#: assets/profiles_dialog.rml
+msgid "Picture from a file"
+msgstr "Afbeelding uit bestand"
+
+#: assets/profiles_dialog.rml
+msgid "This file is not a picture NXEmu can read."
+msgstr "Dit bestand is geen afbeelding die NXEmu kan lezen."
+
+#: assets/profiles_dialog.rml
+#: views/main_window.cpp
+msgid "Name"
+msgstr "Naam"
+
+#: assets/profiles_dialog.rml
+msgid "Games start as this player, with these saves"
+msgstr "Spellen starten met deze speler en diens opgeslagen spellen"
+
+#: assets/profiles_dialog.rml
+msgid "Play as this profile"
+msgstr "Met dit profiel spelen"
+
+#: assets/profiles_dialog.rml
+msgid "Games start as this profile"
+msgstr "Games beginnen met dit profiel"
+
+#: assets/profiles_dialog.rml
+msgid "Delete profile"
+msgstr "Profiel verwijderen"
+
+#: assets/profiles_dialog.rml
+msgid "Delete"
+msgstr "Verwijder"
+
+#: emulation/emulator_session.cpp
+msgid "Stop the current game before opening another one."
+msgstr "Stop het huidige spel voordat je een ander spel opent."
+
+#: emulation/emulator_session.cpp
+msgid "Required modules failed to reload after stopping the game."
+msgstr "Vereiste modules konden niet opnieuw worden geladen nadat het spel was gestopt."
+
+#: emulation/emulator_session.cpp
+msgid ""
+"The game file does not exist:\n"
+"%1"
+msgstr ""
+"Het spelbestand bestaat niet:\n"
+"%1"
+
+#: emulation/emulator_session.cpp
+#: ui_application.cpp
+msgid "Required modules failed to load."
+msgstr "De vereiste modules konden niet worden geladen."
+
+#: host/ui_notification.cpp
+msgid "No"
+msgstr "Nee"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Left"
+msgstr "Links"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Right"
+msgstr "Rechts"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Down"
+msgstr "Omlaag"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Up"
+msgstr "Omhoog"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Plus"
+msgstr "Plus"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Minus"
+msgstr "Min"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Home"
+msgstr "Home"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Capture"
+msgstr "Vastleggen"
+
+#: input/input_text.cpp
+msgid "Stick L"
+msgstr "Stick L"
+
+#: input/input_text.cpp
+msgid "Stick R"
+msgstr "Stick R"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Start"
+msgstr "Start"
+
+#: input/input_text.cpp
+msgid "Circle"
+msgstr "Cirkel"
+
+#: input/input_text.cpp
+msgid "Cross"
+msgstr "Kruis"
+
+#: input/input_text.cpp
+msgid "Square"
+msgstr "Vierkant"
+
+#: input/input_text.cpp
+msgid "Triangle"
+msgstr "Driehoek"
+
+#: input/input_text.cpp
+msgid "Share"
+msgstr "Deel"
+
+#: input/input_text.cpp
+msgid "Options"
+msgstr "Opties"
+
+#: input/input_text.cpp
+msgid "Touch"
+msgstr "Touch"
+
+#: input/input_text.cpp
+msgid "Wheel"
+msgstr "Wiel"
+
+#: input/input_text.cpp
+msgid "Backward"
+msgstr "Achteruit"
+
+#: input/input_text.cpp
+msgid "Forward"
+msgstr "Vooruit"
+
+#: input/input_text.cpp
+msgid "Task"
+msgstr "Taak"
+
+#: input/input_text.cpp
+msgid "Extra"
+msgstr "Extra"
+
+#: input/input_text.cpp
+msgid "Turbo"
+msgstr "Turbo"
+
+#: input/input_text.cpp
+msgid "Toggle"
+msgstr "Wisselen"
+
+#: input/input_text.cpp
+msgid "Not"
+msgstr "Nee"
+
+#: input/input_text.cpp
+msgid "Invalid"
+msgstr "Ongeldig"
+
+#: input/input_text.cpp
+msgid "Hat %1"
+msgstr "Richtingspad %1"
+
+#: input/input_text.cpp
+msgid "Axis %1"
+msgstr "As %1"
+
+#: input/input_text.cpp
+msgid "Axes %1, %2, %3"
+msgstr "Assen %1, %2, %3"
+
+#: input/input_text.cpp
+msgid "Motion %1"
+msgstr "Beweging %1"
+
+#: input/input_text.cpp
+msgid "Button %1"
+msgstr "Knop %1"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Unknown"
+msgstr "Onbekend"
+
+#: library/play_time.cpp
+msgid "< 1m"
+msgstr "< 1 min"
+
+#. a time played, in minutes, then in hours and minutes.
+#: library/play_time.cpp
+msgid "%1m"
+msgstr "%1 min"
+
+#. a time played, in minutes, then in hours and minutes.
+#: library/play_time.cpp
+msgid "%1h %2m"
+msgstr "%1 u %2 min"
+
+#. a date and a time, in the syntax of strftime. The names of the months it gives are English: use %m where they would not do.
+#: library/play_time.cpp
+msgid "%b %d, %Y  %H:%M"
+msgstr "%d/%m/%Y  %H:%M"
+
+#: library/play_time.cpp
+msgid "Just now"
+msgstr "Zojuist"
+
+#: library/play_time.cpp
+msgid "%n minute ago"
+msgid_plural "%n minutes ago"
+msgstr[0] "%n minuut geleden"
+msgstr[1] "%n minuten geleden"
+
+#: library/play_time.cpp
+msgid "%n hour ago"
+msgid_plural "%n hours ago"
+msgstr[0] "%n uur geleden"
+msgstr[1] "%n uur geleden"
+
+#: library/play_time.cpp
+msgid "%n day ago"
+msgid_plural "%n days ago"
+msgstr[0] "%n dag geleden"
+msgstr[1] "%n dagen geleden"
+
+#: library/play_time.cpp
+msgid "%n week ago"
+msgid_plural "%n weeks ago"
+msgstr[0] "%n week geleden"
+msgstr[1] "%n weken geleden"
+
+#: library/play_time.cpp
+msgid "%n month ago"
+msgid_plural "%n months ago"
+msgstr[0] "%n maand geleden"
+msgstr[1] "%n maanden geleden"
+
+#: library/play_time.cpp
+msgid "%n year ago"
+msgid_plural "%n years ago"
+msgstr[0] "%n jaar geleden"
+msgstr[1] "%n jaar geleden"
+
+#: ui_application.cpp
+msgid "Vulkan could not be initialised. Update the graphics driver and try again."
+msgstr "Vulkan kon niet worden geïnitialiseerd. Update het grafische stuurprogramma en probeer het opnieuw."
+
+#: views/advanced_dialog.cpp
+msgid "None"
+msgstr "Geen"
+
+#: views/advanced_dialog.cpp
+msgid "The picture as the game draws it."
+msgstr "Het beeld zoals het spel het produceert."
+
+#: views/advanced_dialog.cpp
+msgid "Light work, a little blur. The steadier picture at low resolutions."
+msgstr "Niet veeleisend, enigszins wazig. Een stabieler beeld bij een lage resolutie."
+
+#: views/advanced_dialog.cpp
+msgid "The best picture, for more work."
+msgstr "Het beste beeld, maar veeleisender."
+
+#: views/advanced_dialog.cpp
+msgid "Automatic"
+msgstr "Automatisch"
+
+#: views/advanced_dialog.cpp
+msgid "Follows the resolution chosen."
+msgstr "Volgt de gekozen resolutie."
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "As the game asks"
+msgstr "Afhankelijk van het spel"
+
+#: views/advanced_dialog.cpp
+msgid "What the console would do."
+msgstr "Zoals de console zou doen."
+
+#: views/advanced_dialog.cpp
+msgid "The sharpest. Light work for most graphics devices."
+msgstr "Het scherpst. Vergt weinig van de meeste grafische apparaten."
+
+#: views/advanced_dialog.cpp
+msgid "Normal"
+msgstr "Normaal"
+
+#: views/advanced_dialog.cpp
+msgid "The fastest. Most games look right; particles often do not."
+msgstr "Snelst. De meeste games worden correct weergegeven, maar deeltjes vaak niet."
+
+#: views/advanced_dialog.cpp
+msgid "High"
+msgstr "Hoog"
+
+#: views/advanced_dialog.cpp
+msgid "What some games need to look right. Some need it from their start."
+msgstr "Nodig voor de juiste weergave van sommige spellen. Sommige vereisen dit al bij het starten."
+
+#: views/advanced_dialog.cpp
+msgid "Extreme"
+msgstr "Extreem"
+
+#: views/advanced_dialog.cpp
+msgid "Slow: to look for a fault."
+msgstr "Langzaam: controleren op een probleem."
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "As the accuracy level"
+msgstr "Afhankelijk van het nauwkeurigheidsniveau"
+
+#: views/advanced_dialog.cpp
+msgid "Safe when the accuracy level is High or Extreme."
+msgstr "Veilig wanneer het precisieniveau Hoog of Extreem is."
+
+#: views/advanced_dialog.cpp
+msgid "Unsafe"
+msgstr "Onveilig"
+
+#: views/advanced_dialog.cpp
+msgid "Faster."
+msgstr "Sneller."
+
+#: views/advanced_dialog.cpp
+msgid "Safe"
+msgstr "Zeker"
+
+#: views/advanced_dialog.cpp
+msgid "Steadier: it fixes some games."
+msgstr "Stabieler: herstelt enkele games."
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Processor"
+msgstr "Processor"
+
+#: views/advanced_dialog.cpp
+msgid "The slowest, and the safest."
+msgstr "Langzaamste en veiligste."
+
+#: views/advanced_dialog.cpp
+msgid "The usual choice."
+msgstr "De gebruikelijke keuze."
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Processor, in the background"
+msgstr "CPU, achtergrond"
+
+#: views/advanced_dialog.cpp
+msgid "No stutter, but textures show wrong until they are decoded."
+msgstr "Geen stotteren, maar texturen zijn onjuist totdat ze worden gedecodeerd."
+
+#: views/advanced_dialog.cpp
+msgid "The best picture, and the most memory."
+msgstr "Beste beeld en hoogste geheugenverbruik."
+
+#: views/advanced_dialog.cpp
+msgid "BC1 (low quality)"
+msgstr "BC1 (lage kwaliteit)"
+
+#: views/advanced_dialog.cpp
+msgid "The least memory."
+msgstr "Laagste geheugenverbruik."
+
+#: views/advanced_dialog.cpp
+msgid "BC3 (medium quality)"
+msgstr "BC3 (gemiddelde kwaliteit)"
+
+#: views/advanced_dialog.cpp
+msgid "Less memory."
+msgstr "Minder geheugen."
+
+#: views/advanced_dialog.cpp
+msgid "Conservative"
+msgstr "Voorzichtig"
+
+#: views/advanced_dialog.cpp
+msgid "Leaves memory to the other applications."
+msgstr "Laat geheugen vrij voor andere toepassingen."
+
+#: views/advanced_dialog.cpp
+msgid "Aggressive"
+msgstr "Agressief"
+
+#: views/advanced_dialog.cpp
+msgid "Takes what there is: other applications can slow down. No effect on graphics built into the processor."
+msgstr "Gebruikt al het beschikbare geheugen: andere applicaties kunnen trager worden. Geen effect op de grafische chips die in de processor zijn geïntegreerd."
+
+#: views/advanced_dialog.cpp
+msgid "The fastest in most cases."
+msgstr "In de meeste gevallen het snelst."
+
+#: views/advanced_dialog.cpp
+msgid "When the graphics device shows videos wrong."
+msgstr "Wanneer het grafische apparaat video's onjuist weergeeft."
+
+#: views/advanced_dialog.cpp
+msgid "Videos stay black."
+msgstr "Video's blijven zwart."
+
+#: views/advanced_dialog.cpp
+msgid "Translated (Dynarmic)"
+msgstr "Codevertaling (Dynarmic)"
+
+#: views/advanced_dialog.cpp
+msgid "The code is translated for this computer's processor. Runs every game."
+msgstr "De code is vertaald voor de processor van deze computer. Compatibel met alle spellen."
+
+#: views/advanced_dialog.cpp
+msgid "Native (NCE)"
+msgstr "Native (NCE)"
+
+#: views/advanced_dialog.cpp
+msgid "The code runs as it is on this computer's processor. The fastest; the games it cannot run are translated."
+msgstr "De code draait rechtstreeks op de processor van deze computer. De snelste; Incompatibele games gebruiken codevertaling."
+
+#: views/advanced_dialog.cpp
+msgid "Accurate"
+msgstr "Nauwkeurig"
+
+#: views/advanced_dialog.cpp
+msgid "Slower: for a game that misbehaves."
+msgstr "Langzamer: voor een spel dat niet goed werkt."
+
+#: views/advanced_dialog.cpp
+msgid "Faster, and some games break."
+msgstr "Sneller, maar sommige games werken niet meer."
+
+#: views/advanced_dialog.cpp
+msgid "Paranoid"
+msgstr "Paranoïde"
+
+#: views/advanced_dialog.cpp
+msgid "Very slow: to look for a fault."
+msgstr "Zeer langzaam: om te controleren op een probleem."
+
+#: views/advanced_dialog.cpp
+msgid "4 GB"
+msgstr "4 GB"
+
+#: views/advanced_dialog.cpp
+msgid "What the console has."
+msgstr "Consolegeheugen."
+
+#: views/advanced_dialog.cpp
+msgid "6 GB"
+msgstr "6 GB"
+
+#: views/advanced_dialog.cpp
+msgid "For mods that need more console memory."
+msgstr "Voor mods die meer consolegeheugen vereisen."
+
+#: views/advanced_dialog.cpp
+msgid "8 GB"
+msgstr "8 GB"
+
+#: views/advanced_dialog.cpp
+msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr "Voor mods die meer geheugen vereisen dan de console heeft. Anders geen voordeel."
+
+#: views/advanced_dialog.cpp
+msgid "None (no sound)"
+msgstr "Geen (geen geluid)"
+
+#: views/advanced_dialog.cpp
+msgid "The one that suits this computer."
+msgstr "Degene die bij deze computer past."
+
+#: views/advanced_dialog.cpp
+#: views/general_dialog.cpp
+msgid "System default"
+msgstr "Systeemstandaard"
+
+#: views/advanced_dialog.cpp
+msgid "The one the computer records from."
+msgstr "Degene die de computer gebruikt om op te nemen."
+
+#: views/advanced_dialog.cpp
+#: views/general_dialog.cpp
+msgid "%1 (not connected)"
+msgstr "%1 (niet aangesloten)"
+
+#: views/advanced_dialog.cpp
+msgid "Games listen to the default of the computer until it is back."
+msgstr "Spellen gebruiken tot het opnieuw verbinden het standaardmicrofoonapparaat van de computer."
+
+#: views/advanced_dialog.cpp
+msgid "A shortcut is a function key, or a key with %1 or Alt."
+msgstr "Een sneltoets is een functietoets, of een toets met %1 of Alt."
+
+#: views/advanced_dialog.cpp
+msgid "%1 is already the shortcut of \"%2\"."
+msgstr "%1 is al de sneltoets van \"%2\"."
+
+#: views/advanced_dialog.cpp
+msgid "Press the keys..."
+msgstr "Druk op de toetsen..."
+
+#: views/controller_dialog.cpp
+msgid "Pressed"
+msgstr "Ingedrukt"
+
+#: views/controller_dialog.cpp
+msgid "Modifier"
+msgstr "Modificator"
+
+#: views/controller_dialog.cpp
+msgid "Left SL"
+msgstr "SL links"
+
+#: views/controller_dialog.cpp
+msgid "Left SR"
+msgstr "SR links"
+
+#: views/controller_dialog.cpp
+msgid "Right SL"
+msgstr "Rechter SL"
+
+#: views/controller_dialog.cpp
+msgid "Right SR"
+msgstr "Rechts SR"
+
+#: views/controller_dialog.cpp
+msgid "Motion 1"
+msgstr "Beweging 1"
+
+#: views/controller_dialog.cpp
+msgid "Motion 2"
+msgstr "Beweging 2"
+
+#: views/controller_dialog.cpp
+msgid "Pro Controller"
+msgstr "Pro Controller"
+
+#: views/controller_dialog.cpp
+msgid "Dual Joy-Cons"
+msgstr "Joy-Con-paar"
+
+#: views/controller_dialog.cpp
+msgid "Left Joy-Con"
+msgstr "Joy-Con links"
+
+#: views/controller_dialog.cpp
+msgid "Right Joy-Con"
+msgstr "Joy-Con rechts"
+
+#: views/controller_dialog.cpp
+msgid "GameCube Controller"
+msgstr "GameCube-controller"
+
+#: views/controller_dialog.cpp
+msgid "The controller's gyroscope, for games played by tilting or shaking it"
+msgstr "De gyroscoop van de controller, voor spellen die je bestuurt door te kantelen of te schudden"
+
+#: views/controller_dialog.cpp
+msgid "Unbind"
+msgstr "Toewijzing wissen"
+
+#: views/controller_dialog.cpp
+msgid "Any device"
+msgstr "Alle apparaten"
+
+#: views/controller_dialog.cpp
+msgid "Keyboard"
+msgstr "Toetsenbord"
+
+#: views/controller_dialog.cpp
+msgid "Not connected"
+msgstr "Niet verbonden"
+
+#: views/controller_dialog.cpp
+#: views/profiles_dialog.cpp
+msgid "Player %1"
+msgstr "Speler %1"
+
+#: views/controller_dialog.cpp
+msgid "Press..."
+msgstr "Druk op..."
+
+#: views/controller_dialog.cpp
+msgid "Not set"
+msgstr "Niet gedefinieerd"
+
+#: views/controller_dialog.cpp
+msgid "Control stick"
+msgstr "Stuurknuppel"
+
+#: views/controller_dialog.cpp
+msgid "C-stick"
+msgstr "Stok C"
+
+#: views/controller_dialog.cpp
+msgid "Click a control or a button of the picture to bind it."
+msgstr "Klik op een bedieningselement of knop op de afbeelding om deze toe te wijzen."
+
+#: views/controller_dialog.cpp
+msgid "Press a key, or move the stick sideways and then up and down."
+msgstr "Druk op een knop of beweeg de stick horizontaal en vervolgens verticaal."
+
+#: views/controller_dialog.cpp
+msgid "Shake a controller that has a gyroscope, or press a key that will stand for a shake."
+msgstr "Schud een controller die is uitgerust met een gyroscoop, of druk op een knop die een trilling simuleert."
+
+#: views/controller_dialog.cpp
+msgid "Press a key or a button."
+msgstr "Druk op een toets of knop."
+
+#. %1 is what to do, %2 the seconds left to do it.
+#: views/controller_dialog.cpp
+msgid "%1 Esc cancels. (%2)"
+msgstr "%1 Esc om te annuleren. (%2)"
+
+#: views/directories_dialog.cpp
+msgid "Not found: the games in it are not shown."
+msgstr "Niet gevonden: games in deze map worden niet weergegeven."
+
+#: views/directories_dialog.cpp
+msgid "Remove"
+msgstr "Verwijder"
+
+#: views/directories_dialog.cpp
+msgid "No game directory yet. Add the folders your games are in."
+msgstr "Geen gamesmap. Voeg de mappen toe die uw games bevatten."
+
+#: views/directories_dialog.cpp
+msgid "Choose a game directory"
+msgstr "Kies een map met games"
+
+#: views/firmware_dialog.cpp
+#: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 MB"
+msgstr "%1MB"
+
+#: views/firmware_dialog.cpp
+msgid "Firmware installed"
+msgstr "Firmware geïnstalleerd"
+
+#: views/firmware_dialog.cpp
+msgid "Games can use it from now on."
+msgstr "Games kunnen er nu gebruik van maken."
+
+#: views/firmware_dialog.cpp
+msgid "Installation cancelled"
+msgstr "Installatie geannuleerd"
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was."
+msgstr "De geïnstalleerde firmware is behouden."
+
+#: views/firmware_dialog.cpp
+msgid "The source could not be read"
+msgstr "Kan de bron niet lezen"
+
+#: views/firmware_dialog.cpp
+msgid "Check that the file or the folder is still there and that NXEmu may read it."
+msgstr "Controleer of het bestand of de map nog steeds bestaat en dat NXEmu het kan lezen."
+
+#: views/firmware_dialog.cpp
+msgid "No firmware found there"
+msgstr "Geen firmware gevonden op deze locatie"
+
+#: views/firmware_dialog.cpp
+msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr "Kies een .zip-firmwarearchief, een .dxci-gamekaartimage met een update of een map met .nca-firmwarebestanden."
+
+#: views/firmware_dialog.cpp
+msgid "The console's storage cannot be written"
+msgstr "Kan niet naar consoleopslag schrijven"
+
+#: views/firmware_dialog.cpp
+msgid "Check that NXEmu may write to its data folder, then try again."
+msgstr "Controleer of de NXEmu naar de gegevensmap kan schrijven en probeer het vervolgens opnieuw."
+
+#: views/firmware_dialog.cpp
+msgid "The firmware could not be replaced"
+msgstr "Kan firmware niet vervangen"
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was put back. The log tells what went wrong."
+msgstr "De geïnstalleerde firmware is hersteld. Het logboek geeft de oorzaak van het probleem aan."
+
+#: views/firmware_dialog.cpp
+msgid "Copying the firmware failed"
+msgstr "Kan firmware niet kopiëren"
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was. Check the free disk space; the log tells what went wrong."
+msgstr "De geïnstalleerde firmware is behouden. Controleer de beschikbare schijfruimte; het logboek geeft de oorzaak van het probleem aan."
+
+#: views/firmware_dialog.cpp
+msgid "Start the game"
+msgstr "Start het spel"
+
+#: views/firmware_dialog.cpp
+msgid "This game carries firmware %1"
+msgstr "Dit spel bevat firmware %1"
+
+#: views/firmware_dialog.cpp
+msgid "No firmware is installed yet, and most games need one. NXEmu can install the game's before starting it."
+msgstr "Er is geen firmware geïnstalleerd en voor de meeste games is dit vereist. NXEmu kan de game één keer installeren voordat deze wordt gestart."
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
+msgstr "%1-firmware is geïnstalleerd, maar deze game is ontworpen voor een nieuwere versie. NXEmu kan de game één keer installeren voordat deze wordt gestart."
+
+#: views/firmware_dialog.cpp
+msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
+msgstr "Het bestand bevat firmware %1 en firmware %2 is geïnstalleerd. De installatie zal deze vervangen."
+
+#: views/firmware_dialog.cpp
+msgid "Firmware"
+msgstr "Firmware"
+
+#: views/firmware_dialog.cpp
+#: views/main_window.cpp
+msgid "All files"
+msgstr "Alle bestanden"
+
+#: views/firmware_dialog.cpp
+msgid "Choose the folder that holds the firmware"
+msgstr "Kies de map die de firmware bevat"
+
+#: views/firmware_dialog.cpp
+msgid "No firmware is installed yet."
+msgstr "Er is geen firmware geïnstalleerd."
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 is installed."
+msgstr "Firmware %1 is geïnstalleerd."
+
+#: views/firmware_dialog.cpp
+msgid "Copying the firmware..."
+msgstr "Firmware kopiëren..."
+
+#: views/firmware_dialog.cpp
+#: views/main_window.cpp
+msgid "%1 of %2"
+msgstr "%1 op %2"
+
+#: views/firmware_dialog.cpp
+msgid "Checking the firmware..."
+msgstr "De firmware controleren..."
+
+#: views/firmware_dialog.cpp
+msgid "File %1 of %2"
+msgstr "Bestand %1 op %2"
+
+#: views/firmware_dialog.cpp
+msgid "Putting the firmware in place..."
+msgstr "De firmware installeren..."
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 installed"
+msgstr "Firmware %1 geïnstalleerd"
+
+#: views/game_details_panel.cpp
+msgid "Updates"
+msgstr "Updates"
+
+#: views/game_details_panel.cpp
+msgid "DLC"
+msgstr "DLC"
+
+#: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 GB"
+msgstr "%1 Go"
+
+#: views/game_details_panel.cpp
+msgid "%1 KB"
+msgstr "%1 KB"
+
+#: views/game_details_panel.cpp
+msgid "Version %1, title ID %2"
+msgstr "Versie %1, titel-ID %2"
+
+#: views/game_details_panel.cpp
+msgid "DLC %1"
+msgstr "DLC %1"
+
+#: views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr "Instellingen specifiek voor deze game"
+
+#: views/game_details_panel.cpp
+msgid "This game has not saved anything yet"
+msgstr "Dit spel heeft nog geen opgeslagen gegevens"
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder this game saves in"
+msgstr "Opent de map met opgeslagen spellen voor dit spel"
+
+#: views/game_details_panel.cpp
+msgid "This game has no shader cache yet"
+msgstr "Deze game heeft nog geen shader-cache"
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder of this game's shader cache"
+msgstr "Opent de shader-cachemap voor deze game"
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder this game's mods go in"
+msgstr "Opent de map mods voor deze game"
+
+#: views/game_details_panel.cpp
+msgid "Add-on content"
+msgstr "Aanvullende inhoud"
+
+#: views/game_details_panel.cpp
+msgid "%n item"
+msgid_plural "%n items"
+msgstr[0] "%n item"
+msgstr[1] "%n items"
+
+#: views/game_details_panel.cpp
+msgid "No update, DLC or mod found for this game."
+msgstr "Geen updates, geen DLC of mods gevonden voor deze game."
+
+#: views/game_details_panel.cpp
+msgid "Remove User override; inherit NXEmu or global settings"
+msgstr "Gebruikersaanpassing verwijderen; NXEmu of algemene instellingen overnemen"
+
+#: views/game_details_panel.cpp
+msgid "Disable NXEmu override for this game"
+msgstr "Schakel de NXEmu-aanpassing uit voor deze game"
+
+#: views/game_details_panel.cpp
+msgid "Enable NXEmu override for this game"
+msgstr "Schakel NXEmu-aanpassing in voor deze game"
+
+#: views/game_details_panel.cpp
+msgid "Replaced by User"
+msgstr "Vervangen door gebruiker"
+
+#: views/game_details_panel.cpp
+msgid "Disabled"
+msgstr "Uitgeschakeld"
+
+#: views/game_details_panel.cpp
+msgid "User"
+msgstr "Gebruiker"
+
+#: views/game_details_panel.cpp
+msgid "User overrides"
+msgstr "Gebruikersaanpassingen"
+
+#: views/game_details_panel.cpp
+msgid "NXEmu overrides"
+msgstr "NXEmu-aanpassingen"
+
+#: views/general_dialog.cpp
+msgid "Japan"
+msgstr "Japan"
+
+#: views/general_dialog.cpp
+msgid "Americas"
+msgstr "Amerika"
+
+#: views/general_dialog.cpp
+msgid "Europe"
+msgstr "Europa"
+
+#: views/general_dialog.cpp
+msgid "Australia"
+msgstr "Australië"
+
+#: views/general_dialog.cpp
+msgid "China"
+msgstr "China"
+
+#: views/general_dialog.cpp
+msgid "Korea"
+msgstr "Korea"
+
+#: views/general_dialog.cpp
+msgid "Taiwan"
+msgstr "Taiwan"
+
+#: views/general_dialog.cpp
+msgid "For games modified to draw this shape. The others are squeezed into it."
+msgstr "Voor spellen die voor deze beeldverhouding zijn aangepast. Andere spellen worden vervormd om erin te passen."
+
+#: views/general_dialog.cpp
+msgid "The shape of the console's picture. The right choice for nearly every game."
+msgstr "De verhoudingen van het consolebeeld. Voor bijna elk spel de juiste keuze."
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "Stretch to the window"
+msgstr "Uitrekken tot venster"
+
+#: views/general_dialog.cpp
+msgid "Fills the window whatever its shape. The picture is deformed."
+msgstr "Vult het venster, ongeacht de proporties. Het beeld is vervormd."
+
+#: views/general_dialog.cpp
+msgid "On"
+msgstr "Aan"
+
+#: views/general_dialog.cpp
+msgid "Each picture waits for the screen. No tearing: the usual choice."
+msgstr "Elk beeld wacht op de schermverversing. Geen tearing: de gebruikelijke keuze."
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "On, late pictures tear"
+msgstr "Aan, tearing bij vertraging"
+
+#: views/general_dialog.cpp
+msgid "As On, but a picture that comes late is shown at once. It tears instead of stuttering."
+msgstr "Zoals Aan, maar een te laat beeld wordt meteen getoond. Dat veroorzaakt tearing in plaats van haperingen."
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "On, lowest delay"
+msgstr "Aan, minimale vertraging"
+
+#: views/general_dialog.cpp
+msgid "The screen always gets the newest picture. No tearing and less delay, for more work. Not every computer can do it."
+msgstr "Het scherm krijgt altijd het nieuwste beeld. Geen tearing en minder vertraging, maar een hogere belasting. Niet elke computer ondersteunt dit."
+
+#: views/general_dialog.cpp
+msgid "Off"
+msgstr "Uit"
+
+#: views/general_dialog.cpp
+msgid "Pictures are shown as soon as they are drawn. The least delay, but the picture can tear."
+msgstr "Beelden verschijnen zodra ze zijn berekend. Minimale vertraging, maar tearing is mogelijk."
+
+#: views/general_dialog.cpp
+msgid "Built into the processor."
+msgstr "Geïntegreerd in de processor."
+
+#: views/general_dialog.cpp
+msgid "A graphics card."
+msgstr "Een grafische kaart."
+
+#: views/general_dialog.cpp
+msgid "Not available"
+msgstr "Niet beschikbaar"
+
+#: views/general_dialog.cpp
+msgid "What the console draws."
+msgstr "De consoleresolutie."
+
+#: views/general_dialog.cpp
+msgid "Less than the console draws: blurrier, for a computer that struggles."
+msgstr "Onder de consoleresolutie: waziger, voor een computer in moeilijkheden."
+
+#: views/general_dialog.cpp
+msgid "More than the console draws: sharper, and more work for the graphics device."
+msgstr "Hogere consoleresolutie: scherper, maar veeleisender voor het grafische apparaat."
+
+#: views/general_dialog.cpp
+msgid "%1 (native)"
+msgstr "%1 (native)"
+
+#: views/general_dialog.cpp
+#: views/main_window.cpp
+msgid "Gaussian"
+msgstr "Gaussian"
+
+#: views/general_dialog.cpp
+msgid "The one the computer plays its sounds on."
+msgstr "Degene die de computer gebruikt om zijn geluiden uit te zenden."
+
+#: views/general_dialog.cpp
+msgid "Games play on the default of the computer until it is back."
+msgstr "Games gebruiken de standaarduitvoer van de computer totdat ze opnieuw worden aangesloten."
+
+#: views/general_dialog.cpp
+msgid "Stereo"
+msgstr "Stereo"
+
+#: views/general_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "Twee kanalen: hoofdtelefoon en de meeste luidsprekers."
+
+#: views/general_dialog.cpp
+msgid "Surround"
+msgstr "Surround"
+
+#: views/general_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "Zes kanalen, voor luidsprekers die in de kamer zijn geplaatst."
+
+#: views/general_dialog.cpp
+msgid "Mono"
+msgstr "Mono"
+
+#: views/general_dialog.cpp
+msgid "One channel."
+msgstr "Eén kanaal."
+
+#: views/general_dialog.cpp
+msgid "Games are drawn in %1p."
+msgstr "Games worden weergegeven in %1p."
+
+#: views/general_dialog.cpp
+msgid "Chosen here, whatever the language."
+msgstr "Hier geselecteerd, ongeacht de taal."
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "Follows the console language."
+msgstr "Volgt de consoletaal."
+
+#: views/general_dialog.cpp
+msgid "This is the graphics built into the processor. Games run better on %1."
+msgstr "Dit is de grafische chip die in de processor is geïntegreerd. Games draaien het beste op %1."
+
+#: views/general_dialog.cpp
+msgid "Used from the next game on."
+msgstr "Wordt gebruikt vanaf de volgende game."
+
+#: views/general_dialog.cpp
+msgid "What draws the games: this computer has %1."
+msgstr "De grafische apparaten die spellen weergeven: deze computer heeft er %1."
+
+#: views/general_dialog.cpp
+msgid "What draws the games."
+msgstr "Het grafische apparaat dat spellen weergeeft."
+
+#: views/hotkeys.h
+msgid "Load a file"
+msgstr "Bestand laden"
+
+#: views/hotkeys.h
+msgid "Exit"
+msgstr "Afsluiten"
+
+#: views/hotkeys.h
+msgid "Fullscreen"
+msgstr "Volledig scherm"
+
+#: views/hotkeys.h
+msgid "Leave fullscreen"
+msgstr "Volledig scherm verlaten"
+
+#: views/hotkeys.h
+msgid "Hide or show the interface"
+msgstr "Interface verbergen of tonen"
+
+#: views/hotkeys.h
+#: views/main_window.cpp
+msgid "Show performance"
+msgstr "Prestaties tonen"
+
+#: views/hotkeys.h
+msgid "Pause or continue"
+msgstr "Pauzeren of hervatten"
+
+#: views/hotkeys.h
+msgid "Stop the game"
+msgstr "Spel stoppen"
+
+#: views/hotkeys.h
+msgid "Docked or handheld"
+msgstr "Docked of handheld"
+
+#: views/loading_screen.cpp
+msgid "Opening the game..."
+msgstr "Het spel openen..."
+
+#: views/loading_screen.cpp
+msgid "Preparing shaders"
+msgstr "Shaders voorbereiden"
+
+#: views/loading_screen.cpp
+msgid "Starting..."
+msgstr "Starten..."
+
+#: views/main_window.cpp
+msgid "Recent"
+msgstr "Recent"
+
+#: views/main_window.cpp
+msgid "NXEmu - Exit"
+msgstr "NXEmu - Afsluiten"
+
+#: views/main_window.cpp
+msgid ""
+"Clear the shader cache for %1?\n"
+"\n"
+"Shaders will be rebuilt the next time you play."
+msgstr ""
+"De shadercache voor %1 wissen?\n"
+"\n"
+"De shaders worden de volgende keer dat je speelt opnieuw opgebouwd."
+
+#: views/main_window.cpp
+msgid "Clear cache"
+msgstr "Cache wissen"
+
+#: views/main_window.cpp
+msgid "Could not clear the cache: %1"
+msgstr "De cache kon niet worden gewist: %1"
+
+#: views/main_window.cpp
+msgid "&Load File"
+msgstr "&Bestand laden"
+
+#: views/main_window.cpp
+msgid "&Recent File"
+msgstr "&Recente bestanden"
+
+#: views/main_window.cpp
+msgid "Open &NXEmu Folders"
+msgstr "Mappen &NXEmu openen"
+
+#: views/main_window.cpp
+msgid "&App Directory"
+msgstr "&Toepassingsmap"
+
+#: views/main_window.cpp
+msgid "&Log Folder"
+msgstr "&Logboekmap"
+
+#: views/main_window.cpp
+msgid "E&xit"
+msgstr "A&fsluiten"
+
+#: views/main_window.cpp
+msgid "&File"
+msgstr "&Bestand"
+
+#: views/main_window.cpp
+msgid "&Emulation"
+msgstr "&Emulatie"
+
+#: views/main_window.cpp
+msgid "Continue"
+msgstr "Doorgaan"
+
+#: views/main_window.cpp
+msgid "Pause"
+msgstr "Pauze"
+
+#: views/main_window.cpp
+msgid "&Stop"
+msgstr "&Stop"
+
+#: views/main_window.cpp
+msgid "Limit &Speed"
+msgstr "&Snelheid beperken"
+
+#: views/main_window.cpp
+msgid "&Fullscreen"
+msgstr "&Volledig scherm"
+
+#: views/main_window.cpp
+msgid "Show &UI"
+msgstr "&Interface weergeven"
+
+#: views/main_window.cpp
+msgid "Hide &UI"
+msgstr "&Verberg interface"
+
+#: views/main_window.cpp
+msgid "Measures per second"
+msgstr "Metingen per seconde"
+
+#: views/main_window.cpp
+msgid "History length"
+msgstr "Lengte van de geschiedenis"
+
+#: views/main_window.cpp
+msgid "How many measures the history shows"
+msgstr "Hoeveel metingen de geschiedenis toont"
+
+#: views/main_window.cpp
+msgid "Window size"
+msgstr "Venstergrootte"
+
+#: views/main_window.cpp
+msgid "Performance overlay"
+msgstr "Prestatie-overlay"
+
+#: views/main_window.cpp
+msgid "&Settings"
+msgstr "&Parameters"
+
+#: views/main_window.cpp
+msgid "Install &Firmware"
+msgstr "&Firmware installeren"
+
+#: views/main_window.cpp
+msgid "&Help"
+msgstr "&Help"
+
+#: views/main_window.cpp
+msgid "&Discord"
+msgstr "&Discord"
+
+#: views/main_window.cpp
+msgid "&Report Issues"
+msgstr "&Meld een probleem"
+
+#: views/main_window.cpp
+msgid "&About NXEmu"
+msgstr "&Over NXEmu"
+
+#: views/main_window.cpp
+msgid "%n game"
+msgid_plural "%n games"
+msgstr[0] "%n spel"
+msgstr[1] "%n spellen"
+
+#: views/main_window.cpp
+msgid "No game matches your search."
+msgstr "Er komen geen games overeen met je zoekopdracht."
+
+#: views/main_window.cpp
+msgid "No game directory yet."
+msgstr "Geen map met games."
+
+#: views/main_window.cpp
+msgid "Add one in the settings"
+msgstr "Voeg er één toe in de instellingen"
+
+#: views/main_window.cpp
+msgid "No games found in your game directories."
+msgstr "Geen games gevonden in je gamemappen."
+
+#: views/main_window.cpp
+msgid "Change them in the settings"
+msgstr "Wijzig ze in de instellingen"
+
+#: views/main_window.cpp
+msgid "Never"
+msgstr "Nooit"
+
+#: views/main_window.cpp
+msgid "More actions"
+msgstr "Overige acties"
+
+#: views/main_window.cpp
+msgid "Title ID"
+msgstr "Titel-ID"
+
+#: views/main_window.cpp
+msgid "Start Game"
+msgstr "Start Spel"
+
+#: views/main_window.cpp
+msgid "Game settings"
+msgstr "Spelinstellingen"
+
+#: views/main_window.cpp
+msgid "Open saves"
+msgstr "Opgeslagen spellen openen"
+
+#: views/main_window.cpp
+msgid "Open cache"
+msgstr "Cache openen"
+
+#: views/main_window.cpp
+msgid "Open Containing Folder"
+msgstr "Open de gamemap"
+
+#: views/main_window.cpp
+msgid "Resume emulation (F2)"
+msgstr "Emulatie hervatten (F2)"
+
+#: views/main_window.cpp
+msgid "Press %1 or %2 to leave fullscreen"
+msgstr "Druk op %1 of %2 om het volledige scherm te verlaten"
+
+#: views/main_window.cpp
+msgid "Press %1 to show the interface"
+msgstr "Druk op %1 om de interface te tonen"
+
+#: views/main_window.cpp
+msgid "Use game settings"
+msgstr "Spelinstellingen volgen"
+
+#: views/main_window.cpp
+msgid "Manage profiles"
+msgstr "Profielen beheren"
+
+#: views/main_window.cpp
+msgid "Default"
+msgstr "Standaard"
+
+#: views/main_window.cpp
+msgid "Sharpness: once FSR is the filter"
+msgstr "Scherpte: zodra FSR het filter is"
+
+#: views/main_window.cpp
+msgid "The resolution scale cannot change while a game is running"
+msgstr "De resolutieschaal kan niet worden gewijzigd terwijl een game bezig is"
+
+#: views/main_window.cpp
+msgid "The profile cannot change while a game is running"
+msgstr "Profiel kan niet worden gewijzigd terwijl een game bezig is"
+
+#: views/main_window.cpp
+msgid "The profile games start as: its saves are the ones used"
+msgstr "Het profiel waarmee spellen starten en waarvan de opgeslagen spellen worden gebruikt"
+
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "Building: %n shader"
+msgid_plural "Building: %n shaders"
+msgstr[0] "Compileren: %n shader"
+msgstr[1] "Compileren: %n shaders"
+
+#: views/main_window.cpp
+msgid "Firmware: %1"
+msgstr "Firmware: %1"
+
+#: views/main_window.cpp
+msgid "Switch games"
+msgstr "Schakel tussen games"
+
+#: views/main_window.cpp
+msgid "NXEmu - Stop Emulation"
+msgstr "NXEmu - Emulatie stoppen"
+
+#: views/main_window.cpp
+msgid ""
+"The currently running application has requested NXEmu to not exit.\n"
+"\n"
+"Would you like to bypass this and stop emulation anyway?"
+msgstr ""
+"De huidige applicatie heeft verzocht NXEmu niet te sluiten.\n"
+"\n"
+"Wilt u dit verzoek negeren en de emulatie toch stoppen?"
+
+#: views/main_window.cpp
+msgid ""
+"Are you sure you want to stop the emulation?\n"
+"\n"
+"Any unsaved progress will be lost."
+msgstr ""
+"Weet u zeker dat u de emulatie wilt stoppen?\n"
+"\n"
+"Niet-opgeslagen voortgang gaat verloren."
+
+#: views/performance_overlay.h
+msgid "History"
+msgstr "Geschiedenis"
+
+#: views/performance_overlay.h
+msgid "Lowest, average and highest"
+msgstr "Laagste, gemiddelde en hoogste"
+
+#: views/performance_overlay.h
+msgid "Frame time"
+msgstr "Frametijd"
+
+#: views/performance_overlay.h
+msgid "Longest frame"
+msgstr "Langste frame"
+
+#: views/performance_overlay.h
+msgid "Emulation speed"
+msgstr "Emulatiesnelheid"
+
+#: views/performance_overlay.h
+msgid "Processor use"
+msgstr "Processorgebruik"
+
+#: views/performance_overlay.h
+msgid "Memory use"
+msgstr "Geheugengebruik"
+
+#: views/profiles_dialog.cpp
+msgid "Active"
+msgstr "Actief"
+
+#: views/profiles_dialog.cpp
+msgid "A new player, with saves of their own"
+msgstr "Een nieuwe speler met eigen opgeslagen spellen"
+
+#: views/profiles_dialog.cpp
+msgid "New profile"
+msgstr "Nieuw profiel"
+
+#: views/profiles_dialog.cpp
+msgid "Delete %1? Its saves stay on the disk."
+msgstr "%1 verwijderen? De opgeslagen spellen blijven op schijf."
+
+#: views/profiles_dialog.cpp
+msgid "Pictures"
+msgstr "Afbeeldingen"
+
+#: views/scaling_filters.h
+#: views/settings_context.cpp
+msgid "Nearest neighbour"
+msgstr "Dichtstbijzijnde buur"
+
+#: views/scaling_filters.h
+msgid "Sharp squares, for pixel art. The lightest."
+msgstr "Scherpe vierkantjes, voor pixelart. Het lichtst."
+
+#: views/scaling_filters.h
+msgid "Bilinear"
+msgstr "Bilinear"
+
+#: views/scaling_filters.h
+msgid "Smooth. The usual choice, and light."
+msgstr "Glad. De gebruikelijke keuze, en licht."
+
+#: views/scaling_filters.h
+msgid "Bicubic"
+msgstr "Bicubic"
+
+#: views/scaling_filters.h
+msgid "A little sharper than bilinear, for slightly more work."
+msgstr "Iets scherper dan bilineair, voor iets meer werk."
+
+#: views/scaling_filters.h
+msgid "Sharp edges, best for 2D games and drawings. Heavier."
+msgstr "Scherpe randen, het best voor 2D-spellen en tekeningen. Zwaarder."
+
+#: views/scaling_filters.h
+msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr "AMD FidelityFX Super Resolution: verscherpt een beeld dat kleiner dan het venster is getekend, het best voor 3D-spellen. Matig werk."
+
+#: views/settings_context.cpp
+msgid "Volume"
+msgstr "Volume"
+
+#: views/settings_context.cpp
+msgid "Sharpness"
+msgstr "Scherpte"
+
+#: views/settings_context.cpp
+msgid "Settings for %1"
+msgstr "Instellingen voor %1"
+
+#: views/settings_context.cpp
+msgid "Global < NXEmu < User. Editing a setting creates a User override; Inherit removes it. Changes apply on the next launch."
+msgstr "Algemeen < NXEmu < Gebruiker. Een wijziging maakt een gebruikersaanpassing; Overnemen verwijdert deze. Wijzigingen gelden vanaf de volgende start."
+
+#: views/settings_context.cpp
+msgid "Choices in the status bar take priority over these settings."
+msgstr "De keuzes in de statusbalk hebben voorrang op deze instellingen."
+
+#: views/settings_context.cpp
+msgid "User override"
+msgstr "Gebruikersaanpassing"
+
+#: views/settings_context.cpp
+msgid "NXEmu override"
+msgstr "NXEmu-aanpassing"
+
+#: views/settings_context.cpp
+msgid "Inherit"
+msgstr "Overnemen"
+
+#: views/volume_control.cpp
+msgid "Muted: click to hear the games again"
+msgstr "Geluid gedempt: klik om het dempen van games op te heffen"
+
+#: views/volume_control.cpp
+msgid "Mute"
+msgstr "Geluid dempen"
+
+#: views/main_window.cpp
+msgid "Restart"
+msgstr "Opnieuw starten"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "Interfacethema"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "Gebruik de systeemweergave of kies een licht of donker thema."
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "Licht"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "Donker"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "Versie naar klembord gekopieerd"
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
+msgstr "Emulatieknoppen tonen"
+
+msgid "Debug"
+msgstr "Debug"
+
+msgid "Emulation diagnostics"
+msgstr "Emulatiediagnose"
+
+msgid "Threads and input"
+msgstr "Threads en invoer"
+
+msgid "Gamepad"
+msgstr "Gamepad"
+
+msgid "Not assigned"
+msgstr "Niet toegewezen"
+
+msgid "Press the buttons..."
+msgstr "Druk op de knoppen..."
+
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "TV-modus: games draaien op 1080p en verwachten een televisie."
+
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "Handheldmodus: games draaien op 720p, zoals op het scherm van de console."
+
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "Er draait een game: grijze opties kunnen pas na het stoppen worden gewijzigd. Talen worden bij het starten van een game toegepast."
+
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
+msgstr "Games, updates en DLC kunnen samen of in verschillende mappen worden bewaard. NXEmu koppelt ze automatisch. Games worden rechtstreeks in elke map gezocht, uitbreidingen ook in submappen."
+
+msgid "Profile"
+msgstr "Profiel"
+
+msgid "Who plays, with saves of their own."
+msgstr "De speler, met eigen opgeslagen spellen."
+
+msgid "Add players, and change their names and pictures"
+msgstr "Spelers toevoegen en hun namen en afbeeldingen wijzigen"
+
+msgid "Manage"
+msgstr "Beheer"
+
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "Consolemodus: op de televisie (1080p) of als handheld (720p)"
+
+msgid "Clear shortcut"
+msgstr "Sneltoets wissen"
+
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "Klik op een sneltoets en druk op de toetsen of houd de gamepadknoppen ingedrukt en laat ze los. Wis de toewijzing met het kruisje ernaast of klik erop en druk op Delete."
+
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "Resolutieschaal: hogere waarden geven een scherper beeld, maar vragen meer grafische rekenkracht."
+
+msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
+msgstr "Dit spel bevat geen bruikbaar uitvoerbaar bestand (ExeFS).\n\nAls deze kopie een update vereist, voeg de map toe via Instellingen > Spelmappen en activeer de update in de speldetails. Controleer bij een actieve update of de bestanden volledig en leesbaar zijn.\n\nSpel: %1"
+
+msgid "Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr "Het spel kon niet worden geladen:\n%1\n\nLaadfout: %2. Controleer of de spelbestanden volledig zijn en de vereiste sleutels en firmware beschikbaar zijn."
+
+msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
+msgstr "De interface kon niet worden geladen. Controleer of de ui-map van NXEmu volledig is."

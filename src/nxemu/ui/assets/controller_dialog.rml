@@ -1,0 +1,109 @@
+<rml>
+  <head>
+    <title>Controllers</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="settings_shell.rcss" />
+    <link type="text/rcss" href="controller_dialog.rcss" />
+  </head>
+  <body class="dialog-backdrop">
+    <div class="dialog settings-dialog">
+      <div class="dialog-header settings-header">
+        <img src="images/window-icon.png" />
+        <div class="dialog-title">Controllers</div>
+
+        <div class="dialog-close" data-command="cancel">&#xD7;</div>
+      </div>
+      <div class="settings-body">
+        <div class="controller-page">
+          <div id="players" class="player-tabs" />
+          <div class="player-page">
+            <div class="player-bar">
+              <div class="field">
+                <div id="connected" class="switch" data-command="toggle-connected" title="On, games see this player's controller as plugged into the console."><div class="switch-knob" /></div>
+                <div class="field-text">Connected</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Controller</div>
+                <select id="type" />
+              </div>
+              <div class="field">
+                <div class="field-label">Input device</div>
+                <select id="device" />
+              </div>
+              <div id="hint" class="controller-hint" />
+            </div>
+            <div class="bind-columns">
+              <div class="bind-column side">
+                <div id="group-lstick" class="bind-group">
+                  <div class="group-head"><div id="title-lstick" class="group-title">Left stick</div></div>
+                  <div id="rows-lstick" class="bind-rows" />
+                  <div id="stick-0-deadzone" class="stick-option">
+                    <div class="option-label">Deadzone</div><div id="stick-0-deadzone-text" class="option-value" />
+                    <input id="stick-0-deadzone-range" class="range" type="range" min="0" max="100" step="1" value="15" />
+                  </div>
+                  <div id="stick-0-range" class="stick-option">
+                    <div class="option-label">Range</div><div id="stick-0-range-text" class="option-value" />
+                    <input id="stick-0-range-range" class="range" type="range" min="50" max="150" step="1" value="95" />
+                  </div>
+                  <div id="stick-0-modifier" class="stick-option">
+                    <div class="option-label">Modifier range</div><div id="stick-0-modifier-text" class="option-value" />
+                    <input id="stick-0-modifier-range" class="range" type="range" min="0" max="100" step="1" value="50" />
+                  </div>
+                </div>
+                <div id="group-dpad" class="bind-group">
+                  <div class="group-head"><div class="group-title">D-pad</div></div>
+                  <div id="rows-dpad" class="bind-rows" />
+                </div>
+              </div>
+              <div id="centre" class="bind-column centre">
+                <div id="rows-shoulder" class="bind-rows four" />
+                <div id="rows-system" class="bind-rows four" />
+                <div class="picture-area"><div id="picture" class="picture" /></div>
+                <div class="extras">
+                  <div id="rows-motion" class="bind-rows motion" />
+                  <div class="vibration">
+                    <div id="vibration" class="switch" data-command="toggle-vibration" title="On, the controller shakes when games ask it to."><div class="switch-knob" /></div>
+                    <div class="field-text">Vibration</div>
+                    <div id="strength" class="strength">
+                      <input id="strength-range" class="range" type="range" min="0" max="100" step="1" value="100" />
+                      <div id="strength-text" class="option-value" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="bind-column side">
+                <div id="group-face" class="bind-group">
+                  <div class="group-head"><div class="group-title">Face buttons</div></div>
+                  <div id="rows-face" class="bind-rows" />
+                </div>
+                <div id="group-rstick" class="bind-group">
+                  <div class="group-head"><div id="title-rstick" class="group-title">Right stick</div></div>
+                  <div id="rows-rstick" class="bind-rows" />
+                  <div id="stick-1-deadzone" class="stick-option">
+                    <div class="option-label">Deadzone</div><div id="stick-1-deadzone-text" class="option-value" />
+                    <input id="stick-1-deadzone-range" class="range" type="range" min="0" max="100" step="1" value="15" />
+                  </div>
+                  <div id="stick-1-range" class="stick-option">
+                    <div class="option-label">Range</div><div id="stick-1-range-text" class="option-value" />
+                    <input id="stick-1-range-range" class="range" type="range" min="50" max="150" step="1" value="95" />
+                  </div>
+                  <div id="stick-1-modifier" class="stick-option">
+                    <div class="option-label">Modifier range</div><div id="stick-1-modifier-text" class="option-value" />
+                    <input id="stick-1-modifier-range" class="range" type="range" min="0" max="100" step="1" value="50" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer controller-footer">
+        <button data-command="map-all" title="Asks for each control in turn">Bind all controls</button>
+        <button data-command="defaults" title="Binds this player's controls as the input device suggests">Restore defaults</button>
+        <div class="footer-space" />
+        <button data-command="cancel">Cancel</button>
+        <button class="primary" data-command="save">Save</button>
+      </div>
+    </div>
+  </body>
+</rml>

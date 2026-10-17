@@ -21,18 +21,14 @@
 
 Thumbs.db
 .DS_Store
+__pycache__/
+*.pyc
 /.vs
 /bin
 /build
 /git.properties
 /ipch
-/modules
 /package
-/src/nxemu-core/version.h
-/src/nxemu-video/version.h
-/src/nxemu-cpu/version.h
-/src/nxemu-os/version.h
-/src/nxemu-loader/version.h
 /config/NxEmu.config
 
 # Android (src/android Gradle project)

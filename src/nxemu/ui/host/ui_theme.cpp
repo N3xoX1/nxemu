@@ -9,6 +9,9 @@
 
 namespace
 {
+// The shared UI palette. Semantic tokens keep component styles independent
+// of the selected theme. Artwork and the in-game performance graphs keep
+// their own colours.
 constexpr struct { const char * name; const char * dark; const char * light; } kColours[] = {
     {"canvas", "#070b14", "#f3f5f9"},
     {"chrome", "#0a0f1a", "#e9edf4"},
@@ -63,6 +66,8 @@ bool UiThemeFileInterface::SetLight(bool light)
 
 std::string UiThemeFileInterface::Resolve(std::string_view source, bool light)
 {
+    // Append once instead of shifting the rest of the stylesheet for every
+    // substitution. Views also avoid allocating a string for each token.
     std::string resolved;
     resolved.reserve(source.size());
     size_t cursor = 0;
