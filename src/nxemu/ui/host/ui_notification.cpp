@@ -35,6 +35,12 @@ void UiNotification::BindWindow(SDL_Window* window)
     window_ = window;
 }
 
+void UiNotification::SetPresenter(Presenter presenter)
+{
+    std::lock_guard lock(mutex_);
+    presenter_ = std::move(presenter);
+}
+
 void UiNotification::Pump()
 {
     std::deque<Message> pending;
@@ -67,13 +73,13 @@ void UiNotification::QueueOrShow(Message message) const
     {
         std::lock_guard lock(mutex_);
         window = window_;
-        if (window && std::this_thread::get_id() != ui_thread_)
+        if (window && (std::this_thread::get_id() != ui_thread_ || (!message.question && presenter_)))
         {
             messages_.push_back(std::move(message));
             return;
         }
     }
-    if (window)
+    if (window || std::this_thread::get_id() == ui_thread_)
         Show(message);
     else if (message.answer)
         message.answer->set_value(NotificationResponse::No);
@@ -81,21 +87,16 @@ void UiNotification::QueueOrShow(Message message) const
 
 void UiNotification::Show(const Message& message) const
 {
-    if (!message.question)
+    Presenter presenter;
     {
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, message.title.c_str(),
-                                 message.text.c_str(), window_);
-        return;
+        std::lock_guard lock(mutex_);
+        presenter = presenter_;
     }
-    const std::string yes = Tr("Yes"), no = Tr("No");
-    const SDL_MessageBoxButtonData buttons[] = {
-        {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, yes.c_str()},
-        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, no.c_str()},
-    };
-    const SDL_MessageBoxData box{SDL_MESSAGEBOX_INFORMATION, window_,
-                                  message.title.c_str(), message.text.c_str(),
-                                  2, buttons, nullptr};
-    int button = 0;
-    const bool accepted = SDL_ShowMessageBox(&box, &button) == 0 && button == 1;
-    message.answer->set_value(accepted ? NotificationResponse::Yes : NotificationResponse::No);
+    // Startup failures can happen before RmlUi or its renderer is available.
+    if (!presenter && !message.question)
+    {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, message.title.c_str(), message.text.c_str(), window_);
+    }
+    const auto response = presenter ? presenter(message.question, message.title, message.text) : NotificationResponse::No;
+    if (message.answer) message.answer->set_value(response);
 }

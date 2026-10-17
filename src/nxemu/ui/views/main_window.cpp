@@ -420,11 +420,16 @@ void MainWindow::Update()
     std::vector<GameEntry> games;
     if (m_library.TakeScanResult(games))
     {
+        // A content-only change (such as removing a DLC folder) can leave
+        // every GameEntry unchanged. Refresh the selected game's add-ons too.
+        m_details = {};
+        m_detailsDirty = true;
         // An empty list was waiting for the scan to say whether it is.
         if (games != m_games || games.empty())
         {
             ShowGames(std::move(games));
         }
+        RequestSelectedDetails();
     }
     GameDetails details;
     if (m_library.TakeDetails(details) && details.path == m_selectedPath)
@@ -2085,6 +2090,7 @@ bool MainWindow::AttachVideo()
     {
         return true;
     }
+    // A native fallback is necessary when no renderer can draw RmlUi.
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "NXEmu", m_window.Error().c_str(), m_window.Handle());
     m_quit = true;
     return false;

@@ -1,4 +1,5 @@
 #include "translation.h"
+#include <nxemu/ui/views/message_dialog.h>
 #include <nxemu/ui/host/system_fonts.h>
 #include <nxemu/ui/host/ui_theme.h>
 #include <nxemu/ui/library/ui_preferences.h>
@@ -8,6 +9,7 @@
 #include <nxemu-video/video_settings_identifiers.h>
 #include <RmlUi/Core.h>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -71,6 +73,42 @@ int main(int argc, char ** argv)
 #endif
         Rml::Context * context = Rml::CreateContext("translations", {1280, 720});
         Check(context != nullptr, "Could not create a document context");
+        {
+            MessageDialog question(context, ui / "assets", true, "Confirm", "Keep <tag id='injected'> literal & safe?\nSecond line");
+            question.Show(); context->Update();
+            auto * document = context->GetDocument(context->GetNumDocuments() - 1);
+            const auto checkCentered = [&](Rml::ElementDocument * doc, float width, float height) {
+                auto * box = doc->GetElementById("message-box");
+                const auto position = box->GetAbsoluteOffset();
+                Check(std::abs(position.x + box->GetOffsetWidth() / 2 - width / 2) < 2 &&
+                      std::abs(position.y + box->GetOffsetHeight() / 2 - height / 2) < 2,
+                      "Alerts must be centered in the current window viewport");
+            };
+            checkCentered(document, 1280, 720);
+            Check(document && !document->GetElementById("injected"), "Notification text must not be parsed as markup");
+            document->GetElementById("message-accept")->DispatchEvent("click", {});
+            question.Update();
+            Check(!question.IsVisible() && question.Response() == NotificationResponse::Yes, "Confirm must accept and close");
+            MessageDialog cancel(context, ui / "assets", true, "Stop", "Unsaved progress");
+            cancel.Show(); context->Update();
+            context->ProcessKeyDown(Rml::Input::KI_ESCAPE, 0);
+            cancel.Update();
+            Check(!cancel.IsVisible() && cancel.Response() == NotificationResponse::No, "Escape must cancel");
+            MessageDialog safeDefault(context, ui / "assets", true, "Stop", "Unsaved progress");
+            safeDefault.Show(); context->Update();
+            context->ProcessKeyDown(Rml::Input::KI_RETURN, 0); safeDefault.Update();
+            Check(!safeDefault.IsVisible() && safeDefault.Response() == NotificationResponse::No, "Enter must default to No for confirmations");
+            MessageDialog alert(context, ui / "assets", false, "Error", std::string(2000, 'x'));
+            alert.Show(); context->SetDimensions({480, 360}); context->Update();
+            document = context->GetDocument(context->GetNumDocuments() - 1);
+            checkCentered(document, 480, 360);
+            Check(document->GetElementById("message-cancel")->GetProperty("display")->Get<Rml::Style::Display>() == Rml::Style::Display::None, "Alerts show only OK");
+            auto * button = document->GetElementById("message-accept");
+            Check(button->GetAbsoluteOffset().y >= 0 && button->GetAbsoluteOffset().y + button->GetOffsetHeight() <= 360, "Alert buttons must fit a small window");
+            context->ProcessKeyDown(Rml::Input::KI_RETURN, 0); alert.Update();
+            Check(!alert.IsVisible(), "Enter must dismiss alerts");
+            context->SetDimensions({1280, 720}); context->Update();
+        }
         TemporaryDocument test;
         std::ofstream(test.path) << R"(<rml><head><style>body { font-family: LatoLatin; }</style></head><body>
             <div id="text">  Settings  </div><input id="field" placeholder="Search games..." title="Settings"/>

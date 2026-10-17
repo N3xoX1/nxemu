@@ -56,7 +56,7 @@ public:
     bool Load();
     // Writes the index if anything changed since it was read or written, and
     // removes the icons no game uses any more.
-    bool Save();
+    bool Save(bool completeContentScan = true);
 
     std::optional<CachedGame> FindGame(const std::string & path) const;
     std::optional<CachedContainer> FindContainer(const std::string & path) const;
@@ -87,4 +87,7 @@ private:
     std::unordered_map<std::string, CachedContainer> m_containers;
     std::unordered_map<std::string, CachedRejection> m_rejections;
     bool m_dirty = false;
+    // An independent cache stores Title ID associations, so editing one
+    // game title or icon does not rewrite the content index.
+    bool m_containersDirty = false;
 };

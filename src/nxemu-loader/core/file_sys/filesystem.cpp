@@ -10,60 +10,10 @@
 #include "core/file_sys/sdmc_factory.h"
 #include "core/file_sys/romfs_factory.h"
 
-#include "loader_settings.h"
 #include "system_loader.h"
-#include <unordered_set>
 #include <yuzu_common/logging/log.h>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/path_util.h>
-
-namespace
-{
-void CollectTitleIdModRoots(const std::filesystem::path & path, const std::string & title_id_hex, FileSys::VfsFilesystem & vfs, std::vector<FileSys::VirtualDir> & out, std::unordered_set<std::string> & seen_paths)
-{
-    if (!Common::FS::IsDir(path))
-    {
-        return;
-    }
-
-    const std::string folder_name = Common::FS::PathToUTF8String(path.filename());
-    bool TitleIdFolderNameEquals = folder_name.size() == title_id_hex.size();
-    if (TitleIdFolderNameEquals)
-    {
-        for (size_t i = 0; i < folder_name.size(); ++i)
-        {
-            if (std::tolower((unsigned char)folder_name[i]) != std::tolower((unsigned char)title_id_hex[i]))
-            {
-                TitleIdFolderNameEquals = false;
-                break;
-            }
-        }
-    }
-
-    if (TitleIdFolderNameEquals)
-    {
-        const std::string utf8 = Common::FS::PathToUTF8String(path);
-        FileSys::VirtualDir dir = vfs.OpenDirectory(utf8, VirtualFileOpenMode::Read);
-        if (dir != nullptr && seen_paths.insert(dir->GetFullPath()).second)
-        {
-            out.push_back(std::move(dir));
-        }
-        return;
-    }
-
-    std::error_code ec;
-    for (const auto & entry : std::filesystem::directory_iterator(path, ec))
-    {
-        std::error_code type_ec;
-        if (ec || !entry.is_directory(type_ec) || type_ec)
-        {
-            continue;
-        }
-        CollectTitleIdModRoots(entry.path(), title_id_hex, vfs, out, seen_paths);
-    }
-}
-
-} // namespace
 
 FileSystemController::FileSystemController(Systemloader & loader_) :
     loader(loader_)
@@ -288,7 +238,7 @@ FileSys::VirtualDir FileSystemController::GetSDMCModificationLoadRoot(uint64_t t
 std::vector<FileSys::VirtualDir> FileSystemController::GetAddOnModificationLoadRoots(uint64_t title_id) const
 {
     std::vector<FileSys::VirtualDir> roots;
-    if (title_id == 0 || (title_id & 0xFFF) == 0x800 || loaderSettings.addOnDirectories.empty())
+    if (title_id == 0 || (title_id & 0xFFF) == 0x800)
     {
         return roots;
     }
@@ -299,15 +249,12 @@ std::vector<FileSys::VirtualDir> FileSystemController::GetAddOnModificationLoadR
         return roots;
     }
 
-    const std::string title_id_hex = fmt::format("{:016X}", title_id);
-    std::unordered_set<std::string> seen_paths;
-    for (const std::string & dir : loaderSettings.addOnDirectories)
+    // The per-loader index already walked the roots once for this scan/launch.
+    // Looking them up here must not recurse through an entire ROM library.
+    for (const std::string & path : loader.GameModificationRoots(title_id))
     {
-        if (dir.empty())
-        {
-            continue;
-        }
-        CollectTitleIdModRoots(std::filesystem::path(Common::FS::ToU8String(dir)), title_id_hex, *vfs, roots, seen_paths);
+        FileSys::VirtualDir dir = vfs->OpenDirectory(path, VirtualFileOpenMode::Read);
+        if (dir) roots.push_back(std::move(dir));
     }
     return roots;
 }

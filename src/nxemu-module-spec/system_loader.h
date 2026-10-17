@@ -1,6 +1,8 @@
 #pragma once
 #include "base.h"
 #include "operating_system.h"
+#include <string>
+#include <vector>
 
 enum class LoaderTitleType : uint8_t {
     SystemProgram = 0x01,
@@ -397,6 +399,21 @@ nxinterface IFirmwareInstallObserver
     virtual bool ConfirmFirmwareReplacement(const char * packageVersion, const char * installedVersion) = 0;
 };
 
+// An already enumerated, complete library snapshot. A content file's
+// signature is "size:mtime"; application IDs are base Title IDs.
+struct GameContentFile
+{
+    std::string path;
+    std::string signature;
+    std::vector<uint64_t> applications;
+};
+struct GameContentSnapshot
+{
+    std::vector<std::string> directories;
+    std::vector<GameContentFile> files;
+    std::vector<std::string> modificationRoots;
+};
+
 nxinterface ISystemloader
 {
     virtual bool Initialize() = 0;
@@ -438,6 +455,12 @@ nxinterface ISystemloader
     // the base games. Writes up to max_count ids and returns how many there
     // are; none for a file that is not a container or cannot be read.
     virtual uint32_t GetContainerApplications(const char * utf8_path, uint64_t * application_ids, uint32_t max_count) = 0;
+    // Publish a complete scan without a second filesystem traversal. A scan
+    // of an obsolete directory configuration is rejected.
+    virtual bool PublishGameContentSnapshot(const GameContentSnapshot & snapshot) = 0;
+    // Refresh at launch, also when starting a file without opening the library.
+    virtual void RefreshGameContentIndex() = 0;
+
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);

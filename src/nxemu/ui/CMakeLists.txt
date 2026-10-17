@@ -79,6 +79,8 @@ add_library(nxemu_ui STATIC
     views/controller_picture.h
     views/dialog.cpp
     views/dialog.h
+    views/message_dialog.cpp
+    views/message_dialog.h
     views/directories_dialog.cpp
     views/directories_dialog.h
     views/firmware_dialog.cpp
@@ -160,6 +162,9 @@ if(NXEMU_BUILD_TRANSLATION_TESTS)
     enable_testing()
     add_executable(nxemu_translation_tests
         i18n/translation_tests.cpp
+        views/message_dialog.cpp
+        views/dialog.cpp
+        views/rml_events.cpp
         i18n/translation.cpp
         i18n/plural_rule.cpp
         host/system_fonts.cpp
@@ -196,6 +201,9 @@ if(NXEMU_BUILD_LIBRARY_CACHE_TESTS)
     target_include_directories(nxemu_game_library_scan_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(nxemu_game_library_scan_tests PRIVATE RmlUi::RmlUi nxemu_core common yuzu_common)
     add_test(NAME nxemu_game_library_scan COMMAND nxemu_game_library_scan_tests)
+    add_test(NAME nxemu_game_content_loader COMMAND nxemu_game_library_scan_tests "$<TARGET_FILE:nxemu-loader>")
+    add_dependencies(nxemu_game_library_scan_tests nxemu-loader)
+    set_tests_properties(nxemu_game_library_cache nxemu_game_library_scan nxemu_game_content_loader PROPERTIES TIMEOUT 120)
 endif()
 
 # On macOS the modules are built into the build tree; an executable run

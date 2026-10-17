@@ -210,7 +210,15 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     }
     if (!m_modules.Modules().Systemloader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
     {
-        ReportError(Tr("Could not load the game:\n%1", {path}));
+        const auto result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
+        if (result == LoaderResultStatus::ErrorNoExeFS)
+        {
+            ReportError(Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path}));
+        }
+        else
+        {
+            ReportError(Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))}));
+        }
         return false;
     }
     LOG_INFO(Frontend, "Game launch: load ROM in {} ms, total {} ms",

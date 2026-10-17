@@ -1013,18 +1013,6 @@ msgstr ""
 msgid "Required modules failed to load."
 msgstr "Erforderliche Module konnten nicht geladen werden."
 
-#: emulation/emulator_session.cpp
-msgid ""
-"Could not load the game:\n"
-"%1"
-msgstr ""
-"Das Spiel konnte nicht geladen werden:\n"
-"%1"
-
-#: host/ui_notification.cpp
-msgid "Yes"
-msgstr "Ja"
-
 #: host/ui_notification.cpp
 msgid "No"
 msgstr "Nein"
@@ -2167,11 +2155,9 @@ msgstr "Wie viele Messungen der Verlauf zeigt"
 msgid "Window size"
 msgstr "Fenstergröße"
 
-
 #: views/main_window.cpp
 msgid "Performance overlay"
 msgstr "Leistungsanzeige"
-
 
 #: views/main_window.cpp
 msgid "&Settings"
@@ -2479,11 +2465,9 @@ msgstr "Dunkel"
 msgid "Version copied to clipboard"
 msgstr "Version in die Zwischenablage kopiert"
 
-
 #: views/main_window.cpp
 msgid "Show emulation controls"
 msgstr "Emulationssteuerung anzeigen"
-
 
 msgid "Debug"
 msgstr "Debug"
@@ -2512,9 +2496,8 @@ msgstr "Handheld-Modus: Spiele laufen mit 720p, wie auf dem Bildschirm der Konso
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "Ein Spiel läuft: Ausgegraute Optionen lassen sich erst nach dem Beenden ändern. Die Sprache wird beim Spielstart übernommen."
 
-
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
-msgstr "Spiele, Updates und DLC können im selben Ordner oder in verschiedenen Ordnern liegen. NXEmu ordnet sie automatisch zu. Unterordner werden nicht durchsucht."
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
+msgstr "Spiele, Updates und DLC können im selben Ordner oder in verschiedenen Ordnern liegen. NXEmu ordnet sie automatisch zu. Spiele werden direkt im jeweiligen Ordner gesucht, Zusatzinhalte auch in Unterordnern."
 
 msgid "Profile"
 msgstr "Profil"
@@ -2531,13 +2514,20 @@ msgstr "Verwalten"
 msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr "Konsolenmodus: am Fernseher (1080p) oder im Handheld-Modus (720p)"
 
-
 msgid "Clear shortcut"
 msgstr "Kurzbefehl löschen"
 
 msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
 msgstr "Klicken Sie auf einen Kurzbefehl und drücken Sie die Tasten oder halten Sie die Gamepad-Tasten und lassen Sie sie los. Zum Löschen das Kreuz daneben verwenden oder den Kurzbefehl anklicken und Entf drücken."
 
-
 msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
 msgstr "Auflösungsskalierung: Höhere Werte liefern ein schärferes Bild, benötigen aber mehr Grafikleistung."
+
+msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
+msgstr "Dieses Spiel enthält keine nutzbare ausführbare Datei (ExeFS).\n\nFalls diese Kopie ein Update benötigt, fügen Sie dessen Ordner unter Einstellungen > Spieleordner hinzu und aktivieren Sie es in den Spieldetails. Ist es bereits aktiviert, prüfen Sie, ob die Dateien vollständig und lesbar sind.\n\nSpiel: %1"
+
+msgid "Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr "Spiel konnte nicht geladen werden:\n%1\n\nLadefehler: %2. Prüfen Sie die Vollständigkeit der Spieldateien sowie die benötigten Schlüssel und Firmware."
+
+msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
+msgstr "Die Oberfläche konnte nicht geladen werden. Prüfen Sie, ob der ui-Ordner von NXEmu vollständig ist."
