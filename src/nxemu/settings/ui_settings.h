@@ -15,6 +15,7 @@ struct UISettings
     std::string languageBase;
     std::string languageCurrent;
     bool sciterConsole;
+    bool useRmlUI;
     int32_t gameBrowserMyGameIconSize;
     bool performVulkanCheck;
     bool hasBrokenVulkan;
