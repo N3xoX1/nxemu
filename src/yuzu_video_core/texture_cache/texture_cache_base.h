@@ -532,9 +532,6 @@ private:
         AsyncBuffer map;
     };
     static constexpr size_t GC_READBACK_LIMIT = 64_MiB;
-    static constexpr ImageFlagBits GC_READBACK_UNSUPPORTED_FLAGS =
-        ImageFlagBits::Remapped | ImageFlagBits::Sparse | ImageFlagBits::Converted |
-        ImageFlagBits::AsynchronousDecode | ImageFlagBits::IsDecoding;
     std::deque<GCReadback> gc_readbacks;
     std::unordered_set<ImageId> gc_readback_ids;
     size_t gc_readback_bytes{};

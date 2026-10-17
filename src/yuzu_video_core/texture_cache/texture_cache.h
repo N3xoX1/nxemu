@@ -106,8 +106,6 @@ bool TextureCache<P>::QueueGCReadback(ImageId id) {
     } else {
         auto& image = slot_images[id];
         if (image.unswizzled_size_bytes == 0 || image.unswizzled_size_bytes > GC_READBACK_LIMIT ||
-            True(image.flags & GC_READBACK_UNSUPPORTED_FLAGS) ||
-            !image.overlapping_images.empty() ||
             image.gpu_page_table_index != channel_state->gpu_page_table_index) {
             return false;
         }
@@ -144,15 +142,11 @@ void TextureCache<P>::PollGCReadbacks() {
             const ImageId id = readback.id;
             auto& image = slot_images[id];
             const auto owner = address_spaces.find(readback.address_space);
+            // Do not permanently reject an unchanged image because an alias is
+            // newer: every GC pass would cancel and requeue it without retiring it.
             const bool unchanged =
                 image.IsSafeDownload() &&
-                False(image.flags & (ImageFlagBits::BadOverlap | GC_READBACK_UNSUPPORTED_FLAGS)) &&
-                image.overlapping_images.empty() &&
-                std::ranges::none_of(image.aliased_images,
-                                     [this, &readback](const auto& alias) {
-                                         return slot_images[alias.id].modification_tick >
-                                                readback.modification_tick;
-                                     }) &&
+                False(image.flags & ImageFlagBits::BadOverlap) &&
                 image.modification_tick == readback.modification_tick &&
                 lru_cache.GetTick(image.lru_index) == readback.last_use_tick &&
                 owner != address_spaces.end() &&
