@@ -48,7 +48,7 @@ private:
     SettingsContext & m_settings;
     const Host m_host;
     std::vector<UiRenderer::GraphicsDevice> m_devices; // in the order of the list
-    size_t m_profileCount = 0;                         // of the list of profiles
+    size_t m_profileCount = 0;
     std::vector<std::string> m_changes;                // ids of the controls changed since the last frame
     bool m_unsaved = false;                            // a change is not in the settings file yet
 };

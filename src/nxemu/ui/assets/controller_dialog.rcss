@@ -607,3 +607,7 @@ body.stacked .bind-columns
 {
     display: none;
 }
+.settings-header .dialog-title
+{
+    flex: 1;
+}

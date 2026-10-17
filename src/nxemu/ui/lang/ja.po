@@ -462,10 +462,6 @@ msgid "What is written, as class:level."
 msgstr "ログに記録する内容。形式はクラス:レベルです。"
 
 #: assets/advanced_dialog.rml
-msgid "Click a shortcut, then press its keys. A click elsewhere keeps it as it is."
-msgstr "ショートカットをクリックしてからキーを押します。他の場所をクリックすると変更されません。"
-
-#: assets/advanced_dialog.rml
 msgid "In game"
 msgstr "ゲーム中"
 
@@ -573,10 +569,6 @@ msgid "Save"
 msgstr "保存"
 
 #: assets/directories_dialog.rml
-msgid "The folders NXEmu looks for games in. The folders inside them are not searched."
-msgstr "NXEmu がゲームを検索するフォルダー。そのサブフォルダーは参照されません。"
-
-#: assets/directories_dialog.rml
 msgid "Add a directory"
 msgstr "フォルダーを追加"
 
@@ -671,10 +663,6 @@ msgid "Console mode"
 msgstr "コンソールモード"
 
 #: assets/general_dialog.rml
-msgid "On the television, or in the hands."
-msgstr "テレビでも、手元でも。"
-
-#: assets/general_dialog.rml
 msgid "As on the television: games draw up to 1080p."
 msgstr "テレビと同様に、ゲームは最大 1080p で表示されます。"
 
@@ -729,22 +717,6 @@ msgid "Whole pictures only: no tearing."
 msgstr "ティアリングのない完全な画像。"
 
 #: assets/general_dialog.rml
-msgid "Profile"
-msgstr "プロフィール"
-
-#: assets/general_dialog.rml
-msgid "Who plays, with saves of their own."
-msgstr "プレイヤーと、そのプレイヤー専用のセーブデータ。"
-
-#: assets/general_dialog.rml
-msgid "Add players, and change their names and pictures"
-msgstr "プレイヤーを追加し、名前と画像を変更"
-
-#: assets/general_dialog.rml
-msgid "Manage"
-msgstr "管理"
-
-#: assets/general_dialog.rml
 msgid "Language"
 msgstr "言語"
 
@@ -789,10 +761,6 @@ msgstr "出力モード"
 #: assets/general_dialog.rml
 msgid "Surround needs speakers that play it."
 msgstr "サラウンド サウンドには互換性のあるスピーカーが必要です。"
-
-#: assets/general_dialog.rml
-msgid "A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts."
-msgstr "ゲームの実行中は、グレー表示の項目を変更できません。言語と音声出力の設定はゲーム起動時に適用されます。"
 
 #: assets/main_window.rml
 #: views/main_window.cpp
@@ -936,10 +904,6 @@ msgid "Paused"
 msgstr "一時停止中"
 
 #: assets/main_window.rml
-msgid "Console mode: on the television, or in the hands"
-msgstr "コンソール モード: テレビまたは手持ち"
-
-#: assets/main_window.rml
 msgid "The resolution games are drawn at"
 msgstr "ゲームが表示される解像度"
 
@@ -1027,10 +991,6 @@ msgstr "プロフィールの削除"
 #: assets/profiles_dialog.rml
 msgid "Delete"
 msgstr "削除"
-
-#: assets/profiles_dialog.rml
-msgid "Back to the general settings"
-msgstr "一般設定に戻る"
 
 #: emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
@@ -2320,10 +2280,6 @@ msgid "The resolution scale cannot change while a game is running"
 msgstr "ゲームの進行中に解像度スケールを変更することはできません"
 
 #: views/main_window.cpp
-msgid "Resolution scale"
-msgstr "解像度スケール"
-
-#: views/main_window.cpp
 msgid "The profile cannot change while a game is running"
 msgstr "ゲームの進行中はプロフィールを変更できません"
 
@@ -2518,3 +2474,61 @@ msgstr "バージョンをクリップボードにコピーしました"
 #: views/main_window.cpp
 msgid "Show emulation controls"
 msgstr "エミュレーション操作ボタンを表示"
+
+
+msgid "Debug"
+msgstr "デバッグ"
+
+msgid "Emulation diagnostics"
+msgstr "エミュレーション診断"
+
+msgid "Threads and input"
+msgstr "スレッドと入力"
+
+msgid "Gamepad"
+msgstr "ゲームパッド"
+
+msgid "Not assigned"
+msgstr "未割り当て"
+
+msgid "Press the buttons..."
+msgstr "ボタンを押してください..."
+
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "TVモード：ゲームは1080pで動作し、テレビでの表示を想定します。"
+
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "携帯モード：本体画面と同じように、ゲームは720pで動作します。"
+
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "ゲームの実行中は、グレー表示の設定を変更できません。言語はゲームの起動時に適用されます。"
+
+
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
+msgstr "ゲーム、更新データ、DLCは同じフォルダーにも別々のフォルダーにも保存できます。NXEmuが自動的に関連付けます。サブフォルダーは検索しません。"
+
+msgid "Profile"
+msgstr "プロフィール"
+
+msgid "Who plays, with saves of their own."
+msgstr "プレイヤーと、そのプレイヤー専用のセーブデータ。"
+
+msgid "Add players, and change their names and pictures"
+msgstr "プレイヤーを追加し、名前と画像を変更"
+
+msgid "Manage"
+msgstr "管理"
+
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "本体モード：テレビ（1080p）または携帯モード（720p）"
+
+
+msgid "Clear shortcut"
+msgstr "ショートカットを解除"
+
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "ショートカットをクリックしてキーを押すか、ゲームパッドのボタンを押して離します。解除するには隣の×をクリックするか、ショートカットをクリックしてDeleteを押します。"
+
+
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "解像度倍率：値を上げると映像が鮮明になりますが、より高いグラフィックス性能が必要です。"

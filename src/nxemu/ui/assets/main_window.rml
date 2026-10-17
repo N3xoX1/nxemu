@@ -168,7 +168,7 @@
       <div id="performance" />
     </div>
     <div id="status-bar">
-      <div id="docked-mode" class="select" title="Console mode: on the television, or in the hands">
+      <div id="docked-mode" class="select" title="Console mode: on the television (1080p), or handheld (720p)">
         <img id="docked-icon" class="select-icon" src="images/docked.png" />
         <div id="docked-text" />
         <img class="select-arrow" src="images/chevron-down.png" />

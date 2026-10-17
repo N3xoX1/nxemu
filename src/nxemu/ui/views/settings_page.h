@@ -7,10 +7,10 @@
 enum class SettingsPage
 {
     General,
-    Controllers,
     Profiles,
     Directories,
     Advanced,
+    Debug,
 };
 
 // Shows a page of the settings. False when it cannot be shown now.
@@ -24,10 +24,6 @@ inline bool SettingsPageOf(const std::string & command, SettingsPage & page)
     {
         page = SettingsPage::General;
     }
-    else if (command == "page:controllers")
-    {
-        page = SettingsPage::Controllers;
-    }
     else if (command == "page:profiles")
     {
         page = SettingsPage::Profiles;
@@ -39,6 +35,10 @@ inline bool SettingsPageOf(const std::string & command, SettingsPage & page)
     else if (command == "page:advanced")
     {
         page = SettingsPage::Advanced;
+    }
+    else if (command == "page:debug")
+    {
+        page = SettingsPage::Debug;
     }
     else
     {

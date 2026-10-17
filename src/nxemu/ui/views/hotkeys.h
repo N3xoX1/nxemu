@@ -23,6 +23,20 @@ enum class HotkeyId
 // that are not the usual ones.
 namespace Hotkeys
 {
+struct Info;
+struct GamepadShortcut
+{
+    std::string guid;
+    uint64_t buttons = 0;
+    bool operator==(const GamepadShortcut &) const = default;
+    std::string Label() const;
+};
+// Updates held buttons from the event stream. Releases return the chord before
+// release, so a combination can be recorded when the first button is let go.
+GamepadShortcut TrackGamepad(const SDL_Event & event);
+GamepadShortcut GetGamepad(HotkeyId id);
+const Info * GamepadHolder(const GamepadShortcut & shortcut, HotkeyId except);
+void SetGamepad(HotkeyId id, const GamepadShortcut & shortcut);
 struct Info
 {
     HotkeyId id;

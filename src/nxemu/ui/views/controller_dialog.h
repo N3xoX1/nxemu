@@ -1,6 +1,5 @@
 #pragma once
 #include "dialog.h"
-#include "settings_page.h"
 #include <SDL.h>
 #include <array>
 #include <functional>
@@ -23,7 +22,7 @@ class UiWindow;
 class ControllerDialog final : public Dialog
 {
 public:
-    ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir, OpenSettingsPage openPage);
+    ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir);
     ~ControllerDialog();
 
     // The keyboard goes to the emulated controllers while the dialog is open:
@@ -85,7 +84,6 @@ private:
 
     UiWindow & m_window;
     EmulatorSession & m_session;
-    const OpenSettingsPage m_openPage; // shows another page of the settings in place of this one
     int m_player = 0;
     bool m_handheld = false; // the first player plays the console itself
     bool m_changed = false;  // something differs from what is saved
