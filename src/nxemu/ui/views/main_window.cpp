@@ -3,10 +3,12 @@
 #include "rml_events.h"
 #include <RmlUi/Core.h>
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <nxemu-core/notification.h>
+#include <nxemu-core/settings/identifiers.h>
+#include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu/ui/host/shell.h>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
@@ -47,6 +49,11 @@ std::string Folded(const std::string & text)
     std::string result = text;
     std::transform(result.begin(), result.end(), result.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
     return result;
+}
+
+std::string FileName(const std::string & utf8Path)
+{
+    return Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(utf8Path)}.filename());
 }
 } // namespace
 
@@ -97,7 +104,7 @@ bool MainWindow::Create()
 
 void MainWindow::RequestQuit()
 {
-    if (!m_session.IsRunning())
+    if (!m_session.IsRunning() || ConfirmStop(Tr("NXEmu - Exit")))
     {
         m_quit = true;
     }
@@ -105,10 +112,18 @@ void MainWindow::RequestQuit()
 
 void MainWindow::HandleEvent(const SDL_Event & event)
 {
-    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE && (m_menuBar->IsOpen() || m_gameMenu->IsOpen()))
+    if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEWHEEL)
+    {
+        m_mouseMovedAt = SDL_GetTicks64();
+        UpdateMouseCursor();
+    }
+    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE &&
+        (m_menuBar->IsOpen() || m_gameMenu->IsOpen()))
     {
         m_menuBar->Close();
         m_gameMenu->Close();
+        m_pendingGameMenu = nullptr;
+        m_pendingSelectMenu = nullptr;
         return;
     }
     if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_HIT_TEST)
@@ -143,6 +158,7 @@ void MainWindow::Update()
     RenderVisibleGames();
     LoadPendingIcons();
     SyncWindowState();
+    UpdateMouseCursor();
     if (m_menuDirty && !m_menuBar->IsOpen())
     {
         m_menuDirty = false;
@@ -152,6 +168,14 @@ void MainWindow::Update()
     const float width = static_cast<float>(context->GetDimensions().x) / context->GetDensityIndependentPixelRatio();
     m_document->SetClass("narrow", width < kNarrowWidth);
     m_document->SetClass("compact", width < kCompactWidth);
+    const float density = context->GetDensityIndependentPixelRatio();
+    const float menuWidth = m_document->GetElementById("menu-bar")->GetOffsetWidth() / density;
+    const float windowSpace = m_window.DrawsWindowControls() ? 150.0f : 82.0f;
+    const float titleSpace = width - menuWidth - windowSpace;
+    m_document->SetClass("title-hide-settings", titleSpace < 720.0f);
+    m_document->SetClass("title-hide-text", titleSpace < 520.0f);
+    m_document->SetClass("title-hide-secondary", titleSpace < 400.0f);
+    m_document->SetClass("title-minimal", titleSpace < 260.0f);
     m_window.Context()->Update();
 }
 
@@ -265,49 +289,58 @@ void MainWindow::BindEvents()
 void MainWindow::RebuildMenu()
 {
     const bool running = m_session.IsRunning();
+    const auto phase = m_session.CurrentPhase();
+    const bool playing = running && (phase == EmulatorSession::Phase::Running || phase == EmulatorSession::Phase::Paused);
+    const bool canStop = running || !m_pendingGame.empty();
     const auto action = [this](Action id, std::string label, bool enabled = true) {
         return MenuItem::Action(static_cast<int>(id), std::move(label), ShortcutLabel(id), enabled);
+    };
+    const auto check = [this](Action id, std::string label, bool checked) {
+        return MenuItem::Check(static_cast<int>(id), std::move(label), checked, ShortcutLabel(id));
     };
 
     std::vector<MenuItem> file;
     file.push_back(action(Action::LoadFile, Tr("&Load File")));
     file.push_back(MenuItem::Separator());
-    file.push_back(action(Action::OpenGameDirectories, Tr("Game directories")));
     file.push_back(MenuItem::Submenu(Tr("Open &NXEmu Folders"), {
                                                                 action(Action::OpenAppDirectory, Tr("&App Directory")),
                                                                 action(Action::OpenLogDirectory, Tr("&Log Folder")),
                                                             }));
+    file.push_back(MenuItem::Separator());
+    file.push_back(action(Action::OpenSettings, Tr("&Settings")));
+    file.push_back(MenuItem::Separator());
+    file.push_back(action(Action::InstallFirmware, Tr("Install &Firmware"), !running));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::Exit, Tr("E&xit")));
 
     std::vector<MenuItem> menus;
     menus.push_back(MenuItem::Submenu(Tr("&File"), std::move(file)));
 
-    if (running)
+    // Keep the menu positions stable when a game starts or stops.
+    std::vector<MenuItem> emulation = {
+        action(Action::PauseOrContinue, m_session.IsPaused() ? Tr("Continue") : Tr("Pause")),
+        action(Action::Stop, Tr("&Stop")),
+        MenuItem::Separator(),
+        check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit)),
+    };
+    for (MenuItem & item : emulation)
     {
-        menus.push_back(MenuItem::Submenu(Tr("&Emulation"), {
-                                                         action(Action::PauseOrContinue, Tr("Pause")),
-                                                         action(Action::Stop, Tr("&Stop")),
-                                                     }));
+        item.enabled = item.id == static_cast<int>(Action::Stop) ? canStop : playing;
     }
 
-    std::vector<MenuItem> view;
-    view.push_back(action(Action::ToggleFullscreen, Tr("&Fullscreen"), running));
-    view.push_back(action(Action::ToggleHideUi, Tr("Hide &UI"), running));
-    view.push_back(MenuItem::Separator());
-    view.push_back(MenuItem::Submenu(Tr("Window size"), {
+    // Fullscreen and the hidden interface are for a game: without one, the
+    // menu says how the next starts.
+    emulation.push_back(MenuItem::Separator());
+    emulation.push_back(action(Action::ToggleFullscreen, Tr("&Fullscreen"), running));
+    emulation.push_back(action(Action::ToggleHideUi, m_hideUi ? Tr("Show &UI") : Tr("Hide &UI"), running));
+    emulation.push_back(MenuItem::Submenu(Tr("Window size"), {
         action(Action::ResetWindowSize720p, "720p"),
         action(Action::ResetWindowSize900p, "900p"),
         action(Action::ResetWindowSize1080p, "1080p"),
     }));
-    menus.push_back(MenuItem::Submenu(Tr("&View"), std::move(view)));
+    emulation.push_back(MenuItem::Separator());
+    menus.push_back(MenuItem::Submenu(Tr("&Emulation"), std::move(emulation)));
 
-    menus.push_back(MenuItem::Submenu(Tr("&Options"), {
-                                                      action(Action::OpenSettings, Tr("&Settings")),
-                                                      action(Action::ConfigureControllers, Tr("&Controllers")),
-                                                      action(Action::OpenProfiles, Tr("Profiles")),
-                                                      action(Action::InstallFirmware, Tr("Install &Firmware"), !running),
-                                                  }));
     menus.push_back(MenuItem::Submenu(Tr("&Help"), {
                                                    action(Action::OpenDiscord, Tr("&Discord")),
                                                    action(Action::OpenReportIssues, Tr("&Report Issues")),
@@ -662,6 +695,10 @@ void MainWindow::ShowVersion()
     }
 }
 
+void MainWindow::UpdateMouseCursor()
+{
+}
+
 void MainWindow::SyncWindowState()
 {
     const bool fullscreen = m_window.IsFullscreen();
@@ -721,4 +758,12 @@ void MainWindow::SetText(const char * id, const std::string & text)
     {
         element->SetInnerRML(rml);
     }
+}
+
+bool MainWindow::ConfirmStop(const std::string & title)
+{
+    const std::string message = m_session.Modules().OperatingSystem().GetExitLocked()
+                                    ? Tr("The currently running application has requested NXEmu to not exit.\n\nWould you like to bypass this and stop emulation anyway?")
+                                    : Tr("Are you sure you want to stop the emulation?\n\nAny unsaved progress will be lost.");
+    return g_notify->Query(message.c_str(), title.c_str()) == NotificationResponse::Yes;
 }

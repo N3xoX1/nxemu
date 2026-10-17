@@ -12,6 +12,14 @@ class UiNotification;
 class EmulatorSession final
 {
 public:
+    enum class Phase
+    {
+        Idle,
+        Loading,
+        Running,
+        Paused,
+    };
+
     class Listener
     {
     public:
@@ -33,6 +41,8 @@ public:
     bool IsValid() const { return m_modules.IsValid(); }
     ISystemModules & Modules() { return m_modules.Modules(); }
     bool IsRunning() const;
+    bool IsPaused();
+    Phase CurrentPhase() const;
 
 private:
     EmulatorSession(const EmulatorSession &) = delete;

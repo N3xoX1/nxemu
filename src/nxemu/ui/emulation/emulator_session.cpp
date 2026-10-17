@@ -38,6 +38,28 @@ bool EmulatorSession::IsRunning() const
     return m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);
 }
 
+bool EmulatorSession::IsPaused()
+{
+    return IsRunning() && m_modules.Modules().OperatingSystem().IsEmulationPaused();
+}
+
+EmulatorSession::Phase EmulatorSession::CurrentPhase() const
+{
+    SettingsStore & settings = SettingsStore::GetInstance();
+    switch (static_cast<EmulationState>(settings.GetInt(NXCoreSetting::EmulationState)))
+    {
+    case EmulationState::Starting:
+    case EmulationState::LoadingRom:
+    case EmulationState::RomLoaded:
+        return Phase::Loading;
+    case EmulationState::Running:
+        return settings.GetBool(NXCoreSetting::DisplayedFrames) ? Phase::Running : Phase::Loading;
+    case EmulationState::Paused:
+        return Phase::Paused;
+    default:
+        return Phase::Idle;
+    }
+}
 void EmulatorSession::RegisterSystemCallbacks()
 {
     m_callbackContext = std::make_unique<CallbackContext>(CallbackContext{this, ++m_moduleGeneration});
