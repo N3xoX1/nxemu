@@ -139,7 +139,10 @@ private:
     bool AttachVideo();
     void ResetWindowSize(int width, int height);
     void UpdateStatusText();
+    void UpdateMouseCursor();
     void SetText(const char * id, const std::string & text);
+
+    bool ConfirmStop(const std::string & title);
 
     UiWindow & m_window;
     EmulatorSession & m_session;
@@ -166,9 +169,15 @@ private:
     Rml::Element * m_selectedGame = nullptr;
     std::string m_selectedPath;
     uint64_t m_selectedProgramId = 0;
+    Rml::Element * m_pendingGameMenu = nullptr;
+    Rml::Element * m_pendingSelectMenu = nullptr;
+    std::string m_pendingGame;
+    EmulatorSession::Phase m_phase = EmulatorSession::Phase::Idle;
     Panel m_panel = Panel::RomBrowser;
     bool m_menuDirty = true;
     int m_hiddenFrame = 0;
+    uint64_t m_mouseMovedAt = 0;
     uint64_t m_versionCopiedUntil = 0;
+    bool m_hideUi = false;
     bool m_quit = false;
 };
