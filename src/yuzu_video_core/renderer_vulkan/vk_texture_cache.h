@@ -53,6 +53,10 @@ public:
                                  ComputePassDescriptorQueue& compute_pass_descriptor_queue);
 
     void Finish();
+    u64 GetReadbackTick() const;
+    bool IsReadbackReady(u64 tick) const;
+    void WaitReadback(u64 tick);
+    void SubmitReadbacks();
 
     StagingBufferRef UploadStagingBuffer(size_t size);
 

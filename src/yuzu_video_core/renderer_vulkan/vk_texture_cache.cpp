@@ -931,6 +931,22 @@ void TextureCacheRuntime::Finish() {
     scheduler.Finish();
 }
 
+u64 TextureCacheRuntime::GetReadbackTick() const {
+    return scheduler.CurrentTick();
+}
+
+bool TextureCacheRuntime::IsReadbackReady(u64 tick) const {
+    return scheduler.IsFree(tick);
+}
+
+void TextureCacheRuntime::WaitReadback(u64 tick) {
+    scheduler.Wait(tick);
+}
+
+void TextureCacheRuntime::SubmitReadbacks() {
+    scheduler.Flush();
+}
+
 StagingBufferRef TextureCacheRuntime::UploadStagingBuffer(size_t size) {
     return staging_buffer_pool.Request(size, MemoryUsage::Upload);
 }

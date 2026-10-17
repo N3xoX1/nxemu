@@ -55,6 +55,45 @@ void SwizzleImpl(std::span<u8> output, std::span<const u8> input, u32 width, u32
     const u32 block_depth_mask = (1U << block_depth) - 1;
     const u32 x_shift = GOB_SIZE_SHIFT + block_height + block_depth;
 
+    if constexpr (BYTES_PER_PIXEL == 16) {
+        if (width % 4 == 0) {
+            // Four 16-byte sectors cover a GOB row. Adjacent rows share its
+            // cache lines, so process each pair before advancing to the next GOB.
+            for (u32 slice = 0; slice < depth; ++slice) {
+                const u32 offset_z =
+                    (slice >> block_depth) * slice_size +
+                    ((slice & block_depth_mask) << (GOB_SIZE_SHIFT + block_height));
+                for (u32 line = 0; line < height; line += 2) {
+                    const u32 block_y = line >> GOB_SIZE_Y_SHIFT;
+                    const u32 offset_y = (block_y >> block_height) * block_size +
+                                         ((block_y & block_height_mask) << GOB_SIZE_SHIFT) +
+                                         pdep<SWIZZLE_Y_BITS>(line);
+                    for (u32 gob_x = 0; gob_x < width / 4; ++gob_x) {
+                        const u32 base = offset_z + offset_y + (gob_x << x_shift);
+                        const u32 linear = (slice * height + line) * pitch + gob_x * GOB_SIZE_X;
+                        const u32 rows = line + 1 < height ? 2 : 1;
+                        for (u32 row = 0; row < rows; ++row) {
+                            const u32 swizzled = base + row * 16;
+                            const u32 unswizzled = linear + row * pitch;
+                            const auto copy_sector = [&](u32 tiled_offset, u32 linear_offset) {
+                                u8* const dst = &output[TO_LINEAR ? swizzled + tiled_offset
+                                                                  : unswizzled + linear_offset];
+                                const u8* const src = &input[TO_LINEAR ? unswizzled + linear_offset
+                                                                       : swizzled + tiled_offset];
+                                std::memcpy(dst, src, 16);
+                            };
+                            copy_sector(0, 0);
+                            copy_sector(32, 16);
+                            copy_sector(256, 32);
+                            copy_sector(288, 48);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+    }
+
     for (u32 slice = 0; slice < depth; ++slice) {
         const u32 z = slice + origin_z;
         const u32 offset_z = (z >> block_depth) * slice_size +

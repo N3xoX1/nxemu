@@ -36,6 +36,10 @@ public:
         return new_id;
     }
 
+    [[nodiscard]] TickType GetTick(size_t id) const {
+        return item_pool[id].tick;
+    }
+
     void Touch(size_t id, TickType tick) {
         auto& item = item_pool[id];
         if (item.tick >= tick) {
