@@ -582,7 +582,7 @@ void QueriesPrefixScanPass::Run(VkBuffer accumulation_buffer, VkBuffer dst_buffe
             cmdbuf.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, uniforms);
             cmdbuf.Dispatch(1, 1, 1);
             cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                   VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT, 0,
+                                   VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
                                    write_barrier);
         });
     }

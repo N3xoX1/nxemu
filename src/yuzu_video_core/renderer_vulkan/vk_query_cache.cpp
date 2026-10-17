@@ -211,7 +211,7 @@ public:
     }
 
     bool HasPendingSync() const override {
-        return !pending_sync.empty();
+        return !pending_sync.empty() || NeedsCheckpoint();
     }
 
     void SyncWrites() override {
@@ -228,7 +228,8 @@ public:
     }
 
     void PresyncWrites() override {
-        if (pending_sync.empty()) {
+        const bool checkpoint = pending_sync.empty() && NeedsCheckpoint();
+        if (pending_sync.empty() && !checkpoint) {
             return;
         }
         PauseCounter();
@@ -238,6 +239,12 @@ public:
             pending_sync.clear();
             sync_values_stash.clear();
             return;
+        }
+        if (checkpoint) {
+            // Reduce the live counter without publishing a guest write. The
+            // replicated query below pins the banks until their fence completes.
+            num_slots_used = current_query->size_slots;
+            pending_sync.push_back(current_query_id);
         }
         sync_values_stash.clear();
         sync_values_stash.emplace_back();
@@ -298,6 +305,9 @@ public:
                 }
                 sync_value_slot = 1;
             }
+            if (True(query->flags & VideoCommon::QueryFlagBits::IsOrphan)) {
+                continue;
+            }
             query->flags |= VideoCommon::QueryFlagBits::IsHostSynced;
             auto loc_data = offsets[query->start_bank_id];
             sync_values_stash[sync_value_slot].emplace_back(HostSyncValues{
@@ -311,9 +321,15 @@ public:
 
         if (has_multi_queries) {
             const size_t min_accumulation_limit =
-                std::min(first_accumulation_checkpoint, num_slots_used);
+                checkpoint ? num_slots_used : std::min(first_accumulation_checkpoint, num_slots_used);
             const size_t max_accumulation_limit =
-                std::max(last_accumulation_checkpoint, num_slots_used);
+                checkpoint ? num_slots_used : std::max(last_accumulation_checkpoint, num_slots_used);
+            if (checkpoint && !accumulation_since_last_sync) {
+                scheduler.RequestOutsideRenderPassOperationContext();
+                scheduler.Record([buffer = *accumulation_buffer](vk::CommandBuffer cmdbuf) {
+                    cmdbuf.FillBuffer(buffer, 0, 8, 0);
+                });
+            }
             const size_t intermediary_buffer_index = ObtainBuffer<false>(num_slots_used);
             resolve_buffers.push_back(intermediary_buffer_index);
             queries_prefix_scan_pass->Run(*accumulation_buffer, *buffers[intermediary_buffer_index],
@@ -403,6 +419,20 @@ public:
     }
 
 private:
+    bool NeedsCheckpoint() const {
+        // An enabled counter can span arbitrarily many render passes without a
+        // guest report. Periodically fold its segments into the existing sum.
+        static constexpr size_t MAX_RETAINED_SLOTS = 8192;
+        const auto driver = device.GetDriverID();
+        return driver != VK_DRIVER_ID_QUALCOMM_PROPRIETARY &&
+               driver != VK_DRIVER_ID_ARM_PROPRIETARY && driver != VK_DRIVER_ID_MESA_TURNIP &&
+               device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_BASIC_BIT) &&
+               device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_ARITHMETIC_BIT) &&
+               device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_SHUFFLE_BIT) &&
+               device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT) &&
+               current_query && current_query->size_slots >= MAX_RETAINED_SLOTS;
+    }
+
     template <typename Func>
     void ApplyBankOp(VideoCommon::HostQueryBase* query, Func&& func) {
         size_t size_slots = query->size_slots;
