@@ -13,7 +13,6 @@
       <div id="menu-bar" data-window="control" />
       <div id="title-game">
         <div id="title-game-separator" />
-        <img id="title-state" src="images/state-play.png" />
         <img id="title-game-icon" />
         <div id="title-text" translate="no" />
       </div>
@@ -175,6 +174,7 @@
         <img class="select-arrow" src="images/chevron-down.png" />
       </div>
       <div id="resolution-scale" class="select">
+        <img class="select-icon" src="images/move-diagonal.png" />
         <div id="resolution-scale-text" />
         <img class="select-arrow" src="images/chevron-down.png" />
       </div>

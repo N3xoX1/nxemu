@@ -681,8 +681,8 @@ msgstr "Come sul televisore: i giochi vengono renderizzati fino a 1080p."
 #: assets/general_dialog.rml
 #: views/main_window.cpp
 #: views/settings_context.cpp
-msgid "TV"
-msgstr "TV"
+msgid "Docked"
+msgstr "Docked"
 
 #: assets/general_dialog.rml
 msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
@@ -2090,8 +2090,8 @@ msgid "Stop the game"
 msgstr "Ferma il gioco"
 
 #: views/hotkeys.h
-msgid "TV or handheld"
-msgstr "TV o portatile"
+msgid "Docked or handheld"
+msgstr "Docked o portatile"
 
 #: views/loading_screen.cpp
 msgid "Opening the game..."
@@ -2503,10 +2503,6 @@ msgstr "Disattiva audio"
 msgid "Restart"
 msgstr "Riavvia"
 
-#: views/main_window.cpp
-msgid "Running"
-msgstr "In esecuzione"
-
 #: assets/general_dialog.rml
 msgid "Interface theme"
 msgstr "Tema dell'interfaccia"
@@ -2527,3 +2523,7 @@ msgstr "Scuro"
 msgid "Version copied to clipboard"
 msgstr "Versione copiata negli appunti"
 
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
+msgstr "Mostra i controlli di emulazione"

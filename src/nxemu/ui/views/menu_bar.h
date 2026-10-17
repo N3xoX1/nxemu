@@ -16,7 +16,7 @@ struct MenuItem
     {
         Action,
         Check,  // a box ticked on its own: the menu stays open
-        Choice, // one of options excluding each other: choosing it closes the menu, unless it stays
+        Choice, // one of options excluding each other: choosing it closes the menu
         Separator,
         Submenu,
     };
@@ -50,7 +50,6 @@ struct MenuItem
     std::string tag;  // a word beside the label, in smaller text
     bool checked = false;
     bool enabled = true;
-    bool stays = false; // a popup stays open once it is chosen, to compare it with the others
     std::optional<Range> range;
     std::vector<MenuItem> children;
 };
@@ -63,8 +62,6 @@ bool MenuRangeClick(Rml::Event & event);
 // Ticks or unticks the box of a clicked item that has one, which keeps its
 // menu open. False for any other item.
 bool MenuToggleCheck(Rml::Element * item);
-// Whether choosing the item leaves its popup open.
-bool MenuItemStays(Rml::Element * item);
 // The id and the value of the range a "change" event moved, which the text
 // beside it is made to say. False for the change of anything else.
 bool MenuRangeChange(Rml::Event & event, int & id, int & value);

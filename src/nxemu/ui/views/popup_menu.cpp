@@ -24,7 +24,7 @@ PopupMenu::PopupMenu(Rml::Element * anchor, std::function<void(int)> onAction, s
         Rml::Element * item = UiEvents::ClosestWithClass(event.GetTargetElement(), "menu-item");
         if (item != nullptr && item->HasAttribute("data-action"))
         {
-            if (!MenuToggleCheck(item) && !MenuItemStays(item))
+            if (!MenuToggleCheck(item))
             {
                 Close();
             }

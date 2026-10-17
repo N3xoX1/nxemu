@@ -41,7 +41,7 @@ inline constexpr Info kAll[] = {
     {HotkeyId::Performance, "Performance", TrMark("Show performance"), true},
     {HotkeyId::PauseOrContinue, "PauseContinue", TrMark("Pause or continue"), true},
     {HotkeyId::Stop, "StopEmulation", TrMark("Stop the game"), true},
-    {HotkeyId::DockedMode, "ToggleDockedMode", TrMark("TV or handheld"), true},
+    {HotkeyId::DockedMode, "ToggleDockedMode", TrMark("Docked or handheld"), true},
     {HotkeyId::SpeedLimit, "ToggleSpeedLimit", TrMark("Limit speed"), true},
 };
 

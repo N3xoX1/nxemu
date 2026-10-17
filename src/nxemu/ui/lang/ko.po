@@ -681,8 +681,8 @@ msgstr "TV에서와 마찬가지로 게임은 최대 1080p까지 표시됩니다
 #: assets/general_dialog.rml
 #: views/main_window.cpp
 #: views/settings_context.cpp
-msgid "TV"
-msgstr "TV"
+msgid "Docked"
+msgstr "Docked"
 
 #: assets/general_dialog.rml
 msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
@@ -2083,8 +2083,8 @@ msgid "Stop the game"
 msgstr "게임 중지"
 
 #: views/hotkeys.h
-msgid "TV or handheld"
-msgstr "TV/휴대 모드"
+msgid "Docked or handheld"
+msgstr "Docked 또는 휴대 모드"
 
 #: views/loading_screen.cpp
 msgid "Opening the game..."
@@ -2494,10 +2494,6 @@ msgstr "음소거"
 msgid "Restart"
 msgstr "다시 시작"
 
-#: views/main_window.cpp
-msgid "Running"
-msgstr "실행 중"
-
 #: assets/general_dialog.rml
 msgid "Interface theme"
 msgstr "인터페이스 테마"
@@ -2518,3 +2514,7 @@ msgstr "어둡게"
 msgid "Version copied to clipboard"
 msgstr "버전을 클립보드에 복사했습니다"
 
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
+msgstr "에뮬레이션 컨트롤 표시"

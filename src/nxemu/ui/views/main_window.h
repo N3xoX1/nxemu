@@ -72,6 +72,7 @@ private:
         PauseOrContinue,
         Stop,
         Restart,
+        ToggleEmulationControls,
         ToggleSpeedLimit,
         ToggleStartGamesInFullscreen,
         ToggleStartGamesWithUiHidden,
