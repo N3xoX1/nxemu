@@ -70,6 +70,11 @@ elseif(APPLE)
         "${NXEMU_SECURITY_FRAMEWORK}"
         "${NXEMU_COREFOUNDATION_FRAMEWORK}"
     )
+    # The module is copied two levels below Contents/Frameworks in the app.
+    set_property(TARGET nxemu-os APPEND PROPERTY BUILD_RPATH "@loader_path/../..")
+elseif(WIN32)
+    target_link_libraries(nxemu-os PRIVATE
+        ntdll iphlpapi winmm ksuser crypt32 secur32 ws2_32)
 endif()
 
 # Use BSD socket headers and TranslateIPv4(in_addr) path (Linux/macOS/Android).
@@ -78,9 +83,11 @@ if(UNIX)
 endif()
 
 # 128-bit atomics used by OS networking / room code — need cmpxchg16b on x86_64.
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+if(ARCHITECTURE_x86_64 AND NOT MSVC)
     target_compile_options(nxemu-os PRIVATE -mcx16)
-    target_link_libraries(nxemu-os PRIVATE atomic)
+    if(NOT APPLE)
+        target_link_libraries(nxemu-os PRIVATE atomic)
+    endif()
 endif()
 
 set_property(TARGET nxemu-os PROPERTY POSITION_INDEPENDENT_CODE ON)

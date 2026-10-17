@@ -1,5 +1,7 @@
 option(NXEMU_MACOS_BUNDLE "Build NxEmu as a macOS application bundle" ON)
 
+add_subdirectory(ui)
+
 add_executable(nxemu
     main.cpp
     startup_checks.cpp
@@ -115,6 +117,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 target_link_libraries(nxemu PRIVATE
+    nxemu_ui
     sciterui
     common
     yuzu_common
@@ -159,6 +162,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${VERSION_BUILD}"
         OUTPUT_NAME "NxEmu"
+        BUILD_RPATH "@executable_path/../Frameworks"
     )
     if(NOT NXEMU_MOLTENVK_RUNTIME OR NOT EXISTS "${_nxemu_sciter_lib}")
         message(FATAL_ERROR "The macOS bundle requires MoltenVK and Sciter")
@@ -177,7 +181,9 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DOS=$<TARGET_FILE:nxemu-os>"
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
         "-DSCITER=${_nxemu_sciter_lib}"
+        "-DSDL=$<TARGET_FILE:SDL2::SDL2>"
         "-DLANG=${CMAKE_SOURCE_DIR}/lang"
+        "-DUI_ASSETS=${CMAKE_CURRENT_SOURCE_DIR}/ui/assets"
         "-DCODESIGN=${NXEMU_CODESIGN}"
         "-DINFO_PLIST=${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in"
         "-DICON=${_nxemu_icon}"
@@ -223,6 +229,7 @@ else()
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${NXEMU_MOLTENVK_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>/libMoltenVK.dylib"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/lang" "$<TARGET_FILE_DIR:nxemu>/lang"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets" "$<TARGET_FILE_DIR:nxemu>/ui"
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 "$<TARGET_FILE_DIR:nxemu>/modules/loader"
                 "$<TARGET_FILE_DIR:nxemu>/modules/cpu"

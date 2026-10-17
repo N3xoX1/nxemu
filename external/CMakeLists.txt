@@ -30,8 +30,8 @@ endif()
 
 # Keep macOS controller support self-contained in the application bundle.
 if(APPLE AND ENABLE_SDL2 AND NOT TARGET SDL2::SDL2)
-    set(SDL_SHARED OFF CACHE BOOL "Build shared SDL" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "Build static SDL" FORCE)
+    set(SDL_SHARED ON CACHE BOOL "Build shared SDL" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "Build static SDL" FORCE)
     set(SDL_TEST OFF CACHE BOOL "Build SDL test library" FORCE)
     set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
     set(SDL2_DISABLE_INSTALL ON CACHE BOOL "Disable SDL installation" FORCE)
@@ -269,4 +269,33 @@ endif()
 
 if(NOT ANDROID)
     add_subdirectory(sciterui)
+
+    # RmlUi interface, with FreeType as its font engine. Both are built from
+    # source so every platform renders text with the same library.
+    set(_nxemu_saved_build_shared_libs "${BUILD_SHARED_LIBS}")
+    set(BUILD_SHARED_LIBS OFF)
+    foreach(_nxemu_ft_dependency ZLIB BZIP2 PNG HARFBUZZ BROTLI)
+        set(FT_DISABLE_${_nxemu_ft_dependency} ON CACHE BOOL "FreeType: no external dependency" FORCE)
+    endforeach()
+    unset(_nxemu_ft_dependency)
+    set(SKIP_INSTALL_ALL ON)
+    # FreeType's minimum predates what CMake 4 accepts.
+    set(_nxemu_saved_policy_minimum "${CMAKE_POLICY_VERSION_MINIMUM}")
+    if(NOT CMAKE_POLICY_VERSION_MINIMUM OR CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS "3.5")
+        set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
+    endif()
+    add_subdirectory(freetype)
+    set(CMAKE_POLICY_VERSION_MINIMUM "${_nxemu_saved_policy_minimum}")
+    unset(_nxemu_saved_policy_minimum)
+    unset(SKIP_INSTALL_ALL)
+    if(NOT TARGET Freetype::Freetype)
+        add_library(Freetype::Freetype ALIAS freetype)
+    endif()
+
+    # RmlUi takes the target above instead of searching the system.
+    set(CMAKE_DISABLE_FIND_PACKAGE_Freetype TRUE)
+    add_subdirectory(rmlui)
+    unset(CMAKE_DISABLE_FIND_PACKAGE_Freetype)
+    set(BUILD_SHARED_LIBS "${_nxemu_saved_build_shared_libs}")
+    unset(_nxemu_saved_build_shared_libs)
 endif()
