@@ -234,25 +234,6 @@ void UiWindow::PaceFrame()
     m_lastFrame = SDL_GetPerformanceCounter();
 }
 
-void * UiWindow::NativeHandle() const
-{
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(m_window, info))
-    {
-        return nullptr;
-    }
-    switch (info.subsystem)
-    {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
-    case SDL_SYSWM_WINDOWS: return info.info.win.window;
-#endif
-#if defined(SDL_VIDEO_DRIVER_COCOA)
-    case SDL_SYSWM_COCOA: return info.info.cocoa.window;
-#endif
-    default: return nullptr;
-    }
-}
-
 void * UiWindow::RenderSurface() const
 {
     if (m_metalView != nullptr)
