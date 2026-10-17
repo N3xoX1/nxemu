@@ -82,7 +82,7 @@ if(UNIX)
 endif()
 target_link_libraries(nxemu_ui
     PUBLIC RmlUi::RmlUi SDL2::SDL2
-    PRIVATE nxemu_core common yuzu_common fmt::fmt stb::headers Freetype::Freetype
+    PRIVATE nxemu_core sciterui common yuzu_common fmt::fmt stb::headers Freetype::Freetype
         Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if(APPLE)
