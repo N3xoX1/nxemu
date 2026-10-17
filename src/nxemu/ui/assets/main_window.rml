@@ -1,23 +1,203 @@
 <rml>
   <head>
     <title>NXEmu</title>
-    <style>
-      body {
-        width: 100%;
-        height: 100%;
-        background-color: #1e3a8a;
-        font-family: LatoLatin;
-        color: #ffffff;
-      }
-      h1 {
-        display: block;
-        font-size: 48dp;
-        font-weight: bold;
-        padding: 40dp;
-      }
-    </style>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="main_window.rcss" />
   </head>
   <body>
-    <h1>Hello world</h1>
+    <div id="title-bar" data-window="drag">
+      <img id="title-logo" src="images/window-icon.png" data-window="control" />
+      <div id="title-name" translate="no" data-window="control">NXEmu</div>
+      <div class="title-separator" />
+      <div id="title-version" translate="no" data-window="control" />
+      <div id="menu-bar" data-window="control" />
+      <div id="title-game">
+        <div id="title-game-separator" />
+        <img id="title-state" src="images/state-play.png" />
+        <img id="title-game-icon" />
+        <div id="title-text" translate="no" />
+      </div>
+      <div id="title-spacer" />
+      <div id="title-settings-group" class="title-button-group" data-window="control">
+        <button id="title-controllers" class="emulation-button" title="Controllers">
+          <img src="images/gamepad.png" />
+        </button>
+        <button id="title-settings" class="emulation-button" title="Settings">
+          <img src="images/gear.png" />
+        </button>
+      </div>
+      <div id="title-controls-gap" />
+      <div id="emulation-controls" class="title-button-group" data-window="control">
+        <button id="title-restart" class="emulation-button" title="Restart">
+          <img src="images/restart.png" />
+        </button>
+        <button id="title-pause" class="emulation-button" title="Pause emulation (F2)">
+          <img src="images/pause.png" />
+        </button>
+        <button id="title-stop" class="emulation-button" title="Stop emulation (F5)">
+          <img src="images/stop.png" />
+        </button>
+      </div>
+      <div id="window-controls-separator" />
+      <div id="window-controls" data-window="control">
+        <div id="window-minimise" class="window-button" title="Minimise"><div class="glyph-minimise" /></div>
+        <div id="window-maximise" class="window-button" title="Maximise or restore">
+          <div class="glyph-maximise" />
+          <div class="glyph-restore"><div class="glyph-restore-back" /><div class="glyph-restore-front" /></div>
+        </div>
+        <div id="window-close" class="window-button" title="Close"><img src="images/window-close.png" /></div>
+      </div>
+    </div>
+    <div id="main-contents">
+      <div id="rom-browser-panel" class="panel">
+        <div class="games-toolbar">
+          <h1>Library</h1>
+          <div id="games-count" />
+          <div class="search-field">
+            <img src="images/search.png" />
+            <input id="games-search" type="text" placeholder="Search games..." />
+          </div>
+          <div id="games-sort" class="select" title="Sort games">
+            <img class="select-icon" src="images/sort.png" />
+            <div id="games-sort-text" />
+            <img class="select-arrow" src="images/chevron-down.png" />
+          </div>
+          <div class="view-switch">
+            <div id="view-grid" class="view-button active">
+              <img src="images/view-grid.png" />
+              <div class="view-options">
+                <div class="view-options-gap" />
+                <div class="options-panel">
+                  <div>Icon size</div>
+                  <input id="icon-size-slider" type="range" min="96" max="240" step="1" value="146" />
+                  <div class="option-row">
+                    <div>Title</div>
+                    <div id="card-title" class="switch"><div class="switch-knob" /></div>
+                  </div>
+                  <div class="option-row">
+                    <div>Card information</div>
+                    <div id="card-information" class="switch"><div class="switch-knob" /></div>
+                  </div>
+                  <div class="option-row">
+                    <div>Play time</div>
+                    <div id="play-time" class="switch"><div class="switch-knob" /></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="view-list" class="view-button" title="List view">
+              <img src="images/view-list.png" />
+            </div>
+          </div>
+          <div id="games-details-toggle" class="select" title="Shows or hides the details of the selected game">
+            <img class="select-icon" src="images/details.png" />
+            <div>Details</div>
+          </div>
+        </div>
+        <div class="games-body">
+          <div class="games-main">
+            <div id="games-list-header">
+              <div class="col-number">#</div>
+              <div class="col-cover">Cover</div>
+              <div class="col-game sortable" data-sort="0">Game</div>
+              <div class="col-publisher sortable" data-sort="1">Publisher</div>
+              <div class="col-version">Version</div>
+              <div class="col-last sortable" data-sort="2">Last played</div>
+              <div class="col-time sortable" data-sort="3">Play time</div>
+              <div class="col-format">Format</div>
+              <div class="col-size sortable" data-sort="4">Size</div>
+              <div class="col-actions">Actions</div>
+            </div>
+            <div id="games-grid" />
+          </div>
+          <div id="games-details">
+            <div id="details-empty">
+              <img class="empty-state-icon" src="images/details.png" />
+              <div>Select a game to see its details.</div>
+            </div>
+            <div id="details-content">
+              <div class="details-header">
+                <div class="details-art"><img id="details-icon" /></div>
+                <div class="details-heading">
+                  <div id="details-title" />
+                  <div id="details-facts" />
+                </div>
+              </div>
+              <div class="details-buttons">
+                <div id="details-play" class="select primary">
+                  <img class="select-icon" src="images/play.png" />
+                  <div>Play</div>
+                </div>
+                <div id="details-configure" class="select locked" title="Reading game information">
+                  <img class="select-icon" src="images/gear.png" />
+                  <div>Configure</div>
+                </div>
+              </div>
+              <div class="details-buttons">
+                <div id="details-save" class="select">
+                  <img class="select-icon" src="images/folder.png" />
+                  <div>Saves</div>
+                </div>
+                <div id="details-cache" class="select">
+                  <img class="select-icon" src="images/folder.png" />
+                  <div>Cache</div>
+                </div>
+                <div id="details-mods" class="select">
+                  <img class="select-icon" src="images/folder.png" />
+                  <div>Mods</div>
+                </div>
+              </div>
+              <div id="details-addons" />
+            </div>
+          </div>
+        </div>
+        <div id="games-scan-indicator"><span>Scanning games...</span><div class="games-scan-track"><div id="games-scan-fill" /></div></div>
+      </div>
+      <div id="loading-panel" class="panel">
+        <img id="loading-logo" />
+        <img id="loading-icon" />
+        <div class="loading-box">
+          <div id="loading-title">Loading</div>
+          <div class="loading-track"><div id="loading-fill" class="indeterminate" /></div>
+          <div class="loading-status"><div id="loading-text" /><div id="loading-count" /></div>
+        </div>
+        <img id="loading-banner" />
+      </div>
+      <div id="pause-panel" class="panel">
+        <div class="pause-title">Paused</div>
+      </div>
+      <div id="performance" />
+    </div>
+    <div id="status-bar">
+      <div id="docked-mode" class="select" title="Console mode: on the television, or in the hands">
+        <img id="docked-icon" class="select-icon" src="images/docked.png" />
+        <div id="docked-text" />
+        <img class="select-arrow" src="images/chevron-down.png" />
+      </div>
+      <div id="resolution-scale" class="select">
+        <div id="resolution-scale-text" />
+        <img class="select-arrow" src="images/chevron-down.png" />
+      </div>
+      <div id="resolution" class="status-item" title="The resolution games are drawn at" />
+      <div class="status-separator" />
+      <div id="scaling-filter" class="select" title="Window filter: only applies when the game's resolution is lower than the window size">
+        <img class="select-icon" src="images/picture.png" />
+        <div id="scaling-filter-text" />
+        <img class="select-arrow" src="images/chevron-down.png" />
+      </div>
+      <div class="status-separator" />
+      <div id="profile" class="select">
+        <img class="select-icon" src="images/user.png" />
+        <div id="profile-text" />
+        <img class="select-arrow" src="images/chevron-down.png" />
+      </div>
+      <div id="profile-separator" class="status-separator" />
+      <div id="volume" class="volume-control" />
+      <div id="status-text" />
+      <div id="status-unlocked" translate="no">&#8734;</div>
+    </div>
+    <div id="game-hint"><div id="game-hint-text" /></div>
+    <div id="version-notification">Version copied to clipboard</div>
+    <div id="popup-menu" class="menu-anchor" />
   </body>
 </rml>

@@ -1,0 +1,2291 @@
+body
+{
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* Fullscreen and "Hide UI" leave only the game on screen. */
+body.ui-hidden #menu-bar,
+body.ui-hidden #emulation-controls,
+body.ui-hidden #status-bar
+{
+    display: none;
+}
+
+/* ---- Title bar ---- */
+
+#title-bar
+{
+    display: flex;
+    align-items: center;
+    height: 38dp;
+    box-sizing: border-box;
+    padding-left: 12dp;
+    padding-top: 2dp;
+    padding-bottom: 2dp;
+    background-color: var(--chrome);
+}
+
+/* A fullscreen window has no title bar on any platform. */
+body.fullscreen #title-bar
+{
+    display: none;
+}
+
+/* The system draws its buttons at the start of the bar; its height is theirs. */
+body.system-controls #title-bar
+{
+    padding-left: 82dp;
+}
+
+body.system-controls #window-controls
+{
+    display: none;
+}
+
+body.system-controls #window-controls-separator
+{
+    display: none;
+}
+
+#version-notification
+{
+    display: none;
+    position: absolute;
+    top: 44dp;
+    left: 16dp;
+    z-index: 30;
+    padding: 8dp 12dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: 13dp;
+    pointer-events: none;
+}
+
+#version-notification.shown
+{
+    display: block;
+}
+
+#title-logo, #title-name
+{
+    cursor: pointer;
+}
+
+#title-logo
+{
+    flex-shrink: 0;
+    width: 18dp;
+    height: 18dp;
+    margin-right: 8dp;
+}
+
+#title-name
+{
+    flex-shrink: 0;
+    font-size: 14dp;
+    font-weight: bold;
+}
+
+.title-separator
+{
+    flex-shrink: 0;
+    width: 1dp;
+    height: 18dp;
+    margin: 0 12dp;
+    background-color: var(--border);
+}
+
+#title-game
+{
+    display: none;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 380dp;
+    margin-left: 12dp;
+}
+
+body.has-game #title-game
+{
+    display: flex;
+}
+
+#title-game-icon
+{
+    display: none;
+    flex-shrink: 0;
+    width: 24dp;
+    height: 24dp;
+    margin-right: 10dp;
+    border-radius: 5dp;
+}
+
+body.has-game-icon #title-game-icon
+{
+    display: block;
+}
+
+#title-game-separator
+{
+    width: 1dp;
+    height: 16dp;
+    flex-shrink: 0;
+    margin-right: 12dp;
+    background-color: var(--border);
+}
+
+#title-state
+{
+    width: 13dp;
+    height: 13dp;
+    flex-shrink: 0;
+    margin-right: 10dp;
+}
+
+#title-text
+{
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 240dp;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 13dp;
+    font-weight: bold;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The version, cut short; the whole of it shows on hover and is copied on a click. */
+#title-version
+{
+    display: none;
+    flex-shrink: 0;
+    padding: 1dp 6dp;
+    border: 1dp var(--border);
+    border-radius: 8dp;
+    background-color: var(--surface);
+    color: var(--text-muted);
+    font-size: 10dp;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+#title-version:hover
+{
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+}
+
+#title-version.copied
+{
+    border-color: var(--accent);
+    background-color: var(--selection);
+    color: var(--text);
+}
+
+body.compact #title-game,
+body.compact #title-version,
+body.compact .title-separator
+{
+    display: none;
+}
+
+#title-spacer
+{
+    flex: 1;
+    min-width: 12dp;
+}
+
+#emulation-controls
+{
+    display: none;
+    margin-right: 10dp;
+}
+
+body.game-controls-visible #emulation-controls
+{
+    display: flex;
+}
+
+.title-button-group
+{
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border: 1dp var(--border);
+    border-radius: 5dp;
+    background-color: var(--surface);
+    overflow: hidden;
+}
+
+.emulation-button
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 36dp;
+    height: 28dp;
+    padding: 0;
+    margin: 0;
+    border: 0dp var(--border);
+    border-left: 1dp var(--border);
+    border-radius: 0;
+    background-color: var(--surface);
+    cursor: pointer;
+}
+
+.emulation-button:hover
+{
+    background-color: var(--hover);
+}
+
+#title-settings-group
+{
+    margin-right: 10dp;
+}
+
+.title-button-group .emulation-button:first-child
+{
+    border-left-width: 0;
+    border-radius: 4dp 0 0 4dp;
+}
+
+.title-button-group .emulation-button:last-child
+{
+    border-radius: 0 4dp 4dp 0;
+}
+
+#title-settings-group img,
+#emulation-controls img
+{
+    width: 16dp;
+    height: 16dp;
+}
+
+body.game-controls-visible #title-settings-group
+{
+    margin-right: 0;
+}
+
+body.ui-hidden #title-settings-group
+{
+    display: none;
+}
+
+#title-controls-gap
+{
+    display: none;
+    flex-shrink: 0;
+    width: 4dp;
+    height: 4dp;
+    margin: 0 12dp;
+}
+
+body.game-controls-visible #title-controls-gap
+{
+    display: block;
+}
+
+.emulation-button:disabled,
+.emulation-button:disabled:hover
+{
+    opacity: 0.35;
+    cursor: default;
+    background-color: var(--surface);
+    border-color: var(--border);
+}
+
+body.title-hide-settings #title-settings-group,
+body.title-hide-settings #title-controls-gap,
+body.title-hide-text #title-game,
+body.title-hide-secondary #emulation-controls,
+body.title-hide-secondary #title-controls-gap,
+body.title-minimal #title-game,
+body.title-minimal #title-controllers,
+body.title-minimal #title-controls-gap,
+body.ui-hidden #title-controls-gap
+{
+    display: none;
+}
+
+body.title-minimal #title-settings
+{
+    border-left-width: 0;
+    border-radius: 4dp;
+}
+
+#title-pause.active
+{
+    background-color: var(--accent-pressed);
+}
+
+#title-pause.active:hover
+{
+    background-color: var(--accent-pressed-hover);
+}
+
+#title-stop:hover
+{
+    background-color: var(--danger-hover);
+}
+
+.rom-details:empty
+{
+    display: none;
+}
+
+#window-controls
+{
+    display: flex;
+    align-self: stretch;
+    flex-shrink: 0;
+}
+
+#window-controls-separator
+{
+    flex-shrink: 0;
+    width: 1dp;
+    height: 18dp;
+    margin: 0 12dp;
+    background-color: var(--border);
+}
+
+.window-button
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46dp;
+}
+
+.window-button:hover
+{
+    background-color: var(--hover);
+}
+
+#window-close:hover
+{
+    background-color: #e81123;
+}
+
+#window-close img
+{
+    width: 10dp;
+    height: 10dp;
+}
+
+.glyph-minimise
+{
+    width: 10dp;
+    height: 1dp;
+    background-color: var(--text);
+}
+
+.glyph-maximise,
+.glyph-restore-front
+{
+    width: 10dp;
+    height: 10dp;
+    box-sizing: border-box;
+    border: 1dp var(--text);
+}
+
+.glyph-restore
+{
+    display: none;
+    position: relative;
+    width: 10dp;
+    height: 10dp;
+}
+
+.glyph-restore-back,
+.glyph-restore-front
+{
+    position: absolute;
+    width: 8dp;
+    height: 8dp;
+}
+
+.glyph-restore-back
+{
+    right: 0;
+    top: 0;
+    box-sizing: border-box;
+    border-top: 1dp var(--text);
+    border-right: 1dp var(--text);
+}
+
+.glyph-restore-front
+{
+    left: 0;
+    bottom: 0;
+}
+
+body.maximised .glyph-maximise
+{
+    display: none;
+}
+
+body.maximised .glyph-restore
+{
+    display: block;
+}
+
+/* ---- Menu bar ---- */
+
+#menu-bar
+{
+    display: flex;
+    position: relative;
+    z-index: 10;
+    flex: 0 0 auto;
+    font-size: 14dp;
+    align-self: stretch;
+    align-items: center;
+}
+
+.menu
+{
+    position: relative;
+}
+
+.menu-title
+{
+    padding: 5dp 10dp;
+    border-radius: 5dp;
+    color: var(--text-muted);
+}
+
+.menu-title:hover,
+.menu.open > .menu-title
+{
+    background-color: var(--hover);
+    color: var(--text);
+}
+
+/* Positions a popup and leaves it room to take the width of its items. */
+.menu-anchor
+{
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 640dp;
+    height: 0;
+}
+
+.menu-popup
+{
+    font-size: 14dp;
+    display: none;
+    min-width: 200dp;
+    padding: 5dp 0;
+    border: 1dp var(--border);
+    border-radius: 5dp;
+    background-color: var(--surface);
+}
+
+.menu.open > .menu-anchor > .menu-popup,
+.menu-anchor.open > .menu-popup,
+.menu-item.has-submenu:hover > .menu-anchor > .menu-popup
+{
+    display: inline-block;
+}
+
+.menu-item
+{
+    display: flex;
+    position: relative;
+    align-items: center;
+    margin: 0 4dp;
+    padding: 6dp 12dp;
+    border-radius: 4dp;
+    white-space: nowrap;
+}
+
+.menu-item:hover
+{
+    background-color: var(--hover);
+}
+
+.menu-item.disabled
+{
+    color: var(--text-disabled);
+}
+
+.menu-item.disabled:hover
+{
+    background-color: transparent;
+}
+
+/* A menu opened beside an element anywhere in the window; PopupMenu places it. */
+#popup-menu
+{
+    z-index: 20;
+}
+
+.menu-item > .menu-anchor
+{
+    left: 100%;
+    top: -6dp;
+}
+
+.menu-check
+{
+    display: none;
+    width: 12dp;
+    height: 12dp;
+    margin-right: 9dp;
+    border: 1dp transparent;
+    border-radius: 3dp;
+}
+
+.menu-popup.has-checks > .menu-item > .menu-check
+{
+    display: block;
+}
+
+.menu-check.checkbox
+{
+    border-color: var(--border-strong);
+}
+
+.menu-check.choice
+{
+    border-color: var(--border-strong);
+    border-radius: 6dp;
+}
+
+.menu-check.checked
+{
+    border-color: var(--accent);
+    background-color: var(--accent);
+}
+
+.menu-label
+{
+    flex: 1 0 auto;
+}
+
+/* A value set on its item's line; greyed out while the item is not the one chosen. */
+.menu-range
+{
+    display: flex;
+    align-items: center;
+    margin-left: 24dp;
+}
+
+.menu-range input.range
+{
+    width: 90dp;
+    height: 16dp;
+}
+
+.menu-range-text
+{
+    width: 36dp;
+    margin-left: 8dp;
+    text-align: right;
+    color: var(--text-muted);
+}
+
+.menu-range.off
+{
+    opacity: 0.35;
+}
+
+/* What the game settings choose, said beside the choice. */
+.menu-tag
+{
+    margin-left: 14dp;
+    padding-top: 2dp;
+    font-size: 11dp;
+    color: var(--text-disabled);
+}
+
+.menu-shortcut,
+.menu-arrow
+{
+    margin-left: 30dp;
+    color: var(--text-muted);
+}
+
+.menu-separator
+{
+    height: 1dp;
+    margin: 5dp 10dp;
+    background-color: var(--border);
+}
+
+/* Narrow windows show submenus inline so every action remains reachable. */
+body.narrow #title-bar
+{
+    position: relative;
+    z-index: 10;
+}
+
+body.narrow #menu-bar,
+body.narrow #menu-bar > .menu
+{
+    position: static;
+}
+
+/* Anchor to the window's title bar instead of the individual menu title. */
+body.narrow #menu-bar > .menu > .menu-anchor
+{
+    left: 2vw;
+    width: 96vw;
+    max-width: 440dp;
+}
+
+body.narrow #menu-bar > .menu > .menu-anchor > .menu-popup
+{
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-height: 80vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+body.narrow #menu-bar .menu-item
+{
+    flex-wrap: wrap;
+    white-space: normal;
+}
+
+body.narrow #menu-bar .menu-label
+{
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+body.narrow #menu-bar .menu-item > .menu-anchor
+{
+    position: static;
+    flex: 0 0 100%;
+    width: 100%;
+    height: auto;
+    margin-top: 4dp;
+}
+
+body.narrow #menu-bar .menu-item > .menu-anchor > .menu-popup
+{
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border-width: 0;
+    background-color: transparent;
+}
+
+body.narrow #menu-bar .menu-item.has-submenu:hover
+{
+    background-color: transparent;
+}
+
+body.narrow #menu-bar .menu-arrow
+{
+    display: none;
+}
+
+body.narrow #menu-bar .menu-range
+{
+    flex: 0 0 100%;
+    margin: 4dp 0 0;
+}
+
+body.narrow #menu-bar .menu-range input.range
+{
+    flex: 1;
+    min-width: 0;
+}
+
+/* ---- Main contents ---- */
+
+#main-contents
+{
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    background-color: var(--canvas);
+}
+
+/* The game is presented underneath the window; let it show through. */
+body.video-visible #main-contents
+{
+    background-color: transparent;
+}
+
+.panel
+{
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.panel.active
+{
+    display: flex;
+}
+
+#rom-browser-panel
+{
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 14dp 20dp 0 20dp;
+}
+
+.games-toolbar
+{
+    display: flex;
+    align-items: center;
+    margin-bottom: 14dp;
+}
+
+#games-count
+{
+    flex: 1;
+    padding: 8dp 0 0 14dp;
+    color: var(--text-muted);
+    font-size: 14dp;
+}
+
+.games-toolbar .select,
+.search-field,
+.view-switch
+{
+    height: 36dp;
+    font-size: 14dp;
+}
+
+/* As wide as its longest choice, so that choosing does not move its
+   neighbours; a longer one would be cut short. */
+#games-sort
+{
+    box-sizing: border-box;
+    width: 150dp;
+}
+
+#games-sort-text
+{
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.games-toolbar .select:last-child
+{
+    margin-right: 0;
+}
+
+.search-field
+{
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: 230dp;
+    padding: 0 10dp;
+    margin-right: 8dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+}
+
+.search-field img
+{
+    width: 16dp;
+    height: 16dp;
+    margin-right: 8dp;
+    image-color: var(--text-muted);
+}
+
+.search-field input.text
+{
+    width: 180dp;
+    height: 20dp;
+    line-height: 20dp;
+    color: var(--text);
+}
+
+/* A narrow window drops the count and lets the search field take what is
+   left; a compact one keeps only the icons of the other tools. */
+body.narrow #games-count,
+body.compact .games-toolbar h1,
+body.compact #games-sort-text,
+body.compact #games-sort .select-arrow,
+body.compact #games-details-toggle div
+{
+    display: none;
+}
+
+body.narrow .games-toolbar h1
+{
+    margin-right: 14dp;
+}
+
+body.narrow .search-field
+{
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
+
+body.narrow .search-field input.text
+{
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
+
+body.compact #games-sort
+{
+    width: auto;
+}
+
+body.compact .games-toolbar .select-icon
+{
+    margin-right: 0;
+}
+
+.search-field input.text:placeholder-shown
+{
+    color: var(--text-muted);
+}
+
+/* The ways of showing the games, side by side; the current one is lit. */
+.view-switch
+{
+    display: flex;
+    box-sizing: border-box;
+    margin-right: 8dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+}
+
+.view-button
+{
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 36dp;
+    height: 34dp;
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.view-button:first-child
+{
+    border-radius: 5dp 0 0 5dp;
+}
+
+.view-button:last-child
+{
+    border-left: 1dp var(--border);
+    border-radius: 0 5dp 5dp 0;
+}
+
+.view-button > img
+{
+    width: 18dp;
+    height: 18dp;
+    image-color: var(--text);
+}
+
+.view-button.active
+{
+    background-color: var(--accent);
+}
+
+.view-button.active > img
+{
+    image-color: var(--on-accent);
+}
+
+.view-button.locked
+{
+    cursor: default;
+    opacity: 0.4;
+}
+
+/* The options of a view open under its button while the pointer is on
+   either, or on the gap between them. The width is given: left to itself
+   the box is only as wide as the button, and so would the gap be. */
+.view-options
+{
+    display: none;
+    position: absolute;
+    left: -112dp;
+    top: 100%;
+    z-index: 10;
+    width: 260dp;
+    cursor: default;
+}
+
+.view-options-gap
+{
+    height: 8dp;
+}
+
+.view-button:hover > .view-options,
+.view-button:active > .view-options
+{
+    display: block;
+}
+
+.options-panel
+{
+    box-sizing: border-box;
+    padding: 14dp 16dp 16dp 16dp;
+    border: 1dp var(--border);
+    border-radius: 8dp;
+    background-color: var(--surface);
+}
+
+.options-panel input.range
+{
+    display: block;
+    width: 226dp;
+    height: 16dp;
+    margin-top: 8dp;
+}
+
+.option-row
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14dp;
+}
+
+.games-body
+{
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+/* The selected game: its picture beside what is known of it, what can be
+   done with it, and what the loader applies to it. */
+#games-details
+{
+    display: none;
+    box-sizing: border-box;
+    width: 380dp;
+    margin: 0 0 16dp 8dp;
+    padding: 16dp;
+    border: 1dp var(--raised);
+    border-radius: 10dp;
+    background-color: var(--chrome);
+    font-size: 13dp;
+    overflow-y: auto;
+}
+
+#rom-browser-panel.details-open #games-details
+{
+    display: flex;
+    flex-direction: column;
+}
+
+/* Takes the whole panel, its text in the middle. */
+#details-empty
+{
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 17dp;
+    text-align: center;
+}
+
+#details-empty,
+.details-note
+{
+    color: var(--text-muted);
+}
+
+#details-content,
+#games-details.has-game #details-empty
+{
+    display: none;
+}
+
+#games-details.has-game #details-content
+{
+    display: block;
+    flex: 0 0 auto;
+}
+
+.details-header
+{
+    display: flex;
+    align-items: flex-start;
+}
+
+.details-art
+{
+    flex-shrink: 0;
+    width: 112dp;
+    height: 112dp;
+    margin-right: 14dp;
+    border-radius: 8dp;
+    background-color: var(--canvas);
+    overflow: hidden;
+}
+
+#details-icon
+{
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+#details-icon.shown
+{
+    display: block;
+}
+
+.details-heading
+{
+    flex: 1;
+    min-width: 0;
+}
+
+#details-title
+{
+    margin-bottom: 8dp;
+    line-height: 1.25em;
+    font-size: 16dp;
+    font-weight: bold;
+}
+
+.details-fact
+{
+    display: flex;
+    margin-top: 3dp;
+    font-size: 12dp;
+}
+
+.details-fact-name
+{
+    flex-shrink: 0;
+    width: 72dp;
+    color: var(--text-muted);
+}
+
+.details-fact-value
+{
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.details-buttons
+{
+    display: flex;
+    margin-top: 12dp;
+}
+
+.details-buttons .select
+{
+    flex: 1;
+    justify-content: center;
+    height: 32dp;
+    padding: 0 8dp;
+}
+
+.details-buttons .select:last-child
+{
+    margin-right: 0;
+}
+
+.details-buttons + .details-buttons
+{
+    margin-top: 8dp;
+}
+
+.select.primary
+{
+    border-color: var(--accent);
+    background-color: var(--accent);
+    color: var(--on-accent);
+    font-weight: bold;
+}
+
+.select.primary:hover
+{
+    border-color: var(--accent-hover);
+    background-color: var(--accent-hover);
+}
+
+.details-section
+{
+    display: flex;
+    align-items: center;
+    margin-top: 18dp;
+}
+
+.details-section-title
+{
+    font-size: 14dp;
+    font-weight: bold;
+}
+
+.details-section-line
+{
+    flex: 1;
+    height: 1dp;
+    margin-left: 10dp;
+    background-color: var(--border);
+}
+
+.details-note
+{
+    margin-top: 18dp;
+}
+
+.addon-row
+{
+    display: flex;
+    align-items: center;
+    margin-top: 10dp;
+}
+
+.addon-name
+{
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.addon-version
+{
+    flex-shrink: 0;
+    max-width: 130dp;
+    margin: 0 12dp;
+    overflow: hidden;
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Where an overridden setting's value comes from. */
+.override-source
+{
+    flex-shrink: 0;
+    padding: 2dp 8dp;
+    border: 1dp var(--border);
+    border-radius: 9dp;
+    color: var(--text-muted);
+    font-size: 11dp;
+}
+
+.override-source.user
+{
+    border-color: var(--border-strong);
+    color: var(--accent-text);
+}
+
+.addon-row .switch
+{
+    flex-shrink: 0;
+}
+
+/* The add-on content lists its pieces under it when clicked. */
+.addon-row.expandable
+{
+    cursor: pointer;
+}
+
+.addon-arrow
+{
+    flex-shrink: 0;
+    width: 12dp;
+    height: 12dp;
+    margin-right: 6dp;
+    image-color: var(--text-muted);
+    transform: rotate(-90deg);
+}
+
+.addon-row.open .addon-arrow
+{
+    transform: rotate(0deg);
+}
+
+.addon-items
+{
+    display: none;
+    margin: 6dp 0 0 18dp;
+    padding-left: 10dp;
+    border-left: 1dp var(--border);
+}
+
+.addon-row.open + .addon-items
+{
+    display: block;
+}
+
+.addon-item
+{
+    display: flex;
+    align-items: center;
+    padding: 3dp 0;
+    font-size: 12dp;
+}
+
+.addon-item .addon-name
+{
+    flex: 0 0 auto;
+    width: 62dp;
+}
+
+.addon-item-id
+{
+    flex: 1;
+    color: var(--text-muted);
+}
+
+.addon-item-size
+{
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+#games-grid.no-title .rom-title,
+#games-grid.no-title.no-details .rom-info,
+#games-grid.no-play-time .rom-played,
+#games-grid.no-details .rom-details
+{
+    display: none;
+}
+
+/* Without a title above them, the details need no rule. */
+#games-grid.no-title .rom-details
+{
+    margin-top: 0;
+    padding-top: 0;
+    border-top-width: 0;
+}
+
+/* Shown while a scan opens game files. It veils the games under the
+   toolbar: they are not all there yet, and would show through the text. */
+#games-scan-indicator
+{
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 64dp;
+    bottom: 0;
+    z-index: 2;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--veil);
+    color: var(--text);
+    font-size: 22dp;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+#games-scan-indicator.active
+{
+    display: flex;
+}
+
+.games-scan-track
+{
+    width: 180dp;
+    height: 5dp;
+    margin-top: 14dp;
+    border-radius: 3dp;
+    background-color: var(--hover);
+    overflow: hidden;
+}
+
+/* MainWindow sets the width from the scan's progress. */
+#games-scan-fill
+{
+    width: 0;
+    height: 100%;
+    border-radius: 3dp;
+    background-color: #00d4ff;
+}
+
+/* The games, under the headings of their columns when they are a list. */
+.games-main
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+#games-grid
+{
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* A game's picture that is still to be read from its file. */
+img[data-icon]
+{
+    visibility: hidden;
+}
+
+/* Stands for the rows of games out of sight. */
+.games-spacer
+{
+    flex-shrink: 0;
+    width: 100%;
+}
+
+/* Nothing to show: the reason, in the middle of the room of the games. */
+#games-grid.empty
+{
+    align-content: center;
+}
+
+.games-empty
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding: 0 20dp 40dp 20dp;
+    box-sizing: border-box;
+    color: var(--text-muted);
+    font-size: 22dp;
+    text-align: center;
+}
+
+.empty-state-icon
+{
+    flex-shrink: 0;
+    width: 56dp;
+    height: 56dp;
+    margin-bottom: 18dp;
+    opacity: 0.6;
+}
+
+#details-empty .empty-state-icon
+{
+    width: 48dp;
+    height: 48dp;
+}
+
+/* A card is the game's picture over its title, version and publisher, with
+   a button for the actions on the game. */
+.rom-card
+{
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    margin: 0 16dp 16dp 0;
+    border: 2dp var(--raised);
+    border-radius: 10dp;
+    background-color: var(--surface);
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.rom-card:hover
+{
+    border-color: var(--border-strong);
+    background-color: var(--hover);
+}
+
+.rom-card.selected
+{
+    border-color: var(--accent);
+}
+
+.rom-art
+{
+    position: relative;
+    background-color: var(--canvas);
+}
+
+.rom-art img
+{
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.rom-info
+{
+    flex: 1 0 auto;
+    padding: 9dp 4dp 10dp 11dp;
+}
+
+/* Two lines at most, and the room of two: the rule under the titles of a
+   row of cards runs at one height. */
+.rom-title
+{
+    height: 2.5em;
+    margin-right: 7dp;
+    overflow: hidden;
+    line-height: 1.25em;
+    font-weight: bold;
+}
+
+/* Version and publisher, each in a pill, under a rule. */
+.rom-details
+{
+    display: flex;
+    align-items: center;
+    margin: 8dp 7dp 0 0;
+    padding-top: 8dp;
+    border-top: 1dp var(--border);
+}
+
+.rom-chip
+{
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 1.9em;
+    padding: 0 0.6em;
+    border: 1dp var(--border);
+    border-radius: 1em;
+    background-color: var(--surface);
+    color: var(--text-secondary);
+}
+
+.rom-chip img
+{
+    flex-shrink: 0;
+    width: 1.1em;
+    height: 1.1em;
+    margin-right: 0.45em;
+    image-color: var(--text-muted);
+}
+
+.rom-chip div
+{
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* A long version leaves the publisher some room. */
+.rom-version
+{
+    flex: 0 0 auto;
+    max-width: 45%;
+    color: var(--accent-text);
+}
+
+/* The pills keep one height; their text is smaller, the version's most. */
+.rom-version div
+{
+    font-size: 0.8em;
+}
+
+.rom-publisher div
+{
+    font-size: 0.9em;
+}
+
+.rom-version img
+{
+    image-color: var(--accent-text);
+}
+
+/* Takes what the version leaves, and is cut short beyond that. */
+.rom-publisher
+{
+    flex: 0 1 auto;
+    min-width: 2.6em;
+}
+
+.rom-chip-rule
+{
+    flex-shrink: 0;
+    width: 1dp;
+    height: 1.4em;
+    margin: 0 0.4em;
+    background-color: var(--border);
+}
+
+/* How long the game has been played, over the corner of its picture. */
+.rom-played
+{
+    display: flex;
+    position: absolute;
+    left: 6dp;
+    bottom: 6dp;
+    align-items: center;
+    box-sizing: border-box;
+    height: 2em;
+    padding: 0 0.8em 0 0.6em;
+    border: 1dp var(--border-strong);
+    border-radius: 1em;
+    background-color: var(--badge);
+    color: var(--text);
+}
+
+.rom-played img
+{
+    width: 1.1em;
+    height: 1.1em;
+    margin-right: 0.45em;
+    image-color: var(--text-secondary);
+}
+
+.rom-more
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 22dp;
+    height: 28dp;
+    margin-left: 4dp;
+    border-radius: 6dp;
+}
+
+.rom-more:hover,
+.rom-more.open
+{
+    background-color: var(--border);
+}
+
+.rom-dot
+{
+    width: 3dp;
+    height: 3dp;
+    margin: 1.5dp 0;
+    border-radius: 1.5dp;
+    background-color: var(--text-secondary);
+}
+
+/* The slider sets the cards' width and their square picture's height; the
+   text and the spacing follow by steps. */
+#games-grid.size-1 .rom-card { margin: 0 10dp 10dp 0; }
+#games-grid.size-1 .rom-title { font-size: 12dp; }
+#games-grid.size-2 .rom-title { font-size: 13dp; }
+#games-grid.size-3 .rom-title { font-size: 14dp; }
+#games-grid.size-1 .rom-details, #games-grid.size-1 .rom-played { font-size: 10dp; }
+#games-grid.size-2 .rom-details, #games-grid.size-2 .rom-played { font-size: 11dp; }
+#games-grid.size-3 .rom-details, #games-grid.size-3 .rom-played,
+#games-grid.size-4 .rom-details, #games-grid.size-4 .rom-played { font-size: 12dp; }
+#games-grid.size-1 .rom-info { padding: 7dp 2dp 8dp 8dp; }
+/* Small cards keep their room for the text. */
+#games-grid.size-1 .rom-chip img, #games-grid.size-2 .rom-chip img, #games-grid.size-3 .rom-chip img { display: none; }
+#games-grid.size-1 .rom-details { margin: 6dp 6dp 0 0; padding-top: 6dp; }
+#games-grid.size-1 .rom-title { margin-right: 6dp; }
+#games-grid.size-1 .rom-chip, #games-grid.size-2 .rom-chip { padding: 0 0.5em; }
+#games-grid.size-1 .rom-chip-rule, #games-grid.size-2 .rom-chip-rule { margin: 0 0.3em; }
+/* The smallest have no room for a publisher. */
+#games-grid.size-1 .rom-chip-rule, #games-grid.size-1 .rom-publisher { display: none; }
+#games-grid.size-1 .rom-version { max-width: 100%; }
+
+/* ---- The games as a list ---- */
+
+#games-grid.list
+{
+    display: block;
+}
+
+#games-list-header
+{
+    display: none;
+    align-items: center;
+    height: 34dp;
+    border-bottom: 1dp var(--raised);
+    color: var(--text-secondary);
+    font-size: 13dp;
+}
+
+#games-list-header.shown
+{
+    display: flex;
+}
+
+#games-list-header .sortable
+{
+    cursor: pointer;
+}
+
+#games-list-header .sortable:hover
+{
+    color: var(--text);
+}
+
+#games-list-header .sorted
+{
+    color: var(--accent-text);
+    font-weight: bold;
+}
+
+.rom-row
+{
+    display: flex;
+    align-items: center;
+    height: 52dp;
+    border-bottom: 1dp var(--surface);
+    font-size: 13dp;
+    cursor: pointer;
+}
+
+.rom-row:hover
+{
+    background-color: var(--surface);
+}
+
+.rom-row.selected
+{
+    background-color: var(--selection);
+}
+
+/* A column is as wide in the headings as in the lines. The game's takes
+   what the others leave. */
+.col-number, .col-cover, .col-publisher, .col-version, .col-last, .col-time, .col-format, .col-size, .col-actions
+{
+    flex-shrink: 0;
+    margin-right: 12dp;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.col-number { width: 30dp; margin-left: 10dp; color: var(--text-muted); }
+.col-cover { width: 46dp; }
+.col-publisher { width: 138dp; }
+.col-version { width: 72dp; }
+.col-last { width: 104dp; }
+.col-time { width: 72dp; }
+.col-format { width: 58dp; }
+.col-size { width: 68dp; }
+.col-actions { width: 128dp; margin-right: 4dp; }
+.rom-row .col-actions { display: flex; align-items: center; }
+
+.col-game
+{
+    flex: 1;
+    min-width: 0;
+    margin-right: 12dp;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rom-row .col-game
+{
+    font-size: 14dp;
+    font-weight: bold;
+}
+
+.rom-row .col-publisher, .rom-row .col-version, .rom-row .col-last, .rom-row .col-time, .rom-row .col-size
+{
+    color: var(--text-secondary);
+}
+
+.rom-row .col-cover img
+{
+    display: block;
+    width: 40dp;
+    height: 40dp;
+    border-radius: 5dp;
+}
+
+.format-badge
+{
+    display: inline-block;
+    padding: 3dp 8dp;
+    border: 1dp var(--border);
+    border-radius: 5dp;
+    background-color: var(--surface);
+    color: var(--text-secondary);
+    font-size: 11dp;
+    font-weight: bold;
+}
+
+.format-badge.xci
+{
+    border-color: var(--border-strong);
+    background-color: var(--selection);
+    color: var(--accent-text);
+}
+
+.format-badge.nsp
+{
+    border-color: var(--violet);
+    background-color: var(--violet-surface);
+    color: var(--violet);
+}
+
+.row-play
+{
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    height: 30dp;
+    border-radius: 6dp;
+    background-color: var(--accent);
+    font-weight: bold;
+}
+
+.row-play:hover
+{
+    background-color: var(--accent-hover);
+}
+
+.row-play img
+{
+    width: 12dp;
+    height: 12dp;
+    margin-right: 7dp;
+}
+
+/* What a narrowing list gives up, column after column. */
+.hide-size .col-size,
+.hide-last .col-last,
+.hide-publisher .col-publisher,
+.hide-format .col-format,
+.hide-number .col-number,
+.hide-version .col-version,
+.hide-play-label .row-play div
+{
+    display: none;
+}
+
+.hide-number .col-cover { margin-left: 8dp; }
+.hide-play-label .col-actions { width: 76dp; }
+.hide-play-label .row-play img { margin-right: 0; }
+
+#loading-panel,
+#pause-panel
+{
+    align-items: center;
+    justify-content: center;
+}
+
+/* Game-provided logos expect a black background in either interface theme. */
+#loading-panel
+{
+    background-color: #000000;
+    color: #e6ebf2;
+}
+
+#pause-panel
+{
+    background-color: rgba(11, 17, 29, 166);
+    color: var(--on-accent);
+}
+
+.pause-title
+{
+    font-size: 32dp;
+    font-weight: bold;
+}
+
+/* The game's icon and the logos its file carries; each shows once it is set. */
+#loading-panel img
+{
+    display: none;
+}
+
+#loading-panel img.shown
+{
+    display: block;
+}
+
+#loading-logo,
+#loading-banner
+{
+    position: absolute;
+}
+
+#loading-logo
+{
+    left: 20dp;
+    top: 20dp;
+}
+
+#loading-banner
+{
+    right: 16dp;
+    bottom: 16dp;
+}
+
+#loading-icon
+{
+    width: 256dp;
+    height: 256dp;
+    margin-right: 28dp;
+}
+
+.loading-box
+{
+    min-width: 330dp;
+    max-width: 520dp;
+}
+
+/* The game's name: it stays while what is under the bar says what is being done. */
+#loading-title
+{
+    margin-bottom: 12dp;
+    font-size: 21dp;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* As high with a text as without: the lines above do not move. */
+.loading-status
+{
+    display: flex;
+    height: 18dp;
+    margin-top: 9dp;
+    font-size: 13dp;
+    line-height: 18dp;
+    color: #8f9bb0;
+    white-space: nowrap;
+}
+
+#loading-text
+{
+    flex: 1;
+}
+
+#loading-count
+{
+    color: #b4bfce;
+}
+
+.loading-track
+{
+    height: 8dp;
+    border-radius: 4dp;
+    background-color: #18233a;
+    overflow: hidden;
+}
+
+#loading-fill
+{
+    width: 0%;
+    height: 100%;
+    border-radius: 4dp;
+    background-color: #00d4ff;
+}
+
+/* Nothing to measure yet: the bar moves instead of filling. */
+#loading-fill.indeterminate
+{
+    width: 42%;
+    animation: 0.85s cubic-in-out infinite alternate loading-pulse;
+}
+
+@keyframes loading-pulse
+{
+    /* A transform, not a margin: moving the bar must not resize its box. */
+    from { opacity: 0.45; transform: translateX(0%); }
+    to { opacity: 1; transform: translateX(138%); }
+}
+
+/* ---- Status bar ---- */
+
+#status-bar
+{
+    display: flex;
+    align-items: center;
+    height: 34dp;
+    padding: 0 16dp;
+    border-top: 1dp var(--raised);
+    background-color: var(--chrome);
+    font-size: 13dp;
+}
+
+.status-item
+{
+    padding: 3dp 5dp;
+    margin-right: 3dp;
+    border: 1dp transparent;
+    border-radius: 4dp;
+}
+
+.status-item.interactive
+{
+    cursor: pointer;
+}
+
+.status-item.interactive:hover
+{
+    border-color: var(--border-strong);
+}
+
+/* A setting chosen from a menu that opens above the bar. */
+.select
+{
+    display: flex;
+    align-items: center;
+    height: 24dp;
+    padding: 0 8dp 0 10dp;
+    margin-right: 8dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+    cursor: pointer;
+}
+
+.select:hover,
+.select.open
+{
+    border-color: var(--border-strong);
+    background-color: var(--hover);
+}
+
+/* What cannot change while a game runs. */
+.select.locked
+{
+    cursor: default;
+    opacity: 0.5;
+}
+
+.select.active
+{
+    border-color: var(--accent);
+    background-color: var(--selection);
+}
+
+.select.locked:hover
+{
+    border-color: var(--border);
+    background-color: var(--surface);
+}
+
+.select-icon
+{
+    width: 16dp;
+    height: 16dp;
+    margin-right: 8dp;
+    image-color: var(--text);
+}
+
+.select-arrow
+{
+    width: 12dp;
+    height: 12dp;
+    margin-left: 8dp;
+    image-color: var(--text-muted);
+}
+
+/* Who plays: shown when there is more than one profile. */
+#profile,
+#profile-separator
+{
+    display: none;
+}
+
+body.several-profiles #profile-separator
+{
+    display: block;
+}
+
+body.several-profiles #profile
+{
+    display: flex;
+}
+
+#profile-text
+{
+    max-width: 140dp;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.compact #profile-text,
+body.compact #profile .select-arrow
+{
+    display: none;
+}
+
+body.compact #profile .select-icon
+{
+    margin-right: 0;
+}
+
+.status-separator
+{
+    width: 1dp;
+    height: 16dp;
+    margin: 0 8dp 0 5dp;
+    background-color: var(--border);
+}
+
+/* Text needs a block of its own inside a flex container. */
+/* The sign of a speed that is not held to that of the console, after it. */
+#status-unlocked
+{
+    display: none;
+    margin-left: 6dp;
+    color: var(--warning);
+    font-size: 22dp;
+    font-weight: bold;
+    line-height: 16dp;
+}
+
+body.speed-unlocked #status-unlocked
+{
+    display: block;
+}
+
+#status-text
+{
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+body.compact #resolution,
+body.compact #status-bar .status-separator,
+body.compact .volume-range
+{
+    display: none;
+}
+
+.override-replaced .addon-version { color: var(--text-muted); }
+.override-note { color: var(--text-muted); font-size: 10dp; }
+.override-action { margin-left: 10dp; }
+button.override-remove
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 24dp;
+    height: 24dp;
+    padding: 0dp;
+    line-height: 18dp;
+    font-size: 18dp;
+    color: var(--text-muted);
+    background-color: transparent;
+    border-color: transparent;
+}
+button.override-remove:hover { color: var(--danger); background-color: var(--danger-surface); }
+
+/* An explicit choice in the status bar takes precedence over game settings. */
+#status-bar .overridden { color: var(--accent-text); }
+#scaling-filter-text { max-width: 144dp; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* What hides the interface says how to get it back, over the game for a
+   moment. */
+#game-hint
+{
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 3;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+#game-hint.shown
+{
+    display: flex;
+}
+
+#game-hint div
+{
+    padding: 12dp 22dp;
+    border: 1dp #24344f;
+    border-radius: 8dp;
+    background-color: rgba(7, 11, 20, 215);
+    color: #e6ebf2;
+    font-size: 18dp;
+}
+
+/* How the game runs: one line in the corner of it, that the game shows
+   through. Its sizes are in em: its font size, which the user sets, is the
+   size of all of it. */
+#performance
+{
+    display: none;
+    position: absolute;
+    left: 10dp;
+    top: 10dp;
+    z-index: 2;
+    align-items: center;
+    height: 2em;
+    padding: 0 0.77em 0 0.3em;
+    border-radius: 1em;
+    background-color: rgba(7, 11, 20, 150);
+    color: #ffffff;
+    font-size: 13dp;
+    font-weight: bold;
+    pointer-events: none;
+}
+
+#performance.shown
+{
+    display: flex;
+}
+
+.perf-value
+{
+    margin-left: 0.77em;
+}
+
+/* The first keeps its width as its figures change: nothing after it moves. */
+.perf-fps
+{
+    min-width: 1.85em;
+    margin-left: 0.46em;
+    text-align: right;
+}
+
+/* A speed that is not held to that of the console. */
+.perf-unlocked
+{
+    display: none;
+    margin-left: 0.3em;
+    color: #ffbd7a;
+    font-size: 1.5em;
+}
+
+#performance.unlocked .perf-unlocked
+{
+    display: block;
+}
+
+/* The lowest, the average and the highest, each after its mark. */
+.perf-mark
+{
+    width: 0;
+    height: 0;
+    margin: 0 0.23em 0 0.77em;
+    border-left: 0.23em transparent;
+    border-right: 0.23em transparent;
+}
+
+.perf-mark.low
+{
+    border-top: 0.38em #8fb8ff;
+}
+
+.perf-mark.high
+{
+    border-bottom: 0.38em #8fb8ff;
+}
+
+.perf-mark.mean
+{
+    width: 0.46em;
+    height: 0.15em;
+    border-width: 0;
+    background-color: #8fb8ff;
+}
+
+.perf-mark.mean,
+.perf-mark.high
+{
+    margin-left: 0.54em;
+}
+
+.perf-unit
+{
+    margin-left: 0.3em;
+    color: #8fb8ff;
+    font-size: 0.77em;
+}
+
+/* What is not as it should be stands out: a game that is slow, a picture
+   that stayed too long or the game that froze, and when they did. */
+#performance.slow .perf-speed,
+#performance.stutter .perf-longest
+{
+    color: #ffbd7a;
+}
+
+#performance.freeze .perf-longest
+{
+    color: #ff6b6b;
+}
+
+/* The history: bars that touch, each a light fill under a line, over a track
+   as high as a usual speed, so that what is missing shows. */
+.perf-graph
+{
+    display: flex;
+    align-items: flex-end;
+    height: 1.23em;
+    margin-left: 0.77em;
+    border-radius: 0.15em;
+    background-color: rgba(143, 184, 255, 28);
+    overflow: hidden;
+}
+
+.perf-graph div
+{
+    box-sizing: border-box;
+    width: 0.23em;
+    height: 0;
+    border-top: 0.12em #a9c8ff;
+    background-color: rgba(143, 184, 255, 70);
+}
+
+.perf-graph div.stutter
+{
+    border-top-color: #ffbd7a;
+    background-color: rgba(255, 189, 122, 200);
+}
+
+.perf-graph div.freeze
+{
+    border-top-color: #ff6b6b;
+    background-color: rgba(255, 107, 107, 220);
+}
+
+.perf-shaders
+{
+    margin-left: 0.92em;
+    color: #c5d3ea;
+    font-size: 0.85em;
+    font-weight: normal;
+}
+
+.perf-shaders:empty
+{
+    display: none;
+}

@@ -1,18 +1,40 @@
 #include "ui_window.h"
+#include "system_fonts.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
 #include <SDL_syswm.h>
+// System SDL can expose Xlib macros even when this frontend uses Wayland.
+#undef None
+#include <algorithm>
+#include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <nxemu-module-spec/video.h>
+#include <nxemu/ui/i18n/translation.h>
+#include <nxemu/ui/platform/native_window.h>
+#include <stb_image.h>
+#include <vector>
+#include <yuzu_common/fs/fs_util.h>
 
 namespace
 {
-using UiSystemInterface = SystemInterface_SDL;
+// Width, in window coordinates, of the edges a window without a frame is
+// resized by.
+constexpr int kResizeEdge = 6;
+#if !defined(_WIN32)
+// Two presses on the title bar count as a double click within this time and
+// this distance, in window coordinates, of each other.
+constexpr uint64_t kDoubleClickMs = 500;
+constexpr int kDoubleClickReach = 4;
+#endif
 
 bool QueryWindow(SDL_Window * window, SDL_SysWMinfo & info)
 {
     SDL_VERSION(&info.version);
     return window != nullptr && SDL_GetWindowWMInfo(window, &info) == SDL_TRUE;
 }
+
+using UiSystemInterface = SystemInterface_SDL;
 } // namespace
 
 UiWindow::UiWindow() = default;
@@ -28,8 +50,13 @@ UiWindow::~UiWindow()
     }
     m_renderer.reset();
     m_system.reset();
+    if (m_metalView != nullptr)
+    {
+        SDL_Metal_DestroyView(m_metalView);
+    }
     if (m_window != nullptr)
     {
+        ReleaseNativeWindowStyle(m_window);
         SDL_DestroyWindow(m_window);
     }
     if (m_sdlInitialised)
@@ -69,7 +96,12 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail(SDL_GetError());
     }
     SDL_SetWindowMinimumSize(m_window, 400, 312);
-
+    SetWindowIcon(assetDir / "images" / "window-icon.png");
+    if (m_frameless)
+    {
+        SDL_SetWindowHitTest(
+            m_window, [](SDL_Window *, const SDL_Point * point, void * self) { return static_cast<UiWindow *>(self)->HitTest(*point); }, this);
+    }
 #if defined(__APPLE__)
     // The layer of this view is what the video module presents to.
     m_metalView = SDL_Metal_CreateView(m_window);
@@ -88,19 +120,18 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail("RmlUi initialization failed");
     }
     m_rmlInitialised = true;
-    // Fonts are loaded before any document, which shows no text without them.
-    for (const char * font : {"LatoLatin-Regular.ttf", "LatoLatin-Bold.ttf"})
+    if (!LoadFonts(assetDir / "fonts"))
     {
-        if (!Rml::LoadFontFace((assetDir / "fonts" / font).string()))
-        {
-            return Fail(std::string("Unable to load the font ") + font);
-        }
+        return false;
     }
+
     m_context = Rml::CreateContext("nxemu", {width, height});
     if (m_context == nullptr)
     {
         return Fail("Unable to create the RmlUi context");
     }
+
+    m_systemTitleBar = ApplyNativeWindowStyle(m_window);
     UpdateDimensions();
     return true;
 }
@@ -203,14 +234,31 @@ void UiWindow::PaceFrame()
     m_lastFrame = SDL_GetPerformanceCounter();
 }
 
+void * UiWindow::NativeHandle() const
+{
+    SDL_SysWMinfo info{};
+    if (!QueryWindow(m_window, info))
+    {
+        return nullptr;
+    }
+    switch (info.subsystem)
+    {
+#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+    case SDL_SYSWM_WINDOWS: return info.info.win.window;
+#endif
+#if defined(SDL_VIDEO_DRIVER_COCOA)
+    case SDL_SYSWM_COCOA: return info.info.cocoa.window;
+#endif
+    default: return nullptr;
+    }
+}
+
 void * UiWindow::RenderSurface() const
 {
-#if defined(__APPLE__)
     if (m_metalView != nullptr)
     {
         return SDL_Metal_GetLayer(m_metalView);
     }
-#endif
     SDL_SysWMinfo info{};
     if (!QueryWindow(m_window, info))
     {
@@ -261,6 +309,11 @@ float UiWindow::PixelRatio() const
     return m_pixelScale;
 }
 
+void UiWindow::SetTitle(const std::string & title)
+{
+    SDL_SetWindowTitle(m_window, title.c_str());
+}
+
 bool UiWindow::IsFullscreen() const
 {
 #if defined(__APPLE__)
@@ -272,6 +325,19 @@ bool UiWindow::IsFullscreen() const
 
 void UiWindow::SyncNativeState()
 {
+    if (SyncNativeWindowState(m_window))
+    {
+        UpdateDimensions();
+    }
+}
+
+void UiWindow::SetFullscreen(bool fullscreen)
+{
+#if defined(__APPLE__)
+    SetNativeWindowFullscreen(m_window, fullscreen);
+#else
+    SDL_SetWindowFullscreen(m_window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+#endif
 }
 
 bool UiWindow::IsMaximised() const
@@ -279,10 +345,110 @@ bool UiWindow::IsMaximised() const
     return (SDL_GetWindowFlags(m_window) & SDL_WINDOW_MAXIMIZED) != 0;
 }
 
+void UiWindow::SetMaximised(bool maximised)
+{
+    if (maximised)
+    {
+        SDL_MaximizeWindow(m_window);
+    }
+    else
+    {
+        SDL_RestoreWindow(m_window);
+    }
+}
+
+void UiWindow::Minimise()
+{
+    SDL_MinimizeWindow(m_window);
+}
+
+void UiWindow::TitleBarDoubleClicked()
+{
+    if (IsFullscreen())
+    {
+        return;
+    }
+#if defined(__APPLE__)
+    PerformNativeTitleBarDoubleClick(m_window);
+#else
+    SetMaximised(!IsMaximised());
+#endif
+}
+
+void UiWindow::GetClientSize(int & width, int & height) const
+{
+    SDL_GetWindowSize(m_window, &width, &height);
+}
+
+void UiWindow::SetClientSize(int width, int height)
+{
+    SDL_Rect usable{};
+    const bool bounded = SDL_GetDisplayUsableBounds(std::max(SDL_GetWindowDisplayIndex(m_window), 0), &usable) == 0;
+    int top = 0, left = 0, bottom = 0, right = 0;
+    SDL_GetWindowBordersSize(m_window, &top, &left, &bottom, &right);
+    if (bounded)
+    {
+        width = std::min(width, usable.w - left - right);
+        height = std::min(height, usable.h - top - bottom);
+    }
+    SDL_SetWindowSize(m_window, width, height);
+    if (bounded)
+    {
+        int x = 0, y = 0;
+        SDL_GetWindowPosition(m_window, &x, &y);
+        const int fitX = std::max(std::min(x, usable.x + usable.w - right - width), usable.x + left);
+        const int fitY = std::max(std::min(y, usable.y + usable.h - bottom - height), usable.y + top);
+        if (fitX != x || fitY != y)
+        {
+            SDL_SetWindowPosition(m_window, fitX, fitY);
+        }
+    }
+}
+
+void UiWindow::Centre()
+{
+    SDL_SetWindowPosition(m_window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+}
+
 bool UiWindow::Fail(const std::string & message)
 {
     m_error = message;
     return false;
+}
+
+bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
+{
+    for (const char * font : {"LatoLatin-Regular.ttf", "LatoLatin-Bold.ttf"})
+    {
+        if (!Rml::LoadFontFace(Common::FS::PathToUTF8String(fontDir / font)))
+        {
+            return Fail(std::string("Unable to load font ") + font);
+        }
+    }
+    for (const SystemFont & font : SystemFallbackFonts())
+    {
+        Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
+    }
+    return true;
+}
+
+void UiWindow::SetWindowIcon(const std::filesystem::path & iconFile)
+{
+    std::ifstream file(iconFile, std::ios::binary);
+    const std::vector<char> encoded{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    int width = 0, height = 0, channels = 0;
+    stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc *>(encoded.data()), static_cast<int>(encoded.size()), &width, &height, &channels, 4);
+    if (pixels == nullptr)
+    {
+        return;
+    }
+    SDL_Surface * icon = SDL_CreateRGBSurfaceWithFormatFrom(pixels, width, height, 32, width * 4, SDL_PIXELFORMAT_RGBA32);
+    if (icon != nullptr)
+    {
+        SDL_SetWindowIcon(m_window, icon);
+        SDL_FreeSurface(icon);
+    }
+    stbi_image_free(pixels);
 }
 
 void UiWindow::UpdateDimensions()
@@ -319,4 +485,53 @@ void UiWindow::UpdateDimensions()
         SDL_GetWindowPosition(m_window, &x, &y);
         m_hiddenFrame = static_cast<int>(static_cast<float>(std::max(usable.x - x, 0)) * m_pixelScale);
     }
+}
+
+SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
+{
+    if (IsFullscreen())
+    {
+        return SDL_HITTEST_NORMAL;
+    }
+    if (!IsMaximised())
+    {
+        int width = 0, height = 0;
+        SDL_GetWindowSize(m_window, &width, &height);
+        const int column = point.x < kResizeEdge ? 0 : point.x >= width - kResizeEdge ? 2 : 1;
+        const int row = point.y < kResizeEdge ? 0 : point.y >= height - kResizeEdge ? 2 : 1;
+        static const SDL_HitTestResult edges[3][3] = {
+            {SDL_HITTEST_RESIZE_TOPLEFT, SDL_HITTEST_RESIZE_TOP, SDL_HITTEST_RESIZE_TOPRIGHT},
+            {SDL_HITTEST_RESIZE_LEFT, SDL_HITTEST_NORMAL, SDL_HITTEST_RESIZE_RIGHT},
+            {SDL_HITTEST_RESIZE_BOTTOMLEFT, SDL_HITTEST_RESIZE_BOTTOM, SDL_HITTEST_RESIZE_BOTTOMRIGHT},
+        };
+        if (edges[row][column] != SDL_HITTEST_NORMAL)
+        {
+            return edges[row][column];
+        }
+    }
+    const Rml::Vector2f position(static_cast<float>(point.x) * m_pixelScale, static_cast<float>(point.y) * m_pixelScale);
+    for (Rml::Element * element = m_context->GetElementAtPoint(position); element != nullptr; element = element->GetParentNode())
+    {
+        if (element->HasAttribute("data-window"))
+        {
+            if (element->GetAttribute<Rml::String>("data-window", "") != "drag")
+            {
+                return SDL_HITTEST_NORMAL;
+            }
+#if !defined(_WIN32)
+            const uint64_t now = SDL_GetTicks64();
+            const bool again = now - m_barPressTime <= kDoubleClickMs && std::abs(point.x - m_barPress.x) <= kDoubleClickReach &&
+                               std::abs(point.y - m_barPress.y) <= kDoubleClickReach;
+            m_barPressTime = again ? 0 : now;
+            m_barPress = point;
+            if (again)
+            {
+                TitleBarDoubleClicked();
+                return SDL_HITTEST_NORMAL;
+            }
+#endif
+            return SDL_HITTEST_DRAGGABLE;
+        }
+    }
+    return SDL_HITTEST_NORMAL;
 }
