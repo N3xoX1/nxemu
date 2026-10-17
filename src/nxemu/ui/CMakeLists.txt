@@ -146,6 +146,15 @@ target_compile_definitions(nxemu_ui PRIVATE
 target_link_libraries(nxemu_ui PUBLIC RmlUi::RmlUi SDL2::SDL2
     PRIVATE nxemu_core common yuzu_common discord-rpc Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
+option(NXEMU_BUILD_HOTKEY_TESTS "Build the keyboard and gamepad shortcut tests" OFF)
+if(NXEMU_BUILD_HOTKEY_TESTS)
+    enable_testing()
+    add_executable(nxemu_hotkey_tests views/hotkeys_tests.cpp views/hotkeys.cpp views/shortcut.cpp)
+    target_include_directories(nxemu_hotkey_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+    target_link_libraries(nxemu_hotkey_tests PRIVATE SDL2::SDL2)
+    add_test(NAME nxemu_hotkeys COMMAND nxemu_hotkey_tests)
+endif()
+
 option(NXEMU_BUILD_TRANSLATION_TESTS "Build the interface translation tests" OFF)
 if(NXEMU_BUILD_TRANSLATION_TESTS)
     enable_testing()

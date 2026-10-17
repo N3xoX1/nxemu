@@ -462,10 +462,6 @@ msgid "What is written, as class:level."
 msgstr "Что записывается в журнал, в формате класс:уровень."
 
 #: assets/advanced_dialog.rml
-msgid "Click a shortcut, then press its keys. A click elsewhere keeps it as it is."
-msgstr "Нажмите на сочетание, затем нажмите его клавиши. Щелчок в другом месте оставит его без изменений."
-
-#: assets/advanced_dialog.rml
 msgid "In game"
 msgstr "В игре"
 
@@ -573,10 +569,6 @@ msgid "Save"
 msgstr "Сохранить"
 
 #: assets/directories_dialog.rml
-msgid "The folders NXEmu looks for games in. The folders inside them are not searched."
-msgstr "Папки, в которых NXEmu ищет игры. Их подпапки не просматриваются."
-
-#: assets/directories_dialog.rml
 msgid "Add a directory"
 msgstr "Добавить папку"
 
@@ -671,10 +663,6 @@ msgid "Console mode"
 msgstr "Консольный режим"
 
 #: assets/general_dialog.rml
-msgid "On the television, or in the hands."
-msgstr "На телевизоре или в руках."
-
-#: assets/general_dialog.rml
 msgid "As on the television: games draw up to 1080p."
 msgstr "Как на телевизоре: игры отображаются до 1080p."
 
@@ -729,22 +717,6 @@ msgid "Whole pictures only: no tearing."
 msgstr "Полные изображения, без разрывов."
 
 #: assets/general_dialog.rml
-msgid "Profile"
-msgstr "Профиль"
-
-#: assets/general_dialog.rml
-msgid "Who plays, with saves of their own."
-msgstr "Игрок со своими сохранениями."
-
-#: assets/general_dialog.rml
-msgid "Add players, and change their names and pictures"
-msgstr "Добавить игроков и изменить их имена и изображения"
-
-#: assets/general_dialog.rml
-msgid "Manage"
-msgstr "Управление"
-
-#: assets/general_dialog.rml
 msgid "Language"
 msgstr "Язык"
 
@@ -789,10 +761,6 @@ msgstr "Режим вывода"
 #: assets/general_dialog.rml
 msgid "Surround needs speakers that play it."
 msgstr "Для объемного звука требуются совместимые динамики."
-
-#: assets/general_dialog.rml
-msgid "A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts."
-msgstr "Игра запущена: недоступные параметры можно изменить только после её остановки. Языки и вывод звука применяются при запуске игры."
 
 #: assets/main_window.rml
 #: views/main_window.cpp
@@ -936,10 +904,6 @@ msgid "Paused"
 msgstr "Приостановлено"
 
 #: assets/main_window.rml
-msgid "Console mode: on the television, or in the hands"
-msgstr "Режим консоли: на ТВ или в руках"
-
-#: assets/main_window.rml
 msgid "The resolution games are drawn at"
 msgstr "Разрешение, с которым отображаются игры"
 
@@ -1027,10 +991,6 @@ msgstr "Удалить профиль"
 #: assets/profiles_dialog.rml
 msgid "Delete"
 msgstr "Удалить"
-
-#: assets/profiles_dialog.rml
-msgid "Back to the general settings"
-msgstr "Назад к общим настройкам"
 
 #: emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
@@ -2336,10 +2296,6 @@ msgid "The resolution scale cannot change while a game is running"
 msgstr "Масштаб разрешения нельзя изменить во время игры."
 
 #: views/main_window.cpp
-msgid "Resolution scale"
-msgstr "Масштаб разрешения"
-
-#: views/main_window.cpp
 msgid "The profile cannot change while a game is running"
 msgstr "Профиль нельзя изменить во время игры."
 
@@ -2536,3 +2492,61 @@ msgstr "Версия скопирована в буфер обмена"
 #: views/main_window.cpp
 msgid "Show emulation controls"
 msgstr "Показывать кнопки эмуляции"
+
+
+msgid "Debug"
+msgstr "Отладка"
+
+msgid "Emulation diagnostics"
+msgstr "Диагностика эмуляции"
+
+msgid "Threads and input"
+msgstr "Потоки и ввод"
+
+msgid "Gamepad"
+msgstr "Геймпад"
+
+msgid "Not assigned"
+msgstr "Не назначено"
+
+msgid "Press the buttons..."
+msgstr "Нажмите кнопки..."
+
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "ТВ-режим: игры работают в 1080p и рассчитаны на телевизор."
+
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "Портативный режим: игры работают в 720p, как на экране консоли."
+
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "Игра запущена: недоступные параметры можно изменить после её остановки. Языки применяются при запуске игры."
+
+
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
+msgstr "Игры, обновления и DLC можно хранить вместе или в разных папках. NXEmu автоматически связывает их. Вложенные папки не просматриваются."
+
+msgid "Profile"
+msgstr "Профиль"
+
+msgid "Who plays, with saves of their own."
+msgstr "Игрок со своими сохранениями."
+
+msgid "Add players, and change their names and pictures"
+msgstr "Добавить игроков и изменить их имена и изображения"
+
+msgid "Manage"
+msgstr "Управление"
+
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "Режим консоли: на телевизоре (1080p) или в портативном режиме (720p)"
+
+
+msgid "Clear shortcut"
+msgstr "Удалить сочетание"
+
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "Выберите сочетание и нажмите клавиши либо удерживайте и отпустите кнопки геймпада. Чтобы удалить назначение, нажмите крестик рядом или выберите сочетание и нажмите Delete."
+
+
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "Масштаб разрешения: чем выше значение, тем чётче изображение, но тем больше требуется мощности видеокарты."

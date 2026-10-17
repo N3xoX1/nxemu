@@ -51,7 +51,6 @@ msgid "OK"
 msgstr ""
 
 #: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/main_window.rml
@@ -61,7 +60,6 @@ msgid "Settings"
 msgstr ""
 
 #: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
@@ -69,17 +67,13 @@ msgid "General"
 msgstr ""
 
 #: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
-#: assets/main_window.rml
 #: assets/profiles_dialog.rml
-#: views/hotkeys.h
-msgid "Controllers"
+msgid "Profiles"
 msgstr ""
 
 #: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
@@ -87,11 +81,17 @@ msgid "Game directories"
 msgstr ""
 
 #: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
 #: assets/directories_dialog.rml
 #: assets/general_dialog.rml
 #: assets/profiles_dialog.rml
 msgid "Advanced"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Debug"
 msgstr ""
 
 #: assets/advanced_dialog.rml
@@ -148,6 +148,216 @@ msgid "How closely the graphics chip is imitated."
 msgstr ""
 
 #: assets/advanced_dialog.rml
+msgid "Videos at their own speed"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Even when the speed is not limited."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Textures and video"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "ASTC recompression"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Less graphics memory, for a lesser picture."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Graphics memory"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "How much of it games may take."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shaders"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep shaders on the disk"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Games stutter less from their second start."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Off only to look for a fault."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Build shaders in the background"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Less stutter; things can show late. A hack."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Performance"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep the graphics device busy"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "So that it does not slow its clock. Uses more power."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Processor and memory"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Console memory"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "More than the console has: for heavy mods."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Emulation"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/hotkeys.h
+#: views/settings_context.cpp
+msgid "Limit speed"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Off: as fast as the computer can."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "On, games run at the speed chosen: 100% is the speed of the console."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Audio"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Output device"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Where the sound of games is played."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Output mode"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Output engine"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "What plays the sound on this computer."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Input device"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "The microphone games listen to."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/main_window.rml
+#: views/hotkeys.h
+#: views/main_window.cpp
+msgid "Controllers"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Vibration"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "For every player. Each has a switch of their own."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Behaviour"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games in fullscreen"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games with UI hidden"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Confirm before stopping"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Asks before a running game is stopped."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Discord presence"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shows what you play in Discord when it runs."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Emulation diagnostics"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Processor engine"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "How the game's code is run."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Processor accuracy"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "For the engine that translates the code."
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Driver pipeline cache"
+msgstr ""
+
+#: assets/advanced_dialog.rml
+msgid "Shaders load faster with some drivers."
+msgstr ""
+
+#: assets/advanced_dialog.rml
 msgid "Memory reads"
 msgstr ""
 
@@ -200,39 +410,11 @@ msgid "Games that lower their resolution when the chip is slow are told it is fa
 msgstr ""
 
 #: assets/advanced_dialog.rml
-msgid "Videos at their own speed"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Even when the speed is not limited."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Textures and video"
-msgstr ""
-
-#: assets/advanced_dialog.rml
 msgid "ASTC decoding"
 msgstr ""
 
 #: assets/advanced_dialog.rml
 msgid "What decodes the textures of this kind."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "ASTC recompression"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Less graphics memory, for a lesser picture."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Graphics memory"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "How much of it games may take."
 msgstr ""
 
 #: assets/advanced_dialog.rml
@@ -244,41 +426,7 @@ msgid "What decodes the videos of games."
 msgstr ""
 
 #: assets/advanced_dialog.rml
-msgid "Shaders"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: views/settings_context.cpp
-msgid "Keep shaders on the disk"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Games stutter less from their second start."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Off only to look for a fault."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Driver pipeline cache"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Shaders load faster with some drivers."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: views/settings_context.cpp
-msgid "Build shaders in the background"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Less stutter; things can show late. A hack."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Performance"
+msgid "Threads and input"
 msgstr ""
 
 #: assets/advanced_dialog.rml
@@ -297,43 +445,6 @@ msgstr ""
 
 #: assets/advanced_dialog.rml
 msgid "A little faster on some computers."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: views/settings_context.cpp
-msgid "Keep the graphics device busy"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "So that it does not slow its clock. Uses more power."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Processor and memory"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Processor engine"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "How the game's code is run."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Processor accuracy"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "For the engine that translates the code."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Console memory"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "More than the console has: for heavy mods."
 msgstr ""
 
 #: assets/advanced_dialog.rml
@@ -362,90 +473,11 @@ msgid "Needs multicore."
 msgstr ""
 
 #: assets/advanced_dialog.rml
-msgid "Emulation"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: views/hotkeys.h
-#: views/settings_context.cpp
-msgid "Limit speed"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Off: as fast as the computer can."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "On, games run at the speed chosen: 100% is the speed of the console."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: assets/general_dialog.rml
-msgid "Audio"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Output engine"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "What plays the sound on this computer."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
-msgid "Input device"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "The microphone games listen to."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: assets/controller_dialog.rml
-msgid "Vibration"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "For every player. Each has a switch of their own."
-msgstr ""
-
-#: assets/advanced_dialog.rml
 msgid "Accurate vibration"
 msgstr ""
 
 #: assets/advanced_dialog.rml
 msgid "Every change is sent: some controllers lag."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Behaviour"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: views/main_window.cpp
-msgid "Start games in fullscreen"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-#: views/main_window.cpp
-msgid "Start games with UI hidden"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Confirm before stopping"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Asks before a running game is stopped."
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Discord presence"
-msgstr ""
-
-#: assets/advanced_dialog.rml
-msgid "Shows what you play in Discord when it runs."
 msgstr ""
 
 #: assets/advanced_dialog.rml
@@ -469,7 +501,7 @@ msgid "What is written, as class:level."
 msgstr ""
 
 #: assets/advanced_dialog.rml
-msgid "Click a shortcut, then press its keys. A click elsewhere keeps it as it is."
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
 msgstr ""
 
 #: assets/advanced_dialog.rml
@@ -580,7 +612,7 @@ msgid "Save"
 msgstr ""
 
 #: assets/directories_dialog.rml
-msgid "The folders NXEmu looks for games in. The folders inside them are not searched."
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
 msgstr ""
 
 #: assets/directories_dialog.rml
@@ -686,10 +718,6 @@ msgid "Console mode"
 msgstr ""
 
 #: assets/general_dialog.rml
-msgid "On the television, or in the hands."
-msgstr ""
-
-#: assets/general_dialog.rml
 msgid "As on the television: games draw up to 1080p."
 msgstr ""
 
@@ -789,24 +817,7 @@ msgid "On, the interface language is chosen here. Off, it follows the console la
 msgstr ""
 
 #: assets/general_dialog.rml
-msgid "Output device"
-msgstr ""
-
-#: assets/general_dialog.rml
-msgid "Where the sound of games is played."
-msgstr ""
-
-#: assets/general_dialog.rml
-#: views/settings_context.cpp
-msgid "Output mode"
-msgstr ""
-
-#: assets/general_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr ""
-
-#: assets/general_dialog.rml
-msgid "A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts."
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr ""
 
 #: assets/main_window.rml
@@ -956,7 +967,7 @@ msgid "Paused"
 msgstr ""
 
 #: assets/main_window.rml
-msgid "Console mode: on the television, or in the hands"
+msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr ""
 
 #: assets/main_window.rml
@@ -969,10 +980,6 @@ msgstr ""
 
 #: assets/main_window.rml
 msgid "Version copied to clipboard"
-msgstr ""
-
-#: assets/profiles_dialog.rml
-msgid "Profiles"
 msgstr ""
 
 #: assets/profiles_dialog.rml
@@ -1050,10 +1057,6 @@ msgstr ""
 
 #: assets/profiles_dialog.rml
 msgid "Delete"
-msgstr ""
-
-#: assets/profiles_dialog.rml
-msgid "Back to the general settings"
 msgstr ""
 
 #: emulation/emulator_session.cpp
@@ -1223,6 +1226,7 @@ msgid "Motion %1"
 msgstr ""
 
 #: input/input_text.cpp
+#: views/hotkeys.cpp
 msgid "Button %1"
 msgstr ""
 
@@ -1528,12 +1532,43 @@ msgid "The one the computer records from."
 msgstr ""
 
 #: views/advanced_dialog.cpp
-#: views/general_dialog.cpp
 msgid "%1 (not connected)"
 msgstr ""
 
 #: views/advanced_dialog.cpp
 msgid "Games listen to the default of the computer until it is back."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "The one the computer plays its sounds on."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Games play on the default of the computer until it is back."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Stereo"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Surround"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Mono"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "One channel."
 msgstr ""
 
 #: views/advanced_dialog.cpp
@@ -1545,7 +1580,29 @@ msgid "%1 is already the shortcut of \"%2\"."
 msgstr ""
 
 #: views/advanced_dialog.cpp
+msgid "Press the buttons..."
+msgstr ""
+
+#: views/advanced_dialog.cpp
 msgid "Press the keys..."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/hotkeys.cpp
+msgid "Not assigned"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Clear shortcut"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/controller_dialog.cpp
+msgid "Keyboard"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Gamepad"
 msgstr ""
 
 #: views/controller_dialog.cpp
@@ -1610,10 +1667,6 @@ msgstr ""
 
 #: views/controller_dialog.cpp
 msgid "Any device"
-msgstr ""
-
-#: views/controller_dialog.cpp
-msgid "Keyboard"
 msgstr ""
 
 #: views/controller_dialog.cpp
@@ -2024,35 +2077,11 @@ msgid "Gaussian"
 msgstr ""
 
 #: views/general_dialog.cpp
-msgid "The one the computer plays its sounds on."
+msgid "Docked: games run at 1080p and expect a TV."
 msgstr ""
 
 #: views/general_dialog.cpp
-msgid "Games play on the default of the computer until it is back."
-msgstr ""
-
-#: views/general_dialog.cpp
-msgid "Stereo"
-msgstr ""
-
-#: views/general_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr ""
-
-#: views/general_dialog.cpp
-msgid "Surround"
-msgstr ""
-
-#: views/general_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr ""
-
-#: views/general_dialog.cpp
-msgid "Mono"
-msgstr ""
-
-#: views/general_dialog.cpp
-msgid "One channel."
+msgid "Handheld: games run at 720p, as on the console's own screen."
 msgstr ""
 
 #: views/general_dialog.cpp
@@ -2351,11 +2380,11 @@ msgid "Use game settings"
 msgstr ""
 
 #: views/main_window.cpp
-msgid "The resolution scale cannot change while a game is running"
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
 msgstr ""
 
 #: views/main_window.cpp
-msgid "Resolution scale"
+msgid "The resolution scale cannot change while a game is running"
 msgstr ""
 
 #: views/main_window.cpp

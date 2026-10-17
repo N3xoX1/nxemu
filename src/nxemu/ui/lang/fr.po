@@ -462,10 +462,6 @@ msgid "What is written, as class:level."
 msgstr "Ce qui est consigné, sous la forme classe:niveau."
 
 #: assets/advanced_dialog.rml
-msgid "Click a shortcut, then press its keys. A click elsewhere keeps it as it is."
-msgstr "Cliquez sur un raccourci, puis appuyez sur ses touches. Un clic ailleurs le laisse tel quel."
-
-#: assets/advanced_dialog.rml
 msgid "In game"
 msgstr "En jeu"
 
@@ -573,10 +569,6 @@ msgid "Save"
 msgstr "Enregistrer"
 
 #: assets/directories_dialog.rml
-msgid "The folders NXEmu looks for games in. The folders inside them are not searched."
-msgstr "Les dossiers dans lesquels NXEmu recherche les jeux. Leurs sous-dossiers ne sont pas parcourus."
-
-#: assets/directories_dialog.rml
 msgid "Add a directory"
 msgstr "Ajouter un dossier"
 
@@ -671,10 +663,6 @@ msgid "Console mode"
 msgstr "Mode de la console"
 
 #: assets/general_dialog.rml
-msgid "On the television, or in the hands."
-msgstr "Sur le téléviseur ou entre les mains."
-
-#: assets/general_dialog.rml
 msgid "As on the television: games draw up to 1080p."
 msgstr "Comme sur le téléviseur : les jeux s'affichent jusqu'en 1080p."
 
@@ -729,22 +717,6 @@ msgid "Whole pictures only: no tearing."
 msgstr "Des images entières, sans déchirement."
 
 #: assets/general_dialog.rml
-msgid "Profile"
-msgstr "Profil"
-
-#: assets/general_dialog.rml
-msgid "Who plays, with saves of their own."
-msgstr "Le joueur, avec ses propres sauvegardes."
-
-#: assets/general_dialog.rml
-msgid "Add players, and change their names and pictures"
-msgstr "Ajouter des joueurs et modifier leur nom et leur image"
-
-#: assets/general_dialog.rml
-msgid "Manage"
-msgstr "Gérer"
-
-#: assets/general_dialog.rml
 msgid "Language"
 msgstr "Langue"
 
@@ -789,10 +761,6 @@ msgstr "Mode de sortie"
 #: assets/general_dialog.rml
 msgid "Surround needs speakers that play it."
 msgstr "Le son surround nécessite des enceintes compatibles."
-
-#: assets/general_dialog.rml
-msgid "A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts."
-msgstr "Un jeu est en cours : les options grisées ne peuvent pas être modifiées avant son arrêt. Les langues et la sortie audio sont prises en compte au lancement d'un jeu."
 
 #: assets/main_window.rml
 #: views/main_window.cpp
@@ -936,10 +904,6 @@ msgid "Paused"
 msgstr "En pause"
 
 #: assets/main_window.rml
-msgid "Console mode: on the television, or in the hands"
-msgstr "Mode de la console : sur le téléviseur ou entre les mains"
-
-#: assets/main_window.rml
 msgid "The resolution games are drawn at"
 msgstr "La résolution à laquelle les jeux sont affichés"
 
@@ -1027,10 +991,6 @@ msgstr "Supprimer le profil"
 #: assets/profiles_dialog.rml
 msgid "Delete"
 msgstr "Supprimer"
-
-#: assets/profiles_dialog.rml
-msgid "Back to the general settings"
-msgstr "Retour aux paramètres généraux"
 
 #: emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
@@ -2328,10 +2288,6 @@ msgid "The resolution scale cannot change while a game is running"
 msgstr "L'échelle de résolution ne peut pas être modifiée pendant qu'un jeu est en cours"
 
 #: views/main_window.cpp
-msgid "Resolution scale"
-msgstr "Échelle de résolution"
-
-#: views/main_window.cpp
 msgid "The profile cannot change while a game is running"
 msgstr "Le profil ne peut pas être modifié pendant qu'un jeu est en cours"
 
@@ -2527,3 +2483,61 @@ msgstr "Version copiée dans le presse-papiers"
 #: views/main_window.cpp
 msgid "Show emulation controls"
 msgstr "Afficher les commandes d’émulation"
+
+
+msgid "Debug"
+msgstr "Débogage"
+
+msgid "Emulation diagnostics"
+msgstr "Diagnostic de l’émulation"
+
+msgid "Threads and input"
+msgstr "Threads et entrées"
+
+msgid "Gamepad"
+msgstr "Manette"
+
+msgid "Not assigned"
+msgstr "Non attribué"
+
+msgid "Press the buttons..."
+msgstr "Appuyez sur les boutons..."
+
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "Mode TV : les jeux fonctionnent en 1080p et prévoient un téléviseur."
+
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "Mode portable : les jeux fonctionnent en 720p, comme sur l’écran de la console."
+
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "Un jeu est en cours : les options grisées ne peuvent changer qu’après son arrêt. Les langues sont prises en compte au lancement du jeu."
+
+
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
+msgstr "Vos jeux, mises à jour et DLC peuvent être réunis ou séparés dans différents dossiers. NXEmu les associe automatiquement. Les sous-dossiers ne sont pas parcourus."
+
+msgid "Profile"
+msgstr "Profil"
+
+msgid "Who plays, with saves of their own."
+msgstr "Le joueur, avec ses propres sauvegardes."
+
+msgid "Add players, and change their names and pictures"
+msgstr "Ajouter des joueurs et modifier leur nom et leur image"
+
+msgid "Manage"
+msgstr "Gérer"
+
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "Mode de la console : sur la TV (1080p) ou en mode portable (720p)"
+
+
+msgid "Clear shortcut"
+msgstr "Effacer le raccourci"
+
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "Cliquez sur un raccourci, puis appuyez sur les touches ou maintenez et relâchez les boutons de la manette. Pour l’effacer, utilisez la croix à côté, ou cliquez dessus puis appuyez sur Suppr."
+
+
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "Échelle de résolution : une valeur plus élevée rend l’image plus nette, mais demande plus de puissance graphique."

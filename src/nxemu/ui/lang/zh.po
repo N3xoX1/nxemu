@@ -462,10 +462,6 @@ msgid "What is written, as class:level."
 msgstr "要记录的内容，格式为类别:级别。"
 
 #: assets/advanced_dialog.rml
-msgid "Click a shortcut, then press its keys. A click elsewhere keeps it as it is."
-msgstr "点击快捷键，然后按下按键。点击其他位置则保持不变。"
-
-#: assets/advanced_dialog.rml
 msgid "In game"
 msgstr "游戏中"
 
@@ -573,10 +569,6 @@ msgid "Save"
 msgstr "保存"
 
 #: assets/directories_dialog.rml
-msgid "The folders NXEmu looks for games in. The folders inside them are not searched."
-msgstr "文件夹 NXEmu 在其中搜索游戏。它们的子文件夹不会被浏览。"
-
-#: assets/directories_dialog.rml
 msgid "Add a directory"
 msgstr "添加文件夹"
 
@@ -671,10 +663,6 @@ msgid "Console mode"
 msgstr "主机模式"
 
 #: assets/general_dialog.rml
-msgid "On the television, or in the hands."
-msgstr "在电视上或在你的手中。"
-
-#: assets/general_dialog.rml
 msgid "As on the television: games draw up to 1080p."
 msgstr "就像在电视上一样：游戏的显示分辨率高达 1080p。"
 
@@ -729,22 +717,6 @@ msgid "Whole pictures only: no tearing."
 msgstr "完整图像，无撕裂。"
 
 #: assets/general_dialog.rml
-msgid "Profile"
-msgstr "用户档案"
-
-#: assets/general_dialog.rml
-msgid "Who plays, with saves of their own."
-msgstr "选择玩家，使用该玩家独立的存档。"
-
-#: assets/general_dialog.rml
-msgid "Add players, and change their names and pictures"
-msgstr "添加玩家并更改名称和头像"
-
-#: assets/general_dialog.rml
-msgid "Manage"
-msgstr "管理"
-
-#: assets/general_dialog.rml
 msgid "Language"
 msgstr "语言"
 
@@ -789,10 +761,6 @@ msgstr "输出模式"
 #: assets/general_dialog.rml
 msgid "Surround needs speakers that play it."
 msgstr "环绕声需要兼容的扬声器。"
-
-#: assets/general_dialog.rml
-msgid "A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts."
-msgstr "游戏正在运行：停止游戏后才能更改灰色选项。语言和音频输出设置在游戏启动时应用。"
 
 #: assets/main_window.rml
 #: views/main_window.cpp
@@ -936,10 +904,6 @@ msgid "Paused"
 msgstr "已暂停"
 
 #: assets/main_window.rml
-msgid "Console mode: on the television, or in the hands"
-msgstr "主机模式：在电视上或在手中"
-
-#: assets/main_window.rml
 msgid "The resolution games are drawn at"
 msgstr "游戏显示的分辨率"
 
@@ -1027,10 +991,6 @@ msgstr "删除配置文件"
 #: assets/profiles_dialog.rml
 msgid "Delete"
 msgstr "删除"
-
-#: assets/profiles_dialog.rml
-msgid "Back to the general settings"
-msgstr "返回常规设置"
 
 #: emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
@@ -2320,10 +2280,6 @@ msgid "The resolution scale cannot change while a game is running"
 msgstr "游戏进行中时无法更改分辨率比例"
 
 #: views/main_window.cpp
-msgid "Resolution scale"
-msgstr "分辨率比例"
-
-#: views/main_window.cpp
 msgid "The profile cannot change while a game is running"
 msgstr "游戏进行中时无法更改个人资料"
 
@@ -2518,3 +2474,61 @@ msgstr "版本已复制到剪贴板"
 #: views/main_window.cpp
 msgid "Show emulation controls"
 msgstr "显示模拟控制按钮"
+
+
+msgid "Debug"
+msgstr "调试"
+
+msgid "Emulation diagnostics"
+msgstr "模拟诊断"
+
+msgid "Threads and input"
+msgstr "线程与输入"
+
+msgid "Gamepad"
+msgstr "手柄"
+
+msgid "Not assigned"
+msgstr "未分配"
+
+msgid "Press the buttons..."
+msgstr "请按下按钮..."
+
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "电视模式：游戏以1080p运行，并采用电视显示模式。"
+
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "掌机模式：游戏以720p运行，如同在主机自带屏幕上显示。"
+
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "游戏正在运行：灰色选项只能在停止后更改。语言在游戏启动时生效。"
+
+
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Subfolders are not searched."
+msgstr "游戏、更新和DLC可以放在同一文件夹或不同文件夹中。NXEmu会自动关联它们。不会搜索子文件夹。"
+
+msgid "Profile"
+msgstr "用户档案"
+
+msgid "Who plays, with saves of their own."
+msgstr "选择玩家，使用该玩家独立的存档。"
+
+msgid "Add players, and change their names and pictures"
+msgstr "添加玩家并更改名称和头像"
+
+msgid "Manage"
+msgstr "管理"
+
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "主机模式：电视（1080p）或掌机（720p）"
+
+
+msgid "Clear shortcut"
+msgstr "清除快捷键"
+
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "点击快捷键后按下所需按键，或按住并松开手柄按钮。要清除快捷键，请点击旁边的叉号，或点击快捷键后按Delete。"
+
+
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "分辨率倍率：数值越高，画面越清晰，但需要更强的图形性能。"

@@ -228,7 +228,7 @@ bool MainWindow::Create()
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
-    m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir, openPage);
+    m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
     m_directoriesDialog = std::make_unique<DirectoriesDialog>(m_window, m_library, m_assetDir,
                                                         DirectoriesDialog::Host{
                                                             [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
@@ -312,6 +312,21 @@ void MainWindow::RequestQuit()
 
 void MainWindow::HandleEvent(const SDL_Event & event)
 {
+    const auto chord = Hotkeys::TrackGamepad(event);
+    if (m_advancedDialog->HandleGamepad(event, chord)) return;
+    if (event.type == SDL_JOYBUTTONDOWN && chord.buttons != 0 && !DialogOpen() &&
+        m_session.IsRunning() && (SDL_GetWindowFlags(m_window.Handle()) & SDL_WINDOW_INPUT_FOCUS) != 0)
+    {
+        for (const HotkeyAction & hotkey : kHotkeyActions)
+        {
+            if (Hotkeys::GetGamepad(hotkey.id) == chord &&
+                (hotkey.action != Action::ExitFullscreen || m_window.IsFullscreen()))
+            {
+                Post(hotkey.action);
+                return;
+            }
+        }
+    }
     if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEWHEEL)
     {
         m_mouseMovedAt = SDL_GetTicks64();
@@ -1108,6 +1123,7 @@ void MainWindow::RebuildMenu()
                                                             }));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::OpenSettings, Tr("&Settings")));
+    file.push_back(action(Action::ConfigureControllers, Tr("Controllers"), m_session.IsValid()));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::InstallFirmware, Tr("Install &Firmware"), !running));
     file.push_back(MenuItem::Separator());
@@ -1789,7 +1805,7 @@ void MainWindow::SyncInterfaceLanguage()
     m_aboutDialog->RefreshTranslation();
     m_firmwareDialog->RefreshTranslation();
     m_controllerDialog->RefreshTranslation();
-    m_advancedDialog->RefreshTranslation();
+    m_advancedDialog->RefreshLanguage();
     m_directoriesDialog->RefreshTranslation();
     m_profilesDialog->RefreshTranslation();
     m_generalDialog->RefreshLanguage();
@@ -1799,6 +1815,7 @@ void MainWindow::SyncInterfaceLanguage()
     m_pendingGameMenu = nullptr;
     m_pendingSelectMenu = nullptr;
     RebuildMenu();
+    ApplyLibraryOptions();
     RenderGames();
     RenderVisibleGames();
     RenderDetails();
@@ -2133,19 +2150,12 @@ void MainWindow::AnnounceGame(const std::string & path)
 
 bool MainWindow::ShowSettingsPage(SettingsPage page)
 {
-    if (m_settingsContext.IsGame() && page != SettingsPage::General && page != SettingsPage::Advanced) return false;
+    if (m_settingsContext.IsGame() && page != SettingsPage::General && page != SettingsPage::Advanced && page != SettingsPage::Debug) return false;
     switch (page)
     {
     case SettingsPage::General:
         m_generalDialog->Show();
         return m_generalDialog->IsVisible();
-    case SettingsPage::Controllers:
-        // The controllers are the modules'.
-        if (m_session.IsValid())
-        {
-            m_controllerDialog->Show();
-        }
-        return m_controllerDialog->IsVisible();
     case SettingsPage::Profiles:
         // The profiles are the modules'.
         if (m_session.IsValid())
@@ -2157,7 +2167,8 @@ bool MainWindow::ShowSettingsPage(SettingsPage page)
         m_directoriesDialog->Show();
         return m_directoriesDialog->IsVisible();
     case SettingsPage::Advanced:
-        m_advancedDialog->Show();
+    case SettingsPage::Debug:
+        m_advancedDialog->ShowPage(page);
         return m_advancedDialog->IsVisible();
     }
     return false;
@@ -2327,7 +2338,8 @@ void MainWindow::UpdateStatusWidgets()
         // The video module reads the scale when a game starts.
         const bool locked = m_session.IsRunning();
         select->SetClass("locked", locked);
-        const std::string hint = locked ? Tr("The resolution scale cannot change while a game is running") : Tr("Resolution scale");
+        const std::string hint = Tr("Resolution scale: higher values give a sharper picture but need more graphics power.") +
+            (locked ? "\n" + Tr("The resolution scale cannot change while a game is running") : "");
         if (select->GetAttribute<Rml::String>("title", "") != hint)
         {
             select->SetAttribute("title", hint);

@@ -26,7 +26,6 @@ using namespace SettingsControls;
 
 namespace
 {
-constexpr const char * kDefaultAudioDevice = "auto";
 // In the order of Region.
 constexpr const char * kRegions[] = {TrMark("Japan"), TrMark("Americas"), TrMark("Europe"), TrMark("Australia"), TrMark("China"), TrMark("Korea"), TrMark("Taiwan")};
 
@@ -74,10 +73,6 @@ Choices Sorted(const char * const (&names)[Count], bool translate = true)
     return choices;
 }
 
-void CollectDevice(const char * device, void * userData)
-{
-    static_cast<std::vector<std::string> *>(userData)->emplace_back(device);
-}
 } // namespace
 
 GeneralDialog::~GeneralDialog() = default;
@@ -236,41 +231,6 @@ void GeneralDialog::FillLists()
     }
     Fill(Select(Document(), "interface-language"), choices, UiPreferences::InterfaceLanguageCode());
 
-    // The devices of the computer, and the one the settings name when it is
-    // not among them: unplugged, it stays the one chosen.
-    const std::string audioDevice = settings.GetString(NXOsSetting::AudioOutputDeviceId);
-    std::vector<std::string> audioDevices;
-    if (m_session.IsValid())
-    {
-        m_session.Modules().OperatingSystem().AudioGetDeviceListForSink(static_cast<uint32_t>(settings.GetInt(NXOsSetting::AudioSinkId)), false, CollectDevice, &audioDevices);
-    }
-    choices.clear();
-    choices.push_back({Tr("System default"), kDefaultAudioDevice, Tr("The one the computer plays its sounds on.")});
-    bool listed = audioDevice == kDefaultAudioDevice || audioDevice.empty();
-    for (const std::string & device : audioDevices)
-    {
-        if (device != kDefaultAudioDevice)
-        {
-            choices.push_back({device, device, {}});
-            listed = listed || device == audioDevice;
-        }
-    }
-    if (!listed)
-    {
-        choices.push_back({Tr("%1 (not connected)", {audioDevice}), audioDevice, Tr("Games play on the default of the computer until it is back.")});
-    }
-    Fill(Select(Document(), "audio-device"), choices, audioDevice.empty() ? kDefaultAudioDevice : audioDevice);
-
-    const int audioMode = settings.GetInt(NXOsSetting::AudioMode);
-    choices.clear();
-    choices.push_back(Numbered(Tr("Stereo"), static_cast<int>(AudioMode::Stereo), Tr("Two channels: headphones and most speakers.")));
-    choices.push_back(Numbered(Tr("Surround"), static_cast<int>(AudioMode::Surround), Tr("Six channels, for speakers set around the room.")));
-    if (audioMode == static_cast<int>(AudioMode::Mono))
-    {
-        // Not offered, but kept for whoever chose it elsewhere.
-        choices.push_back(Numbered(Tr("Mono"), audioMode, Tr("One channel.")));
-    }
-    Fill(Select(Document(), "audio-mode"), choices, std::to_string(audioMode));
 }
 
 void GeneralDialog::ShowValues()
@@ -279,6 +239,7 @@ void GeneralDialog::ShowValues()
     const bool docked = settings.GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     SetClass(Document(), "mode-docked", "selected", docked);
     SetClass(Document(), "mode-handheld", "selected", !docked);
+    SetText("mode-text", docked ? Tr("Docked: games run at 1080p and expect a TV.") : Tr("Handheld: games run at 720p, as on the console's own screen."));
 
     const int scale = std::clamp(settings.GetInt(NXVideoSetting::ResolutionSetup), 0, kResolutionScaleCount - 1);
     const int height = static_cast<int>(std::lround((docked ? kDockedHeight : kHandheldHeight) * kResolutionScales[scale].factor));
@@ -336,7 +297,6 @@ void GeneralDialog::ShowRunning()
     Document()->SetClass("game-running", running);
     SetDisabled(Document(), "device", running || m_devices.empty());
     SetDisabled(Document(), "resolution", running);
-    // A game keeps the player it was started as.
     SetDisabled(Document(), "profile", running || m_profileCount < 2);
 }
 
@@ -357,7 +317,7 @@ void GeneralDialog::ApplyChange(const std::string & id)
     {
         return;
     }
-    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "audio-device" || id == "interface-language" || id == "interface-theme")) return;
+    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "interface-language" || id == "interface-theme")) return;
     const int value = std::atoi(text.c_str());
 
     if (id == "interface-theme")
@@ -382,15 +342,6 @@ void GeneralDialog::ApplyChange(const std::string & id)
     }
 
     const char * setting = nullptr;
-    if (id == "audio-device")
-    {
-        if (text != settings.GetString(NXOsSetting::AudioOutputDeviceId))
-        {
-            settings.SetString(NXOsSetting::AudioOutputDeviceId, text.c_str());
-            Changed();
-        }
-        return;
-    }
     if (id == "profile")
     {
         if (!m_session.IsRunning() && value >= 0 && static_cast<size_t>(value) < m_profileCount && value != UserProfiles::Active(m_profileCount))
@@ -437,10 +388,6 @@ void GeneralDialog::ApplyChange(const std::string & id)
             return;
         }
         setting = NXOsSetting::Region;
-    }
-    else if (id == "audio-mode")
-    {
-        setting = NXOsSetting::AudioMode;
     }
     if (setting != nullptr && settings.GetInt(setting) != value)
     {

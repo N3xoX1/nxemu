@@ -267,11 +267,10 @@ int RangeValue(Rml::Element * element, int fallback)
 }
 } // namespace
 
-ControllerDialog::ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir, OpenSettingsPage openPage) :
+ControllerDialog::ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir) :
     Dialog(window.Context(), assetDir / "controller_dialog.rml", kSettingsNarrowBelow),
     m_window(window),
-    m_session(session),
-    m_openPage(std::move(openPage))
+    m_session(session)
 {
 }
 
@@ -483,15 +482,6 @@ void ControllerDialog::OnCommand(const std::string & command)
     if (name == "save" || name == "cancel")
     {
         Finish(name == "save");
-        return;
-    }
-    SettingsPage page;
-    if (SettingsPageOf(command, page))
-    {
-        // The other pages keep a change as it is made: so does leaving this
-        // one for them.
-        Finish(true);
-        m_openPage(page);
         return;
     }
     // A click anywhere gives up the input waited for.
