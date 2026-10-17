@@ -224,7 +224,11 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
     scheduler.SetQueryCache(query_cache);
 }
 
-RasterizerVulkan::~RasterizerVulkan() = default;
+RasterizerVulkan::~RasterizerVulkan() {
+    // Query and buffer caches are destroyed before texture_cache. Drain while
+    // all scheduler callbacks and resources are still alive.
+    texture_cache.DrainGCReadbacks();
+}
 
 template <typename Func>
 void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
@@ -451,7 +455,7 @@ void RasterizerVulkan::Clear(u32 layer_count) {
     }
 
     std::scoped_lock lock{texture_cache.mutex};
-    texture_cache.UpdateRenderTargets(true);
+    texture_cache.UpdateRenderTargets(true, layer_count);
     const Framebuffer* framebuffer = texture_cache.GetFramebuffer();
     const VkExtent2D render_area = framebuffer->RenderArea();
     const u32 color_write_mask = use_color ? (1U << regs.clear_surface.RT) : 0;

@@ -116,6 +116,13 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
     static constexpr size_t GC_EMERGENCY_COUNTS = 2;
 
     using Runtime = typename P::Runtime;
+    static constexpr bool SUPPORTS_ASYNC_GC =
+        IMPLEMENTS_ASYNC_DOWNLOADS && requires(Runtime& backend, u64 tick) {
+            backend.GetReadbackTick();
+            backend.IsReadbackReady(tick);
+            backend.WaitReadback(tick);
+            backend.SubmitReadbacks();
+        };
     using Image = typename P::Image;
     using ImageAlloc = typename P::ImageAlloc;
     using ImageView = typename P::ImageView;
@@ -133,6 +140,10 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
 
 public:
     explicit TextureCache(Runtime&, Tegra::MaxwellDeviceMemoryManager&);
+    ~TextureCache();
+
+    /// Drain deferred GC copies before the backend's submission dependencies are destroyed.
+    void DrainGCReadbacks();
 
     /// Notify the cache that a new frame has been queued
     void TickFrame();
@@ -188,11 +199,11 @@ public:
 
     /// Updates the Render Targets if they can be rescaled
     /// @retval True if the Render Targets have been rescaled.
-    bool RescaleRenderTargets();
+    bool RescaleRenderTargets(u32 clear_layer_count = 0);
 
     /// Update bound render targets and upload memory if necessary
     /// @param is_clear True when the render targets are being used for clears
-    void UpdateRenderTargets(bool is_clear);
+    void UpdateRenderTargets(bool is_clear, u32 clear_layer_count = 0);
 
     /// Find a framebuffer with the currently bound render targets
     /// UpdateRenderTargets should be called before this
@@ -329,7 +340,8 @@ private:
 
     /// Find or create an image from the given parameters
     [[nodiscard]] ImageId FindOrInsertImage(const ImageInfo& info, GPUVAddr gpu_addr,
-                                            RelaxedOptions options = RelaxedOptions{});
+                                            RelaxedOptions options = RelaxedOptions{},
+                                            bool discard_contents = false);
 
     /// Find an image from the given parameters
     [[nodiscard]] ImageId FindImage(const ImageInfo& info, GPUVAddr gpu_addr,
@@ -337,11 +349,12 @@ private:
 
     /// Create an image from the given parameters
     [[nodiscard]] ImageId InsertImage(const ImageInfo& info, GPUVAddr gpu_addr,
-                                      RelaxedOptions options);
+                                      RelaxedOptions options, bool discard_contents = false);
 
     /// Create a new image and join perfectly matching existing images
     /// Remove joined images from the cache
-    [[nodiscard]] ImageId JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DAddr cpu_addr);
+    [[nodiscard]] ImageId JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DAddr cpu_addr,
+                                     bool discard_contents);
 
     [[nodiscard]] ImageId FindDMAImage(const ImageInfo& info, GPUVAddr gpu_addr);
 
@@ -354,13 +367,17 @@ private:
     [[nodiscard]] SamplerId FindSampler(const TSCEntry& config);
 
     /// Find or create an image view for the given color buffer index
-    [[nodiscard]] ImageViewId FindColorBuffer(size_t index);
+    [[nodiscard]] ImageViewId FindColorBuffer(size_t index, u32 clear_layer_count = 0);
 
     /// Find or create an image view for the depth buffer
-    [[nodiscard]] ImageViewId FindDepthBuffer();
+    [[nodiscard]] ImageViewId FindDepthBuffer(u32 clear_layer_count = 0);
 
     /// Find or create a view for a render target with the given image parameters
-    [[nodiscard]] ImageViewId FindRenderTargetView(const ImageInfo& info, GPUVAddr gpu_addr);
+    [[nodiscard]] ImageViewId FindRenderTargetView(const ImageInfo& info, GPUVAddr gpu_addr,
+                                                   bool discard_contents = false);
+
+    [[nodiscard]] bool CanDiscardOnClear(const ImageInfo& info, bool is_color, size_t index,
+                                         u32 clear_layer_count);
 
     /// Iterates over all the images in a region calling func
     template <typename Func>
@@ -392,7 +409,8 @@ private:
     void UntrackImage(ImageBase& image, ImageId image_id);
 
     /// Delete image from the cache
-    void DeleteImage(ImageId image, bool immediate_delete = false);
+    void DeleteImage(ImageId image, bool immediate_delete = false,
+                     std::vector<ImageViewId>* deferred_views = nullptr);
 
     /// Remove image views references from the cache
     void RemoveImageViewReferences(std::span<const ImageViewId> removed_views);
@@ -433,6 +451,9 @@ private:
 
     void QueueAsyncDecode(Image& image, ImageId image_id);
     void TickAsyncDecode();
+    bool QueueGCReadback(ImageId id);
+    void PollGCReadbacks();
+    void CancelGCReadback(ImageId id);
 
     Runtime& runtime;
 
@@ -500,6 +521,23 @@ private:
 
     u64 modification_tick = 0;
     u64 frame_tick = 0;
+    std::vector<ImageViewId> gc_removed_views;
+    struct GCReadback {
+        ImageId id;
+        u64 modification_tick;
+        u64 last_use_tick;
+        u64 tick;
+        size_t address_space;
+        size_t storage_index;
+        AsyncBuffer map;
+    };
+    static constexpr size_t GC_READBACK_LIMIT = 64_MiB;
+    static constexpr ImageFlagBits GC_READBACK_UNSUPPORTED_FLAGS =
+        ImageFlagBits::Remapped | ImageFlagBits::Sparse | ImageFlagBits::Converted |
+        ImageFlagBits::AsynchronousDecode | ImageFlagBits::IsDecoding;
+    std::deque<GCReadback> gc_readbacks;
+    std::unordered_set<ImageId> gc_readback_ids;
+    size_t gc_readback_bytes{};
 
     Common::ThreadWorker texture_decode_worker{1, "TextureDecoder"};
     std::vector<std::unique_ptr<AsyncDecodeContext>> async_decodes;

@@ -3,9 +3,11 @@
 
 #pragma once
 
-#include <unordered_set>
+#include <bit>
 #include <boost/container/small_vector.hpp>
+#include <unordered_set>
 
+#include "video_settings.h"
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_shader_recompiler/exception.h"
@@ -14,12 +16,14 @@
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
-#include "yuzu_video_core/texture_cache/image_view_base.h"
 #include "yuzu_video_core/texture_cache/format_lookup_table.h"
+#include "yuzu_video_core/texture_cache/full_clear.h"
+#include "yuzu_video_core/texture_cache/image_copy_coverage.h"
+#include "yuzu_video_core/texture_cache/image_view_base.h"
+#include "yuzu_video_core/texture_cache/image_view_invalidation.h"
 #include "yuzu_video_core/texture_cache/samples_helper.h"
 #include "yuzu_video_core/texture_cache/texture_cache_base.h"
 #include "yuzu_video_core/texture_cache/util.h"
-#include "video_settings.h"
 
 namespace VideoCommon {
 
@@ -74,7 +78,129 @@ TextureCache<P>::TextureCache(Runtime& runtime_, Tegra::MaxwellDeviceMemoryManag
 }
 
 template <class P>
+TextureCache<P>::~TextureCache() {
+    DrainGCReadbacks();
+}
+
+template <class P>
+void TextureCache<P>::DrainGCReadbacks() {
+    if constexpr (SUPPORTS_ASYNC_GC) {
+        for (auto& readback : gc_readbacks) {
+            if (readback.id) {
+                // RunGarbageCollector has already submitted these copies. Waiting for
+                // their ticks avoids submitting a fresh batch during destruction.
+                runtime.WaitReadback(readback.tick);
+                runtime.FreeDeferredStagingBuffer(readback.map);
+            }
+        }
+        gc_readbacks.clear();
+        gc_readback_ids.clear();
+        gc_readback_bytes = 0;
+    }
+}
+
+template <class P>
+bool TextureCache<P>::QueueGCReadback(ImageId id) {
+    if constexpr (!SUPPORTS_ASYNC_GC) {
+        return false;
+    } else {
+        auto& image = slot_images[id];
+        if (image.unswizzled_size_bytes == 0 || image.unswizzled_size_bytes > GC_READBACK_LIMIT ||
+            True(image.flags & GC_READBACK_UNSUPPORTED_FLAGS) ||
+            !image.overlapping_images.empty() ||
+            image.gpu_page_table_index != channel_state->gpu_page_table_index) {
+            return false;
+        }
+        if (gc_readback_ids.contains(id)) {
+            return true;
+        }
+        const size_t capacity = std::bit_ceil(size_t(image.unswizzled_size_bytes));
+        if (capacity > GC_READBACK_LIMIT - gc_readback_bytes) {
+            return false;
+        }
+        auto map = runtime.DownloadStagingBuffer(image.unswizzled_size_bytes, true);
+        image.DownloadMemory(map, FullDownloadCopies(image.info));
+        gc_readbacks.push_back({id, image.modification_tick, lru_cache.GetTick(image.lru_index),
+                                runtime.GetReadbackTick(), current_address_space,
+                                image.gpu_page_table_index, map});
+        gc_readback_ids.insert(id);
+        gc_readback_bytes += map.mapped_span.size_bytes();
+        return true;
+    }
+}
+
+template <class P>
+void TextureCache<P>::PollGCReadbacks() {
+    if constexpr (SUPPORTS_ASYNC_GC) {
+        while (!gc_readbacks.empty()) {
+            auto& readback = gc_readbacks.front();
+            if (!readback.id) {
+                gc_readbacks.pop_front();
+                continue;
+            }
+            if (!runtime.IsReadbackReady(readback.tick)) {
+                break;
+            }
+            const ImageId id = readback.id;
+            auto& image = slot_images[id];
+            const auto owner = address_spaces.find(readback.address_space);
+            const bool unchanged =
+                image.IsSafeDownload() &&
+                False(image.flags & (ImageFlagBits::BadOverlap | GC_READBACK_UNSUPPORTED_FLAGS)) &&
+                image.overlapping_images.empty() &&
+                std::ranges::none_of(image.aliased_images,
+                                     [this, &readback](const auto& alias) {
+                                         return slot_images[alias.id].modification_tick >
+                                                readback.modification_tick;
+                                     }) &&
+                image.modification_tick == readback.modification_tick &&
+                lru_cache.GetTick(image.lru_index) == readback.last_use_tick &&
+                owner != address_spaces.end() &&
+                owner->second.storage_id * 2 == readback.storage_index;
+            gc_readback_ids.erase(id);
+            if (unchanged) {
+                const auto copies = FullDownloadCopies(image.info);
+                SwizzleImage(*owner->second.gpu_memory, image.gpu_addr, image.info, copies,
+                             readback.map.mapped_span, swizzle_data_buffer);
+                if (True(image.flags & ImageFlagBits::Tracked)) {
+                    UntrackImage(image, id);
+                }
+                UnregisterImage(id);
+                DeleteImage(id, false, &gc_removed_views);
+            }
+            gc_readback_bytes -= readback.map.mapped_span.size_bytes();
+            runtime.FreeDeferredStagingBuffer(readback.map);
+            gc_readbacks.pop_front();
+        }
+    }
+}
+
+template <class P>
+void TextureCache<P>::CancelGCReadback(ImageId id) {
+    if constexpr (SUPPORTS_ASYNC_GC) {
+        if (gc_readback_ids.erase(id) == 0) {
+            return;
+        }
+        for (auto& readback : gc_readbacks) {
+            if (readback.id != id) {
+                continue;
+            }
+            // The slot may be reused after DeleteImage. Complete its old copy
+            // before freeing either its source image or its staging allocation.
+            runtime.WaitReadback(readback.tick);
+            gc_readback_bytes -= readback.map.mapped_span.size_bytes();
+            runtime.FreeDeferredStagingBuffer(readback.map);
+            readback.id = {};
+            break;
+        }
+    }
+}
+
+template <class P>
 void TextureCache<P>::RunGarbageCollector() {
+    gc_removed_views.clear();
+    PollGCReadbacks();
+    const size_t queued_before = gc_readbacks.size();
     bool high_priority_mode = false;
     bool aggressive_mode = false;
     u64 ticks_to_destroy = 0;
@@ -101,9 +227,15 @@ void TextureCache<P>::RunGarbageCollector() {
         if (!aggressive_mode && True(image.flags & ImageFlagBits::CostlyLoad)) {
             return false;
         }
+        if (gc_readback_ids.contains(image_id)) {
+            return false;
+        }
         const bool must_download =
             image.IsSafeDownload() && False(image.flags & ImageFlagBits::BadOverlap);
         if (!high_priority_mode && must_download) {
+            return false;
+        }
+        if (must_download && QueueGCReadback(image_id)) {
             return false;
         }
         if (must_download) {
@@ -118,7 +250,7 @@ void TextureCache<P>::RunGarbageCollector() {
             UntrackImage(image, image_id);
         }
         UnregisterImage(image_id);
-        DeleteImage(image_id, image.scale_tick > frame_tick + 5);
+        DeleteImage(image_id, image.scale_tick > frame_tick + 5, &gc_removed_views);
         if (total_used_memory < critical_memory) {
             if (aggressive_mode) {
                 // Sink the aggresiveness.
@@ -143,6 +275,16 @@ void TextureCache<P>::RunGarbageCollector() {
         Configure(true);
         lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
     }
+
+    if constexpr (SUPPORTS_ASYNC_GC) {
+        if (gc_readbacks.size() > queued_before) {
+            runtime.SubmitReadbacks();
+        }
+    }
+    // GC never creates image views. Their retired IDs can be invalidated as one
+    // batch before any draw or view allocation can reuse them.
+    RemoveImageViewReferences(gc_removed_views);
+    RemoveFramebuffers(gc_removed_views);
 }
 
 template <class P>
@@ -345,7 +487,7 @@ bool TextureCache<P>::IsCompute3DImage(u32 index, bool is_integer, bool is_signe
 }
 
 template <class P>
-bool TextureCache<P>::RescaleRenderTargets() {
+bool TextureCache<P>::RescaleRenderTargets(u32 clear_layer_count) {
     auto& flags = maxwell3d->dirty.flags;
     u32 scale_rating = 0;
     bool rescaled = false;
@@ -383,13 +525,13 @@ bool TextureCache<P>::RescaleRenderTargets() {
             ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
             if (flags[Dirty::ColorBuffer0 + index] || force) {
                 flags[Dirty::ColorBuffer0 + index] = false;
-                BindRenderTarget(&color_buffer_id, FindColorBuffer(index));
+                BindRenderTarget(&color_buffer_id, FindColorBuffer(index, clear_layer_count));
             }
             check_rescale(color_buffer_id, tmp_color_images[index]);
         }
         if (flags[Dirty::ZetaBuffer] || force) {
             flags[Dirty::ZetaBuffer] = false;
-            BindRenderTarget(&render_targets.depth_buffer_id, FindDepthBuffer());
+            BindRenderTarget(&render_targets.depth_buffer_id, FindDepthBuffer(clear_layer_count));
         }
         check_rescale(render_targets.depth_buffer_id, tmp_depth_image);
 
@@ -441,7 +583,7 @@ bool TextureCache<P>::RescaleRenderTargets() {
 }
 
 template <class P>
-void TextureCache<P>::UpdateRenderTargets(bool is_clear) {
+void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) {
     using namespace VideoCommon::Dirty;
     auto& flags = maxwell3d->dirty.flags;
     if (!flags[Dirty::RenderTargets]) {
@@ -454,7 +596,7 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear) {
         return;
     }
 
-    const bool rescaled = RescaleRenderTargets();
+    const bool rescaled = RescaleRenderTargets(is_clear ? clear_layer_count : 0);
     if (is_rescaling != rescaled) {
         flags[Dirty::RescaleViewports] = true;
         flags[Dirty::RescaleScissors] = true;
@@ -1269,11 +1411,11 @@ ImageViewId TextureCache<P>::CreateImageView(const TICEntry& config) {
 
 template <class P>
 ImageId TextureCache<P>::FindOrInsertImage(const ImageInfo& info, GPUVAddr gpu_addr,
-                                           RelaxedOptions options) {
+                                           RelaxedOptions options, bool discard_contents) {
     if (const ImageId image_id = FindImage(info, gpu_addr, options); image_id) {
         return image_id;
     }
-    return InsertImage(info, gpu_addr, options);
+    return InsertImage(info, gpu_addr, options, discard_contents);
 }
 
 template <class P>
@@ -1492,7 +1634,7 @@ bool TextureCache<P>::ScaleDown(Image& image) {
 
 template <class P>
 ImageId TextureCache<P>::InsertImage(const ImageInfo& info, GPUVAddr gpu_addr,
-                                     RelaxedOptions options) {
+                                     RelaxedOptions options, bool discard_contents) {
     std::optional<DAddr> cpu_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
     if (!cpu_addr) {
         const auto size = CalculateGuestSizeInBytes(info);
@@ -1504,7 +1646,7 @@ ImageId TextureCache<P>::InsertImage(const ImageInfo& info, GPUVAddr gpu_addr,
         }
     }
     ASSERT_MSG(cpu_addr, "Tried to insert an image to an invalid gpu_addr=0x{:x}", gpu_addr);
-    const ImageId image_id = JoinImages(info, gpu_addr, *cpu_addr);
+    const ImageId image_id = JoinImages(info, gpu_addr, *cpu_addr, discard_contents);
     const Image& image = slot_images[image_id];
     // Using "image.gpu_addr" instead of "gpu_addr" is important because it might be different
     const auto [it, is_new] = image_allocs_table.try_emplace(image.gpu_addr);
@@ -1516,7 +1658,9 @@ ImageId TextureCache<P>::InsertImage(const ImageInfo& info, GPUVAddr gpu_addr,
 }
 
 template <class P>
-ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DAddr cpu_addr) {
+ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DAddr cpu_addr,
+                                    bool discard_contents) {
+    const GPUVAddr requested_address = gpu_addr;
     ImageInfo new_info = info;
     const size_t size_bytes = CalculateGuestSizeInBytes(new_info);
     const bool broken_views = runtime.HasBrokenTextureViewFormats();
@@ -1632,15 +1776,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         DeleteImage(overlap_id);
     }
 
-    // TODO: Only upload what we need
-    RefreshContents(new_image, new_image_id);
-
-    if (can_rescale) {
-        ScaleUp(new_image);
-    } else {
-        ScaleDown(new_image);
-    }
-
     std::ranges::sort(join_copies_to_do, [this](const JoinCopy& lhs, const JoinCopy& rhs) {
         const ImageBase& lhs_image = slot_images[lhs.id];
         const ImageBase& rhs_image = slot_images[rhs.id];
@@ -1678,6 +1813,53 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             new_image.overlapping_images.size() > 1) {
             new_image.flags |= ImageFlagBits::BadOverlap;
         }
+    }
+
+    ImageCopyCoverage coverage{new_info};
+    // When this join cannot be rescaled, its sources have already been brought
+    // back to native size above, even if resolution scaling is enabled globally.
+    const bool allow_upload_elision =
+        !can_rescale && new_info.type == ImageType::e2D && new_info.num_samples == 1 &&
+        DefaultBlockWidth(new_info.format) == 1 && DefaultBlockHeight(new_info.format) == 1 &&
+        False(new_image.flags & (ImageFlagBits::Converted | ImageFlagBits::AsynchronousDecode));
+    if (allow_upload_elision) {
+        for (const auto& copy_object : join_copies_to_do) {
+            const Image& overlap = slot_images[copy_object.id];
+            if (overlap.info.num_samples != 1 || overlap.info.format != new_info.format ||
+                !overlap.IsSafeDownload()) {
+                continue;
+            }
+            if (copy_object.is_alias) {
+                const auto alias = join_alias_indices.find(copy_object.id);
+                if (alias != join_alias_indices.end()) {
+                    coverage.Add(overlap.info, new_image.aliased_images[alias->second].copies);
+                }
+            } else {
+                const auto base = new_image.TryFindBase(overlap.gpu_addr);
+                if (base) {
+                    coverage.Add(overlap.info,
+                                 MakeShrinkImageCopies(new_info, overlap.info, *base, 1, 0));
+                }
+            }
+        }
+    }
+    const bool discard_for_clear =
+        discard_contents && ClearCoversJoinedImage(info, new_info, requested_address, gpu_addr) &&
+        False(new_image.flags & (ImageFlagBits::Converted | ImageFlagBits::AsynchronousDecode));
+    if (discard_for_clear || (allow_upload_elision && coverage.Complete())) {
+        // Every subresource will be replaced by the imminent full clear or by
+        // the GPU copies below. Preserve layout transitions and memory tracking.
+        new_image.flags &= ~ImageFlagBits::CpuModified;
+        new_image.flags |= ImageFlagBits::GpuModified;
+        TrackImage(new_image, new_image_id);
+        runtime.TransitionImageLayout(new_image);
+    } else {
+        RefreshContents(new_image, new_image_id);
+    }
+    if (can_rescale) {
+        ScaleUp(new_image);
+    } else {
+        ScaleDown(new_image);
     }
 
     for (const auto& copy_object : join_copies_to_do) {
@@ -1874,7 +2056,99 @@ SamplerId TextureCache<P>::FindSampler(const TSCEntry& config) {
 }
 
 template <class P>
-ImageViewId TextureCache<P>::FindColorBuffer(size_t index) {
+bool TextureCache<P>::CanDiscardOnClear(const ImageInfo& info, bool is_color, size_t index,
+                                        u32 clear_layer_count) {
+    if (clear_layer_count == 0) {
+        return false;
+    }
+    const auto& regs = maxwell3d->regs;
+    const auto& clear = regs.clear_surface;
+    const auto& scissor = regs.scissor_test[0];
+    bool all_aspects = false;
+    if (is_color) {
+        all_aspects = index == clear.RT && clear.R && clear.G && clear.B && clear.A;
+    } else {
+        switch (GetFormatType(info.format)) {
+        case SurfaceType::Depth:
+            all_aspects = clear.Z;
+            break;
+        case SurfaceType::Stencil:
+            all_aspects = clear.S;
+            break;
+        case SurfaceType::DepthStencil:
+            all_aspects = clear.Z && clear.S;
+            break;
+        default:
+            break;
+        }
+    }
+    const bool scissor_enabled = regs.clear_control.use_scissor && scissor.enable;
+    if (scissor_enabled &&
+        regs.window_origin.mode != Tegra::Engines::Maxwell3D::Regs::WindowOrigin::Mode::UpperLeft) {
+        return false;
+    }
+    const FullClearCoverage coverage{
+        .all_aspects = all_aspects,
+        .viewport_clip = regs.clear_control.use_viewport_clip0 != 0,
+        .first_layer = clear.layer,
+        .layer_count = clear_layer_count,
+        .area_width = regs.surface_clip.width,
+        .area_height = regs.surface_clip.height,
+        .scissor_enabled = scissor_enabled,
+        .min_x = static_cast<s32>(scissor.min_x.Value()),
+        .min_y = static_cast<s32>(scissor.min_y.Value()),
+        .max_x = static_cast<s32>(scissor.max_x.Value()),
+        .max_y = static_cast<s32>(scissor.max_y.Value()),
+    };
+    if (!IsWholeImageClear(info, coverage)) {
+        return false;
+    }
+    const GPUVAddr target_address = is_color ? regs.rt[index].Address() : regs.zeta.Address();
+    const size_t target_size = CalculateGuestSizeInBytes(info);
+    const auto target_cpu = gpu_memory->GpuToCpuAddress(target_address);
+    if (!target_cpu || info.is_sparse ||
+        !gpu_memory->IsContinuousRange(target_address, target_size)) {
+        return false;
+    }
+    // Vulkan clamps attachment clears to the common framebuffer render area.
+    // A smaller sibling attachment must therefore preserve the initial contents.
+    const auto covers_target = [&](const ImageInfo& sibling, GPUVAddr address) {
+        if (sibling.num_samples != 1 || sibling.size.width < info.size.width ||
+            sibling.size.height < info.size.height || sibling.is_sparse) {
+            return false;
+        }
+        const size_t size = CalculateGuestSizeInBytes(sibling);
+        const auto cpu = gpu_memory->GpuToCpuAddress(address);
+        if (!cpu || !gpu_memory->IsContinuousRange(address, size)) {
+            return false;
+        }
+        // Another bound attachment must not consume discarded contents while
+        // the framebuffer is being assembled, including through a CPU alias.
+        const bool gpu_overlap =
+            address < target_address + target_size && target_address < address + size;
+        const bool cpu_overlap = *cpu < *target_cpu + target_size && *target_cpu < *cpu + size;
+        return !gpu_overlap && !cpu_overlap;
+    };
+    for (size_t rt = 0; rt < regs.rt_control.count; ++rt) {
+        if (is_color && rt == index) {
+            continue;
+        }
+        if (regs.rt[rt].Address() != 0 && regs.rt[rt].format != Tegra::RenderTargetFormat::NONE &&
+            !covers_target(ImageInfo(regs.rt[rt], regs.anti_alias_samples_mode),
+                           regs.rt[rt].Address())) {
+            return false;
+        }
+    }
+    if (is_color && regs.zeta_enable && regs.zeta.Address() != 0 &&
+        !covers_target(ImageInfo(regs.zeta, regs.zeta_size, regs.anti_alias_samples_mode),
+                       regs.zeta.Address())) {
+        return false;
+    }
+    return true;
+}
+
+template <class P>
+ImageViewId TextureCache<P>::FindColorBuffer(size_t index, u32 clear_layer_count) {
     const auto& regs = maxwell3d->regs;
     if (index >= regs.rt_control.count) {
         return ImageViewId{};
@@ -1888,11 +2162,12 @@ ImageViewId TextureCache<P>::FindColorBuffer(size_t index) {
         return ImageViewId{};
     }
     const ImageInfo info(regs.rt[index], regs.anti_alias_samples_mode);
-    return FindRenderTargetView(info, gpu_addr);
+    return FindRenderTargetView(info, gpu_addr,
+                                CanDiscardOnClear(info, true, index, clear_layer_count));
 }
 
 template <class P>
-ImageViewId TextureCache<P>::FindDepthBuffer() {
+ImageViewId TextureCache<P>::FindDepthBuffer(u32 clear_layer_count) {
     const auto& regs = maxwell3d->regs;
     if (!regs.zeta_enable) {
         return ImageViewId{};
@@ -1902,16 +2177,18 @@ ImageViewId TextureCache<P>::FindDepthBuffer() {
         return ImageViewId{};
     }
     const ImageInfo info(regs.zeta, regs.zeta_size, regs.anti_alias_samples_mode);
-    return FindRenderTargetView(info, gpu_addr);
+    return FindRenderTargetView(info, gpu_addr,
+                                CanDiscardOnClear(info, false, 0, clear_layer_count));
 }
 
 template <class P>
-ImageViewId TextureCache<P>::FindRenderTargetView(const ImageInfo& info, GPUVAddr gpu_addr) {
+ImageViewId TextureCache<P>::FindRenderTargetView(const ImageInfo& info, GPUVAddr gpu_addr,
+                                                  bool discard_contents) {
     ImageId image_id{};
     bool delete_state = has_deleted_images;
     do {
         has_deleted_images = false;
-        image_id = FindOrInsertImage(info, gpu_addr);
+        image_id = FindOrInsertImage(info, gpu_addr, RelaxedOptions{}, discard_contents);
         delete_state |= has_deleted_images;
     } while (has_deleted_images);
     has_deleted_images = delete_state;
@@ -2298,7 +2575,9 @@ void TextureCache<P>::UntrackImage(ImageBase& image, ImageId image_id) {
 }
 
 template <class P>
-void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete) {
+void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete,
+                                  std::vector<ImageViewId>* deferred_views) {
+    CancelGCReadback(image_id);
     ImageBase& image = slot_images[image_id];
     if (image.HasScaled()) {
         total_used_memory -= GetScaledImageSizeBytes(image);
@@ -2341,8 +2620,12 @@ void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete) {
             render_targets.depth_buffer_id = ImageViewId{};
         }
     }
-    RemoveImageViewReferences(image_view_ids);
-    RemoveFramebuffers(image_view_ids);
+    if (deferred_views) {
+        deferred_views->insert(deferred_views->end(), image_view_ids.begin(), image_view_ids.end());
+    } else {
+        RemoveImageViewReferences(image_view_ids);
+        RemoveFramebuffers(image_view_ids);
+    }
 
     for (const AliasedImage& alias : image.aliased_images) {
         ImageBase& other_image = slot_images[alias.id];
@@ -2392,12 +2675,15 @@ void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete) {
 
 template <class P>
 void TextureCache<P>::RemoveImageViewReferences(std::span<const ImageViewId> removed_views) {
+    if (removed_views.empty()) {
+        return;
+    }
+    const ImageViewInvalidation invalidation{removed_views};
     for (size_t c : active_channel_ids) {
         auto& channel_info = channel_storage[c];
         auto it = channel_info.image_views.begin();
         while (it != channel_info.image_views.end()) {
-            const auto found = std::ranges::find(removed_views, it->second);
-            if (found != removed_views.end()) {
+            if (invalidation.Contains(it->second)) {
                 it = channel_info.image_views.erase(it);
             } else {
                 ++it;
@@ -2408,12 +2694,19 @@ void TextureCache<P>::RemoveImageViewReferences(std::span<const ImageViewId> rem
 
 template <class P>
 void TextureCache<P>::RemoveFramebuffers(std::span<const ImageViewId> removed_views) {
+    if (removed_views.empty()) {
+        return;
+    }
+    const ImageViewInvalidation invalidation{removed_views};
     auto it = framebuffers.begin();
     while (it != framebuffers.end()) {
-        if (it->first.Contains(removed_views)) {
+        const auto contains = [&](ImageViewId id) { return invalidation.Contains(id); };
+        if (contains(it->first.depth_buffer_id) ||
+            std::ranges::any_of(it->first.color_buffer_ids, contains)) {
             auto framebuffer_id = it->second;
             ASSERT(framebuffer_id);
             sentenced_framebuffers.Push(std::move(slot_framebuffers[framebuffer_id]));
+            slot_framebuffers.erase(framebuffer_id);
             it = framebuffers.erase(it);
         } else {
             ++it;

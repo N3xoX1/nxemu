@@ -466,20 +466,15 @@ private:
     }
 
     void ReserveHostQuery() {
+        const bool starts_new_bank = !current_bank || current_bank->IsClosed();
         size_t new_slot = ReserveBankSlot();
         current_bank->AddReference(1);
         num_slots_used++;
         if (current_query) {
-            size_t bank_id = current_query->start_bank_id;
-            size_t banks_set = current_query->size_banks - 1;
-            bool found = bank_id == current_bank_id;
-            while (!found && banks_set > 0) {
-                SamplesQueryBank& some_bank = bank_pool.GetBank(bank_id);
-                bank_id = some_bank.next_bank - 1;
-                found = bank_id == current_bank_id;
-                banks_set--;
-            }
-            if (!found) {
+            // Reservations append to the current query, so its last bank is always
+            // current_bank before ReserveBankSlot. Only a bank rollover extends
+            // the chain; walking it on every render pass makes long counters quadratic.
+            if (starts_new_bank) {
                 current_query->size_banks++;
             }
             current_query->size_slots++;
