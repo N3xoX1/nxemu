@@ -1,0 +1,125 @@
+/* The settings few need, in tabs of cards. */
+.advanced-page
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* One at a time: the one of the tab chosen. */
+.tab-page
+{
+    display: none;
+}
+
+body.tab-graphics #tab-graphics,
+body.tab-system #tab-system,
+body.tab-application #tab-application,
+body.tab-shortcuts #tab-shortcuts
+{
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+.advanced-note
+{
+    display: none;
+    flex: 1;
+    padding: 8dp 4dp 8dp 14dp;
+    color: var(--text-muted);
+    font-size: 12dp;
+    text-align: right;
+}
+
+body.game-running .advanced-note
+{
+    display: block;
+}
+
+.advanced-footer
+{
+    display: flex;
+    align-items: center;
+}
+
+.advanced-footer button
+{
+    margin-left: 0;
+}
+
+.defaults-confirm
+{
+    display: none;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 13dp;
+}
+
+.defaults-confirm button
+{
+    margin-left: 10dp;
+}
+
+body.confirm-defaults .defaults-ask
+{
+    display: none;
+}
+
+body.confirm-defaults .defaults-confirm
+{
+    display: flex;
+}
+
+.footer-space
+{
+    flex: 1;
+}
+
+body.narrow .advanced-page
+{
+    display: block;
+}
+
+body.narrow.tab-graphics #tab-graphics,
+body.narrow.tab-system #tab-system,
+body.narrow.tab-application #tab-application,
+body.narrow.tab-shortcuts #tab-shortcuts
+{
+    display: block;
+}
+
+body.narrow .advanced-note
+{
+    flex: none;
+    width: 100%;
+    padding: 8dp 4dp;
+    text-align: left;
+}
+
+/* A shortcut: its keys, on the button that asks for others. */
+.hotkey
+{
+    box-sizing: border-box;
+    width: 170dp;
+}
+
+.hotkey.asking
+{
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.hotkey-help,
+.hotkey-note
+{
+    margin: 0 4dp 8dp 4dp;
+    color: var(--text-muted);
+    font-size: 12dp;
+}
+
+.hotkey-note
+{
+    color: var(--warning);
+}

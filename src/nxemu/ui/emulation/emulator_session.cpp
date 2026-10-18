@@ -33,6 +33,14 @@ bool EmulatorSession::Initialise()
     return true;
 }
 
+void EmulatorSession::FlushSettings()
+{
+    if (m_modules.IsValid())
+    {
+        m_modules.FlushSettings();
+    }
+}
+
 bool EmulatorSession::IsRunning() const
 {
     return m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);

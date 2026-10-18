@@ -94,6 +94,14 @@ NSArray<UTType *> * ContentTypesFromFilter(const char * fileFilter)
     return types.count == 0 ? nil : types;
 }
 
+NSModalResponse RunPanel(NSOpenPanel * panel)
+{
+    NSWindow * window = [NSApp keyWindow];
+    const NSModalResponse response = [panel runModal];
+    [window makeKeyAndOrderFront:nil];
+    return response;
+}
+
 } // namespace
 
 namespace MacOSFileDialogs
@@ -116,7 +124,7 @@ bool FileSelect(const char * initialDir, const char * fileFilter, Path & selecte
             panel.allowedContentTypes = contentTypes;
         }
 
-        if ([panel runModal] != NSModalResponseOK)
+        if (RunPanel(panel) != NSModalResponseOK)
         {
             return false;
         }
@@ -149,7 +157,7 @@ Path BrowseForDirectory(const char * title)
             panel.message = message;
         }
 
-        if ([panel runModal] != NSModalResponseOK)
+        if (RunPanel(panel) != NSModalResponseOK)
         {
             return {};
         }

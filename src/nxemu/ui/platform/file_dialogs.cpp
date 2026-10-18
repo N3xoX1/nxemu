@@ -29,6 +29,17 @@ Path BrowseForDirectory(const char * title);
 } // namespace MacOSFileDialogs
 #endif
 
+std::string FileFilter(std::initializer_list<std::pair<std::string, const char *>> kinds)
+{
+    // The name with its patterns, then the patterns, each ended by a zero.
+    std::string filter;
+    for (const auto & kind : kinds)
+    {
+        filter.append(kind.first).append(" (").append(kind.second).append(")").append(1, '\0').append(kind.second).append(1, '\0');
+    }
+    return filter;
+}
+
 bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilter, bool fileMustExist, Path & selected)
 {
 #ifdef _WIN32
@@ -211,6 +222,7 @@ struct PortalDirectory
 
 PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
 {
+    if (!dbus_threads_init_default()) return {PortalStatus::Unavailable, {}};
     DBusError error;
     dbus_error_init(&error);
     DBusConnection * connection = dbus_bus_get_private(DBUS_BUS_SESSION, &error);

@@ -28,8 +28,6 @@ add_executable(nxemu
     user_interface/app_events.h
     user_interface/directory_watcher.cpp
     user_interface/directory_watcher.h
-    user_interface/file_dialogs.cpp
-    user_interface/file_dialogs.h
     user_interface/sciter_main_window.cpp
     user_interface/sciter_main_window.h
     user_interface/widgets/rom_browser.cpp
@@ -80,7 +78,6 @@ add_executable(nxemu
 
 if(APPLE)
     target_sources(nxemu PRIVATE
-        user_interface/file_dialogs_macos.mm
         user_interface/render_window_macos.mm
     )
     find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
@@ -108,12 +105,6 @@ target_include_directories(nxemu PRIVATE
 
 if(UNIX)
     target_compile_definitions(nxemu PRIVATE NXEMU_UNIX=1)
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)
-    target_link_libraries(nxemu PRIVATE PkgConfig::DBUS)
 endif()
 
 target_link_libraries(nxemu PRIVATE

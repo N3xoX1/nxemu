@@ -27,10 +27,12 @@ struct FoundGame
 class GameLibrary : public IGameListScanCallback
 {
 public:
-    GameLibrary() = default;
+    GameLibrary();
     ~GameLibrary();
 
-    const std::vector<std::string> & Directories() const;
+    const std::vector<std::string> & Directories() const { return m_directories; }
+    bool AddDirectory(const std::string & directory);
+    bool RemoveDirectory(const std::string & directory);
 
     void StartScan(ISystemModules & modules);
     void StopScan();
@@ -47,6 +49,7 @@ private:
     bool ScanStopRequested() override;
     void GameFound(const char * path, IRomInfo * romInfo, bool changed) override;
 
+    std::vector<std::string> m_directories;
     std::thread m_thread;
     std::atomic<bool> m_stop{false};
     std::atomic<bool> m_scanning{false};

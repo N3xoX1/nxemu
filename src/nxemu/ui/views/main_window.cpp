@@ -82,6 +82,22 @@ bool MainWindow::Create()
     }
     m_menuBar = std::make_unique<MenuBar>(m_document->GetElementById("menu-bar"), [this](int id) { Post(static_cast<Action>(id)); });
     m_gameMenu = std::make_unique<PopupMenu>(m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); });
+    const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
+    m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[] {}, openPage});
+    m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
+    m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir, openPage);
+    m_directoriesDialog = std::make_unique<DirectoriesDialog>(m_window, m_library, m_assetDir,
+                                                        DirectoriesDialog::Host{
+                                                            [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
+                                                            [this] { RescanGames(); },
+                                                            openPage,
+                                                        });
+    m_profilesDialog = std::make_unique<ProfilesDialog>(m_window, m_session, m_assetDir,
+                                                        ProfilesDialog::Host{
+                                                            [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
+                                                            [] {},
+                                                            openPage,
+                                                        });
     BindEvents();
 
     m_document->SetClass(m_window.DrawsWindowControls() ? "window-controls" : "system-controls", true);
@@ -117,6 +133,14 @@ void MainWindow::HandleEvent(const SDL_Event & event)
         m_mouseMovedAt = SDL_GetTicks64();
         UpdateMouseCursor();
     }
+    if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
+    {
+        m_controllerDialog->HandleKey(event.key);
+        if (m_advancedDialog->HandleKey(event.key))
+        {
+            return;
+        }
+    }
     if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE &&
         (m_menuBar->IsOpen() || m_gameMenu->IsOpen()))
     {
@@ -141,6 +165,11 @@ void MainWindow::HandleEvent(const SDL_Event & event)
 void MainWindow::Update()
 {
     RunPendingWork();
+    m_controllerDialog->Update();
+    m_generalDialog->Update();
+    m_advancedDialog->Update();
+    m_directoriesDialog->Update();
+    m_profilesDialog->Update();
     if (m_library.Scanning() != m_gamesScanning)
     {
         m_gamesScanning = !m_gamesScanning;
@@ -181,11 +210,13 @@ void MainWindow::Update()
 
 bool MainWindow::Still() const
 {
-    return m_window.Context()->GetNextUpdateDelay() > 0;
+    return !m_controllerDialog->Listening() && !m_profilesDialog->Busy() && m_window.Context()->GetNextUpdateDelay() > 0;
 }
 
 void MainWindow::OnModulesReleasing()
 {
+    m_controllerDialog->Abandon();
+    m_profilesDialog->Abandon();
     m_window.DetachVideo();
 }
 
@@ -238,6 +269,13 @@ void MainWindow::Run(Action action)
     case Action::ResetWindowSize1080p: ResetWindowSize(1920, 1080); break;
     case Action::OpenDiscord: OpenUrl(kDiscordUrl); break;
     case Action::OpenReportIssues: OpenUrl(kReportUrl); break;
+    case Action::OpenSettings:
+        m_settingsContext.Global();
+        ShowSettingsPage(SettingsPage::General);
+        break;
+    case Action::OpenProfiles: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Profiles); break;
+    case Action::OpenGameDirectories: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Directories); break;
+    case Action::ConfigureControllers: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Controllers); break;
     case Action::CopyVersion:
         SDL_SetClipboardText(VER_FILE_VERSION_STR);
         m_versionCopiedUntil = SDL_GetTicks64() + kVersionCopiedMs;
@@ -363,6 +401,22 @@ void MainWindow::AddGames(std::vector<FoundGame> found)
     std::stable_sort(m_games.begin(), m_games.end(), [](const GameEntry & left, const GameEntry & right) {
         return std::forward_as_tuple(Folded(left.title), left.path) < std::forward_as_tuple(Folded(right.title), right.path);
     });
+    m_gamesDirty = true;
+}
+
+void MainWindow::RescanGames()
+{
+    for (const GameEntry & game : m_games)
+    {
+        if (!game.icon.empty())
+        {
+            m_loadedIcons.erase(game.icon);
+            m_window.Renderer().RemoveMemoryImage(game.icon);
+        }
+    }
+    m_games.clear();
+    m_selectedGame = nullptr;
+    m_library.StartScan(m_session.Modules());
     m_gamesDirty = true;
 }
 
@@ -646,6 +700,36 @@ void MainWindow::SelectGame(Rml::Element * card)
             m_selectedProgramId = m_games[index].programId;
         }
     }
+}
+
+bool MainWindow::ShowSettingsPage(SettingsPage page)
+{
+    if (m_settingsContext.IsGame() && page != SettingsPage::General && page != SettingsPage::Advanced) return false;
+    switch (page)
+    {
+    case SettingsPage::General:
+        m_generalDialog->Show();
+        return m_generalDialog->IsVisible();
+    case SettingsPage::Controllers:
+        if (m_session.IsValid())
+        {
+            m_controllerDialog->Show();
+        }
+        return m_controllerDialog->IsVisible();
+    case SettingsPage::Profiles:
+        if (m_session.IsValid())
+        {
+            m_profilesDialog->Show();
+        }
+        return m_profilesDialog->IsVisible();
+    case SettingsPage::Directories:
+        m_directoriesDialog->Show();
+        return m_directoriesDialog->IsVisible();
+    case SettingsPage::Advanced:
+        m_advancedDialog->Show();
+        return m_advancedDialog->IsVisible();
+    }
+    return false;
 }
 
 void MainWindow::ShowPanel(Panel panel)

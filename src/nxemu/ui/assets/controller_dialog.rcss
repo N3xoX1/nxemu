@@ -1,0 +1,609 @@
+.controller-page
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+body.narrow .controller-page
+{
+    display: block;
+}
+
+/* Who plays: one tab per player, as on the console. */
+.player-tabs
+{
+    display: flex;
+    flex-wrap: wrap;
+    padding: 10dp 20dp 0 20dp;
+    border-bottom: 1dp var(--raised);
+    background-color: var(--chrome);
+}
+
+.player-tab
+{
+    display: flex;
+    align-items: center;
+    margin-right: 4dp;
+    padding: 8dp 14dp;
+    border-top-left-radius: 6dp;
+    border-top-right-radius: 6dp;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.player-tab:hover
+{
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+.player-tab.selected
+{
+    background-color: var(--selection);
+    color: var(--text);
+    font-weight: bold;
+}
+
+.player-dot
+{
+    width: 8dp;
+    height: 8dp;
+    margin-right: 8dp;
+    border-radius: 4dp;
+    background-color: var(--border-strong);
+}
+
+.player-tab.connected .player-dot
+{
+    background-color: var(--success);
+}
+
+.player-page
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 12dp 20dp 0 20dp;
+}
+
+.player-bar
+{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+body.narrow .player-page
+{
+    display: block;
+}
+
+body.narrow .bind-columns
+{
+    overflow-y: visible;
+}
+
+/* Little room: narrower sides, which leave the picture what they can. */
+body.tight .player-tabs,
+body.tight .player-page
+{
+    padding-left: 14dp;
+    padding-right: 14dp;
+}
+
+body.tight .bind-column.side
+{
+    width: 248dp;
+}
+
+body.tight .bind-group
+{
+    padding-left: 7dp;
+    padding-right: 7dp;
+}
+
+body.tight .bind
+{
+    padding: 0 2dp 0 6dp;
+}
+
+body.tight .bind.unset
+{
+    padding-right: 6dp;
+}
+
+body.tight .bind-label
+{
+    margin-right: 4dp;
+}
+
+body.tight .bind-clear
+{
+    width: 14dp;
+    margin-left: 1dp;
+}
+
+body.tight .stick-option
+{
+    padding-left: 2dp;
+}
+
+body.tight .stick-option .option-value
+{
+    width: 34dp;
+    margin-right: 6dp;
+}
+
+body.tight .stick-option input.range
+{
+    width: 78dp;
+}
+
+body.tight .player-bar select
+{
+    width: 170dp;
+}
+
+body.tight .field
+{
+    margin-right: 14dp;
+}
+
+/* No room for the three columns: one under the other. */
+body.stacked .player-tabs,
+body.stacked .player-page
+{
+    padding-left: 12dp;
+    padding-right: 12dp;
+}
+
+body.stacked .player-tab
+{
+    padding: 7dp 9dp;
+}
+
+body.stacked .field
+{
+    margin-bottom: 8dp;
+}
+
+body.stacked .controller-hint
+{
+    flex: none;
+    width: 100%;
+    text-align: left;
+}
+
+body.stacked .controller-footer
+{
+    flex-wrap: wrap;
+    padding: 8dp 12dp 4dp 12dp;
+}
+
+/* Two buttons to a line. */
+body.stacked .controller-footer button
+{
+    flex: none;
+    box-sizing: border-box;
+    width: 48%;
+    min-width: 0;
+    margin: 0 1% 6dp 1%;
+}
+
+body.stacked .footer-space
+{
+    display: none;
+}
+
+.field
+{
+    display: flex;
+    align-items: center;
+    margin-right: 20dp;
+}
+
+.field-label
+{
+    margin-right: 8dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.field-text
+{
+    margin-left: 8dp;
+}
+
+.controller-hint
+{
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 13dp;
+    text-align: right;
+}
+
+.controller-hint.listening
+{
+    color: var(--accent-text);
+}
+
+.bind-columns
+{
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    margin: 12dp -6dp 0 -6dp;
+    overflow-y: auto;
+}
+
+.bind-column
+{
+    box-sizing: border-box;
+    padding: 0 6dp;
+}
+
+.bind-column.side
+{
+    width: 270dp;
+}
+
+/* Between the two sides: what is on top of the controller, its picture and
+   what is inside it. */
+.bind-column.centre
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+body.stacked .bind-column.side
+{
+    width: auto;
+}
+
+/* On top of the controller: four to a line, in the middle. */
+.bind-rows.four
+{
+    justify-content: center;
+}
+
+.bind-rows.four .bind
+{
+    width: 23.6%;
+    margin-left: 0.7%;
+    margin-right: 0.7%;
+}
+
+/* Under it, on a line while there is room: the motion sensors and the
+   vibration. */
+.extras
+{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6dp;
+}
+
+.bind-rows.motion
+{
+    flex: none;
+    flex-wrap: nowrap;
+    justify-content: center;
+}
+
+.bind-rows.motion .bind
+{
+    width: 132dp;
+    margin: 4dp 10dp 4dp 0;
+}
+
+/* It takes the room left, and never less than the picture: a window too
+   low scrolls the columns. */
+.picture-area
+{
+    flex: 1 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6dp 0;
+}
+
+.picture
+{
+    position: relative;
+}
+
+.picture img
+{
+    display: block;
+}
+
+/* The cap of a stick, drawn apart from the picture to move with the stick. */
+.picture img.stick-cap
+{
+    position: absolute;
+}
+
+/* A button or a stick of the picture: it lights up like its line, and a
+   click on it binds it. */
+.mark
+{
+    position: absolute;
+    box-sizing: border-box;
+    border: 2dp transparent;
+    cursor: pointer;
+}
+
+.mark:hover
+{
+    border-color: var(--accent-text);
+    background-color: var(--accent-soft);
+}
+
+.mark.pressed
+{
+    border-color: var(--success);
+    background-color: var(--success-fill);
+}
+
+.mark.listening
+{
+    border-color: var(--accent);
+    background-color: var(--accent-fill);
+}
+
+.vibration
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32dp;
+    margin: 4dp 0;
+}
+
+.strength
+{
+    display: flex;
+    align-items: center;
+    margin-left: 12dp;
+}
+
+.strength input.range
+{
+    width: 84dp;
+    height: 16dp;
+}
+
+body.stacked .bind-columns
+{
+    display: block;
+    margin-top: 4dp;
+}
+
+.bind-group
+{
+    margin-bottom: 12dp;
+    padding: 10dp 10dp 6dp 10dp;
+    border: 1dp var(--raised);
+    border-radius: 8dp;
+    background-color: var(--chrome);
+}
+
+.group-head
+{
+    display: flex;
+    align-items: center;
+    height: 24dp;
+    margin-bottom: 8dp;
+}
+
+.group-title
+{
+    flex: 1;
+    color: var(--accent-text);
+    font-size: 13dp;
+    font-weight: bold;
+}
+
+/* Two controls to a line. */
+.bind-rows
+{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+/* A control of the console's and what it is bound to. */
+.bind
+{
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: 49%;
+    height: 32dp;
+    margin-bottom: 7dp;
+    padding: 0 3dp 0 8dp;
+    border: 1dp var(--raised);
+    font-size: 13dp;
+    border-radius: 5dp;
+    background-color: var(--surface);
+    cursor: pointer;
+}
+
+/* The top or the bottom of a cross: between the two below or above it. */
+.bind.alone
+{
+    margin-left: 25.5%;
+    margin-right: 25.5%;
+}
+
+.bind:hover
+{
+    border-color: var(--border-strong);
+    background-color: var(--hover);
+}
+
+.bind-label
+{
+    margin-right: 6dp;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.bind-value
+{
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: bold;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bind.unset .bind-value
+{
+    color: var(--text-disabled);
+    font-weight: normal;
+}
+
+.bind-clear
+{
+    width: 16dp;
+    margin-left: 3dp;
+    border-radius: 4dp;
+    color: var(--text-disabled);
+    line-height: 20dp;
+    text-align: center;
+}
+
+.bind-clear:hover
+{
+    background-color: var(--border-strong);
+    color: var(--text);
+}
+
+.bind.unset .bind-clear
+{
+    display: none;
+}
+
+.bind.unset
+{
+    padding-right: 8dp;
+}
+
+.bind.pressed
+{
+    border-color: var(--success);
+    background-color: var(--success-surface);
+}
+
+.bind.listening
+{
+    border-color: var(--accent);
+    background-color: var(--selection);
+}
+
+.bind.listening .bind-value
+{
+    color: var(--accent-text);
+}
+
+/* Where the stick is, in the circle of the picture that shows its travel. */
+.stick-view
+{
+    position: absolute;
+}
+
+.stick-zone
+{
+    position: absolute;
+    border: 1dp var(--danger);
+    box-sizing: border-box;
+}
+
+.stick-dot
+{
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8dp;
+    height: 8dp;
+    margin: -4dp 0 0 -4dp;
+    border-radius: 4dp;
+    background-color: var(--text-muted);
+}
+
+.stick-dot.moved
+{
+    background-color: var(--success);
+}
+
+.stick-option
+{
+    display: flex;
+    align-items: center;
+    height: 28dp;
+    margin-bottom: 5dp;
+    padding-left: 10dp;
+    font-size: 13dp;
+}
+
+.option-label
+{
+    flex: 1;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.option-value
+{
+    width: 40dp;
+    margin-right: 8dp;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+.stick-option input.range
+{
+    width: 96dp;
+    height: 16dp;
+}
+
+.controller-footer
+{
+    display: flex;
+    align-items: center;
+    padding: 12dp 20dp 16dp 20dp;
+    border-top: 1dp var(--raised);
+}
+
+.controller-footer button:first-child
+{
+    margin-left: 0;
+}
+
+.footer-space
+{
+    flex: 1;
+}
+
+.player-bar select
+{
+    width: 190dp;
+}
+
+/* What the controller in hand does not have. */
+.bind.hidden,
+.bind-group.hidden,
+.stick-option.hidden,
+.strength.hidden
+{
+    display: none;
+}

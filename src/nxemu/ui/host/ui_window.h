@@ -43,6 +43,7 @@ public:
     void SyncNativeState();
 
     SDL_Window * Handle() const { return m_window; }
+    void * NativeHandle() const;
     Rml::Context * Context() const { return m_context; }
     UiRenderer & Renderer() { return *m_renderer; }
 

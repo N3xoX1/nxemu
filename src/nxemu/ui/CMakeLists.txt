@@ -11,6 +11,8 @@ add_library(nxemu_ui STATIC
     ui_application.h
     emulation/emulator_session.cpp
     emulation/emulator_session.h
+    host/sdl_input.cpp
+    host/sdl_input.h
     host/shell.cpp
     host/shell.h
     host/system_fonts.cpp
@@ -33,10 +35,20 @@ add_library(nxemu_ui STATIC
     i18n/plural_rule.h
     i18n/translation.cpp
     i18n/translation.h
+    input/input_params.cpp
+    input/input_params.h
+    input/input_text.cpp
+    input/input_text.h
+    library/firmware_avatars.cpp
+    library/firmware_avatars.h
     library/game_library.cpp
     library/game_library.h
     library/rom_properties.cpp
     library/rom_properties.h
+    library/ui_preferences.cpp
+    library/ui_preferences.h
+    platform/file_dialogs.cpp
+    platform/file_dialogs.h
     platform/native_window.h
     views/main_window.cpp
     views/main_window.h
@@ -46,6 +58,33 @@ add_library(nxemu_ui STATIC
     views/popup_menu.h
     views/rml_events.cpp
     views/rml_events.h
+    views/dialog.cpp
+    views/dialog.h
+    views/general_dialog.cpp
+    views/general_dialog.h
+    views/resolution_scales.h
+    views/scaling_filters.h
+    views/settings_context.cpp
+    views/settings_context.h
+    views/settings_controls.cpp
+    views/settings_controls.h
+    views/settings_page.h
+    views/user_profiles.cpp
+    views/user_profiles.h
+    views/advanced_dialog.cpp
+    views/advanced_dialog.h
+    views/controller_dialog.cpp
+    views/controller_dialog.h
+    views/controller_picture.cpp
+    views/controller_picture.h
+    views/directories_dialog.cpp
+    views/directories_dialog.h
+    views/hotkeys.cpp
+    views/hotkeys.h
+    views/profiles_dialog.cpp
+    views/profiles_dialog.h
+    views/shortcut.cpp
+    views/shortcut.h
     "${_nxemu_rmlui_backends}/RmlUi_Platform_SDL.cpp"
 )
 
@@ -82,14 +121,19 @@ if(UNIX)
 endif()
 target_link_libraries(nxemu_ui
     PUBLIC RmlUi::RmlUi SDL2::SDL2
-    PRIVATE nxemu_core sciterui common yuzu_common fmt::fmt stb::headers Freetype::Freetype
+    PRIVATE nxemu_core common yuzu_common fmt::fmt stb::headers Freetype::Freetype
         Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if(APPLE)
     find_library(CORETEXT_FRAMEWORK CoreText REQUIRED)
-    target_sources(nxemu_ui PRIVATE platform/platform_macos.mm)
-    target_link_libraries(nxemu_ui PRIVATE "${CORETEXT_FRAMEWORK}")
+    find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
+    find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
+    target_sources(nxemu_ui PRIVATE platform/file_dialogs_macos.mm platform/platform_macos.mm)
+    target_link_libraries(nxemu_ui PRIVATE "${CORETEXT_FRAMEWORK}" "${APPKIT_FRAMEWORK}" "${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}")
 elseif(UNIX)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)
+    target_link_libraries(nxemu_ui PRIVATE PkgConfig::DBUS)
     find_package(Fontconfig QUIET)
     if(Fontconfig_FOUND)
         target_link_libraries(nxemu_ui PRIVATE Fontconfig::Fontconfig)

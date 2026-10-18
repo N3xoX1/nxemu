@@ -41,6 +41,7 @@ public:
     bool IsValid() const { return m_modules.IsValid(); }
     ISystemModules & Modules() { return m_modules.Modules(); }
     bool IsRunning() const;
+    void FlushSettings();
     bool IsPaused();
     Phase CurrentPhase() const;
 

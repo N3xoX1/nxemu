@@ -6,7 +6,7 @@
 #include <cstring>
 #include "user_interface/about_dialog.h"
 #include "user_interface/app_events.h"
-#include "user_interface/file_dialogs.h"
+#include "ui/platform/file_dialogs.h"
 #include "user_interface/html_utils.h"
 #include "user_interface/key_mappings.h"
 #include "user_interface/notification.h"

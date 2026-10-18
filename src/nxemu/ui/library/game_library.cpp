@@ -1,20 +1,44 @@
 #include "game_library.h"
 #include "rom_properties.h"
+#include "ui_preferences.h"
+#include <algorithm>
 #include <filesystem>
 #include <nxemu-core/modules/system_modules.h>
-#include <settings/ui_settings.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
+
+GameLibrary::GameLibrary() :
+    m_directories(UiPreferences::GetStringList(UiPreferences::GameDirectories))
+{
+}
 
 GameLibrary::~GameLibrary()
 {
     StopScan();
 }
 
-const std::vector<std::string> & GameLibrary::Directories() const
+bool GameLibrary::AddDirectory(const std::string & directory)
 {
-    return uiSettings.gameDirectories;
+    if (directory.empty() || std::find(m_directories.begin(), m_directories.end(), directory) != m_directories.end())
+    {
+        return false;
+    }
+    m_directories.push_back(directory);
+    UiPreferences::SetStringList(UiPreferences::GameDirectories, m_directories);
+    return true;
+}
+
+bool GameLibrary::RemoveDirectory(const std::string & directory)
+{
+    const auto found = std::find(m_directories.begin(), m_directories.end(), directory);
+    if (found == m_directories.end())
+    {
+        return false;
+    }
+    m_directories.erase(found);
+    UiPreferences::SetStringList(UiPreferences::GameDirectories, m_directories);
+    return true;
 }
 
 void GameLibrary::StartScan(ISystemModules & modules)
