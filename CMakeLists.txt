@@ -56,6 +56,7 @@ endif()
 # ============================================================
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/src/cmake/modules")
 include("${CMAKE_SOURCE_DIR}/src/cmake/modules/create_target_directory_groups.cmake")
+include(nxemu_msvc)
 include(nxemu_output_directories)
 
 # ============================================================

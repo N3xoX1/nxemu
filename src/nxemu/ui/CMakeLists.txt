@@ -71,6 +71,8 @@ add_library(nxemu_ui STATIC
     views/settings_page.h
     views/user_profiles.cpp
     views/user_profiles.h
+    views/volume_control.cpp
+    views/volume_control.h
     views/advanced_dialog.cpp
     views/advanced_dialog.h
     views/controller_dialog.cpp

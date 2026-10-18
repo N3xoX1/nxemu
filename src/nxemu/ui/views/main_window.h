@@ -10,6 +10,8 @@
 #include "profiles_dialog.h"
 #include "settings_context.h"
 #include "settings_page.h"
+#include "user_profiles.h"
+#include "volume_control.h"
 #include <SDL.h>
 #include <filesystem>
 #include <memory>
@@ -152,6 +154,10 @@ private:
     void SaveIconSize();
     void FitWindowToCards();
     void ShowSelectMenu(Rml::Element * origin);
+    void SetMenuRange(int id, int value);
+    void SetDockedMode(bool docked);
+    void RefreshProfiles();
+    void UpdateStatusWidgets();
     void ApplyIconSize();
     void SizeCard(Rml::Element * card) const;
     float CardStep() const;
@@ -184,6 +190,9 @@ private:
     std::unique_ptr<MenuBar> m_menuBar;
     std::unique_ptr<PopupMenu> m_gameMenu;
     std::unique_ptr<LoadingScreen> m_loadingScreen;
+    std::unique_ptr<VolumeControl> m_volume;
+    std::vector<UserProfile> m_profiles;
+    uint64_t m_lastStatusUpdate = 0;
     SettingsContext m_settingsContext;
     std::unique_ptr<GeneralDialog> m_generalDialog;
     std::unique_ptr<AdvancedDialog> m_advancedDialog;
