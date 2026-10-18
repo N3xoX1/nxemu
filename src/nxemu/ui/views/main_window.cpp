@@ -16,6 +16,7 @@
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <tuple>
+#include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/path_util.h>
 
 namespace
@@ -102,6 +103,7 @@ bool MainWindow::Create()
     }
     m_menuBar = std::make_unique<MenuBar>(m_document->GetElementById("menu-bar"), [this](int id) { Post(static_cast<Action>(id)); });
     m_gameMenu = std::make_unique<PopupMenu>(m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); });
+    m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[] {}, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
@@ -355,7 +357,7 @@ void MainWindow::RunPendingWork()
         if (!m_launchReady)
         {
             m_launchReady = true;
-            AnnounceGame();
+            AnnounceGame(m_pendingGame);
             if (!m_session.IsRunning())
             {
                 return;
@@ -944,7 +946,15 @@ void MainWindow::SyncPhase()
     switch (m_phase)
     {
     case EmulatorSession::Phase::Idle: ShowPanel(Panel::RomBrowser); break;
-    case EmulatorSession::Phase::Loading: ShowPanel(m_gameShown ? Panel::RomBrowser : Panel::Loading); break;
+    case EmulatorSession::Phase::Loading:
+        if (m_gameShown)
+        {
+            ShowPanel(Panel::RomBrowser);
+            break;
+        }
+        UpdateLoadingScreen();
+        ShowPanel(Panel::Loading);
+        break;
     case EmulatorSession::Phase::Paused: ShowPanel(Panel::Pause); break;
     case EmulatorSession::Phase::Running:
         m_gameShown = true;
@@ -957,13 +967,35 @@ void MainWindow::SyncPhase()
     }
 }
 
-void MainWindow::AnnounceGame()
+void MainWindow::AnnounceGame(const std::string & path)
 {
     m_gameShown = false;
     if (Rml::Element * search = m_document->GetElementById("games-search"))
     {
         search->Blur();
     }
+    const auto game = std::find_if(m_games.begin(), m_games.end(), [&path](const GameEntry & entry) { return entry.path == path; });
+    if (game != m_games.end())
+    {
+        m_loadingScreen->Announce(game->title, game->icon);
+    }
+    else
+    {
+        m_loadingScreen->Announce({}, {});
+    }
+}
+
+void MainWindow::UpdateLoadingScreen()
+{
+    if (!m_loadingScreen->HasGame())
+    {
+        IRomInfoPtr info(m_session.Modules().Systemloader().LoadedRomInfo());
+        if (info)
+        {
+            m_loadingScreen->SetGame(*info);
+        }
+    }
+    m_loadingScreen->Update();
 }
 
 void MainWindow::LayoutGameArea()

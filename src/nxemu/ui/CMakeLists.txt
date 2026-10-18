@@ -81,6 +81,8 @@ add_library(nxemu_ui STATIC
     views/directories_dialog.h
     views/hotkeys.cpp
     views/hotkeys.h
+    views/loading_screen.cpp
+    views/loading_screen.h
     views/profiles_dialog.cpp
     views/profiles_dialog.h
     views/shortcut.cpp

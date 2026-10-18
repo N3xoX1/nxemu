@@ -427,6 +427,9 @@
     <ClCompile Include="ui\views\hotkeys.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\loading_screen.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\profiles_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -509,6 +512,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\hotkeys.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\loading_screen.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\profiles_dialog.h">
