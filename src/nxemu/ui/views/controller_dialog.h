@@ -56,6 +56,7 @@ private:
     void FillDevices();
     void FillTypes();
     int MappedDevice(int player) const;
+    int SelectedDevice(int player) const;
     void ApplyDevice(int player, int device);
     void ShowPlayers();
     void ShowPlayer();
@@ -89,6 +90,7 @@ private:
     bool m_changed = false;  // something differs from what is saved
     std::vector<InputParams> m_devices;       // what can be bound; the first is any of them
     std::array<int, kPlayers> m_device{};     // the one each player binds from, in m_devices
+    std::array<InputParams, kPlayers> m_deviceChoice{}; // stable identities, also while unplugged
     std::array<bool, kPlayers> m_vibration{}; // each player's vibration, and
     std::array<int, kPlayers> m_strength{};   // its strength in percent
     uint64_t m_devicesRead = 0;               // when, in SDL ticks
