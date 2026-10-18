@@ -78,6 +78,7 @@
     <ClCompile Include="ui\views\settings_context.cpp" />
     <ClCompile Include="ui\views\settings_controls.cpp" />
     <ClCompile Include="ui\views\user_profiles.cpp" />
+    <ClCompile Include="ui\views\volume_control.cpp" />
     <ClCompile Include="ui\i18n\translation.cpp" />
     <ClCompile Include="ui\i18n\plural_rule.cpp" />
     <ClCompile Include="ui\host\system_fonts.cpp" />
@@ -150,6 +151,7 @@
     <ClInclude Include="ui\views\settings_context.h" />
     <ClInclude Include="ui\views\settings_controls.h" />
     <ClInclude Include="ui\views\user_profiles.h" />
+    <ClInclude Include="ui\views\volume_control.h" />
     <ClInclude Include="ui\views\settings_page.h" />
     <ClInclude Include="ui\views\resolution_scales.h" />
     <ClInclude Include="ui\views\scaling_filters.h" />

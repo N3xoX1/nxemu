@@ -1,6 +1,8 @@
 #include "main_window.h"
 #include <nxemu/ui/i18n/translation.h>
+#include "resolution_scales.h"
 #include "rml_events.h"
+#include "scaling_filters.h"
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <cmath>
@@ -12,6 +14,8 @@
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/video.h>
 #include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu-os/os_types.h>
+#include <nxemu-video/video_settings_identifiers.h>
 #include <nxemu/ui/host/shell.h>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
@@ -43,6 +47,7 @@ constexpr size_t kMinMarginRows = 2;     // rows kept ready beyond those in sigh
 constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse that stays
 constexpr int kScrollbarWidth = 12;
 constexpr uint64_t kIconSizeSaveDelayMs = 400;
+constexpr int kFilterSharpnessRange = 1;
 
 const char * const kGameSorts[] = {TrMark("Name"), TrMark("Publisher"), TrMark("Recent"), TrMark("Play time"), TrMark("Size")};
 constexpr int kGameSortCount = static_cast<int>(sizeof(kGameSorts) / sizeof(kGameSorts[0]));
@@ -65,6 +70,17 @@ int GameIconSize()
 {
     const int size = UiPreferences::GetInt(UiPreferences::GameIconSize, kGameIconDefault);
     return size >= 1 && size <= kGameIconStepCount ? kGameIconSteps[size - 1] : std::clamp(size, kGameIconMin, kGameIconMax);
+}
+
+bool IsDocked()
+{
+    return SettingsStore::GetInstance().GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+}
+
+int ResolutionScale()
+{
+    const int scale = SettingsStore::GetInstance().GetInt(NXVideoSetting::ResolutionSetup);
+    return scale >= 0 && scale < kResolutionScaleCount ? scale : static_cast<int>(ResolutionSetup::Res1X);
 }
 
 int GameSort()
@@ -154,11 +170,13 @@ bool MainWindow::Create()
     {
         return false;
     }
-    m_menuBar = std::make_unique<MenuBar>(m_document->GetElementById("menu-bar"), [this](int id) { Post(static_cast<Action>(id)); });
-    m_gameMenu = std::make_unique<PopupMenu>(m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); });
+    m_menuBar = std::make_unique<MenuBar>(
+        m_document->GetElementById("menu-bar"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
+    m_gameMenu = std::make_unique<PopupMenu>(
+        m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
-    m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[] {}, openPage});
+    m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
     m_directoriesDialog = std::make_unique<DirectoriesDialog>(m_window, m_library, m_assetDir,
@@ -170,7 +188,7 @@ bool MainWindow::Create()
     m_profilesDialog = std::make_unique<ProfilesDialog>(m_window, m_session, m_assetDir,
                                                         ProfilesDialog::Host{
                                                             [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
-                                                            [] {},
+                                                            [this] { RefreshProfiles(); },
                                                             openPage,
                                                         });
     BindEvents();
@@ -187,6 +205,7 @@ bool MainWindow::Create()
     ShowPanel(Panel::RomBrowser);
     UpdateStatusText();
     m_iconSize = GameIconSize();
+    RefreshProfiles();
     ApplyLibraryOptions();
     ApplyIconSize();
     m_library.StartScan(m_session.Modules());
@@ -343,6 +362,11 @@ void MainWindow::Update()
         m_lastMeasure = now;
         MeasureGame();
     }
+    if (const uint64_t now = SDL_GetTicks64(); now - m_lastStatusUpdate >= kStatusIntervalMs)
+    {
+        m_lastStatusUpdate = now;
+        UpdateStatusWidgets();
+    }
     if (m_hotkeyRevision != Hotkeys::Revision())
     {
         m_hotkeyRevision = Hotkeys::Revision();
@@ -460,6 +484,9 @@ void MainWindow::Run(Action action)
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
+    case Action::ToggleDockedMode: SetDockedMode(!IsDocked()); break;
+    case Action::SetDockedMode: SetDockedMode(true); break;
+    case Action::SetHandheldMode: SetDockedMode(false); break;
     case Action::PlaySelectedGame:
         if (!m_selectedPath.empty())
         {
@@ -529,6 +556,36 @@ void MainWindow::Run(Action action)
         break;
     default:
     {
+        const int scale = static_cast<int>(action) - static_cast<int>(Action::ResolutionScaleFirst);
+        if (scale >= 0 && scale < kResolutionScaleCount)
+        {
+            if (!m_session.IsRunning())
+            {
+                SettingsStore::GetInstance().SetInt(NXVideoSetting::ResolutionSetup, scale);
+                m_session.FlushSettings();
+                UpdateStatusWidgets();
+            }
+            break;
+        }
+        const int profile = static_cast<int>(action) - static_cast<int>(Action::ProfileFirst);
+        if (profile >= 0 && static_cast<int>(action) < static_cast<int>(Action::ResolutionScaleFirst))
+        {
+            if (!m_session.IsRunning() && profile < static_cast<int>(m_profiles.size()))
+            {
+                UserProfiles::SetActive(profile);
+                m_session.FlushSettings();
+                UpdateStatusWidgets();
+            }
+            break;
+        }
+        const int filter = static_cast<int>(action) - static_cast<int>(Action::ScalingFilterFirst);
+        if (filter >= 0 && static_cast<int>(action) < static_cast<int>(Action::AddOnFirst) && FindScalingFilter(filter) != nullptr)
+        {
+            SettingsStore::GetInstance().SetInt(NXVideoSetting::ScalingFilter, filter);
+            m_session.FlushSettings();
+            UpdateStatusWidgets();
+            break;
+        }
         const int sort = static_cast<int>(action) - static_cast<int>(Action::GameSortFirst);
         if (sort >= 0 && sort < kGameSortCount)
         {
@@ -566,16 +623,23 @@ void MainWindow::BindEvents()
     UiEvents::Listen(m_document->GetElementById("icon-size-slider"), "change", [this](Rml::Event & event) {
         m_pendingIconSize = std::clamp(static_cast<int>(std::lround(event.GetParameter<float>("value", 0.0f))), kGameIconMin, kGameIconMax);
     });
-    Rml::Element * sortSelect = m_document->GetElementById("games-sort");
-    UiEvents::Listen(sortSelect, "click", [this, sortSelect](Rml::Event &) {
-        if (sortSelect == m_gameMenu->Origin())
-        {
-            m_gameMenu->Close();
-        }
-        else
-        {
-            m_pendingSelectMenu = sortSelect;
-        }
+    for (const char * id : {"games-sort", "docked-mode", "resolution-scale", "scaling-filter", "profile"})
+    {
+        Rml::Element * select = m_document->GetElementById(id);
+        UiEvents::Listen(select, "click", [this, select](Rml::Event &) {
+            if (select == m_gameMenu->Origin())
+            {
+                m_gameMenu->Close();
+            }
+            else if (!select->IsClassSet("locked"))
+            {
+                m_pendingSelectMenu = select;
+            }
+        });
+    }
+    m_volume = std::make_unique<VolumeControl>(m_document->GetElementById("volume"), [this] {
+        m_session.FlushSettings();
+        UpdateStatusWidgets();
     });
     UiEvents::Listen(m_document->GetElementById("games-list-header"), "click", [this](Rml::Event & event) {
         const int sort = event.GetTargetElement()->GetAttribute<int>("data-sort", -1);
@@ -1079,6 +1143,80 @@ void MainWindow::FitWindowToCards()
     m_window.Centre();
 }
 
+void MainWindow::SetMenuRange(int id, int value)
+{
+    if (id == kFilterSharpnessRange && value != SettingsStore::GetInstance().GetInt(NXVideoSetting::FSPSharpness))
+    {
+        SettingsStore::GetInstance().SetInt(NXVideoSetting::FSPSharpness, value);
+        m_session.FlushSettings();
+        UpdateStatusWidgets();
+    }
+}
+
+void MainWindow::SetDockedMode(bool docked)
+{
+    SettingsStore::GetInstance().SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(docked ? DockedMode::Docked : DockedMode::Handheld));
+    m_session.FlushSettings();
+    UpdateStatusWidgets();
+}
+
+void MainWindow::RefreshProfiles()
+{
+    m_profiles = m_session.IsValid() ? UserProfiles::List(m_session.Modules().OperatingSystem()) : std::vector<UserProfile>();
+    UpdateStatusWidgets();
+}
+
+void MainWindow::UpdateStatusWidgets()
+{
+    SettingsStore & settings = SettingsStore::GetInstance();
+    const bool docked = IsDocked();
+    const auto & scale = kResolutionScales[ResolutionScale()];
+    SetText("docked-text", docked ? Tr("Docked") : Tr("Handheld"));
+    if (Rml::Element * icon = m_document->GetElementById("docked-icon"))
+    {
+        const char * image = docked ? "images/docked.png" : "images/handheld.png";
+        if (icon->GetAttribute<Rml::String>("src", "") != image)
+        {
+            icon->SetAttribute("src", image);
+        }
+    }
+    const ScalingFilterChoice * filter = FindScalingFilter(settings.GetInt(NXVideoSetting::ScalingFilter));
+    SetText("scaling-filter-text", filter != nullptr ? Tr(filter->label) : Tr("Gaussian"));
+    SetText("resolution-scale-text", scale.label);
+    SetText("resolution", std::to_string(static_cast<int>(std::lround((docked ? kDockedHeight : kHandheldHeight) * scale.factor))) + "p");
+    if (Rml::Element * select = m_document->GetElementById("resolution-scale"))
+    {
+        const bool locked = m_session.IsRunning();
+        select->SetClass("locked", locked);
+        const std::string hint = Tr("Resolution scale: higher values give a sharper picture but need more graphics power.") +
+                                 (locked ? "\n" + Tr("The resolution scale cannot change while a game is running") : "");
+        if (select->GetAttribute<Rml::String>("title", "") != hint)
+        {
+            select->SetAttribute("title", hint);
+        }
+    }
+    if (Rml::Element * select = m_document->GetElementById("profile"))
+    {
+        const bool shown = m_profiles.size() > 1;
+        m_document->SetClass("several-profiles", shown);
+        if (shown)
+        {
+            SetText("profile-text", m_profiles[UserProfiles::Active(m_profiles.size())].name);
+            const bool locked = m_session.IsRunning();
+            select->SetClass("locked", locked);
+            const std::string hint = locked ? Tr("The profile cannot change while a game is running") : Tr("The profile games start as: its saves are the ones used");
+            if (select->GetAttribute<Rml::String>("title", "") != hint)
+            {
+                select->SetAttribute("title", hint);
+            }
+        }
+    }
+    if (m_volume != nullptr)
+    {
+        m_volume->Show();
+    }
+}
+
 void MainWindow::ShowSelectMenu(Rml::Element * origin)
 {
     std::vector<MenuItem> items;
@@ -1088,6 +1226,47 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
         for (const int sort : kOfferedSorts)
         {
             items.push_back(MenuItem::Choice(static_cast<int>(Action::GameSortFirst) + sort, Tr(kGameSorts[sort]), sort == current));
+        }
+    }
+    else if (origin->GetId() == "profile")
+    {
+        const int active = UserProfiles::Active(m_profiles.size());
+        for (int profile = 0; profile < static_cast<int>(m_profiles.size()); profile++)
+        {
+            items.push_back(MenuItem::Choice(static_cast<int>(Action::ProfileFirst) + profile, m_profiles[profile].name, profile == active));
+        }
+        items.push_back(MenuItem::Separator());
+        items.push_back(MenuItem::Action(static_cast<int>(Action::OpenProfiles), Tr("Manage profiles")));
+    }
+    else if (origin->GetId() == "docked-mode")
+    {
+        const bool docked = IsDocked();
+        items.push_back(MenuItem::Choice(static_cast<int>(Action::SetDockedMode), Tr("Docked"), docked));
+        items.push_back(MenuItem::Choice(static_cast<int>(Action::SetHandheldMode), Tr("Handheld"), !docked));
+    }
+    else if (origin->GetId() == "scaling-filter")
+    {
+        const SettingsStore & store = SettingsStore::GetInstance();
+        const int current = store.GetInt(NXVideoSetting::ScalingFilter);
+        for (const ScalingFilterChoice & filter : kScalingFilters)
+        {
+            const int value = static_cast<int>(filter.value);
+            items.push_back(MenuItem::Check(static_cast<int>(Action::ScalingFilterFirst) + value, Tr(filter.label), value == current));
+            MenuItem & item = items.back();
+            item.hint = Tr(filter.hint);
+            if (filter.value == ScalingFilter::Fsr)
+            {
+                item.range = MenuItem::Range{kFilterSharpnessRange, kSharpnessMax, std::clamp(store.GetInt(NXVideoSetting::FSPSharpness), 0, kSharpnessMax),
+                                             value == current, value == current ? Tr("Sharpness of the FSR filter") : Tr("Sharpness: once FSR is the filter")};
+            }
+        }
+    }
+    else if (origin->GetId() == "resolution-scale")
+    {
+        const int current = ResolutionScale();
+        for (int scale = 0; scale < kResolutionScaleCount; scale++)
+        {
+            items.push_back(MenuItem::Choice(static_cast<int>(Action::ResolutionScaleFirst) + scale, kResolutionScales[scale].label, scale == current));
         }
     }
     if (items.empty())
@@ -1244,6 +1423,7 @@ void MainWindow::SyncPhase()
         m_phase = phase;
         m_menuDirty = true;
         m_lastMeasure = 0;
+        m_lastStatusUpdate = 0;
         if (phase == EmulatorSession::Phase::Idle)
         {
             m_window.SetFullscreen(false);

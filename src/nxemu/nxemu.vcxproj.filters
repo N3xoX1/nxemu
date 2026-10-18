@@ -466,6 +466,9 @@
     <ClCompile Include="ui\views\user_profiles.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\volume_control.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\i18n\translation.cpp">
       <Filter>Source Files\ui\i18n</Filter>
     </ClCompile>
@@ -551,6 +554,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\user_profiles.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\volume_control.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\settings_page.h">
