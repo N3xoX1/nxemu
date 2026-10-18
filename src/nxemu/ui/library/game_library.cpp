@@ -111,6 +111,13 @@ void GameLibrary::GameFound(const char * path, IRomInfo * romInfo, bool /*change
         game.title = Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(game.path)}.filename());
     }
     game.version = RomProperties::Version(*info);
+    if (IFileSysNACPPtr control(info->GetControlMetadata()); control && control->GetDeveloperName() != nullptr)
+    {
+        game.publisher = control->GetDeveloperName();
+    }
+    std::error_code error;
+    const uintmax_t size = std::filesystem::file_size(std::filesystem::path{Common::FS::ToU8String(game.path)}, error);
+    game.size = error ? 0 : static_cast<uint64_t>(size);
     found.icon = RomProperties::Icon(*info);
 
     std::lock_guard<std::mutex> lock(m_foundMutex);

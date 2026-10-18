@@ -146,6 +146,12 @@ private:
     void LoadPendingIcons();
     void ReleaseUnusedIcons(size_t inUse);
     std::string CardRml(size_t index);
+    std::string ListRowRml(size_t index, size_t number);
+    void ApplyLibraryOptions();
+    void LayoutList();
+    void SaveIconSize();
+    void FitWindowToCards();
+    void ShowSelectMenu(Rml::Element * origin);
     void ApplyIconSize();
     void SizeCard(Rml::Element * card) const;
     float CardStep() const;
@@ -198,7 +204,11 @@ private:
     std::unordered_map<std::string, uint64_t> m_loadedIcons;
     uint64_t m_iconUse = 0;
     bool m_iconsPending = false;
-    int m_iconSize;
+    int m_iconSize = 0;
+    int m_pendingIconSize = 0;
+    uint64_t m_iconSizeChanged = 0;
+    float m_listScrollBar = 0.0f;
+    bool m_fitWindow = true;
     Rml::Element * m_selectedGame = nullptr;
     std::string m_selectedPath;
     uint64_t m_selectedProgramId = 0;
