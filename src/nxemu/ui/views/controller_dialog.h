@@ -1,6 +1,5 @@
 #pragma once
 #include "dialog.h"
-#include "settings_page.h"
 #include <SDL.h>
 #include <array>
 #include <functional>
@@ -19,7 +18,7 @@ class UiWindow;
 class ControllerDialog final : public Dialog
 {
 public:
-    ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir, OpenSettingsPage openPage);
+    ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir);
     ~ControllerDialog();
 
     void HandleKey(const SDL_KeyboardEvent & event);
@@ -73,7 +72,6 @@ private:
 
     UiWindow & m_window;
     EmulatorSession & m_session;
-    const OpenSettingsPage m_openPage;
     int m_player = 0;
     bool m_handheld = false;
     bool m_changed = false;

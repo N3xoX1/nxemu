@@ -42,6 +42,7 @@ public:
     ISystemModules & Modules() { return m_modules.Modules(); }
     bool IsRunning() const;
     void FlushSettings();
+    void Update();
     bool IsPaused();
     Phase CurrentPhase() const;
 

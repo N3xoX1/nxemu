@@ -41,6 +41,14 @@ void EmulatorSession::FlushSettings()
     }
 }
 
+void EmulatorSession::Update()
+{
+    if (m_modules.IsValid())
+    {
+        m_modules.Modules().OperatingSystem().PumpInputEvents();
+    }
+}
+
 bool EmulatorSession::IsRunning() const
 {
     return m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);

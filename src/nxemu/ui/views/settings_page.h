@@ -5,7 +5,6 @@
 enum class SettingsPage
 {
     General,
-    Controllers,
     Profiles,
     Directories,
     Advanced,
@@ -18,10 +17,6 @@ inline bool SettingsPageOf(const std::string & command, SettingsPage & page)
     if (command == "page:general")
     {
         page = SettingsPage::General;
-    }
-    else if (command == "page:controllers")
-    {
-        page = SettingsPage::Controllers;
     }
     else if (command == "page:profiles")
     {

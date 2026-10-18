@@ -32,7 +32,7 @@ private:
 
     EmulatorSession & m_session;
     SettingsContext & m_settings;
-    const OpenSettingsPage m_openPage
+    const OpenSettingsPage m_openPage;
     std::string m_tab = "graphics";
     std::vector<std::string> m_changes;
     bool m_logFilterLeft = false;
