@@ -1,6 +1,8 @@
 #pragma once
 #include "shortcut.h"
+#include <cstdint>
 #include <nxemu/ui/i18n/translation.h>
+#include <string>
 
 enum class HotkeyId
 {
@@ -20,6 +22,19 @@ enum class HotkeyId
 
 namespace Hotkeys
 {
+struct Info;
+struct GamepadShortcut
+{
+    std::string guid;
+    uint64_t buttons = 0;
+    bool operator==(const GamepadShortcut &) const = default;
+    std::string Label() const;
+};
+GamepadShortcut TrackGamepad(const SDL_Event & event);
+GamepadShortcut GetGamepad(HotkeyId id);
+const Info * GamepadHolder(const GamepadShortcut & shortcut, HotkeyId except);
+void SetGamepad(HotkeyId id, const GamepadShortcut & shortcut);
+
 struct Info
 {
     HotkeyId id;
@@ -38,7 +53,7 @@ inline constexpr Info kAll[] = {
     {HotkeyId::Performance, "Performance", TrMark("Show performance"), true},
     {HotkeyId::PauseOrContinue, "PauseContinue", TrMark("Pause or continue"), true},
     {HotkeyId::Stop, "StopEmulation", TrMark("Stop the game"), true},
-    {HotkeyId::DockedMode, "ToggleDockedMode", TrMark("TV or handheld"), true},
+    {HotkeyId::DockedMode, "ToggleDockedMode", TrMark("Docked or handheld"), true},
     {HotkeyId::SpeedLimit, "ToggleSpeedLimit", TrMark("Limit speed"), true},
 };
 

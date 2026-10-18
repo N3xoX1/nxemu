@@ -13,15 +13,17 @@
         <div class="settings-separator" />
         <div class="settings-categories">
           <div class="settings-category" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category global-only" data-command="page:profiles"><img src="images/user.png" /><div>Profiles</div></div>
           <div class="settings-category selected"><img src="images/folder.png" /><div>Game directories</div></div>
           <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
+          <div class="settings-category" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
         </div>
         <div class="dialog-close" data-command="close">&#xD7;</div>
       </div>
       <div class="settings-body">
         <div class="settings-page">
           <div class="settings-title">Game directories</div>
-          <div class="settings-text">The folders NXEmu looks for games in. The folders inside them are not searched.</div>
+          <div class="settings-text">Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders.</div>
           <div id="directories" class="directories" />
         </div>
       </div>

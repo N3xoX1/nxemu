@@ -45,7 +45,6 @@ button img,
 .empty-state-icon,
 .view-button > img,
 .row-play img,
-#title-state,
 #window-close img
 {
     image-color: var(--text-secondary);

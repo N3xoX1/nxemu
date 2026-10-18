@@ -105,6 +105,7 @@ EmulatorSession::Phase EmulatorSession::CurrentPhase() const
         return Phase::Idle;
     }
 }
+
 void EmulatorSession::Update()
 {
     ProcessProgramEvents();

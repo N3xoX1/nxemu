@@ -12,15 +12,17 @@
         <div class="dialog-title">Settings</div>
         <div class="settings-separator" />
         <div class="settings-categories">
-          <div class="settings-category selected" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category selected"><img src="images/user.png" /><div>Profiles</div></div>
           <div class="settings-category" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
           <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
+          <div class="settings-category" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
         </div>
         <div class="dialog-close" data-command="close">&#xD7;</div>
       </div>
       <div class="settings-body">
         <div class="settings-page">
-          <div class="settings-title"><span class="settings-back" data-command="page:general">General</span> &#x203A; <span>Profiles</span></div>
+          <div class="settings-title">Profiles</div>
           <div class="settings-text">The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one.</div>
           <div class="profiles-locked-note">Profiles cannot change while a game is running.</div>
           <div class="profiles-body">
@@ -61,7 +63,6 @@
         </div>
       </div>
       <div class="dialog-footer">
-        <button data-command="page:general" title="Back to the general settings">Back</button>
         <button data-command="close">Close</button>
       </div>
     </div>
