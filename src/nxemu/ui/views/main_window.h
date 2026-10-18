@@ -3,6 +3,7 @@
 #include "controller_dialog.h"
 #include "directories_dialog.h"
 #include "general_dialog.h"
+#include "hotkeys.h"
 #include "menu_bar.h"
 #include "popup_menu.h"
 #include "profiles_dialog.h"
@@ -126,6 +127,13 @@ private:
     void Post(Action action);
     void RunPendingWork();
     void Run(Action action);
+    struct HotkeyAction
+    {
+        HotkeyId id;
+        Action action;
+    };
+    static const HotkeyAction kHotkeyActions[];
+
     std::string ShortcutLabel(Action action) const;
     void BindEvents();
     void RebuildMenu();
@@ -153,6 +161,7 @@ private:
     void SyncWindowState();
     bool AttachVideo();
     void ResetWindowSize(int width, int height);
+    void MeasureGame();
     void UpdateStatusText();
     void UpdateMouseCursor();
     void SetText(const char * id, const std::string & text);
@@ -200,6 +209,9 @@ private:
     EmulatorSession::Phase m_phase = EmulatorSession::Phase::Idle;
     Panel m_panel = Panel::RomBrowser;
     bool m_menuDirty = true;
+    unsigned m_hotkeyRevision = 0;
+    uint64_t m_lastMeasure = 0;
+    std::string m_speedText;
     int m_hiddenFrame = 0;
     uint64_t m_mouseMovedAt = 0;
     uint64_t m_versionCopiedUntil = 0;

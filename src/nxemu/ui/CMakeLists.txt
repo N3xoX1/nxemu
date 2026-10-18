@@ -114,7 +114,8 @@ target_include_directories(nxemu_ui PRIVATE
     "${CMAKE_SOURCE_DIR}/src/nxemu-module-spec"
     "${CMAKE_SOURCE_DIR}/src/common"
     "${CMAKE_SOURCE_DIR}/src/yuzu_common"
-    "${CMAKE_SOURCE_DIR}/external/boost")
+    "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/sciterui/include")
 target_compile_definitions(nxemu_ui PRIVATE RMLUI_SDL_VERSION_MAJOR=2)
 if(UNIX)
     target_compile_definitions(nxemu_ui PRIVATE NXEMU_UNIX=1)

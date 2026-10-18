@@ -4,10 +4,13 @@
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <cmath>
+#include <common/std_string.h>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-module-spec/operating_system.h>
+#include <nxemu-module-spec/video.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu/ui/host/shell.h>
 #include <nxemu/ui/host/ui_renderer.h>
@@ -22,6 +25,7 @@ constexpr const char * kReportUrl = "https://report.nxemu.com/";
 constexpr float kNarrowWidth = 800.0f;
 constexpr float kCompactWidth = 560.0f;
 constexpr uint64_t kVersionCopiedMs = 1500;
+constexpr uint64_t kStatusIntervalMs = 1000;
 constexpr int kGameIconDefault = 146;
 constexpr int kGameIconSteps[] = {108, 146, 176, 216};
 constexpr int kGameIconStepCount = static_cast<int>(sizeof(kGameIconSteps) / sizeof(kGameIconSteps[0]));
@@ -57,12 +61,28 @@ std::string FileName(const std::string & utf8Path)
 }
 } // namespace
 
+const MainWindow::HotkeyAction MainWindow::kHotkeyActions[] = {
+    {HotkeyId::LoadFile, Action::LoadFile},
+    {HotkeyId::Settings, Action::OpenSettings},
+    {HotkeyId::Controllers, Action::ConfigureControllers},
+    {HotkeyId::Exit, Action::Exit},
+    {HotkeyId::Fullscreen, Action::ToggleFullscreen},
+    {HotkeyId::ExitFullscreen, Action::ExitFullscreen},
+    {HotkeyId::HideUi, Action::ToggleHideUi},
+    {HotkeyId::Performance, Action::TogglePerformance},
+    {HotkeyId::PauseOrContinue, Action::PauseOrContinue},
+    {HotkeyId::Stop, Action::Stop},
+    {HotkeyId::DockedMode, Action::ToggleDockedMode},
+    {HotkeyId::SpeedLimit, Action::ToggleSpeedLimit},
+};
+
 MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary & library, std::filesystem::path assetDir) :
     m_window(window),
     m_session(session),
     m_library(library),
     m_assetDir(std::move(assetDir)),
-    m_iconSize(kGameIconDefault)
+    m_iconSize(kGameIconDefault),
+    m_hotkeyRevision(Hotkeys::Revision())
 {
     m_session.SetListener(this);
 }
@@ -159,6 +179,22 @@ void MainWindow::HandleEvent(const SDL_Event & event)
     }
     if ((event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) && !DialogOpen())
     {
+        for (const HotkeyAction & hotkey : kHotkeyActions)
+        {
+            if (!Hotkeys::Get(hotkey.id).Matches(event.key.keysym))
+            {
+                continue;
+            }
+            if (hotkey.action == Action::ExitFullscreen && !m_window.IsFullscreen())
+            {
+                continue;
+            }
+            if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
+            {
+                Post(hotkey.action);
+            }
+            return;
+        }
         m_session.HandleKey(event.key);
     }
     if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_HIT_TEST)
@@ -211,6 +247,16 @@ void MainWindow::Update()
     }
     SyncWindowState();
     UpdateMouseCursor();
+    if (const uint64_t now = SDL_GetTicks64(); now - m_lastMeasure >= kStatusIntervalMs)
+    {
+        m_lastMeasure = now;
+        MeasureGame();
+    }
+    if (m_hotkeyRevision != Hotkeys::Revision())
+    {
+        m_hotkeyRevision = Hotkeys::Revision();
+        m_menuDirty = true;
+    }
     if (m_menuDirty && !m_menuBar->IsOpen())
     {
         m_menuDirty = false;
@@ -312,6 +358,15 @@ void MainWindow::Run(Action action)
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
+    case Action::ToggleSpeedLimit:
+    {
+        SettingsStore & settings = SettingsStore::GetInstance();
+        settings.SetBool(NXOsSetting::UseSpeedLimit, !settings.GetBool(NXOsSetting::UseSpeedLimit));
+        m_session.FlushSettings();
+        m_menuDirty = true;
+        UpdateStatusText();
+        break;
+    }
     case Action::OpenAppDirectory: OpenDirectory(Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir)); break;
     case Action::OpenLogDirectory: OpenDirectory(Common::FS::GetYuzuPathString(Common::FS::YuzuPath::LogDir)); break;
     case Action::ToggleFullscreen:
@@ -348,8 +403,15 @@ void MainWindow::Run(Action action)
     }
 }
 
-std::string MainWindow::ShortcutLabel(Action /*action*/) const
+std::string MainWindow::ShortcutLabel(Action action) const
 {
+    for (const HotkeyAction & hotkey : kHotkeyActions)
+    {
+        if (hotkey.action == action)
+        {
+            return Hotkeys::Get(hotkey.id).Label();
+        }
+    }
     return {};
 }
 
@@ -853,6 +915,7 @@ void MainWindow::SyncPhase()
     {
         m_phase = phase;
         m_menuDirty = true;
+        m_lastMeasure = 0;
         if (phase == EmulatorSession::Phase::Idle)
         {
             m_window.SetFullscreen(false);
@@ -977,9 +1040,48 @@ void MainWindow::ResetWindowSize(int width, int height)
     m_window.SetClientSize(width, height);
 }
 
+void MainWindow::MeasureGame()
+{
+    m_speedText.clear();
+    if (m_session.IsRunning())
+    {
+        const PerfStatsResults stats = m_session.Modules().OperatingSystem().GetAndResetPerfStats();
+        if (std::isfinite(stats.average_game_fps) && stats.average_game_fps != 0)
+        {
+            const double frametime = std::isfinite(stats.frametime) ? stats.frametime * 1000.0 : 0.0;
+            m_speedText = stdstr_f("%.0f FPS (%.2f ms)", std::round(stats.average_game_fps), frametime);
+        }
+    }
+    UpdateStatusText();
+}
+
 void MainWindow::UpdateStatusText()
 {
-    SetText("status-text", {});
+    std::vector<std::string> parts;
+    if (m_session.IsRunning())
+    {
+        if (m_session.Modules().OperatingSystem().IsEmulationPaused())
+        {
+            parts.push_back(Tr("Paused"));
+        }
+        const uint32_t shaders = m_session.Modules().Video().ShadersBuilding();
+        if (shaders > 0)
+        {
+            parts.push_back(TrCount("Building: %n shader", "Building: %n shaders", shaders));
+        }
+        if (!m_speedText.empty())
+        {
+            parts.push_back(m_speedText);
+        }
+    }
+
+    std::string status;
+    for (const std::string & part : parts)
+    {
+        status += (status.empty() ? "" : " | ") + part;
+    }
+    SetText("status-text", status);
+    m_document->SetClass("speed-unlocked", m_session.IsRunning() && !m_speedText.empty() && !SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
 }
 
 void MainWindow::SetText(const char * id, const std::string & text)
