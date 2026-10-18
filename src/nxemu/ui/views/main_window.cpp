@@ -85,7 +85,7 @@ bool MainWindow::Create()
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[] {}, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
-    m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir, openPage);
+    m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
     m_directoriesDialog = std::make_unique<DirectoriesDialog>(m_window, m_library, m_assetDir,
                                                         DirectoriesDialog::Host{
                                                             [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
@@ -165,6 +165,7 @@ void MainWindow::HandleEvent(const SDL_Event & event)
 void MainWindow::Update()
 {
     RunPendingWork();
+    m_session.Update();
     m_controllerDialog->Update();
     m_generalDialog->Update();
     m_advancedDialog->Update();
@@ -201,7 +202,8 @@ void MainWindow::Update()
     const float menuWidth = m_document->GetElementById("menu-bar")->GetOffsetWidth() / density;
     const float windowSpace = m_window.DrawsWindowControls() ? 150.0f : 82.0f;
     const float titleSpace = width - menuWidth - windowSpace;
-    m_document->SetClass("title-hide-settings", titleSpace < 720.0f);
+    const bool gameInTitle = m_document->IsClassSet("has-game") || m_document->IsClassSet("game-controls-visible");
+    m_document->SetClass("title-hide-settings", titleSpace < (gameInTitle ? 720.0f : 230.0f));
     m_document->SetClass("title-hide-text", titleSpace < 520.0f);
     m_document->SetClass("title-hide-secondary", titleSpace < 400.0f);
     m_document->SetClass("title-minimal", titleSpace < 260.0f);
@@ -275,7 +277,12 @@ void MainWindow::Run(Action action)
         break;
     case Action::OpenProfiles: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Profiles); break;
     case Action::OpenGameDirectories: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Directories); break;
-    case Action::ConfigureControllers: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Controllers); break;
+    case Action::ConfigureControllers:
+        if (m_session.IsValid())
+        {
+            m_controllerDialog->Show();
+        }
+        break;
     case Action::CopyVersion:
         SDL_SetClipboardText(VER_FILE_VERSION_STR);
         m_versionCopiedUntil = SDL_GetTicks64() + kVersionCopiedMs;
@@ -297,6 +304,7 @@ void MainWindow::BindEvents()
         UiEvents::Listen(m_document->GetElementById(id), "click", [this, action](Rml::Event &) { Post(action); });
     };
     onClick("title-settings", Action::OpenSettings);
+    onClick("title-controllers", Action::ConfigureControllers);
     onClick("title-version", Action::CopyVersion);
     onClick("title-pause", Action::PauseOrContinue);
     onClick("title-stop", Action::Stop);
@@ -346,6 +354,7 @@ void MainWindow::RebuildMenu()
                                                             }));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::OpenSettings, Tr("&Settings")));
+    file.push_back(action(Action::ConfigureControllers, Tr("Controllers"), m_session.IsValid()));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::InstallFirmware, Tr("Install &Firmware"), !running));
     file.push_back(MenuItem::Separator());
@@ -710,12 +719,6 @@ bool MainWindow::ShowSettingsPage(SettingsPage page)
     case SettingsPage::General:
         m_generalDialog->Show();
         return m_generalDialog->IsVisible();
-    case SettingsPage::Controllers:
-        if (m_session.IsValid())
-        {
-            m_controllerDialog->Show();
-        }
-        return m_controllerDialog->IsVisible();
     case SettingsPage::Profiles:
         if (m_session.IsValid())
         {
