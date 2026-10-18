@@ -118,6 +118,13 @@ bool MainWindow::Create()
     return true;
 }
 
+void MainWindow::OpenGame(const std::string & path)
+{
+    m_pendingGame = path;
+    m_launchReady = false;
+    m_menuDirty = true;
+}
+
 void MainWindow::RequestQuit()
 {
     if (!m_session.IsRunning() || ConfirmStop(Tr("NXEmu - Exit")))
@@ -150,6 +157,10 @@ void MainWindow::HandleEvent(const SDL_Event & event)
         m_pendingSelectMenu = nullptr;
         return;
     }
+    if ((event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) && !DialogOpen())
+    {
+        m_session.HandleKey(event.key);
+    }
     if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_HIT_TEST)
     {
         m_menuBar->Close();
@@ -166,6 +177,11 @@ void MainWindow::Update()
 {
     RunPendingWork();
     m_session.Update();
+    if (!m_session.IsValid())
+    {
+        m_quit = true;
+        return;
+    }
     m_controllerDialog->Update();
     m_generalDialog->Update();
     m_advancedDialog->Update();
@@ -187,6 +203,12 @@ void MainWindow::Update()
     }
     RenderVisibleGames();
     LoadPendingIcons();
+    SyncPhase();
+    if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty())
+    {
+        m_rescanGames = false;
+        RescanGames();
+    }
     SyncWindowState();
     UpdateMouseCursor();
     if (m_menuDirty && !m_menuBar->IsOpen())
@@ -208,15 +230,28 @@ void MainWindow::Update()
     m_document->SetClass("title-hide-secondary", titleSpace < 400.0f);
     m_document->SetClass("title-minimal", titleSpace < 260.0f);
     m_window.Context()->Update();
+    LayoutGameArea();
 }
 
 bool MainWindow::Still() const
 {
-    return !m_controllerDialog->Listening() && !m_profilesDialog->Busy() && m_window.Context()->GetNextUpdateDelay() > 0;
+    return m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
+           m_window.Context()->GetNextUpdateDelay() > 0;
+}
+
+bool MainWindow::DialogOpen() const
+{
+    return m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
+           m_profilesDialog->IsVisible();
 }
 
 void MainWindow::OnModulesReleasing()
 {
+    if (m_library.Scanning())
+    {
+        m_library.StopScan();
+        m_rescanGames = true;
+    }
     m_controllerDialog->Abandon();
     m_profilesDialog->Abandon();
     m_window.DetachVideo();
@@ -227,8 +262,10 @@ void MainWindow::OnModulesReady()
     AttachVideo();
 }
 
-void MainWindow::OnGameStarted(const std::string & /*path*/)
+void MainWindow::OnGameStarted(const std::string & path)
 {
+    const auto game = std::find_if(m_games.begin(), m_games.end(), [&path](const GameEntry & entry) { return entry.path == path; });
+    SetTitle(game != m_games.end() ? game->title : SettingsStore::GetInstance().GetString(NXCoreSetting::GameName));
     m_menuDirty = true;
 }
 
@@ -250,6 +287,22 @@ void MainWindow::RunPendingWork()
     {
         Run(action);
     }
+    if (!m_pendingGame.empty())
+    {
+        if (!m_launchReady)
+        {
+            m_launchReady = true;
+            AnnounceGame();
+            if (!m_session.IsRunning())
+            {
+                return;
+            }
+        }
+        m_launchReady = false;
+        std::string path;
+        path.swap(m_pendingGame);
+        m_session.LoadGame(path);
+    }
 }
 
 void MainWindow::Run(Action action)
@@ -257,6 +310,8 @@ void MainWindow::Run(Action action)
     switch (action)
     {
     case Action::Exit: RequestQuit(); break;
+    case Action::PauseOrContinue: m_session.TogglePause(); break;
+    case Action::Stop: StopGame(); break;
     case Action::OpenAppDirectory: OpenDirectory(Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir)); break;
     case Action::OpenLogDirectory: OpenDirectory(Common::FS::GetYuzuPathString(Common::FS::YuzuPath::LogDir)); break;
     case Action::ToggleFullscreen:
@@ -315,6 +370,14 @@ void MainWindow::BindEvents()
     });
     UiEvents::Listen(m_document->GetElementById("games-grid"), "click", [this](Rml::Event & event) {
         SelectGame(UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-game"));
+    });
+    UiEvents::Listen(m_document->GetElementById("games-grid"), "dblclick", [this](Rml::Event & event) {
+        Rml::Element * card = UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-game");
+        const size_t index = card != nullptr ? static_cast<size_t>(card->GetAttribute<int>("data-game", -1)) : m_games.size();
+        if (index < m_games.size())
+        {
+            OpenGame(m_games[index].path);
+        }
     });
     UiEvents::Listen(m_document->GetElementById("window-minimise"), "click", [this](Rml::Event &) { m_window.Minimise(); });
     UiEvents::Listen(m_document->GetElementById("window-maximise"), "click", [this](Rml::Event &) { m_window.SetMaximised(!m_window.IsMaximised()); });
@@ -758,7 +821,92 @@ void MainWindow::ShowPanel(Panel panel)
             element->SetClass("active", entry.panel == panel);
         }
     }
-    m_document->SetClass("video-visible", panel == Panel::Renderer);
+    m_document->SetClass("video-visible", panel == Panel::Renderer || panel == Panel::Pause);
+}
+
+void MainWindow::SyncPhase()
+{
+    const EmulatorSession::Phase phase = m_session.CurrentPhase();
+    const bool emulating = m_session.IsRunning() && (phase == EmulatorSession::Phase::Running || phase == EmulatorSession::Phase::Paused);
+    const bool paused = emulating && phase == EmulatorSession::Phase::Paused;
+    m_document->SetClass("emulating", emulating);
+    m_document->SetClass("game-paused", paused);
+    m_document->SetClass("game-controls-visible", m_session.IsRunning() || !m_pendingGame.empty());
+    if (Rml::Element * pause = m_document->GetElementById("title-pause"))
+    {
+        if (!emulating && !pause->HasAttribute("disabled"))
+        {
+            pause->SetAttribute("disabled", "");
+        }
+        else if (emulating && pause->HasAttribute("disabled"))
+        {
+            pause->RemoveAttribute("disabled");
+        }
+        pause->SetClass("active", paused);
+        const std::string label = paused ? Tr("Resume emulation (F2)") : Tr("Pause emulation (F2)");
+        if (pause->GetAttribute<Rml::String>("title", "") != label)
+        {
+            pause->SetAttribute("title", label);
+        }
+    }
+    if (phase != m_phase)
+    {
+        m_phase = phase;
+        m_menuDirty = true;
+        if (phase == EmulatorSession::Phase::Idle)
+        {
+            m_window.SetFullscreen(false);
+            SetTitle({});
+        }
+    }
+
+    switch (m_phase)
+    {
+    case EmulatorSession::Phase::Idle: ShowPanel(Panel::RomBrowser); break;
+    case EmulatorSession::Phase::Loading: ShowPanel(m_gameShown ? Panel::RomBrowser : Panel::Loading); break;
+    case EmulatorSession::Phase::Paused: ShowPanel(Panel::Pause); break;
+    case EmulatorSession::Phase::Running:
+        m_gameShown = true;
+        ShowPanel(Panel::Renderer);
+        break;
+    }
+    if (m_launchReady && !m_pendingGame.empty())
+    {
+        ShowPanel(Panel::Loading);
+    }
+}
+
+void MainWindow::AnnounceGame()
+{
+    m_gameShown = false;
+    if (Rml::Element * search = m_document->GetElementById("games-search"))
+    {
+        search->Blur();
+    }
+}
+
+void MainWindow::LayoutGameArea()
+{
+    Rml::Element * contents = m_document->GetElementById("main-contents");
+    if (contents == nullptr)
+    {
+        return;
+    }
+    const Rml::Vector2f offset = contents->GetAbsoluteOffset(Rml::BoxArea::Border);
+    const Rml::Vector2f size = contents->GetBox().GetSize(Rml::BoxArea::Border);
+    const PixelRect area{
+        static_cast<int>(std::lround(offset.x)),
+        static_cast<int>(std::lround(offset.y)),
+        static_cast<int>(std::lround(size.x)),
+        static_cast<int>(std::lround(size.y)),
+    };
+    if (area.width <= 0 || area.height <= 0 || area == m_gameArea)
+    {
+        return;
+    }
+    m_gameArea = area;
+    const float scale = m_window.PixelScale();
+    m_session.SetViewportSize(static_cast<uint32_t>(std::lround(size.x / scale)), static_cast<uint32_t>(std::lround(size.y / scale)));
 }
 
 void MainWindow::SetTitle(const std::string & game)
@@ -808,7 +956,8 @@ void MainWindow::SyncWindowState()
 
 const PixelRect * MainWindow::GameArea() const
 {
-    return nullptr;
+    const bool playing = m_phase == EmulatorSession::Phase::Running || m_phase == EmulatorSession::Phase::Paused;
+    return playing && m_gameArea.width > 0 ? &m_gameArea : nullptr;
 }
 
 bool MainWindow::AttachVideo()
@@ -844,6 +993,20 @@ void MainWindow::SetText(const char * id, const std::string & text)
     if (element->GetInnerRML() != rml)
     {
         element->SetInnerRML(rml);
+    }
+}
+
+void MainWindow::StopGame()
+{
+    if (!m_pendingGame.empty())
+    {
+        m_pendingGame.clear();
+        m_launchReady = false;
+        m_menuDirty = true;
+    }
+    if (m_session.IsRunning() && ConfirmStop(Tr("NXEmu - Stop Emulation")))
+    {
+        m_session.Stop();
     }
 }
 
