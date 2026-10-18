@@ -2,7 +2,7 @@
 #include "settings/ui_identifiers.h"
 #include "system_config.h"
 #include "system_config_game_browser.h"
-#include "user_interface/file_dialogs.h"
+#include "ui/platform/file_dialogs.h"
 #include <common/path.h>
 #include <nxemu-loader/loader_settings_identifiers.h>
 #include <widgets/list_box.h>

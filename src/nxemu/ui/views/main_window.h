@@ -1,6 +1,13 @@
 #pragma once
+#include "advanced_dialog.h"
+#include "controller_dialog.h"
+#include "directories_dialog.h"
+#include "general_dialog.h"
 #include "menu_bar.h"
 #include "popup_menu.h"
+#include "profiles_dialog.h"
+#include "settings_context.h"
+#include "settings_page.h"
 #include <SDL.h>
 #include <filesystem>
 #include <memory>
@@ -122,6 +129,7 @@ private:
     void BindEvents();
     void RebuildMenu();
     void AddGames(std::vector<FoundGame> found);
+    void RescanGames();
     void RenderGames();
     void RenderVisibleGames();
     std::string IconRml(const std::string & icon);
@@ -133,6 +141,7 @@ private:
     float CardStep() const;
     void SelectGame(Rml::Element * card);
     void ShowPanel(Panel panel);
+    bool ShowSettingsPage(SettingsPage page);
     void SetTitle(const std::string & game);
     void ShowVersion();
     void SyncWindowState();
@@ -151,6 +160,12 @@ private:
     Rml::ElementDocument * m_document = nullptr;
     std::unique_ptr<MenuBar> m_menuBar;
     std::unique_ptr<PopupMenu> m_gameMenu;
+    SettingsContext m_settingsContext;
+    std::unique_ptr<GeneralDialog> m_generalDialog;
+    std::unique_ptr<AdvancedDialog> m_advancedDialog;
+    std::unique_ptr<ControllerDialog> m_controllerDialog;
+    std::unique_ptr<DirectoriesDialog> m_directoriesDialog;
+    std::unique_ptr<ProfilesDialog> m_profilesDialog;
     std::vector<Action> m_pendingActions;
     std::vector<GameEntry> m_games;
     std::string m_gameSearch;

@@ -21,7 +21,16 @@ public:
     bool IsBound() const { return m_context.device != VK_NULL_HANDLE; }
     const std::string & Error() const { return m_error; }
 
+    struct GraphicsDevice
+    {
+        std::string name;
+        bool integrated;
+        bool inUse;
+    };
+    std::vector<GraphicsDevice> GraphicsDevices() const;
+
     std::string AddMemoryImage(std::vector<uint8_t> encoded);
+    static std::string FileImageSource(const std::string & utf8Path);
     void RemoveMemoryImage(const std::string & source);
 
     void BeginFrame(VkCommandBuffer commandBuffer, int width, int height);

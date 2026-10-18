@@ -73,6 +73,15 @@
     <Filter Include="Header Files\ui\i18n">
       <UniqueIdentifier>{c76bc9eb-ddd1-419d-b197-dc01f0c70987}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ui\input">
+      <UniqueIdentifier>{3a9c51d2-7e04-4b6f-9d18-c2e5f08a4b71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui\input">
+      <UniqueIdentifier>{8d2f6b30-41ce-4a95-b7e3-5c19a0d4f286}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ui\platform">
+      <UniqueIdentifier>{c51e7a94-2d68-4f03-8b1a-6e9d3f27c045}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header Files\ui\platform">
       <UniqueIdentifier>{da3e8eb0-7cdf-43e4-ba22-3e05287a5bf4}</UniqueIdentifier>
     </Filter>
@@ -189,8 +198,8 @@
     <ClCompile Include="applets\profile_select.cpp">
       <Filter>Source Files\applets</Filter>
     </ClCompile>
-    <ClCompile Include="user_interface\file_dialogs.cpp">
-      <Filter>Source Files\user_interface</Filter>
+    <ClCompile Include="ui\platform\file_dialogs.cpp">
+      <Filter>Source Files\ui\platform</Filter>
     </ClCompile>
     <ClCompile Include="ui\ui_application.cpp">
       <Filter>Source Files\ui</Filter>
@@ -329,8 +338,8 @@
     <ClInclude Include="user_interface\directory_watcher.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
-    <ClInclude Include="user_interface\file_dialogs.h">
-      <Filter>Header Files\user_interface</Filter>
+    <ClInclude Include="ui\platform\file_dialogs.h">
+      <Filter>Header Files\ui\platform</Filter>
     </ClInclude>
     <ClInclude Include="ui\ui_application.h">
       <Filter>Header Files\ui</Filter>
@@ -403,6 +412,57 @@
     <ClCompile Include="ui\views\rml_events.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\advanced_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\controller_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\controller_picture.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\directories_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\hotkeys.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\profiles_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\shortcut.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\sdl_input.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\input\input_params.cpp">
+      <Filter>Source Files\ui\input</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\input\input_text.cpp">
+      <Filter>Source Files\ui\input</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\library\firmware_avatars.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\library\ui_preferences.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\general_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\settings_context.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\settings_controls.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\user_profiles.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\i18n\translation.cpp">
       <Filter>Source Files\ui\i18n</Filter>
     </ClCompile>
@@ -434,6 +494,66 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\rml_events.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\advanced_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\controller_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\controller_picture.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\directories_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\hotkeys.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\profiles_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\shortcut.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\sdl_input.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\input\input_params.h">
+      <Filter>Header Files\ui\input</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\input\input_text.h">
+      <Filter>Header Files\ui\input</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\firmware_avatars.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\ui_preferences.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\general_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\settings_context.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\settings_controls.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\user_profiles.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\settings_page.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\resolution_scales.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\scaling_filters.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\i18n\translation.h">

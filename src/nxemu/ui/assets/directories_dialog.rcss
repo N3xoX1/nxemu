@@ -1,0 +1,85 @@
+.directories
+{
+    flex: 1;
+    min-height: 0;
+    margin-top: 14dp;
+    overflow-y: auto;
+}
+
+.directory
+{
+    display: flex;
+    align-items: center;
+    margin-bottom: 6dp;
+    padding: 8dp 8dp 8dp 12dp;
+    border: 1dp var(--raised);
+    border-radius: 6dp;
+    background-color: var(--surface);
+}
+
+.directory img
+{
+    width: 16dp;
+    height: 16dp;
+    margin-right: 12dp;
+}
+
+.directory-texts
+{
+    flex: 1;
+    min-width: 0;
+}
+
+.directory-path
+{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.directory-note
+{
+    margin-top: 2dp;
+    color: var(--warning);
+    font-size: 12dp;
+}
+
+.directory.missing .directory-path
+{
+    color: var(--text-muted);
+}
+
+.directory button
+{
+    margin-left: 12dp;
+}
+
+.directory-none
+{
+    padding: 28dp 0;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.settings-locked
+{
+    display: none;
+    padding-top: 7dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+body.library-locked button.footer-start
+{
+    display: none;
+}
+
+body.library-locked .settings-locked
+{
+    display: block;
+}
+
+body.narrow .directories
+{
+    overflow-y: visible;
+}

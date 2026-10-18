@@ -188,6 +188,34 @@ bool UiRenderer::ChooseFormats()
     return true;
 }
 
+std::vector<UiRenderer::GraphicsDevice> UiRenderer::GraphicsDevices() const
+{
+    std::vector<GraphicsDevice> result;
+    if (!IsBound())
+    {
+        return result;
+    }
+    uint32_t count = 0;
+    if (m_api.EnumeratePhysicalDevices(m_context.instance, &count, nullptr) != VK_SUCCESS || count == 0)
+    {
+        return result;
+    }
+    std::vector<VkPhysicalDevice> devices(count);
+    const VkResult listed = m_api.EnumeratePhysicalDevices(m_context.instance, &count, devices.data());
+    if (listed != VK_SUCCESS && listed != VK_INCOMPLETE)
+    {
+        return result;
+    }
+    devices.resize(count);
+    for (const VkPhysicalDevice device : devices)
+    {
+        VkPhysicalDeviceProperties properties{};
+        m_api.GetPhysicalDeviceProperties(device, &properties);
+        result.push_back({properties.deviceName, properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, device == m_context.physicalDevice});
+    }
+    return result;
+}
+
 bool UiRenderer::CreateSamplers()
 {
     VkSamplerCreateInfo info{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
@@ -640,6 +668,11 @@ void UiRenderer::FlushUploads()
         Retire([this, staging = upload.staging]() mutable { DestroyBuffer(staging); });
     }
     m_uploads.clear();
+}
+
+std::string UiRenderer::FileImageSource(const std::string & utf8Path)
+{
+    return utf8Path.starts_with('/') ? "/" + utf8Path : utf8Path;
 }
 
 std::string UiRenderer::AddMemoryImage(std::vector<uint8_t> encoded)

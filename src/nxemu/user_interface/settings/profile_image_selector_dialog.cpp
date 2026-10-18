@@ -1,6 +1,6 @@
 #include "profile_image_selector_dialog.h"
 #include "profile_firmware_avatar_dialog.h"
-#include "user_interface/file_dialogs.h"
+#include "ui/platform/file_dialogs.h"
 #include "user_interface/html_utils.h"
 #include <common/path.h>
 #include <nxemu-core/modules/system_modules.h>
