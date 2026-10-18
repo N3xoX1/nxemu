@@ -15,7 +15,9 @@ struct GameEntry
     uint64_t programId = 0;
     std::string title;
     std::string version;
+    std::string publisher;
     std::string icon;
+    uint64_t size = 0;
 };
 
 struct FoundGame

@@ -15,6 +15,7 @@
 #include <nxemu/ui/host/shell.h>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
+#include <nxemu/ui/library/ui_preferences.h>
 #include <tuple>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/path_util.h>
@@ -27,6 +28,8 @@ constexpr float kNarrowWidth = 800.0f;
 constexpr float kCompactWidth = 560.0f;
 constexpr uint64_t kVersionCopiedMs = 1500;
 constexpr uint64_t kStatusIntervalMs = 1000;
+constexpr int kGameIconMin = 96;
+constexpr int kGameIconMax = 240;
 constexpr int kGameIconDefault = 146;
 constexpr int kGameIconSteps[] = {108, 146, 176, 216};
 constexpr int kGameIconStepCount = static_cast<int>(sizeof(kGameIconSteps) / sizeof(kGameIconSteps[0]));
@@ -38,6 +41,56 @@ constexpr size_t kIconsPerFrame = 2;     // pictures decoded in one frame, each 
 constexpr size_t kMaxLoadedIcons = 256;  // pictures kept as textures, unless more are on screen at once
 constexpr size_t kMinMarginRows = 2;     // rows kept ready beyond those in sight, each way
 constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse that stays
+constexpr int kScrollbarWidth = 12;
+constexpr uint64_t kIconSizeSaveDelayMs = 400;
+
+const char * const kGameSorts[] = {TrMark("Name"), TrMark("Publisher"), TrMark("Recent"), TrMark("Play time"), TrMark("Size")};
+constexpr int kGameSortCount = static_cast<int>(sizeof(kGameSorts) / sizeof(kGameSorts[0]));
+constexpr int kSortByName = 0;
+constexpr int kSortByPublisher = 1;
+constexpr int kSortBySize = 4;
+constexpr int kOfferedSorts[] = {kSortByName, kSortByPublisher, kSortBySize};
+
+struct ListColumn
+{
+    const char * hiddenClass;
+    float minWidth;
+};
+constexpr ListColumn kOptionalListColumns[] = {
+    {"hide-size", 930.0f}, {"hide-publisher", 700.0f}, {"hide-format", 560.0f},
+    {"hide-number", 480.0f}, {"hide-version", 410.0f}, {"hide-play-label", 400.0f},
+};
+
+int GameIconSize()
+{
+    const int size = UiPreferences::GetInt(UiPreferences::GameIconSize, kGameIconDefault);
+    return size >= 1 && size <= kGameIconStepCount ? kGameIconSteps[size - 1] : std::clamp(size, kGameIconMin, kGameIconMax);
+}
+
+int GameSort()
+{
+    const int sort = UiPreferences::GetInt(UiPreferences::GameSort, kSortByName);
+    return std::find(std::begin(kOfferedSorts), std::end(kOfferedSorts), sort) != std::end(kOfferedSorts) ? sort : kSortByName;
+}
+
+std::string FileFormat(const std::string & utf8Path)
+{
+    std::string extension = Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(utf8Path)}.extension());
+    extension.erase(0, extension.find_first_not_of('.'));
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char character) { return static_cast<char>(std::toupper(character)); });
+    return extension;
+}
+
+std::string FileSize(uint64_t bytes)
+{
+    if (bytes == 0)
+    {
+        return {};
+    }
+    constexpr double kMegabyte = 1024.0 * 1024.0;
+    constexpr double kGigabyte = kMegabyte * 1024.0;
+    return bytes >= kGigabyte ? Tr("%1 GB", {stdstr_f("%.2f", bytes / kGigabyte)}) : Tr("%1 MB", {stdstr_f("%.0f", bytes / kMegabyte)});
+}
 
 int GameIconStep(int size)
 {
@@ -82,7 +135,6 @@ MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary
     m_session(session),
     m_library(library),
     m_assetDir(std::move(assetDir)),
-    m_iconSize(kGameIconDefault),
     m_hotkeyRevision(Hotkeys::Revision())
 {
     m_session.SetListener(this);
@@ -91,6 +143,7 @@ MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary
 MainWindow::~MainWindow()
 {
     m_session.SetListener(nullptr);
+    SaveIconSize();
     m_window.DetachVideo();
 }
 
@@ -133,6 +186,8 @@ bool MainWindow::Create()
     SetTitle({});
     ShowPanel(Panel::RomBrowser);
     UpdateStatusText();
+    m_iconSize = GameIconSize();
+    ApplyLibraryOptions();
     ApplyIconSize();
     m_library.StartScan(m_session.Modules());
     RenderGames();
@@ -258,6 +313,23 @@ void MainWindow::Update()
     }
     RenderVisibleGames();
     LoadPendingIcons();
+    LayoutList();
+    if (m_fitWindow)
+    {
+        m_fitWindow = false;
+        FitWindowToCards();
+    }
+    if (m_pendingIconSize != 0 && m_pendingIconSize != m_iconSize)
+    {
+        m_iconSize = m_pendingIconSize;
+        m_iconSizeChanged = SDL_GetTicks64();
+        ApplyIconSize();
+    }
+    m_pendingIconSize = 0;
+    if (m_iconSizeChanged != 0 && SDL_GetTicks64() - m_iconSizeChanged >= kIconSizeSaveDelayMs)
+    {
+        SaveIconSize();
+    }
     SyncPhase();
     if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty())
     {
@@ -352,6 +424,17 @@ void MainWindow::RunPendingWork()
     {
         Run(action);
     }
+    if (!actions.empty() && m_gameMenu->IsOpen() && m_gameMenu->Origin() != nullptr && m_pendingSelectMenu == nullptr &&
+        m_gameMenu->Origin()->IsClassSet("select"))
+    {
+        m_pendingSelectMenu = m_gameMenu->Origin();
+    }
+    if (m_pendingSelectMenu != nullptr)
+    {
+        Rml::Element * origin = m_pendingSelectMenu;
+        m_pendingSelectMenu = nullptr;
+        ShowSelectMenu(origin);
+    }
     if (!m_pendingGame.empty())
     {
         if (!m_launchReady)
@@ -377,6 +460,33 @@ void MainWindow::Run(Action action)
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
+    case Action::PlaySelectedGame:
+        if (!m_selectedPath.empty())
+        {
+            OpenGame(m_selectedPath);
+        }
+        break;
+    case Action::ToggleCardInformation:
+        UiPreferences::SetBool(UiPreferences::ShowCardInformation, !UiPreferences::GetBool(UiPreferences::ShowCardInformation, true));
+        ApplyLibraryOptions();
+        break;
+    case Action::ShowGridView:
+    case Action::ShowListView:
+        if (UiPreferences::GetBool(UiPreferences::GameListView, false) != (action == Action::ShowListView))
+        {
+            UiPreferences::SetBool(UiPreferences::GameListView, action == Action::ShowListView);
+            ApplyLibraryOptions();
+            m_gamesDirty = true;
+        }
+        break;
+    case Action::TogglePlayTime:
+        UiPreferences::SetBool(UiPreferences::ShowPlayTime, !UiPreferences::GetBool(UiPreferences::ShowPlayTime, true));
+        ApplyLibraryOptions();
+        break;
+    case Action::ToggleCardTitle:
+        UiPreferences::SetBool(UiPreferences::ShowCardTitle, !UiPreferences::GetBool(UiPreferences::ShowCardTitle, true));
+        ApplyLibraryOptions();
+        break;
     case Action::ToggleSpeedLimit:
     {
         SettingsStore & settings = SettingsStore::GetInstance();
@@ -418,7 +528,16 @@ void MainWindow::Run(Action action)
         ShowVersion();
         break;
     default:
+    {
+        const int sort = static_cast<int>(action) - static_cast<int>(Action::GameSortFirst);
+        if (sort >= 0 && sort < kGameSortCount)
+        {
+            UiPreferences::SetInt(UiPreferences::GameSort, sort);
+            ApplyLibraryOptions();
+            m_gamesDirty = true;
+        }
         break;
+    }
     }
 }
 
@@ -439,6 +558,32 @@ void MainWindow::BindEvents()
     const auto onClick = [this](const char * id, Action action) {
         UiEvents::Listen(m_document->GetElementById(id), "click", [this, action](Rml::Event &) { Post(action); });
     };
+    onClick("card-information", Action::ToggleCardInformation);
+    onClick("view-grid", Action::ShowGridView);
+    onClick("view-list", Action::ShowListView);
+    onClick("play-time", Action::TogglePlayTime);
+    onClick("card-title", Action::ToggleCardTitle);
+    UiEvents::Listen(m_document->GetElementById("icon-size-slider"), "change", [this](Rml::Event & event) {
+        m_pendingIconSize = std::clamp(static_cast<int>(std::lround(event.GetParameter<float>("value", 0.0f))), kGameIconMin, kGameIconMax);
+    });
+    Rml::Element * sortSelect = m_document->GetElementById("games-sort");
+    UiEvents::Listen(sortSelect, "click", [this, sortSelect](Rml::Event &) {
+        if (sortSelect == m_gameMenu->Origin())
+        {
+            m_gameMenu->Close();
+        }
+        else
+        {
+            m_pendingSelectMenu = sortSelect;
+        }
+    });
+    UiEvents::Listen(m_document->GetElementById("games-list-header"), "click", [this](Rml::Event & event) {
+        const int sort = event.GetTargetElement()->GetAttribute<int>("data-sort", -1);
+        if (std::find(std::begin(kOfferedSorts), std::end(kOfferedSorts), sort) != std::end(kOfferedSorts))
+        {
+            Post(static_cast<Action>(static_cast<int>(Action::GameSortFirst) + sort));
+        }
+    });
     onClick("title-settings", Action::OpenSettings);
     onClick("title-controllers", Action::ConfigureControllers);
     onClick("title-version", Action::CopyVersion);
@@ -451,8 +596,16 @@ void MainWindow::BindEvents()
     });
     UiEvents::Listen(m_document->GetElementById("games-grid"), "click", [this](Rml::Event & event) {
         SelectGame(UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-game"));
+        if (m_selectedGame != nullptr && UiEvents::ClosestWithClass(event.GetTargetElement(), "row-play") != nullptr)
+        {
+            Post(Action::PlaySelectedGame);
+        }
     });
     UiEvents::Listen(m_document->GetElementById("games-grid"), "dblclick", [this](Rml::Event & event) {
+        if (UiEvents::ClosestWithClass(event.GetTargetElement(), "row-play") != nullptr)
+        {
+            return;
+        }
         Rml::Element * card = UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-game");
         const size_t index = card != nullptr ? static_cast<size_t>(card->GetAttribute<int>("data-game", -1)) : m_games.size();
         if (index < m_games.size())
@@ -554,6 +707,7 @@ void MainWindow::AddGames(std::vector<FoundGame> found)
     std::stable_sort(m_games.begin(), m_games.end(), [](const GameEntry & left, const GameEntry & right) {
         return std::forward_as_tuple(Folded(left.title), left.path) < std::forward_as_tuple(Folded(right.title), right.path);
     });
+    m_selectedGame = nullptr;
     m_gamesDirty = true;
 }
 
@@ -587,10 +741,19 @@ void MainWindow::RenderGames()
     std::vector<size_t> shown;
     for (size_t i = 0; i < m_games.size(); i++)
     {
-        if (search.empty() || Folded(m_games[i].title).find(search) != std::string::npos)
+        if (search.empty() || Folded(m_games[i].title).find(search) != std::string::npos || Folded(m_games[i].publisher).find(search) != std::string::npos)
         {
             shown.push_back(i);
         }
+    }
+    const int sort = GameSort();
+    if (sort == kSortByPublisher)
+    {
+        std::stable_sort(shown.begin(), shown.end(), [this](size_t left, size_t right) { return Folded(m_games[left].publisher) < Folded(m_games[right].publisher); });
+    }
+    else if (sort == kSortBySize)
+    {
+        std::stable_sort(shown.begin(), shown.end(), [this](size_t left, size_t right) { return m_games[left].size > m_games[right].size; });
     }
 
     std::string count = TrCount("%n game", "%n games", m_games.size());
@@ -629,13 +792,14 @@ void MainWindow::RenderVisibleGames()
     {
         return;
     }
+    const bool list = grid->IsClassSet("list");
     float rowHeight = m_gameRowHeight;
     if (Rml::Element * item = grid->QuerySelector(".rom-game"))
     {
         const float height = item->GetOffsetHeight() + item->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom);
         rowHeight = height > 0.0f ? height : rowHeight;
     }
-    const size_t columns = static_cast<size_t>(std::max(grid->GetClientWidth() / CardStep(), 1.0f));
+    const size_t columns = list ? 1 : static_cast<size_t>(std::max(grid->GetClientWidth() / CardStep(), 1.0f));
     const size_t rows = (m_shownGames.size() + columns - 1) / columns;
     size_t firstInSight = 0;
     size_t lastInSight = std::min<size_t>(rows, kUnmeasuredRows);
@@ -653,11 +817,11 @@ void MainWindow::RenderVisibleGames()
         return;
     }
     const size_t count = m_shownGames.size();
-    const auto itemsRml = [this, columns, count](size_t fromRow, size_t toRow) {
+    const auto itemsRml = [this, list, columns, count](size_t fromRow, size_t toRow) {
         std::string rml;
         for (size_t position = fromRow * columns; position < std::min(toRow * columns, count); position++)
         {
-            rml += CardRml(m_shownGames[position]);
+            rml += list ? ListRowRml(m_shownGames[position], position + 1) : CardRml(m_shownGames[position]);
         }
         return rml;
     };
@@ -791,9 +955,153 @@ std::string MainWindow::CardRml(size_t index)
     {
         details += "<div class=\"rom-chip rom-version\"><img src=\"images/gear.png\"/><div>v" + Rml::StringUtilities::EncodeRml(game.version) + "</div></div>";
     }
+    if (!game.version.empty() && !game.publisher.empty())
+    {
+        details += "<div class=\"rom-chip-rule\"/>";
+    }
+    if (!game.publisher.empty())
+    {
+        details += "<div class=\"rom-chip rom-publisher\"><img src=\"images/building.png\"/><div>" + Rml::StringUtilities::EncodeRml(TrUpper(game.publisher)) + "</div></div>";
+    }
     rml += "</div><div class=\"rom-info\"><div class=\"rom-title\">" + Rml::StringUtilities::EncodeRml(game.title) + "</div>" +
            (details.empty() ? std::string() : "<div class=\"rom-details\">" + details + "</div>") + "</div></div>";
     return rml;
+}
+
+std::string MainWindow::ListRowRml(size_t index, size_t number)
+{
+    const GameEntry & game = m_games[index];
+    const bool selected = game.path == m_selectedPath && game.programId == m_selectedProgramId;
+    const std::string format = FileFormat(game.path);
+    const char * kind = format.find("XCI") != std::string::npos ? " xci" : format.find("NSP") != std::string::npos ? " nsp" : "";
+    const auto cell = [](const char * name, const std::string & text) {
+        return std::string("<div class=\"col-") + name + "\">" + Rml::StringUtilities::EncodeRml(text) + "</div>";
+    };
+    std::string rml = std::string("<div class=\"rom-game rom-row") + (selected ? " selected" : "") + "\" data-game=\"" + std::to_string(index) + "\">" +
+                      cell("number", std::to_string(number)) + "<div class=\"col-cover\">";
+    rml += IconRml(game.icon);
+    rml += "</div>" + cell("game", game.title) + cell("publisher", game.publisher) + cell("version", game.version.empty() ? std::string() : "v" + game.version) +
+           "<div class=\"col-format\">" +
+           (format.empty() ? std::string() : "<div class=\"format-badge" + std::string(kind) + "\">" + Rml::StringUtilities::EncodeRml(format) + "</div>") + "</div>" +
+           cell("size", FileSize(game.size)) + "<div class=\"col-actions\"><div class=\"row-play\"><img src=\"images/play.png\"/><div>" +
+           Rml::StringUtilities::EncodeRml(Tr("Play")) + "</div></div></div></div>";
+    return rml;
+}
+
+void MainWindow::ApplyLibraryOptions()
+{
+    const bool information = UiPreferences::GetBool(UiPreferences::ShowCardInformation, true);
+    const bool playTime = UiPreferences::GetBool(UiPreferences::ShowPlayTime, true);
+    const bool list = UiPreferences::GetBool(UiPreferences::GameListView, false);
+    const bool title = UiPreferences::GetBool(UiPreferences::ShowCardTitle, true);
+    if (Rml::Element * grid = m_document->GetElementById("games-grid"))
+    {
+        grid->SetClass("list", list);
+        grid->SetClass("no-details", !information);
+        grid->SetClass("no-play-time", !playTime);
+        grid->SetClass("no-title", !title);
+    }
+    if (Rml::Element * slider = m_document->GetElementById("icon-size-slider"))
+    {
+        const Rml::String value = std::to_string(m_iconSize);
+        if (slider->GetAttribute<Rml::String>("value", "") != value)
+        {
+            slider->SetAttribute("value", value);
+        }
+    }
+    const auto setClass = [this](const char * id, const char * name, bool set) {
+        if (Rml::Element * element = m_document->GetElementById(id))
+        {
+            element->SetClass(name, set);
+        }
+    };
+    setClass("card-title", "on", title);
+    setClass("card-information", "on", information);
+    setClass("play-time", "on", playTime);
+    setClass("view-grid", "active", !list);
+    setClass("view-list", "active", list);
+    setClass("games-list-header", "shown", list);
+    if (Rml::Element * header = m_document->GetElementById("games-list-header"))
+    {
+        for (int i = 0; i < header->GetNumChildren(); i++)
+        {
+            Rml::Element * heading = header->GetChild(i);
+            heading->SetClass("sorted", heading->GetAttribute<int>("data-sort", -1) == GameSort());
+        }
+    }
+    SetText("games-sort-text", Tr(kGameSorts[GameSort()]));
+}
+
+void MainWindow::LayoutList()
+{
+    Rml::Element * grid = m_document->GetElementById("games-grid");
+    Rml::Element * header = m_document->GetElementById("games-list-header");
+    Rml::Element * main = grid != nullptr ? grid->GetParentNode() : nullptr;
+    if (header == nullptr || main == nullptr || !grid->IsClassSet("list"))
+    {
+        return;
+    }
+    const float width = grid->GetClientWidth() / m_document->GetContext()->GetDensityIndependentPixelRatio();
+    for (const ListColumn & column : kOptionalListColumns)
+    {
+        main->SetClass(column.hiddenClass, width < column.minWidth);
+    }
+    const float scrollBar = std::max(grid->GetOffsetWidth() - grid->GetClientWidth(), 0.0f);
+    if (scrollBar != m_listScrollBar)
+    {
+        m_listScrollBar = scrollBar;
+        header->SetProperty(Rml::PropertyId::PaddingRight, Rml::Property(scrollBar, Rml::Unit::PX));
+    }
+}
+
+void MainWindow::SaveIconSize()
+{
+    if (m_iconSizeChanged != 0)
+    {
+        m_iconSizeChanged = 0;
+        UiPreferences::SetInt(UiPreferences::GameIconSize, m_iconSize);
+    }
+}
+
+void MainWindow::FitWindowToCards()
+{
+    int width = 0, height = 0;
+    m_window.GetClientSize(width, height);
+    Rml::Element * grid = m_document->GetElementById("games-grid");
+    if (m_phase == EmulatorSession::Phase::Idle && grid != nullptr && !grid->IsClassSet("list") && grid->GetOffsetWidth() > 0.0f)
+    {
+        const float scrollbar = static_cast<float>(kScrollbarWidth) * m_document->GetContext()->GetDensityIndependentPixelRatio();
+        const float around = static_cast<float>(width) * m_window.PixelScale() - grid->GetOffsetWidth();
+        const float columns = std::max(std::round((grid->GetOffsetWidth() - scrollbar) / CardStep()), 1.0f);
+        width = static_cast<int>(std::ceil((around + columns * CardStep() + scrollbar + 1.0f) / m_window.PixelScale()));
+    }
+    m_window.SetClientSize(width, height);
+    m_window.Centre();
+}
+
+void MainWindow::ShowSelectMenu(Rml::Element * origin)
+{
+    std::vector<MenuItem> items;
+    if (origin->GetId() == "games-sort")
+    {
+        const int current = GameSort();
+        for (const int sort : kOfferedSorts)
+        {
+            items.push_back(MenuItem::Choice(static_cast<int>(Action::GameSortFirst) + sort, Tr(kGameSorts[sort]), sort == current));
+        }
+    }
+    if (items.empty())
+    {
+        m_gameMenu->Close();
+    }
+    else if (m_gameMenu->IsOpen() && m_gameMenu->Origin() == origin)
+    {
+        m_gameMenu->Update(items);
+    }
+    else
+    {
+        m_gameMenu->Show(items, origin);
+    }
 }
 
 void MainWindow::ApplyIconSize()
