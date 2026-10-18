@@ -7,7 +7,9 @@
 #include "ui/views/main_window.h"
 #include <iostream>
 #include <nxemu-core/app_init.h>
+#include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-os/os_settings_identifiers.h>
 #include <string>
 #include <yuzu_common/fs/path_util.h>
 
