@@ -2,9 +2,12 @@
 #include <SDL.h>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/system_loader.h>
+#include <string>
 #include <vector>
 
 class UiNotification;
@@ -40,11 +43,18 @@ public:
     bool Initialise();
     bool IsValid() const { return m_modules.IsValid(); }
     ISystemModules & Modules() { return m_modules.Modules(); }
-    bool IsRunning() const;
     void FlushSettings();
-    void Update();
+
+    bool LoadGame(const std::string & path);
+    void Stop();
+    void TogglePause();
+    bool IsRunning() const;
     bool IsPaused();
     Phase CurrentPhase() const;
+
+    void Update();
+    void HandleKey(const SDL_KeyboardEvent & event);
+    void SetViewportSize(uint32_t width, uint32_t height);
 
 private:
     EmulatorSession(const EmulatorSession &) = delete;
@@ -71,7 +81,12 @@ private:
         uint64_t generation;
     };
 
+    bool LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
+                     ApplicationLaunchType launchType, const UserChannel & userChannel);
+    bool ResetModules();
     void RegisterSystemCallbacks();
+    void ProcessProgramEvents();
+    void ReportError(const std::string & message);
 
     static void CollectUserChannel(const uint8_t * data, uint32_t size, void * userData);
     static void ExecuteProgramCallback(uint32_t index, void * userData);
@@ -86,4 +101,9 @@ private:
     std::deque<ProgramEvent> m_programEvents;
     std::unique_ptr<CallbackContext> m_callbackContext;
     uint64_t m_moduleGeneration = 0;
+    int32_t m_currentProgramIndex = 0;
+    int32_t m_previousProgramIndex = -1;
+    uint32_t m_viewportWidth = 0;
+    uint32_t m_viewportHeight = 0;
+    bool m_releasePending = false;
 };

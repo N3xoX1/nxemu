@@ -31,6 +31,7 @@ public:
     ~MainWindow();
 
     bool Create();
+    void OpenGame(const std::string & path);
     void RequestQuit();
     bool QuitRequested() const { return m_quit; }
 
@@ -140,7 +141,12 @@ private:
     void SizeCard(Rml::Element * card) const;
     float CardStep() const;
     void SelectGame(Rml::Element * card);
+    void SyncPhase();
     void ShowPanel(Panel panel);
+    bool DialogOpen() const;
+    void AnnounceGame();
+    void LayoutGameArea();
+    void StopGame();
     bool ShowSettingsPage(SettingsPage page);
     void SetTitle(const std::string & game);
     void ShowVersion();
@@ -187,6 +193,10 @@ private:
     Rml::Element * m_pendingGameMenu = nullptr;
     Rml::Element * m_pendingSelectMenu = nullptr;
     std::string m_pendingGame;
+    bool m_launchReady = false;
+    bool m_gameShown = false;
+    bool m_rescanGames = false;
+    PixelRect m_gameArea{};
     EmulatorSession::Phase m_phase = EmulatorSession::Phase::Idle;
     Panel m_panel = Panel::RomBrowser;
     bool m_menuDirty = true;
