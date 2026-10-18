@@ -3,6 +3,9 @@
 #include <RmlUi/Core/DecorationTypes.h>
 #include <RmlUi/Core/Dictionary.h>
 #include <RmlUi/Core/Log.h>
+#include <RmlUi/Core/Math.h>
+#include <algorithm>
+#include <cmath>
 
 #include <ui_shaders/blend_mask_frag_spv.h>
 #include <ui_shaders/blur_frag_spv.h>
@@ -14,6 +17,8 @@
 #include <ui_shaders/gradient_frag_spv.h>
 #include <ui_shaders/passthrough_frag_spv.h>
 #include <ui_shaders/texture_frag_spv.h>
+
+static_assert(sizeof(UiRendererInternal::GeometryConstants) <= UiRendererInternal::kConstantSize);
 
 enum class FilterType
 {

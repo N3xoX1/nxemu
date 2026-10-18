@@ -5,19 +5,24 @@ function(nxemu_set_app_output target)
         LIBRARY_OUTPUT_DIRECTORY "${_out}"
         ARCHIVE_OUTPUT_DIRECTORY "${_out}/lib"
     )
+    get_target_property(_type ${target} TYPE)
+    if(_type STREQUAL "EXECUTABLE")
+        nxemu_apply_link_settings(${target})
+    endif()
 endfunction()
 
 function(nxemu_set_module_output target module_name)
-    if(APPLE)
-        # Keep modules from different build trees/configurations from overwriting
-        # each other. The bundle receives exactly these target files.
-        set(_out "${CMAKE_BINARY_DIR}/modules/${NXEMU_PLATFORM_DIR}/$<CONFIG>/${module_name}")
-    else()
-        set(_out "${CMAKE_SOURCE_DIR}/modules/${NXEMU_PLATFORM_DIR}/${module_name}")
-    endif()
+    # Each build tree/configuration owns its modules. Packaging copies the
+    # actual target files, rather than picking up another build's binaries.
+    set(_out "${CMAKE_BINARY_DIR}/modules/${NXEMU_PLATFORM_DIR}/$<CONFIG>/${module_name}")
     set_target_properties(${target} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${_out}"
         LIBRARY_OUTPUT_DIRECTORY "${_out}"
         ARCHIVE_OUTPUT_DIRECTORY "${_out}"
     )
+    if(WIN32)
+        # core_settings.cpp looks for the _d modules in Windows debug builds.
+        set_target_properties(${target} PROPERTIES DEBUG_POSTFIX "_d")
+    endif()
+    nxemu_apply_link_settings(${target})
 endfunction()
