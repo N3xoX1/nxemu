@@ -1,10 +1,11 @@
 /* What the pages of the settings share: the panel, and the categories on its
    left. Each page is a dialog of its own that looks like the others. */
-/* The title bar of the window stays in reach, however small the window. */
+/* Equal space above and below keeps the settings centred and the title bar
+   within reach, even when the panel fills the available height. */
 body
 {
     box-sizing: border-box;
-    padding-top: 38dp;
+    padding: 38dp 0;
 }
 
 .settings-dialog

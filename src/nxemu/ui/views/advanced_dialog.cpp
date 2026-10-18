@@ -18,6 +18,7 @@
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/video.h>
 #include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu-os/os_types.h>
 #include <nxemu-video/video_settings_identifiers.h>
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
@@ -241,6 +242,23 @@ AdvancedDialog::AdvancedDialog(UiWindow & window, EmulatorSession & session, Set
 {
 }
 
+void AdvancedDialog::ShowPage(SettingsPage page)
+{
+    m_debug = page == SettingsPage::Debug;
+    if (IsVisible())
+    {
+        m_hotkeyAsked = -1;
+        m_hotkeyNote.clear();
+        Document()->SetClass("confirm-defaults", false);
+        ShowTab();
+        ShowHotkeys();
+    }
+    else
+    {
+        Show();
+    }
+}
+
 void AdvancedDialog::OnOpen()
 {
     m_running = m_session.IsRunning() && !m_settings.IsGame();
@@ -311,6 +329,12 @@ void AdvancedDialog::OnCommand(const std::string & command)
     SettingsPage page;
     if (SettingsPageOf(command, page))
     {
+        if (page == SettingsPage::Advanced || page == SettingsPage::Debug)
+        {
+            ApplyLogFilter();
+            ShowPage(page);
+            return;
+        }
         if (m_openPage(page))
         {
             OnCloseRequested();
@@ -322,11 +346,39 @@ void AdvancedDialog::OnCommand(const std::string & command)
         m_tab = command.substr(std::string(kTabPrefix).size());
         ShowTab();
     }
-    else if (command.rfind(kHotkeyPrefix, 0) == 0)
+    else if (command.rfind("clear-keyboard:", 0) == 0 || command.rfind("clear-gamepad:", 0) == 0)
+    {
+        const bool gamepad = command.rfind("clear-gamepad:", 0) == 0;
+        const int index = std::atoi(command.c_str() + (gamepad ? 14 : 15));
+        if (index < 0 || index >= static_cast<int>(std::size(Hotkeys::kAll)))
+        {
+            return;
+        }
+        const HotkeyId id = Hotkeys::kAll[index].id;
+        if (gamepad)
+        {
+            Hotkeys::SetGamepad(id, {});
+        }
+        else
+        {
+            Hotkeys::Set(id, {});
+        }
+        m_hotkeyAsked = -1;
+        m_hotkeyNote.clear();
+        ShowHotkeys();
+    }
+    else if (command.rfind(kHotkeyPrefix, 0) == 0 || command.rfind("gamepad:", 0) == 0)
     {
         // A second click on the shortcut that waits gives it up.
-        const int asked = std::atoi(command.c_str() + std::string(kHotkeyPrefix).size());
-        m_hotkeyAsked = asked == m_hotkeyAsked || asked < 0 || asked >= static_cast<int>(std::size(Hotkeys::kAll)) ? -1 : asked;
+        const bool gamepad = command.rfind("gamepad:", 0) == 0;
+        const int asked = std::atoi(command.c_str() + (gamepad ? 8 : std::string(kHotkeyPrefix).size()));
+        m_hotkeyAsked = (asked == m_hotkeyAsked && gamepad == m_hotkeyGamepad) || asked < 0 || asked >= static_cast<int>(std::size(Hotkeys::kAll)) ? -1 : asked;
+        m_hotkeyGamepad = gamepad;
+        m_hotkeyDevice = -1;
+        if (gamepad && m_hotkeyAsked >= 0 && !Hotkeys::kAll[m_hotkeyAsked].inGame)
+        {
+            m_hotkeyAsked = -1;
+        }
         m_hotkeyNote.clear();
         ShowHotkeys();
     }
@@ -420,6 +472,39 @@ void AdvancedDialog::FillLists()
         choices.push_back({Tr("%1 (not connected)", {input}), input, Tr("Games listen to the default of the computer until it is back.")});
     }
     Fill(Select(Document(), "audio-input"), choices, input.empty() ? kDefaultAudioDevice : input);
+
+    const std::string output = settings.GetString(NXOsSetting::AudioOutputDeviceId);
+    std::vector<std::string> outputs;
+    if (m_session.IsValid())
+    {
+        m_session.Modules().OperatingSystem().AudioGetDeviceListForSink(static_cast<uint32_t>(engine), false, CollectDevice, &outputs);
+    }
+    choices.clear();
+    choices.push_back({Tr("System default"), kDefaultAudioDevice, Tr("The one the computer plays its sounds on.")});
+    listed = output == kDefaultAudioDevice || output.empty();
+    for (const std::string & device : outputs)
+    {
+        if (device != kDefaultAudioDevice)
+        {
+            choices.push_back({device, device, {}});
+            listed = listed || device == output;
+        }
+    }
+    if (!listed)
+    {
+        choices.push_back({Tr("%1 (not connected)", {output}), output, Tr("Games play on the default of the computer until it is back.")});
+    }
+    Fill(Select(Document(), "audio-device"), choices, output.empty() ? kDefaultAudioDevice : output);
+
+    const int audioMode = settings.GetInt(NXOsSetting::AudioMode);
+    choices.clear();
+    choices.push_back(Numbered(Tr("Stereo"), static_cast<int>(AudioMode::Stereo), Tr("Two channels: headphones and most speakers.")));
+    choices.push_back(Numbered(Tr("Surround"), static_cast<int>(AudioMode::Surround), Tr("Six channels, for speakers set around the room.")));
+    if (audioMode == static_cast<int>(AudioMode::Mono))
+    {
+        choices.push_back(Numbered(Tr("Mono"), audioMode, Tr("One channel.")));
+    }
+    Fill(Select(Document(), "audio-mode"), choices, std::to_string(audioMode));
 }
 
 bool AdvancedDialog::HandleKey(const SDL_KeyboardEvent & event)
@@ -435,6 +520,30 @@ bool AdvancedDialog::HandleKey(const SDL_KeyboardEvent & event)
         return true;
     }
     const Hotkeys::Info & asked = Hotkeys::kAll[m_hotkeyAsked];
+    if (!shortcut.ctrl && !shortcut.alt && !shortcut.shift && (shortcut.key == SDLK_DELETE || shortcut.key == SDLK_BACKSPACE))
+    {
+        if (m_hotkeyGamepad)
+        {
+            Hotkeys::SetGamepad(asked.id, {});
+        }
+        else
+        {
+            Hotkeys::Set(asked.id, {});
+        }
+        m_hotkeyAsked = -1;
+        m_hotkeyNote.clear();
+        ShowHotkeys();
+        return true;
+    }
+    if (m_hotkeyGamepad)
+    {
+        if (shortcut.key == SDLK_ESCAPE)
+        {
+            m_hotkeyAsked = -1;
+        }
+        ShowHotkeys();
+        return true;
+    }
     if (!Hotkeys::Usable(shortcut))
     {
         m_hotkeyNote = Tr("A shortcut is a function key, or a key with %1 or Alt.", {CommandKeyboard() ? "Cmd" : "Ctrl"});
@@ -456,15 +565,28 @@ bool AdvancedDialog::HandleKey(const SDL_KeyboardEvent & event)
 // The shortcuts, each on a button that asks for its key.
 void AdvancedDialog::ShowHotkeys()
 {
-    std::string application, game;
+    const auto binding = [this](int index, bool gamepad) {
+        const HotkeyId id = Hotkeys::kAll[index].id;
+        const bool asking = index == m_hotkeyAsked && gamepad == m_hotkeyGamepad;
+        const bool assigned = gamepad ? Hotkeys::GetGamepad(id).buttons != 0 : Hotkeys::Get(id).key != SDLK_UNKNOWN;
+        const std::string label = asking      ? (gamepad ? Tr("Press the buttons...") : Tr("Press the keys..."))
+                                  : !assigned ? Tr("Not assigned")
+                                  : gamepad   ? Hotkeys::GetGamepad(id).Label()
+                                              : Hotkeys::Get(id).Label();
+        return "<div class=\"hotkey-binding\"><button class=\"row-button hotkey" + std::string(asking ? " asking" : "") + "\" data-command=\"" +
+               (gamepad ? "gamepad:" : kHotkeyPrefix) + std::to_string(index) + "\">" + Rml::StringUtilities::EncodeRml(label) +
+               "</button><button class=\"hotkey-clear\" data-command=\"clear-" + (gamepad ? "gamepad:" : "keyboard:") + std::to_string(index) + "\" title=\"" +
+               Rml::StringUtilities::EncodeRml(Tr("Clear shortcut")) + "\"" + (assigned ? "" : " disabled") + ">&#xD7;</button></div>";
+    };
+    std::string application;
+    std::string game = "<div class=\"row hotkey-columns\"><div class=\"row-texts\"/><div class=\"hotkey\">" + Rml::StringUtilities::EncodeRml(Tr("Keyboard")) +
+                       "</div><div class=\"hotkey\">" + Rml::StringUtilities::EncodeRml(Tr("Gamepad")) + "</div></div>";
     for (int index = 0; index < static_cast<int>(std::size(Hotkeys::kAll)); ++index)
     {
         const Hotkeys::Info & info = Hotkeys::kAll[index];
-        const bool asking = index == m_hotkeyAsked;
-        (info.inGame ? game : application) +=
-            "<div class=\"row\"><div class=\"row-texts\"><div class=\"row-label\">" + Rml::StringUtilities::EncodeRml(Tr(info.label)) +
-            "</div></div><button class=\"row-button hotkey" + (asking ? " asking" : "") + "\" data-command=\"" + kHotkeyPrefix + std::to_string(index) + "\">" +
-            Rml::StringUtilities::EncodeRml(asking ? Tr("Press the keys...") : Hotkeys::Get(info.id).Label()) + "</button></div>";
+        (info.inGame ? game : application) += "<div class=\"row\"><div class=\"row-texts\"><div class=\"row-label\">" +
+                                              Rml::StringUtilities::EncodeRml(Tr(info.label)) + "</div></div>" + binding(index, false) +
+                                              (info.inGame ? binding(index, true) : "") + "</div>";
     }
     const auto show = [this](const char * id, const std::string & rml) {
         Rml::Element * element = Document()->GetElementById(id);
@@ -478,13 +600,54 @@ void AdvancedDialog::ShowHotkeys()
     SetText("hotkey-note", Rml::StringUtilities::EncodeRml(m_hotkeyNote));
 }
 
+bool AdvancedDialog::HandleGamepad(const SDL_Event & event, const Hotkeys::GamepadShortcut & chord)
+{
+    if (!IsVisible() || m_hotkeyAsked < 0 || !m_hotkeyGamepad)
+    {
+        return false;
+    }
+    if (event.type == SDL_JOYDEVICEREMOVED && event.jdevice.which == m_hotkeyDevice)
+    {
+        m_hotkeyDevice = -1;
+    }
+    if (event.type != SDL_JOYBUTTONDOWN && event.type != SDL_JOYBUTTONUP)
+    {
+        return false;
+    }
+    if (event.type == SDL_JOYBUTTONDOWN && m_hotkeyDevice < 0)
+    {
+        m_hotkeyDevice = event.jbutton.which;
+    }
+    if (event.type != SDL_JOYBUTTONUP || event.jbutton.which != m_hotkeyDevice || chord.buttons == 0)
+    {
+        return true;
+    }
+    const HotkeyId id = Hotkeys::kAll[m_hotkeyAsked].id;
+    if (const Hotkeys::Info * holder = Hotkeys::GamepadHolder(chord, id))
+    {
+        m_hotkeyNote = Tr("%1 is already the shortcut of \"%2\".", {chord.Label(), Tr(holder->label)});
+        m_hotkeyDevice = -1;
+    }
+    else
+    {
+        Hotkeys::SetGamepad(id, chord);
+        m_hotkeyAsked = -1;
+        m_hotkeyNote.clear();
+    }
+    ShowHotkeys();
+    return true;
+}
+
 void AdvancedDialog::ShowTab()
 {
     for (const char * tab : kTabs)
     {
-        Document()->SetClass(std::string("tab-") + tab, m_tab == tab);
+        Document()->SetClass(std::string("tab-") + tab, !m_debug && m_tab == tab);
         SetClass(Document(), (std::string("tab-button-") + tab).c_str(), "selected", m_tab == tab);
     }
+    Document()->SetClass("page-debug", m_debug);
+    SetClass(Document(), "category-advanced", "selected", !m_debug);
+    SetClass(Document(), "category-debug", "selected", m_debug);
 }
 
 void AdvancedDialog::ShowValues()
@@ -508,6 +671,7 @@ void AdvancedDialog::ShowValues()
     SetRange(Document(), "speed-range", speed);
     SetText("speed-text", std::to_string(speed) + "%");
     SetDisabled(Document(), "audio-engine", m_running);
+    SetDisabled(Document(), "audio-device", m_running);
     SetDisabled(Document(), "audio-input", m_running);
 
     ShowHotkeys();
@@ -536,10 +700,28 @@ void AdvancedDialog::ApplyChange(const std::string & id)
     {
         return;
     }
-    if (m_settings.IsGame() && (id == "audio-input" || id == "audio-engine" || id == "log-filter")) return;
+    if (m_settings.IsGame() && (id == "audio-device" || id == "audio-input" || id == "audio-engine" || id == "log-filter")) return;
     const int value = std::atoi(text.c_str());
 
     const char * setting = nullptr;
+    if (id == "audio-mode")
+    {
+        if (value != settings.GetInt(NXOsSetting::AudioMode))
+        {
+            settings.SetInt(NXOsSetting::AudioMode, value);
+            m_unsaved = true;
+        }
+        return;
+    }
+    if (id == "audio-device")
+    {
+        if (!m_running && text != settings.GetString(NXOsSetting::AudioOutputDeviceId))
+        {
+            settings.SetString(NXOsSetting::AudioOutputDeviceId, text.c_str());
+            m_unsaved = true;
+        }
+        return;
+    }
     if (id == "audio-input")
     {
         if (!m_running && text != settings.GetString(NXOsSetting::AudioInputDeviceId))
@@ -634,6 +816,7 @@ void AdvancedDialog::RestoreDefaults()
         }
     }
     settings.SetInt(NXOsSetting::SpeedLimit, settings.GetDefaultInt(NXOsSetting::SpeedLimit));
+    settings.SetInt(NXOsSetting::AudioMode, settings.GetDefaultInt(NXOsSetting::AudioMode));
     settings.SetString(NXCoreSetting::LogFilter, settings.GetDefaultString(NXCoreSetting::LogFilter));
     Hotkeys::RestoreDefaults();
     m_hotkeyAsked = -1;
@@ -643,6 +826,7 @@ void AdvancedDialog::RestoreDefaults()
     {
         settings.SetInt(NXOsSetting::AudioSinkId, settings.GetDefaultInt(NXOsSetting::AudioSinkId));
         settings.SetString(NXOsSetting::AudioInputDeviceId, settings.GetDefaultString(NXOsSetting::AudioInputDeviceId));
+        settings.SetString(NXOsSetting::AudioOutputDeviceId, settings.GetDefaultString(NXOsSetting::AudioOutputDeviceId));
     }
     m_unsaved = true;
     FillLists();

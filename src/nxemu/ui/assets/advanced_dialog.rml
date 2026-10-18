@@ -13,9 +13,19 @@
         <div class="dialog-title">Settings</div>
         <div class="settings-separator" />
         <div class="settings-categories">
-          <div class="settings-category" data-command="page:general"><img src="images/sliders.png" /><div>General</div></div>
-          <div class="settings-category global-only" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
-          <div class="settings-category selected"><img src="images/gear.png" /><div>Advanced</div></div>
+          <div class="settings-category" data-command="page:general"><img src="images/sliders.png" />
+            <div>General</div>
+          </div>
+          <div class="settings-category global-only" data-command="page:profiles"><img src="images/user.png" />
+            <div>Profiles</div>
+          </div>
+          <div class="settings-category global-only" data-command="page:directories"><img src="images/folder.png" />
+            <div>Game directories</div>
+          </div>
+          <div id="category-advanced" class="settings-category" data-command="page:advanced"><img src="images/gear.png" />
+            <div>Advanced</div>
+          </div>
+          <div id="category-debug" class="settings-category" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
         </div>
         <div class="dialog-close" data-command="close">&#xD7;</div>
       </div>
@@ -23,17 +33,28 @@
       <div class="settings-body">
         <div class="advanced-page">
           <div class="settings-tabs">
-            <div id="tab-button-graphics" class="settings-tab" data-command="tab:graphics"><img src="images/docked.png" /><div>Graphics</div></div>
-            <div id="tab-button-system" class="settings-tab" data-command="tab:system"><img src="images/chip.png" /><div>System</div></div>
-            <div id="tab-button-application" class="settings-tab global-only" data-command="tab:application"><img src="images/sliders.png" /><div>Application</div></div>
-            <div id="tab-button-shortcuts" class="settings-tab global-only" data-command="tab:shortcuts"><img src="images/bolt.png" /><div>Shortcuts</div></div>
+            <div id="tab-button-graphics" class="settings-tab" data-command="tab:graphics"><img src="images/docked.png" />
+              <div>Graphics</div>
+            </div>
+            <div id="tab-button-system" class="settings-tab" data-command="tab:system"><img src="images/chip.png" />
+              <div>System</div>
+            </div>
+            <div id="tab-button-application" class="settings-tab global-only" data-command="tab:application"><img src="images/sliders.png" />
+              <div>Application</div>
+            </div>
+            <div id="tab-button-shortcuts" class="settings-tab global-only" data-command="tab:shortcuts"><img src="images/bolt.png" />
+              <div>Shortcuts</div>
+            </div>
+
             <div class="advanced-note">A game is running: what is greyed out cannot change until it stops.</div>
           </div>
           <div id="tab-graphics" class="tab-page">
             <div class="cards-page">
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/picture.png" /><div>Picture</div></div>
+                  <div class="card-title" data-upper=""><img src="images/picture.png" />
+                    <div>Picture</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Anti-aliasing</div>
@@ -50,7 +71,9 @@
                   </div>
                 </div>
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/target.png" /><div>Accuracy</div></div>
+                  <div class="card-title" data-upper=""><img src="images/target.png" />
+                    <div>Accuracy</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Accuracy level</div>
@@ -60,57 +83,19 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
-                      <div class="row-label">Memory reads</div>
-                      <div class="row-text">How carefully the chip reads what games write.</div>
-                    </div>
-                    <select id="dma" />
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Command synchronization</div>
-                      <div class="row-text">Keeps the order games give their commands in.</div>
-                    </div>
-                    <div id="gpu-sync" class="switch" data-command="toggle:gpu-sync" title="Slower, and steadier. Off, some games show faults, hang or crash."><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Reactive flushing</div>
-                      <div class="row-text">Brings memory up to date when it is read.</div>
-                    </div>
-                    <div id="reactive-flushing" class="switch" data-command="toggle:reactive-flushing" title="More exact than guessing ahead when it will be read."><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Barrier feedback loops</div>
-                      <div class="row-text">Draws transparent things right in some games.</div>
-                    </div>
-                    <div id="feedback-loops" class="switch" data-command="toggle:feedback-loops"><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Fast GPU time</div>
-                      <div class="row-text">Most games then draw their highest resolution.</div>
-                    </div>
-                    <div id="fast-gpu-time" class="switch" data-command="toggle:fast-gpu-time" title="Games that lower their resolution when the chip is slow are told it is fast."><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
                       <div class="row-label">Videos at their own speed</div>
                       <div class="row-text">Even when the speed is not limited.</div>
                     </div>
-                    <div id="video-framerate" class="switch" data-command="toggle:video-framerate"><div class="switch-knob" /></div>
+                    <div id="video-framerate" class="switch" data-command="toggle:video-framerate">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                 </div>
               </div>
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/view-grid.png" /><div>Textures and video</div></div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">ASTC decoding</div>
-                      <div class="row-text">What decodes the textures of this kind.</div>
-                    </div>
-                    <select id="astc" />
+                  <div class="card-title" data-upper=""><img src="images/view-grid.png" />
+                    <div>Textures and video</div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -126,60 +111,42 @@
                     </div>
                     <select id="vram" />
                   </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Video decoding</div>
-                      <div class="row-text">What decodes the videos of games.</div>
-                    </div>
-                    <select id="nvdec" />
-                  </div>
                 </div>
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/layers.png" /><div>Shaders</div></div>
+                  <div class="card-title" data-upper=""><img src="images/layers.png" />
+                    <div>Shaders</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Keep shaders on the disk</div>
                       <div class="row-text">Games stutter less from their second start.</div>
                     </div>
-                    <div id="disk-cache" class="switch" data-command="toggle:disk-cache" title="Off only to look for a fault."><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Driver pipeline cache</div>
-                      <div class="row-text">Shaders load faster with some drivers.</div>
+                    <div id="disk-cache" class="switch" data-command="toggle:disk-cache" title="Off only to look for a fault.">
+                      <div class="switch-knob" />
                     </div>
-                    <div id="driver-cache" class="switch" data-command="toggle:driver-cache"><div class="switch-knob" /></div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Build shaders in the background</div>
                       <div class="row-text">Less stutter; things can show late. A hack.</div>
                     </div>
-                    <div id="async-shaders" class="switch" data-command="toggle:async-shaders"><div class="switch-knob" /></div>
+                    <div id="async-shaders" class="switch" data-command="toggle:async-shaders">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                 </div>
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/bolt.png" /><div>Performance</div></div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Graphics on their own thread</div>
-                      <div class="row-text">Should stay on.</div>
-                    </div>
-                    <div id="async-gpu" class="switch" data-command="toggle:async-gpu"><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Presentation on its own thread</div>
-                      <div class="row-text">A little faster on some computers.</div>
-                    </div>
-                    <div id="async-present" class="switch" data-command="toggle:async-present"><div class="switch-knob" /></div>
+                  <div class="card-title" data-upper=""><img src="images/bolt.png" />
+                    <div>Performance</div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Keep the graphics device busy</div>
                       <div class="row-text">So that it does not slow its clock. Uses more power.</div>
                     </div>
-                    <div id="max-clocks" class="switch" data-command="toggle:max-clocks"><div class="switch-knob" /></div>
+                    <div id="max-clocks" class="switch" data-command="toggle:max-clocks">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -189,21 +156,10 @@
             <div class="cards-page">
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/chip.png" /><div>Processor and memory</div></div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Processor engine</div>
-                      <div class="row-text">How the game's code is run.</div>
-                    </div>
-                    <select id="cpu-backend" />
+                  <div class="card-title" data-upper=""><img src="images/chip.png" />
+                    <div>Processor and memory</div>
                   </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Processor accuracy</div>
-                      <div class="row-text">For the engine that translates the code.</div>
-                    </div>
-                    <select id="cpu-accuracy" />
-                  </div>
+
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Console memory</div>
@@ -211,23 +167,11 @@
                     </div>
                     <select id="memory" class="short" />
                   </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Multicore</div>
-                      <div class="row-text">The cores of the console on as many threads.</div>
-                    </div>
-                    <div id="multicore" class="switch" data-command="toggle:multicore" title="Off, games run on one thread: much slower, to look for a fault."><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">CPU and system in step</div>
-                      <div class="row-text">Keeps the processor and the system's answers in order.</div>
-                    </div>
-                    <div id="cpu-hle" class="switch" data-command="toggle:cpu-hle" title="Needs multicore."><div class="switch-knob" /></div>
-                  </div>
                 </div>
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/bolt.png" /><div>Emulation</div></div>
+                  <div class="card-title" data-upper=""><img src="images/bolt.png" />
+                    <div>Emulation</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Limit speed</div>
@@ -237,13 +181,31 @@
                       <input id="speed-range" class="range" type="range" min="25" max="300" step="5" value="100" />
                       <div id="speed-text" class="row-value" />
                     </div>
-                    <div id="limit" class="switch" data-command="toggle:limit" title="On, games run at the speed chosen: 100% is the speed of the console."><div class="switch-knob" /></div>
+                    <div id="limit" class="switch" data-command="toggle:limit" title="On, games run at the speed chosen: 100% is the speed of the console.">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                 </div>
               </div>
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/volume.png" /><div>Audio</div></div>
+                  <div class="card-title" data-upper=""><img src="images/volume.png" />
+                    <div>Audio</div>
+                  </div>
+                  <div class="row global-only">
+                    <div class="row-texts">
+                      <div class="row-label">Output device</div>
+                      <div class="row-text">Where the sound of games is played.</div>
+                    </div>
+                    <select id="audio-device" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Output mode</div>
+                      <div class="row-text">Surround needs speakers that play it.</div>
+                    </div>
+                    <select id="audio-mode" />
+                  </div>
                   <div class="row global-only">
                     <div class="row-texts">
                       <div class="row-label">Output engine</div>
@@ -260,20 +222,17 @@
                   </div>
                 </div>
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/gamepad.png" /><div>Controllers</div></div>
+                  <div class="card-title" data-upper=""><img src="images/gamepad.png" />
+                    <div>Controllers</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Vibration</div>
                       <div class="row-text">For every player. Each has a switch of their own.</div>
                     </div>
-                    <div id="vibration" class="switch" data-command="toggle:vibration"><div class="switch-knob" /></div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Accurate vibration</div>
-                      <div class="row-text">Every change is sent: some controllers lag.</div>
+                    <div id="vibration" class="switch" data-command="toggle:vibration">
+                      <div class="switch-knob" />
                     </div>
-                    <div id="accurate-vibration" class="switch" data-command="toggle:accurate-vibration"><div class="switch-knob" /></div>
                   </div>
                 </div>
               </div>
@@ -283,40 +242,199 @@
             <div class="cards-page">
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/details.png" /><div>Behaviour</div></div>
-                  <div class="row">
-                    <div class="row-texts"><div class="row-label">Start games in fullscreen</div></div>
-                    <div id="start-fullscreen" class="switch" data-command="toggle:start-fullscreen"><div class="switch-knob" /></div>
+                  <div class="card-title" data-upper=""><img src="images/details.png" />
+                    <div>Behaviour</div>
                   </div>
                   <div class="row">
-                    <div class="row-texts"><div class="row-label">Start games with UI hidden</div></div>
-                    <div id="start-ui-hidden" class="switch" data-command="toggle:start-ui-hidden"><div class="switch-knob" /></div>
+                    <div class="row-texts">
+                      <div class="row-label">Start games in fullscreen</div>
+                    </div>
+                    <div id="start-fullscreen" class="switch" data-command="toggle:start-fullscreen">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Start games with UI hidden</div>
+                    </div>
+                    <div id="start-ui-hidden" class="switch" data-command="toggle:start-ui-hidden">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Confirm before stopping</div>
                       <div class="row-text">Asks before a running game is stopped.</div>
                     </div>
-                    <div id="confirm-stop" class="switch" data-command="toggle:confirm-stop"><div class="switch-knob" /></div>
+                    <div id="confirm-stop" class="switch" data-command="toggle:confirm-stop">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Discord presence</div>
                       <div class="row-text">Shows what you play in Discord when it runs.</div>
                     </div>
-                    <div id="discord" class="switch" data-command="toggle:discord"><div class="switch-knob" /></div>
+                    <div id="discord" class="switch" data-command="toggle:discord">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="tab-debug" class="tab-page">
+            <div class="cards-page">
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/chip.png" />
+                    <div>Emulation diagnostics</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Processor engine</div>
+                      <div class="row-text">How the game's code is run.</div>
+                    </div>
+                    <select id="cpu-backend" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Processor accuracy</div>
+                      <div class="row-text">For the engine that translates the code.</div>
+                    </div>
+                    <select id="cpu-accuracy" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Driver pipeline cache</div>
+                      <div class="row-text">Shaders load faster with some drivers.</div>
+                    </div>
+                    <div id="driver-cache" class="switch" data-command="toggle:driver-cache">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Memory reads</div>
+                      <div class="row-text">How carefully the chip reads what games write.</div>
+                    </div>
+                    <select id="dma" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Command synchronization</div>
+                      <div class="row-text">Keeps the order games give their commands in.</div>
+                    </div>
+                    <div id="gpu-sync" class="switch" data-command="toggle:gpu-sync" title="Slower, and steadier. Off, some games show faults, hang or crash.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Reactive flushing</div>
+                      <div class="row-text">Brings memory up to date when it is read.</div>
+                    </div>
+                    <div id="reactive-flushing" class="switch" data-command="toggle:reactive-flushing" title="More exact than guessing ahead when it will be read.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Barrier feedback loops</div>
+                      <div class="row-text">Draws transparent things right in some games.</div>
+                    </div>
+                    <div id="feedback-loops" class="switch" data-command="toggle:feedback-loops">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Fast GPU time</div>
+                      <div class="row-text">Most games then draw their highest resolution.</div>
+                    </div>
+                    <div id="fast-gpu-time" class="switch" data-command="toggle:fast-gpu-time" title="Games that lower their resolution when the chip is slow are told it is fast.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">ASTC decoding</div>
+                      <div class="row-text">What decodes the textures of this kind.</div>
+                    </div>
+                    <select id="astc" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Video decoding</div>
+                      <div class="row-text">What decodes the videos of games.</div>
+                    </div>
+                    <select id="nvdec" />
                   </div>
                 </div>
               </div>
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/log.png" /><div>Log</div></div>
+                  <div class="card-title" data-upper=""><img src="images/bolt.png" />
+                    <div>Threads and input</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Graphics on their own thread</div>
+                      <div class="row-text">Should stay on.</div>
+                    </div>
+                    <div id="async-gpu" class="switch" data-command="toggle:async-gpu">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Presentation on its own thread</div>
+                      <div class="row-text">A little faster on some computers.</div>
+                    </div>
+                    <div id="async-present" class="switch" data-command="toggle:async-present">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Multicore</div>
+                      <div class="row-text">The cores of the console on as many threads.</div>
+                    </div>
+                    <div id="multicore" class="switch" data-command="toggle:multicore" title="Off, games run on one thread: much slower, to look for a fault.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">CPU and system in step</div>
+                      <div class="row-text">Keeps the processor and the system's answers in order.</div>
+                    </div>
+                    <div id="cpu-hle" class="switch" data-command="toggle:cpu-hle" title="Needs multicore.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Accurate vibration</div>
+                      <div class="row-text">Every change is sent: some controllers lag.</div>
+                    </div>
+                    <div id="accurate-vibration" class="switch" data-command="toggle:accurate-vibration">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                </div>
+                <div class="card global-only">
+                  <div class="card-title" data-upper=""><img src="images/log.png" />
+                    <div>Log</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Show the log console</div>
                       <div class="row-text">The log is also written as it comes.</div>
                     </div>
-                    <div id="log-console" class="switch" data-command="toggle:log-console"><div class="switch-knob" /></div>
+                    <div id="log-console" class="switch" data-command="toggle:log-console">
+                      <div class="switch-knob" />
+                    </div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -333,15 +451,19 @@
             <div class="cards-page">
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/details.png" /><div>Application</div></div>
+                  <div class="card-title" data-upper=""><img src="images/details.png" />
+                    <div>Application</div>
+                  </div>
                   <div id="hotkeys-application" />
                 </div>
-                <div class="hotkey-help">Click a shortcut, then press its keys. A click elsewhere keeps it as it is.</div>
+                <div class="hotkey-help">Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete.</div>
                 <div id="hotkey-note" class="hotkey-note" />
               </div>
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/play.png" /><div>In game</div></div>
+                  <div class="card-title" data-upper=""><img src="images/play.png" />
+                    <div>In game</div>
+                  </div>
                   <div id="hotkeys-game" />
                 </div>
               </div>

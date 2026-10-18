@@ -8,6 +8,7 @@ enum class SettingsPage
     Profiles,
     Directories,
     Advanced,
+    Debug,
 };
 
 using OpenSettingsPage = std::function<bool(SettingsPage)>;
@@ -29,6 +30,14 @@ inline bool SettingsPageOf(const std::string & command, SettingsPage & page)
     else if (command == "page:advanced")
     {
         page = SettingsPage::Advanced;
+    }
+    else if (command == "page:debug")
+    {
+        page = SettingsPage::Debug;
+    }
+    else if (command == "page:debug")
+    {
+        page = SettingsPage::Debug;
     }
     else
     {

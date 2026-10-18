@@ -155,6 +155,23 @@ void MainWindow::RequestQuit()
 
 void MainWindow::HandleEvent(const SDL_Event & event)
 {
+    const Hotkeys::GamepadShortcut chord = Hotkeys::TrackGamepad(event);
+    if (m_advancedDialog->HandleGamepad(event, chord))
+    {
+        return;
+    }
+    if (event.type == SDL_JOYBUTTONDOWN && chord.buttons != 0 && !DialogOpen() && m_session.IsRunning() &&
+        (SDL_GetWindowFlags(m_window.Handle()) & SDL_WINDOW_INPUT_FOCUS) != 0)
+    {
+        for (const HotkeyAction & hotkey : kHotkeyActions)
+        {
+            if (Hotkeys::GetGamepad(hotkey.id) == chord && (hotkey.action != Action::ExitFullscreen || m_window.IsFullscreen()))
+            {
+                Post(hotkey.action);
+                return;
+            }
+        }
+    }
     if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEWHEEL)
     {
         m_mouseMovedAt = SDL_GetTicks64();
@@ -838,7 +855,7 @@ void MainWindow::SelectGame(Rml::Element * card)
 
 bool MainWindow::ShowSettingsPage(SettingsPage page)
 {
-    if (m_settingsContext.IsGame() && page != SettingsPage::General && page != SettingsPage::Advanced) return false;
+    if (m_settingsContext.IsGame() && page != SettingsPage::General && page != SettingsPage::Advanced && page != SettingsPage::Debug) return false;
     switch (page)
     {
     case SettingsPage::General:
@@ -854,7 +871,8 @@ bool MainWindow::ShowSettingsPage(SettingsPage page)
         m_directoriesDialog->Show();
         return m_directoriesDialog->IsVisible();
     case SettingsPage::Advanced:
-        m_advancedDialog->Show();
+    case SettingsPage::Debug:
+        m_advancedDialog->ShowPage(page);
         return m_advancedDialog->IsVisible();
     }
     return false;

@@ -13,8 +13,10 @@
         <div class="settings-separator" />
         <div class="settings-categories">
           <div class="settings-category selected"><img src="images/sliders.png" /><div>General</div></div>
+          <div class="settings-category global-only" data-command="page:profiles"><img src="images/user.png" /><div>Profiles</div></div>
           <div class="settings-category global-only" data-command="page:directories"><img src="images/folder.png" /><div>Game directories</div></div>
           <div class="settings-category" data-command="page:advanced"><img src="images/gear.png" /><div>Advanced</div></div>
+          <div class="settings-category" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
         </div>
         <div class="dialog-close" data-command="close">&#xD7;</div>
       </div>
@@ -35,10 +37,10 @@
               <div class="row">
                 <div class="row-texts">
                   <div class="row-label">Console mode</div>
-                  <div class="row-text">On the television, or in the hands.</div>
+                  <div id="mode-text" class="row-text" />
                 </div>
                 <div class="segments">
-                  <div id="mode-docked" class="segment" data-command="mode-docked" title="As on the television: games draw up to 1080p."><img src="images/docked.png" /><div>TV</div></div>
+                  <div id="mode-docked" class="segment" data-command="mode-docked" title="As on the television: games draw up to 1080p."><img src="images/docked.png" /><div>Docked</div></div>
                   <div id="mode-handheld" class="segment" data-command="mode-handheld" title="As on the console's own screen: games draw 720p, which asks less of the computer."><img src="images/handheld.png" /><div>Handheld</div></div>
                 </div>
               </div>
@@ -98,24 +100,7 @@
                 <select id="language" translate="no" />
               </div>
             </div>
-            <div class="card">
-              <div class="card-title" data-upper=""><img src="images/volume.png" /><div>Audio</div></div>
-              <div class="row global-only">
-                <div class="row-texts">
-                  <div class="row-label">Output device</div>
-                  <div class="row-text">Where the sound of games is played.</div>
-                </div>
-                <select id="audio-device" />
-              </div>
-              <div class="row">
-                <div class="row-texts">
-                  <div class="row-label">Output mode</div>
-                  <div class="row-text">Surround needs speakers that play it.</div>
-                </div>
-                <select id="audio-mode" />
-              </div>
-            </div>
-            <div id="next-game" class="cards-note">A game is running: what is greyed out cannot change until it stops, and the languages and the audio output are read when a game starts.</div>
+            <div id="next-game" class="cards-note">A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts.</div>
           </div>
         </div>
       </div>
