@@ -2,9 +2,11 @@
 #include "vulkan/vma.h"
 #include <RmlUi/Core/RenderInterface.h>
 #include <RmlUi/Core/Types.h>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -29,8 +31,8 @@ public:
     };
     std::vector<GraphicsDevice> GraphicsDevices() const;
 
-    std::string AddMemoryImage(std::vector<uint8_t> encoded);
     static std::string FileImageSource(const std::string & utf8Path);
+    std::string AddMemoryImage(std::vector<uint8_t> encoded);
     void RemoveMemoryImage(const std::string & source);
 
     void BeginFrame(VkCommandBuffer commandBuffer, int width, int height);

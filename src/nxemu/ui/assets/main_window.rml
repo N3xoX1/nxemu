@@ -13,7 +13,6 @@
       <div id="menu-bar" data-window="control" />
       <div id="title-game">
         <div id="title-game-separator" />
-        <img id="title-state" src="images/state-play.png" />
         <img id="title-game-icon" />
         <div id="title-text" translate="no" />
       </div>
@@ -169,12 +168,13 @@
       <div id="performance" />
     </div>
     <div id="status-bar">
-      <div id="docked-mode" class="select" title="Console mode: on the television, or in the hands">
+      <div id="docked-mode" class="select" title="Console mode: on the television (1080p), or handheld (720p)">
         <img id="docked-icon" class="select-icon" src="images/docked.png" />
         <div id="docked-text" />
         <img class="select-arrow" src="images/chevron-down.png" />
       </div>
       <div id="resolution-scale" class="select">
+        <img class="select-icon" src="images/move-diagonal.png" />
         <div id="resolution-scale-text" />
         <img class="select-arrow" src="images/chevron-down.png" />
       </div>

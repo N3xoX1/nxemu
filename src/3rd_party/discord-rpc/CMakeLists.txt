@@ -21,7 +21,9 @@ if(WIN32)
         src/connection_win.cpp
         src/discord_register_win.cpp
     )
-    target_compile_definitions(discord-rpc PRIVATE DISCORD_WINDOWS)
+    target_compile_definitions(discord-rpc PRIVATE
+        DISCORD_WINDOWS
+        _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
     target_link_libraries(discord-rpc PUBLIC psapi advapi32)
 elseif(APPLE)
     target_sources(discord-rpc PRIVATE
