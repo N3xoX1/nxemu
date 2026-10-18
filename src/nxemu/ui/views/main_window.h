@@ -4,6 +4,7 @@
 #include "directories_dialog.h"
 #include "general_dialog.h"
 #include "hotkeys.h"
+#include "loading_screen.h"
 #include "menu_bar.h"
 #include "popup_menu.h"
 #include "profiles_dialog.h"
@@ -152,7 +153,8 @@ private:
     void SyncPhase();
     void ShowPanel(Panel panel);
     bool DialogOpen() const;
-    void AnnounceGame();
+    void AnnounceGame(const std::string & path);
+    void UpdateLoadingScreen();
     void LayoutGameArea();
     void StopGame();
     bool ShowSettingsPage(SettingsPage page);
@@ -175,6 +177,7 @@ private:
     Rml::ElementDocument * m_document = nullptr;
     std::unique_ptr<MenuBar> m_menuBar;
     std::unique_ptr<PopupMenu> m_gameMenu;
+    std::unique_ptr<LoadingScreen> m_loadingScreen;
     SettingsContext m_settingsContext;
     std::unique_ptr<GeneralDialog> m_generalDialog;
     std::unique_ptr<AdvancedDialog> m_advancedDialog;

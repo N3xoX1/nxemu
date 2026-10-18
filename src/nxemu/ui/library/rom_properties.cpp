@@ -45,3 +45,13 @@ std::vector<uint8_t> RomProperties::Icon(IRomInfo & info)
 {
     return ReadProperty<std::vector<uint8_t>>([&](uint8_t * data, uint32_t * size) { return info.ReadIcon(data, size); });
 }
+
+std::vector<uint8_t> RomProperties::Logo(IRomInfo & info)
+{
+    return ReadProperty<std::vector<uint8_t>>([&](uint8_t * data, uint32_t * size) { return info.ReadLogo(data, size); });
+}
+
+std::vector<uint8_t> RomProperties::Banner(IRomInfo & info)
+{
+    return ReadProperty<std::vector<uint8_t>>([&](uint8_t * data, uint32_t * size) { return info.ReadBanner(data, size); });
+}
