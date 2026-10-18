@@ -679,11 +679,6 @@ void UiRenderer::FlushUploads()
     m_uploads.clear();
 }
 
-std::string UiRenderer::FileImageSource(const std::string & utf8Path)
-{
-    return utf8Path.starts_with('/') ? "/" + utf8Path : utf8Path;
-}
-
 std::string UiRenderer::AddMemoryImage(std::vector<uint8_t> encoded)
 {
     std::string source = kMemoryScheme + std::to_string(m_nextMemoryImage++);

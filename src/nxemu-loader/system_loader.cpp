@@ -41,6 +41,7 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
+#include <yuzu_common/fs/fs_util.h>
 
 extern IModuleSettings * g_settings;
 extern IModuleNotification * g_notify;
@@ -81,11 +82,18 @@ constexpr uint32_t kSupportedGameExtensionCount = (uint32_t)(sizeof(kSupportedGa
 // after its signature has been matched against the actual file in the scan.
 using LibraryDiskEntry = GameContentCacheStore::Entry;
 
+std::filesystem::path ContentCacheIndexPath()
+{
+    // Modules have their own path manager. Use the frontend's configured data
+    // directory so both sides share the same persistent content index.
+    return GameContentCacheStore::IndexPath(std::filesystem::path{
+        Common::FS::ToU8String(g_settings->GetString(NXCoreSetting::AppDirectory))});
+}
+
 std::unordered_map<std::string, LibraryDiskEntry> LoadContentCache()
 {
     GameContentCacheStore::Entries contents;
-    GameContentCacheStore::Read(GameContentCacheStore::IndexPath(
-        Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir)), contents);
+    GameContentCacheStore::Read(ContentCacheIndexPath(), contents);
     return contents;
 }
 
@@ -644,8 +652,7 @@ void Systemloader::RefreshGameContentIndex()
     for (const auto & [path, entry] : next->files)
         if (!entry.applications.empty()) durable.emplace(path, entry);
     const bool changed = impl->m_diskCacheRead ? !previous || previous->files != next->files : persisted != durable;
-    const bool saved = !changed || GameContentCacheStore::Write(GameContentCacheStore::IndexPath(
-            Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir)), durable);
+    const bool saved = !changed || GameContentCacheStore::Write(ContentCacheIndexPath(), durable);
     if (!saved)
         LOG_WARNING(Core, "Could not save game content metadata");
     {
