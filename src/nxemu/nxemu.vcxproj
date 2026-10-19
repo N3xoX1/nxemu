@@ -84,6 +84,8 @@
     <ClCompile Include="ui\host\system_fonts.cpp" />
     <ClCompile Include="ui\host\shell.cpp" />
     <ClCompile Include="ui\library\game_library.cpp" />
+    <ClCompile Include="ui\library\game_cache.cpp" />
+    <ClCompile Include="ui\library\game_details.cpp" />
     <ClCompile Include="ui\library\rom_properties.cpp" />
     <ClCompile Include="vulkan_probe.cpp" />
     <ClCompile Include="ui\platform\file_dialogs.cpp" />
@@ -161,6 +163,8 @@
     <ClInclude Include="ui\host\shell.h" />
     <ClInclude Include="ui\platform\native_window.h" />
     <ClInclude Include="ui\library\game_library.h" />
+    <ClInclude Include="ui\library\game_cache.h" />
+    <ClInclude Include="ui\library\game_details.h" />
     <ClInclude Include="ui\library\rom_properties.h" />
     <ClInclude Include="vulkan_probe.h" />
     <ClInclude Include="user_interface\app_events.h" />

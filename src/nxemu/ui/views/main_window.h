@@ -15,6 +15,7 @@
 #include <SDL.h>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/library/game_library.h>
@@ -154,6 +155,7 @@ private:
     void SaveIconSize();
     void FitWindowToCards();
     void ShowSelectMenu(Rml::Element * origin);
+    void ShowGameMenu(Rml::Element * origin);
     void SetMenuRange(int id, int value);
     void SetDockedMode(bool docked);
     void RefreshProfiles();
@@ -222,6 +224,8 @@ private:
     std::string m_selectedPath;
     uint64_t m_selectedProgramId = 0;
     Rml::Element * m_pendingGameMenu = nullptr;
+    std::optional<Rml::Vector2f> m_gameMenuPoint;
+    std::string m_menuGame;
     Rml::Element * m_pendingSelectMenu = nullptr;
     std::string m_pendingGame;
     bool m_launchReady = false;
