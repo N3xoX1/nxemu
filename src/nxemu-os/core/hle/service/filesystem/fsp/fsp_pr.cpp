@@ -5,7 +5,7 @@
 
 namespace Service::FileSystem {
 
-FSP_PR::FSP_PR(Core::System& system_) : ServiceFramework{system_, "fsp:pr"} {
+FSP_PR::FSP_PR(Core::System& system_) : ServiceFramework{system_, "fsp-pr"} {
     // clang-format off
     static const FunctionInfo functions[] = {
         {0, nullptr, "RegisterProgram"},
