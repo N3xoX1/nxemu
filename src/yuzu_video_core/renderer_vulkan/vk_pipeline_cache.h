@@ -126,6 +126,9 @@ private:
 
     [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) const noexcept;
 
+    /// Clears the constant buffer and texture pool sizes the key's shaders do not depend on
+    void NormalizeCbufSizes(GraphicsPipelineCacheKey& key) const;
+
     std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline();
 
     std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline(

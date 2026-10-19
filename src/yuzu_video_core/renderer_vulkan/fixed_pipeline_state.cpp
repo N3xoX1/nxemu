@@ -157,12 +157,7 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
             }
         } else {
             maxwell3d.dirty.flags[Dirty::VertexInput] = false;
-            enabled_divisors = 0;
-            for (size_t index = 0; index < Maxwell::NumVertexArrays; ++index) {
-                const bool is_enabled = regs.vertex_stream_instances.IsInstancingEnabled(index);
-                binding_divisors[index] = is_enabled ? regs.vertex_streams[index].frequency : 0;
-                enabled_divisors |= (is_enabled ? u64{1} : 0) << index;
-            }
+            u32 read_streams = 0;
             for (size_t index = 0; index < Maxwell::NumVertexAttributes; ++index) {
                 const auto& input = regs.vertex_attrib_format[index];
                 auto& attribute = attributes[index];
@@ -172,6 +167,18 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
                 attribute.offset.Assign(input.offset);
                 attribute.type.Assign(static_cast<u32>(input.type.Value()));
                 attribute.size.Assign(static_cast<u32>(input.size.Value()));
+                if (!input.constant) {
+                    read_streams |= 1U << input.buffer;
+                }
+            }
+            // The step rate of a stream no attribute reads does not change the draw, so it is
+            // left out of the key instead of building another pipeline for it.
+            enabled_divisors = 0;
+            for (size_t index = 0; index < Maxwell::NumVertexArrays; ++index) {
+                const bool is_enabled = ((read_streams >> index) & 1) != 0 &&
+                                        regs.vertex_stream_instances.IsInstancingEnabled(index);
+                binding_divisors[index] = is_enabled ? regs.vertex_streams[index].frequency : 0;
+                enabled_divisors |= (is_enabled ? u64{1} : 0) << index;
             }
         }
     }

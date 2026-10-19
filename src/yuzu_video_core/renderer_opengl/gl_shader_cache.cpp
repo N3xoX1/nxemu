@@ -307,6 +307,7 @@ void ShaderCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
             }
         });
         ++state.total;
+        return true;
     }};
     const auto load_graphics{[&](std::ifstream& file, std::vector<FileEnvironment> envs) {
         GraphicsPipelineKey key;
@@ -328,6 +329,7 @@ void ShaderCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
             }
         });
         ++state.total;
+        return true;
     }};
     LoadPipelines(stop_loading, shader_cache_filename, CACHE_VERSION, load_compute, load_graphics);
 

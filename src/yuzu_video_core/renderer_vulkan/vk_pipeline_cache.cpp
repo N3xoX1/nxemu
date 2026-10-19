@@ -738,7 +738,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         CbufSizeDependencies::Normalize(key.cbuf_sizes,
                                        cbuf_size_dependencies.Mask(key.unique_hash));
         if (!loaded_compute_keys.insert(key).second) {
-            return;
+            return false;
         }
 
         workers.QueueWork([this, key, env_ = std::move(env), &state, &callback]() mutable {
@@ -754,6 +754,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             }
         });
         ++state.total;
+        return true;
     }};
     const auto queue_graphics{[&](const GraphicsPipelineCacheKey& key,
                                   std::vector<FileEnvironment> envs) {
@@ -794,27 +795,18 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             if (hash != 0) {
                 if (env_index >= envs.size()) {
                     LOG_ERROR(Render_Vulkan, "Cached graphics shader environment count mismatch");
-                    return;
+                    return false;
                 }
                 cbuf_size_dependencies.Observe(hash, envs[env_index++].CbufSizeMask());
             }
         }
         if (env_index != envs.size()) {
             LOG_ERROR(Render_Vulkan, "Cached graphics shader environment count mismatch");
-            return;
+            return false;
         }
-        for (size_t stage = 0; stage < key.cbuf_sizes.size(); ++stage) {
-            const u32 mask = cbuf_size_dependencies.Mask(key.unique_hashes[stage + 1]) |
-                (stage == 0 ? cbuf_size_dependencies.Mask(key.unique_hashes[0]) : 0);
-            CbufSizeDependencies::Normalize(key.cbuf_sizes[stage], mask);
-        }
-        if (std::ranges::none_of(key.unique_hashes, [this](u64 hash) {
-                return (cbuf_size_dependencies.Mask(hash) & VideoCommon::TEXTURE_POOL_SIZE_BIT) != 0;
-            })) {
-            key.texture_pool = {};
-        }
+        NormalizeCbufSizes(key);
         if (!loaded_graphics_keys.insert(key).second) {
-            return;
+            return false;
         }
 
         if ((key.state.extended_dynamic_state != 0) !=
@@ -831,7 +823,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             (key.state.vertex_stride_workaround != 0) !=
                 (dynamic_features.has_vertex_stride_workaround &&
                  !dynamic_features.has_dynamic_vertex_input)) {
-            return;
+            return true;
         }
         using EngineHint = Tegra::Engines::Maxwell3D::EngineHint;
         if (key.state.app_stage != EngineHint::OnHLEMacro) {
@@ -840,9 +832,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                                         [](const auto& env) { return env.HasHLEMacroState(); })) {
             hle_unreplaced_keys.insert(key);
             hle_unreplaced.push_back({key, std::move(envs)});
-            return;
+            return true;
         }
         queue_graphics(key, std::move(envs));
+        return true;
     }};
     VideoCommon::LoadPipelines(stop_loading, pipeline_cache_filename, CACHE_VERSION, load_compute,
                                load_graphics);
@@ -899,11 +892,35 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
     if (!pipeline) {
         return nullptr;
     }
+    if (is_new) {
+        // The key of shaders seen for the first time holds every constant buffer size, since only
+        // translation tells which ones they depend on. Later draws use the narrower key, which
+        // must find this pipeline instead of building it again.
+        GraphicsPipelineCacheKey normalized_key{graphics_key};
+        NormalizeCbufSizes(normalized_key);
+        if (normalized_key != graphics_key &&
+            graphics_cache.try_emplace(normalized_key, pipeline).second) {
+            pipeline->SetSharedKey(normalized_key);
+        }
+    }
     if (current_pipeline) {
         current_pipeline->AddTransition(pipeline.get(), graphics_key);
     }
     current_pipeline = pipeline.get();
     return BuiltPipeline(current_pipeline);
+}
+
+void PipelineCache::NormalizeCbufSizes(GraphicsPipelineCacheKey& key) const {
+    for (size_t stage = 0; stage < key.cbuf_sizes.size(); ++stage) {
+        const u32 mask = cbuf_size_dependencies.Mask(key.unique_hashes[stage + 1]) |
+            (stage == 0 ? cbuf_size_dependencies.Mask(key.unique_hashes[0]) : 0);
+        CbufSizeDependencies::Normalize(key.cbuf_sizes[stage], mask);
+    }
+    if (std::ranges::none_of(key.unique_hashes, [this](u64 hash) {
+            return (cbuf_size_dependencies.Mask(hash) & VideoCommon::TEXTURE_POOL_SIZE_BIT) != 0;
+        })) {
+        key.texture_pool = {};
+    }
 }
 
 GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const noexcept {

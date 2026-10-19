@@ -256,9 +256,11 @@ void SerializePipeline(const Key& key, const Envs& envs, const std::filesystem::
                       std::span(envs.data(), envs.size()), filename, cache_version);
 }
 
+/// Loads the pipelines of a cache file. The callbacks return false for a record that is not
+/// needed, such as a duplicate of an earlier one, and the file is rewritten without them.
 void LoadPipelines(
     std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
-    Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
-    Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics);
+    Common::UniqueFunction<bool, std::ifstream&, FileEnvironment> load_compute,
+    Common::UniqueFunction<bool, std::ifstream&, std::vector<FileEnvironment>> load_graphics);
 
 } // namespace VideoCommon
