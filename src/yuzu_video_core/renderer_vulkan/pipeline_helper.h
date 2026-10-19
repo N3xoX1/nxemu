@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -163,10 +164,29 @@ public:
         });
     }
 
+    static bool IsLargeImageArray(const VkDescriptorUpdateTemplateEntry& entry) {
+        return entry.descriptorCount >= 64 &&
+               (entry.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ||
+                entry.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
+                entry.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+                entry.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER);
+    }
+
+    std::span<const VkDescriptorUpdateTemplateEntry> TemplateEntries() const {
+        return entries;
+    }
+
     vk::DescriptorUpdateTemplate CreateTemplate(VkDescriptorSetLayout descriptor_set_layout,
                                                 VkPipelineLayout pipeline_layout,
-                                                bool use_push_descriptor) const {
-        if (entries.empty()) {
+                                                bool use_push_descriptor,
+                                                bool exclude_large_images = false) const {
+        auto template_entries = entries;
+        if (exclude_large_images) {
+            template_entries.erase(
+                std::remove_if(template_entries.begin(), template_entries.end(), IsLargeImageArray),
+                template_entries.end());
+        }
+        if (template_entries.empty()) {
             return nullptr;
         }
         const VkDescriptorUpdateTemplateType type =
@@ -176,8 +196,8 @@ public:
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
             .pNext = nullptr,
             .flags = 0,
-            .descriptorUpdateEntryCount = static_cast<u32>(entries.size()),
-            .pDescriptorUpdateEntries = entries.data(),
+            .descriptorUpdateEntryCount = static_cast<u32>(template_entries.size()),
+            .pDescriptorUpdateEntries = template_entries.data(),
             .templateType = type,
             .descriptorSetLayout = descriptor_set_layout,
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,

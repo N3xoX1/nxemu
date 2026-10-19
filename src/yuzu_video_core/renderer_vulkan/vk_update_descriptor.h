@@ -6,6 +6,7 @@
 #include <span>
 
 #include "yuzu_video_core/renderer_vulkan/descriptor_payload.h"
+#include "yuzu_video_core/renderer_vulkan/descriptor_copy_cache.h"
 
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -31,16 +32,12 @@ struct DescriptorUpdateEntry {
 };
 
 class UpdateDescriptorQueue final {
-    // This should be plenty for the vast majority of cases. Most desktop platforms only
-    // provide up to 3 swapchain images.
-    static constexpr size_t FRAMES_IN_FLIGHT = 8;
-    static constexpr size_t FRAME_PAYLOAD_SIZE = 0x20000;
+    static constexpr size_t MAX_PAYLOAD_BLOCKS = 8;
+    static constexpr size_t PAYLOAD_BLOCK_SIZE = 0x20000;
 
 public:
     explicit UpdateDescriptorQueue(const Device& device_, Scheduler& scheduler_);
     ~UpdateDescriptorQueue();
-
-    void TickFrame();
 
     void Acquire(size_t num_entries);
 
@@ -52,6 +49,9 @@ public:
     std::span<const DescriptorUpdateEntry> Entries() const noexcept {
         return {payload.Data(), payload.Size()};
     }
+
+    // Only the scheduler worker accesses the copy cache.
+    DescriptorCopyCache<VkDescriptorSet>& CopyCache() { return copy_cache; }
 
     void AddSampledImage(VkImageView image_view, VkSampler sampler) {
         payload.Append(VkDescriptorImageInfo{
@@ -85,7 +85,8 @@ private:
     const Device& device;
     Scheduler& scheduler;
 
-    DescriptorPayload<DescriptorUpdateEntry, FRAME_PAYLOAD_SIZE, FRAMES_IN_FLIGHT> payload;
+    DescriptorPayload<DescriptorUpdateEntry, PAYLOAD_BLOCK_SIZE, MAX_PAYLOAD_BLOCKS> payload;
+    DescriptorCopyCache<VkDescriptorSet> copy_cache;
 
 };
 

@@ -7,6 +7,7 @@
 #include <deque>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <type_traits>
 #include <unordered_map>
@@ -455,6 +456,12 @@ private:
     void PollGCReadbacks();
     void CancelGCReadback(ImageId id);
 
+    /// Id of the address space an image was created in, or nullopt if it is gone
+    std::optional<size_t> ImageAddressSpace(const ImageBase& image) const;
+
+    /// Memory manager of the address space an image was created in, or null if it is gone
+    Tegra::MemoryManager* ImageGpuMemory(const ImageBase& image) const;
+
     Runtime& runtime;
 
     Tegra::MaxwellDeviceMemoryManager& device_memory;
@@ -471,6 +478,11 @@ private:
 
     bool has_deleted_images = false;
     bool is_rescaling = false;
+
+    /// Pass in which each descriptor index was last visited by FillImageViews, and its view
+    std::vector<u32> visited_pass;
+    std::vector<ImageViewId> visited_view_ids;
+    u32 current_visit_pass = 0;
     u64 total_used_memory = 0;
     u64 minimum_memory;
     u64 expected_memory;

@@ -227,14 +227,14 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     RmlSDL::InputEventHandler(m_context, m_window, translated);
 }
 
-void UiWindow::Render(const PixelRect * gameArea)
+bool UiWindow::Render(const PixelRect * gameArea)
 {
     const bool hidden = (SDL_GetWindowFlags(m_window) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) != 0;
     VideoInterfaceFrame frame{};
     if (m_video == nullptr || hidden || m_drawableWidth <= 0 || m_drawableHeight <= 0 ||
         !m_video->BeginInterfaceFrame(static_cast<uint32_t>(m_drawableWidth), static_cast<uint32_t>(m_drawableHeight), &frame))
     {
-        return;
+        return false;
     }
     m_renderer->BeginFrame(static_cast<VkCommandBuffer>(frame.commandBuffer), m_drawableWidth, m_drawableHeight);
     m_context->Render();
@@ -249,6 +249,7 @@ void UiWindow::Render(const PixelRect * gameArea)
     {
         m_video->EndInterfaceFrame(nullptr);
     }
+    return true;
 }
 
 void UiWindow::PaceFrame()

@@ -105,8 +105,13 @@ bool TextureCache<P>::QueueGCReadback(ImageId id) {
         return false;
     } else {
         auto& image = slot_images[id];
-        if (image.unswizzled_size_bytes == 0 || image.unswizzled_size_bytes > GC_READBACK_LIMIT ||
-            image.gpu_page_table_index != channel_state->gpu_page_table_index) {
+        if (image.unswizzled_size_bytes == 0 || image.unswizzled_size_bytes > GC_READBACK_LIMIT) {
+            return false;
+        }
+        // The image may belong to a channel other than the bound one; the poll writes it
+        // back through its own address space.
+        const auto address_space = ImageAddressSpace(image);
+        if (!address_space) {
             return false;
         }
         if (gc_readback_ids.contains(id)) {
@@ -119,7 +124,7 @@ bool TextureCache<P>::QueueGCReadback(ImageId id) {
         auto map = runtime.DownloadStagingBuffer(image.unswizzled_size_bytes, true);
         image.DownloadMemory(map, FullDownloadCopies(image.info));
         gc_readbacks.push_back({id, image.modification_tick, lru_cache.GetTick(image.lru_index),
-                                runtime.GetReadbackTick(), current_address_space,
+                                runtime.GetReadbackTick(), *address_space,
                                 image.gpu_page_table_index, map});
         gc_readback_ids.insert(id);
         gc_readback_bytes += map.mapped_span.size_bytes();
@@ -167,6 +172,28 @@ void TextureCache<P>::PollGCReadbacks() {
             gc_readbacks.pop_front();
         }
     }
+}
+
+template <class P>
+std::optional<size_t> TextureCache<P>::ImageAddressSpace(const ImageBase& image) const {
+    if (image.gpu_page_table_index == channel_state->gpu_page_table_index) {
+        return current_address_space;
+    }
+    for (const auto& [id, address_space] : address_spaces) {
+        if (address_space.storage_id * 2 == image.gpu_page_table_index) {
+            return id;
+        }
+    }
+    return std::nullopt;
+}
+
+template <class P>
+Tegra::MemoryManager* TextureCache<P>::ImageGpuMemory(const ImageBase& image) const {
+    if (image.gpu_page_table_index == channel_state->gpu_page_table_index) {
+        return gpu_memory;
+    }
+    const auto id = ImageAddressSpace(image);
+    return id ? address_spaces.at(*id).gpu_memory : nullptr;
 }
 
 template <class P>
@@ -232,12 +259,16 @@ void TextureCache<P>::RunGarbageCollector() {
         if (must_download && QueueGCReadback(image_id)) {
             return false;
         }
-        if (must_download) {
+        // The collector may run while another channel is bound. Write the contents back to
+        // the address space the image belongs to; nothing can read them once it is gone.
+        Tegra::MemoryManager* const image_gpu_memory =
+            must_download ? ImageGpuMemory(image) : nullptr;
+        if (image_gpu_memory) {
             auto map = runtime.DownloadStagingBuffer(image.unswizzled_size_bytes);
             const auto copies = FullDownloadCopies(image.info);
             image.DownloadMemory(map, copies);
             runtime.Finish();
-            SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span,
+            SwizzleImage(*image_gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span,
                          swizzle_data_buffer);
         }
         if (True(image.flags & ImageFlagBits::Tracked)) {
@@ -348,29 +379,31 @@ void TextureCache<P>::CheckFeedbackLoop(std::span<const ImageViewInOut> views) {
     }
 
     const bool requires_barrier = [&] {
+        std::array<ImageId, NUM_RT + 1> target_images;
+        size_t num_targets = 0;
+        for (const auto& ct_view_id : render_targets.color_buffer_ids) {
+            if (ct_view_id) {
+                target_images[num_targets++] = slot_image_views[ct_view_id].image_id;
+            }
+        }
+        if (render_targets.depth_buffer_id) {
+            target_images[num_targets++] = slot_image_views[render_targets.depth_buffer_id].image_id;
+        }
+        if (num_targets == 0) {
+            return false;
+        }
+        const std::span targets{target_images.data(), num_targets};
+        // Large bindless arrays repeat their views, often back to back
+        ImageViewId last_checked{};
         for (const auto& view : views) {
             // A whole texture table usually holds the render targets too
-            if (!view.id || view.is_table) {
+            if (!view.id || view.is_table || view.id == last_checked) {
                 continue;
             }
-            auto& image_view = slot_image_views[view.id];
-
-            // Check color targets
-            for (const auto& ct_view_id : render_targets.color_buffer_ids) {
-                if (ct_view_id) {
-                    auto& ct_view = slot_image_views[ct_view_id];
-                    if (image_view.image_id == ct_view.image_id) {
-                        return true;
-                    }
-                }
-            }
-
-            // Check zeta target
-            if (render_targets.depth_buffer_id) {
-                auto& zt_view = slot_image_views[render_targets.depth_buffer_id];
-                if (image_view.image_id == zt_view.image_id) {
-                    return true;
-                }
+            last_checked = view.id;
+            const ImageId image_id = slot_image_views[view.id].image_id;
+            if (std::ranges::find(targets, image_id) != targets.end()) {
+                return true;
             }
         }
 
@@ -655,14 +688,38 @@ template <bool has_blacklists>
 void TextureCache<P>::FillImageViews(DescriptorTable<TICEntry>& table,
                                      std::span<ImageViewId> cached_image_view_ids,
                                      std::span<ImageViewInOut> views) {
+    // Large bindless arrays repeat the same few handles. Within a pass, a later visit of an
+    // index would read the same descriptor and find the same view, so it reuses the result.
+    // Nothing is kept across passes: guest memory may change between them.
+    const bool skip_repeats = views.size() >= 64;
+    if (skip_repeats && visited_pass.size() <= table.Limit()) {
+        visited_pass.resize(size_t{table.Limit()} + 1, 0);
+        visited_view_ids.resize(visited_pass.size());
+    }
     bool has_blacklisted = false;
     do {
         has_deleted_images = false;
         if constexpr (has_blacklists) {
             has_blacklisted = false;
         }
+        if (skip_repeats && ++current_visit_pass == 0) {
+            std::ranges::fill(visited_pass, 0);
+            current_visit_pass = 1;
+        }
         for (ImageViewInOut& view : views) {
-            view.id = VisitImageView(table, cached_image_view_ids, view.index);
+            // A deletion or rescale erases views mid-pass, so the stored results may be gone.
+            // The pass is repeated anyway; visit the rest of it without reusing them.
+            if (skip_repeats && !has_deleted_images && view.index <= table.Limit()) {
+                u32& pass = visited_pass[view.index];
+                ImageViewId& visited_id = visited_view_ids[view.index];
+                if (pass != current_visit_pass) {
+                    pass = current_visit_pass;
+                    visited_id = VisitImageView(table, cached_image_view_ids, view.index);
+                }
+                view.id = visited_id;
+            } else {
+                view.id = VisitImageView(table, cached_image_view_ids, view.index);
+            }
             if constexpr (has_blacklists) {
                 if (view.blacklist && view.id != NULL_IMAGE_VIEW_ID) {
                     const ImageViewBase& image_view{slot_image_views[view.id]};

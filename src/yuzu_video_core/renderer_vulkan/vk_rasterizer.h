@@ -193,11 +193,13 @@ private:
     Scheduler& scheduler;
 
     StagingBufferPool staging_pool;
+    VtgScratchAllocator indirect_scratch;
     /// Instances of the draw being prepared, zero when it cannot run its stages as compute
     u32 vtg_instance_count{};
     DescriptorPool descriptor_pool;
     GuestDescriptorQueue guest_descriptor_queue;
     ComputePassDescriptorQueue compute_pass_descriptor_queue;
+    std::unique_ptr<IndirectCountPass> indirect_count_pass;
     BlitImageHelper blit_image;
     RenderPassCache render_pass_cache;
 

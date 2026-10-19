@@ -29,7 +29,10 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
 
     while (!stop_token.stop_requested())
     {
-        gpu.ProcessPendingComposite();
+        {
+            std::scoped_lock execution_lock{state.execution_mutex};
+            gpu.ProcessPendingComposite();
+        }
         bool has_command;
         {
             has_command = state.queue.PopWait(next, stop_token, [&] {
@@ -37,6 +40,7 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             });
         }
         if (!has_command && !stop_token.stop_requested()) {
+            std::scoped_lock execution_lock{state.execution_mutex};
             gpu.ProcessPendingComposite();
             continue;
         }
@@ -45,6 +49,7 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             break;
         }
         {
+            std::scoped_lock execution_lock{state.execution_mutex};
             if (auto * submit_list = std::get_if<SubmitListCommand>(&next.data))
             {
                 scheduler.Push(submit_list->channel, std::move(submit_list->entries));

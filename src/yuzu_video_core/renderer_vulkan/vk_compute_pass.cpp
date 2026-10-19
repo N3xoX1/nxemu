@@ -22,6 +22,7 @@
 #include "yuzu_video_core/host_shaders/vulkan_quad_indexed_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_readback_delta_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_uint8_comp_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_indirect_count_comp_spv.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -319,6 +320,56 @@ ComputePass::ComputePass(const Device& device_, DescriptorPool& descriptor_pool,
 }
 
 ComputePass::~ComputePass() = default;
+
+IndirectCountPass::IndirectCountPass(const Device& device_, Scheduler& scheduler_,
+                                       DescriptorPool& pool)
+    : ComputePass(device_, pool, QUERIES_SCAN_DESCRIPTOR_SET_BINDINGS,
+                  QUERIES_SCAN_DESCRIPTOR_UPDATE_TEMPLATE, QUERIES_SCAN_BANK_INFO,
+                  COMPUTE_PUSH_CONSTANT_RANGE<4 * sizeof(u32)>, VULKAN_INDIRECT_COUNT_COMP_SPV),
+      scheduler{scheduler_} {}
+
+void IndirectCountPass::Convert(VkBuffer source, u64 source_offset, VkBuffer count,
+                                u64 count_offset, VkBuffer destination, u64 destination_offset,
+                                u32 max_draws, u32 stride) {
+    const u64 alignment = device.GetStorageBufferAlignment();
+    const u64 source_base = source_offset - source_offset % alignment;
+    const u64 count_base = count_offset - count_offset % alignment;
+    const std::array<VkDescriptorBufferInfo, 3> descriptors{{
+        {source, source_base, source_offset - source_base + u64{stride} * (max_draws - 1) + 20},
+        {count, count_base, count_offset - count_base + sizeof(u32)},
+        {destination, destination_offset, u64{max_draws} * 20},
+    }};
+    const std::array<u32, 4> parameters{
+        static_cast<u32>((source_offset - source_base) / 4),
+        static_cast<u32>((count_offset - count_base) / 4), max_draws, stride / 4};
+    scheduler.RecordWithUploadBuffer([this, descriptors, parameters](vk::CommandBuffer,
+                                                                    vk::CommandBuffer upload) {
+        // Include previous submissions, even when guest barriers are recorded
+        // later in the main buffer. The caller excludes current-context writes.
+        std::array<VkBufferMemoryBarrier, 2> before{};
+        for (size_t index = 0; index < before.size(); ++index) {
+            before[index] = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                             VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                             descriptors[index].buffer, descriptors[index].offset,
+                             descriptors[index].range};
+        }
+        upload.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, {}, before, {});
+        const auto set = descriptor_allocator.Commit();
+        device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptors.data());
+        upload.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+        upload.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
+        upload.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(parameters), &parameters);
+        upload.Dispatch(Common::DivCeil(parameters[2], 64U), 1, 1);
+        const VkBufferMemoryBarrier after{
+            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr, VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+            descriptors[2].buffer, descriptors[2].offset, descriptors[2].range};
+        upload.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                               VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, {}, after, {});
+    });
+}
 
 ReadbackDeltaPass::ReadbackDeltaPass(const Device& device_, Scheduler& scheduler_,
                                    DescriptorPool& pool, ComputePassDescriptorQueue& queue_)

@@ -203,7 +203,8 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
                                    StateTracker& state_tracker_, Scheduler& scheduler_)
     : gpu{gpu_}, device_memory{device_memory_}, device{device_},
       memory_allocator{memory_allocator_}, state_tracker{state_tracker_}, scheduler{scheduler_},
-      staging_pool(device, memory_allocator, scheduler), descriptor_pool(device, scheduler),
+      staging_pool(device, memory_allocator, scheduler),
+      indirect_scratch(device, scheduler, staging_pool), descriptor_pool(device, scheduler),
       guest_descriptor_queue(device, scheduler), compute_pass_descriptor_queue(device, scheduler),
       blit_image(device, scheduler, state_tracker, descriptor_pool), render_pass_cache(device),
       texture_cache_runtime{
@@ -352,6 +353,34 @@ bool RasterizerVulkan::DrawIndirect() {
             const auto count = buffer_cache.GetDrawIndirectCount();
             const auto& draw_buffer = count.first;
             const auto& offset_base = count.second;
+            const bool can_preconvert = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+                !videoSettings.disable_buffer_reorder && params.is_indexed &&
+                params.max_draw_counts > 0 && params.max_draw_counts <= (1U << 20) &&
+                params.stride >= 20 && params.stride % 4 == 0 && offset % 4 == 0 &&
+                params.stride * params.max_draw_counts + device.GetStorageBufferAlignment() <=
+                    device.GetMaxStorageBufferRange() &&
+                offset_base % 4 == 0 && !scheduler.IsBufferWritten(buffer->Handle()) &&
+                !scheduler.IsBufferWritten(draw_buffer->Handle());
+            if (can_preconvert) {
+                if (!indirect_count_pass) {
+                    indirect_count_pass =
+                        std::make_unique<IndirectCountPass>(device, scheduler, descriptor_pool);
+                }
+                const auto [converted, converted_offset] =
+                    indirect_scratch.Allocate(params.max_draw_counts * 20);
+                indirect_count_pass->Convert(buffer->Handle(), offset, draw_buffer->Handle(),
+                                            offset_base, converted, converted_offset,
+                                            static_cast<u32>(params.max_draw_counts),
+                                            static_cast<u32>(params.stride));
+                scheduler.Record([pipeline, converted, converted_offset,
+                                  draws = static_cast<u32>(params.max_draw_counts)](
+                                     vk::CommandBuffer cmdbuf) {
+                    if (pipeline->IsBuilt()) {
+                        cmdbuf.DrawIndexedIndirect(converted, converted_offset, draws, 20);
+                    }
+                });
+                return;
+            }
             scheduler.Record([pipeline, draw_buffer_obj = draw_buffer->Handle(),
                               buffer_obj = buffer->Handle(), offset_base, offset,
                               params](vk::CommandBuffer cmdbuf) {
@@ -955,8 +984,6 @@ void RasterizerVulkan::FlushCommands() {
 
 void RasterizerVulkan::TickFrame() {
     draw_counter = 0;
-    guest_descriptor_queue.TickFrame();
-    compute_pass_descriptor_queue.TickFrame();
     fence_manager.TickFrame();
     staging_pool.TickFrame();
     {

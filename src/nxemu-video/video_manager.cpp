@@ -211,6 +211,9 @@ uint64_t VideoManager::MapBufferEx(uint32_t gmmu, uint64_t gpuAddr, uint64_t dev
         UNIMPLEMENTED();
         return 0;
     }
+    // Preserve old mappings and renderer state until any readbacks complete.
+    // The same guard surrounds GPU command lists and frame composition.
+    auto execution_lock = impl->m_gpuCore->LockExecution();
     return memory->Map(gpuAddr, deviceAddr, size, (Tegra::PTEKind)kind, isBigPages);
 }
 
@@ -222,6 +225,9 @@ uint64_t VideoManager::MapSparse(uint32_t gmmu, uint64_t gpuAddr, uint64_t size,
         UNIMPLEMENTED();
         return 0;
     }
+    // Preserve old mappings and renderer state until any readbacks complete.
+    // The same guard surrounds GPU command lists and frame composition.
+    auto execution_lock = impl->m_gpuCore->LockExecution();
     return memory->MapSparse(gpuAddr, size, isBigPages);
 }
 
@@ -233,6 +239,9 @@ void VideoManager::Unmap(uint32_t gmmu, uint64_t gpuAddr, uint64_t size)
         UNIMPLEMENTED();
         return;
     }
+    // Preserve old mappings and renderer state until any readbacks complete.
+    // The same guard surrounds GPU command lists and frame composition.
+    auto execution_lock = impl->m_gpuCore->LockExecution();
     memory->Unmap(gpuAddr, size);
 }
 

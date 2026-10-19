@@ -88,8 +88,9 @@ public:
                 LOG_WARNING(Render_Vulkan, "Occlusion query results never became available");
                 return;
             case VK_ERROR_DEVICE_LOST:
+                // The queries will never finish, so their results stay empty.
                 device.ReportLoss();
-                [[fallthrough]];
+                return;
             default:
                 throw vk::Exception(query_result);
             }

@@ -19,10 +19,13 @@
 #include "yuzu_video_core/vulkan_common/vma.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
+#include <nxemu-module-spec/base.h>
 
 #if defined(ANDROID) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
 #include <adrenotools/bcenabler.h>
 #endif
+
+extern IModuleNotification * g_notify;
 
 namespace Vulkan
 {
@@ -897,10 +900,21 @@ VkFormat Device::GetSupportedFormat(VkFormat wanted_format, VkFormatFeatureFlags
 
 void Device::ReportLoss() const
 {
+    if (lost.exchange(true))
+    {
+        return;
+    }
     LOG_CRITICAL(Render_Vulkan, "Device loss occurred!");
+    if (g_notify != nullptr)
+    {
+        g_notify->DisplayError("The GPU stopped responding, so the game can no longer be shown. Stop the emulation and start the game again.", "Graphics error");
+    }
 
-    // Wait for the log to flush and for Nsight Aftermath to dump the results
-    std::this_thread::sleep_for(std::chrono::seconds{15});
+    if (nsight_aftermath_tracker)
+    {
+        // Wait for the log to flush and for Nsight Aftermath to dump the results
+        std::this_thread::sleep_for(std::chrono::seconds{15});
+    }
 }
 
 void Device::SaveShader(std::span<const u32> spirv) const

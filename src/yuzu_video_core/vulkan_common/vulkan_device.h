@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #include <set>
 #include <span>
@@ -213,8 +214,13 @@ public:
     bool IsFormatSupported(VkFormat wanted_format, VkFormatFeatureFlags wanted_usage,
                            FormatType format_type) const;
 
-    /// Reports a device loss.
+    /// Reports a device loss. Only the first report is handled.
     void ReportLoss() const;
+
+    /// Returns true once the device was lost.
+    bool IsLost() const {
+        return lost.load(std::memory_order_relaxed);
+    }
 
     /// Reports a shader to Nsight Aftermath.
     void SaveShader(std::span<const u32> spirv) const;
@@ -954,6 +960,8 @@ private:
 
     /// Nsight Aftermath GPU crash tracker
     std::unique_ptr<NsightAftermathTracker> nsight_aftermath_tracker;
+
+    mutable std::atomic_bool lost{}; ///< The device was lost.
 };
 
 } // namespace Vulkan
