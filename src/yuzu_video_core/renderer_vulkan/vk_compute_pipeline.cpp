@@ -25,7 +25,7 @@ using Tegra::Texture::TexturePair;
 ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipeline_cache_,
                                  DescriptorPool& descriptor_pool,
                                  GuestDescriptorQueue& guest_descriptor_queue_,
-                                 Common::ThreadWorker* thread_worker,
+                                 NativePipelineBuildQueue* thread_worker,
                                  PipelineStatistics* pipeline_statistics,
                                  VideoCore::ShaderNotify* shader_notify, const Shader::Info& info_,
                                  vk::ShaderModule spv_module_, StagingBufferPool& staging_pool_)
@@ -103,7 +103,8 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
         }
     }};
     if (thread_worker) {
-        thread_worker->QueueWork(std::move(func));
+        build_queue = thread_worker;
+        queued_build = thread_worker->QueueWork(std::move(func));
     } else {
         func();
     }
@@ -289,6 +290,9 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     if (!is_built.load(std::memory_order::relaxed)) {
         // Wait for the pipeline to be built
         scheduler.Record([this](vk::CommandBuffer) {
+            if (build_queue) {
+                build_queue->RunNow(queued_build);
+            }
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
         });

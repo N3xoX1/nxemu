@@ -140,7 +140,6 @@ private:
         GraphicsEnvironments environments;
         AsyncPipelineBuild<GraphicsPipeline> build;
         NativePipelineBuildQueue::Handle request;
-        size_t snapshot_bytes{};
     };
 
     bool ShouldWaitForAsyncPipeline() const noexcept;
@@ -226,6 +225,7 @@ private:
     std::filesystem::path vulkan_pipeline_cache_filename;
     vk::PipelineCache vulkan_pipeline_cache;
 
+    // Disk-cache loading only; runtime translation and native builds use runtime_builds.
     Common::ThreadWorker workers;
     Common::ThreadWorker serialization_thread;
     DynamicFeatures dynamic_features;
@@ -235,7 +235,6 @@ private:
     // by its key without constant buffer and texture pool sizes. Translation is what reveals them.
     std::unordered_map<GraphicsPipelineCacheKey, std::shared_ptr<PendingGraphicsPipeline>>
         pending_unknown_sizes;
-    size_t pending_snapshot_bytes{};
     std::mutex completed_mutex;
     std::vector<GraphicsPipelineCacheKey> completed_graphics;
     std::atomic_bool has_completed_graphics{};

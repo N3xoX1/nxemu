@@ -7,7 +7,6 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <tuple>
@@ -17,7 +16,7 @@
 
 #include <boost/container/small_vector.hpp>
 
-#include "yuzu_common/thread_worker.h"
+#include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_shader_recompiler/vtg_as_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -132,7 +131,7 @@ public:
         Scheduler& scheduler, BufferCache& buffer_cache, TextureCache& texture_cache,
         vk::PipelineCache& pipeline_cache, VideoCore::ShaderNotify* shader_notify,
         const Device& device, DescriptorPool& descriptor_pool,
-        GuestDescriptorQueue& guest_descriptor_queue, Common::ThreadWorker* worker_thread,
+        GuestDescriptorQueue& guest_descriptor_queue, NativePipelineBuildQueue* worker_thread,
         PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
         const GraphicsPipelineCacheKey& key, std::array<vk::ShaderModule, NUM_STAGES> stages,
         const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines,
@@ -164,7 +163,7 @@ public:
                                            : nullptr;
     }
 
-    /// Builds the pipeline on the calling thread unless a compiler thread already started it
+    /// Helps build a queued pipeline if the shared compiler limit has a free slot
     void BuildIfQueued();
 
     [[nodiscard]] bool IsBuilt() const noexcept {
@@ -284,8 +283,8 @@ private:
     std::mutex build_mutex;
     std::atomic_bool is_built{false};
     std::atomic_bool build_complete{false};
-    std::function<void()> queued_build;
-    std::atomic_bool build_claimed{false};
+    NativePipelineBuildQueue* build_queue{};
+    NativePipelineBuildQueue::Handle queued_build;
     bool uses_push_descriptor{false};
     const bool rasterizes_lines;
 

@@ -384,7 +384,7 @@ GraphicsPipeline::GraphicsPipeline(
     Scheduler& scheduler_, BufferCache& buffer_cache_, TextureCache& texture_cache_,
     vk::PipelineCache& pipeline_cache_, VideoCore::ShaderNotify* shader_notify,
     const Device& device_, DescriptorPool& descriptor_pool,
-    GuestDescriptorQueue& guest_descriptor_queue_, Common::ThreadWorker* worker_thread,
+    GuestDescriptorQueue& guest_descriptor_queue_, NativePipelineBuildQueue* worker_thread,
     PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
     const GraphicsPipelineCacheKey& key_, std::array<vk::ShaderModule, NUM_STAGES> stages,
     const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines_,
@@ -601,8 +601,8 @@ GraphicsPipeline::GraphicsPipeline(
         }
     }};
     if (worker_thread) {
-        queued_build = std::move(func);
-        worker_thread->QueueWork([this] { BuildIfQueued(); }, urgent_build);
+        build_queue = worker_thread;
+        queued_build = worker_thread->QueueWork(std::move(func), urgent_build);
     } else {
         func();
     }
@@ -625,15 +625,15 @@ void GraphicsPipeline::Configure(bool is_indexed) {
     configure_func(this, is_indexed);
 }
 
-// A pipeline can be shared by several keys, so the transition is keyed explicitly.
 void GraphicsPipeline::BuildIfQueued() {
-    // A thread about to wait for this pipeline builds it itself when no compiler took it yet,
-    // instead of waiting behind every pipeline queued before it.
-    if (queued_build && !build_claimed.exchange(true, std::memory_order_acq_rel)) {
-        queued_build();
+    if (build_queue) {
+        build_queue->Promote(queued_build);
+        // Helping uses the same compiler limit as the background workers.
+        build_queue->RunNow(queued_build);
     }
 }
 
+// A pipeline can be shared by several keys, so the transition is keyed explicitly.
 void GraphicsPipeline::AddTransition(GraphicsPipeline* transition,
                                      const GraphicsPipelineCacheKey& transition_key) {
     transition_keys.push_back(transition_key);

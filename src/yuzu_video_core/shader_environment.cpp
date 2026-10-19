@@ -422,27 +422,6 @@ u32 GraphicsEnvironment::ReadCbufSize(u32 cbuf_index) {
     return size;
 }
 
-size_t GraphicsEnvironment::SnapshotSize(const Tegra::Engines::Maxwell3D& maxwell3d,
-                                         u32 active_stage_mask, const SnapshotCache& cache) {
-    const size_t texture_count = static_cast<size_t>(maxwell3d.regs.tex_header.limit) + 1;
-    const bool may_reuse_textures = cache.texture_descriptors &&
-                                    cache.texture_address == maxwell3d.regs.tex_header.Address() &&
-                                    cache.texture_descriptors->size() == texture_count;
-    size_t bytes = may_reuse_textures ? 0 : texture_count * sizeof(Tegra::Texture::TICEntry);
-    for (size_t stage = 0; stage < maxwell3d.state.shader_stages.size(); ++stage) {
-        if ((active_stage_mask & (1U << stage)) == 0) {
-            continue;
-        }
-        for (const auto& cbuf : maxwell3d.state.shader_stages[stage].const_buffers) {
-            if (cbuf.enabled && cbuf.size != 0) {
-                bytes += static_cast<size_t>(cbuf.size) + sizeof(u32) - 1;
-            }
-        }
-    }
-    // An upper bound also covers the small HLE replacement map.
-    return bytes + maxwell3d.replace_table.size() * 64;
-}
-
 namespace {
 // Compares guest memory with a previous copy without allocating.
 bool GuestMemoryEquals(Tegra::MemoryManager& gpu_memory, GPUVAddr address, const void* data,
@@ -462,11 +441,10 @@ bool GuestMemoryEquals(Tegra::MemoryManager& gpu_memory, GPUVAddr address, const
 
 std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::CaptureSnapshot(
     Tegra::Engines::Maxwell3D& maxwell3d, Tegra::MemoryManager& gpu_memory,
-    u32 active_stage_mask, SnapshotCache& cache, size_t& new_bytes) {
-    new_bytes = 0;
+    u32 active_stage_mask, SnapshotCache& cache) {
     constexpr size_t MaxConstantBufferSnapshotBytes = 16 * 1024 * 1024;
     constexpr size_t MaxTextureSnapshotBytes = 16 * 1024 * 1024;
-    auto result = std::make_shared<Snapshot>();
+    Snapshot layout;
     struct Copy {
         GPUVAddr address;
         size_t size;
@@ -481,7 +459,7 @@ std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::Captur
         const auto& stage = maxwell3d.state.shader_stages[stage_index];
         for (size_t index = 0; index < stage.const_buffers.size(); ++index) {
             const auto& cbuf = stage.const_buffers[index];
-            auto& dest = result->constant_buffers[stage_index][index];
+            auto& dest = layout.constant_buffers[stage_index][index];
             dest.enabled = cbuf.enabled;
             dest.size = cbuf.size;
             if (!cbuf.enabled || cbuf.size == 0) {
@@ -514,11 +492,17 @@ std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::Captur
     }
     const size_t texture_bytes = texture_count * sizeof(Tegra::Texture::TICEntry);
     const GPUVAddr texture_address = maxwell3d.regs.tex_header.Address();
+    const bool is_hle = maxwell3d.engine_state == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro;
+    const size_t replacement_bytes = is_hle ? maxwell3d.replace_table.size() * 64 : 0;
+    auto result = cache.memory.TryMakeShared<Snapshot>(
+        sizeof(Snapshot) + total_cbuf_size + replacement_bytes, std::move(layout));
+    if (!result) {
+        return {};
+    }
     // The synchronous path reads descriptors with a flushing ReadBlock. Flush
     // once here instead of giving up on the asynchronous build.
     const bool textures_dirty = gpu_memory.IsMemoryDirty(texture_address, texture_bytes);
     result->constant_buffer_data.resize(total_cbuf_size);
-    new_bytes += total_cbuf_size;
     for (const auto& copy : copies) {
         gpu_memory.ReadBlockUnsafe(copy.address,
                                   result->constant_buffer_data.data() + copy.offset, copy.size);
@@ -527,6 +511,7 @@ std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::Captur
     const auto& regs = maxwell3d.regs;
     result->via_header_index =
         regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding;
+    result->texture_pool = GraphicsTexturePoolInfo(regs);
     result->texture_limit = regs.tex_header.limit;
     result->viewport_transform_state = regs.viewport_scale_offset_enabled;
 
@@ -541,19 +526,25 @@ std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::Captur
         // it keeps one copy alive instead of one per queued build.
         result->texture_descriptors = cache.texture_descriptors;
     } else {
-        auto descriptors = std::make_shared<std::vector<Tegra::Texture::TICEntry>>(texture_count);
+        // Stop retaining a stale table before reserving its replacement. Jobs still
+        // using it keep both its storage and its charge alive through shared ownership.
+        cache.texture_descriptors.reset();
+        auto descriptors = cache.memory.TryMakeShared<std::vector<Tegra::Texture::TICEntry>>(
+            texture_bytes, texture_count);
+        if (!descriptors) {
+            return {};
+        }
         if (textures_dirty) {
             gpu_memory.ReadBlock(texture_address, descriptors->data(), texture_bytes);
         } else {
             gpu_memory.ReadBlockUnsafe(texture_address, descriptors->data(), texture_bytes);
         }
-        new_bytes += texture_bytes;
         cache.texture_address = texture_address;
         cache.texture_descriptors = descriptors;
         result->texture_descriptors = std::move(descriptors);
     }
 
-    if (maxwell3d.engine_state == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro) {
+    if (is_hle) {
         result->cbuf_replacements.reserve(maxwell3d.replace_table.size());
         for (const auto& [key, value] : maxwell3d.replace_table) {
             const auto converted = [&] {
@@ -628,7 +619,8 @@ u32 GraphicsEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
 }
 
 std::optional<Shader::TexturePoolInfo> GraphicsEnvironment::ReadTexturePoolInfo() {
-    const Shader::TexturePoolInfo pool{GraphicsTexturePoolInfo(maxwell3d->regs)};
+    const Shader::TexturePoolInfo pool{snapshot ? snapshot->texture_pool
+                                              : GraphicsTexturePoolInfo(maxwell3d->regs)};
     cbuf_values.emplace(POOL_TEXTURES_KEY, pool.num_textures);
     cbuf_values.emplace(POOL_SAMPLERS_KEY,
                         pool.num_samplers | (pool.linked_samplers ? POOL_LINKED_SAMPLERS_BIT : 0U));

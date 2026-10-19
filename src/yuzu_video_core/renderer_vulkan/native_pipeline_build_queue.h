@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include <condition_variable>
 #include <cstddef>
 #include <list>
 #include <memory>
@@ -13,8 +14,8 @@
 
 namespace Vulkan {
 
-// Runtime builds share a bounded native compiler pool. Disk loading can still
-// use its larger pool without flooding gameplay with compiler threads.
+// All runtime graphics and compute builds share this compiler limit, including
+// scheduler helping. Disk-cache workers are drained before runtime work begins.
 class NativePipelineBuildQueue {
     struct Request {
         explicit Request(Common::UniqueFunction<void> work_) : work(std::move(work_)) {}
@@ -29,7 +30,8 @@ public:
     static constexpr size_t MaxPendingBuilds = 1024;
 
     explicit NativePipelineBuildQueue(size_t num_workers)
-        : workers(num_workers, "VkRuntimeNative") {}
+        : execution_slots(static_cast<std::ptrdiff_t>(num_workers)),
+          workers(num_workers, "VkRuntimeNative") {}
 
     ~NativePipelineBuildQueue() {
         WaitForRequests();
@@ -45,6 +47,8 @@ public:
             try {
                 workers.QueueWork([this] {
                     SCOPE_EXIT { slots.release(); };
+                    execution_slots.acquire();
+                    SCOPE_EXIT { execution_slots.release(); };
                     Handle next;
                     {
                         std::scoped_lock lock{requests_mutex};
@@ -86,19 +90,28 @@ public:
     // Runs a request that no worker has started yet on the calling thread. A
     // thread that would otherwise block on this build (the command worker for a
     // critical draw or a compute dispatch) then does not wait behind unrelated
-    // queued pipelines. Returns false if a worker already took the request.
+    // queued pipelines. Returns false if a worker already took the request or all
+    // compiler slots are busy. In particular, helping cannot bypass a serial driver workaround.
     bool RunNow(const Handle& request) {
-        if (!request) {
+        if (!request || !execution_slots.try_acquire()) {
             return false;
         }
         {
             std::scoped_lock lock{requests_mutex};
             if (!Remove(critical_requests, request) && !Remove(background_requests, request)) {
+                execution_slots.release();
                 return false;
             }
+            ++inline_builds;
         }
-        // The worker dispatch queued for this request finds nothing to do and
-        // releases its slot.
+        SCOPE_EXIT {
+            execution_slots.release();
+            std::scoped_lock lock{requests_mutex};
+            --inline_builds;
+            inline_done.notify_all();
+        };
+        // Its queued dispatcher still releases the backlog slot. Draining also waits
+        // for this callback, even if that dispatcher has already finished.
         request->work();
         return true;
     }
@@ -114,6 +127,8 @@ public:
 
     void WaitForRequests() {
         workers.WaitForRequests();
+        std::unique_lock lock{requests_mutex};
+        inline_done.wait(lock, [this] { return inline_builds == 0; });
     }
 
 private:
@@ -128,7 +143,10 @@ private:
     }
 
     std::counting_semaphore<MaxPendingBuilds> slots{MaxPendingBuilds};
+    std::counting_semaphore<> execution_slots;
     std::mutex requests_mutex;
+    std::condition_variable inline_done;
+    size_t inline_builds{};
     std::list<Handle> critical_requests;
     std::list<Handle> background_requests;
     Common::ThreadWorker workers;

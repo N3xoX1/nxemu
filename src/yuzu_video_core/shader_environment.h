@@ -19,6 +19,7 @@
 #include "yuzu_common/unique_function.h"
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
+#include "yuzu_video_core/snapshot_memory_budget.h"
 
 namespace Tegra {
 class Memorymanager;
@@ -140,6 +141,7 @@ public:
         // Shared between snapshots while the guest descriptor table is unchanged.
         std::shared_ptr<const std::vector<Tegra::Texture::TICEntry>> texture_descriptors;
         std::unordered_map<u64, Shader::ReplaceConstant> cbuf_replacements;
+        Shader::TexturePoolInfo texture_pool{};
         u32 texture_limit{};
         u32 viewport_transform_state{1};
         bool via_header_index{};
@@ -158,22 +160,19 @@ public:
     // Reuses the texture descriptor copy of the previous capture when the guest
     // table did not change. Only accessed by the thread that captures snapshots.
     struct SnapshotCache {
+        SnapshotMemoryBudget memory{64 * 1024 * 1024};
         GPUVAddr texture_address{};
         std::shared_ptr<const std::vector<Tegra::Texture::TICEntry>> texture_descriptors;
     };
 
-    // `new_bytes` receives the memory newly allocated by this capture.
+    // Returns null when the bounded snapshot budget cannot accommodate the capture.
     [[nodiscard]] static std::shared_ptr<const Snapshot> CaptureSnapshot(
         Tegra::Engines::Maxwell3D& maxwell3d, Tegra::MemoryManager& gpu_memory,
-        u32 active_stage_mask, SnapshotCache& cache, size_t& new_bytes);
+        u32 active_stage_mask, SnapshotCache& cache);
 
     void SetSnapshot(std::shared_ptr<const Snapshot> snapshot_);
 
     void ReleaseSnapshot();
-
-    // Upper bound of the memory a capture allocates, given the reuse cache.
-    [[nodiscard]] static size_t SnapshotSize(const Tegra::Engines::Maxwell3D& maxwell3d,
-                                           u32 active_stage_mask, const SnapshotCache& cache);
 
     u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
 

@@ -12,7 +12,7 @@
 #include <boost/container/small_vector.hpp>
 
 #include "yuzu_common/common_types.h"
-#include "yuzu_common/thread_worker.h"
+#include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_video_core/renderer_vulkan/descriptor_lookup.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
@@ -35,7 +35,7 @@ public:
     explicit ComputePipeline(const Device& device, vk::PipelineCache& pipeline_cache,
                              DescriptorPool& descriptor_pool,
                              GuestDescriptorQueue& guest_descriptor_queue,
-                             Common::ThreadWorker* thread_worker,
+                             NativePipelineBuildQueue* thread_worker,
                              PipelineStatistics* pipeline_statistics,
                              VideoCore::ShaderNotify* shader_notify, const Shader::Info& info,
                              vk::ShaderModule spv_module, StagingBufferPool& staging_pool);
@@ -90,5 +90,7 @@ private:
     std::mutex build_mutex;
     std::atomic_bool is_built{false};
     std::atomic_bool build_failed{false};
+    NativePipelineBuildQueue* build_queue{};
+    NativePipelineBuildQueue::Handle queued_build;
 };
 } // namespace Vulkan

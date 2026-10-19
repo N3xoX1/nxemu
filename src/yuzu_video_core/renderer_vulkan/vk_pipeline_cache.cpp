@@ -508,9 +508,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
       workers(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers(),
               "VkPipelineBuilder"),
       serialization_thread(1, "VkPipelineSerialization"),
-      runtime_builds(use_asynchronous_shaders
-          ? (device.HasBrokenParallelShaderCompiling() ? 1ULL
-                : GetTotalPipelineWorkers()) : 1ULL) {
+      runtime_builds(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers()) {
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     // MoltenVK walks every resource of a descriptor set each time it is bound
@@ -929,7 +927,6 @@ bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
     // Backpressure falls back to synchronous compilation instead of holding an
     // unbounded number of guest-memory snapshots or blocking on a queue slot.
     constexpr size_t MaxPending = 512;
-    constexpr size_t MaxSnapshotBytes = 64 * 1024 * 1024;
     if (pending_graphics.size() >= MaxPending) {
         return false;
     }
@@ -939,24 +936,12 @@ bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
             stage_mask |= 1U << (index == 0 ? 0 : index - 1);
         }
     }
-    if (VideoCommon::GraphicsEnvironment::SnapshotSize(*maxwell3d, stage_mask, snapshot_cache) >
-        MaxSnapshotBytes - pending_snapshot_bytes) {
-        return false;
-    }
-    size_t new_bytes{};
     auto snapshot = VideoCommon::GraphicsEnvironment::CaptureSnapshot(
-        *maxwell3d, *gpu_memory, stage_mask, snapshot_cache, new_bytes);
+        *maxwell3d, *gpu_memory, stage_mask, snapshot_cache);
     if (!snapshot) {
         return false;
     }
     auto job = std::make_shared<PendingGraphicsPipeline>();
-    // Each job is charged for what its capture allocated. A descriptor table reused from the
-    // previous capture is charged once, to the job that copied it, instead of to every job of a
-    // burst: that sent most of a burst back to translation on this thread.
-    job->snapshot_bytes = new_bytes + sizeof(*snapshot) + snapshot->cbuf_replacements.size() * 64;
-    if (job->snapshot_bytes > MaxSnapshotBytes - pending_snapshot_bytes) {
-        return false;
-    }
     GetGraphicsEnvironments(job->environments, key.unique_hashes);
     for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
         if (key.unique_hashes[index]) {
@@ -968,7 +953,6 @@ bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
         pending_unknown_sizes.try_emplace(WithoutSizes(key), job);
     }
     pending_graphics.emplace(key, job);
-    pending_snapshot_bytes += job->snapshot_bytes;
     try {
         job->request = runtime_builds.QueueWork([this, key, job] {
             if (!job->build.TryBuild([&] {
@@ -985,7 +969,6 @@ bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
             has_completed_graphics.store(true, std::memory_order_release);
         }, false);
     } catch (...) {
-        pending_snapshot_bytes -= job->snapshot_bytes;
         pending_graphics.erase(key);
         if (const auto it = pending_unknown_sizes.find(WithoutSizes(key));
             it != pending_unknown_sizes.end() && it->second == job) {
@@ -1048,7 +1031,6 @@ void PipelineCache::FinishGraphicsPipeline(const GraphicsPipelineCacheKey& key) 
         LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed", key.Hash());
         graphics_cache[key] = nullptr;
     }
-    pending_snapshot_bytes -= job->snapshot_bytes;
     pending_graphics.erase(it);
     if (const auto unknown = pending_unknown_sizes.find(WithoutSizes(key));
         unknown != pending_unknown_sizes.end() && unknown->second == job) {
@@ -1064,7 +1046,6 @@ bool PipelineCache::WithdrawGraphicsPipeline(const std::shared_ptr<PendingGraphi
         return false;
     }
     job->request.reset();
-    pending_snapshot_bytes -= job->snapshot_bytes;
     pending_graphics.erase(job->key);
     // The draw that queued the build left an empty entry; the build that replaces it fills it.
     if (const auto it = graphics_cache.find(job->key); it != graphics_cache.end() && !it->second) {
@@ -1508,7 +1489,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                  : (modules[3] ? std::optional{programs[4].output_topology} : std::nullopt))};
     const bool rasterizes_lines{RasterizesLines(
         output_topology, FixedPipelineState::UnpackPolygonMode(key.state.polygon_mode))};
-    Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
+    NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
@@ -1651,7 +1632,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         const auto name{fmt::format("Shader {:016x}", key.unique_hash)};
         spv_module.SetObjectNameEXT(name.c_str());
     }
-    Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
+    NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
                                              &shader_notify, program.info, std::move(spv_module), staging_pool);
