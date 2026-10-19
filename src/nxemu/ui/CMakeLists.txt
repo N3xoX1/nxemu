@@ -49,6 +49,8 @@ add_library(nxemu_ui STATIC
     library/game_details.h
     library/game_library.cpp
     library/game_library.h
+    library/play_time.cpp
+    library/play_time.h
     library/rom_properties.cpp
     library/rom_properties.h
     platform/file_dialogs.cpp

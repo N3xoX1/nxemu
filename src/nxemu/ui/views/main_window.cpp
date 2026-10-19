@@ -60,8 +60,10 @@ const char * const kGameSorts[] = {TrMark("Name"), TrMark("Publisher"), TrMark("
 constexpr int kGameSortCount = static_cast<int>(sizeof(kGameSorts) / sizeof(kGameSorts[0]));
 constexpr int kSortByName = 0;
 constexpr int kSortByPublisher = 1;
+constexpr int kSortByRecentlyPlayed = 2;
+constexpr int kSortByPlayTime = 3;
 constexpr int kSortBySize = 4;
-constexpr int kOfferedSorts[] = {kSortByName, kSortByPublisher, kSortBySize};
+constexpr int kOfferedSorts[] = {kSortByName, kSortByPublisher, kSortByRecentlyPlayed, kSortByPlayTime, kSortBySize};
 
 struct ListColumn
 {
@@ -69,7 +71,7 @@ struct ListColumn
     float minWidth;
 };
 constexpr ListColumn kOptionalListColumns[] = {
-    {"hide-size", 930.0f}, {"hide-publisher", 700.0f}, {"hide-format", 560.0f},
+    {"hide-size", 930.0f}, {"hide-last", 820.0f}, {"hide-publisher", 700.0f}, {"hide-format", 560.0f},
     {"hide-number", 480.0f}, {"hide-version", 410.0f}, {"hide-play-label", 400.0f},
 };
 
@@ -158,6 +160,7 @@ MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary
     m_session(session),
     m_library(library),
     m_assetDir(std::move(assetDir)),
+    m_playTime(Common::FS::GetYuzuPath(Common::FS::YuzuPath::PlayTimeDir) / "play_time.json"),
     m_hotkeyRevision(Hotkeys::Revision())
 {
     m_session.SetListener(this);
@@ -389,6 +392,7 @@ void MainWindow::Update()
         SaveIconSize();
     }
     SyncPhase();
+    m_playTime.SetPlaying(m_phase == EmulatorSession::Phase::Running ? m_playingProgram : 0);
     if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty() && !m_firmwareDialog->Installing())
     {
         m_rescanGames = false;
@@ -467,7 +471,22 @@ void MainWindow::OnModulesReady()
 void MainWindow::OnGameStarted(const std::string & path)
 {
     const auto game = std::find_if(m_games.begin(), m_games.end(), [&path](const GameEntry & entry) { return entry.path == path; });
+    const bool hasIcon = game != m_games.end() && !game->icon.empty();
+    m_document->SetClass("has-game-icon", hasIcon);
+    if (Rml::Element * icon = m_document->GetElementById("title-game-icon"))
+    {
+        if (hasIcon)
+        {
+            icon->SetAttribute("src", game->icon);
+        }
+        else
+        {
+            icon->RemoveAttribute("src");
+        }
+    }
     SetTitle(game != m_games.end() ? game->title : SettingsStore::GetInstance().GetString(NXCoreSetting::GameName));
+    m_library.AddRecentFile(path);
+    m_gamesDirty = true;
     m_applyStartOptions = true;
     m_menuDirty = true;
 }
@@ -741,6 +760,12 @@ void MainWindow::Run(Action action)
             SaveUISetting();
             ApplyLibraryOptions();
             m_gamesDirty = true;
+            break;
+        }
+        const size_t recent = static_cast<size_t>(static_cast<int>(action) - static_cast<int>(Action::RecentFileFirst));
+        if (static_cast<int>(action) >= static_cast<int>(Action::RecentFileFirst) && recent < m_library.RecentFiles().size())
+        {
+            OpenGame(m_library.RecentFiles()[recent]);
         }
         break;
     }
@@ -880,6 +905,15 @@ void MainWindow::RebuildMenu()
 
     std::vector<MenuItem> file;
     file.push_back(action(Action::LoadFile, Tr("&Load File")));
+    if (!m_library.RecentFiles().empty())
+    {
+        std::vector<MenuItem> recent;
+        for (size_t i = 0; i < m_library.RecentFiles().size(); i++)
+        {
+            recent.push_back(MenuItem::Action(static_cast<int>(Action::RecentFileFirst) + static_cast<int>(i), std::to_string(i + 1) + " " + FileName(m_library.RecentFiles()[i])));
+        }
+        file.push_back(MenuItem::Submenu(Tr("&Recent File"), std::move(recent)));
+    }
     file.push_back(MenuItem::Separator());
     file.push_back(MenuItem::Submenu(Tr("Open &NXEmu Folders"), {
                                                                 action(Action::OpenAppDirectory, Tr("&App Directory")),
@@ -995,6 +1029,21 @@ void MainWindow::RenderGames()
     if (sort == kSortByPublisher)
     {
         std::stable_sort(shown.begin(), shown.end(), [this](size_t left, size_t right) { return Folded(m_games[left].publisher) < Folded(m_games[right].publisher); });
+    }
+    else if (sort == kSortByRecentlyPlayed)
+    {
+        const std::vector<std::string> & recent = m_library.RecentFiles();
+        const auto rank = [this, &recent](size_t game) { return std::find(recent.begin(), recent.end(), m_games[game].path) - recent.begin(); };
+        std::stable_sort(shown.begin(), shown.end(), [&rank](size_t left, size_t right) { return rank(left) < rank(right); });
+        std::stable_sort(shown.begin(), shown.end(), [this](size_t left, size_t right) {
+            return m_playTime.Of(m_games[left].programId).lastPlayed > m_playTime.Of(m_games[right].programId).lastPlayed;
+        });
+    }
+    else if (sort == kSortByPlayTime)
+    {
+        std::stable_sort(shown.begin(), shown.end(), [this](size_t left, size_t right) {
+            return m_playTime.Of(m_games[left].programId).seconds > m_playTime.Of(m_games[right].programId).seconds;
+        });
     }
     else if (sort == kSortBySize)
     {
@@ -1198,6 +1247,11 @@ std::string MainWindow::CardRml(size_t index)
                       "\"><div class=\"rom-art\" data-title-delay=\"" + std::to_string(kCoverTitleDelayMs) + "\" title=\"" +
                       Rml::StringUtilities::EncodeRml(game.title) + "\">";
     rml += IconRml(game.icon);
+    const std::string played = PlayTime::Duration(m_playTime.Of(game.programId).seconds);
+    if (!played.empty())
+    {
+        rml += "<div class=\"rom-played\"><img src=\"images/clock.png\"/><div>" + Rml::StringUtilities::EncodeRml(played) + "</div></div>";
+    }
     std::string details;
     if (!game.version.empty())
     {
@@ -1220,6 +1274,7 @@ std::string MainWindow::ListRowRml(size_t index, size_t number)
 {
     const GameEntry & game = m_games[index];
     const bool selected = game.path == m_selectedPath && game.programId == m_selectedProgramId;
+    const PlayTime::Record played = m_playTime.Of(game.programId);
     const std::string format = FileFormat(game.path);
     const char * kind = format.find("XCI") != std::string::npos ? " xci" : format.find("NSP") != std::string::npos ? " nsp" : "";
     const auto cell = [](const char * name, const std::string & text) {
@@ -1229,6 +1284,7 @@ std::string MainWindow::ListRowRml(size_t index, size_t number)
                       cell("number", std::to_string(number)) + "<div class=\"col-cover\">";
     rml += IconRml(game.icon);
     rml += "</div>" + cell("game", game.title) + cell("publisher", game.publisher) + cell("version", game.version.empty() ? std::string() : "v" + game.version) +
+           cell("last", played.lastPlayed != 0 ? PlayTime::Ago(played.lastPlayed) : Tr("Never")) + cell("time", PlayTime::Duration(played.seconds)) +
            "<div class=\"col-format\">" +
            (format.empty() ? std::string() : "<div class=\"format-badge" + std::string(kind) + "\">" + Rml::StringUtilities::EncodeRml(format) + "</div>") + "</div>" +
            cell("size", FileSize(game.size)) + "<div class=\"col-actions\"><div class=\"row-play\"><img src=\"images/play.png\"/><div>" +
@@ -1651,6 +1707,8 @@ void MainWindow::SyncPhase()
         m_lastStatusUpdate = 0;
         if (phase == EmulatorSession::Phase::Idle)
         {
+            m_playingProgram = 0;
+            m_gamesDirty = true;
             m_hideUi = false;
             m_window.SetFullscreen(false);
             SetTitle({});
@@ -1658,6 +1716,10 @@ void MainWindow::SyncPhase()
         else if (phase == EmulatorSession::Phase::Running && m_applyStartOptions)
         {
             m_applyStartOptions = false;
+            if (IRomInfoPtr info(m_session.Modules().Systemloader().LoadedRomInfo()); info)
+            {
+                info->ReadProgramId(m_playingProgram);
+            }
             m_hideUi = uiSettings.startGamesWithUiHidden;
             if (uiSettings.startGamesInFullscreen)
             {
@@ -1772,6 +1834,18 @@ void MainWindow::LayoutGameArea()
 void MainWindow::SetTitle(const std::string & game)
 {
     SetText("title-text", game);
+    if (Rml::Element * title = m_document->GetElementById("title-text"))
+    {
+        title->SetAttribute("title", game);
+    }
+    if (game.empty())
+    {
+        m_document->SetClass("has-game-icon", false);
+        if (Rml::Element * icon = m_document->GetElementById("title-game-icon"))
+        {
+            icon->RemoveAttribute("src");
+        }
+    }
     m_document->SetClass("has-game", !game.empty());
     ShowVersion();
     m_window.SetTitle("NXEmu " + std::string(VER_FILE_VERSION_STR) + (game.empty() ? std::string() : " - " + game));
