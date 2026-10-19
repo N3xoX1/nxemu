@@ -22,6 +22,7 @@
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/library/game_library.h>
+#include <nxemu/ui/library/play_time.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -246,6 +247,8 @@ private:
     bool m_gameShown = false;
     bool m_rescanGames = false;
     PixelRect m_gameArea{};
+    PlayTime m_playTime;
+    uint64_t m_playingProgram = 0;
     EmulatorSession::Phase m_phase = EmulatorSession::Phase::Idle;
     Panel m_panel = Panel::RomBrowser;
     bool m_menuDirty = true;

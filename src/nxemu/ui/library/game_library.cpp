@@ -44,6 +44,32 @@ bool GameLibrary::RemoveDirectory(const std::string & directory)
     return true;
 }
 
+const std::vector<std::string> & GameLibrary::RecentFiles() const
+{
+    return uiSettings.recentFiles;
+}
+
+void GameLibrary::AddRecentFile(const std::string & path)
+{
+    constexpr size_t kMaxRecentFiles = 10;
+    const auto samePath = [&path](const std::string & file) {
+#ifdef _WIN32
+        return _stricmp(file.c_str(), path.c_str()) == 0;
+#else
+        return file == path;
+#endif
+    };
+    Stringlist recentFiles = uiSettings.recentFiles;
+    recentFiles.erase(std::remove_if(recentFiles.begin(), recentFiles.end(), samePath), recentFiles.end());
+    recentFiles.insert(recentFiles.begin(), path);
+    if (recentFiles.size() > kMaxRecentFiles)
+    {
+        recentFiles.resize(kMaxRecentFiles);
+    }
+    SetUISettingStringList(NXUISetting::RecentFiles, recentFiles);
+    SaveUISetting();
+}
+
 void GameLibrary::StartScan(ISystemModules & modules)
 {
     StopScan();

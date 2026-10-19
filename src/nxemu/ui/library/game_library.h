@@ -36,6 +36,9 @@ public:
     bool AddDirectory(const std::string & directory);
     bool RemoveDirectory(const std::string & directory);
 
+    const std::vector<std::string> & RecentFiles() const;
+    void AddRecentFile(const std::string & path);
+
     void StartScan(ISystemModules & modules);
     void StopScan();
     bool Scanning() const { return m_scanning; }
