@@ -6,6 +6,7 @@
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <cmath>
+#include <common/path.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/identifiers.h>
@@ -22,6 +23,7 @@
 #include <nxemu/ui/library/game_cache.h>
 #include <nxemu/ui/library/game_details.h>
 #include <nxemu/ui/library/ui_preferences.h>
+#include <nxemu/ui/platform/file_dialogs.h>
 #include <tuple>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/path_util.h>
@@ -72,6 +74,17 @@ int GameIconSize()
 {
     const int size = UiPreferences::GetInt(UiPreferences::GameIconSize, kGameIconDefault);
     return size >= 1 && size <= kGameIconStepCount ? kGameIconSteps[size - 1] : std::clamp(size, kGameIconMin, kGameIconMax);
+}
+
+#ifdef __APPLE__
+constexpr bool kShowEmulationControlsDefault = true;
+#else
+constexpr bool kShowEmulationControlsDefault = false;
+#endif
+
+bool ShowEmulationControls()
+{
+    return UiPreferences::GetBool(UiPreferences::ShowEmulationControls, kShowEmulationControlsDefault);
 }
 
 bool IsDocked()
@@ -429,6 +442,7 @@ void MainWindow::OnGameStarted(const std::string & path)
 {
     const auto game = std::find_if(m_games.begin(), m_games.end(), [&path](const GameEntry & entry) { return entry.path == path; });
     SetTitle(game != m_games.end() ? game->title : SettingsStore::GetInstance().GetString(NXCoreSetting::GameName));
+    m_applyStartOptions = true;
     m_menuDirty = true;
 }
 
@@ -489,9 +503,41 @@ void MainWindow::Run(Action action)
 {
     switch (action)
     {
+    case Action::LoadFile: LoadFile(); break;
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
+    case Action::Restart:
+        if (m_session.IsRunning())
+        {
+            const std::string path = SettingsStore::GetInstance().GetString(NXCoreSetting::GameFile);
+            if (!path.empty() && ConfirmStop(Tr("Restart")))
+            {
+                m_session.Stop();
+                OpenGame(path);
+            }
+        }
+        break;
+    case Action::ToggleEmulationControls:
+        UiPreferences::SetBool(UiPreferences::ShowEmulationControls, !ShowEmulationControls());
+        m_menuDirty = true;
+        SyncPhase();
+        break;
+    case Action::ToggleStartGamesInFullscreen:
+        UiPreferences::SetBool(UiPreferences::StartGamesInFullscreen, !UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false));
+        m_menuDirty = true;
+        break;
+    case Action::ToggleStartGamesWithUiHidden:
+        UiPreferences::SetBool(UiPreferences::StartGamesWithUiHidden, !UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false));
+        m_menuDirty = true;
+        break;
+    case Action::ToggleHideUi:
+        if (m_session.IsRunning())
+        {
+            m_hideUi = !m_hideUi;
+            m_menuDirty = true;
+        }
+        break;
     case Action::StartMenuGame: OpenGame(m_menuGame); break;
     case Action::OpenMenuGameDirectory:
         OpenDirectory(Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.parent_path()));
@@ -701,6 +747,9 @@ void MainWindow::BindEvents()
     });
     onClick("title-settings", Action::OpenSettings);
     onClick("title-controllers", Action::ConfigureControllers);
+    onClick("title-restart", Action::Restart);
+    onClick("title-logo", Action::CopyVersion);
+    onClick("title-name", Action::CopyVersion);
     onClick("title-version", Action::CopyVersion);
     onClick("title-pause", Action::PauseOrContinue);
     onClick("title-stop", Action::Stop);
@@ -799,13 +848,18 @@ void MainWindow::RebuildMenu()
     std::vector<MenuItem> emulation = {
         action(Action::PauseOrContinue, m_session.IsPaused() ? Tr("Continue") : Tr("Pause")),
         action(Action::Stop, Tr("&Stop")),
-        MenuItem::Separator(),
-        check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit)),
+        action(Action::Restart, Tr("Restart")),
     };
     for (MenuItem & item : emulation)
     {
         item.enabled = item.id == static_cast<int>(Action::Stop) ? canStop : playing;
     }
+
+    emulation.push_back(check(Action::ToggleEmulationControls, Tr("Show emulation controls"), ShowEmulationControls()));
+    emulation.push_back(MenuItem::Separator());
+    MenuItem speedLimit = check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
+    speedLimit.enabled = playing;
+    emulation.push_back(std::move(speedLimit));
 
     // Fullscreen and the hidden interface are for a game: without one, the
     // menu says how the next starts.
@@ -818,6 +872,8 @@ void MainWindow::RebuildMenu()
         action(Action::ResetWindowSize1080p, "1080p"),
     }));
     emulation.push_back(MenuItem::Separator());
+    emulation.push_back(check(Action::ToggleStartGamesInFullscreen, Tr("Start games in fullscreen"), UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false)));
+    emulation.push_back(check(Action::ToggleStartGamesWithUiHidden, Tr("Start games with UI hidden"), UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false)));
     menus.push_back(MenuItem::Submenu(Tr("&Emulation"), std::move(emulation)));
 
     menus.push_back(MenuItem::Submenu(Tr("&Help"), {
@@ -1510,17 +1566,23 @@ void MainWindow::SyncPhase()
     const bool paused = emulating && phase == EmulatorSession::Phase::Paused;
     m_document->SetClass("emulating", emulating);
     m_document->SetClass("game-paused", paused);
-    m_document->SetClass("game-controls-visible", m_session.IsRunning() || !m_pendingGame.empty());
+    m_document->SetClass("game-controls-visible", ShowEmulationControls() && (m_session.IsRunning() || !m_pendingGame.empty()));
+    for (const char * id : {"title-pause", "title-restart"})
+    {
+        if (Rml::Element * button = m_document->GetElementById(id))
+        {
+            if (!emulating && !button->HasAttribute("disabled"))
+            {
+                button->SetAttribute("disabled", "");
+            }
+            else if (emulating && button->HasAttribute("disabled"))
+            {
+                button->RemoveAttribute("disabled");
+            }
+        }
+    }
     if (Rml::Element * pause = m_document->GetElementById("title-pause"))
     {
-        if (!emulating && !pause->HasAttribute("disabled"))
-        {
-            pause->SetAttribute("disabled", "");
-        }
-        else if (emulating && pause->HasAttribute("disabled"))
-        {
-            pause->RemoveAttribute("disabled");
-        }
         pause->SetClass("active", paused);
         const std::string label = paused ? Tr("Resume emulation (F2)") : Tr("Pause emulation (F2)");
         if (pause->GetAttribute<Rml::String>("title", "") != label)
@@ -1536,8 +1598,18 @@ void MainWindow::SyncPhase()
         m_lastStatusUpdate = 0;
         if (phase == EmulatorSession::Phase::Idle)
         {
+            m_hideUi = false;
             m_window.SetFullscreen(false);
             SetTitle({});
+        }
+        else if (phase == EmulatorSession::Phase::Running && m_applyStartOptions)
+        {
+            m_applyStartOptions = false;
+            m_hideUi = UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false);
+            if (UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false))
+            {
+                m_window.SetFullscreen(true);
+            }
         }
     }
 
@@ -1562,6 +1634,22 @@ void MainWindow::SyncPhase()
     if (m_launchReady && !m_pendingGame.empty())
     {
         ShowPanel(Panel::Loading);
+    }
+    SetUiHidden(m_phase != EmulatorSession::Phase::Idle && (m_hideUi || m_window.IsFullscreen()));
+}
+
+void MainWindow::SetUiHidden(bool hidden)
+{
+    m_document->SetClass("ui-hidden", hidden);
+}
+
+void MainWindow::LoadFile()
+{
+    const std::string filter = FileFilter({{Tr("Switch games"), "*.dxci;*.dnsp;*.nro"}, {Tr("All files"), "*.*"}});
+    Path selected;
+    if (FileSelect(m_window.NativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
+    {
+        OpenGame(static_cast<const char *>(selected));
     }
 }
 
@@ -1762,6 +1850,10 @@ void MainWindow::StopGame()
 
 bool MainWindow::ConfirmStop(const std::string & title)
 {
+    if (!UiPreferences::GetBool(UiPreferences::ConfirmBeforeStopping, true))
+    {
+        return true;
+    }
     const std::string message = m_session.Modules().OperatingSystem().GetExitLocked()
                                     ? Tr("The currently running application has requested NXEmu to not exit.\n\nWould you like to bypass this and stop emulation anyway?")
                                     : Tr("Are you sure you want to stop the emulation?\n\nAny unsaved progress will be lost.");
