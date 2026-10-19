@@ -52,6 +52,8 @@ constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse th
 constexpr int kScrollbarWidth = 12;
 constexpr uint64_t kIconSizeSaveDelayMs = 400;
 constexpr int kFilterSharpnessRange = 1;
+constexpr uint64_t kGameHintMs = 4000;
+constexpr uint64_t kMouseHideMs = 2500;
 
 const char * const kGameSorts[] = {TrMark("Name"), TrMark("Publisher"), TrMark("Recent"), TrMark("Play time"), TrMark("Size")};
 constexpr int kGameSortCount = static_cast<int>(sizeof(kGameSorts) / sizeof(kGameSorts[0]));
@@ -1731,11 +1733,51 @@ void MainWindow::ShowVersion()
 
 void MainWindow::UpdateMouseCursor()
 {
+    bool hide = false;
+    if (m_phase == EmulatorSession::Phase::Running && GameArea() != nullptr && SDL_GetTicks64() - m_mouseMovedAt >= kMouseHideMs && !DialogOpen() &&
+        !m_menuBar->IsOpen() && !m_gameMenu->IsOpen())
+    {
+        int x = 0;
+        int y = 0;
+        SDL_GetMouseState(&x, &y);
+        const float scale = m_window.PixelScale();
+        const int px = static_cast<int>(x * scale);
+        const int py = static_cast<int>(y * scale);
+        const bool over = px >= m_gameArea.x && py >= m_gameArea.y && px < m_gameArea.x + m_gameArea.width && py < m_gameArea.y + m_gameArea.height;
+        hide = over && (SDL_GetWindowFlags(m_window.Handle()) & SDL_WINDOW_MOUSE_FOCUS) != 0;
+    }
+    if (hide != m_mouseHidden)
+    {
+        m_mouseHidden = hide;
+        SDL_ShowCursor(hide ? SDL_DISABLE : SDL_ENABLE);
+    }
 }
 
 void MainWindow::SyncWindowState()
 {
     const bool fullscreen = m_window.IsFullscreen();
+    const Hidden hiddenBy = fullscreen ? Hidden::Fullscreen : m_hideUi ? Hidden::Interface : Hidden::Nothing;
+    if (hiddenBy != m_hiddenBy)
+    {
+        m_hiddenBy = hiddenBy;
+        m_hintDue = hiddenBy != Hidden::Nothing;
+        m_hintUntil = 0;
+    }
+    if (m_hintDue && m_panel == Panel::Renderer)
+    {
+        m_hintDue = false;
+        m_hintUntil = SDL_GetTicks64() + kGameHintMs;
+        SetText("game-hint-text", fullscreen ? Tr("Press %1 or %2 to leave fullscreen", {Hotkeys::Get(HotkeyId::ExitFullscreen).Label(), Hotkeys::Get(HotkeyId::Fullscreen).Label()})
+                                             : Tr("Press %1 to show the interface", {Hotkeys::Get(HotkeyId::HideUi).Label()}));
+    }
+    if (m_hintUntil != 0 && SDL_GetTicks64() >= m_hintUntil)
+    {
+        m_hintUntil = 0;
+    }
+    if (Rml::Element * hint = m_document->GetElementById("game-hint"))
+    {
+        hint->SetClass("shown", m_hintUntil != 0);
+    }
     if (m_versionCopiedUntil != 0 && SDL_GetTicks64() >= m_versionCopiedUntil)
     {
         m_versionCopiedUntil = 0;

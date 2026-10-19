@@ -244,6 +244,16 @@ private:
     std::string m_speedText;
     int m_hiddenFrame = 0;
     uint64_t m_mouseMovedAt = 0;
+    bool m_mouseHidden = false;
+    enum class Hidden
+    {
+        Nothing,
+        Interface,
+        Fullscreen,
+    };
+    Hidden m_hiddenBy = Hidden::Nothing;
+    bool m_hintDue = false;
+    uint64_t m_hintUntil = 0;
     uint64_t m_versionCopiedUntil = 0;
     bool m_hideUi = false;
     bool m_applyStartOptions = false;
