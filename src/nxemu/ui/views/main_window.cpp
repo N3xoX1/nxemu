@@ -194,6 +194,7 @@ bool MainWindow::Create()
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_aboutDialog = std::make_unique<AboutDialog>(m_window.Context(), m_assetDir);
+    m_tooltip = std::make_unique<Tooltip>(m_window.Context(), m_assetDir);
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
@@ -409,6 +410,7 @@ void MainWindow::Update()
     m_document->SetClass("title-hide-text", titleSpace < 520.0f);
     m_document->SetClass("title-hide-secondary", titleSpace < 400.0f);
     m_document->SetClass("title-minimal", titleSpace < 260.0f);
+    m_tooltip->Update(m_menuBar->IsOpen() || (m_gameMenu->IsOpen() && !m_gameMenu->Hovered()));
     m_window.Context()->Update();
     LayoutGameArea();
 }

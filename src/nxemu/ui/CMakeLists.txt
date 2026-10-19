@@ -91,6 +91,8 @@ add_library(nxemu_ui STATIC
     views/profiles_dialog.h
     views/shortcut.cpp
     views/shortcut.h
+    views/tooltip.cpp
+    views/tooltip.h
     "${_nxemu_rmlui_backends}/RmlUi_Platform_SDL.cpp"
 )
 
