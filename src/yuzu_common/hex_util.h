@@ -34,8 +34,9 @@ template <std::size_t Size, bool le = false>
 
     std::array<u8, Size> out{};
     if constexpr (le) {
-        for (std::size_t i = 2 * Size - 2; i <= 2 * Size; i -= 2) {
-            out[i / 2] = static_cast<u8>((ToHexNibble(str[i]) << 4) | ToHexNibble(str[i + 1]));
+        for (std::size_t index = Size; index-- > 0;) {
+            const std::size_t i = index * 2;
+            out[index] = static_cast<u8>((ToHexNibble(str[i]) << 4) | ToHexNibble(str[i + 1]));
         }
     } else {
         for (std::size_t i = 0; i < 2 * Size; i += 2) {
