@@ -453,10 +453,10 @@ void Display::RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage im
                                   static_cast<float>(x1 - x0), static_cast<float>(y1 - y0), 0.0f, 1.0f};
         const VkRect2D scissor{{x0, y0}, {static_cast<u32>(x1 - x0), static_cast<u32>(y1 - y0)}};
         const TriangleConstants constants{
-            .tex_scale = {static_cast<float>(x1 - x0) / game_area.width,
-                          static_cast<float>(y1 - y0) / game_area.height},
-            .tex_offset = {static_cast<float>(x0 - game_area.x) / game_area.width,
-                           static_cast<float>(y0 - game_area.y) / game_area.height},
+            .tex_scale = {static_cast<float>(x1 - x0) / static_cast<float>(game_area.width),
+                          static_cast<float>(y1 - y0) / static_cast<float>(game_area.height)},
+            .tex_offset = {static_cast<float>(x0 - game_area.x) / static_cast<float>(game_area.width),
+                           static_cast<float>(y0 - game_area.y) / static_cast<float>(game_area.height)},
         };
         cmdbuf.SetViewport(0, viewport);
         cmdbuf.SetScissor(0, scissor);

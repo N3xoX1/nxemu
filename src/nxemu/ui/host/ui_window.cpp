@@ -8,6 +8,7 @@
 #undef None
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <nxemu-module-spec/video.h>
@@ -22,7 +23,7 @@ namespace
 // Width, in window coordinates, of the edges a window without a frame is
 // resized by.
 constexpr int kResizeEdge = 6;
-#if !defined(_WIN32)
+#if defined(__linux__)
 // Two presses on the title bar count as a double click within this time and
 // this distance, in window coordinates, of each other.
 constexpr uint64_t kDoubleClickMs = 500;
@@ -100,6 +101,11 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
     SetWindowIcon(assetDir / "images" / "window-icon.png");
     if (m_frameless)
     {
+        SDL_version linked{};
+        SDL_GetVersion(&linked);
+        m_hitTestOnPress = SDL_VERSIONNUM(linked.major, linked.minor, linked.patch) < SDL_VERSIONNUM(2, 32, 50);
+        const char * driver = SDL_GetCurrentVideoDriver();
+        m_waylandVideo = driver != nullptr && std::strcmp(driver, "wayland") == 0;
         SDL_SetWindowHitTest(
             m_window, [](SDL_Window *, const SDL_Point * point, void * self) { return static_cast<UiWindow *>(self)->HitTest(*point); }, this);
     }
@@ -189,9 +195,28 @@ void UiWindow::HandleEvent(const SDL_Event & event)
         case SDL_WINDOWEVENT_LEAVE:
             m_context->ProcessMouseLeave();
             break;
+#if defined(__linux__)
+        case SDL_WINDOWEVENT_HIT_TEST:
+            if (!m_hitTestOnPress && !m_waylandVideo && m_overDragArea)
+            {
+                TitleBarPressed(m_dragAreaPoint);
+            }
+            break;
+#endif
         }
         return;
     }
+
+#if defined(__linux__)
+    if ((event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) && event.button.button == SDL_BUTTON_LEFT)
+    {
+        if (event.type == SDL_MOUSEBUTTONUP && !m_leftButtonDown && !m_hitTestOnPress && m_waylandVideo && m_overDragArea)
+        {
+            TitleBarPressed(m_dragAreaPoint);
+        }
+        m_leftButtonDown = event.type == SDL_MOUSEBUTTONDOWN;
+    }
+#endif
 
     SDL_Event translated = event;
     if (translated.type == SDL_MOUSEMOTION)
@@ -492,6 +517,7 @@ void UiWindow::UpdateDimensions()
 
 SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
 {
+    m_overDragArea = false;
     if (IsFullscreen())
     {
         return SDL_HITTEST_NORMAL;
@@ -521,20 +547,35 @@ SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
             {
                 return SDL_HITTEST_NORMAL;
             }
-#if !defined(_WIN32)
-            const uint64_t now = SDL_GetTicks64();
-            const bool again = now - m_barPressTime <= kDoubleClickMs && std::abs(point.x - m_barPress.x) <= kDoubleClickReach &&
-                               std::abs(point.y - m_barPress.y) <= kDoubleClickReach;
-            m_barPressTime = again ? 0 : now;
-            m_barPress = point;
-            if (again)
+#if defined(__linux__)
+            if (m_hitTestOnPress && TitleBarPressed(point))
             {
-                TitleBarDoubleClicked();
                 return SDL_HITTEST_NORMAL;
             }
+            m_overDragArea = true;
+            m_dragAreaPoint = point;
 #endif
             return SDL_HITTEST_DRAGGABLE;
         }
     }
     return SDL_HITTEST_NORMAL;
+}
+
+bool UiWindow::TitleBarPressed(const SDL_Point & point)
+{
+#if !defined(__linux__)
+    (void)point;
+    return false;
+#else
+    const uint64_t now = SDL_GetTicks64();
+    const bool again = now - m_barPressTime <= kDoubleClickMs && std::abs(point.x - m_barPress.x) <= kDoubleClickReach &&
+                       std::abs(point.y - m_barPress.y) <= kDoubleClickReach;
+    m_barPressTime = again ? 0 : now;
+    m_barPress = point;
+    if (again)
+    {
+        TitleBarDoubleClicked();
+    }
+    return again;
+#endif
 }
