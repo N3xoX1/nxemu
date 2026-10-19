@@ -25,6 +25,8 @@
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "yuzu_video_core/renderer_vulkan/cbuf_size_dependencies.h"
+#include "yuzu_video_core/renderer_vulkan/async_pipeline_build.h"
+#include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pipeline.h"
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
@@ -114,7 +116,18 @@ public:
                            StagingBufferPool& staging_pool);
     ~PipelineCache();
 
+    void WaitForBuilds();
+
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipeline();
+
+    /// Waits for the pipeline of the current draw when CurrentGraphicsPipeline skipped it only
+    /// because its build had not finished. Returns null otherwise.
+    [[nodiscard]] GraphicsPipeline* WaitForCurrentGraphicsPipeline();
+
+    /// True when the last CurrentGraphicsPipeline skipped a pipeline whose build has not finished
+    [[nodiscard]] bool SkippedUnfinished() const noexcept {
+        return skipped_unfinished;
+    }
 
     [[nodiscard]] ComputePipeline* CurrentComputePipeline();
 
@@ -122,14 +135,36 @@ public:
                            const VideoCore::DiskResourceLoadCallback& callback);
 
 private:
+    struct PendingGraphicsPipeline {
+        GraphicsPipelineCacheKey key;
+        GraphicsEnvironments environments;
+        AsyncPipelineBuild<GraphicsPipeline> build;
+        NativePipelineBuildQueue::Handle request;
+    };
+
+    bool ShouldWaitForAsyncPipeline() const noexcept;
+    bool QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key);
+    void FinishGraphicsPipeline(const GraphicsPipelineCacheKey& key);
+    bool WithdrawGraphicsPipeline(const std::shared_ptr<PendingGraphicsPipeline>& job);
+    void FinalizeReadyGraphicsPipelines();
+    void SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
+                                       GraphicsEnvironments& environments);
+
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipelineSlowPath();
 
-    [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) const noexcept;
+    [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) noexcept;
 
     /// Clears the constant buffer and texture pool sizes the key's shaders do not depend on
     void NormalizeCbufSizes(GraphicsPipelineCacheKey& key) const;
+    [[nodiscard]] GraphicsPipelineCacheKey Normalized(GraphicsPipelineCacheKey key) const;
 
-    std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline();
+    /// Key of the pending build whose translation tells which sizes the current key keeps
+    [[nodiscard]] static GraphicsPipelineCacheKey WithoutSizes(GraphicsPipelineCacheKey key);
+
+    [[nodiscard]] bool HasUnknownSizes(const GraphicsPipelineCacheKey& key) const;
+
+    /// Builds the pipeline of the current draw. An urgent build goes before every queued one.
+    std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline(bool urgent = false);
 
     std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline(
         ShaderPools& pools, const GraphicsPipelineCacheKey& key,
@@ -163,6 +198,9 @@ private:
     VideoCore::ShaderNotify& shader_notify;
     bool use_asynchronous_shaders{};
     bool large_texture_arrays_in_table{};
+    bool urgent_graphics_build{};
+    bool skipped_unfinished{};
+    bool wait_for_current_draw{};
     bool use_vulkan_pipeline_cache{};
 
     GraphicsPipelineCacheKey graphics_key{};
@@ -187,9 +225,21 @@ private:
     std::filesystem::path vulkan_pipeline_cache_filename;
     vk::PipelineCache vulkan_pipeline_cache;
 
+    // Disk-cache loading only; runtime translation and native builds use runtime_builds.
     Common::ThreadWorker workers;
     Common::ThreadWorker serialization_thread;
     DynamicFeatures dynamic_features;
+    VideoCommon::GraphicsEnvironment::SnapshotCache snapshot_cache;
+    std::unordered_map<GraphicsPipelineCacheKey, std::shared_ptr<PendingGraphicsPipeline>> pending_graphics;
+    // First pending build of each set of shaders whose constant buffer dependencies are unknown,
+    // by its key without constant buffer and texture pool sizes. Translation is what reveals them.
+    std::unordered_map<GraphicsPipelineCacheKey, std::shared_ptr<PendingGraphicsPipeline>>
+        pending_unknown_sizes;
+    std::mutex completed_mutex;
+    std::vector<GraphicsPipelineCacheKey> completed_graphics;
+    std::atomic_bool has_completed_graphics{};
+    // Declared last: every compiler stops before its inputs and Vulkan objects are released.
+    NativePipelineBuildQueue runtime_builds;
 };
 
 } // namespace Vulkan

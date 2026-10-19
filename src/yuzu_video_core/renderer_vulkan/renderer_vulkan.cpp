@@ -147,6 +147,8 @@ catch (const vk::Exception & exception)
 RendererVulkan::~RendererVulkan()
 {
     scheduler.RegisterOnSubmit([] {});
+    rasterizer.WaitForShaderBuilds();
+    scheduler.Finish();
     {
         std::scoped_lock lock{device.QueueMutex()};
         void(device.GetLogical().WaitIdle());
@@ -174,6 +176,14 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     }
 
     RenderScreenshot(framebuffers);
+    if (HoldIncompleteFrame())
+    {
+        scheduler.Flush();
+        gpu.RendererFrameEndNotify();
+        rasterizer.TickFrame();
+        return;
+    }
+    presented_once = true;
     Frame * frame = present_manager.GetRenderFrame();
     blit_swapchain.DrawToFrame(rasterizer, frame, framebuffers,
                                render_window.GetFramebufferLayout(), swapchain.GetImageCount(),
@@ -187,6 +197,34 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
 
     gpu.RendererFrameEndNotify();
     rasterizer.TickFrame();
+}
+
+bool RendererVulkan::HoldIncompleteFrame()
+{
+    // A scene that just loaded compiles many pipelines at once, and its first frames miss many
+    // draws. Those frames are not shown: the screen keeps the previous frame, often the
+    // transition, while emulation goes on. During play, a few missing draws are better than a
+    // frozen screen, so frames are held only right after a scene change, and never for long.
+    constexpr std::chrono::milliseconds scene_change_window{1000};
+    constexpr std::chrono::milliseconds max_hold{1500};
+    constexpr u32 incomplete_percent = 10;
+    const auto draws = rasterizer.TakeFrameDraws();
+    const auto now = std::chrono::steady_clock::now();
+    if (draws.new_render_targets)
+    {
+        last_new_render_target = now;
+    }
+    const bool incomplete = draws.skipped > 0 && draws.skipped * 100 >= draws.total * incomplete_percent;
+    if (!incomplete)
+    {
+        incomplete_since.reset();
+    }
+    else if (!incomplete_since)
+    {
+        incomplete_since = now;
+        hold_incomplete = last_new_render_target && now - *last_new_render_target < scene_change_window;
+    }
+    return incomplete && hold_incomplete && presented_once && now - *incomplete_since < max_hold;
 }
 
 void RendererVulkan::InitializeWatermark()

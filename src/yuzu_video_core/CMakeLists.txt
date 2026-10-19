@@ -265,6 +265,7 @@ add_library(video_core STATIC
     shader_cache.h
     shader_environment.cpp
     shader_environment.h
+    snapshot_memory_budget.h
     shader_notify.cpp
     shader_notify.h
     smaa_area_tex.h

@@ -507,7 +507,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
       use_vulkan_pipeline_cache{videoSettings.use_vulkan_driver_pipeline_cache},
       workers(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers(),
               "VkPipelineBuilder"),
-      serialization_thread(1, "VkPipelineSerialization") {
+      serialization_thread(1, "VkPipelineSerialization"),
+      runtime_builds(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers()) {
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     // MoltenVK walks every resource of a descriptor set each time it is bound
@@ -626,7 +627,17 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
     };
 }
 
+void PipelineCache::WaitForBuilds() {
+    // Builds can still refer to shader inputs and the Vulkan cache. Drain them before
+    // taking the final cache snapshot, then finish portable-cache serialization.
+    runtime_builds.WaitForRequests();
+    FinalizeReadyGraphicsPipelines();
+    workers.WaitForRequests();
+    serialization_thread.WaitForRequests();
+}
+
 PipelineCache::~PipelineCache() {
+    WaitForBuilds();
     if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
                                      CACHE_VERSION);
@@ -634,6 +645,9 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
+    FinalizeReadyGraphicsPipelines();
+    skipped_unfinished = false;
+
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
         return nullptr;
@@ -883,11 +897,253 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
 }
 
+GraphicsPipeline* PipelineCache::WaitForCurrentGraphicsPipeline() {
+    if (!skipped_unfinished) {
+        return nullptr;
+    }
+    skipped_unfinished = false;
+    wait_for_current_draw = true;
+    SCOPE_EXIT { wait_for_current_draw = false; };
+    return CurrentGraphicsPipelineSlowPath();
+}
+
+bool PipelineCache::ShouldWaitForAsyncPipeline() const noexcept {
+    if (wait_for_current_draw) {
+        return true;
+    }
+    // Transform feedback writes buffers that later draws read, so skipping it is not temporary.
+    if (maxwell3d->regs.transform_feedback_enabled != 0) {
+        return true;
+    }
+    if (maxwell3d->regs.zeta_enable) {
+        return false;
+    }
+    const auto& draw = maxwell3d->draw_manager->GetDrawState();
+    // The unused count can be zero or stale after a different kind of draw.
+    return (draw.draw_indexed ? draw.index_buffer.count : draw.vertex_buffer.count) <= 6;
+}
+
+bool PipelineCache::QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
+    // Backpressure falls back to synchronous compilation instead of holding an
+    // unbounded number of guest-memory snapshots or blocking on a queue slot.
+    constexpr size_t MaxPending = 512;
+    if (pending_graphics.size() >= MaxPending) {
+        return false;
+    }
+    u32 stage_mask{};
+    for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
+        if (key.unique_hashes[index]) {
+            stage_mask |= 1U << (index == 0 ? 0 : index - 1);
+        }
+    }
+    auto snapshot = VideoCommon::GraphicsEnvironment::CaptureSnapshot(
+        *maxwell3d, *gpu_memory, stage_mask, snapshot_cache);
+    if (!snapshot) {
+        return false;
+    }
+    auto job = std::make_shared<PendingGraphicsPipeline>();
+    GetGraphicsEnvironments(job->environments, key.unique_hashes);
+    for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
+        if (key.unique_hashes[index]) {
+            job->environments.envs[index].SetSnapshot(snapshot);
+        }
+    }
+    job->key = key;
+    if (HasUnknownSizes(key)) {
+        pending_unknown_sizes.try_emplace(WithoutSizes(key), job);
+    }
+    pending_graphics.emplace(key, job);
+    try {
+        job->request = runtime_builds.QueueWork([this, key, job] {
+            if (!job->build.TryBuild([&] {
+                    // Reuse the IR pools on this compiler thread. All engine and
+                    // guest-memory reads use the immutable captured environments.
+                    thread_local ShaderPools pools;
+                    pools.ReleaseContents();
+                    return CreateGraphicsPipeline(pools, key, job->environments.Span(), nullptr, false);
+                })) {
+                return;
+            }
+            std::scoped_lock lock{completed_mutex};
+            completed_graphics.push_back(key);
+            has_completed_graphics.store(true, std::memory_order_release);
+        }, false);
+    } catch (...) {
+        pending_graphics.erase(key);
+        if (const auto it = pending_unknown_sizes.find(WithoutSizes(key));
+            it != pending_unknown_sizes.end() && it->second == job) {
+            pending_unknown_sizes.erase(it);
+        }
+        throw;
+    }
+    return true;
+}
+
+void PipelineCache::SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
+                                                 GraphicsEnvironments& environments) {
+    if (pipeline_cache_filename.empty()) {
+        return;
+    }
+    for (auto& env : environments.envs) {
+        env.ReleaseSnapshot();
+    }
+    serialization_thread.QueueWork([this, key, envs = std::move(environments.envs)] {
+        boost::container::static_vector<const GenericEnvironment*, Maxwell::MaxShaderProgram> env_ptrs;
+        for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
+            if (key.unique_hashes[index]) {
+                env_ptrs.push_back(&envs[index]);
+            }
+        }
+        SerializePipeline(key, env_ptrs, pipeline_cache_filename, CACHE_VERSION);
+    });
+}
+
+void PipelineCache::FinishGraphicsPipeline(const GraphicsPipelineCacheKey& key) {
+    const auto it = pending_graphics.find(key);
+    if (it == pending_graphics.end() || !it->second->build.IsComplete()) {
+        return;
+    }
+    auto job = it->second;
+    // The request owns its callback, which captures this job. Break that cycle
+    // once completion makes the callback's lifetime independent of the entry.
+    job->request.reset();
+    try {
+        std::shared_ptr<GraphicsPipeline> pipeline = job->build.Take();
+        for (size_t index = 0; index < key.unique_hashes.size(); ++index) {
+            cbuf_size_dependencies.Observe(key.unique_hashes[index],
+                                          job->environments.envs[index].CbufSizeMask());
+        }
+        // A failed pipeline stays cached as null, like a synchronous failure, so later draws skip
+        // it instead of translating and compiling it again on every draw.
+        graphics_cache[key] = pipeline;
+        if (pipeline) {
+            GraphicsPipelineCacheKey normalized_key{key};
+            NormalizeCbufSizes(normalized_key);
+            if (normalized_key != key && graphics_cache.try_emplace(normalized_key, pipeline).second) {
+                pipeline->SetSharedKey(normalized_key);
+            }
+            SerializeGraphicsEnvironments(key, job->environments);
+        }
+    } catch (const std::exception& exception) {
+        LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed: {}", key.Hash(), exception.what());
+        graphics_cache[key] = nullptr;
+    } catch (...) {
+        LOG_ERROR(Render_Vulkan, "Asynchronous graphics pipeline {:016x} failed", key.Hash());
+        graphics_cache[key] = nullptr;
+    }
+    pending_graphics.erase(it);
+    if (const auto unknown = pending_unknown_sizes.find(WithoutSizes(key));
+        unknown != pending_unknown_sizes.end() && unknown->second == job) {
+        pending_unknown_sizes.erase(unknown);
+    }
+}
+
+bool PipelineCache::WithdrawGraphicsPipeline(const std::shared_ptr<PendingGraphicsPipeline>& job) {
+    // Waiting for an asynchronous build compiles the pipelines of consecutive draws one after the
+    // other. A build no compiler has started is withdrawn, so the draw that cannot be skipped
+    // builds its pipeline like a synchronous draw: queued first, while this thread moves on.
+    if (!runtime_builds.Cancel(job->request)) {
+        return false;
+    }
+    job->request.reset();
+    pending_graphics.erase(job->key);
+    // The draw that queued the build left an empty entry; the build that replaces it fills it.
+    if (const auto it = graphics_cache.find(job->key); it != graphics_cache.end() && !it->second) {
+        graphics_cache.erase(it);
+    }
+    if (const auto it = pending_unknown_sizes.find(WithoutSizes(job->key));
+        it != pending_unknown_sizes.end() && it->second == job) {
+        pending_unknown_sizes.erase(it);
+    }
+    return true;
+}
+
+void PipelineCache::FinalizeReadyGraphicsPipelines() {
+    if (!has_completed_graphics.load(std::memory_order_acquire)) {
+        return;
+    }
+    std::vector<GraphicsPipelineCacheKey> ready;
+    {
+        std::scoped_lock lock{completed_mutex};
+        ready.swap(completed_graphics);
+        has_completed_graphics.store(false, std::memory_order_release);
+    }
+    for (const auto& key : ready) {
+        FinishGraphicsPipeline(key);
+    }
+}
+
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
+    if (const auto it = pending_graphics.find(graphics_key); it != pending_graphics.end()) {
+        auto job = it->second;
+        bool withdrawn{};
+        if (!job->build.IsComplete() && ShouldWaitForAsyncPipeline()) {
+            withdrawn = WithdrawGraphicsPipeline(job);
+            if (!withdrawn) {
+                job->build.Wait();
+            }
+        }
+        if (!withdrawn) {
+            if (!job->build.IsComplete()) {
+                // Pipelines still drawn go before the ones queued for a draw the game no longer
+                // makes.
+                runtime_builds.Promote(job->request);
+                skipped_unfinished = true;
+                return nullptr;
+            }
+            FinishGraphicsPipeline(graphics_key);
+        }
+    }
+    if (use_asynchronous_shaders && !pending_unknown_sizes.empty() &&
+        !graphics_cache.contains(graphics_key)) {
+        // Until the first build of these shaders is translated, every draw specializes on all
+        // constant buffer sizes, so draws that differ only in unused sizes would each queue a build
+        // of the same pipeline. They wait for that first build instead. So do draws whose key
+        // became narrower while it builds, after another pipeline translated the same shaders.
+        if (const auto it = pending_unknown_sizes.find(WithoutSizes(graphics_key));
+            it != pending_unknown_sizes.end() &&
+            (HasUnknownSizes(graphics_key) || Normalized(it->second->key) == graphics_key)) {
+            const auto job = it->second;
+            bool withdrawn{};
+            if (!job->build.IsComplete() && ShouldWaitForAsyncPipeline()) {
+                // This draw builds its own pipeline below, in parallel with the other draws that
+                // cannot be skipped, unless a compiler is already building the first one.
+                withdrawn = WithdrawGraphicsPipeline(job);
+                if (!withdrawn) {
+                    job->build.Wait();
+                }
+            }
+            if (!withdrawn) {
+                if (!job->build.IsComplete()) {
+                    runtime_builds.Promote(job->request);
+                    skipped_unfinished = true;
+                    return nullptr;
+                }
+                FinishGraphicsPipeline(job->key);
+                NormalizeCbufSizes(graphics_key);
+                if (const auto ready = graphics_cache.find(graphics_key);
+                    ready != graphics_cache.end() && ready->second) {
+                    if (current_pipeline) {
+                        current_pipeline->AddTransition(ready->second.get(), graphics_key);
+                    }
+                    current_pipeline = ready->second.get();
+                    return BuiltPipeline(current_pipeline);
+                }
+            }
+        }
+    }
     const auto [pair, is_new]{graphics_cache.try_emplace(graphics_key)};
     auto& pipeline{pair->second};
     if (is_new) {
-        pipeline = CreateGraphicsPipeline();
+        if (use_asynchronous_shaders && !ShouldWaitForAsyncPipeline() &&
+            graphics_key.state.app_stage != Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro &&
+            QueueGraphicsPipeline(graphics_key)) {
+            skipped_unfinished = true;
+            return nullptr;
+        }
+        // A draw that cannot be skipped waits for its pipeline, which goes before every pipeline
+        // already queued. Several such draws in a row still compile in parallel.
+        pipeline = CreateGraphicsPipeline(use_asynchronous_shaders && ShouldWaitForAsyncPipeline());
     }
     if (!pipeline) {
         return nullptr;
@@ -910,6 +1166,24 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
     return BuiltPipeline(current_pipeline);
 }
 
+GraphicsPipelineCacheKey PipelineCache::WithoutSizes(GraphicsPipelineCacheKey key) {
+    for (auto& sizes : key.cbuf_sizes) {
+        sizes.fill(0);
+    }
+    key.texture_pool = {};
+    return key;
+}
+
+bool PipelineCache::HasUnknownSizes(const GraphicsPipelineCacheKey& key) const {
+    return std::ranges::any_of(key.unique_hashes,
+                               [this](u64 hash) { return !cbuf_size_dependencies.IsKnown(hash); });
+}
+
+GraphicsPipelineCacheKey PipelineCache::Normalized(GraphicsPipelineCacheKey key) const {
+    NormalizeCbufSizes(key);
+    return key;
+}
+
 void PipelineCache::NormalizeCbufSizes(GraphicsPipelineCacheKey& key) const {
     for (size_t stage = 0; stage < key.cbuf_sizes.size(); ++stage) {
         const u32 mask = cbuf_size_dependencies.Mask(key.unique_hashes[stage + 1]) |
@@ -923,28 +1197,17 @@ void PipelineCache::NormalizeCbufSizes(GraphicsPipelineCacheKey& key) const {
     }
 }
 
-GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const noexcept {
+GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) noexcept {
     if (pipeline->IsFailed()) {
         return nullptr;
     }
     if (pipeline->IsBuilt()) {
         return pipeline;
     }
-    if (!use_asynchronous_shaders) {
+    if (!use_asynchronous_shaders || ShouldWaitForAsyncPipeline()) {
         return pipeline;
     }
-    // If something is using depth, we can assume that games are not rendering anything which
-    // will be used one time.
-    if (maxwell3d->regs.zeta_enable) {
-        return nullptr;
-    }
-    // If games are using a small index count, we can assume these are full screen quads.
-    // Usually these shaders are only used once for building textures so we can assume they
-    // can't be built async
-    const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
-    if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
-        return pipeline;
-    }
+    skipped_unfinished = true;
     return nullptr;
 }
 
@@ -1226,11 +1489,12 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                  : (modules[3] ? std::optional{programs[4].output_topology} : std::nullopt))};
     const bool rasterizes_lines{RasterizesLines(
         output_topology, FixedPipelineState::UnpackPolygonMode(key.state.polygon_mode))};
-    Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
+    NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
-        std::move(modules), infos, rasterizes_lines, std::move(vtg_info));
+        std::move(modules), infos, rasterizes_lines, std::move(vtg_info),
+        build_in_parallel && urgent_graphics_build);
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();
     size_t env_index{0};
@@ -1253,7 +1517,9 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     return nullptr;
 }
 
-std::shared_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
+std::shared_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(bool urgent) {
+    urgent_graphics_build = urgent;
+    SCOPE_EXIT { urgent_graphics_build = false; };
     using EngineHint = Tegra::Engines::Maxwell3D::EngineHint;
     const bool is_hle{graphics_key.state.app_stage == EngineHint::OnHLEMacro};
     GraphicsPipelineCacheKey twin_key{graphics_key};
@@ -1366,7 +1632,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         const auto name{fmt::format("Shader {:016x}", key.unique_hash)};
         spv_module.SetObjectNameEXT(name.c_str());
     }
-    Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
+    NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
                                              &shader_notify, program.info, std::move(spv_module), staging_pool);
@@ -1380,8 +1646,17 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& filename,
                                                  const vk::PipelineCache& pipeline_cache,
                                                  u32 cache_version) try {
+    if (!pipeline_cache) {
+        return;
+    }
+    // Read before truncating the last disk cache. ReadData tolerates concurrent
+    // growth and only returns the bytes the driver actually wrote.
+    const auto cache_data = pipeline_cache.ReadData();
+    if (cache_data.empty()) {
+        return;
+    }
     std::ofstream file(filename, std::ios::binary);
-    file.exceptions(std::ifstream::failbit);
+    file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     if (!file.is_open()) {
         LOG_ERROR(Common_Filesystem, "Failed to open Vulkan driver pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
@@ -1390,14 +1665,8 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
     file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
         .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
 
-    size_t cache_size = 0;
-    std::vector<char> cache_data;
-    if (pipeline_cache) {
-        pipeline_cache.Read(&cache_size, nullptr);
-        cache_data.resize(cache_size);
-        pipeline_cache.Read(&cache_size, cache_data.data());
-    }
-    file.write(cache_data.data(), cache_size);
+    file.write(cache_data.data(), static_cast<std::streamsize>(cache_data.size()));
+    file.close();
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
@@ -1407,6 +1676,8 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
         LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
     }
+} catch (const vk::Exception& e) {
+    LOG_ERROR(Render_Vulkan, "Failed to read Vulkan driver pipeline cache: {}", e.what());
 }
 
 vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::path& filename,
