@@ -66,6 +66,7 @@
     <ClCompile Include="ui\views\controller_dialog.cpp" />
     <ClCompile Include="ui\views\controller_picture.cpp" />
     <ClCompile Include="ui\views\directories_dialog.cpp" />
+    <ClCompile Include="ui\views\firmware_dialog.cpp" />
     <ClCompile Include="ui\views\hotkeys.cpp" />
     <ClCompile Include="ui\views\loading_screen.cpp" />
     <ClCompile Include="ui\views\profiles_dialog.cpp" />
@@ -87,6 +88,7 @@
     <ClCompile Include="ui\host\system_fonts.cpp" />
     <ClCompile Include="ui\host\shell.cpp" />
     <ClCompile Include="ui\library\game_library.cpp" />
+    <ClCompile Include="ui\library\firmware_installer.cpp" />
     <ClCompile Include="ui\library\game_cache.cpp" />
     <ClCompile Include="ui\library\game_details.cpp" />
     <ClCompile Include="ui\library\rom_properties.cpp" />
@@ -144,6 +146,7 @@
     <ClInclude Include="ui\views\controller_dialog.h" />
     <ClInclude Include="ui\views\controller_picture.h" />
     <ClInclude Include="ui\views\directories_dialog.h" />
+    <ClInclude Include="ui\views\firmware_dialog.h" />
     <ClInclude Include="ui\views\hotkeys.h" />
     <ClInclude Include="ui\views\loading_screen.h" />
     <ClInclude Include="ui\views\profiles_dialog.h" />
@@ -169,6 +172,7 @@
     <ClInclude Include="ui\host\shell.h" />
     <ClInclude Include="ui\platform\native_window.h" />
     <ClInclude Include="ui\library\game_library.h" />
+    <ClInclude Include="ui\library\firmware_installer.h" />
     <ClInclude Include="ui\library\game_cache.h" />
     <ClInclude Include="ui\library\game_details.h" />
     <ClInclude Include="ui\library\rom_properties.h" />

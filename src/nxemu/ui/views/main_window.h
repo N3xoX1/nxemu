@@ -3,6 +3,7 @@
 #include "advanced_dialog.h"
 #include "controller_dialog.h"
 #include "directories_dialog.h"
+#include "firmware_dialog.h"
 #include "general_dialog.h"
 #include "hotkeys.h"
 #include "loading_screen.h"
@@ -173,6 +174,7 @@ private:
     void ShowPanel(Panel panel);
     void SetUiHidden(bool hidden);
     void LoadFile();
+    void RefreshFirmwareVersion();
     bool DialogOpen() const;
     void AnnounceGame(const std::string & path);
     void UpdateLoadingScreen();
@@ -205,6 +207,9 @@ private:
     uint64_t m_lastStatusUpdate = 0;
     SettingsContext m_settingsContext;
     std::unique_ptr<AboutDialog> m_aboutDialog;
+    std::unique_ptr<FirmwareDialog> m_firmwareDialog;
+    std::string m_firmwareVersion;
+    std::string m_firmwareOfferedFor;
     std::unique_ptr<GeneralDialog> m_generalDialog;
     std::unique_ptr<AdvancedDialog> m_advancedDialog;
     std::unique_ptr<ControllerDialog> m_controllerDialog;

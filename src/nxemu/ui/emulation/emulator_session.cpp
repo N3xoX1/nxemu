@@ -106,11 +106,11 @@ EmulatorSession::Phase EmulatorSession::CurrentPhase() const
     }
 }
 
-void EmulatorSession::Update()
+void EmulatorSession::Update(bool releaseStoppedResources)
 {
     m_notification.Pump();
     ProcessProgramEvents();
-    if (m_releasePending && !IsRunning() &&
+    if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
     {
         if (!ResetModules())

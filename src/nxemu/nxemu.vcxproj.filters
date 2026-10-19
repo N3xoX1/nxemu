@@ -430,6 +430,9 @@
     <ClCompile Include="ui\views\directories_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\firmware_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\hotkeys.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -493,6 +496,9 @@
     <ClCompile Include="ui\library\game_library.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
+    <ClCompile Include="ui\library\firmware_installer.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
     <ClCompile Include="ui\library\game_cache.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
@@ -503,6 +509,9 @@
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
     <ClInclude Include="ui\library\game_library.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\firmware_installer.h">
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\library\game_cache.h">
@@ -539,6 +548,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\directories_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\firmware_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\hotkeys.h">

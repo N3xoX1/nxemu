@@ -346,6 +346,30 @@ nxinterface IRomInfo
     virtual void Release() = 0;
 };
 
+enum class FirmwareInstallStage : uint32_t
+{
+    Copying,
+    Checking,
+    Replacing,
+};
+
+enum class FirmwareInstallStatus : uint32_t
+{
+    Installed,
+    Cancelled,
+    SourceUnreadable,
+    NotFirmware,
+    StorageUnavailable,
+    CopyFailed,
+    ReplaceFailed,
+};
+
+nxinterface IFirmwareInstallObserver
+{
+    virtual bool FirmwareInstallProgress(FirmwareInstallStage stage, uint64_t done, uint64_t total) = 0;
+    virtual bool ConfirmFirmwareReplacement(const char * packageVersion, const char * installedVersion) = 0;
+};
+
 nxinterface IGameListScanCallback
 {
     virtual bool ScanStopRequested() = 0;
@@ -374,11 +398,11 @@ nxinterface ISystemloader
     virtual IFileSysNACP * GetPMControlMetadata(uint64_t programID) = 0;
     virtual IManualContentProvider & ManualContentProvider() = 0;
     virtual uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const = 0;
-    virtual bool InstallFirmwarePackage(const char * utf8_path) = 0;
+    virtual uint32_t GetGameCardFirmwareUpdate(const char * utf8_path, char * versionBuffer, uint32_t versionBufferSize) const = 0;
+    virtual FirmwareInstallStatus InstallFirmwarePackage(const char * utf8_path, IFirmwareInstallObserver * observer, char * versionBuffer, uint32_t versionBufferSize) = 0;
     virtual void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) = 0;
     virtual bool IsAddonDisabled(uint64_t program_id, const char * name) const = 0;
-    virtual LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,
-                                               uint32_t buffer_size, uint32_t & actual_size) = 0;
+    virtual LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer, uint32_t buffer_size, uint32_t & actual_size) = 0;
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);
