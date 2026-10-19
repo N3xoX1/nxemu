@@ -51,8 +51,6 @@ add_library(nxemu_ui STATIC
     library/game_library.h
     library/rom_properties.cpp
     library/rom_properties.h
-    library/ui_preferences.cpp
-    library/ui_preferences.h
     platform/file_dialogs.cpp
     platform/file_dialogs.h
     platform/native_window.h

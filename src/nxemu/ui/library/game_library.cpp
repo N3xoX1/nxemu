@@ -1,15 +1,16 @@
 #include "game_library.h"
 #include "rom_properties.h"
-#include "ui_preferences.h"
 #include <algorithm>
 #include <filesystem>
 #include <nxemu-core/modules/system_modules.h>
+#include <nxemu/settings/ui_identifiers.h>
+#include <nxemu/settings/ui_settings.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
 
 GameLibrary::GameLibrary() :
-    m_directories(UiPreferences::GetStringList(UiPreferences::GameDirectories))
+    m_directories(uiSettings.gameDirectories)
 {
 }
 
@@ -25,7 +26,8 @@ bool GameLibrary::AddDirectory(const std::string & directory)
         return false;
     }
     m_directories.push_back(directory);
-    UiPreferences::SetStringList(UiPreferences::GameDirectories, m_directories);
+    SetUISettingStringList(NXUISetting::GameDirectories, m_directories);
+    SaveUISetting();
     return true;
 }
 
@@ -37,7 +39,8 @@ bool GameLibrary::RemoveDirectory(const std::string & directory)
         return false;
     }
     m_directories.erase(found);
-    UiPreferences::SetStringList(UiPreferences::GameDirectories, m_directories);
+    SetUISettingStringList(NXUISetting::GameDirectories, m_directories);
+    SaveUISetting();
     return true;
 }
 

@@ -2,12 +2,31 @@
 #include <array>
 #include <common/std_string.h>
 #include <iterator>
-#include <nxemu/ui/library/ui_preferences.h>
+#include <nxemu/settings/ui_settings.h>
 #include <unordered_map>
 
 namespace
 {
-constexpr const char * kSection = "Shortcuts\\";
+constexpr const char * kGamepad = "Gamepad\\";
+
+std::string StoredShortcut(const std::string & name)
+{
+    const StringMap::const_iterator stored = uiSettings.shortcuts.find(name);
+    return stored != uiSettings.shortcuts.end() ? stored->second : std::string();
+}
+
+void StoreShortcut(const std::string & name, const std::string & value)
+{
+    if (value.empty())
+    {
+        uiSettings.shortcuts.erase(name);
+    }
+    else
+    {
+        uiSettings.shortcuts[name] = value;
+    }
+    SaveUISetting();
+}
 
 struct State
 {
@@ -22,10 +41,10 @@ State & Current()
         State read;
         for (const Hotkeys::Info & info : Hotkeys::kAll)
         {
-            const std::string storedKey = UiPreferences::GetString((std::string(kSection) + info.name).c_str(), "");
+            const std::string storedKey = StoredShortcut(info.name);
             const Shortcut chosen = Shortcut::Parse(storedKey);
             read.shortcuts[static_cast<size_t>(info.id)] = storedKey == "None" ? Shortcut{} : Hotkeys::Usable(chosen) ? chosen : Hotkeys::Default(info.id);
-            const std::string stored = UiPreferences::GetString((std::string(kSection) + "Gamepad\\" + info.name).c_str(), "");
+            const std::string stored = StoredShortcut(std::string(kGamepad) + info.name);
             if (info.inGame && stored.size() > 33 && stored[32] == ':')
             {
                 try
@@ -100,8 +119,7 @@ void Hotkeys::Set(HotkeyId id, const Shortcut & shortcut)
     State & state = Current();
     state.shortcuts[static_cast<size_t>(id)] = shortcut;
     state.revision++;
-    UiPreferences::SetString((std::string(kSection) + kAll[static_cast<size_t>(id)].name).c_str(),
-                             shortcut.key == SDLK_UNKNOWN ? "None" : shortcut == Default(id) ? std::string() : shortcut.Text());
+    StoreShortcut(kAll[static_cast<size_t>(id)].name, shortcut.key == SDLK_UNKNOWN ? "None" : shortcut == Default(id) ? std::string() : shortcut.Text());
 }
 
 void Hotkeys::RestoreDefaults()
@@ -209,6 +227,6 @@ void Hotkeys::SetGamepad(HotkeyId id, const GamepadShortcut & shortcut)
     State & state = Current();
     state.gamepads[static_cast<size_t>(id)] = shortcut;
     state.revision++;
-    UiPreferences::SetString((std::string(kSection) + "Gamepad\\" + kAll[static_cast<size_t>(id)].name).c_str(),
-                             shortcut.buttons == 0 ? std::string() : stdstr_f("%s:%llx", shortcut.guid.c_str(), static_cast<unsigned long long>(shortcut.buttons)));
+    StoreShortcut(std::string(kGamepad) + kAll[static_cast<size_t>(id)].name,
+                  shortcut.buttons == 0 ? std::string() : stdstr_f("%s:%llx", shortcut.guid.c_str(), static_cast<unsigned long long>(shortcut.buttons)));
 }
