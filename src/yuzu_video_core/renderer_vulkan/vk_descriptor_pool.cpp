@@ -51,7 +51,7 @@ static DescriptorBankInfo MakeBankInfo(std::span<const Shader::Info> infos) {
         bank.image_buffers += Accumulate(info.image_buffer_descriptors);
         for (const auto& desc : info.texture_descriptors) {
             // Texture tables are allocated from their own set
-            bank.textures += desc.is_direct ? 0U : desc.count;
+            bank.textures += desc.is_direct || desc.in_table_set ? 0U : desc.count;
         }
         bank.images += Accumulate(info.image_descriptors);
     }

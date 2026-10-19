@@ -39,6 +39,8 @@ std::filesystem::path FindAssetDirectory()
     const std::filesystem::path exeDir = Common::FS::GetExeDirectory();
     const std::filesystem::path candidates[] = {
         exeDir / "ui",
+        // macOS application bundle: Contents/MacOS/../Resources/ui
+        exeDir.parent_path() / "Resources" / "ui",
         exeDir.parent_path().parent_path().parent_path() / "src" / "nxemu" / "ui" / "assets",
     };
 

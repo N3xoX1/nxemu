@@ -423,7 +423,7 @@ VkResult Free(VkDevice device, VkCommandPool handle, Span<VkCommandBuffer> buffe
 }
 
 Instance Instance::Create(u32 version, Span<const char*> layers, Span<const char*> extensions,
-                          InstanceDispatch& dispatch) {
+                          InstanceDispatch& dispatch, const void* next) {
 #ifdef __APPLE__
     const bool enumerate_portability =
         std::find_if(extensions.begin(), extensions.end(), [](const char* extension) {
@@ -446,7 +446,7 @@ Instance Instance::Create(u32 version, Span<const char*> layers, Span<const char
     };
     const VkInstanceCreateInfo ci{
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = next,
         .flags = ci_flags,
         .pApplicationInfo = &application_info,
         .enabledLayerCount = layers.size(),

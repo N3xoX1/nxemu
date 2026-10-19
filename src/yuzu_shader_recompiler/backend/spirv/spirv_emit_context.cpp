@@ -1506,8 +1506,9 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
         const Id desc_type{DescType(*this, element_type, pointer_type, desc.count)};
         const Id id{AddGlobalVariable(desc_type, spv::StorageClass::UniformConstant)};
         // Texture tables are kept in their own set, the host reuses it between draws.
-        Decorate(id, spv::Decoration::Binding, desc.is_direct ? table_binding++ : binding++);
-        Decorate(id, spv::Decoration::DescriptorSet, desc.is_direct ? 1U : 0U);
+        const bool in_table_set{desc.is_direct || desc.in_table_set};
+        Decorate(id, spv::Decoration::Binding, in_table_set ? table_binding++ : binding++);
+        Decorate(id, spv::Decoration::DescriptorSet, in_table_set ? 1U : 0U);
         Name(id, NameOf(stage, desc, "tex"));
         textures.push_back({
             .id = id,

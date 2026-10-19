@@ -510,6 +510,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
       serialization_thread(1, "VkPipelineSerialization") {
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
+    // MoltenVK walks every resource of a descriptor set each time it is bound
+    large_texture_arrays_in_table = driver_id == VK_DRIVER_ID_MOLTENVK;
     profile = Shader::Profile{
         .supported_spirv = device.SupportedSpirvVersion(),
         .unified_descriptor_binding = true,
@@ -573,6 +575,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_broken_unsigned_image_offsets = false,
         .has_broken_signed_operations = false,
         .has_broken_fp16_float_controls = driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY,
+        .has_slow_fragment_no_contraction = driver_id == VK_DRIVER_ID_MOLTENVK,
         .ignore_nan_fp_comparisons = false,
         .has_broken_spirv_subgroup_mask_vector_extract_dynamic =
             driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY,
@@ -1180,6 +1183,12 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                 return nullptr;
             }
             runtime_info.vertex_input_locations = mapping.locations;
+        }
+        if (large_texture_arrays_in_table) {
+            // Bindless arrays seldom change between draws. The host keeps set 1 bound.
+            for (auto& desc : program.info.texture_descriptors) {
+                desc.in_table_set = !desc.is_direct && desc.count >= LARGE_IMAGE_ARRAY_SIZE;
+            }
         }
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);

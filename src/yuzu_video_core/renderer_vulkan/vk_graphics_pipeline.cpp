@@ -410,7 +410,8 @@ GraphicsPipeline::GraphicsPipeline(
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += NumCombinedSamplers(*info);
-        uses_texture_table |= info->runtime_sampler_count != 0;
+        uses_texture_table |= info->runtime_sampler_count != 0 ||
+                              NumTableSetCombinedSamplers(*info) != 0;
         num_descriptor_entries += NumDescriptorUpdateEntries(*info);
         num_image_elements += Shader::NumDescriptors(info->texture_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_buffer_descriptors);
@@ -518,11 +519,19 @@ GraphicsPipeline::GraphicsPipeline(
                 texture_table_bindings.assign(table_bindings.begin(), table_bindings.end());
                 DescriptorBankInfo bank{};
                 for (const auto& binding : table_bindings) {
-                    (binding.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ? bank.samplers
-                                                                          : bank.sampled_images) +=
-                        binding.descriptorCount;
+                    switch (binding.descriptorType) {
+                    case VK_DESCRIPTOR_TYPE_SAMPLER:
+                        bank.samplers += binding.descriptorCount;
+                        break;
+                    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+                        bank.textures += binding.descriptorCount;
+                        break;
+                    default:
+                        bank.sampled_images += binding.descriptorCount;
+                        break;
+                    }
                 }
-                bank.score = static_cast<s32>(bank.sampled_images + bank.samplers);
+                bank.score = static_cast<s32>(bank.textures + bank.sampled_images + bank.samplers);
                 texture_table_set_layout = builder.CreateTextureTableSetLayout();
                 texture_table_allocator =
                     descriptor_pool.Allocator(*texture_table_set_layout, bank);
@@ -1552,8 +1561,13 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                     device.GetLogical().UpdateDescriptorSets(writes, {});
                     texture_table_set_version = table_version;
                 }
-                cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 1,
-                                          texture_table_set, nullptr);
+                // Binding set 0 with this layout leaves set 1 bound. Rebinding it would make
+                // MoltenVK walk every resource of the tables again.
+                if (bind_pipeline || texture_table_bound_set != texture_table_set) {
+                    cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout,
+                                              1, texture_table_set, nullptr);
+                    texture_table_bound_set = texture_table_set;
+                }
             }
             // An empty set 0 has a layout but nothing to update
             if (!descriptor_update_template) {

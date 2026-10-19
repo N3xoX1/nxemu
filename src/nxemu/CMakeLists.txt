@@ -161,9 +161,12 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
     endif()
     add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
     find_program(NXEMU_CODESIGN codesign REQUIRED)
+    find_program(NXEMU_INSTALL_NAME_TOOL install_name_tool REQUIRED)
+    find_program(NXEMU_OTOOL otool REQUIRED)
     set(_nxemu_bundle_script "${CMAKE_SOURCE_DIR}/src/cmake/modules/nxemu_macos_bundle.cmake")
     set(_nxemu_bundle_command ${CMAKE_COMMAND}
         "-DBUNDLE=$<TARGET_BUNDLE_DIR:nxemu>"
+        "-DEXECUTABLE=$<TARGET_FILE:nxemu>"
         "-DLOADER=$<TARGET_FILE:nxemu-loader>"
         "-DCPU=$<TARGET_FILE:nxemu-cpu>"
         "-DVIDEO=$<TARGET_FILE:nxemu-video>"
@@ -171,12 +174,13 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
         "-DSCITER=${_nxemu_sciter_lib}"
         "-DSDL=$<TARGET_FILE:SDL2::SDL2>"
+        "-DASSETS=${CMAKE_CURRENT_SOURCE_DIR}/ui/assets"
         "-DLANG=${CMAKE_SOURCE_DIR}/lang"
-        "-DUI_ASSETS=${CMAKE_CURRENT_SOURCE_DIR}/ui/assets"
         "-DCODESIGN=${NXEMU_CODESIGN}"
+        "-DINSTALL_NAME_TOOL=${NXEMU_INSTALL_NAME_TOOL}"
+        "-DOTOOL=${NXEMU_OTOOL}"
         "-DINFO_PLIST=${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in"
         "-DICON=${_nxemu_icon}"
-        "-DEXECUTABLE_NAME=$<TARGET_FILE_NAME:nxemu>"
         "-DSHORT_VERSION=${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION}"
         "-DBUILD_VERSION=${VERSION_BUILD}"
         "-DMINIMUM_MACOS=${CMAKE_OSX_DEPLOYMENT_TARGET}"

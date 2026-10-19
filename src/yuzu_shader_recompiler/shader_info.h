@@ -218,6 +218,8 @@ struct TextureDescriptor {
     u32 size_shift;
     /// Sampler-less array indexed by the TIC index of a runtime handle.
     bool is_direct{};
+    /// Bound with the texture tables in descriptor set 1, which the host keeps between draws.
+    bool in_table_set{};
     /// Constant bits combined with the cbuf handle, including an immediate sampler index.
     u32 handle_or_bits{};
 
