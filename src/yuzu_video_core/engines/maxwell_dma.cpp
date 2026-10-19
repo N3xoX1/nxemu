@@ -93,15 +93,38 @@ void MaxwellDMA::Launch() {
         auto& accelerate = rasterizer->AccessAccelerateDMA();
         const bool is_const_a_dst = regs.remap_const.dst_x == RemapConst::Swizzle::CONST_A;
         if (regs.launch_dma.remap_enable != 0 && is_const_a_dst) {
-            ASSERT(regs.remap_const.component_size_minus_one == 3);
-            accelerate.BufferClear(regs.offset_out, regs.line_length_in,
-                                   regs.remap_const.remap_consta_value);
-            read_buffer.resize_destructive(regs.line_length_in * sizeof(u32));
-            std::span<u32> span(reinterpret_cast<u32*>(read_buffer.data()), regs.line_length_in);
-            std::ranges::fill(span, regs.remap_const.remap_consta_value);
-            memory_manager.WriteBlockUnsafe(regs.offset_out,
-                                            reinterpret_cast<u8*>(read_buffer.data()),
-                                            regs.line_length_in * sizeof(u32));
+            const u32 component_size = regs.remap_const.component_size_minus_one + 1;
+            if (component_size != 1 && component_size != 2 && component_size != 4) [[unlikely]] {
+                ASSERT_MSG(false, "Invalid DMA component size {}", component_size);
+                ReleaseSemaphore();
+                return;
+            }
+            const size_t byte_size = static_cast<size_t>(regs.line_length_in) * component_size;
+            if (component_size == 4) {
+                accelerate.BufferClear(regs.offset_out, regs.line_length_in,
+                                       regs.remap_const.remap_consta_value);
+            }
+            read_buffer.resize_destructive(byte_size);
+            if (component_size == 1) {
+                std::span<u8> span(reinterpret_cast<u8*>(read_buffer.data()), regs.line_length_in);
+                std::ranges::fill(span, static_cast<u8>(regs.remap_const.remap_consta_value));
+            } else if (component_size == 2) {
+                std::span<u16> span(reinterpret_cast<u16*>(read_buffer.data()), regs.line_length_in);
+                std::ranges::fill(span, static_cast<u16>(regs.remap_const.remap_consta_value));
+            } else {
+                std::span<u32> span(reinterpret_cast<u32*>(read_buffer.data()), regs.line_length_in);
+                std::ranges::fill(span, regs.remap_const.remap_consta_value);
+            }
+            if (component_size == 4) {
+                memory_manager.WriteBlockUnsafe(regs.offset_out,
+                                                reinterpret_cast<u8*>(read_buffer.data()),
+                                                byte_size);
+            } else {
+                // These sizes have no accelerated clear. Invalidate cached GPU
+                // copies when writing the packed CPU result.
+                memory_manager.WriteBlock(regs.offset_out, read_buffer.data(),
+                                          byte_size);
+            }
         } else {
             memory_manager.FlushCaching();
             const auto convert_linear_2_blocklinear_addr = [](u64 address) {
