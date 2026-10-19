@@ -1,4 +1,5 @@
 #pragma once
+#include "about_dialog.h"
 #include "advanced_dialog.h"
 #include "controller_dialog.h"
 #include "directories_dialog.h"
@@ -200,6 +201,7 @@ private:
     std::vector<UserProfile> m_profiles;
     uint64_t m_lastStatusUpdate = 0;
     SettingsContext m_settingsContext;
+    std::unique_ptr<AboutDialog> m_aboutDialog;
     std::unique_ptr<GeneralDialog> m_generalDialog;
     std::unique_ptr<AdvancedDialog> m_advancedDialog;
     std::unique_ptr<ControllerDialog> m_controllerDialog;

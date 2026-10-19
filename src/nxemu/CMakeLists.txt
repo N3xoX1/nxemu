@@ -11,8 +11,8 @@ add_executable(nxemu
     settings/ui_settings.cpp
     settings/ui_settings.h
     settings/ui_identifiers.h
-    user_interface/about_dialog.cpp
-    user_interface/about_dialog.h
+    user_interface/sciter_about_dialog.cpp
+    user_interface/sciter_about_dialog.h
     user_interface/discord_presence.cpp
     user_interface/discord_presence.h
     user_interface/game_list_worker.cpp

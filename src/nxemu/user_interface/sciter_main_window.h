@@ -32,7 +32,7 @@ struct Win32FullscreenState
 class SystemConfig;
 class GameConfig;
 class InputConfig;
-class AboutDialog;
+class SciterAboutDialog;
 
 class SciterMainWindow :
     public IWindowDestroySink,
@@ -240,7 +240,7 @@ private:
     uint64_t m_pendingGameConfigProgramId;
     uint64_t m_pendingSaveDataProgramId;
     std::unique_ptr<InputConfig> m_inputConfig;
-    std::unique_ptr<AboutDialog> m_aboutDialog;
+    std::unique_ptr<SciterAboutDialog> m_aboutDialog;
     ProfileSelectApplet m_ProfileSelect;
     WebBrowserApplet m_WebBrowser;
     float m_resolutionUpFactor;

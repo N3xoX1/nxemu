@@ -193,6 +193,7 @@ bool MainWindow::Create()
         m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
+    m_aboutDialog = std::make_unique<AboutDialog>(m_window.Context(), m_assetDir);
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
@@ -328,6 +329,7 @@ void MainWindow::Update()
         m_quit = true;
         return;
     }
+    m_aboutDialog->Update();
     m_controllerDialog->Update();
     m_generalDialog->Update();
     m_advancedDialog->Update();
@@ -419,7 +421,7 @@ bool MainWindow::Still() const
 
 bool MainWindow::DialogOpen() const
 {
-    return m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
+    return m_aboutDialog->IsVisible() || m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
            m_profilesDialog->IsVisible();
 }
 
@@ -506,6 +508,7 @@ void MainWindow::Run(Action action)
     switch (action)
     {
     case Action::LoadFile: LoadFile(); break;
+    case Action::OpenAbout: m_aboutDialog->Show(); break;
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;

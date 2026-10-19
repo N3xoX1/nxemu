@@ -1,0 +1,57 @@
+.about-dialog
+{
+    width: 600dp;
+}
+
+.about-body
+{
+    padding: 26dp 32dp 6dp 32dp;
+}
+
+.about-body p
+{
+    margin-bottom: 14dp;
+    font-size: 17dp;
+}
+
+.about-top
+{
+    display: flex;
+    align-items: center;
+    margin-bottom: 26dp;
+}
+
+.about-logo
+{
+    width: 200dp;
+    height: 200dp;
+}
+
+.about-product
+{
+    flex: 1;
+    text-align: center;
+}
+
+.about-name
+{
+    margin-bottom: 6dp;
+    font-size: 24dp;
+    font-weight: bold;
+}
+
+.about-body .about-muted
+{
+    color: var(--text-muted);
+}
+
+.about-body .about-small
+{
+    font-size: 13dp;
+}
+
+.about-body .about-credits-title
+{
+    margin-bottom: 6dp;
+    font-weight: bold;
+}
