@@ -254,10 +254,10 @@ void SinkStream::ProcessAudioOutAndRender(std::span<s16> output_buffer, std::siz
             release_cv.notify_one();
         }
 
-        static constexpr std::array<s16, 6> silence{};
+        // Silence must cover the negotiated channel count, not a fixed six-sample array.
         for (size_t i = frames_written; i < num_frames; i++)
         {
-            std::memcpy(&output_buffer[i * frame_size], &silence[0], frame_size_bytes);
+            std::memset(&output_buffer[i * frame_size], 0, frame_size_bytes);
         }
         return;
     }
