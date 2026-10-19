@@ -255,6 +255,11 @@ void IPSwitchCompiler::Parse() {
 
                 const auto& patch_line = lines[++i];
 
+                // Comments within a patch are not replacement records.
+                if (StartsWith(patch_line, "#") || StartsWith(patch_line, "//")) {
+                    continue;
+                }
+
                 // Start of new patch
                 if (StartsWith(patch_line, "@enabled") || StartsWith(patch_line, "@disabled")) {
                     --i;
@@ -293,7 +298,7 @@ void IPSwitchCompiler::Parse() {
                 } else {
                     // hex replacement
                     const auto value =
-                        patch_line.substr(9, patch_line.find_first_of(" /\r\n", 9) - 9);
+                        patch_line.substr(9, patch_line.find_first_of(" /#\r\n", 9) - 9);
                     replace = Common::HexStringToVector(value, is_little_endian);
                 }
 
