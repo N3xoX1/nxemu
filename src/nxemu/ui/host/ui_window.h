@@ -80,6 +80,7 @@ private:
     void SetWindowIcon(const std::filesystem::path & iconFile);
     void UpdateDimensions();
     SDL_HitTestResult HitTest(const SDL_Point & point);
+    bool TitleBarPressed(const SDL_Point & point);
 
     SDL_Window * m_window = nullptr;
     SDL_MetalView m_metalView = nullptr;
@@ -96,6 +97,11 @@ private:
     int m_hiddenFrame = 0;
     uint64_t m_barPressTime = 0;
     SDL_Point m_barPress{};
+    bool m_hitTestOnPress = true;
+    bool m_waylandVideo = false;
+    bool m_overDragArea = false;
+    bool m_leftButtonDown = false;
+    SDL_Point m_dragAreaPoint{};
     uint64_t m_lastFrame = 0;
     uint64_t m_frameInterval = 0;
     bool m_sdlInitialised = false;
