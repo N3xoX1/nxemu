@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <array>
+#include <cstdlib>
 #include <cstring>
 #include <future>
 #include <optional>
@@ -31,6 +33,39 @@ namespace {
     }
     return true;
 }
+
+#ifdef __APPLE__
+struct MoltenVKSetting {
+    const char* name;
+    VkLayerSettingTypeEXT type;
+    u32 value;
+};
+
+// MoltenVK configuration nxemu runs best with. An environment variable of the same name wins.
+constexpr std::array MOLTENVK_SETTINGS{
+    // Encode Metal commands on MoltenVK's own thread instead of blocking each submit
+    MoltenVKSetting{"MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS", VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+                    VK_FALSE},
+    MoltenVKSetting{"MVK_CONFIG_RESUME_LOST_DEVICE", VK_LAYER_SETTING_TYPE_BOOL32_EXT, VK_TRUE},
+};
+
+[[nodiscard]] std::vector<VkLayerSettingEXT> MoltenVKLayerSettings() {
+    std::vector<VkLayerSettingEXT> settings;
+    for (const MoltenVKSetting& setting : MOLTENVK_SETTINGS) {
+        if (std::getenv(setting.name) != nullptr) {
+            continue;
+        }
+        settings.push_back({
+            .pLayerName = "MoltenVK",
+            .pSettingName = setting.name,
+            .type = setting.type,
+            .valueCount = 1,
+            .pValues = &setting.value,
+        });
+    }
+    return settings;
+}
+#endif
 
 [[nodiscard]] std::vector<const char*> RequiredExtensions(
     const std::vector<VkExtensionProperties>& properties,
@@ -70,6 +105,9 @@ namespace {
 #ifdef __APPLE__
     if (AreExtensionsSupported(properties, std::array{VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME})) {
         extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    }
+    if (AreExtensionsSupported(dld, std::array{VK_EXT_LAYER_SETTINGS_EXTENSION_NAME})) {
+        extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
     }
 #endif
     if (enable_validation &&
@@ -141,9 +179,24 @@ vk::Instance CreateInstance(const Common::DynamicLibrary& library, vk::InstanceD
                   VK_VERSION_MAJOR(required_version), VK_VERSION_MINOR(required_version));
         throw vk::Exception(VK_ERROR_INCOMPATIBLE_DRIVER);
     }
+    const void* next = nullptr;
+#ifdef __APPLE__
+    const std::vector<VkLayerSettingEXT> layer_settings = MoltenVKLayerSettings();
+    const VkLayerSettingsCreateInfoEXT layer_settings_ci{
+        .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+        .pNext = nullptr,
+        .settingCount = static_cast<u32>(layer_settings.size()),
+        .pSettings = layer_settings.data(),
+    };
+    if (std::ranges::find_if(extensions, [](const char* extension) {
+            return std::strcmp(extension, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) == 0;
+        }) != extensions.end()) {
+        next = &layer_settings_ci;
+    }
+#endif
     vk::Instance instance =
         std::async([&] {
-            return vk::Instance::Create(available_version, layers, extensions, dld);
+            return vk::Instance::Create(available_version, layers, extensions, dld, next);
         }).get();
     if (!vk::Load(*instance, dld)) {
         LOG_ERROR(Render_Vulkan, "Failed to load Vulkan instance function pointers");

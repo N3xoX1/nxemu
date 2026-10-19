@@ -85,6 +85,8 @@ struct Profile {
     bool has_gl_cbuf_ftou_bug{};
     /// Some drivers poorly optimize boolean variable references
     bool has_gl_bool_ref_bug{};
+    /// NoContraction makes fragment and compute shaders much slower to build
+    bool has_slow_fragment_no_contraction{};
     /// Ignores SPIR-V ordered vs unordered using GLSL semantics
     bool ignore_nan_fp_comparisons{};
     /// Some drivers have broken support for OpVectorExtractDynamic on subgroup mask inputs

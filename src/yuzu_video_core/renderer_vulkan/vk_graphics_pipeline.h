@@ -270,6 +270,7 @@ private:
     // Used only by the scheduler worker
     VkDescriptorSet texture_table_set{};
     u64 texture_table_set_version{};
+    VkDescriptorSet texture_table_bound_set{};
 
     vk::PipelineLayout pipeline_layout;
     vk::DescriptorUpdateTemplate descriptor_update_template;

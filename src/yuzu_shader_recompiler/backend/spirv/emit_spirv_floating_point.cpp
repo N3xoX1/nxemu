@@ -9,7 +9,10 @@ namespace Shader::Backend::SPIRV {
 namespace {
 Id Decorate(EmitContext& ctx, IR::Inst* inst, Id op) {
     const auto flags{inst->Flags<IR::FpControl>()};
-    if (flags.no_contraction) {
+    // Stages that write the position keep it so multi-pass depth stays exact
+    const bool skip{ctx.profile.has_slow_fragment_no_contraction &&
+                    (ctx.stage == Stage::Fragment || ctx.stage == Stage::Compute)};
+    if (flags.no_contraction && !skip) {
         ctx.Decorate(op, spv::Decoration::NoContraction);
     }
     return op;
