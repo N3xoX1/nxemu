@@ -58,6 +58,7 @@
     <ClCompile Include="ui\ui_application.cpp" />
     <ClCompile Include="ui\views\main_window.cpp" />
     <ClCompile Include="ui\views\menu_bar.cpp" />
+    <ClCompile Include="ui\views\message_dialog.cpp" />
     <ClCompile Include="ui\views\popup_menu.cpp" />
     <ClCompile Include="ui\views\rml_events.cpp" />
     <ClCompile Include="ui\views\advanced_dialog.cpp" />
@@ -135,6 +136,7 @@
     <ClInclude Include="ui\ui_application.h" />
     <ClInclude Include="ui\views\main_window.h" />
     <ClInclude Include="ui\views\menu_bar.h" />
+    <ClInclude Include="ui\views\message_dialog.h" />
     <ClInclude Include="ui\views\popup_menu.h" />
     <ClInclude Include="ui\views\rml_events.h" />
     <ClInclude Include="ui\views\advanced_dialog.h" />

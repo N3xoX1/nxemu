@@ -5,6 +5,8 @@
 #include "ui/host/ui_window.h"
 #include "ui/library/game_library.h"
 #include "ui/views/main_window.h"
+#include "ui/views/message_dialog.h"
+#include <RmlUi/Core/Context.h>
 #include <iostream>
 #include <nxemu-core/app_init.h>
 #include <nxemu-core/settings/settings.h>
@@ -114,6 +116,42 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
     }
 
     LiveResize liveResize{window, mainWindow};
+    notification.SetPresenter([&](bool question, const std::string & title, const std::string & text) {
+        const bool wasBusy = liveResize.busy;
+        liveResize.busy = true;
+        mainWindow.RevealMouseCursor();
+        MessageDialog dialog(window.Context(), assetDir, question, title, text);
+        dialog.Show();
+        SDL_Event deferred{};
+        bool quitting = false;
+        while (dialog.IsVisible())
+        {
+            SDL_Event event;
+            while (SDL_PollEvent(&event))
+            {
+                if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
+                {
+                    deferred = event;
+                    quitting = true;
+                    dialog.Dismiss();
+                    break;
+                }
+                window.HandleEvent(event);
+            }
+            dialog.Update();
+            window.SyncNativeState();
+            window.Context()->Update();
+            window.PaceFrame();
+            window.Render(mainWindow.GameArea());
+        }
+        mainWindow.RevealMouseCursor();
+        liveResize.busy = wasBusy;
+        if (quitting)
+        {
+            SDL_PushEvent(&deferred);
+        }
+        return dialog.Response();
+    });
     SDL_AddEventWatch(&DrawWhileResizing, &liveResize);
 
     uint64_t lastChange = SDL_GetTicks64();
@@ -156,6 +194,7 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
         liveResize.busy = false;
     }
     SDL_DelEventWatch(&DrawWhileResizing, &liveResize);
+    notification.SetPresenter({});
     return 0;
 }
 } // namespace

@@ -406,6 +406,9 @@
     <ClCompile Include="ui\views\menu_bar.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\message_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\popup_menu.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -512,6 +515,9 @@
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\menu_bar.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\message_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\popup_menu.h">

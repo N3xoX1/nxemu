@@ -1736,6 +1736,16 @@ void MainWindow::ShowVersion()
     }
 }
 
+void MainWindow::RevealMouseCursor()
+{
+    m_mouseMovedAt = SDL_GetTicks64();
+    if (m_mouseHidden)
+    {
+        m_mouseHidden = false;
+        SDL_ShowCursor(SDL_ENABLE);
+    }
+}
+
 void MainWindow::UpdateMouseCursor()
 {
     bool hide = false;
