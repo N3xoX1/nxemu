@@ -27,6 +27,7 @@ public:
     void BeginSystemFrame();
     void EndSystemFrame();
     void EndGameFrame();
+    void MeasureGameFrames(bool measure);
 
     PerfStatsResults GetAndResetStats(std::chrono::microseconds current_system_time_us);
 
@@ -63,6 +64,9 @@ private:
     u32 system_frames = 0;
     /// Cumulative number of game frames (GSP frame submissions) since last reset
     std::atomic<u32> game_frames = 0;
+    std::atomic<bool> measure_game_frames = false;
+    std::atomic<Clock::rep> last_game_frame = 0;
+    std::atomic<Clock::rep> longest_game_frame = 0;
 
     /// Point when the previous system frame ended
     Clock::time_point previous_frame_end = reset_point;

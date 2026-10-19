@@ -50,6 +50,7 @@ public:
     IParamPackage * GetNextInput() const override;
     void PumpInputEvents() const override;
     PerfStatsResults GetAndResetPerfStats() override;
+    void MeasureGameFrames(bool measure) override;
     void SetEmulationPaused(bool paused) override;
     bool IsEmulationPaused() const override;
     void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) override;

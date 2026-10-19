@@ -11,6 +11,7 @@
 #include "popup_menu.h"
 #include "profiles_dialog.h"
 #include "settings_context.h"
+#include "performance_overlay.h"
 #include "settings_page.h"
 #include "tooltip.h"
 #include "user_profiles.h"
@@ -206,6 +207,8 @@ private:
     std::unique_ptr<PopupMenu> m_gameMenu;
     std::unique_ptr<LoadingScreen> m_loadingScreen;
     std::unique_ptr<Tooltip> m_tooltip;
+    std::unique_ptr<PerformanceOverlay> m_performance;
+    bool m_longestMeasured = false;
     std::unique_ptr<VolumeControl> m_volume;
     std::vector<UserProfile> m_profiles;
     uint64_t m_lastStatusUpdate = 0;

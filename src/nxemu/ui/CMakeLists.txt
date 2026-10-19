@@ -13,6 +13,8 @@ add_library(nxemu_ui STATIC
     emulation/emulator_session.h
     host/discord_presence.cpp
     host/discord_presence.h
+    host/process_usage.cpp
+    host/process_usage.h
     host/sdl_input.cpp
     host/sdl_input.h
     host/shell.cpp
@@ -64,6 +66,8 @@ add_library(nxemu_ui STATIC
     views/menu_bar.h
     views/message_dialog.cpp
     views/message_dialog.h
+    views/performance_overlay.cpp
+    views/performance_overlay.h
     views/popup_menu.cpp
     views/popup_menu.h
     views/rml_events.cpp

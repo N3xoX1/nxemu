@@ -509,6 +509,8 @@ struct PerfStatsResults
     double frametime;
     /// Ratio of walltime / emulated time elapsed
     double emulation_speed;
+    /// Longest time between two game frames since the last reset, in seconds; 0 when not measured
+    double longest_game_frame;
 };
 
 nxinterface IDeviceMemory
@@ -704,6 +706,7 @@ nxinterface IOperatingSystem
     virtual IParamPackage * GetNextInput() const = 0;
     virtual void PumpInputEvents() const = 0;
     virtual PerfStatsResults GetAndResetPerfStats() = 0;
+    virtual void MeasureGameFrames(bool measure) = 0;
     virtual void SetEmulationPaused(bool paused) = 0;
     virtual bool IsEmulationPaused() const = 0;
     virtual void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) = 0;
