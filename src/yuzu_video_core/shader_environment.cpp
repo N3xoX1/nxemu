@@ -746,10 +746,36 @@ void SerializePipeline(std::span<const char> key, std::span<const GenericEnviron
     }
 }
 
+namespace {
+/// Rewrites a pipeline cache file with only the given byte ranges of it
+void CompactPipelineCache(std::ifstream& file, const std::filesystem::path& filename,
+                          std::span<const std::pair<std::streamoff, std::streamoff>> ranges) try {
+    std::filesystem::path temp{filename};
+    temp += ".tmp";
+    {
+        std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+        out.exceptions(std::ofstream::failbit);
+        std::vector<char> buffer;
+        for (const auto& [begin, end] : ranges) {
+            buffer.resize(static_cast<size_t>(end - begin));
+            file.seekg(begin);
+            file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            out.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        }
+    }
+    file.close();
+    std::filesystem::rename(temp, filename);
+} catch (const std::exception& e) {
+    LOG_WARNING(Common_Filesystem, "Failed to compact pipeline cache file: {}", e.what());
+    std::error_code ec;
+    std::filesystem::remove(std::filesystem::path{filename}.concat(".tmp"), ec);
+}
+} // Anonymous namespace
+
 void LoadPipelines(
     std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
-    Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
-    Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics) try {
+    Common::UniqueFunction<bool, std::ifstream&, FileEnvironment> load_compute,
+    Common::UniqueFunction<bool, std::ifstream&, std::vector<FileEnvironment>> load_graphics) try {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         return;
@@ -778,10 +804,14 @@ void LoadPipelines(
         }
         return;
     }
+    // Byte ranges of the records to keep, the header included
+    std::vector<std::pair<std::streamoff, std::streamoff>> kept{{0, file.tellg()}};
+    bool dropped{};
     while (file.tellg() != end) {
         if (stop_loading.stop_requested()) {
             return;
         }
+        const std::streamoff record_start{file.tellg()};
         u32 num_envs{};
         file.read(reinterpret_cast<char*>(&num_envs), sizeof(num_envs));
         if (num_envs == 0 || num_envs > 6) {
@@ -791,14 +821,26 @@ void LoadPipelines(
         for (FileEnvironment& env : envs) {
             env.Deserialize(file);
         }
+        bool keep{};
         if (envs.front().ShaderStage() == Shader::Stage::Compute) {
             if (envs.size() != 1) {
                 throw std::ios_base::failure("Invalid compute shader cache stage count");
             }
-            load_compute(file, std::move(envs.front()));
+            keep = load_compute(file, std::move(envs.front()));
         } else {
-            load_graphics(file, std::move(envs));
+            keep = load_graphics(file, std::move(envs));
         }
+        const std::streamoff record_end{file.tellg()};
+        if (!keep) {
+            dropped = true;
+        } else if (kept.back().second == record_start) {
+            kept.back().second = record_end;
+        } else {
+            kept.emplace_back(record_start, record_end);
+        }
+    }
+    if (dropped) {
+        CompactPipelineCache(file, filename, kept);
     }
 
 } catch (const std::ios_base::failure& e) {
