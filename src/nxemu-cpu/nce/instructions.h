@@ -118,7 +118,12 @@ union Exclusive {
     constexpr explicit Exclusive(u32 raw_) : raw{raw_} {}
 
     constexpr bool Verify() {
-        return this->GetSig() == 0x10;
+        if (this->GetSig() != 0x10) {
+            return false;
+        }
+        const bool pair = (decltype(l)::ExtractValue(raw) & 1) != 0;
+        const bool fixed_rt2 = decltype(rt2)::ExtractValue(raw) == 0b11111;
+        return pair || fixed_rt2;
     }
 
     constexpr u32 GetSig() {

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <limits>
 #include <optional>
 
 #include <mcl/assert.hpp>
@@ -176,7 +177,13 @@ void FoldDivide(IR::Inst& inst, bool is_32_bit, bool is_signed) {
     const auto lhs = inst.GetArg(0);
     if (lhs.IsImmediate() && rhs.IsImmediate()) {
         if (is_signed) {
-            const s64 result = lhs.GetImmediateAsS64() / rhs.GetImmediateAsS64();
+            const s64 numerator = lhs.GetImmediateAsS64();
+            const s64 denominator = rhs.GetImmediateAsS64();
+            // ARM returns the minimum signed value for MIN / -1. Performing
+            // that division in C++ would overflow on the host.
+            const s64 result = numerator == std::numeric_limits<s64>::min() && denominator == -1
+                                   ? numerator
+                                   : numerator / denominator;
             ReplaceUsesWith(inst, is_32_bit, static_cast<u64>(result));
         } else {
             const u64 result = lhs.GetImmediateAsU64() / rhs.GetImmediateAsU64();
