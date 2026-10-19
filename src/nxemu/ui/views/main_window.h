@@ -57,6 +57,8 @@ private:
         OpenLogDirectory,
         PauseOrContinue,
         Stop,
+        Restart,
+        ToggleEmulationControls,
         ToggleSpeedLimit,
         ToggleStartGamesInFullscreen,
         ToggleStartGamesWithUiHidden,
@@ -166,6 +168,8 @@ private:
     void SelectGame(Rml::Element * card);
     void SyncPhase();
     void ShowPanel(Panel panel);
+    void SetUiHidden(bool hidden);
+    void LoadFile();
     bool DialogOpen() const;
     void AnnounceGame(const std::string & path);
     void UpdateLoadingScreen();
@@ -242,5 +246,6 @@ private:
     uint64_t m_mouseMovedAt = 0;
     uint64_t m_versionCopiedUntil = 0;
     bool m_hideUi = false;
+    bool m_applyStartOptions = false;
     bool m_quit = false;
 };
