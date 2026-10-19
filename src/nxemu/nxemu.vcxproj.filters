@@ -484,10 +484,22 @@
     <ClCompile Include="ui\library\game_library.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
+    <ClCompile Include="ui\library\game_cache.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\library\game_details.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
     <ClCompile Include="ui\library\rom_properties.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
     <ClInclude Include="ui\library\game_library.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\game_cache.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\game_details.h">
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\library\rom_properties.h">

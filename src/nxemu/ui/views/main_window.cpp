@@ -19,6 +19,8 @@
 #include <nxemu/ui/host/shell.h>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
+#include <nxemu/ui/library/game_cache.h>
+#include <nxemu/ui/library/game_details.h>
 #include <nxemu/ui/library/ui_preferences.h>
 #include <tuple>
 #include <yuzu_common/fs/filesystem_interfaces.h>
@@ -453,6 +455,12 @@ void MainWindow::RunPendingWork()
     {
         m_pendingSelectMenu = m_gameMenu->Origin();
     }
+    if (m_pendingGameMenu != nullptr)
+    {
+        Rml::Element * origin = m_pendingGameMenu;
+        m_pendingGameMenu = nullptr;
+        ShowGameMenu(origin);
+    }
     if (m_pendingSelectMenu != nullptr)
     {
         Rml::Element * origin = m_pendingSelectMenu;
@@ -484,6 +492,49 @@ void MainWindow::Run(Action action)
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
+    case Action::StartMenuGame: OpenGame(m_menuGame); break;
+    case Action::OpenMenuGameDirectory:
+        OpenDirectory(Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.parent_path()));
+        break;
+    case Action::CopyMenuGamePath: SDL_SetClipboardText(m_menuGame.c_str()); break;
+    case Action::OpenMenuGameSaves:
+    case Action::OpenMenuGameCache:
+    case Action::ClearMenuGameCache:
+    {
+        const auto game = std::find_if(m_games.begin(), m_games.end(), [this](const GameEntry & entry) { return entry.path == m_menuGame; });
+        if (game == m_games.end() || game->programId == 0)
+        {
+            break;
+        }
+        const std::filesystem::path cacheRoot = Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir);
+        if (action == Action::OpenMenuGameSaves)
+        {
+            const std::string directory = GameDetailsReader::SaveDirectory(game->programId);
+            if (!directory.empty())
+            {
+                OpenDirectory(directory);
+            }
+        }
+        else if (action == Action::OpenMenuGameCache)
+        {
+            OpenDirectory(Common::FS::PathToUTF8String(GameCache::Directory(cacheRoot, game->programId)));
+        }
+        else if (!m_session.IsRunning())
+        {
+            const std::string message = Tr("Clear the shader cache for %1?\n\nShaders will be rebuilt the next time you play.", {game->title});
+            const std::string title = Tr("Clear cache");
+            if (g_notify->Query(message.c_str(), title.c_str()) == NotificationResponse::Yes)
+            {
+                std::string error;
+                if (!GameCache::Clear(cacheRoot, game->programId, error))
+                {
+                    const std::string failure = Tr("Could not clear the cache: %1", {error});
+                    g_notify->DisplayError(failure.c_str(), title.c_str());
+                }
+            }
+        }
+        break;
+    }
     case Action::ToggleDockedMode: SetDockedMode(!IsDocked()); break;
     case Action::SetDockedMode: SetDockedMode(true); break;
     case Action::SetHandheldMode: SetDockedMode(false); break;
@@ -664,9 +715,29 @@ void MainWindow::BindEvents()
         {
             Post(Action::PlaySelectedGame);
         }
+        Rml::Element * button = UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-more");
+        if (button != nullptr && button == m_gameMenu->Origin())
+        {
+            m_gameMenu->Close();
+        }
+        else if (button != nullptr)
+        {
+            m_pendingGameMenu = button;
+            m_gameMenuPoint.reset();
+        }
+    });
+    UiEvents::Listen(m_document->GetElementById("games-grid"), "mousedown", [this](Rml::Event & event) {
+        Rml::Element * game = UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-game");
+        if (game != nullptr && event.GetParameter<int>("button", 0) == 1)
+        {
+            SelectGame(game);
+            m_pendingGameMenu = game;
+            m_gameMenuPoint = Rml::Vector2f(event.GetParameter<float>("mouse_x", 0.0f), event.GetParameter<float>("mouse_y", 0.0f));
+        }
     });
     UiEvents::Listen(m_document->GetElementById("games-grid"), "dblclick", [this](Rml::Event & event) {
-        if (UiEvents::ClosestWithClass(event.GetTargetElement(), "row-play") != nullptr)
+        if (UiEvents::ClosestWithClass(event.GetTargetElement(), "rom-more") != nullptr ||
+            UiEvents::ClosestWithClass(event.GetTargetElement(), "row-play") != nullptr)
         {
             return;
         }
@@ -799,6 +870,8 @@ void MainWindow::RenderGames()
     {
         return;
     }
+    m_gameMenu->Close();
+    m_pendingGameMenu = nullptr;
     m_selectedGame = nullptr;
 
     const std::string search = Folded(m_gameSearch);
@@ -890,6 +963,9 @@ void MainWindow::RenderVisibleGames()
         return rml;
     };
     const auto spacerHeight = [rowHeight](size_t spacerRows) { return Rml::Property(static_cast<float>(spacerRows) * rowHeight, Rml::Unit::PX); };
+
+    m_gameMenu->Close();
+    m_pendingGameMenu = nullptr;
 
     Rml::Element * above = grid->GetFirstChild();
     Rml::Element * below = grid->GetLastChild();
@@ -1048,7 +1124,8 @@ std::string MainWindow::ListRowRml(size_t index, size_t number)
            "<div class=\"col-format\">" +
            (format.empty() ? std::string() : "<div class=\"format-badge" + std::string(kind) + "\">" + Rml::StringUtilities::EncodeRml(format) + "</div>") + "</div>" +
            cell("size", FileSize(game.size)) + "<div class=\"col-actions\"><div class=\"row-play\"><img src=\"images/play.png\"/><div>" +
-           Rml::StringUtilities::EncodeRml(Tr("Play")) + "</div></div></div></div>";
+           Rml::StringUtilities::EncodeRml(Tr("Play")) + "</div></div><div class=\"rom-more\" title=\"" + Rml::StringUtilities::EncodeRml(Tr("More actions")) +
+           "\"><div class=\"rom-dot\"/><div class=\"rom-dot\"/><div class=\"rom-dot\"/></div></div></div>";
     return rml;
 }
 
@@ -1214,6 +1291,39 @@ void MainWindow::UpdateStatusWidgets()
     if (m_volume != nullptr)
     {
         m_volume->Show();
+    }
+}
+
+void MainWindow::ShowGameMenu(Rml::Element * origin)
+{
+    Rml::Element * card = UiEvents::ClosestWithClass(origin, "rom-game");
+    const size_t index = card != nullptr ? static_cast<size_t>(card->GetAttribute<int>("data-game", -1)) : m_games.size();
+    if (index >= m_games.size())
+    {
+        return;
+    }
+    m_menuGame = m_games[index].path;
+    const uint64_t id = m_games[index].programId;
+    std::error_code error;
+    const bool cacheExists = id != 0 && std::filesystem::is_directory(GameCache::Directory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir), id), error);
+    const std::vector<MenuItem> items = {
+        MenuItem::Action(static_cast<int>(Action::StartMenuGame), Tr("Start Game")),
+        MenuItem::Separator(),
+        MenuItem::Action(static_cast<int>(Action::OpenMenuGameSaves), Tr("Open saves"), {}, !GameDetailsReader::SaveDirectory(id).empty()),
+        MenuItem::Submenu(Tr("Cache"), {
+            MenuItem::Action(static_cast<int>(Action::OpenMenuGameCache), Tr("Open cache"), {}, cacheExists),
+            MenuItem::Action(static_cast<int>(Action::ClearMenuGameCache), Tr("Clear cache"), {}, cacheExists && !m_session.IsRunning()),
+        }),
+        MenuItem::Action(static_cast<int>(Action::OpenMenuGameDirectory), Tr("Open Containing Folder")),
+        MenuItem::Action(static_cast<int>(Action::CopyMenuGamePath), Tr("Copy File Path")),
+    };
+    if (m_gameMenuPoint)
+    {
+        m_gameMenu->ShowAt(items, *m_gameMenuPoint);
+    }
+    else
+    {
+        m_gameMenu->Show(items, origin);
     }
 }
 
