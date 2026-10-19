@@ -7,6 +7,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <tuple>
@@ -135,7 +136,7 @@ public:
         PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
         const GraphicsPipelineCacheKey& key, std::array<vk::ShaderModule, NUM_STAGES> stages,
         const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines,
-        std::unique_ptr<VtgPipelineInfo> vtg_info = nullptr);
+        std::unique_ptr<VtgPipelineInfo> vtg_info = nullptr, bool urgent_build = false);
     ~GraphicsPipeline();
 
     GraphicsPipeline& operator=(GraphicsPipeline&&) noexcept = delete;
@@ -162,6 +163,9 @@ public:
         return it != transition_keys.end() ? transitions[std::distance(transition_keys.begin(), it)]
                                            : nullptr;
     }
+
+    /// Builds the pipeline on the calling thread unless a compiler thread already started it
+    void BuildIfQueued();
 
     [[nodiscard]] bool IsBuilt() const noexcept {
         return is_built.load(std::memory_order_acquire);
@@ -280,6 +284,8 @@ private:
     std::mutex build_mutex;
     std::atomic_bool is_built{false};
     std::atomic_bool build_complete{false};
+    std::function<void()> queued_build;
+    std::atomic_bool build_claimed{false};
     bool uses_push_descriptor{false};
     const bool rasterizes_lines;
 

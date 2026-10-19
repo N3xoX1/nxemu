@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 
@@ -79,6 +81,7 @@ public:
     }
 
 private:
+    bool HoldIncompleteFrame();
     void InitializeWatermark();
     void CleanupWatermark();
     void RenderWatermark(Frame & frame);
@@ -96,6 +99,12 @@ private:
     Tegra::MaxwellDeviceMemoryManager& device_memory;
     Tegra::GPU& gpu;
     watermark_vk wm;
+    /// Start of the run of frames missing draws whose pipelines are still compiling
+    std::optional<std::chrono::steady_clock::time_point> incomplete_since;
+    /// Last time an image was drawn to for the first time, which marks a scene change
+    std::optional<std::chrono::steady_clock::time_point> last_new_render_target;
+    bool hold_incomplete = false;
+    bool presented_once = false;
 
     Display& display;
     const Device& device;

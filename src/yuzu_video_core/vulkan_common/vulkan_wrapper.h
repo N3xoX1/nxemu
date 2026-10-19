@@ -903,6 +903,10 @@ public:
     VkResult Read(size_t* size, void* data) const noexcept {
         return dld->vkGetPipelineCacheData(owner, handle, size, data);
     }
+
+    /// Retry concurrent cache growth a bounded number of times, then return the last
+    /// valid partial snapshot. Throws on driver errors instead of returning unusable data.
+    std::vector<char> ReadData() const;
 };
 
 class Semaphore : public Handle<VkSemaphore, VkDevice, DeviceDispatch> {

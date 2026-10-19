@@ -584,9 +584,11 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
         for (size_t index = 0; index < NUM_RT; ++index) {
             ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
             PrepareImageView(color_buffer_id, true, is_clear && IsFullClear(color_buffer_id));
+            MarkRenderTarget(color_buffer_id);
         }
         const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
         PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+        MarkRenderTarget(depth_buffer_id);
         return;
     }
 
@@ -600,10 +602,12 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
     for (size_t index = 0; index < NUM_RT; ++index) {
         ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
         PrepareImageView(color_buffer_id, true, is_clear && IsFullClear(color_buffer_id));
+        MarkRenderTarget(color_buffer_id);
     }
     const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
 
     PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+    MarkRenderTarget(depth_buffer_id);
 
     for (size_t index = 0; index < NUM_RT; ++index) {
         render_targets.draw_buffers[index] = static_cast<u8>(maxwell3d->regs.rt_control.Map(index));
@@ -621,6 +625,34 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
     render_targets.is_rescaled = is_rescaling;
 
     flags[Dirty::DepthBiasGlobal] = true;
+}
+
+template <class P>
+void TextureCache<P>::MarkRenderTarget(ImageViewId view_id) {
+    if (!view_id) {
+        return;
+    }
+    const ImageViewBase& view = slot_image_views[view_id];
+    if (!view.IsBuffer()) {
+        Image& image = slot_images[view.image_id];
+        if (image.first_render_frame > frame_tick) {
+            image.first_render_frame = frame_tick;
+            has_new_render_targets = true;
+        }
+    }
+}
+
+template <class P>
+bool TextureCache<P>::RenderTargetsDrawnBefore() const {
+    const auto drawn_before = [this](ImageViewId view_id) {
+        if (!view_id) {
+            return true;
+        }
+        const ImageViewBase& view = slot_image_views[view_id];
+        return view.IsBuffer() || slot_images[view.image_id].first_render_frame < frame_tick;
+    };
+    return std::ranges::all_of(render_targets.color_buffer_ids, drawn_before) &&
+           drawn_before(render_targets.depth_buffer_id);
 }
 
 template <class P>

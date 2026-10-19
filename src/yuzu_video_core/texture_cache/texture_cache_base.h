@@ -205,6 +205,15 @@ public:
     /// @param is_clear True when the render targets are being used for clears
     void UpdateRenderTargets(bool is_clear, u32 clear_layer_count = 0);
 
+    /// True when every bound render target was drawn to in an earlier frame, so that a draw
+    /// skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
+    [[nodiscard]] bool RenderTargetsDrawnBefore() const;
+
+    /// True when an image was drawn to for the first time since the previous call
+    [[nodiscard]] bool TakeNewRenderTargets() {
+        return std::exchange(has_new_render_targets, false);
+    }
+
     /// Find a framebuffer with the currently bound render targets
     /// UpdateRenderTargets should be called before this
     Framebuffer* GetFramebuffer();
@@ -424,6 +433,9 @@ private:
     /// Synchronize image aliases, copying data if needed
     void SynchronizeAliases(ImageId image_id);
 
+    /// Records the first frame in which the image of the view is drawn to
+    void MarkRenderTarget(ImageViewId view_id);
+
     /// Prepare an image view to be used
     void PrepareImageView(ImageViewId image_view_id, bool is_modification, bool invalidate);
 
@@ -470,6 +482,7 @@ private:
     DAddr virtual_invalid_space{};
 
     bool has_deleted_images = false;
+    bool has_new_render_targets = false;
     bool is_rescaling = false;
     u64 total_used_memory = 0;
     u64 minimum_memory;

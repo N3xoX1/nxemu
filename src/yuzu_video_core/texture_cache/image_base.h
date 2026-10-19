@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <limits>
 #include <optional>
 #include <vector>
 #include <boost/container/small_vector.hpp>
@@ -105,6 +106,8 @@ struct ImageBase {
     VAddr cpu_addr_end = 0;
 
     u64 modification_tick = 0;
+    /// Frame in which the image was first bound as a render target
+    u64 first_render_frame = std::numeric_limits<u64>::max();
     size_t lru_index = SIZE_MAX;
 
     std::array<u32, MAX_MIP_LEVELS> mip_level_offsets{};
