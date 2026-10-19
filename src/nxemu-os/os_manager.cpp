@@ -508,6 +508,11 @@ PerfStatsResults OSManager::GetAndResetPerfStats()
     return m_coreSystem.GetAndResetPerfStats();
 }
 
+void OSManager::MeasureGameFrames(bool measure)
+{
+    m_coreSystem.GetPerfStats().MeasureGameFrames(measure);
+}
+
 void OSManager::SetEmulationPaused(bool paused)
 {
     if (!m_emuThread)

@@ -118,6 +118,17 @@ namespace
         {nullptr, "GameBrowser\\ShowPlayTime", &uiSettings.showPlayTime, true},
         {nullptr, "ShowEmulationControls", &uiSettings.showEmulationControls, kShowEmulationControlsDefault},
         {nullptr, "Shortcuts", &uiSettings.shortcuts},
+        {nullptr, "Performance\\Show", &uiSettings.showPerformance, false},
+        {nullptr, "Performance\\History", &uiSettings.performanceHistory, true},
+        {nullptr, "Performance\\Range", &uiSettings.performanceRange, false},
+        {nullptr, "Performance\\FrameTime", &uiSettings.performanceFrameTime, false},
+        {nullptr, "Performance\\LongestFrame", &uiSettings.performanceLongest, true},
+        {nullptr, "Performance\\Speed", &uiSettings.performanceSpeed, false},
+        {nullptr, "Performance\\Processor", &uiSettings.performanceProcessor, false},
+        {nullptr, "Performance\\Memory", &uiSettings.performanceMemory, false},
+        {nullptr, "Performance\\Size", &uiSettings.performanceSize, 100},
+        {nullptr, "Performance\\Rate", &uiSettings.performanceRate, 2},
+        {nullptr, "Performance\\HistoryLength", &uiSettings.performanceHistoryLength, 30},
 
         // Sciter only: remove with Sciter
         {nullptr, "Language\\Directory", &uiSettings.languageDir, &uiSettings.languageDirValue, GetDefaultLanguageDir(), "./lang"},

@@ -53,6 +53,9 @@ constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse th
 constexpr int kScrollbarWidth = 12;
 constexpr uint64_t kIconSizeSaveDelayMs = 400;
 constexpr int kFilterSharpnessRange = 1;
+constexpr int kPerformanceSizeRange = 2;
+constexpr int kPerformanceRateRange = 3;
+constexpr int kPerformanceLengthRange = 4;
 constexpr uint64_t kGameHintMs = 4000;
 constexpr uint64_t kMouseHideMs = 2500;
 
@@ -203,6 +206,7 @@ bool MainWindow::Create()
                                                             },
                                                         });
     m_tooltip = std::make_unique<Tooltip>(m_window.Context(), m_assetDir);
+    m_performance = std::make_unique<PerformanceOverlay>(m_document->GetElementById("performance"));
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
@@ -403,7 +407,7 @@ void MainWindow::Update()
     }
     SyncWindowState();
     UpdateMouseCursor();
-    if (const uint64_t now = SDL_GetTicks64(); now - m_lastMeasure >= kStatusIntervalMs)
+    if (const uint64_t now = SDL_GetTicks64(); now - m_lastMeasure >= (m_performance->Shown() ? m_performance->Interval() : kStatusIntervalMs))
     {
         m_lastMeasure = now;
         MeasureGame();
@@ -598,6 +602,21 @@ void MainWindow::Run(Action action)
     case Action::ToggleStartGamesWithUiHidden:
         SettingsStore::GetInstance().SetBool(NXUISetting::StartGamesWithUiHidden, !uiSettings.startGamesWithUiHidden);
         SaveUISetting();
+        m_menuDirty = true;
+        break;
+    case Action::TogglePerformance:
+        uiSettings.showPerformance = !uiSettings.showPerformance;
+        SaveUISetting();
+        m_menuDirty = true;
+        break;
+    case Action::TogglePerformanceHistory:
+    case Action::TogglePerformanceRange:
+    case Action::TogglePerformanceFrameTime:
+    case Action::TogglePerformanceLongest:
+    case Action::TogglePerformanceSpeed:
+    case Action::TogglePerformanceProcessor:
+    case Action::TogglePerformanceMemory:
+        m_performance->Toggle(static_cast<PerformanceItem>(static_cast<int>(action) - static_cast<int>(Action::TogglePerformanceHistory)));
         m_menuDirty = true;
         break;
     case Action::ToggleHideUi:
@@ -960,6 +979,23 @@ void MainWindow::RebuildMenu()
         action(Action::ResetWindowSize900p, "900p"),
         action(Action::ResetWindowSize1080p, "1080p"),
     }));
+    std::vector<MenuItem> performance;
+    performance.push_back(check(Action::TogglePerformance, Tr("Show performance"), uiSettings.showPerformance));
+    performance.push_back(MenuItem::Separator());
+    for (const PerformanceOverlay::Item & item : PerformanceOverlay::kItems)
+    {
+        const Action id = static_cast<Action>(static_cast<int>(Action::TogglePerformanceHistory) + static_cast<int>(item.id));
+        performance.push_back(check(id, Tr(item.label), PerformanceOverlay::Has(item.id)));
+    }
+    performance.push_back(MenuItem::Separator());
+    performance.push_back(MenuItem::Slider(Tr("Size"), {kPerformanceSizeRange, PerformanceOverlay::kLargest, PerformanceOverlay::Size(), true, {}, PerformanceOverlay::kSmallest,
+                                                        PerformanceOverlay::kSizeStep}));
+    performance.push_back(MenuItem::Slider(Tr("Measures per second"), {kPerformanceRateRange, PerformanceOverlay::kFastest, PerformanceOverlay::Rate(), true, {},
+                                                                       PerformanceOverlay::kSlowest, 1, ""}));
+    performance.push_back(MenuItem::Slider(Tr("History length"), {kPerformanceLengthRange, PerformanceOverlay::kLongest, PerformanceOverlay::Length(), true,
+                                                                  Tr("How many measures the history shows"), PerformanceOverlay::kShortest, 1, ""}));
+    emulation.push_back(MenuItem::Separator());
+    emulation.push_back(MenuItem::Submenu(Tr("Performance overlay"), std::move(performance)));
     emulation.push_back(MenuItem::Separator());
     emulation.push_back(check(Action::ToggleStartGamesInFullscreen, Tr("Start games in fullscreen"), uiSettings.startGamesInFullscreen));
     emulation.push_back(check(Action::ToggleStartGamesWithUiHidden, Tr("Start games with UI hidden"), uiSettings.startGamesWithUiHidden));
@@ -1390,6 +1426,18 @@ void MainWindow::FitWindowToCards()
 
 void MainWindow::SetMenuRange(int id, int value)
 {
+    if (id == kPerformanceSizeRange)
+    {
+        m_performance->SetSize(value);
+    }
+    else if (id == kPerformanceRateRange)
+    {
+        m_performance->SetRate(value);
+    }
+    else if (id == kPerformanceLengthRange)
+    {
+        m_performance->SetLength(value);
+    }
     if (id == kFilterSharpnessRange && value != SettingsStore::GetInstance().GetInt(NXVideoSetting::FSPSharpness))
     {
         SettingsStore::GetInstance().SetInt(NXVideoSetting::FSPSharpness, value);
@@ -1755,6 +1803,7 @@ void MainWindow::SyncPhase()
         ShowPanel(Panel::Loading);
     }
     SetUiHidden(m_phase != EmulatorSession::Phase::Idle && (m_hideUi || m_window.IsFullscreen()));
+    m_performance->Show(uiSettings.showPerformance && m_gameShown && m_phase != EmulatorSession::Phase::Idle);
 }
 
 void MainWindow::UpdateDiscord()
@@ -1979,9 +2028,18 @@ void MainWindow::ResetWindowSize(int width, int height)
 void MainWindow::MeasureGame()
 {
     m_speedText.clear();
+    const bool measured = m_longestMeasured;
+    m_longestMeasured = false;
     if (m_session.IsRunning())
     {
-        const PerfStatsResults stats = m_session.Modules().OperatingSystem().GetAndResetPerfStats();
+        IOperatingSystem & os = m_session.Modules().OperatingSystem();
+        m_longestMeasured = m_performance->Shown();
+        os.MeasureGameFrames(m_longestMeasured);
+        const PerfStatsResults stats = os.GetAndResetPerfStats();
+        if (measured && m_longestMeasured && !os.IsEmulationPaused())
+        {
+            m_performance->Add(stats, m_session.Modules().Video().ShadersBuilding(), !SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
+        }
         if (std::isfinite(stats.average_game_fps) && stats.average_game_fps != 0)
         {
             const double frametime = std::isfinite(stats.frametime) ? stats.frametime * 1000.0 : 0.0;

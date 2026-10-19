@@ -28,6 +28,17 @@ struct UISettings
     bool showPlayTime;
     bool showEmulationControls;
     StringMap shortcuts;
+    bool showPerformance;
+    bool performanceHistory;
+    bool performanceRange;
+    bool performanceFrameTime;
+    bool performanceLongest;
+    bool performanceSpeed;
+    bool performanceProcessor;
+    bool performanceMemory;
+    int32_t performanceSize;
+    int32_t performanceRate;
+    int32_t performanceHistoryLength;
 
     // Sciter only: remove with Sciter
     Path languageDir;
