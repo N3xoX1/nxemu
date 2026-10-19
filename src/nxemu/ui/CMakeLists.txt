@@ -54,6 +54,8 @@ add_library(nxemu_ui STATIC
     views/main_window.h
     views/menu_bar.cpp
     views/menu_bar.h
+    views/message_dialog.cpp
+    views/message_dialog.h
     views/popup_menu.cpp
     views/popup_menu.h
     views/rml_events.cpp

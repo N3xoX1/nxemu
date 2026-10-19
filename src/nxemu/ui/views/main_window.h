@@ -40,6 +40,7 @@ public:
     bool Create();
     void OpenGame(const std::string & path);
     void RequestQuit();
+    void RevealMouseCursor();
     bool QuitRequested() const { return m_quit; }
 
     void HandleEvent(const SDL_Event & event);
