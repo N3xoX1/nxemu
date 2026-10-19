@@ -17,13 +17,14 @@
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-os/os_types.h>
 #include <nxemu-video/video_settings_identifiers.h>
+#include <nxemu/settings/ui_identifiers.h>
+#include <nxemu/settings/ui_settings.h>
 #include <nxemu/ui/host/shell.h>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/library/game_cache.h>
 #include <nxemu/ui/library/firmware_avatars.h>
 #include <nxemu/ui/library/game_details.h>
-#include <nxemu/ui/library/ui_preferences.h>
 #include <nxemu/ui/platform/file_dialogs.h>
 #include <tuple>
 #include <yuzu_common/fs/filesystem_interfaces.h>
@@ -39,7 +40,6 @@ constexpr uint64_t kVersionCopiedMs = 1500;
 constexpr uint64_t kStatusIntervalMs = 1000;
 constexpr int kGameIconMin = 96;
 constexpr int kGameIconMax = 240;
-constexpr int kGameIconDefault = 146;
 constexpr int kGameIconSteps[] = {108, 146, 176, 216};
 constexpr int kGameIconStepCount = static_cast<int>(sizeof(kGameIconSteps) / sizeof(kGameIconSteps[0]));
 constexpr int kCardGap = 16; // between cards, and 10 between the smallest: see the style sheet
@@ -75,20 +75,9 @@ constexpr ListColumn kOptionalListColumns[] = {
 
 int GameIconSize()
 {
-    const int size = UiPreferences::GetInt(UiPreferences::GameIconSize, kGameIconDefault);
-    return size >= 1 && size <= kGameIconStepCount ? kGameIconSteps[size - 1] : std::clamp(size, kGameIconMin, kGameIconMax);
+    return std::clamp(static_cast<int>(uiSettings.gameIconSize), kGameIconMin, kGameIconMax);
 }
 
-#ifdef __APPLE__
-constexpr bool kShowEmulationControlsDefault = true;
-#else
-constexpr bool kShowEmulationControlsDefault = false;
-#endif
-
-bool ShowEmulationControls()
-{
-    return UiPreferences::GetBool(UiPreferences::ShowEmulationControls, kShowEmulationControlsDefault);
-}
 
 bool IsDocked()
 {
@@ -103,7 +92,7 @@ int ResolutionScale()
 
 int GameSort()
 {
-    const int sort = UiPreferences::GetInt(UiPreferences::GameSort, kSortByName);
+    const int sort = uiSettings.gameSort;
     return std::find(std::begin(kOfferedSorts), std::end(kOfferedSorts), sort) != std::end(kOfferedSorts) ? sort : kSortByName;
 }
 
@@ -574,16 +563,19 @@ void MainWindow::Run(Action action)
         }
         break;
     case Action::ToggleEmulationControls:
-        UiPreferences::SetBool(UiPreferences::ShowEmulationControls, !ShowEmulationControls());
+        uiSettings.showEmulationControls = !uiSettings.showEmulationControls;
+        SaveUISetting();
         m_menuDirty = true;
         SyncPhase();
         break;
     case Action::ToggleStartGamesInFullscreen:
-        UiPreferences::SetBool(UiPreferences::StartGamesInFullscreen, !UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false));
+        SettingsStore::GetInstance().SetBool(NXUISetting::StartGamesInFullscreen, !uiSettings.startGamesInFullscreen);
+        SaveUISetting();
         m_menuDirty = true;
         break;
     case Action::ToggleStartGamesWithUiHidden:
-        UiPreferences::SetBool(UiPreferences::StartGamesWithUiHidden, !UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false));
+        SettingsStore::GetInstance().SetBool(NXUISetting::StartGamesWithUiHidden, !uiSettings.startGamesWithUiHidden);
+        SaveUISetting();
         m_menuDirty = true;
         break;
     case Action::ToggleHideUi:
@@ -646,24 +638,28 @@ void MainWindow::Run(Action action)
         }
         break;
     case Action::ToggleCardInformation:
-        UiPreferences::SetBool(UiPreferences::ShowCardInformation, !UiPreferences::GetBool(UiPreferences::ShowCardInformation, true));
+        uiSettings.showCardInformation = !uiSettings.showCardInformation;
+        SaveUISetting();
         ApplyLibraryOptions();
         break;
     case Action::ShowGridView:
     case Action::ShowListView:
-        if (UiPreferences::GetBool(UiPreferences::GameListView, false) != (action == Action::ShowListView))
+        if (uiSettings.gameListView != (action == Action::ShowListView))
         {
-            UiPreferences::SetBool(UiPreferences::GameListView, action == Action::ShowListView);
+            uiSettings.gameListView = action == Action::ShowListView;
+            SaveUISetting();
             ApplyLibraryOptions();
             m_gamesDirty = true;
         }
         break;
     case Action::TogglePlayTime:
-        UiPreferences::SetBool(UiPreferences::ShowPlayTime, !UiPreferences::GetBool(UiPreferences::ShowPlayTime, true));
+        uiSettings.showPlayTime = !uiSettings.showPlayTime;
+        SaveUISetting();
         ApplyLibraryOptions();
         break;
     case Action::ToggleCardTitle:
-        UiPreferences::SetBool(UiPreferences::ShowCardTitle, !UiPreferences::GetBool(UiPreferences::ShowCardTitle, true));
+        uiSettings.showCardTitle = !uiSettings.showCardTitle;
+        SaveUISetting();
         ApplyLibraryOptions();
         break;
     case Action::ToggleSpeedLimit:
@@ -741,7 +737,8 @@ void MainWindow::Run(Action action)
         const int sort = static_cast<int>(action) - static_cast<int>(Action::GameSortFirst);
         if (sort >= 0 && sort < kGameSortCount)
         {
-            UiPreferences::SetInt(UiPreferences::GameSort, sort);
+            uiSettings.gameSort = sort;
+            SaveUISetting();
             ApplyLibraryOptions();
             m_gamesDirty = true;
         }
@@ -910,7 +907,7 @@ void MainWindow::RebuildMenu()
         item.enabled = item.id == static_cast<int>(Action::Stop) ? canStop : playing;
     }
 
-    emulation.push_back(check(Action::ToggleEmulationControls, Tr("Show emulation controls"), ShowEmulationControls()));
+    emulation.push_back(check(Action::ToggleEmulationControls, Tr("Show emulation controls"), uiSettings.showEmulationControls));
     emulation.push_back(MenuItem::Separator());
     MenuItem speedLimit = check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
     speedLimit.enabled = playing;
@@ -927,8 +924,8 @@ void MainWindow::RebuildMenu()
         action(Action::ResetWindowSize1080p, "1080p"),
     }));
     emulation.push_back(MenuItem::Separator());
-    emulation.push_back(check(Action::ToggleStartGamesInFullscreen, Tr("Start games in fullscreen"), UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false)));
-    emulation.push_back(check(Action::ToggleStartGamesWithUiHidden, Tr("Start games with UI hidden"), UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false)));
+    emulation.push_back(check(Action::ToggleStartGamesInFullscreen, Tr("Start games in fullscreen"), uiSettings.startGamesInFullscreen));
+    emulation.push_back(check(Action::ToggleStartGamesWithUiHidden, Tr("Start games with UI hidden"), uiSettings.startGamesWithUiHidden));
     menus.push_back(MenuItem::Submenu(Tr("&Emulation"), std::move(emulation)));
 
     menus.push_back(MenuItem::Submenu(Tr("&Help"), {
@@ -1242,10 +1239,10 @@ std::string MainWindow::ListRowRml(size_t index, size_t number)
 
 void MainWindow::ApplyLibraryOptions()
 {
-    const bool information = UiPreferences::GetBool(UiPreferences::ShowCardInformation, true);
-    const bool playTime = UiPreferences::GetBool(UiPreferences::ShowPlayTime, true);
-    const bool list = UiPreferences::GetBool(UiPreferences::GameListView, false);
-    const bool title = UiPreferences::GetBool(UiPreferences::ShowCardTitle, true);
+    const bool information = uiSettings.showCardInformation;
+    const bool playTime = uiSettings.showPlayTime;
+    const bool list = uiSettings.gameListView;
+    const bool title = uiSettings.showCardTitle;
     if (Rml::Element * grid = m_document->GetElementById("games-grid"))
     {
         grid->SetClass("list", list);
@@ -1311,7 +1308,8 @@ void MainWindow::SaveIconSize()
     if (m_iconSizeChanged != 0)
     {
         m_iconSizeChanged = 0;
-        UiPreferences::SetInt(UiPreferences::GameIconSize, m_iconSize);
+        uiSettings.gameIconSize = m_iconSize;
+        SaveUISetting();
     }
 }
 
@@ -1621,7 +1619,7 @@ void MainWindow::SyncPhase()
     const bool paused = emulating && phase == EmulatorSession::Phase::Paused;
     m_document->SetClass("emulating", emulating);
     m_document->SetClass("game-paused", paused);
-    m_document->SetClass("game-controls-visible", ShowEmulationControls() && (m_session.IsRunning() || !m_pendingGame.empty()));
+    m_document->SetClass("game-controls-visible", uiSettings.showEmulationControls && (m_session.IsRunning() || !m_pendingGame.empty()));
     for (const char * id : {"title-pause", "title-restart"})
     {
         if (Rml::Element * button = m_document->GetElementById(id))
@@ -1660,8 +1658,8 @@ void MainWindow::SyncPhase()
         else if (phase == EmulatorSession::Phase::Running && m_applyStartOptions)
         {
             m_applyStartOptions = false;
-            m_hideUi = UiPreferences::GetBool(UiPreferences::StartGamesWithUiHidden, false);
-            if (UiPreferences::GetBool(UiPreferences::StartGamesInFullscreen, false))
+            m_hideUi = uiSettings.startGamesWithUiHidden;
+            if (uiSettings.startGamesInFullscreen)
             {
                 m_window.SetFullscreen(true);
             }
@@ -1968,7 +1966,7 @@ void MainWindow::StopGame()
 
 bool MainWindow::ConfirmStop(const std::string & title)
 {
-    if (!UiPreferences::GetBool(UiPreferences::ConfirmBeforeStopping, true))
+    if (!uiSettings.confirmBeforeStopping)
     {
         return true;
     }

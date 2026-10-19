@@ -12,6 +12,12 @@ namespace
 {
     Path GetDefaultLanguageDir();
 
+#ifdef __APPLE__
+    constexpr bool kShowEmulationControlsDefault = true;
+#else
+    constexpr bool kShowEmulationControlsDefault = false;
+#endif
+
     const HotkeyMap g_defaultHotkeys = {
         {Hotkey::LoadFile, {.key = (uint32_t)SCITER_KEY_O, .ctrl = true}},
         {Hotkey::Exit, {.key = (uint32_t)SCITER_KEY_Q, .ctrl = true}},
@@ -44,6 +50,7 @@ namespace
         int32,
         Bool,
         StringList,
+        StringMap,
         Hotkeys,
     };
 
@@ -65,6 +72,7 @@ namespace
         UISetting(const char * id, const char * key, bool * value, bool defaultValue);
         UISetting(const char * id, const char * key, int32_t * value, uint32_t defaultValue);
         UISetting(const char * id, const char * key, Stringlist * value);
+        UISetting(const char * id, const char * key, StringMap * value);
         UISetting(const char * id, const char * key, HotkeyMap * value, const HotkeyMap * defaultHotkeyMap);
 
         const char * identifier;
@@ -77,6 +85,7 @@ namespace
             bool * boolean;
             int32_t * int32;
             Stringlist * string_list;
+            StringMap * string_map;
             HotkeyMap * hotkey_map;
         } setting;
         std::string * settingValue;
@@ -91,22 +100,35 @@ namespace
     };
 
     static UISetting settings[] = {
+        // Both interfaces
         {NXUISetting::RecentFiles, "RecentFiles", &uiSettings.recentFiles},
         {NXUISetting::GameDirectories, "GameDirectories", &uiSettings.gameDirectories},
+        {nullptr, "PerformVulkanCheck", &uiSettings.performVulkanCheck, true},
+        {NXUISetting::StartGamesInFullscreen, "StartGamesInFullscreen", &uiSettings.startGamesInFullscreen, false},
+        {NXUISetting::StartGamesWithUiHidden, "StartGamesWithUiHidden", &uiSettings.startGamesWithUiHidden, false},
+        {NXUISetting::ConfirmBeforeStopping, "ConfirmBeforeStopping", &uiSettings.confirmBeforeStopping, true},
+        {NXUISetting::EnableDiscordPresence, "EnableDiscordPresence", &uiSettings.enableDiscordPresence, true},
+
+        // New interface
+        {nullptr, "GameBrowser\\IconSize", &uiSettings.gameIconSize, 146},
+        {nullptr, "GameBrowser\\Sort", &uiSettings.gameSort, 0},
+        {nullptr, "GameBrowser\\ListView", &uiSettings.gameListView, false},
+        {nullptr, "GameBrowser\\ShowCardInformation", &uiSettings.showCardInformation, true},
+        {nullptr, "GameBrowser\\ShowCardTitle", &uiSettings.showCardTitle, true},
+        {nullptr, "GameBrowser\\ShowPlayTime", &uiSettings.showPlayTime, true},
+        {nullptr, "ShowEmulationControls", &uiSettings.showEmulationControls, kShowEmulationControlsDefault},
+        {nullptr, "Shortcuts", &uiSettings.shortcuts},
+
+        // Sciter only: remove with Sciter
         {nullptr, "Language\\Directory", &uiSettings.languageDir, &uiSettings.languageDirValue, GetDefaultLanguageDir(), "./lang"},
         {nullptr, "Language\\Base", &uiSettings.languageBase, "english"},
         {nullptr, "Language\\Current", &uiSettings.languageCurrent, "english"},
         {nullptr, "SciterConsole", &uiSettings.sciterConsole, false},
         {nullptr, "UseRmlUI", &uiSettings.useRmlUI, false},
         {NXUISetting::MyGameIconSize, "GameBrowser\\MyGameIconSize", &uiSettings.gameBrowserMyGameIconSize, 2},
-        {nullptr, "PerformVulkanCheck", &uiSettings.performVulkanCheck, true},
         {nullptr, nullptr, &uiSettings.hasBrokenVulkan, false},
         {nullptr, nullptr, &uiSettings.enableAllControllers, false},
-        {nullptr, "StartGamesInFullscreen", &uiSettings.startGamesInFullscreen, false},
-        {nullptr, "StartGamesWithUiHidden", &uiSettings.startGamesWithUiHidden, false},
-        {NXUISetting::ConfirmBeforeStopping, "ConfirmBeforeStopping", &uiSettings.confirmBeforeStopping, true},
         {NXUISetting::HideMouseOnInactivity, "HideInactiveMouse", &uiSettings.hideMouseOnInactivity, true},
-        {NXUISetting::EnableDiscordPresence, "EnableDiscordPresence", &uiSettings.enableDiscordPresence, true},
         {NXUISetting::Hotkeys, "Hotkeys", &uiSettings.hotkeys, &g_defaultHotkeys},
     };
 
@@ -140,6 +162,9 @@ void SetupUISetting(void)
             break;
         case SettingType::StringList:
             *(setting.setting.string_list) = {};
+            break;
+        case SettingType::StringMap:
+            *(setting.setting.string_map) = {};
             break;
         case SettingType::Hotkeys:
             *setting.setting.hotkey_map = setting.default_hotKeys != nullptr ? *setting.default_hotKeys : HotkeyMap{};
@@ -194,6 +219,18 @@ void SetupUISetting(void)
                         continue;
                     }
                     setting.setting.string_list->push_back(value[i].asString());
+                }
+            }
+            break;
+        case SettingType::StringMap:
+            if (value.isObject())
+            {
+                for (const std::string & name : value.GetMemberNames())
+                {
+                    if (value[name].isString())
+                    {
+                        (*setting.setting.string_map)[name] = value[name].asString();
+                    }
                 }
             }
             break;
@@ -272,6 +309,11 @@ void SetupUISetting(void)
     }
 }
 
+void SetUISettingStringList(const char * identifier, const Stringlist & value)
+{
+    SettingsStore::GetInstance().SetString(identifier, SerializeStringList(value).c_str());
+}
+
 void SaveUISetting(void)
 {
     JsonValue json;
@@ -288,6 +330,17 @@ void SaveUISetting(void)
                     jsonList.Append(JsonValue(item));
                 }
                 JsonSetNestedValue(json, setting.json_key, std::move(jsonList));
+            }
+            break;
+        case SettingType::StringMap:
+            if (!setting.setting.string_map->empty())
+            {
+                JsonValue jsonMap(JsonValueType::Object);
+                for (const StringMap::value_type & item : *(setting.setting.string_map))
+                {
+                    jsonMap[item.first] = JsonValue(item.second);
+                }
+                JsonSetNestedValue(json, setting.json_key, std::move(jsonMap));
             }
             break;
         case SettingType::Path:
@@ -392,6 +445,16 @@ namespace
         default_string(nullptr)
     {
         setting.string_list = value;
+    }
+
+    UISetting::UISetting(const char * id, const char * key, StringMap * value) :
+        identifier(id),
+        json_key(key),
+        settingType(SettingType::StringMap),
+        settingValue(nullptr),
+        default_string(nullptr)
+    {
+        setting.string_map = value;
     }
 
     UISetting::UISetting(const char * id, const char * key, HotkeyMap * value, const HotkeyMap * defaultHotkeyMap) :

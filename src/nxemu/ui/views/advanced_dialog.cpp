@@ -22,7 +22,8 @@
 #include <nxemu-video/video_settings_identifiers.h>
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
-#include <nxemu/ui/library/ui_preferences.h>
+#include <nxemu/settings/ui_identifiers.h>
+#include <nxemu/settings/ui_settings.h>
 
 using namespace SettingsControls;
 
@@ -41,7 +42,7 @@ enum class Store
 {
     Module,     // a setting of a module
     Core,       // a setting of NXEmu's core, saved apart
-    Preference, // a preference of the interface, on unless turned off
+    Interface,  // a setting of the interface, saved with the others of the interface
 };
 
 // A switch of the page.
@@ -51,7 +52,6 @@ struct Toggle
     const char * setting;
     Store store;
     bool live; // a running game takes the change; otherwise it reads the setting when it starts
-    bool preferenceDefault = true;
 };
 
 constexpr Toggle kToggles[] = {
@@ -71,10 +71,10 @@ constexpr Toggle kToggles[] = {
     {"cpu-hle", NXOsSetting::CpuHleSynchronization, Store::Module, false},
     {"vibration", NXOsSetting::VibrationEnabled, Store::Module, true},
     {"accurate-vibration", NXOsSetting::EnableAccurateVibrations, Store::Module, true},
-    {"start-fullscreen", UiPreferences::StartGamesInFullscreen, Store::Preference, true, false},
-    {"start-ui-hidden", UiPreferences::StartGamesWithUiHidden, Store::Preference, true, false},
-    {"confirm-stop", UiPreferences::ConfirmBeforeStopping, Store::Preference, true},
-    {"discord", UiPreferences::EnableDiscordPresence, Store::Preference, true},
+    {"start-fullscreen", NXUISetting::StartGamesInFullscreen, Store::Interface, true},
+    {"start-ui-hidden", NXUISetting::StartGamesWithUiHidden, Store::Interface, true},
+    {"confirm-stop", NXUISetting::ConfirmBeforeStopping, Store::Interface, true},
+    {"discord", NXUISetting::EnableDiscordPresence, Store::Interface, true},
     {"log-console", NXCoreSetting::ShowLogConsole, Store::Core, true},
 };
 
@@ -212,14 +212,17 @@ constexpr const char * kAudioEngines[] = {TrMark("Automatic"), "Cubeb", "SDL", T
 
 bool Get(const Toggle & toggle, const SettingsContext & settings)
 {
-    return toggle.store == Store::Preference ? UiPreferences::GetBool(toggle.setting, toggle.preferenceDefault) : settings.GetBool(toggle.setting);
+    return settings.GetBool(toggle.setting);
 }
 
 void Set(const Toggle & toggle, bool value, SettingsContext & settings)
 {
     switch (toggle.store)
     {
-    case Store::Preference: UiPreferences::SetBool(toggle.setting, value); break;
+    case Store::Interface:
+        settings.SetBool(toggle.setting, value);
+        SaveUISetting();
+        break;
     case Store::Core:
         settings.SetBool(toggle.setting, value);
         SaveCoreSetting();
@@ -805,7 +808,7 @@ void AdvancedDialog::RestoreDefaults()
     {
         if (toggle.live || !m_running)
         {
-            Set(toggle, toggle.store == Store::Preference ? toggle.preferenceDefault : settings.GetDefaultBool(toggle.setting), m_settings);
+            Set(toggle, settings.GetDefaultBool(toggle.setting), m_settings);
         }
     }
     for (const List & list : kLists)

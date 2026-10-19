@@ -460,9 +460,6 @@
     <ClCompile Include="ui\library\firmware_avatars.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
-    <ClCompile Include="ui\library\ui_preferences.cpp">
-      <Filter>Source Files\ui\library</Filter>
-    </ClCompile>
     <ClCompile Include="ui\views\dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -578,9 +575,6 @@
       <Filter>Header Files\ui\input</Filter>
     </ClInclude>
     <ClInclude Include="ui\library\firmware_avatars.h">
-      <Filter>Header Files\ui\library</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\library\ui_preferences.h">
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\dialog.h">
