@@ -146,7 +146,7 @@ static u32 DecodeAdpcm(Core::Memory::Memory& memory, std::span<s16> out_buffer,
 
     auto context{req.adpcm_context};
     auto header{context->header};
-    u8 coeff_index{static_cast<u8>((header >> 4U) & 0xFU)};
+    u8 coeff_index{static_cast<u8>((header >> 4U) & 0x7U)};
     u8 scale{static_cast<u8>(header & 0xFU)};
     s32 coeff0{req.coefficients[coeff_index * 2 + 0]};
     s32 coeff1{req.coefficients[coeff_index * 2 + 1]};
@@ -175,7 +175,7 @@ static u32 DecodeAdpcm(Core::Memory::Memory& memory, std::span<s16> out_buffer,
         // Are we at a new frame?
         if ((position_in_frame % NibblesPerFrame) == 0) {
             header = wavebuffer[read_index++];
-            coeff_index = (header >> 4) & 0xF;
+            coeff_index = (header >> 4) & 0x7;
             scale = header & 0xF;
             coeff0 = req.coefficients[coeff_index * 2 + 0];
             coeff1 = req.coefficients[coeff_index * 2 + 1];
