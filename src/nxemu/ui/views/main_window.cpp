@@ -168,6 +168,7 @@ MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary
 
 MainWindow::~MainWindow()
 {
+    SettingsStore::GetInstance().UnregisterCallback(NXUISetting::EnableDiscordPresence, DiscordSettingChanged, this);
     m_session.SetListener(nullptr);
     SaveIconSize();
     m_window.DetachVideo();
@@ -233,6 +234,8 @@ bool MainWindow::Create()
     m_iconSize = GameIconSize();
     RefreshFirmwareVersion();
     RefreshProfiles();
+    SettingsStore::GetInstance().RegisterCallback(NXUISetting::EnableDiscordPresence, DiscordSettingChanged, this);
+    UpdateDiscord();
     ApplyLibraryOptions();
     ApplyIconSize();
     m_library.StartScan(m_session.Modules());
@@ -1705,6 +1708,7 @@ void MainWindow::SyncPhase()
         m_menuDirty = true;
         m_lastMeasure = 0;
         m_lastStatusUpdate = 0;
+        UpdateDiscord();
         if (phase == EmulatorSession::Phase::Idle)
         {
             m_playingProgram = 0;
@@ -1751,6 +1755,17 @@ void MainWindow::SyncPhase()
         ShowPanel(Panel::Loading);
     }
     SetUiHidden(m_phase != EmulatorSession::Phase::Idle && (m_hideUi || m_window.IsFullscreen()));
+}
+
+void MainWindow::UpdateDiscord()
+{
+    m_discord.SetEnabled(uiSettings.enableDiscordPresence);
+    m_discord.Update(m_phase != EmulatorSession::Phase::Idle, SettingsStore::GetInstance().GetString(NXCoreSetting::GameName));
+}
+
+void MainWindow::DiscordSettingChanged(const char * /*setting*/, void * userData)
+{
+    static_cast<MainWindow *>(userData)->UpdateDiscord();
 }
 
 void MainWindow::SetUiHidden(bool hidden)

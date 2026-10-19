@@ -22,6 +22,7 @@
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/library/game_library.h>
+#include <nxemu/ui/host/discord_presence.h>
 #include <nxemu/ui/library/play_time.h>
 #include <string>
 #include <unordered_map>
@@ -172,6 +173,8 @@ private:
     float CardStep() const;
     void SelectGame(Rml::Element * card);
     void SyncPhase();
+    void UpdateDiscord();
+    static void DiscordSettingChanged(const char * setting, void * userData);
     void ShowPanel(Panel panel);
     void SetUiHidden(bool hidden);
     void LoadFile();
@@ -248,6 +251,7 @@ private:
     bool m_rescanGames = false;
     PixelRect m_gameArea{};
     PlayTime m_playTime;
+    DiscordPresence m_discord;
     uint64_t m_playingProgram = 0;
     EmulatorSession::Phase m_phase = EmulatorSession::Phase::Idle;
     Panel m_panel = Panel::RomBrowser;
