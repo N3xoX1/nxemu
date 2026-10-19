@@ -99,7 +99,7 @@
     <ClCompile Include="settings\ui_settings.cpp">
       <Filter>Source Files\settings</Filter>
     </ClCompile>
-    <ClCompile Include="user_interface\about_dialog.cpp">
+    <ClCompile Include="user_interface\sciter_about_dialog.cpp">
       <Filter>Source Files\user_interface</Filter>
     </ClCompile>
     <ClCompile Include="user_interface\notification.cpp">
@@ -227,7 +227,7 @@
     <ClInclude Include="settings\ui_settings.h">
       <Filter>Header Files\settings</Filter>
     </ClInclude>
-    <ClInclude Include="user_interface\about_dialog.h">
+    <ClInclude Include="user_interface\sciter_about_dialog.h">
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
     <ClInclude Include="user_interface\notification.h">
@@ -415,6 +415,9 @@
     <ClCompile Include="ui\views\advanced_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\about_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\controller_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -515,6 +518,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\advanced_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\about_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\controller_dialog.h">

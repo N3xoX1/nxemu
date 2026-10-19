@@ -1,4 +1,4 @@
-#include "about_dialog.h"
+#include "sciter_about_dialog.h"
 #include "user_interface/html_utils.h"
 
 #include <common/shell_open.h>
@@ -9,13 +9,13 @@
 
 #include <string>
 
-AboutDialog::AboutDialog(ISciterUI & sciterUI) :
+SciterAboutDialog::SciterAboutDialog(ISciterUI & sciterUI) :
     m_sciterUI(sciterUI),
     m_window(nullptr)
 {
 }
 
-AboutDialog::~AboutDialog()
+SciterAboutDialog::~SciterAboutDialog()
 {
     if (m_window != nullptr)
     {
@@ -24,7 +24,7 @@ AboutDialog::~AboutDialog()
     }
 }
 
-void AboutDialog::Display(void * parentWindow)
+void SciterAboutDialog::Display(void * parentWindow)
 {
     enum
     {
@@ -66,7 +66,7 @@ void AboutDialog::Display(void * parentWindow)
     m_window->Show();
 }
 
-void AboutDialog::Close()
+void SciterAboutDialog::Close()
 {
     if (m_window == nullptr || m_window->IsClosed())
     {
@@ -75,7 +75,7 @@ void AboutDialog::Close()
     m_window->Destroy();
 }
 
-bool AboutDialog::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t /*reason*/)
+bool SciterAboutDialog::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t /*reason*/)
 {
     SciterElement clickElem(element);
     const std::string role = clickElem.GetAttribute("role");
@@ -97,7 +97,7 @@ bool AboutDialog::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uin
     return false;
 }
 
-void AboutDialog::OnWindowDestroy(HWINDOW /*hWnd*/)
+void SciterAboutDialog::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
     m_window = nullptr;
 }

@@ -4,7 +4,7 @@
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
 #include <cstring>
-#include "user_interface/about_dialog.h"
+#include "user_interface/sciter_about_dialog.h"
 #include "user_interface/app_events.h"
 #include "ui/platform/file_dialogs.h"
 #include "user_interface/html_utils.h"
@@ -1747,7 +1747,7 @@ void SciterMainWindow::OnInputConfig()
 
 void SciterMainWindow::OnAbout()
 {
-    m_aboutDialog.reset(new AboutDialog(m_sciterUI));
+    m_aboutDialog.reset(new SciterAboutDialog(m_sciterUI));
     m_aboutDialog->Display((void *)m_window->GetHandle());
 }
 

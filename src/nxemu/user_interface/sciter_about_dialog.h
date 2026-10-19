@@ -3,13 +3,13 @@
 #include <sciter_handler.h>
 #include <sciter_ui.h>
 
-class AboutDialog :
+class SciterAboutDialog :
     public IClickSink,
     public IWindowDestroySink
 {
 public:
-    explicit AboutDialog(ISciterUI & sciterUI);
-    ~AboutDialog();
+    explicit SciterAboutDialog(ISciterUI & sciterUI);
+    ~SciterAboutDialog();
 
     void Display(void * parentWindow);
 
@@ -17,8 +17,8 @@ public:
     void OnWindowDestroy(HWINDOW hWnd) override;
 
 private:
-    AboutDialog(const AboutDialog &) = delete;
-    AboutDialog & operator=(const AboutDialog &) = delete;
+    SciterAboutDialog(const SciterAboutDialog &) = delete;
+    SciterAboutDialog & operator=(const SciterAboutDialog &) = delete;
 
     void Close();
 
