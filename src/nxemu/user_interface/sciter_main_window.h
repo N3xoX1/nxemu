@@ -2,7 +2,7 @@
 #include "applets/profile_select.h"
 #include "applets/web_browser.h"
 #include "startup_checks.h"
-#include "user_interface/discord_presence.h"
+#include "ui/host/discord_presence.h"
 #include "user_interface/widgets/rom_browser.h"
 #include <atomic>
 #include <deque>

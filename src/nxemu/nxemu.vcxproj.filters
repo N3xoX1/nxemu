@@ -186,9 +186,6 @@
     <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
-    <ClCompile Include="user_interface\discord_presence.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
     <ClCompile Include="user_interface\settings\game_config.cpp">
       <Filter>Source Files\user_interface\settings</Filter>
     </ClCompile>
@@ -320,9 +317,6 @@
     <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h">
       <Filter>Header Files\user_interface\settings</Filter>
     </ClInclude>
-    <ClInclude Include="user_interface\discord_presence.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
     <ClInclude Include="user_interface\settings\game_config.h">
       <Filter>Header Files\user_interface\settings</Filter>
     </ClInclude>
@@ -448,6 +442,9 @@
     <ClCompile Include="ui\views\tooltip.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\host\discord_presence.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
     <ClCompile Include="ui\host\sdl_input.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
@@ -570,6 +567,9 @@
     </ClInclude>
     <ClInclude Include="ui\views\tooltip.h">
       <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\discord_presence.h">
+      <Filter>Header Files\ui\host</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\sdl_input.h">
       <Filter>Header Files\ui\host</Filter>

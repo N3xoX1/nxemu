@@ -13,8 +13,6 @@ add_executable(nxemu
     settings/ui_identifiers.h
     user_interface/sciter_about_dialog.cpp
     user_interface/sciter_about_dialog.h
-    user_interface/discord_presence.cpp
-    user_interface/discord_presence.h
     user_interface/game_list_worker.cpp
     user_interface/game_list_worker.h
     user_interface/hotkey_map.cpp

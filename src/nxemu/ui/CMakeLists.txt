@@ -11,6 +11,8 @@ add_library(nxemu_ui STATIC
     ui_application.h
     emulation/emulator_session.cpp
     emulation/emulator_session.h
+    host/discord_presence.cpp
+    host/discord_presence.h
     host/sdl_input.cpp
     host/sdl_input.h
     host/shell.cpp
@@ -140,7 +142,7 @@ if(UNIX)
 endif()
 target_link_libraries(nxemu_ui
     PUBLIC RmlUi::RmlUi SDL2::SDL2
-    PRIVATE nxemu_core common yuzu_common fmt::fmt stb::headers Freetype::Freetype
+    PRIVATE nxemu_core common yuzu_common discord-rpc fmt::fmt stb::headers Freetype::Freetype
         Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if(APPLE)
