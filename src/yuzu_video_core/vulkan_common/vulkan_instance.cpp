@@ -18,18 +18,13 @@
 namespace Vulkan {
 namespace {
 
-[[nodiscard]] bool AreExtensionsSupported(const vk::InstanceDispatch& dld,
+[[nodiscard]] bool AreExtensionsSupported(const std::vector<VkExtensionProperties>& properties,
                                           std::span<const char* const> extensions) {
-    const std::optional properties = vk::EnumerateInstanceExtensionProperties(dld);
-    if (!properties) {
-        LOG_ERROR(Render_Vulkan, "Failed to query extension properties");
-        return false;
-    }
     for (const char* extension : extensions) {
-        const auto it = std::ranges::find_if(*properties, [extension](const auto& prop) {
+        const auto it = std::ranges::find_if(properties, [extension](const auto& prop) {
             return std::strcmp(extension, prop.extensionName) == 0;
         });
-        if (it == properties->end()) {
+        if (it == properties.end()) {
             LOG_ERROR(Render_Vulkan, "Required instance extension {} is not available", extension);
             return false;
         }
@@ -38,8 +33,8 @@ namespace {
 }
 
 [[nodiscard]] std::vector<const char*> RequiredExtensions(
-    const vk::InstanceDispatch& dld, Core::Frontend::WindowSystemType window_type,
-    bool enable_validation) {
+    const std::vector<VkExtensionProperties>& properties,
+    Core::Frontend::WindowSystemType window_type, bool enable_validation) {
     std::vector<const char*> extensions;
     extensions.reserve(6);
     switch (window_type) {
@@ -73,12 +68,12 @@ namespace {
         extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
     }
 #ifdef __APPLE__
-    if (AreExtensionsSupported(dld, std::array{VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME})) {
+    if (AreExtensionsSupported(properties, std::array{VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME})) {
         extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
 #endif
     if (enable_validation &&
-        AreExtensionsSupported(dld, std::array{VK_EXT_DEBUG_UTILS_EXTENSION_NAME})) {
+        AreExtensionsSupported(properties, std::array{VK_EXT_DEBUG_UTILS_EXTENSION_NAME})) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
     return extensions;
@@ -127,9 +122,13 @@ vk::Instance CreateInstance(const Common::DynamicLibrary& library, vk::InstanceD
         LOG_ERROR(Render_Vulkan, "Failed to load Vulkan function pointers");
         throw vk::Exception(VK_ERROR_INITIALIZATION_FAILED);
     }
+    const auto properties = vk::EnumerateInstanceExtensionProperties(dld);
+    if (!properties) {
+        throw vk::Exception(VK_ERROR_EXTENSION_NOT_PRESENT);
+    }
     const std::vector<const char*> extensions =
-        RequiredExtensions(dld, window_type, enable_validation);
-    if (!AreExtensionsSupported(dld, extensions)) {
+        RequiredExtensions(*properties, window_type, enable_validation);
+    if (!AreExtensionsSupported(*properties, extensions)) {
         throw vk::Exception(VK_ERROR_EXTENSION_NOT_PRESENT);
     }
     std::vector<const char*> layers = Layers(enable_validation);

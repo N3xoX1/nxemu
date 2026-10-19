@@ -445,8 +445,8 @@ void AddOffsetToCoordinates(EmitContext& ctx, const IR::TextureInstInfo& info, I
         break;
     }
     case TextureType::ColorArray2D:
-        offset = ctx.OpCompositeConstruct(ctx.U32[3], ctx.OpCompositeExtract(ctx.U32[1], coords, 0),
-                                          ctx.OpCompositeExtract(ctx.U32[1], coords, 1),
+        offset = ctx.OpCompositeConstruct(ctx.U32[3], ctx.OpCompositeExtract(ctx.U32[1], offset, 0),
+                                          ctx.OpCompositeExtract(ctx.U32[1], offset, 1),
                                           ctx.u32_zero_value);
         [[fallthrough]];
     case TextureType::Color3D: {
