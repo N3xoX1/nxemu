@@ -20,6 +20,8 @@ void LoopProcess(Core::System& system) {
     server_manager->RegisterNamedService(
         "apm:am", std::make_shared<APM>(system, module, system.GetAPMController(), "apm:am"));
     server_manager->RegisterNamedService(
+        "apm:p", std::make_shared<APM>(system, module, system.GetAPMController(), "apm:p"));
+    server_manager->RegisterNamedService(
         "apm:sys", std::make_shared<APM_Sys>(system, system.GetAPMController()));
     ServerManager::RunServer(std::move(server_manager));
 }
