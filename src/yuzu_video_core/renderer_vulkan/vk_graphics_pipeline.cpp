@@ -539,6 +539,17 @@ GraphicsPipeline::GraphicsPipeline(
             pipeline_layout = builder.CreatePipelineLayout(set_layout, *texture_table_set_layout);
             descriptor_update_template =
                 builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
+            if (!uses_push_descriptor && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+                for (const auto& entry : builder.TemplateEntries()) {
+                    if (DescriptorLayoutBuilder::IsLargeImageArray(entry)) {
+                        large_image_entries.push_back(entry);
+                    }
+                }
+                if (!large_image_entries.empty()) {
+                    small_descriptor_update_template =
+                        builder.CreateTemplate(set_layout, *pipeline_layout, false, true);
+                }
+            }
 
             const auto build_compute_stage{[&](VtgState::Stage& stage) {
                 DescriptorLayoutBuilder stage_builder{device};
@@ -1413,6 +1424,74 @@ void GraphicsPipeline::ConfigureTransformFeedback(bool is_indexed) {
     });
 }
 
+VkDescriptorSet GraphicsPipeline::WorkerDescriptorSet(const void* data, u64 tick) {
+    const VkDescriptorSet set{descriptor_allocator.Commit()};
+    const auto& dev = device.GetLogical();
+    if (large_image_entries.empty()) {
+        dev.UpdateDescriptorSet(set, *descriptor_update_template, data);
+        return set;
+    }
+    auto& cache = guest_descriptor_queue.CopyCache();
+    cache.Begin(tick);
+    boost::container::small_vector<VkWriteDescriptorSet, 8> writes;
+    boost::container::small_vector<VkCopyDescriptorSet, 8> copies;
+    boost::container::small_vector<const VkDescriptorUpdateTemplateEntry*, 8> uncached;
+    const auto bytes_for = [data](const VkDescriptorUpdateTemplateEntry& entry) {
+        return std::span{static_cast<const std::byte*>(data) + entry.offset,
+                         entry.descriptorCount * sizeof(DescriptorUpdateEntry)};
+    };
+    static_assert(sizeof(DescriptorUpdateEntry) == sizeof(VkDescriptorImageInfo));
+    for (const auto& entry : large_image_entries) {
+        const auto source = cache.Find(entry.descriptorType, bytes_for(entry));
+        if (source) {
+            // Both sets belong to this tick and are immutable once populated.
+            // Commit() still protects the destination against in-flight reuse.
+            copies.push_back({
+                .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .srcSet = source->set,
+                .srcBinding = source->binding,
+                .srcArrayElement = 0,
+                .dstSet = set,
+                .dstBinding = entry.dstBinding,
+                .dstArrayElement = 0,
+                .descriptorCount = entry.descriptorCount,
+            });
+        } else {
+            uncached.push_back(&entry);
+            writes.push_back({
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = set,
+                .dstBinding = entry.dstBinding,
+                .dstArrayElement = 0,
+                .descriptorCount = entry.descriptorCount,
+                .descriptorType = entry.descriptorType,
+                .pImageInfo = reinterpret_cast<const VkDescriptorImageInfo*>(
+                    static_cast<const std::byte*>(data) + entry.offset),
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            });
+        }
+    }
+    if (copies.empty()) {
+        dev.UpdateDescriptorSet(set, *descriptor_update_template, data);
+    } else {
+        if (small_descriptor_update_template) {
+            dev.UpdateDescriptorSet(set, *small_descriptor_update_template, data);
+        }
+        dev.UpdateDescriptorSets(writes, copies);
+    }
+    // Publish only after every write/copy has completed on the host. These
+    // snapshots own their bytes; the descriptor upload block can be retired.
+    for (const auto* entry : uncached) {
+        if (!cache.Find(entry->descriptorType, bytes_for(*entry))) {
+            cache.Store(entry->descriptorType, bytes_for(*entry), {set, entry->dstBinding});
+        }
+    }
+    return set;
+}
+
 void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
@@ -1448,6 +1527,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
     const bool bind_pipeline{scheduler.UpdateGraphicsPipeline(this)};
     const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
+    const u64 descriptor_tick{scheduler.CurrentTick()};
     if (uses_texture_table) {
         // A committed set can be recycled once its tick completes, so it is not kept across
         // ticks. Within a tick, draws share it for as long as the tables hold the same handles.
@@ -1464,7 +1544,8 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
         }
     }
     if (!uses_texture_table) {
-        scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
+        scheduler.Record([this, descriptor_data, descriptor_tick, bind_pipeline,
+                          rescaling_data = rescaling.Data(),
                           is_rescaling, update_rescaling,
                           uses_render_area = render_area.uses_render_area,
                           render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
@@ -1503,15 +1584,15 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                 cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
                                                         0, descriptor_data);
             } else {
-                const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
-                const vk::Device& dev{device.GetLogical()};
-                dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
+                const VkDescriptorSet descriptor_set{
+                    WorkerDescriptorSet(descriptor_data, descriptor_tick)};
                 cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
                                           descriptor_set, nullptr);
             }
         });
     } else {
-        scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
+        scheduler.Record([this, descriptor_data, descriptor_tick, bind_pipeline,
+                          rescaling_data = rescaling.Data(),
                           is_rescaling, update_rescaling,
                           table_data = uses_texture_table ? texture_table_data : nullptr,
                           table_version = texture_table_version,
@@ -1577,9 +1658,8 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                 cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
                                                         0, descriptor_data);
             } else {
-                const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
-                const vk::Device& dev{device.GetLogical()};
-                dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
+                const VkDescriptorSet descriptor_set{
+                    WorkerDescriptorSet(descriptor_data, descriptor_tick)};
                 cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
                                           descriptor_set, nullptr);
             }

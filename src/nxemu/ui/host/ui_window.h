@@ -38,7 +38,8 @@ public:
     void DetachVideo();
 
     void HandleEvent(const SDL_Event & event);
-    void Render(const PixelRect * gameArea);
+    // Returns false when nothing could be drawn.
+    bool Render(const PixelRect * gameArea);
     void PaceFrame();
     void SyncNativeState();
 

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 
 #include "yuzu_common/bit_field.h"
 #include "yuzu_common/common_types.h"
@@ -268,6 +269,10 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, u64 size);
+
+    /// Excludes command recording/compositing while guest GPU mappings change.
+    /// Never hold this lock while enqueueing and waiting for a GPU-thread request.
+    std::unique_lock<std::recursive_mutex> LockExecution();
 
     /// Register a host thread as an auxiliary thread.
     void RegisterHostThread();

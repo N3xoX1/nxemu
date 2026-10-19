@@ -17,15 +17,17 @@ UpdateDescriptorQueue::UpdateDescriptorQueue(const Device& device_, Scheduler& s
 
 UpdateDescriptorQueue::~UpdateDescriptorQueue() = default;
 
-void UpdateDescriptorQueue::TickFrame() {
-    payload.TickFrame();
-}
-
 void UpdateDescriptorQueue::Acquire(size_t num_entries) {
-    payload.Acquire(num_entries, [&] {
-        LOG_DEBUG(Render_Vulkan, "Recycling descriptor payload after waiting for worker");
-        scheduler.WaitWorker();
-    });
+    payload.Acquire(
+        num_entries,
+        [&] {
+            LOG_DEBUG(Render_Vulkan, "Recycling descriptor payload after waiting for worker");
+            scheduler.WaitWorker();
+        },
+        [&](auto completion) {
+            scheduler.Record(
+                [completion = std::move(completion)](vk::CommandBuffer) { completion(); });
+        });
 }
 
 } // namespace Vulkan

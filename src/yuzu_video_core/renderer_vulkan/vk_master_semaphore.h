@@ -51,6 +51,9 @@ public:
     /// Waits for a tick to be hit on the GPU
     void Wait(u64 tick);
 
+    /// Reports a device loss and considers all the work finished, since none of it will finish.
+    void MarkDeviceLost();
+
     /// Submits the device graphics queue, updating the tick as necessary
     VkResult SubmitQueue(vk::CommandBuffer& cmdbuf, vk::CommandBuffer& upload_cmdbuf,
                          VkSemaphore signal_semaphore, VkSemaphore wait_semaphore, u64 host_tick);

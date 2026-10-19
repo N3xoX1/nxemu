@@ -144,7 +144,12 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
             window.SyncNativeState();
             window.Context()->Update();
             window.PaceFrame();
-            window.Render(mainWindow.GameArea());
+            if (!window.Render(mainWindow.GameArea()) && !question)
+            {
+                // The dialog cannot be seen, such as after the GPU stopped responding.
+                SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title.c_str(), text.c_str(), window.Handle());
+                dialog.Dismiss();
+            }
         }
         mainWindow.RevealMouseCursor();
         liveResize.busy = wasBusy;

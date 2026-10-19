@@ -199,6 +199,7 @@ add_library(video_core STATIC
     renderer_vulkan/blit_image.h
     renderer_vulkan/descriptor_lookup.h
     renderer_vulkan/descriptor_limits.h
+    renderer_vulkan/descriptor_copy_cache.h
     renderer_vulkan/descriptor_payload.h
     renderer_vulkan/cbuf_size_dependencies.h
     renderer_vulkan/fixed_pipeline_state.cpp

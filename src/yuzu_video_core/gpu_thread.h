@@ -91,6 +91,9 @@ struct CommandDataContainer {
 /// Struct used to synchronize the GPU thread
 struct SynchState final {
     using CommandQueue = Common::MPSCQueue<CommandDataContainer>;
+    // Mapping notifications may download images and record renderer commands.
+    // They must not race the GPU command/composite producer.
+    std::recursive_mutex execution_mutex;
     std::mutex write_lock;
     CommandQueue queue;
     u64 last_fence{};
@@ -128,6 +131,10 @@ public:
     void FlushAndInvalidateRegion(DAddr addr, u64 size);
 
     void TickGPU();
+
+    std::unique_lock<std::recursive_mutex> LockExecution() {
+        return std::unique_lock{state->execution_mutex};
+    }
 
     std::weak_ptr<SynchState> Wakeup() const { return state; }
 

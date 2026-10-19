@@ -215,6 +215,8 @@ private:
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
 
+    VkDescriptorSet WorkerDescriptorSet(const void* data, u64 tick);
+
     void MakePipeline(VkRenderPass render_pass);
 
     void Validate();
@@ -274,6 +276,8 @@ private:
 
     vk::PipelineLayout pipeline_layout;
     vk::DescriptorUpdateTemplate descriptor_update_template;
+    vk::DescriptorUpdateTemplate small_descriptor_update_template;
+    std::vector<VkDescriptorUpdateTemplateEntry> large_image_entries;
     vk::Pipeline pipeline;
 
     std::condition_variable build_condvar;
