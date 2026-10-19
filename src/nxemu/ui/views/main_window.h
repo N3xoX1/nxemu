@@ -11,6 +11,7 @@
 #include "profiles_dialog.h"
 #include "settings_context.h"
 #include "settings_page.h"
+#include "tooltip.h"
 #include "user_profiles.h"
 #include "volume_control.h"
 #include <SDL.h>
@@ -197,6 +198,7 @@ private:
     std::unique_ptr<MenuBar> m_menuBar;
     std::unique_ptr<PopupMenu> m_gameMenu;
     std::unique_ptr<LoadingScreen> m_loadingScreen;
+    std::unique_ptr<Tooltip> m_tooltip;
     std::unique_ptr<VolumeControl> m_volume;
     std::vector<UserProfile> m_profiles;
     uint64_t m_lastStatusUpdate = 0;

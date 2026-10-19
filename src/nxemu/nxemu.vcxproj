@@ -69,6 +69,7 @@
     <ClCompile Include="ui\views\loading_screen.cpp" />
     <ClCompile Include="ui\views\profiles_dialog.cpp" />
     <ClCompile Include="ui\views\shortcut.cpp" />
+    <ClCompile Include="ui\views\tooltip.cpp" />
     <ClCompile Include="ui\host\sdl_input.cpp" />
     <ClCompile Include="ui\input\input_params.cpp" />
     <ClCompile Include="ui\input\input_text.cpp" />
@@ -145,6 +146,7 @@
     <ClInclude Include="ui\views\loading_screen.h" />
     <ClInclude Include="ui\views\profiles_dialog.h" />
     <ClInclude Include="ui\views\shortcut.h" />
+    <ClInclude Include="ui\views\tooltip.h" />
     <ClInclude Include="ui\host\sdl_input.h" />
     <ClInclude Include="ui\input\input_params.h" />
     <ClInclude Include="ui\input\input_text.h" />

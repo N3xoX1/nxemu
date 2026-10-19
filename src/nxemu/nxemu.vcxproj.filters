@@ -439,6 +439,9 @@
     <ClCompile Include="ui\views\shortcut.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\tooltip.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\host\sdl_input.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
@@ -542,6 +545,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\shortcut.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\tooltip.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\sdl_input.h">
