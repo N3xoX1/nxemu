@@ -47,7 +47,9 @@ public:
     IFileSysNACP * GetPMControlMetadata(uint64_t programID) override;
     IManualContentProvider & ManualContentProvider() override;
     uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const override;
-    bool InstallFirmwarePackage(const char * utf8_path) override;
+    uint32_t GetGameCardFirmwareUpdate(const char * utf8_path, char * versionBuffer, uint32_t versionBufferSize) const override;
+    FirmwareInstallStatus InstallFirmwarePackage(const char * utf8_path, IFirmwareInstallObserver * observer, char * versionBuffer,
+                                                 uint32_t versionBufferSize) override;
     void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) override;
     bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
     LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,

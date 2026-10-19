@@ -52,7 +52,7 @@ public:
     bool IsPaused();
     Phase CurrentPhase() const;
 
-    void Update();
+    void Update(bool releaseStoppedResources = true);
     void HandleKey(const SDL_KeyboardEvent & event);
     void SetViewportSize(uint32_t width, uint32_t height);
 

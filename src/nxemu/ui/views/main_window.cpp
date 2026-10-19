@@ -21,6 +21,7 @@
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/library/game_cache.h>
+#include <nxemu/ui/library/firmware_avatars.h>
 #include <nxemu/ui/library/game_details.h>
 #include <nxemu/ui/library/ui_preferences.h>
 #include <nxemu/ui/platform/file_dialogs.h>
@@ -194,6 +195,20 @@ bool MainWindow::Create()
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_aboutDialog = std::make_unique<AboutDialog>(m_window.Context(), m_assetDir);
+    m_firmwareDialog = std::make_unique<FirmwareDialog>(m_window, m_session.Modules().Systemloader(), m_assetDir,
+                                                        FirmwareDialog::Host{
+                                                            [this] {
+                                                                if (m_library.Scanning())
+                                                                {
+                                                                    m_library.StopScan();
+                                                                    m_rescanGames = true;
+                                                                }
+                                                            },
+                                                            [this] {
+                                                                FirmwareAvatars::Forget();
+                                                                RefreshFirmwareVersion();
+                                                            },
+                                                        });
     m_tooltip = std::make_unique<Tooltip>(m_window.Context(), m_assetDir);
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
@@ -224,6 +239,7 @@ bool MainWindow::Create()
     ShowPanel(Panel::RomBrowser);
     UpdateStatusText();
     m_iconSize = GameIconSize();
+    RefreshFirmwareVersion();
     RefreshProfiles();
     ApplyLibraryOptions();
     ApplyIconSize();
@@ -242,6 +258,7 @@ void MainWindow::OpenGame(const std::string & path)
 
 void MainWindow::RequestQuit()
 {
+    m_firmwareDialog->CancelInstall();
     if (!m_session.IsRunning() || ConfirmStop(Tr("NXEmu - Exit")))
     {
         m_quit = true;
@@ -271,6 +288,18 @@ void MainWindow::HandleEvent(const SDL_Event & event)
     {
         m_mouseMovedAt = SDL_GetTicks64();
         UpdateMouseCursor();
+    }
+    if (event.type == SDL_DROPFILE)
+    {
+        if (event.drop.file != nullptr)
+        {
+            if (!m_firmwareDialog->OfferSource(event.drop.file) && !DialogOpen())
+            {
+                OpenGame(event.drop.file);
+            }
+            SDL_free(event.drop.file);
+        }
+        return;
     }
     if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
     {
@@ -324,13 +353,14 @@ void MainWindow::HandleEvent(const SDL_Event & event)
 void MainWindow::Update()
 {
     RunPendingWork();
-    m_session.Update();
+    m_session.Update(!m_firmwareDialog->Installing());
     if (!m_session.IsValid())
     {
         m_quit = true;
         return;
     }
     m_aboutDialog->Update();
+    m_firmwareDialog->Update();
     m_controllerDialog->Update();
     m_generalDialog->Update();
     m_advancedDialog->Update();
@@ -370,7 +400,7 @@ void MainWindow::Update()
         SaveIconSize();
     }
     SyncPhase();
-    if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty())
+    if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty() && !m_firmwareDialog->Installing())
     {
         m_rescanGames = false;
         RescanGames();
@@ -417,13 +447,13 @@ void MainWindow::Update()
 
 bool MainWindow::Still() const
 {
-    return m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
+    return m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_firmwareDialog->Installing() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
            m_window.Context()->GetNextUpdateDelay() > 0;
 }
 
 bool MainWindow::DialogOpen() const
 {
-    return m_aboutDialog->IsVisible() || m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
+    return m_aboutDialog->IsVisible() || m_firmwareDialog->IsVisible() || m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
            m_profilesDialog->IsVisible();
 }
 
@@ -441,6 +471,7 @@ void MainWindow::OnModulesReleasing()
 
 void MainWindow::OnModulesReady()
 {
+    m_firmwareDialog->SetLoader(m_session.Modules().Systemloader());
     AttachVideo();
 }
 
@@ -487,8 +518,18 @@ void MainWindow::RunPendingWork()
         m_pendingSelectMenu = nullptr;
         ShowSelectMenu(origin);
     }
-    if (!m_pendingGame.empty())
+    if (!m_pendingGame.empty() && !m_firmwareDialog->IsVisible())
     {
+        if (!m_launchReady && m_firmwareOfferedFor != m_pendingGame && !m_session.IsRunning())
+        {
+            m_firmwareOfferedFor = m_pendingGame;
+            char version[64]{};
+            if (m_session.Modules().Systemloader().GetGameCardFirmwareUpdate(m_pendingGame.c_str(), version, sizeof(version)) != 0)
+            {
+                m_firmwareDialog->OfferFromGame(m_pendingGame, version);
+                return;
+            }
+        }
         if (!m_launchReady)
         {
             m_launchReady = true;
@@ -501,6 +542,7 @@ void MainWindow::RunPendingWork()
         m_launchReady = false;
         std::string path;
         path.swap(m_pendingGame);
+        m_firmwareOfferedFor.clear();
         m_session.LoadGame(path);
     }
 }
@@ -511,6 +553,12 @@ void MainWindow::Run(Action action)
     {
     case Action::LoadFile: LoadFile(); break;
     case Action::OpenAbout: m_aboutDialog->Show(); break;
+    case Action::InstallFirmware:
+        if (!m_session.IsRunning() && m_pendingGame.empty())
+        {
+            m_firmwareDialog->Show();
+        }
+        break;
     case Action::Exit: RequestQuit(); break;
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
@@ -1650,6 +1698,14 @@ void MainWindow::SetUiHidden(bool hidden)
     m_document->SetClass("ui-hidden", hidden);
 }
 
+void MainWindow::RefreshFirmwareVersion()
+{
+    char firmware[32]{};
+    const uint32_t length = m_session.Modules().Systemloader().GetInstalledFirmwareDisplayVersion(firmware, sizeof(firmware));
+    m_firmwareVersion.assign(firmware, length);
+    UpdateStatusText();
+}
+
 void MainWindow::LoadFile()
 {
     const std::string filter = FileFilter({{Tr("Switch games"), "*.dxci;*.dnsp;*.nro"}, {Tr("All files"), "*.*"}});
@@ -1867,6 +1923,10 @@ void MainWindow::UpdateStatusText()
             parts.push_back(m_speedText);
         }
     }
+    else if (!m_firmwareVersion.empty())
+    {
+        parts.push_back(Tr("Firmware: %1", {m_firmwareVersion}));
+    }
 
     std::string status;
     for (const std::string & part : parts)
@@ -1897,6 +1957,7 @@ void MainWindow::StopGame()
     {
         m_pendingGame.clear();
         m_launchReady = false;
+        m_firmwareOfferedFor.clear();
         m_menuDirty = true;
     }
     if (m_session.IsRunning() && ConfirmStop(Tr("NXEmu - Stop Emulation")))

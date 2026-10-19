@@ -145,6 +145,21 @@ std::string GetInstalledFirmwareDisplayVersion(ISystemloader & loader)
     return std::string(buffer, length);
 }
 
+std::string FirmwareInstallMessage(FirmwareInstallStatus status)
+{
+    switch (status)
+    {
+    case FirmwareInstallStatus::Installed: return "Firmware installed successfully.";
+    case FirmwareInstallStatus::Cancelled: return "The firmware installation was cancelled.";
+    case FirmwareInstallStatus::SourceUnreadable: return "The selected file or folder could not be read.";
+    case FirmwareInstallStatus::NotFirmware: return "The selected source does not contain a valid firmware package.";
+    case FirmwareInstallStatus::StorageUnavailable: return "The system storage is not available or not writable.";
+    case FirmwareInstallStatus::CopyFailed: return "Copying the firmware failed. See the log for details.";
+    case FirmwareInstallStatus::ReplaceFailed: return "The installed firmware could not be replaced; it was left as it was.";
+    }
+    return "The firmware could not be installed.";
+}
+
 std::string BuildSwitchOpenFileFilter(ISystemloader & loader)
 {
     const uint32_t count = loader.GetSupportedGameExtensions(nullptr, 0);
@@ -265,7 +280,6 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>()),
     m_firmwareInstallInProgress(false),
     m_firmwareInstallUiActive(false),
-    m_firmwareInstallLastTotal(0),
     m_mouseCursorHidden(false),
     m_lastMouseActivityTick(0),
     m_lastTrackedMouseX(0),
@@ -285,7 +299,6 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXCoreSetting::GameName, SciterMainWindow::GameNameChanged, this);
     settings.RegisterCallback(NXCoreSetting::DisplayedFrames, SciterMainWindow::DisplayedFramesChanged, this);
     settings.RegisterCallback(NXCoreSetting::DiskCacheLoadTick, SciterMainWindow::DiskCacheLoadChanged, this);
-    settings.RegisterCallback(NXLoaderSetting::FirmwareInstallTotal, SciterMainWindow::FirmwareInstallTotalChanged, this);
     settings.RegisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
@@ -392,7 +405,6 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXCoreSetting::GameName, SciterMainWindow::GameNameChanged, this);
     settings.UnregisterCallback(NXCoreSetting::DisplayedFrames, SciterMainWindow::DisplayedFramesChanged, this);
     settings.UnregisterCallback(NXCoreSetting::DiskCacheLoadTick, SciterMainWindow::DiskCacheLoadChanged, this);
-    settings.UnregisterCallback(NXLoaderSetting::FirmwareInstallTotal, SciterMainWindow::FirmwareInstallTotalChanged, this);
     settings.UnregisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
@@ -819,6 +831,22 @@ void SciterMainWindow::LoadGame(const char * path, uint64_t program_id, int32_t 
     }
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
+    char cardFirmware[64]{};
+    if (launch_type == ApplicationLaunchType::FrontendInitiated && loader.GetGameCardFirmwareUpdate(path, cardFirmware, sizeof(cardFirmware)) != 0)
+    {
+        const std::string installed = GetInstalledFirmwareDisplayVersion(loader);
+        const std::string message = installed.empty()
+                                        ? stdstr_f("No system firmware is installed.\n\nThis game contains firmware %s.\n\nDo you want to install it now?", cardFirmware)
+                                        : stdstr_f("Installed firmware is %s.\n\nThis game contains firmware %s.\n\nDo you want to upgrade?", installed.c_str(), cardFirmware);
+        if (g_notify->Query(message.c_str(), "Install firmware") == NotificationResponse::Yes)
+        {
+            const FirmwareInstallStatus status = loader.InstallFirmwarePackage(path, nullptr, nullptr, 0);
+            if (status != FirmwareInstallStatus::Installed)
+            {
+                g_notify->DisplayError(FirmwareInstallMessage(status).c_str(), "Firmware install failed");
+            }
+        }
+    }
     loader.LoadRom(path, program_id, program_index, previous_program_index, launch_type);
     m_currentProgramId = program_id;
     m_currentProgramIndex = program_index;
@@ -1467,20 +1495,29 @@ void SciterMainWindow::OnInstallFirmwareFromFolder()
 
 void SciterMainWindow::RefreshFirmwareInstallLoading()
 {
-    SettingsStore & settings = SettingsStore::GetInstance();
-    const uint32_t current = static_cast<uint32_t>(settings.GetInt(NXLoaderSetting::FirmwareInstallCurrent));
-    const uint32_t total = static_cast<uint32_t>(settings.GetInt(NXLoaderSetting::FirmwareInstallTotal));
+    const FirmwareInstallStage stage = static_cast<FirmwareInstallStage>(m_firmwareObserver.stage.load());
+    const uint64_t done = m_firmwareObserver.done.load();
+    const uint64_t total = m_firmwareObserver.total.load();
 
     SciterElement fillEl(m_rootElement.GetElementByID("LoadingProgressFill"));
     SciterElement status(m_rootElement.GetElementByID("loadingText"));
 
     std::string detail;
-    if (total > 0)
+    if (stage == FirmwareInstallStage::Replacing)
     {
-        detail = stdstr_f("%u / %u files", current, total);
+        detail = "replacing the installed firmware";
         if (fillEl.IsValid())
         {
-            const int pct = static_cast<int>((100.0 * static_cast<double>(current)) / static_cast<double>(total));
+            UpdateLoadingProgressBar(fillEl, false, 100, false);
+        }
+    }
+    else if (total > 0)
+    {
+        const int pct = static_cast<int>((100.0 * static_cast<double>(done)) / static_cast<double>(total));
+        detail = stage == FirmwareInstallStage::Checking ? stdstr_f("checking %llu / %llu files", static_cast<unsigned long long>(done), static_cast<unsigned long long>(total))
+                                                         : stdstr_f("copying %d%%", pct);
+        if (fillEl.IsValid())
+        {
             UpdateLoadingProgressBar(fillEl, false, pct, false);
         }
     }
@@ -1504,8 +1541,7 @@ void SciterMainWindow::StartFirmwareInstallUi()
         return;
     }
 
-    const int32_t total = SettingsStore::GetInstance().GetInt(NXLoaderSetting::FirmwareInstallTotal);
-    if (total <= 0 && !m_firmwareInstallInProgress)
+    if (!m_firmwareInstallInProgress)
     {
         return;
     }
@@ -1612,31 +1648,37 @@ void SciterMainWindow::BeginFirmwareInstall(const char * utf8_path)
         return;
     }
 
+    m_firmwareObserver.stage = static_cast<uint32_t>(FirmwareInstallStage::Copying);
+    m_firmwareObserver.done = 0;
+    m_firmwareObserver.total = 0;
     m_firmwareInstallInProgress = true;
     m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_ACTIVE);
 
     const std::string path = utf8_path;
     m_firmwareInstallThread = std::thread([this, path]() {
-        m_modules.Modules().Systemloader().InstallFirmwarePackage(path.c_str());
+        const FirmwareInstallStatus status = m_modules.Modules().Systemloader().InstallFirmwarePackage(path.c_str(), &m_firmwareObserver, nullptr, 0);
+        if (status != FirmwareInstallStatus::Cancelled)
+        {
+            g_notify->DisplayError(FirmwareInstallMessage(status).c_str(), status == FirmwareInstallStatus::Installed ? "Firmware installed" : "Firmware install failed");
+        }
         m_firmwareInstallInProgress = false;
         m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_DONE);
     });
 }
 
-void SciterMainWindow::FirmwareInstallTotalChanged(const char * /*setting*/, void * userData)
+bool SciterMainWindow::FirmwareObserver::FirmwareInstallProgress(FirmwareInstallStage installStage, uint64_t installDone, uint64_t installTotal)
 {
-    SciterMainWindow * impl = static_cast<SciterMainWindow *>(userData);
-    const int32_t total = SettingsStore::GetInstance().GetInt(NXLoaderSetting::FirmwareInstallTotal);
-    const int32_t previous = impl->m_firmwareInstallLastTotal;
-    impl->m_firmwareInstallLastTotal = total;
-    if (total > 0)
-    {
-        impl->m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_ACTIVE);
-    }
-    else if (previous > 0)
-    {
-        impl->m_rootElement.PostEvent(EVENT_FIRMWARE_INSTALL_DONE);
-    }
+    stage = static_cast<uint32_t>(installStage);
+    done = installDone;
+    total = installTotal;
+    return true;
+}
+
+bool SciterMainWindow::FirmwareObserver::ConfirmFirmwareReplacement(const char * packageVersion, const char * installedVersion)
+{
+    const std::string message = stdstr_f("Install firmware %s from this package?\n\nCurrent firmware: %s.\nThis will replace the installed firmware.\n\nContinue?",
+                                         packageVersion, installedVersion);
+    return g_notify->Query(message.c_str(), "Install firmware") == NotificationResponse::Yes;
 }
 
 bool SciterMainWindow::ConfirmCloseEmulator()
@@ -2677,8 +2719,7 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     {
         if (m_firmwareInstallUiActive)
         {
-            const int32_t total = SettingsStore::GetInstance().GetInt(NXLoaderSetting::FirmwareInstallTotal);
-            if (total <= 0 && !m_firmwareInstallInProgress)
+            if (!m_firmwareInstallInProgress)
             {
                 StopFirmwareInstallUi();
             }

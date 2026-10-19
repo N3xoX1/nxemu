@@ -41,6 +41,12 @@ add_library(nxemu_ui STATIC
     input/input_text.h
     library/firmware_avatars.cpp
     library/firmware_avatars.h
+    library/firmware_installer.cpp
+    library/firmware_installer.h
+    library/game_cache.cpp
+    library/game_cache.h
+    library/game_details.cpp
+    library/game_details.h
     library/game_library.cpp
     library/game_library.h
     library/rom_properties.cpp
@@ -85,6 +91,8 @@ add_library(nxemu_ui STATIC
     views/controller_picture.h
     views/directories_dialog.cpp
     views/directories_dialog.h
+    views/firmware_dialog.cpp
+    views/firmware_dialog.h
     views/hotkeys.cpp
     views/hotkeys.h
     views/loading_screen.cpp

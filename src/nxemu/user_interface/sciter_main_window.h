@@ -127,7 +127,6 @@ private:
     static void GameNameChanged(const char * setting, void * userData);
     static void DisplayedFramesChanged(const char * setting, void * userData);
     static void DiskCacheLoadChanged(const char * setting, void * userData);
-    static void FirmwareInstallTotalChanged(const char * setting, void * userData);
     static void HotKeysChanged(const char * setting, void * userData);
     void UpdateStatusWidgets();
     void UpdateInputDrivers();
@@ -259,7 +258,17 @@ private:
     std::unique_ptr<Win32FullscreenState> m_win32Fullscreen;
     bool m_firmwareInstallInProgress;
     bool m_firmwareInstallUiActive;
-    int32_t m_firmwareInstallLastTotal;
+    class FirmwareObserver final : public IFirmwareInstallObserver
+    {
+    public:
+        bool FirmwareInstallProgress(FirmwareInstallStage stage, uint64_t done, uint64_t total) override;
+        bool ConfirmFirmwareReplacement(const char * packageVersion, const char * installedVersion) override;
+
+        std::atomic<uint32_t> stage{0};
+        std::atomic<uint64_t> done{0};
+        std::atomic<uint64_t> total{0};
+    };
+    FirmwareObserver m_firmwareObserver;
     std::thread m_firmwareInstallThread;
     bool m_mouseCursorHidden;
     uint64_t m_lastMouseActivityTick;

@@ -1,9 +1,6 @@
 #include "firmware_zip.h"
 
-#include <cstring>
-#include <filesystem>
 #include <fstream>
-#include <string>
 #include <vector>
 
 #include "ioapi.h"
@@ -16,126 +13,126 @@
 namespace
 {
 
-constexpr int kWriteBufferSize = 8192;
-
-bool IsZipDirectoryEntry(const char * name)
-{
-    const size_t length = std::strlen(name);
-    return length > 0 && (name[length - 1] == '/' || name[length - 1] == '\\');
-}
+constexpr size_t kCopyBufferSize = 1024 * 1024;
+constexpr size_t kMaxEntryNameLength = 4096;
 
 unzFile OpenZipArchive(const std::filesystem::path & zip_path)
 {
 #ifdef _WIN32
     zlib_filefunc64_def file_functions{};
-    fill_win32_filefunc64A(&file_functions);
-    return unzOpen2_64(zip_path.string().c_str(), &file_functions);
+    fill_win32_filefunc64W(&file_functions);
+    return unzOpen2_64(zip_path.c_str(), &file_functions);
 #else
-    return unzOpen64(zip_path.string().c_str());
+    return unzOpen64(zip_path.c_str());
 #endif
 }
 
-bool ExtractCurrentZipEntry(unzFile zip, const std::filesystem::path & output_path)
+struct ZipArchive
 {
-    if (unzOpenCurrentFile(zip) != UNZ_OK)
+    unzFile handle = nullptr;
+    ~ZipArchive()
+    {
+        if (handle != nullptr)
+        {
+            unzClose(handle);
+        }
+    }
+};
+
+bool CurrentEntry(unzFile zip, const std::function<std::string(std::string_view)> & nameOf, std::string & name, uint64_t & size)
+{
+    unz_file_info64 info{};
+    if (unzGetCurrentFileInfo64(zip, &info, nullptr, 0, nullptr, 0, nullptr, 0) != UNZ_OK || info.size_filename > kMaxEntryNameLength)
     {
         return false;
     }
-
-    std::ofstream output(output_path, std::ios::binary);
-    if (!output)
+    std::string entry_name(info.size_filename, '\0');
+    if (unzGetCurrentFileInfo64(zip, &info, entry_name.data(), static_cast<uLong>(entry_name.size()), nullptr, 0, nullptr, 0) != UNZ_OK)
     {
-        unzCloseCurrentFile(zip);
         return false;
     }
-
-    std::vector<char> buffer(kWriteBufferSize);
-    bool success = true;
-    for (;;)
-    {
-        const int bytes_read = unzReadCurrentFile(zip, buffer.data(), static_cast<unsigned>(buffer.size()));
-        if (bytes_read == 0)
-        {
-            break;
-        }
-        if (bytes_read < 0)
-        {
-            success = false;
-            break;
-        }
-        output.write(buffer.data(), bytes_read);
-        if (!output)
-        {
-            success = false;
-            break;
-        }
-    }
-
-    unzCloseCurrentFile(zip);
-    return success && output.good();
+    const bool directory = !entry_name.empty() && (entry_name.back() == '/' || entry_name.back() == '\\');
+    name = directory ? std::string() : nameOf(entry_name);
+    size = info.uncompressed_size;
+    return true;
 }
 
-} // namespace
+}
 
-bool ExtractFirmwareZipToDirectory(const std::filesystem::path & zip_path, const std::filesystem::path & destination_directory)
+FirmwareZipResult ExtractFirmwareZip(const std::filesystem::path & zip_path, const std::filesystem::path & destination_directory,
+                                     const std::function<std::string(std::string_view)> & nameOf,
+                                     const std::function<bool(uint64_t, uint64_t)> & progress)
 {
-    std::error_code ec;
-    std::filesystem::create_directories(destination_directory, ec);
-    if (ec)
+    ZipArchive zip{OpenZipArchive(zip_path)};
+    if (zip.handle == nullptr)
     {
-        return false;
+        return FirmwareZipResult::NotAnArchive;
     }
 
-    unzFile zip = OpenZipArchive(zip_path);
-    if (zip == nullptr)
+    uint64_t total = 0;
+    for (int entry = unzGoToFirstFile(zip.handle); entry != UNZ_END_OF_LIST_OF_FILE; entry = unzGoToNextFile(zip.handle))
     {
-        return false;
-    }
-
-    bool success = true;
-    if (unzGoToFirstFile(zip) == UNZ_OK)
-    {
-        do
+        std::string name;
+        uint64_t size = 0;
+        if (entry != UNZ_OK || !CurrentEntry(zip.handle, nameOf, name, size))
         {
-            char entry_name[512]{};
-            unz_file_info64 file_info{};
-            if (unzGetCurrentFileInfo64(zip, &file_info, entry_name, sizeof(entry_name), nullptr, 0, nullptr, 0) != UNZ_OK)
-            {
-                success = false;
-                break;
-            }
-
-            const std::filesystem::path output_path = destination_directory / entry_name;
-            if (IsZipDirectoryEntry(entry_name))
-            {
-                std::filesystem::create_directories(output_path, ec);
-                if (ec)
-                {
-                    success = false;
-                    break;
-                }
-                continue;
-            }
-
-            const std::filesystem::path parent_path = output_path.parent_path();
-            if (!parent_path.empty())
-            {
-                std::filesystem::create_directories(parent_path, ec);
-                if (ec)
-                {
-                    success = false;
-                    break;
-                }
-            }
-
-            if (!ExtractCurrentZipEntry(zip, output_path))
-            {
-                success = false;
-                break;
-            }
-        } while (unzGoToNextFile(zip) == UNZ_OK);
+            return FirmwareZipResult::Failed;
+        }
+        if (!name.empty())
+        {
+            total += size;
+        }
     }
 
-    unzClose(zip);
-    return success;
+    std::vector<char> buffer(kCopyBufferSize);
+    uint64_t done = 0;
+    for (int entry = unzGoToFirstFile(zip.handle); entry != UNZ_END_OF_LIST_OF_FILE; entry = unzGoToNextFile(zip.handle))
+    {
+        std::string name;
+        uint64_t size = 0;
+        if (entry != UNZ_OK || !CurrentEntry(zip.handle, nameOf, name, size))
+        {
+            return FirmwareZipResult::Failed;
+        }
+        if (name.empty())
+        {
+            continue;
+        }
+        if (unzOpenCurrentFile(zip.handle) != UNZ_OK)
+        {
+            return FirmwareZipResult::Failed;
+        }
+        std::ofstream output(destination_directory / std::filesystem::path(std::u8string(name.begin(), name.end())), std::ios::binary | std::ios::trunc);
+        FirmwareZipResult result = output ? FirmwareZipResult::Extracted : FirmwareZipResult::Failed;
+        while (result == FirmwareZipResult::Extracted)
+        {
+            const int read = unzReadCurrentFile(zip.handle, buffer.data(), static_cast<unsigned>(buffer.size()));
+            if (read == 0)
+            {
+                break;
+            }
+            if (read < 0 || !output.write(buffer.data(), read))
+            {
+                result = FirmwareZipResult::Failed;
+            }
+            else if (!progress(done += static_cast<uint64_t>(read), total))
+            {
+                result = FirmwareZipResult::Cancelled;
+            }
+        }
+        output.close();
+        if (unzCloseCurrentFile(zip.handle) != UNZ_OK && result == FirmwareZipResult::Extracted)
+        {
+            result = FirmwareZipResult::Failed;
+        }
+        if (result == FirmwareZipResult::Extracted && !output)
+        {
+            result = FirmwareZipResult::Failed;
+        }
+        if (result != FirmwareZipResult::Extracted)
+        {
+            return result;
+        }
+    }
+    return FirmwareZipResult::Extracted;
 }
