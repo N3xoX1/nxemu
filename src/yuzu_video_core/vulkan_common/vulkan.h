@@ -23,6 +23,7 @@
 #undef CreateEvent
 #undef CreateSemaphore
 #undef Always
+#undef BadValue
 #undef False
 #undef None
 #undef Success

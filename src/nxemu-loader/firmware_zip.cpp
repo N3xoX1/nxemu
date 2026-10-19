@@ -60,7 +60,7 @@ bool CurrentEntry(unzFile zip, const std::function<std::string(std::string_view)
     return true;
 }
 
-} // namespace
+}
 
 FirmwareZipResult ExtractFirmwareZip(const std::filesystem::path & zip_path, const std::filesystem::path & destination_directory,
                                      const std::function<std::string(std::string_view)> & nameOf,
