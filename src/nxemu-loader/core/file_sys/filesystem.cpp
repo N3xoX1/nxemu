@@ -11,7 +11,10 @@
 #include "core/file_sys/romfs_factory.h"
 
 #include "loader_settings.h"
+#include "game_list_cache.h"
 #include "system_loader.h"
+#include <algorithm>
+#include <cctype>
 #include <unordered_set>
 #include <yuzu_common/logging/log.h>
 #include <yuzu_common/fs/fs.h>
@@ -19,7 +22,12 @@
 
 namespace
 {
-void CollectTitleIdModRoots(const std::filesystem::path & path, const std::string & title_id_hex, FileSys::VfsFilesystem & vfs, std::vector<FileSys::VirtualDir> & out, std::unordered_set<std::string> & seen_paths)
+bool IsTitleIdFolderName(const std::string & name)
+{
+    return name.size() == 16 && std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isxdigit(c) != 0; });
+}
+
+void CollectTitleIdModRoots(const std::filesystem::path & path, const std::string & title_id_hex, FileSys::VfsFilesystem & vfs, std::vector<FileSys::VirtualDir> & out, std::unordered_set<std::string> & seen_paths, int depth)
 {
     if (!Common::FS::IsDir(path))
     {
@@ -50,6 +58,10 @@ void CollectTitleIdModRoots(const std::filesystem::path & path, const std::strin
         }
         return;
     }
+    if (IsTitleIdFolderName(folder_name) || depth == 0)
+    {
+        return;
+    }
 
     std::error_code ec;
     for (const auto & entry : std::filesystem::directory_iterator(path, ec))
@@ -59,7 +71,7 @@ void CollectTitleIdModRoots(const std::filesystem::path & path, const std::strin
         {
             continue;
         }
-        CollectTitleIdModRoots(entry.path(), title_id_hex, vfs, out, seen_paths);
+        CollectTitleIdModRoots(entry.path(), title_id_hex, vfs, out, seen_paths, depth < 0 ? depth : depth - 1);
     }
 }
 
@@ -288,7 +300,7 @@ FileSys::VirtualDir FileSystemController::GetSDMCModificationLoadRoot(uint64_t t
 std::vector<FileSys::VirtualDir> FileSystemController::GetAddOnModificationLoadRoots(uint64_t title_id) const
 {
     std::vector<FileSys::VirtualDir> roots;
-    if (title_id == 0 || (title_id & 0xFFF) == 0x800 || loaderSettings.addOnDirectories.empty())
+    if (title_id == 0 || (title_id & 0xFFF) == 0x800)
     {
         return roots;
     }
@@ -307,7 +319,11 @@ std::vector<FileSys::VirtualDir> FileSystemController::GetAddOnModificationLoadR
         {
             continue;
         }
-        CollectTitleIdModRoots(std::filesystem::path(Common::FS::ToU8String(dir)), title_id_hex, *vfs, roots, seen_paths);
+        CollectTitleIdModRoots(std::filesystem::path(Common::FS::ToU8String(dir)), title_id_hex, *vfs, roots, seen_paths, -1);
+    }
+    for (const GameDirectory & gameDir : loader.GameDirectories())
+    {
+        CollectTitleIdModRoots(std::filesystem::path(Common::FS::ToU8String(gameDir.path)), title_id_hex, *vfs, roots, seen_paths, gameDir.scanSubfolders ? -1 : 1);
     }
     return roots;
 }

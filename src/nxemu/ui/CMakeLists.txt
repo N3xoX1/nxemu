@@ -74,6 +74,8 @@ add_library(nxemu_ui STATIC
     views/rml_events.h
     views/dialog.cpp
     views/dialog.h
+    views/game_details_panel.cpp
+    views/game_details_panel.h
     views/general_dialog.cpp
     views/general_dialog.h
     views/resolution_scales.h

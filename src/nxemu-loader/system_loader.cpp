@@ -322,17 +322,27 @@ IRomInfo * Systemloader::LoadedRomInfo()
     return info.release();
 }
 
-bool Systemloader::ScanGameList(const char * const * gameDirs, uint32_t gameDirCount, IGameListScanCallback & callback)
+bool Systemloader::ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback)
 {
-    std::vector<std::string> dirs;
+    std::vector<GameDirectory> dirs;
     for (uint32_t i = 0; i < gameDirCount; i++)
     {
         if (gameDirs[i] != nullptr && gameDirs[i][0] != '\0')
         {
-            dirs.emplace_back(gameDirs[i]);
+            dirs.push_back({gameDirs[i], scanSubfolders != nullptr && scanSubfolders[i]});
         }
     }
     return impl->m_gameListCache.Scan(dirs, callback);
+}
+
+std::vector<GameDirectory> Systemloader::GameDirectories()
+{
+    return impl->m_gameListCache.Directories();
+}
+
+std::vector<std::string> Systemloader::GameDirectoryAddOnFiles(uint64_t baseProgramId)
+{
+    return impl->m_gameListCache.GameDirectoryAddOnFiles(baseProgramId);
 }
 
 FileSys::VirtualFilesystem Systemloader::GetFilesystem()

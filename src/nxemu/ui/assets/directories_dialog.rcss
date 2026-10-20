@@ -49,6 +49,25 @@
     color: var(--text-muted);
 }
 
+.directory-subfolders
+{
+    margin: 0 8dp 0 12dp;
+    color: var(--text-secondary);
+    font-size: 13dp;
+    white-space: nowrap;
+}
+
+.directory .switch
+{
+    flex: none;
+}
+
+.switch.locked
+{
+    opacity: 0.4;
+    cursor: default;
+}
+
 .directory button
 {
     margin-left: 12dp;

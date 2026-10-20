@@ -210,6 +210,9 @@ bool MainWindow::Create()
                                                         });
     m_tooltip = std::make_unique<Tooltip>(m_window.Context(), m_assetDir);
     m_performance = std::make_unique<PerformanceOverlay>(m_document->GetElementById("performance"));
+    m_detailsPanel = std::make_unique<GameDetailsPanel>(m_document->GetElementById("games-details"), [this](size_t index) {
+        Post(static_cast<Action>(static_cast<int>(Action::AddOnFirst) + static_cast<int>(index)));
+    });
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
@@ -361,6 +364,11 @@ void MainWindow::Update()
         m_quit = true;
         return;
     }
+    if (m_detailsReload && !m_session.IsRunning() && !m_session.ReleasePending())
+    {
+        m_detailsReload = false;
+        RequestSelectedDetails();
+    }
     m_aboutDialog->Update();
     m_firmwareDialog->Update();
     m_controllerDialog->Update();
@@ -386,6 +394,16 @@ void MainWindow::Update()
     if (m_gamesDirty)
     {
         RenderGames();
+    }
+    GameDetails details;
+    if (m_library.TakeDetails(details) && details.path == m_selectedPath)
+    {
+        m_details = std::move(details);
+        m_detailsDirty = true;
+    }
+    if (m_detailsDirty)
+    {
+        RenderDetails();
     }
     RenderVisibleGames();
     LoadPendingIcons();
@@ -472,6 +490,10 @@ void MainWindow::OnModulesReleasing()
         m_library.StopScan();
         m_rescanGames = true;
     }
+    m_library.StopDetails();
+    m_details = {};
+    m_detailsDirty = true;
+    m_detailsReload = true;
     m_controllerDialog->Abandon();
     m_profilesDialog->Abandon();
     m_window.DetachVideo();
@@ -673,6 +695,8 @@ void MainWindow::Run(Action action)
                     const std::string failure = Tr("Could not clear the cache: %1", {error});
                     g_notify->DisplayError(failure.c_str(), title.c_str());
                 }
+                m_details = {};
+                RequestSelectedDetails();
             }
         }
         break;
@@ -680,6 +704,28 @@ void MainWindow::Run(Action action)
     case Action::ToggleDockedMode: SetDockedMode(!IsDocked()); break;
     case Action::SetDockedMode: SetDockedMode(true); break;
     case Action::SetHandheldMode: SetDockedMode(false); break;
+    case Action::ToggleGameDetails:
+        uiSettings.showGameDetails = !uiSettings.showGameDetails;
+        SaveUISetting();
+        ApplyLibraryOptions();
+        RequestSelectedDetails();
+        break;
+    case Action::OpenSelectedSaveDirectory:
+    case Action::OpenSelectedCacheDirectory:
+    case Action::OpenSelectedModDirectory:
+        if (m_details.path == m_selectedPath)
+        {
+            const std::string & directory = action == Action::OpenSelectedSaveDirectory    ? m_details.saveDirectory
+                                            : action == Action::OpenSelectedCacheDirectory ? m_details.cacheDirectory
+                                                                                           : m_details.modDirectory;
+            if (!directory.empty())
+            {
+                std::error_code error;
+                std::filesystem::create_directories(std::filesystem::path{Common::FS::ToU8String(directory)}, error);
+                OpenDirectory(directory);
+            }
+        }
+        break;
     case Action::PlaySelectedGame:
         if (!m_selectedPath.empty())
         {
@@ -792,6 +838,12 @@ void MainWindow::Run(Action action)
             m_gamesDirty = true;
             break;
         }
+        const int addOn = static_cast<int>(action) - static_cast<int>(Action::AddOnFirst);
+        if (addOn >= 0 && static_cast<int>(action) < static_cast<int>(Action::RecentFileFirst))
+        {
+            ToggleAddOn(static_cast<size_t>(addOn));
+            break;
+        }
         const size_t recent = static_cast<size_t>(static_cast<int>(action) - static_cast<int>(Action::RecentFileFirst));
         if (static_cast<int>(action) >= static_cast<int>(Action::RecentFileFirst) && recent < m_library.RecentFiles().size())
         {
@@ -819,6 +871,18 @@ void MainWindow::BindEvents()
     const auto onClick = [this](const char * id, Action action) {
         UiEvents::Listen(m_document->GetElementById(id), "click", [this, action](Rml::Event &) { Post(action); });
     };
+    onClick("games-details-toggle", Action::ToggleGameDetails);
+    for (const auto & [id, action] : {std::pair{"details-play", Action::PlaySelectedGame}, std::pair{"details-save", Action::OpenSelectedSaveDirectory},
+                                      std::pair{"details-cache", Action::OpenSelectedCacheDirectory}, std::pair{"details-mods", Action::OpenSelectedModDirectory}})
+    {
+        Rml::Element * button = m_document->GetElementById(id);
+        UiEvents::Listen(button, "click", [this, button, action = action](Rml::Event &) {
+            if (!button->IsClassSet("locked"))
+            {
+                Post(action);
+            }
+        });
+    }
     onClick("card-information", Action::ToggleCardInformation);
     onClick("view-grid", Action::ShowGridView);
     onClick("view-list", Action::ShowListView);
@@ -1444,6 +1508,8 @@ void MainWindow::ApplyLibraryOptions()
     setClass("play-time", "on", playTime);
     setClass("view-grid", "active", !list);
     setClass("view-list", "active", list);
+    setClass("games-details-toggle", "active", uiSettings.showGameDetails);
+    setClass("rom-browser-panel", "details-open", uiSettings.showGameDetails);
     setClass("games-list-header", "shown", list);
     if (Rml::Element * header = m_document->GetElementById("games-list-header"))
     {
@@ -1723,12 +1789,65 @@ float MainWindow::CardStep() const
     return static_cast<float>(m_iconSize + 2 * kCardBorder + (GameIconStep(m_iconSize) == 1 ? kSmallCardGap : kCardGap)) * ratio;
 }
 
+const GameEntry * MainWindow::SelectedGame() const
+{
+    const auto game = std::find_if(m_games.begin(), m_games.end(), [this](const GameEntry & entry) { return entry.path == m_selectedPath; });
+    return game != m_games.end() ? &*game : nullptr;
+}
+
+void MainWindow::RequestSelectedDetails()
+{
+    if (SelectedGame() != nullptr && m_details.path != m_selectedPath && !m_session.IsRunning() && uiSettings.showGameDetails)
+    {
+        m_library.RequestDetails(m_session.Modules(), m_selectedPath);
+    }
+}
+
+void MainWindow::RenderDetails()
+{
+    m_detailsDirty = false;
+    const GameEntry * game = SelectedGame();
+    if (game == nullptr)
+    {
+        m_detailsPanel->Clear();
+        return;
+    }
+    const PlayTime::Record played = m_playTime.Of(game->programId);
+    m_detailsPanel->ShowGame(game->title, game->icon,
+                             {
+                                 {Tr("Version"), game->version.empty() ? std::string() : "v" + game->version},
+                                 {Tr("Publisher"), game->publisher},
+                                 {Tr("Format"), FileFormat(game->path)},
+                                 {Tr("Size"), FileSize(game->size)},
+                                 {Tr("Last played"), PlayTime::Date(played.lastPlayed)},
+                                 {Tr("Play time"), PlayTime::Duration(played.seconds)},
+                                 {Tr("Title ID"), game->programId != 0 ? std::string(stdstr_f("%016llX", static_cast<unsigned long long>(game->programId))) : std::string()},
+                             });
+    m_detailsPanel->ShowDetails(m_details.path == m_selectedPath && m_details.programId != 0 ? &m_details : nullptr, m_session.IsRunning());
+}
+
+void MainWindow::ToggleAddOn(size_t index)
+{
+    if (m_details.path != m_selectedPath || index >= m_details.addOns.size() || m_session.IsRunning())
+    {
+        return;
+    }
+    const std::vector<std::string> disabled = GameDetailsReader::DisabledAfterToggle(m_details, index);
+    for (GameAddOn & addOn : m_details.addOns)
+    {
+        addOn.enabled = std::find(disabled.begin(), disabled.end(), addOn.key) == disabled.end();
+    }
+    m_detailsDirty = true;
+    m_library.RequestDetails(m_session.Modules(), m_selectedPath, m_details.programId, disabled);
+}
+
 void MainWindow::SelectGame(Rml::Element * card)
 {
     if (card == m_selectedGame && (card != nullptr || m_selectedPath.empty()))
     {
         return;
     }
+    m_detailsDirty = true;
     if (m_selectedGame != nullptr)
     {
         m_selectedGame->SetClass("selected", false);
@@ -1746,6 +1865,7 @@ void MainWindow::SelectGame(Rml::Element * card)
             m_selectedProgramId = m_games[index].programId;
         }
     }
+    RequestSelectedDetails();
 }
 
 bool MainWindow::ShowSettingsPage(SettingsPage page)
@@ -1840,6 +1960,8 @@ void MainWindow::SyncPhase()
         if (phase == EmulatorSession::Phase::Idle)
         {
             m_playingProgram = 0;
+            m_details = {};
+            RequestSelectedDetails();
             m_gamesDirty = true;
             m_hideUi = false;
             m_window.SetFullscreen(false);

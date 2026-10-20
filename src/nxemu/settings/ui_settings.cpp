@@ -103,6 +103,7 @@ namespace
         // Both interfaces
         {NXUISetting::RecentFiles, "RecentFiles", &uiSettings.recentFiles},
         {NXUISetting::GameDirectories, "GameDirectories", &uiSettings.gameDirectories},
+        {NXUISetting::GameDirectoriesRecursive, "GameDirectoriesRecursive", &uiSettings.gameDirectoriesRecursive},
         {nullptr, "PerformVulkanCheck", &uiSettings.performVulkanCheck, true},
         {NXUISetting::StartGamesInFullscreen, "StartGamesInFullscreen", &uiSettings.startGamesInFullscreen, false},
         {NXUISetting::StartGamesWithUiHidden, "StartGamesWithUiHidden", &uiSettings.startGamesWithUiHidden, false},
@@ -116,6 +117,7 @@ namespace
         {nullptr, "GameBrowser\\ShowCardInformation", &uiSettings.showCardInformation, true},
         {nullptr, "GameBrowser\\ShowCardTitle", &uiSettings.showCardTitle, true},
         {nullptr, "GameBrowser\\ShowPlayTime", &uiSettings.showPlayTime, true},
+        {nullptr, "GameBrowser\\ShowDetails", &uiSettings.showGameDetails, false},
         {nullptr, "ShowEmulationControls", &uiSettings.showEmulationControls, kShowEmulationControlsDefault},
         {nullptr, "Shortcuts", &uiSettings.shortcuts},
         {nullptr, "Performance\\Show", &uiSettings.showPerformance, false},

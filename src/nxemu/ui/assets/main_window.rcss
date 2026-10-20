@@ -1184,26 +1184,15 @@ body.compact .games-toolbar .select-icon
     text-overflow: ellipsis;
 }
 
-/* Where an overridden setting's value comes from. */
-.override-source
-{
-    flex-shrink: 0;
-    padding: 2dp 8dp;
-    border: 1dp var(--border);
-    border-radius: 9dp;
-    color: var(--text-muted);
-    font-size: 11dp;
-}
-
-.override-source.user
-{
-    border-color: var(--border-strong);
-    color: var(--accent-text);
-}
-
 .addon-row .switch
 {
     flex-shrink: 0;
+}
+
+.addon-row .switch.locked
+{
+    opacity: 0.4;
+    cursor: default;
 }
 
 /* The add-on content lists its pieces under it when clicked. */
@@ -2072,29 +2061,6 @@ body.compact .volume-range
     display: none;
 }
 
-.override-replaced .addon-version { color: var(--text-muted); }
-.override-note { color: var(--text-muted); font-size: 10dp; }
-.override-action { margin-left: 10dp; }
-button.override-remove
-{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    width: 24dp;
-    height: 24dp;
-    padding: 0dp;
-    line-height: 18dp;
-    font-size: 18dp;
-    color: var(--text-muted);
-    background-color: transparent;
-    border-color: transparent;
-}
-button.override-remove:hover { color: var(--danger); background-color: var(--danger-surface); }
-
-/* An explicit choice in the status bar takes precedence over game settings. */
-#status-bar .overridden { color: var(--accent-text); }
 #scaling-filter-text { max-width: 144dp; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* What hides the interface says how to get it back, over the game for a

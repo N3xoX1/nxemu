@@ -5,6 +5,7 @@
 #include "directories_dialog.h"
 #include "firmware_dialog.h"
 #include "general_dialog.h"
+#include "game_details_panel.h"
 #include "hotkeys.h"
 #include "loading_screen.h"
 #include "menu_bar.h"
@@ -176,6 +177,10 @@ private:
     void SizeCard(Rml::Element * card) const;
     float CardStep() const;
     void SelectGame(Rml::Element * card);
+    const GameEntry * SelectedGame() const;
+    void RequestSelectedDetails();
+    void RenderDetails();
+    void ToggleAddOn(size_t index);
     void SyncPhase();
     void UpdateDiscord();
     static void DiscordSettingChanged(const char * setting, void * userData);
@@ -211,6 +216,10 @@ private:
     std::unique_ptr<LoadingScreen> m_loadingScreen;
     std::unique_ptr<Tooltip> m_tooltip;
     std::unique_ptr<PerformanceOverlay> m_performance;
+    std::unique_ptr<GameDetailsPanel> m_detailsPanel;
+    GameDetails m_details;
+    bool m_detailsDirty = false;
+    bool m_detailsReload = false;
     bool m_longestMeasured = false;
     std::unique_ptr<VolumeControl> m_volume;
     std::vector<UserProfile> m_profiles;

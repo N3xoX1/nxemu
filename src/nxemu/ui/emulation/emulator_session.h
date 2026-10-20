@@ -49,6 +49,7 @@ public:
     void Stop();
     void TogglePause();
     bool IsRunning() const;
+    bool ReleasePending() const { return m_releasePending; }
     bool IsPaused();
     Phase CurrentPhase() const;
 
