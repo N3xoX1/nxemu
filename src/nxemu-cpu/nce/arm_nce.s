@@ -42,6 +42,11 @@ _ZN4Core6ArmNce27ReturnToRunCodeByTrampolineEPvPNS_12GuestContextEm:
     stp     q12, q13, [x5, #(HostContextVregs+0x40)]
     stp     q14, q15, [x5, #(HostContextVregs+0x60)]
 
+    /* Save host fpcr and fpsr. The guest state loaded by the trampoline replaces them. */
+    mrs     x6, fpcr
+    mrs     x7, fpsr
+    stp     w6, w7, [x5, #(HostContextFpcrFpsr)]
+
     /* Load guest tpidr_el0 from argument. */
     msr     tpidr_el0, x0
 
