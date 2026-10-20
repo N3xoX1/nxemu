@@ -486,6 +486,7 @@ static OsSetting settings[] = {
         {NXOsSetting::UseSpeedLimit, nullptr, &osSettings.use_speed_limit, true},
         {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
         {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Language::EnglishAmerican},
+        {NXOsSetting::Region, "system\\region", &osSettings.region_setting, kRegionOfLanguage},
         {NXOsSetting::CurrentUser, "system\\current_user", &osSettings.current_user, 0},
         {NXOsSetting::RngSeedEnabled, "system\\rng_seed_enabled", &osSettings.rng_seed_enabled, false},
         {NXOsSetting::RngSeed, "system\\rng_seed", &osSettings.rng_seed, 0u},
@@ -603,7 +604,6 @@ void InitializeOsSettingDefaults()
     osSettings.my_page_applet_mode = AppletMode::LLE;
 
     osSettings.dump_audio_commands = false;
-    osSettings.region_index = Region::Usa;
     osSettings.time_zone_index = TimeZone::Auto;
     osSettings.custom_rtc = 0;
     osSettings.device_name = "NxEmu";
@@ -1137,3 +1137,13 @@ OsSetting::OsSetting(const char * id, const char * path, s64 * val, s64 defaultV
     value.s64Value = val;
 }
 } // namespace
+
+Region ConsoleRegion()
+{
+    const s32 chosen = osSettings.region_setting;
+    if (chosen >= static_cast<s32>(Region::Japan) && chosen <= static_cast<s32>(Region::Taiwan))
+    {
+        return static_cast<Region>(chosen);
+    }
+    return RegionOfLanguage(osSettings.language_index);
+}

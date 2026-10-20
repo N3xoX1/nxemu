@@ -22,6 +22,8 @@ public:
     GeneralDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, Host host);
     ~GeneralDialog();
 
+    void RefreshLanguage();
+
 private:
     void OnOpen() override;
     void OnUpdate() override;
@@ -34,6 +36,8 @@ private:
     void ShowRunning();
     void ApplyChange(const std::string & id);
     void Changed();
+    bool RegionChosen() const;
+    int LanguageRegion() const;
 
     UiWindow & m_window;
     EmulatorSession & m_session;

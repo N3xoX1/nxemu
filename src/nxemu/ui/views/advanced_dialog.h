@@ -16,6 +16,7 @@ public:
     AdvancedDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, OpenSettingsPage openPage);
 
     void ShowPage(SettingsPage page);
+    void RefreshLanguage();
     bool HandleKey(const SDL_KeyboardEvent & event);
     bool HandleGamepad(const SDL_Event & event, const Hotkeys::GamepadShortcut & chord);
 

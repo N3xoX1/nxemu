@@ -21,11 +21,14 @@
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
+#include <nxemu/ui/library/interface_language.h>
 
 using namespace SettingsControls;
 
 namespace
 {
+constexpr const char * kRegions[] = {TrMark("Japan"), TrMark("Americas"), TrMark("Europe"), TrMark("Australia"), TrMark("China"), TrMark("Korea"), TrMark("Taiwan")};
+
 constexpr const char * kLanguages[] = {
     "日本語", "English (US)", "Français", "Deutsch", "Italiano", "Español", "中文", "한국어", "Nederlands",
     "Português", "Русский", "中文（台灣）", "English (UK)", "Français (Canada)", "Español (Latinoamérica)",
@@ -69,6 +72,19 @@ Choices Sorted(const char * const (&names)[Count], bool translate = true)
 } // namespace
 
 GeneralDialog::~GeneralDialog() = default;
+
+void GeneralDialog::RefreshLanguage()
+{
+    if (!IsVisible())
+    {
+        return;
+    }
+    RefreshTranslation();
+    FillLists();
+    ShowValues();
+    ShowRunning();
+    m_changes.clear();
+}
 
 GeneralDialog::GeneralDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, Host host) :
     Dialog(window.Context(), assetDir / "general_dialog.rml", kSettingsNarrowBelow),
@@ -121,6 +137,16 @@ void GeneralDialog::OnCommand(const std::string & command)
     {
         settings.SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(command == "mode-docked" ? DockedMode::Docked : DockedMode::Handheld));
         Changed();
+    }
+    else if (command == "toggle-region")
+    {
+        settings.SetInt(NXOsSetting::Region, RegionChosen() ? kRegionOfLanguage : LanguageRegion());
+        Changed();
+    }
+    else if (command == "toggle-interface-language" && !m_settings.IsGame())
+    {
+        InterfaceLanguage::SetChoice(InterfaceLanguage::Choice().empty() ? InterfaceLanguage::Code() : std::string());
+        ShowValues();
     }
 }
 
@@ -194,6 +220,13 @@ void GeneralDialog::FillLists()
     Fill(Select(Document(), "profile"), choices, std::to_string(UserProfiles::Active(m_profileCount)));
 
     Fill(Select(Document(), "language"), Sorted(kLanguages, false), std::to_string(settings.GetInt(NXOsSetting::LanguageIndex)));
+    Fill(Select(Document(), "region"), Sorted(kRegions), {});
+    choices.clear();
+    for (const Translation::LanguageInfo & language : Translation::Languages)
+    {
+        choices.push_back({language.name, language.code, {}});
+    }
+    Fill(Select(Document(), "interface-language"), choices, InterfaceLanguage::Code());
 }
 
 void GeneralDialog::ShowValues()
@@ -207,6 +240,18 @@ void GeneralDialog::ShowValues()
     const int scale = std::clamp(settings.GetInt(NXVideoSetting::ResolutionSetup), 0, kResolutionScaleCount - 1);
     const int height = static_cast<int>(std::lround((docked ? kDockedHeight : kHandheldHeight) * kResolutionScales[scale].factor));
     SetText("resolution-text", Tr("Games are drawn in %1p.", {std::to_string(height)}));
+
+    const bool regionChosen = RegionChosen();
+    Choose(Select(Document(), "region"), std::to_string(regionChosen ? settings.GetInt(NXOsSetting::Region) : LanguageRegion()));
+    SetDisabled(Document(), "region", !regionChosen);
+    SetClass(Document(), "region-chosen", "on", regionChosen);
+    SetText("region-text", regionChosen ? Tr("Chosen here, whatever the language.") : Tr("Follows the console language."));
+
+    const bool interfaceChosen = !InterfaceLanguage::Choice().empty();
+    Choose(Select(Document(), "interface-language"), InterfaceLanguage::Code());
+    SetDisabled(Document(), "interface-language", !interfaceChosen);
+    SetClass(Document(), "interface-language-chosen", "on", interfaceChosen);
+    SetText("interface-language-text", interfaceChosen ? Tr("Chosen here, whatever the language.") : Tr("Follows the console language."));
 
     const int sharpness = std::clamp(settings.GetInt(NXVideoSetting::FSPSharpness), 0, kSharpnessMax);
     SetClass(Document(), "sharpness", "absent", settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::Fsr));
@@ -264,7 +309,7 @@ void GeneralDialog::ApplyChange(const std::string & id)
     {
         return;
     }
-    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "interface-theme")) return;
+    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "interface-language" || id == "interface-theme")) return;
     const int value = std::atoi(text.c_str());
 
     if (id == "interface-theme")
@@ -274,6 +319,16 @@ void GeneralDialog::ApplyChange(const std::string & id)
             uiSettings.interfaceTheme = text;
             SaveUISetting();
             m_window.SetTheme(text);
+        }
+        return;
+    }
+
+    if (id == "interface-language")
+    {
+        if (!InterfaceLanguage::Choice().empty() && Translation::IsSupportedLanguage(text))
+        {
+            InterfaceLanguage::SetChoice(text);
+            ShowValues();
         }
         return;
     }
@@ -316,11 +371,31 @@ void GeneralDialog::ApplyChange(const std::string & id)
     {
         setting = NXOsSetting::LanguageIndex;
     }
+    else if (id == "region")
+    {
+        if (!RegionChosen())
+        {
+            return;
+        }
+        setting = NXOsSetting::Region;
+    }
     if (setting != nullptr && settings.GetInt(setting) != value)
     {
         settings.SetInt(setting, value);
         Changed();
     }
+}
+
+bool GeneralDialog::RegionChosen() const
+{
+    const int region = m_settings.GetInt(NXOsSetting::Region);
+    return region >= 0 && region < static_cast<int>(std::size(kRegions));
+}
+
+int GeneralDialog::LanguageRegion() const
+{
+    const int language = std::clamp(m_settings.GetInt(NXOsSetting::LanguageIndex), 0, static_cast<int>(std::size(kLanguages)) - 1);
+    return static_cast<int>(RegionOfLanguage(static_cast<Language>(language)));
 }
 
 void GeneralDialog::Changed()

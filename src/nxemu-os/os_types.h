@@ -47,6 +47,26 @@ enum class Region : uint32_t
     Taiwan,
 };
 
+constexpr int32_t kRegionOfLanguage = -1;
+
+constexpr Region RegionOfLanguage(Language language)
+{
+    switch (language)
+    {
+    case Language::Japanese: return Region::Japan;
+    case Language::EnglishAmerican:
+    case Language::FrenchCanadian:
+    case Language::SpanishLatin:
+    case Language::PortugueseBrazilian: return Region::Usa;
+    case Language::Korean: return Region::Korea;
+    case Language::Chinese:
+    case Language::ChineseSimplified: return Region::China;
+    case Language::Taiwanese:
+    case Language::ChineseTraditional: return Region::Taiwan;
+    default: return Region::Europe;
+    }
+}
+
 enum class TimeZone : uint32_t
 {
     Auto = 0,

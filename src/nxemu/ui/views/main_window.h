@@ -182,6 +182,7 @@ private:
     void RenderDetails();
     void ToggleAddOn(size_t index);
     void SyncPhase();
+    void SyncInterfaceLanguage();
     void UpdateDiscord();
     static void DiscordSettingChanged(const char * setting, void * userData);
     void ShowPanel(Panel panel);
@@ -210,6 +211,7 @@ private:
     EmulatorSession & m_session;
     GameLibrary & m_library;
     const std::filesystem::path m_assetDir;
+    std::string m_interfaceLanguage;
     Rml::ElementDocument * m_document = nullptr;
     std::unique_ptr<MenuBar> m_menuBar;
     std::unique_ptr<PopupMenu> m_gameMenu;

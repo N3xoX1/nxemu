@@ -201,6 +201,12 @@
     <ClCompile Include="ui\platform\system_theme.cpp">
       <Filter>Source Files\ui\platform</Filter>
     </ClCompile>
+    <ClCompile Include="ui\host\system_language.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\library\interface_language.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
     <ClCompile Include="ui\ui_application.cpp">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
@@ -340,6 +346,12 @@
     </ClInclude>
     <ClInclude Include="ui\platform\system_theme.h">
       <Filter>Header Files\ui\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\system_language.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\interface_language.h">
+      <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\ui_application.h">
       <Filter>Header Files\ui</Filter>

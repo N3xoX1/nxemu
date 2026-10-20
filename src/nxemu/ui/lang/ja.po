@@ -1,0 +1,2524 @@
+# NXEmu interface translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: NXEmu\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: assets/about_dialog.rml
+msgid "About NXEmu"
+msgstr "NXEmu について"
+
+#: assets/about_dialog.rml
+msgid "NXEmu is an experimental open-source Nintendo Switch emulator."
+msgstr "NXEmu は、実験的なオープンソースの Nintendo Switch エミュレータです。"
+
+#: assets/about_dialog.rml
+msgid "You are responsible for ensuring your use of this software complies with the laws in your jurisdiction."
+msgstr "このソフトウェアの使用があなたの国の法律に準拠していることを確認するのはあなたの責任です。"
+
+#: assets/about_dialog.rml
+msgid "With thanks to"
+msgstr "謝辞"
+
+#: assets/about_dialog.rml
+msgid "the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector"
+msgstr "プロジェクト チーム yuzu、Fabrice、Alexwpi、Stardust、NullVector"
+
+#: assets/about_dialog.rml
+msgid "Website"
+msgstr "ウェブサイト"
+
+#: assets/about_dialog.rml
+msgid "Source Code"
+msgstr "ソースコード"
+
+#: assets/about_dialog.rml
+msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way."
+msgstr "「Nintendo Switch」はNintendoの商標です。 NXEmu は Nintendo とは一切関係がありません。"
+
+#: assets/about_dialog.rml
+msgid "OK"
+msgstr "OK"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/main_window.rml
+#: assets/profiles_dialog.rml
+#: views/hotkeys.h
+msgid "Settings"
+msgstr "設定"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "General"
+msgstr "全般"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+#: views/hotkeys.h
+msgid "Controllers"
+msgstr "コントローラー"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Game directories"
+msgstr "ゲームフォルダー"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/general_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Advanced"
+msgstr "アドバンスト"
+
+#: assets/advanced_dialog.rml
+msgid "Graphics"
+msgstr "グラフィックス"
+
+#: assets/advanced_dialog.rml
+msgid "System"
+msgstr "システム"
+
+#: assets/advanced_dialog.rml
+msgid "Application"
+msgstr "アプリケーション"
+
+#: assets/advanced_dialog.rml
+msgid "Shortcuts"
+msgstr "ショートカット"
+
+#: assets/advanced_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops."
+msgstr "ゲームの実行中は、グレー表示の項目を変更できません。"
+
+#: assets/advanced_dialog.rml
+msgid "Picture"
+msgstr "画像"
+
+#: assets/advanced_dialog.rml
+msgid "Anti-aliasing"
+msgstr "アンチエイリアス"
+
+#: assets/advanced_dialog.rml
+msgid "Smooths jagged edges."
+msgstr "ギザギザのエッジを滑らかにします。"
+
+#: assets/advanced_dialog.rml
+msgid "Anisotropic filtering"
+msgstr "異方性フィルタリング"
+
+#: assets/advanced_dialog.rml
+msgid "Keeps textures sharp seen at a slant."
+msgstr "斜めから見たテクスチャの鮮明さを維持します。"
+
+#: assets/advanced_dialog.rml
+msgid "Accuracy"
+msgstr "精度"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Accuracy level"
+msgstr "精度レベル"
+
+#: assets/advanced_dialog.rml
+msgid "How closely the graphics chip is imitated."
+msgstr "グラフィックス チップがエミュレートされる忠実度。"
+
+#: assets/advanced_dialog.rml
+msgid "Memory reads"
+msgstr "メモリ読み取り"
+
+#: assets/advanced_dialog.rml
+msgid "How carefully the chip reads what games write."
+msgstr "チップがゲームによって書き込まれたデータをどの程度厳密に読み取るか。"
+
+#: assets/advanced_dialog.rml
+msgid "Command synchronization"
+msgstr "コマンド同期"
+
+#: assets/advanced_dialog.rml
+msgid "Keeps the order games give their commands in."
+msgstr "ゲームによって送信されたコマンドの順序を尊重します。"
+
+#: assets/advanced_dialog.rml
+msgid "Slower, and steadier. Off, some games show faults, hang or crash."
+msgstr "低速ですが安定します。無効にすると、一部のゲームで表示の不具合、フリーズ、クラッシュが発生します。"
+
+#: assets/advanced_dialog.rml
+msgid "Reactive flushing"
+msgstr "リアクティブフラッシュ"
+
+#: assets/advanced_dialog.rml
+msgid "Brings memory up to date when it is read."
+msgstr "メモリの読み取り時にメモリを更新します。"
+
+#: assets/advanced_dialog.rml
+msgid "More exact than guessing ahead when it will be read."
+msgstr "メモリが読み取られる時点を予測する方法より正確です。"
+
+#: assets/advanced_dialog.rml
+msgid "Barrier feedback loops"
+msgstr "バリアフィードバックループ"
+
+#: assets/advanced_dialog.rml
+msgid "Draws transparent things right in some games."
+msgstr "一部のゲームで透明な要素が正しく表示されます。"
+
+#: assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr "GPU の高速時間"
+
+#: assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr "ほとんどのゲームは最大解像度を使用します。"
+
+#: assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgstr "GPU が遅いと解像度を下げるゲームに対して、GPU が高速であると通知します。"
+
+#: assets/advanced_dialog.rml
+msgid "Videos at their own speed"
+msgstr "動画を通常の速度で再生"
+
+#: assets/advanced_dialog.rml
+msgid "Even when the speed is not limited."
+msgstr "速度制限がない場合でも。"
+
+#: assets/advanced_dialog.rml
+msgid "Textures and video"
+msgstr "テクスチャとビデオ"
+
+#: assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr "ASTC のデコード"
+
+#: assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr "このタイプのテクスチャをデコードします。"
+
+#: assets/advanced_dialog.rml
+msgid "ASTC recompression"
+msgstr "再圧縮 ASTC"
+
+#: assets/advanced_dialog.rml
+msgid "Less graphics memory, for a lesser picture."
+msgstr "グラフィックス メモリが少なくなりますが、その代わりに画像の忠実度が低くなります。"
+
+#: assets/advanced_dialog.rml
+msgid "Graphics memory"
+msgstr "グラフィックス メモリ"
+
+#: assets/advanced_dialog.rml
+msgid "How much of it games may take."
+msgstr "ゲームが使用できる量。"
+
+#: assets/advanced_dialog.rml
+msgid "Video decoding"
+msgstr "ビデオ デコード"
+
+#: assets/advanced_dialog.rml
+msgid "What decodes the videos of games."
+msgstr "ゲームビデオをデコードします。"
+
+#: assets/advanced_dialog.rml
+msgid "Shaders"
+msgstr "シェーダー"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep shaders on the disk"
+msgstr "シェーダーをディスクに保存"
+
+#: assets/advanced_dialog.rml
+msgid "Games stutter less from their second start."
+msgstr "2 回目の起動からゲームのカクつきが減ります。"
+
+#: assets/advanced_dialog.rml
+msgid "Off only to look for a fault."
+msgstr "トラブルシューティングを行う場合にのみ無効にします。"
+
+#: assets/advanced_dialog.rml
+msgid "Driver pipeline cache"
+msgstr "ドライバーのパイプラインキャッシュ"
+
+#: assets/advanced_dialog.rml
+msgid "Shaders load faster with some drivers."
+msgstr "一部のドライバーでシェーダーの読み込みが速くなります。"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Build shaders in the background"
+msgstr "バックグラウンドでシェーダーをコンパイル"
+
+#: assets/advanced_dialog.rml
+msgid "Less stutter; things can show late. A hack."
+msgstr "ぎくしゃく感が軽減されました。一部のアイテムは表示が遅れる場合があります。近似値。"
+
+#: assets/advanced_dialog.rml
+msgid "Performance"
+msgstr "パフォーマンス"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Graphics on their own thread"
+msgstr "グラフィックスを専用スレッドで処理"
+
+#: assets/advanced_dialog.rml
+msgid "Should stay on."
+msgstr "有効のままにします。"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Presentation on its own thread"
+msgstr "画面への出力を専用スレッドで処理"
+
+#: assets/advanced_dialog.rml
+msgid "A little faster on some computers."
+msgstr "一部のコンピューターでは少し高速になります。"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "Keep the graphics device busy"
+msgstr "グラフィックス デバイスをビジー状態に保つ"
+
+#: assets/advanced_dialog.rml
+msgid "So that it does not slow its clock. Uses more power."
+msgstr "周波数の低下を防ぎます。より多くのエネルギーを消費します。"
+
+#: assets/advanced_dialog.rml
+msgid "Processor and memory"
+msgstr "プロセッサーとメモリー"
+
+#: assets/advanced_dialog.rml
+msgid "Processor engine"
+msgstr "プロセッサ エンジン"
+
+#: assets/advanced_dialog.rml
+msgid "How the game's code is run."
+msgstr "ゲームコードの実行方法。"
+
+#: assets/advanced_dialog.rml
+msgid "Processor accuracy"
+msgstr "プロセッサーの精度"
+
+#: assets/advanced_dialog.rml
+msgid "For the engine that translates the code."
+msgstr "コードを変換するエンジン用。"
+
+#: assets/advanced_dialog.rml
+msgid "Console memory"
+msgstr "コンソールメモリ"
+
+#: assets/advanced_dialog.rml
+msgid "More than the console has: for heavy mods."
+msgstr "コンソール以上のもの: 要求の厳しい MOD 向け。"
+
+#: assets/advanced_dialog.rml
+msgid "Multicore"
+msgstr "マルチコア"
+
+#: assets/advanced_dialog.rml
+msgid "The cores of the console on as many threads."
+msgstr "本体の各 CPU コアを、それぞれ別のスレッドで処理します。"
+
+#: assets/advanced_dialog.rml
+msgid "Off, games run on one thread: much slower, to look for a fault."
+msgstr "無効にするとゲームを 1 つのスレッドで処理します。大幅に遅くなるため、不具合の調査用です。"
+
+#: assets/advanced_dialog.rml
+#: views/settings_context.cpp
+msgid "CPU and system in step"
+msgstr "CPU とシステムを同期"
+
+#: assets/advanced_dialog.rml
+msgid "Keeps the processor and the system's answers in order."
+msgstr "プロセッサとシステムの応答間の順序を尊重します。"
+
+#: assets/advanced_dialog.rml
+msgid "Needs multicore."
+msgstr "マルチコア モードが必要です。"
+
+#: assets/advanced_dialog.rml
+msgid "Emulation"
+msgstr "エミュレーション"
+
+#: assets/advanced_dialog.rml
+#: views/hotkeys.h
+#: views/settings_context.cpp
+msgid "Limit speed"
+msgstr "制限速度"
+
+#: assets/advanced_dialog.rml
+msgid "Off: as fast as the computer can."
+msgstr "無効: コンピューターが許す限りの速度。"
+
+#: assets/advanced_dialog.rml
+msgid "On, games run at the speed chosen: 100% is the speed of the console."
+msgstr "有効にすると、ゲームは選択した速度で実行されます。100% はコンソールの速度に対応します。"
+
+#: assets/advanced_dialog.rml
+#: assets/general_dialog.rml
+msgid "Audio"
+msgstr "サウンド"
+
+#: assets/advanced_dialog.rml
+msgid "Output engine"
+msgstr "音声出力エンジン"
+
+#: assets/advanced_dialog.rml
+msgid "What plays the sound on this computer."
+msgstr "このコンピュータでサウンドを再生するもの。"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Input device"
+msgstr "入力デバイス"
+
+#: assets/advanced_dialog.rml
+msgid "The microphone games listen to."
+msgstr "ゲームで使用されるマイク。"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Vibration"
+msgstr "振動"
+
+#: assets/advanced_dialog.rml
+msgid "For every player. Each has a switch of their own."
+msgstr "すべてのプレイヤー向け。それぞれに独自の設定もあります。"
+
+#: assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr "正確な振動"
+
+#: assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr "各バリエーションが送信されます。一部のコントローラーは反応が遅くなります。"
+
+#: assets/advanced_dialog.rml
+msgid "Behaviour"
+msgstr "の動作"
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games in fullscreen"
+msgstr "全画面でゲームを開始(F)"
+
+#: assets/advanced_dialog.rml
+#: views/main_window.cpp
+msgid "Start games with UI hidden"
+msgstr "UI を非表示にしてゲームを起動(U)"
+
+#: assets/advanced_dialog.rml
+msgid "Confirm before stopping"
+msgstr "ゲーム停止前に確認"
+
+#: assets/advanced_dialog.rml
+msgid "Asks before a running game is stopped."
+msgstr "進行中のゲームを停止する前に確認を求めます。"
+
+#: assets/advanced_dialog.rml
+msgid "Discord presence"
+msgstr "プレゼンス Discord"
+
+#: assets/advanced_dialog.rml
+msgid "Shows what you play in Discord when it runs."
+msgstr "Discord の起動中に、プレイしているゲームを表示します。"
+
+#: assets/advanced_dialog.rml
+msgid "Log"
+msgstr "ログ"
+
+#: assets/advanced_dialog.rml
+msgid "Show the log console"
+msgstr "ログコンソールを表示"
+
+#: assets/advanced_dialog.rml
+msgid "The log is also written as it comes."
+msgstr "ログもそこに表示されます。"
+
+#: assets/advanced_dialog.rml
+msgid "Log filter"
+msgstr "ログフィルター"
+
+#: assets/advanced_dialog.rml
+msgid "What is written, as class:level."
+msgstr "ログに記録する内容。形式はクラス:レベルです。"
+
+#: assets/advanced_dialog.rml
+msgid "In game"
+msgstr "ゲーム中"
+
+#: assets/advanced_dialog.rml
+#: assets/controller_dialog.rml
+msgid "Restore defaults"
+msgstr "デフォルトに戻す"
+
+#: assets/advanced_dialog.rml
+msgid "Inherit all settings"
+msgstr "すべての設定を継承"
+
+#: assets/advanced_dialog.rml
+msgid "Restore the defaults of all the tabs?"
+msgstr "すべてのタブを既定値に戻しますか？"
+
+#: assets/advanced_dialog.rml
+msgid "Remove your overrides and re-enable NXEmu settings for this game?"
+msgstr "カスタマイズを削除して、このゲームの NXEmu 設定を再度有効にしますか?"
+
+#: assets/advanced_dialog.rml
+#: assets/profiles_dialog.rml
+msgid "Keep"
+msgstr "キープ"
+
+#: assets/advanced_dialog.rml
+msgid "Restore"
+msgstr "やり直し"
+
+#: assets/advanced_dialog.rml
+#: assets/directories_dialog.rml
+#: assets/firmware_dialog.rml
+#: assets/general_dialog.rml
+#: assets/main_window.rml
+#: assets/profiles_dialog.rml
+#: views/firmware_dialog.cpp
+msgid "Close"
+msgstr "閉じる"
+
+#: assets/controller_dialog.rml
+msgid "On, games see this player's controller as plugged into the console."
+msgstr "有効にすると、ゲームはこのプレーヤーのコントローラーが本体に接続されていると認識します。"
+
+#: assets/controller_dialog.rml
+msgid "Connected"
+msgstr "接続の状態"
+
+#: assets/controller_dialog.rml
+msgid "Controller"
+msgstr "コントローラー"
+
+#: assets/controller_dialog.rml
+#: views/controller_dialog.cpp
+msgid "Left stick"
+msgstr "左スティック"
+
+#: assets/controller_dialog.rml
+msgid "Deadzone"
+msgstr "遊び"
+
+#: assets/controller_dialog.rml
+msgid "Range"
+msgstr "可動範囲"
+
+#: assets/controller_dialog.rml
+msgid "Modifier range"
+msgstr "補助キー使用時の範囲"
+
+#: assets/controller_dialog.rml
+msgid "D-pad"
+msgstr "方向パッド"
+
+#: assets/controller_dialog.rml
+msgid "On, the controller shakes when games ask it to."
+msgstr "有効にすると、ゲームが要求したときにコントローラーが振動します。"
+
+#: assets/controller_dialog.rml
+msgid "Face buttons"
+msgstr "アクションボタン"
+
+#: assets/controller_dialog.rml
+#: views/controller_dialog.cpp
+msgid "Right stick"
+msgstr "右スティック"
+
+#: assets/controller_dialog.rml
+msgid "Asks for each control in turn"
+msgstr "各コマンドを順番に要求します"
+
+#: assets/controller_dialog.rml
+msgid "Bind all controls"
+msgstr "すべての操作を割り当て"
+
+#: assets/controller_dialog.rml
+msgid "Binds this player's controls as the input device suggests"
+msgstr "入力デバイスの推奨設定に従って、このプレイヤーの操作を割り当てます"
+
+#: assets/controller_dialog.rml
+#: assets/firmware_dialog.rml
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: assets/controller_dialog.rml
+msgid "Save"
+msgstr "保存"
+
+#: assets/directories_dialog.rml
+msgid "Add a directory"
+msgstr "フォルダーを追加"
+
+#: assets/directories_dialog.rml
+msgid "The game directories cannot change while a game is running."
+msgstr "ゲームの進行中はゲームフォルダーを編集できません。"
+
+#: assets/firmware_dialog.rml
+msgid "Install firmware"
+msgstr "ファームウェアをインストールする"
+
+#: assets/firmware_dialog.rml
+msgid "Source"
+msgstr "ソース"
+
+#: assets/firmware_dialog.rml
+msgid "Install"
+msgstr "インストール"
+
+#: assets/firmware_dialog.rml
+msgid "Finish"
+msgstr "終了"
+
+#: assets/firmware_dialog.rml
+msgid "Where is the firmware?"
+msgstr "ファームウェアはどこにありますか?"
+
+#: assets/firmware_dialog.rml
+msgid "Most games need the console's firmware. Choose the package to install it from, or drop it on this window."
+msgstr "ほとんどのゲームにはコンソールのファームウェアが必要です。インストールするファイルを選択するか、このウィンドウにドロップします。"
+
+#: assets/firmware_dialog.rml
+msgid "Firmware file"
+msgstr "ファームウェア ファイル"
+
+#: assets/firmware_dialog.rml
+msgid "A .zip archive, or a .dxci game card image that carries an update"
+msgstr "アップデートを含む .zip アーカイブまたは .dxci ゲーム カード イメージ"
+
+#: assets/firmware_dialog.rml
+msgid "Browse"
+msgstr "参照"
+
+#: assets/firmware_dialog.rml
+msgid "Firmware folder"
+msgstr "ファームウェアフォルダー"
+
+#: assets/firmware_dialog.rml
+msgid "A folder that holds the firmware's .nca files"
+msgstr ".nca ファームウェア ファイルが含まれるフォルダー"
+
+#: assets/firmware_dialog.rml
+msgid "The game starts afterwards, and without it if you would rather not."
+msgstr "その後、ゲームが開始されます。必要に応じてファームウェアなしでゲームが開始されます。"
+
+#: assets/firmware_dialog.rml
+msgid "The installed firmware stays in place until the new one is complete."
+msgstr "インストールされたファームウェアは、新しいファームウェアの準備ができるまでそのまま残ります。"
+
+#: assets/firmware_dialog.rml
+msgid "Replace the installed firmware?"
+msgstr "インストールされているファームウェアを交換しますか?"
+
+#: assets/firmware_dialog.rml
+msgid "Start without it"
+msgstr "ファームウェアなしでブートする"
+
+#: assets/firmware_dialog.rml
+msgid "Keep the installed one"
+msgstr "インストールされているバージョンを維持する"
+
+#: assets/firmware_dialog.rml
+msgid "Replace"
+msgstr "交換"
+
+#: assets/firmware_dialog.rml
+msgid "Choose another source"
+msgstr "別のソースを選択してください"
+
+#: assets/general_dialog.rml
+msgid "Display"
+msgstr "ディスプレイ"
+
+#: assets/general_dialog.rml
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Graphics device"
+msgstr "グラフィックス デバイス"
+
+#: assets/general_dialog.rml
+msgid "Console mode"
+msgstr "コンソールモード"
+
+#: assets/general_dialog.rml
+msgid "As on the television: games draw up to 1080p."
+msgstr "テレビと同様に、ゲームは最大 1080p で表示されます。"
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+#: views/settings_context.cpp
+msgid "Docked"
+msgstr "Docked"
+
+#: assets/general_dialog.rml
+msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
+msgstr "コンソール画面と同様: ゲームは 720p で表示されるため、コンピューターへの負担が少なくなります。"
+
+#: assets/general_dialog.rml
+#: views/controller_dialog.cpp
+#: views/main_window.cpp
+msgid "Handheld"
+msgstr "携帯"
+
+#: assets/general_dialog.rml
+msgid "Resolution"
+msgstr "解像度"
+
+#: assets/general_dialog.rml
+msgid "Window filter"
+msgstr "拡大縮小フィルター"
+
+#: assets/general_dialog.rml
+msgid "How the picture is fitted to the window."
+msgstr "画像がウィンドウにどのようにフィットするか。"
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+msgid "Sharpness of the FSR filter"
+msgstr "FSRフィルターのシャープネス"
+
+#: assets/general_dialog.rml
+msgid "Aspect ratio"
+msgstr "アスペクト比"
+
+#: assets/general_dialog.rml
+msgid "The shape of the picture in the window."
+msgstr "ウィンドウ内の画像の比率。"
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Vertical sync"
+msgstr "垂直同期"
+
+#: assets/general_dialog.rml
+msgid "Whole pictures only: no tearing."
+msgstr "ティアリングのない完全な画像。"
+
+#: assets/general_dialog.rml
+msgid "Language"
+msgstr "言語"
+
+#: assets/general_dialog.rml
+msgid "Console language"
+msgstr "コンソール言語"
+
+#: assets/general_dialog.rml
+msgid "The language games are shown in."
+msgstr "ゲームが表示される言語。"
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Region"
+msgstr "地域"
+
+#: assets/general_dialog.rml
+msgid "On, the region is the one chosen here. Off, it follows the console language."
+msgstr "有効にした場合、リージョンはここで選択したリージョンになります。無効にすると、コンソール言語に従います。"
+
+#: assets/general_dialog.rml
+msgid "Interface language"
+msgstr "インターフェース言語"
+
+#: assets/general_dialog.rml
+msgid "On, the interface language is chosen here. Off, it follows the console language."
+msgstr "オンの場合、ここでインターフェース言語を選択します。オフの場合、本体の言語に従います。"
+
+#: assets/general_dialog.rml
+msgid "Output device"
+msgstr "出力デバイス"
+
+#: assets/general_dialog.rml
+msgid "Where the sound of games is played."
+msgstr "ゲームオーディオが再生される場所。"
+
+#: assets/general_dialog.rml
+#: views/settings_context.cpp
+msgid "Output mode"
+msgstr "出力モード"
+
+#: assets/general_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "サラウンド サウンドには互換性のあるスピーカーが必要です。"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Pause emulation (F2)"
+msgstr "エミュレーションを一時停止します (F2)"
+
+#: assets/main_window.rml
+msgid "Stop emulation (F5)"
+msgstr "エミュレーション停止(F5)"
+
+#: assets/main_window.rml
+msgid "Minimise"
+msgstr "削減"
+
+#: assets/main_window.rml
+msgid "Maximise or restore"
+msgstr "拡大または復元"
+
+#: assets/main_window.rml
+msgid "Library"
+msgstr "ライブラリ"
+
+#: assets/main_window.rml
+msgid "Search games..."
+msgstr "ゲームを検索..."
+
+#: assets/main_window.rml
+msgid "Sort games"
+msgstr "ゲームを並べ替える"
+
+#: assets/main_window.rml
+msgid "Icon size"
+msgstr "アイコンのサイズ"
+
+#: assets/main_window.rml
+msgid "Title"
+msgstr "タイトル"
+
+#: assets/main_window.rml
+msgid "Card information"
+msgstr "カード情報"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Play time"
+msgstr "再生時間"
+
+#: assets/main_window.rml
+msgid "List view"
+msgstr "リストビュー"
+
+#: assets/main_window.rml
+msgid "Shows or hides the details of the selected game"
+msgstr "選択したゲームの詳細を表示または非表示にします"
+
+#: assets/main_window.rml
+msgid "Details"
+msgstr "詳細"
+
+#: assets/main_window.rml
+msgid "Cover"
+msgstr "カバー"
+
+#: assets/main_window.rml
+msgid "Game"
+msgstr "ゲーム"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Publisher"
+msgstr "エディター"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Version"
+msgstr "バージョン"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Last played"
+msgstr "最後の部分"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Format"
+msgstr "ファイル形式"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Size"
+msgstr "ファイルサイズ"
+
+#: assets/main_window.rml
+msgid "Actions"
+msgstr "アクション"
+
+#: assets/main_window.rml
+msgid "Select a game to see its details."
+msgstr "ゲームを選択して詳細を表示します。"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Play"
+msgstr "プレイ"
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr "ゲーム情報の読み取り"
+
+#: assets/main_window.rml
+msgid "Configure"
+msgstr "設定"
+
+#: assets/main_window.rml
+msgid "Saves"
+msgstr "セーブデータ"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Cache"
+msgstr "キャッシュ"
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Mods"
+msgstr "改造"
+
+#: assets/main_window.rml
+msgid "Scanning games..."
+msgstr "ゲームを検索しています..."
+
+#: assets/main_window.rml
+#: views/loading_screen.cpp
+msgid "Loading"
+msgstr "読み込み中"
+
+#: assets/main_window.rml
+#: views/main_window.cpp
+msgid "Paused"
+msgstr "一時停止中"
+
+#: assets/main_window.rml
+msgid "The resolution games are drawn at"
+msgstr "ゲームが表示される解像度"
+
+#: assets/main_window.rml
+msgid "Window filter: only applies when the game's resolution is lower than the window size"
+msgstr "ウィンドウフィルター：ゲームの解像度がウィンドウより小さいときのみ適用されます"
+
+#: assets/profiles_dialog.rml
+msgid "Profiles"
+msgstr "プロフィール"
+
+#: assets/profiles_dialog.rml
+msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
+msgstr "本体のプレイヤーです。各プレイヤーに専用のセーブデータがあり、ゲーム内に名前と画像が表示されます。有効なプロフィールでゲームが起動します。"
+
+#: assets/profiles_dialog.rml
+msgid "Profiles cannot change while a game is running."
+msgstr "ゲームの進行中はプロフィールを編集できません。"
+
+#: assets/profiles_dialog.rml
+msgid "Pictures of the console"
+msgstr "コンソールのイメージ"
+
+#: assets/profiles_dialog.rml
+msgid "Reading the pictures of the console..."
+msgstr "本体のプロフィール画像を読み込み中..."
+
+#: assets/profiles_dialog.rml
+msgid "The console has no picture to offer: they come with its firmware. Install it from the File menu."
+msgstr "本体のプロフィール画像がありません。画像はファームウェアに含まれています。「ファイル」メニューからインストールしてください。"
+
+#: assets/profiles_dialog.rml
+msgid "Background"
+msgstr "背景"
+
+#: assets/profiles_dialog.rml
+msgid "Back"
+msgstr "戻る"
+
+#: assets/profiles_dialog.rml
+msgid "Use this picture"
+msgstr "この画像を使用してください"
+
+#: assets/profiles_dialog.rml
+msgid "One of the pictures the console offers its players"
+msgstr "コンソールがプレーヤーに提供するイメージの 1 つ"
+
+#: assets/profiles_dialog.rml
+msgid "Choose a picture"
+msgstr "画像を選択してください"
+
+#: assets/profiles_dialog.rml
+msgid "A picture of yours: it is resized to what the console uses"
+msgstr "コンソール形式にサイズ変更された個人的な画像"
+
+#: assets/profiles_dialog.rml
+msgid "Picture from a file"
+msgstr "ファイルからの画像"
+
+#: assets/profiles_dialog.rml
+msgid "This file is not a picture NXEmu can read."
+msgstr "このファイルは、NXEmu が読み取れるイメージではありません。"
+
+#: assets/profiles_dialog.rml
+#: views/main_window.cpp
+msgid "Name"
+msgstr "名前"
+
+#: assets/profiles_dialog.rml
+msgid "Games start as this player, with these saves"
+msgstr "このプレイヤーとセーブデータでゲームを起動"
+
+#: assets/profiles_dialog.rml
+msgid "Play as this profile"
+msgstr "このプロフィールでプレイ"
+
+#: assets/profiles_dialog.rml
+msgid "Games start as this profile"
+msgstr "ゲームはこのプロフィールで開始されます"
+
+#: assets/profiles_dialog.rml
+msgid "Delete profile"
+msgstr "プロフィールの削除"
+
+#: assets/profiles_dialog.rml
+msgid "Delete"
+msgstr "削除"
+
+#: emulation/emulator_session.cpp
+msgid "Stop the current game before opening another one."
+msgstr "別のゲームを開く前に、現在のゲームを停止してください。"
+
+#: emulation/emulator_session.cpp
+msgid "Required modules failed to reload after stopping the game."
+msgstr "ゲームを停止した後、必要なモジュールをリロードできませんでした。"
+
+#: emulation/emulator_session.cpp
+msgid ""
+"The game file does not exist:\n"
+"%1"
+msgstr ""
+"ゲーム ファイルが存在しません:\n"
+"%1"
+
+#: emulation/emulator_session.cpp
+#: ui_application.cpp
+msgid "Required modules failed to load."
+msgstr "必要なモジュールをロードできませんでした。"
+
+#: host/ui_notification.cpp
+msgid "No"
+msgstr "いいえ"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Left"
+msgstr "左"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Right"
+msgstr "右"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Down"
+msgstr "下"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Up"
+msgstr "上"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Plus"
+msgstr "+"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Minus"
+msgstr "-"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Home"
+msgstr "HOME"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Capture"
+msgstr "キャプチャ"
+
+#: input/input_text.cpp
+msgid "Stick L"
+msgstr "L スティック"
+
+#: input/input_text.cpp
+msgid "Stick R"
+msgstr "R スティック"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Start"
+msgstr "開始"
+
+#: input/input_text.cpp
+msgid "Circle"
+msgstr "マル"
+
+#: input/input_text.cpp
+msgid "Cross"
+msgstr "バツ"
+
+#: input/input_text.cpp
+msgid "Square"
+msgstr "四角"
+
+#: input/input_text.cpp
+msgid "Triangle"
+msgstr "三角"
+
+#: input/input_text.cpp
+msgid "Share"
+msgstr "Share"
+
+#: input/input_text.cpp
+msgid "Options"
+msgstr "Options"
+
+#: input/input_text.cpp
+msgid "Touch"
+msgstr "タッチの設定"
+
+#: input/input_text.cpp
+msgid "Wheel"
+msgstr "ホイール"
+
+#: input/input_text.cpp
+msgid "Backward"
+msgstr "後ろ"
+
+#: input/input_text.cpp
+msgid "Forward"
+msgstr "前"
+
+#: input/input_text.cpp
+msgid "Task"
+msgstr "タスク"
+
+#: input/input_text.cpp
+msgid "Extra"
+msgstr "エクストラ"
+
+#: input/input_text.cpp
+msgid "Turbo"
+msgstr "ターボ"
+
+#: input/input_text.cpp
+msgid "Toggle"
+msgstr "トグル"
+
+#: input/input_text.cpp
+msgid "Not"
+msgstr "いいえ"
+
+#: input/input_text.cpp
+msgid "Invalid"
+msgstr "無効"
+
+#: input/input_text.cpp
+msgid "Hat %1"
+msgstr "方向パッド %1"
+
+#: input/input_text.cpp
+msgid "Axis %1"
+msgstr "軸 %1"
+
+#: input/input_text.cpp
+msgid "Axes %1, %2, %3"
+msgstr "軸 %1、%2、%3"
+
+#: input/input_text.cpp
+msgid "Motion %1"
+msgstr "移動 %1"
+
+#: input/input_text.cpp
+msgid "Button %1"
+msgstr "ボタン %1"
+
+#: input/input_text.cpp
+#: views/controller_dialog.cpp
+msgid "Unknown"
+msgstr "不明"
+
+#: library/play_time.cpp
+msgid "< 1m"
+msgstr "< 1 分"
+
+#. a time played, in minutes, then in hours and minutes.
+#: library/play_time.cpp
+msgid "%1m"
+msgstr "%1 分"
+
+#. a time played, in minutes, then in hours and minutes.
+#: library/play_time.cpp
+msgid "%1h %2m"
+msgstr "%1 時間 %2 分"
+
+#. a date and a time, in the syntax of strftime. The names of the months it gives are English: use %m where they would not do.
+#: library/play_time.cpp
+msgid "%b %d, %Y  %H:%M"
+msgstr "%Y-%m-%d  %H:%M"
+
+#: library/play_time.cpp
+msgid "Just now"
+msgstr "たった今"
+
+#: library/play_time.cpp
+msgid "%n minute ago"
+msgid_plural "%n minutes ago"
+msgstr[0] "%n 分前"
+
+#: library/play_time.cpp
+msgid "%n hour ago"
+msgid_plural "%n hours ago"
+msgstr[0] "%n 時間前"
+
+#: library/play_time.cpp
+msgid "%n day ago"
+msgid_plural "%n days ago"
+msgstr[0] "%n 日前"
+
+#: library/play_time.cpp
+msgid "%n week ago"
+msgid_plural "%n weeks ago"
+msgstr[0] "%n 週間前"
+
+#: library/play_time.cpp
+msgid "%n month ago"
+msgid_plural "%n months ago"
+msgstr[0] "%n か月前"
+
+#: library/play_time.cpp
+msgid "%n year ago"
+msgid_plural "%n years ago"
+msgstr[0] "%n 年前"
+
+#: ui_application.cpp
+msgid "Vulkan could not be initialised. Update the graphics driver and try again."
+msgstr "Vulkan を初期化できませんでした。グラフィックドライバーを更新して、再試行してください。"
+
+#: views/advanced_dialog.cpp
+msgid "None"
+msgstr "なし"
+
+#: views/advanced_dialog.cpp
+msgid "The picture as the game draws it."
+msgstr "ゲームが生成するイメージ。"
+
+#: views/advanced_dialog.cpp
+msgid "Light work, a little blur. The steadier picture at low resolutions."
+msgstr "要求が厳しくなく、わずかにぼやけています。低解像度でもより安定した画像。"
+
+#: views/advanced_dialog.cpp
+msgid "The best picture, for more work."
+msgstr "最高の画像ですが、要求はさらに厳しくなります。"
+
+#: views/advanced_dialog.cpp
+msgid "Automatic"
+msgstr "自動"
+
+#: views/advanced_dialog.cpp
+msgid "Follows the resolution chosen."
+msgstr "選択した解像度に従います。"
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "As the game asks"
+msgstr "ゲームによって異なる"
+
+#: views/advanced_dialog.cpp
+msgid "What the console would do."
+msgstr "コンソールと同じように。"
+
+#: views/advanced_dialog.cpp
+msgid "The sharpest. Light work for most graphics devices."
+msgstr "最も鮮明です。多くのグラフィックスデバイスで負荷が低くなります。"
+
+#: views/advanced_dialog.cpp
+msgid "Normal"
+msgstr "通常"
+
+#: views/advanced_dialog.cpp
+msgid "The fastest. Most games look right; particles often do not."
+msgstr "最速。ほとんどのゲームは正しく表示されますが、パーティクルが正しく表示されないことがよくあります。"
+
+#: views/advanced_dialog.cpp
+msgid "High"
+msgstr "高"
+
+#: views/advanced_dialog.cpp
+msgid "What some games need to look right. Some need it from their start."
+msgstr "一部のゲームを正しく表示するために必要です。起動時から必要なゲームもあります。"
+
+#: views/advanced_dialog.cpp
+msgid "Extreme"
+msgstr "エクストリーム"
+
+#: views/advanced_dialog.cpp
+msgid "Slow: to look for a fault."
+msgstr "遅い: 問題を確認するため。"
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "As the accuracy level"
+msgstr "精度レベルに応じて"
+
+#: views/advanced_dialog.cpp
+msgid "Safe when the accuracy level is High or Extreme."
+msgstr "精度レベルが High または Extreme の場合は安全です。"
+
+#: views/advanced_dialog.cpp
+msgid "Unsafe"
+msgstr "安全性を優先しない"
+
+#: views/advanced_dialog.cpp
+msgid "Faster."
+msgstr "高速化。"
+
+#: views/advanced_dialog.cpp
+msgid "Safe"
+msgstr "わかりました"
+
+#: views/advanced_dialog.cpp
+msgid "Steadier: it fixes some games."
+msgstr "より安定しました: いくつかのゲームを修正しました。"
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Processor"
+msgstr "プロセッサー"
+
+#: views/advanced_dialog.cpp
+msgid "The slowest, and the safest."
+msgstr "最も遅く、最も安全です。"
+
+#: views/advanced_dialog.cpp
+msgid "The usual choice."
+msgstr "通常の選択。"
+
+#: views/advanced_dialog.cpp
+#: views/settings_context.cpp
+msgid "Processor, in the background"
+msgstr "CPU、バックグラウンド"
+
+#: views/advanced_dialog.cpp
+msgid "No stutter, but textures show wrong until they are decoded."
+msgstr "途切れはありませんが、デコードされるまでテクスチャが正しくありません。"
+
+#: views/advanced_dialog.cpp
+msgid "The best picture, and the most memory."
+msgstr "最高の画像と最高のメモリ消費量。"
+
+#: views/advanced_dialog.cpp
+msgid "BC1 (low quality)"
+msgstr "BC1 (低品質)"
+
+#: views/advanced_dialog.cpp
+msgid "The least memory."
+msgstr "メモリ消費量が最も少ない。"
+
+#: views/advanced_dialog.cpp
+msgid "BC3 (medium quality)"
+msgstr "BC3 (中品質)"
+
+#: views/advanced_dialog.cpp
+msgid "Less memory."
+msgstr "メモリが少なくなっています。"
+
+#: views/advanced_dialog.cpp
+msgid "Conservative"
+msgstr "慎重です"
+
+#: views/advanced_dialog.cpp
+msgid "Leaves memory to the other applications."
+msgstr "他のアプリケーション用にメモリを残します。"
+
+#: views/advanced_dialog.cpp
+msgid "Aggressive"
+msgstr "アグレッシブ"
+
+#: views/advanced_dialog.cpp
+msgid "Takes what there is: other applications can slow down. No effect on graphics built into the processor."
+msgstr "利用可能なメモリをすべて使用します。他のアプリケーションの速度が低下する可能性があります。プロセッサに統合されたグラフィックス チップには影響しません。"
+
+#: views/advanced_dialog.cpp
+msgid "The fastest in most cases."
+msgstr "ほとんどの場合最速。"
+
+#: views/advanced_dialog.cpp
+msgid "When the graphics device shows videos wrong."
+msgstr "グラフィックス デバイスでビデオが正しく表示されない場合。"
+
+#: views/advanced_dialog.cpp
+msgid "Videos stay black."
+msgstr "ビデオは黒いままです。"
+
+#: views/advanced_dialog.cpp
+msgid "Translated (Dynarmic)"
+msgstr "コード変換 (Dynarmic)"
+
+#: views/advanced_dialog.cpp
+msgid "The code is translated for this computer's processor. Runs every game."
+msgstr "コードは、このコンピュータのプロセッサ用に変換されます。すべてのゲームと互換性があります。"
+
+#: views/advanced_dialog.cpp
+msgid "Native (NCE)"
+msgstr "ネイティブ (NCE)"
+
+#: views/advanced_dialog.cpp
+msgid "The code runs as it is on this computer's processor. The fastest; the games it cannot run are translated."
+msgstr "コードは、このコンピュータのプロセッサ上で直接実行されます。最速。互換性のないゲームはコード変換を使用します。"
+
+#: views/advanced_dialog.cpp
+msgid "Accurate"
+msgstr "正確"
+
+#: views/advanced_dialog.cpp
+msgid "Slower: for a game that misbehaves."
+msgstr "低速です。正常に動作しないゲーム向けです。"
+
+#: views/advanced_dialog.cpp
+msgid "Faster, and some games break."
+msgstr "高速化されましたが、一部のゲームが動作しなくなりました。"
+
+#: views/advanced_dialog.cpp
+msgid "Paranoid"
+msgstr "パラノイド"
+
+#: views/advanced_dialog.cpp
+msgid "Very slow: to look for a fault."
+msgstr "非常に遅い: 問題を確認するため。"
+
+#: views/advanced_dialog.cpp
+msgid "4 GB"
+msgstr "4GB"
+
+#: views/advanced_dialog.cpp
+msgid "What the console has."
+msgstr "コンソール メモリ。"
+
+#: views/advanced_dialog.cpp
+msgid "6 GB"
+msgstr "6GB"
+
+#: views/advanced_dialog.cpp
+msgid "For mods that need more console memory."
+msgstr "より多くのコンソール メモリを必要とする MOD 用。"
+
+#: views/advanced_dialog.cpp
+msgid "8 GB"
+msgstr "8GB"
+
+#: views/advanced_dialog.cpp
+msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr "コンソールよりも多くのメモリを必要とする MOD 用。それ以外の利点はありません。"
+
+#: views/advanced_dialog.cpp
+msgid "None (no sound)"
+msgstr "なし（音なし）"
+
+#: views/advanced_dialog.cpp
+msgid "The one that suits this computer."
+msgstr "このパソコンに適合します。"
+
+#: views/advanced_dialog.cpp
+#: views/general_dialog.cpp
+msgid "System default"
+msgstr "システムのデフォルト"
+
+#: views/advanced_dialog.cpp
+msgid "The one the computer records from."
+msgstr "コンピューターが記録に使用するもの。"
+
+#: views/advanced_dialog.cpp
+#: views/general_dialog.cpp
+msgid "%1 (not connected)"
+msgstr "%1 (未接続)"
+
+#: views/advanced_dialog.cpp
+msgid "Games listen to the default of the computer until it is back."
+msgstr "再接続されるまで、コンピューターの既定の音声入力デバイスを使用します。"
+
+#: views/advanced_dialog.cpp
+msgid "A shortcut is a function key, or a key with %1 or Alt."
+msgstr "ショートカットには、ファンクションキー、または %1 か Alt を伴うキーを使用します。"
+
+#: views/advanced_dialog.cpp
+msgid "%1 is already the shortcut of \"%2\"."
+msgstr "%1 はすでに「%2」のショートカットです。"
+
+#: views/advanced_dialog.cpp
+msgid "Press the keys..."
+msgstr "キーを押してください..."
+
+#: views/controller_dialog.cpp
+msgid "Pressed"
+msgstr "押下"
+
+#: views/controller_dialog.cpp
+msgid "Modifier"
+msgstr "変更"
+
+#: views/controller_dialog.cpp
+msgid "Left SL"
+msgstr "SL 左"
+
+#: views/controller_dialog.cpp
+msgid "Left SR"
+msgstr "SR左"
+
+#: views/controller_dialog.cpp
+msgid "Right SL"
+msgstr "右SL"
+
+#: views/controller_dialog.cpp
+msgid "Right SR"
+msgstr "右SR"
+
+#: views/controller_dialog.cpp
+msgid "Motion 1"
+msgstr "モーション1"
+
+#: views/controller_dialog.cpp
+msgid "Motion 2"
+msgstr "モーション2"
+
+#: views/controller_dialog.cpp
+msgid "Pro Controller"
+msgstr "Proコントローラー"
+
+#: views/controller_dialog.cpp
+msgid "Dual Joy-Cons"
+msgstr "Joy-Con ペア"
+
+#: views/controller_dialog.cpp
+msgid "Left Joy-Con"
+msgstr "Joy-Con 左"
+
+#: views/controller_dialog.cpp
+msgid "Right Joy-Con"
+msgstr "Joy-Con 右"
+
+#: views/controller_dialog.cpp
+msgid "GameCube Controller"
+msgstr "ゲームキューブコントローラー"
+
+#: views/controller_dialog.cpp
+msgid "The controller's gyroscope, for games played by tilting or shaking it"
+msgstr "コントローラーを傾けたり振ったりするゲーム用のジャイロセンサー"
+
+#: views/controller_dialog.cpp
+msgid "Unbind"
+msgstr "割り当てのクリア"
+
+#: views/controller_dialog.cpp
+msgid "Any device"
+msgstr "すべてのデバイス"
+
+#: views/controller_dialog.cpp
+msgid "Keyboard"
+msgstr "キーボード"
+
+#: views/controller_dialog.cpp
+msgid "Not connected"
+msgstr "接続なし"
+
+#: views/controller_dialog.cpp
+#: views/profiles_dialog.cpp
+msgid "Player %1"
+msgstr "プレーヤー %1"
+
+#: views/controller_dialog.cpp
+msgid "Press..."
+msgstr "を押します..."
+
+#: views/controller_dialog.cpp
+msgid "Not set"
+msgstr "未定義"
+
+#: views/controller_dialog.cpp
+msgid "Control stick"
+msgstr "コントロールスティック"
+
+#: views/controller_dialog.cpp
+msgid "C-stick"
+msgstr "スティックC"
+
+#: views/controller_dialog.cpp
+msgid "Click a control or a button of the picture to bind it."
+msgstr "画像上のコントロールまたはボタンをクリックして割り当てます。"
+
+#: views/controller_dialog.cpp
+msgid "Press a key, or move the stick sideways and then up and down."
+msgstr "ボタンを押すか、スティックを水平、垂直に動かします。"
+
+#: views/controller_dialog.cpp
+msgid "Shake a controller that has a gyroscope, or press a key that will stand for a shake."
+msgstr "ジャイロスコープを搭載したコントローラーを振るか、ボタンを押すと揺れをシミュレートします。"
+
+#: views/controller_dialog.cpp
+msgid "Press a key or a button."
+msgstr "キーまたはボタンを押します。"
+
+#. %1 is what to do, %2 the seconds left to do it.
+#: views/controller_dialog.cpp
+msgid "%1 Esc cancels. (%2)"
+msgstr "%1 Esc キーでキャンセル。(%2)"
+
+#: views/directories_dialog.cpp
+msgid "Not found: the games in it are not shown."
+msgstr "見つかりません: このフォルダー内のゲームは表示されません。"
+
+#: views/directories_dialog.cpp
+msgid "Remove"
+msgstr "削除"
+
+#: views/directories_dialog.cpp
+msgid "No game directory yet. Add the folders your games are in."
+msgstr "ゲームフォルダーがありません。ゲームを含むフォルダーを追加します。"
+
+#: views/directories_dialog.cpp
+msgid "Choose a game directory"
+msgstr "ゲームフォルダーを選択してください"
+
+#: views/firmware_dialog.cpp
+#: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 MB"
+msgstr "%1 MB"
+
+#: views/firmware_dialog.cpp
+msgid "Firmware installed"
+msgstr "ファームウェアがインストールされました"
+
+#: views/firmware_dialog.cpp
+msgid "Games can use it from now on."
+msgstr "ゲームで使用できるようになりました。"
+
+#: views/firmware_dialog.cpp
+msgid "Installation cancelled"
+msgstr "インストールがキャンセルされました"
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was."
+msgstr "インストールされているファームウェアは保持されています。"
+
+#: views/firmware_dialog.cpp
+msgid "The source could not be read"
+msgstr "ソースを読み取れません"
+
+#: views/firmware_dialog.cpp
+msgid "Check that the file or the folder is still there and that NXEmu may read it."
+msgstr "ファイルまたはフォルダーがまだ存在し、NXEmu がそれを読み取ることができることを確認してください。"
+
+#: views/firmware_dialog.cpp
+msgid "No firmware found there"
+msgstr "この場所にはファームウェアが見つかりません"
+
+#: views/firmware_dialog.cpp
+msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr ".zip ファームウェア アーカイブ、アップデートを含む .dxci ゲーム カード イメージ、または .nca ファームウェア ファイルを含むフォルダーを選択します。"
+
+#: views/firmware_dialog.cpp
+msgid "The console's storage cannot be written"
+msgstr "コンソール ストレージに書き込めません"
+
+#: views/firmware_dialog.cpp
+msgid "Check that NXEmu may write to its data folder, then try again."
+msgstr "NXEmu がデータ フォルダーに書き込めることを確認してから、再試行してください。"
+
+#: views/firmware_dialog.cpp
+msgid "The firmware could not be replaced"
+msgstr "ファームウェアを交換できません"
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was put back. The log tells what went wrong."
+msgstr "インストールされているファームウェアが復元されました。ログには問題の原因が示されます。"
+
+#: views/firmware_dialog.cpp
+msgid "Copying the firmware failed"
+msgstr "ファームウェアのコピーに失敗しました"
+
+#: views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was. Check the free disk space; the log tells what went wrong."
+msgstr "インストールされているファームウェアは保持されています。利用可能なディスク容量を確認してください。ログには問題の原因が示されています。"
+
+#: views/firmware_dialog.cpp
+msgid "Start the game"
+msgstr "ゲームを開始します"
+
+#: views/firmware_dialog.cpp
+msgid "This game carries firmware %1"
+msgstr "このゲームにはファームウェア %1 が含まれています"
+
+#: views/firmware_dialog.cpp
+msgid "No firmware is installed yet, and most games need one. NXEmu can install the game's before starting it."
+msgstr "ファームウェアはインストールされていません。ほとんどのゲームではファームウェアが必要です。 NXEmu は、ゲームを起動する前にゲーム 1 をインストールできます。"
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
+msgstr "%1 ファームウェアがインストールされていますが、このゲームは新しいバージョン用に設計されています。 NXEmu は、ゲームを起動する前にゲーム 1 をインストールできます。"
+
+#: views/firmware_dialog.cpp
+msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
+msgstr "ファイルにはファームウェア %1 が含まれており、ファームウェア %2 がインストールされています。インストールすると置き換えられます。"
+
+#: views/firmware_dialog.cpp
+msgid "Firmware"
+msgstr "ファームウェア"
+
+#: views/firmware_dialog.cpp
+#: views/main_window.cpp
+msgid "All files"
+msgstr "すべてのファイル"
+
+#: views/firmware_dialog.cpp
+msgid "Choose the folder that holds the firmware"
+msgstr "ファームウェアを含むフォルダーを選択してください"
+
+#: views/firmware_dialog.cpp
+msgid "No firmware is installed yet."
+msgstr "ファームウェアがインストールされていません。"
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 is installed."
+msgstr "ファームウェア %1 がインストールされています。"
+
+#: views/firmware_dialog.cpp
+msgid "Copying the firmware..."
+msgstr "ファームウェアのコピー..."
+
+#: views/firmware_dialog.cpp
+#: views/main_window.cpp
+msgid "%1 of %2"
+msgstr "%1 上の %2"
+
+#: views/firmware_dialog.cpp
+msgid "Checking the firmware..."
+msgstr "ファームウェアを確認しています..."
+
+#: views/firmware_dialog.cpp
+msgid "File %1 of %2"
+msgstr "%2 上のファイル %1"
+
+#: views/firmware_dialog.cpp
+msgid "Putting the firmware in place..."
+msgstr "ファームウェアをインストールしています..."
+
+#: views/firmware_dialog.cpp
+msgid "Firmware %1 installed"
+msgstr "ファームウェア %1 がインストールされています"
+
+#: views/game_details_panel.cpp
+msgid "Updates"
+msgstr "アップデート"
+
+#: views/game_details_panel.cpp
+msgid "DLC"
+msgstr "DLC"
+
+#: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 GB"
+msgstr "%1 ゴー"
+
+#: views/game_details_panel.cpp
+msgid "%1 KB"
+msgstr "%1 KB"
+
+#: views/game_details_panel.cpp
+msgid "Version %1, title ID %2"
+msgstr "バージョン %1、タイトル ID %2"
+
+#: views/game_details_panel.cpp
+msgid "DLC %1"
+msgstr "DLC %1"
+
+#: views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr "このゲーム固有の設定"
+
+#: views/game_details_panel.cpp
+msgid "This game has not saved anything yet"
+msgstr "このゲームにはまだセーブデータがありません"
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder this game saves in"
+msgstr "このゲームのセーブデータフォルダーを開きます"
+
+#: views/game_details_panel.cpp
+msgid "This game has no shader cache yet"
+msgstr "このゲームにはシェーダー キャッシュがまだありません"
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder of this game's shader cache"
+msgstr "このゲームのシェーダー キャッシュ フォルダーを開きます"
+
+#: views/game_details_panel.cpp
+msgid "Opens the folder this game's mods go in"
+msgstr "このゲームの MOD フォルダーを開きます"
+
+#: views/game_details_panel.cpp
+msgid "Add-on content"
+msgstr "追加コンテンツ"
+
+#: views/game_details_panel.cpp
+msgid "%n item"
+msgid_plural "%n items"
+msgstr[0] "%n 件"
+
+#: views/game_details_panel.cpp
+msgid "No update, DLC or mod found for this game."
+msgstr "このゲームにはアップデート、DLC、MOD が見つかりません。"
+
+#: views/game_details_panel.cpp
+msgid "Remove User override; inherit NXEmu or global settings"
+msgstr "ユーザーのカスタマイズを削除します。 NXEmu またはグローバル設定を継承"
+
+#: views/game_details_panel.cpp
+msgid "Disable NXEmu override for this game"
+msgstr "このゲームの NXEmu カスタマイズを無効にします"
+
+#: views/game_details_panel.cpp
+msgid "Enable NXEmu override for this game"
+msgstr "このゲームの NXEmu カスタマイズを有効にする"
+
+#: views/game_details_panel.cpp
+msgid "Replaced by User"
+msgstr "ユーザーによって置き換えられました"
+
+#: views/game_details_panel.cpp
+msgid "Disabled"
+msgstr "無効"
+
+#: views/game_details_panel.cpp
+msgid "User"
+msgstr "ユーザー"
+
+#: views/game_details_panel.cpp
+msgid "User overrides"
+msgstr "ユーザーによるカスタマイズ"
+
+#: views/game_details_panel.cpp
+msgid "NXEmu overrides"
+msgstr "NXEmu の個別設定"
+
+#: views/general_dialog.cpp
+msgid "Japan"
+msgstr "日本"
+
+#: views/general_dialog.cpp
+msgid "Americas"
+msgstr "アメリカ大陸"
+
+#: views/general_dialog.cpp
+msgid "Europe"
+msgstr "ヨーロッパ"
+
+#: views/general_dialog.cpp
+msgid "Australia"
+msgstr "オーストラリア"
+
+#: views/general_dialog.cpp
+msgid "China"
+msgstr "中国"
+
+#: views/general_dialog.cpp
+msgid "Korea"
+msgstr "韓国"
+
+#: views/general_dialog.cpp
+msgid "Taiwan"
+msgstr "台湾"
+
+#: views/general_dialog.cpp
+msgid "For games modified to draw this shape. The others are squeezed into it."
+msgstr "この画面比率に対応するよう改造されたゲーム向けです。他のゲームでは画像が変形します。"
+
+#: views/general_dialog.cpp
+msgid "The shape of the console's picture. The right choice for nearly every game."
+msgstr "コンソール画像の比率。ほぼすべてのゲームにとって正しい選択です。"
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "Stretch to the window"
+msgstr "ウィンドウに合わせて引き伸ばす"
+
+#: views/general_dialog.cpp
+msgid "Fills the window whatever its shape. The picture is deformed."
+msgstr "比率に関係なくウィンドウを塗りつぶします。画像が歪んでしまいます。"
+
+#: views/general_dialog.cpp
+msgid "On"
+msgstr "オン"
+
+#: views/general_dialog.cpp
+msgid "Each picture waits for the screen. No tearing: the usual choice."
+msgstr "各フレームは画面の更新を待ちます。ティアリングを防ぐ、標準的な選択です。"
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "On, late pictures tear"
+msgstr "オン、遅延時はティアリングを許可"
+
+#: views/general_dialog.cpp
+msgid "As On, but a picture that comes late is shown at once. It tears instead of stuttering."
+msgstr "オンと同様ですが、遅れたフレームはすぐに表示します。カクつきの代わりにティアリングが発生します。"
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "On, lowest delay"
+msgstr "オン、最小遅延"
+
+#: views/general_dialog.cpp
+msgid "The screen always gets the newest picture. No tearing and less delay, for more work. Not every computer can do it."
+msgstr "常に最新のフレームを画面に表示します。ティアリングを防ぎ遅延を減らしますが、負荷が高くなります。対応していない環境もあります。"
+
+#: views/general_dialog.cpp
+msgid "Off"
+msgstr "オフ"
+
+#: views/general_dialog.cpp
+msgid "Pictures are shown as soon as they are drawn. The least delay, but the picture can tear."
+msgstr "描画が完了するとすぐに表示します。遅延は最小ですが、ティアリングが発生する場合があります。"
+
+#: views/general_dialog.cpp
+msgid "Built into the processor."
+msgstr "プロセッサーに統合されています。"
+
+#: views/general_dialog.cpp
+msgid "A graphics card."
+msgstr "グラフィックス カード。"
+
+#: views/general_dialog.cpp
+msgid "Not available"
+msgstr "利用不可"
+
+#: views/general_dialog.cpp
+msgid "What the console draws."
+msgstr "コンソールの解像度。"
+
+#: views/general_dialog.cpp
+msgid "Less than the console draws: blurrier, for a computer that struggles."
+msgstr "コンソールの解像度以下: よりぼやけており、コンピュータにとっては困難です。"
+
+#: views/general_dialog.cpp
+msgid "More than the console draws: sharper, and more work for the graphics device."
+msgstr "コンソール解像度以上: 鮮明ですが、グラフィックス デバイスへの要求が高くなります。"
+
+#: views/general_dialog.cpp
+msgid "%1 (native)"
+msgstr "%1 (ネイティブ)"
+
+#: views/general_dialog.cpp
+#: views/main_window.cpp
+msgid "Gaussian"
+msgstr "Gaussian"
+
+#: views/general_dialog.cpp
+msgid "The one the computer plays its sounds on."
+msgstr "コンピューターがサウンドをブロードキャストするために使用するもの。"
+
+#: views/general_dialog.cpp
+msgid "Games play on the default of the computer until it is back."
+msgstr "ゲームでは、再接続するまでコンピュータのデフォルト出力が使用されます。"
+
+#: views/general_dialog.cpp
+msgid "Stereo"
+msgstr "ステレオ"
+
+#: views/general_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "2 チャンネル: ヘッドフォンとほとんどのスピーカー。"
+
+#: views/general_dialog.cpp
+msgid "Surround"
+msgstr "サラウンド"
+
+#: views/general_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "6 チャンネル、部屋のあちこちに配置されたスピーカー用。"
+
+#: views/general_dialog.cpp
+msgid "Mono"
+msgstr "モノラル"
+
+#: views/general_dialog.cpp
+msgid "One channel."
+msgstr "1 チャネル。"
+
+#: views/general_dialog.cpp
+msgid "Games are drawn in %1p."
+msgstr "ゲームは%1pで表示されます。"
+
+#: views/general_dialog.cpp
+msgid "Chosen here, whatever the language."
+msgstr "言語に関係なく、ここで選択されます。"
+
+#: views/general_dialog.cpp
+#: views/settings_context.cpp
+msgid "Follows the console language."
+msgstr "コンソール言語に従います。"
+
+#: views/general_dialog.cpp
+msgid "This is the graphics built into the processor. Games run better on %1."
+msgstr "これは、プロセッサに統合されたグラフィックス チップです。ゲームは %1 で最適に動作します。"
+
+#: views/general_dialog.cpp
+msgid "Used from the next game on."
+msgstr "次のゲームから使用されます。"
+
+#: views/general_dialog.cpp
+msgid "What draws the games: this computer has %1."
+msgstr "ゲームの描画に使うデバイス。このコンピューターには %1 台あります。"
+
+#: views/general_dialog.cpp
+msgid "What draws the games."
+msgstr "ゲームの描画に使うグラフィックスデバイス。"
+
+#: views/hotkeys.h
+msgid "Load a file"
+msgstr "ファイルを読み込む"
+
+#: views/hotkeys.h
+msgid "Exit"
+msgstr "終了"
+
+#: views/hotkeys.h
+msgid "Fullscreen"
+msgstr "全画面表示"
+
+#: views/hotkeys.h
+msgid "Leave fullscreen"
+msgstr "全画面表示を終了"
+
+#: views/hotkeys.h
+msgid "Hide or show the interface"
+msgstr "インターフェースの表示/非表示"
+
+#: views/hotkeys.h
+#: views/main_window.cpp
+msgid "Show performance"
+msgstr "パフォーマンスを表示"
+
+#: views/hotkeys.h
+msgid "Pause or continue"
+msgstr "一時停止/再開"
+
+#: views/hotkeys.h
+msgid "Stop the game"
+msgstr "ゲームを停止"
+
+#: views/hotkeys.h
+msgid "Docked or handheld"
+msgstr "Docked または携帯モード"
+
+#: views/loading_screen.cpp
+msgid "Opening the game..."
+msgstr "ゲームを開いています..."
+
+#: views/loading_screen.cpp
+msgid "Preparing shaders"
+msgstr "シェーダの準備"
+
+#: views/loading_screen.cpp
+msgid "Starting..."
+msgstr "開始中..."
+
+#: views/main_window.cpp
+msgid "Recent"
+msgstr "最近"
+
+#: views/main_window.cpp
+msgid "NXEmu - Exit"
+msgstr "NXEmu - 終了"
+
+#: views/main_window.cpp
+msgid ""
+"Clear the shader cache for %1?\n"
+"\n"
+"Shaders will be rebuilt the next time you play."
+msgstr ""
+"%1のシェーダーキャッシュを削除しますか？\n"
+"\n"
+"次回プレイ時にシェーダーが再構築されます。"
+
+#: views/main_window.cpp
+msgid "Clear cache"
+msgstr "キャッシュを削除"
+
+#: views/main_window.cpp
+msgid "Could not clear the cache: %1"
+msgstr "キャッシュを削除できませんでした：%1"
+
+#: views/main_window.cpp
+msgid "&Load File"
+msgstr "ファイルをロード(&L)"
+
+#: views/main_window.cpp
+msgid "&Recent File"
+msgstr "最近使ったファイル(&R)"
+
+#: views/main_window.cpp
+msgid "Open &NXEmu Folders"
+msgstr "フォルダを開く&NXEmu"
+
+#: views/main_window.cpp
+msgid "&App Directory"
+msgstr "アプリケーションフォルダー(&A)"
+
+#: views/main_window.cpp
+msgid "&Log Folder"
+msgstr "ログフォルダー(&L)"
+
+#: views/main_window.cpp
+msgid "E&xit"
+msgstr "終了(&E)"
+
+#: views/main_window.cpp
+msgid "&File"
+msgstr "ファイル(&F)"
+
+#: views/main_window.cpp
+msgid "&Emulation"
+msgstr "エミュレーション(&E)"
+
+#: views/main_window.cpp
+msgid "Continue"
+msgstr "続行"
+
+#: views/main_window.cpp
+msgid "Pause"
+msgstr "一時停止"
+
+#: views/main_window.cpp
+msgid "&Stop"
+msgstr "停止(&S)"
+
+#: views/main_window.cpp
+msgid "Limit &Speed"
+msgstr "速度を制限(&S)"
+
+#: views/main_window.cpp
+msgid "&Fullscreen"
+msgstr "全画面表示(&F)"
+
+#: views/main_window.cpp
+msgid "Show &UI"
+msgstr "インターフェースを表示(&S)"
+
+#: views/main_window.cpp
+msgid "Hide &UI"
+msgstr "インターフェイスを非表示(&H)"
+
+#: views/main_window.cpp
+msgid "Measures per second"
+msgstr "1 秒あたりの測定数"
+
+#: views/main_window.cpp
+msgid "History length"
+msgstr "履歴の長さ"
+
+#: views/main_window.cpp
+msgid "How many measures the history shows"
+msgstr "履歴に表示する測定数"
+
+#: views/main_window.cpp
+msgid "Window size"
+msgstr "ウィンドウサイズ"
+
+#: views/main_window.cpp
+msgid "Performance overlay"
+msgstr "パフォーマンスオーバーレイ"
+
+#: views/main_window.cpp
+msgid "&Settings"
+msgstr "パラメータ(&P)"
+
+#: views/main_window.cpp
+msgid "Install &Firmware"
+msgstr "ファームウェアをインストール(&F)"
+
+#: views/main_window.cpp
+msgid "&Help"
+msgstr "ヘルプ(&H)"
+
+#: views/main_window.cpp
+msgid "&Discord"
+msgstr "&Discord"
+
+#: views/main_window.cpp
+msgid "&Report Issues"
+msgstr "問題を報告(&R)"
+
+#: views/main_window.cpp
+msgid "&About NXEmu"
+msgstr "NXEmu について(&A)"
+
+#: views/main_window.cpp
+msgid "%n game"
+msgid_plural "%n games"
+msgstr[0] "%n 本のゲーム"
+
+#: views/main_window.cpp
+msgid "No game matches your search."
+msgstr "検索に一致するゲームはありません。"
+
+#: views/main_window.cpp
+msgid "No game directory yet."
+msgstr "ゲームフォルダーがありません。"
+
+#: views/main_window.cpp
+msgid "Add one in the settings"
+msgstr "設定に追加します"
+
+#: views/main_window.cpp
+msgid "No games found in your game directories."
+msgstr "ゲーム フォルダーにゲームが見つかりません。"
+
+#: views/main_window.cpp
+msgid "Change them in the settings"
+msgstr "設定で変更してください"
+
+#: views/main_window.cpp
+msgid "Never"
+msgstr "決してしない"
+
+#: views/main_window.cpp
+msgid "More actions"
+msgstr "その他のアクション"
+
+#: views/main_window.cpp
+msgid "Title ID"
+msgstr "タイトルID"
+
+#: views/main_window.cpp
+msgid "Start Game"
+msgstr "ゲームを開始"
+
+#: views/main_window.cpp
+msgid "Game settings"
+msgstr "ゲームの設定"
+
+#: views/main_window.cpp
+msgid "Open saves"
+msgstr "セーブデータを開く"
+
+#: views/main_window.cpp
+msgid "Open cache"
+msgstr "キャッシュを開く"
+
+#: views/main_window.cpp
+msgid "Open Containing Folder"
+msgstr "ゲームフォルダーを開く"
+
+#: views/main_window.cpp
+msgid "Resume emulation (F2)"
+msgstr "エミュレーションを再開 (F2)"
+
+#: views/main_window.cpp
+msgid "Press %1 or %2 to leave fullscreen"
+msgstr "%1 または %2 で全画面表示を終了します"
+
+#: views/main_window.cpp
+msgid "Press %1 to show the interface"
+msgstr "%1 でインターフェースを表示します"
+
+#: views/main_window.cpp
+msgid "Use game settings"
+msgstr "ゲームの設定に従う"
+
+#: views/main_window.cpp
+msgid "Manage profiles"
+msgstr "プロフィールを管理"
+
+#: views/main_window.cpp
+msgid "Default"
+msgstr "デフォルト"
+
+#: views/main_window.cpp
+msgid "Sharpness: once FSR is the filter"
+msgstr "シャープネス：FSRフィルターの選択時"
+
+#: views/main_window.cpp
+msgid "The resolution scale cannot change while a game is running"
+msgstr "ゲームの進行中に解像度スケールを変更することはできません"
+
+#: views/main_window.cpp
+msgid "The profile cannot change while a game is running"
+msgstr "ゲームの進行中はプロフィールを変更できません"
+
+#: views/main_window.cpp
+msgid "The profile games start as: its saves are the ones used"
+msgstr "ゲーム起動時に使用するプロフィールとセーブデータ"
+
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "Building: %n shader"
+msgid_plural "Building: %n shaders"
+msgstr[0] "コンパイル中: %n 個のシェーダー"
+
+#: views/main_window.cpp
+msgid "Firmware: %1"
+msgstr "ファームウェア: %1"
+
+#: views/main_window.cpp
+msgid "Switch games"
+msgstr "スイッチ ゲーム"
+
+#: views/main_window.cpp
+msgid "NXEmu - Stop Emulation"
+msgstr "NXEmu - エミュレーションの停止"
+
+#: views/main_window.cpp
+msgid ""
+"The currently running application has requested NXEmu to not exit.\n"
+"\n"
+"Would you like to bypass this and stop emulation anyway?"
+msgstr ""
+"現在のアプリケーションは、NXEmu を閉じないように要求しました。\n"
+"\n"
+"この要求を無視してエミュレーションを停止しますか?"
+
+#: views/main_window.cpp
+msgid ""
+"Are you sure you want to stop the emulation?\n"
+"\n"
+"Any unsaved progress will be lost."
+msgstr ""
+"エミュレーションを停止してもよろしいですか?\n"
+"\n"
+"保存されていない進行状況は失われます。"
+
+#: views/performance_overlay.h
+msgid "History"
+msgstr "履歴"
+
+#: views/performance_overlay.h
+msgid "Lowest, average and highest"
+msgstr "最低・平均・最高"
+
+#: views/performance_overlay.h
+msgid "Frame time"
+msgstr "フレーム時間"
+
+#: views/performance_overlay.h
+msgid "Longest frame"
+msgstr "最長フレーム"
+
+#: views/performance_overlay.h
+msgid "Emulation speed"
+msgstr "エミュレーション速度"
+
+#: views/performance_overlay.h
+msgid "Processor use"
+msgstr "プロセッサ使用率"
+
+#: views/performance_overlay.h
+msgid "Memory use"
+msgstr "メモリ使用量"
+
+#: views/profiles_dialog.cpp
+msgid "Active"
+msgstr "アクティブ"
+
+#: views/profiles_dialog.cpp
+msgid "A new player, with saves of their own"
+msgstr "専用のセーブデータを持つ新しいプレイヤー"
+
+#: views/profiles_dialog.cpp
+msgid "New profile"
+msgstr "新しいプロフィール"
+
+#: views/profiles_dialog.cpp
+msgid "Delete %1? Its saves stay on the disk."
+msgstr "%1 を削除しますか？セーブデータはディスクに残ります。"
+
+#: views/profiles_dialog.cpp
+msgid "Pictures"
+msgstr "画像"
+
+#: views/scaling_filters.h
+#: views/settings_context.cpp
+msgid "Nearest neighbour"
+msgstr "最近傍"
+
+#: views/scaling_filters.h
+msgid "Sharp squares, for pixel art. The lightest."
+msgstr "くっきりした四角形。ドット絵向け。最も軽い。"
+
+#: views/scaling_filters.h
+msgid "Bilinear"
+msgstr "Bilinear"
+
+#: views/scaling_filters.h
+msgid "Smooth. The usual choice, and light."
+msgstr "なめらか。通常の選択で、軽い。"
+
+#: views/scaling_filters.h
+msgid "Bicubic"
+msgstr "Bicubic"
+
+#: views/scaling_filters.h
+msgid "A little sharper than bilinear, for slightly more work."
+msgstr "バイリニアより少しシャープで、負荷は少し増える。"
+
+#: views/scaling_filters.h
+msgid "Sharp edges, best for 2D games and drawings. Heavier."
+msgstr "輪郭がくっきり。2Dゲームやイラストに最適。負荷は高め。"
+
+#: views/scaling_filters.h
+msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr "AMD FidelityFX Super Resolution：ウィンドウより小さく描画された映像をシャープにする。3Dゲームに最適。負荷は中程度。"
+
+#: views/settings_context.cpp
+msgid "Volume"
+msgstr "ボリューム"
+
+#: views/settings_context.cpp
+msgid "Sharpness"
+msgstr "シャープネス"
+
+#: views/settings_context.cpp
+msgid "Settings for %1"
+msgstr "%1 の設定"
+
+#: views/settings_context.cpp
+msgid "Global < NXEmu < User. Editing a setting creates a User override; Inherit removes it. Changes apply on the next launch."
+msgstr "全体設定 < NXEmu < ユーザー。設定を変更するとユーザー設定が作成され、「継承」で削除できます。変更は次回の起動時に適用されます。"
+
+#: views/settings_context.cpp
+msgid "Choices in the status bar take priority over these settings."
+msgstr "ステータスバーでの選択は、これらの設定より優先されます。"
+
+#: views/settings_context.cpp
+msgid "User override"
+msgstr "ユーザーのカスタマイズ"
+
+#: views/settings_context.cpp
+msgid "NXEmu override"
+msgstr "NXEmu の個別設定"
+
+#: views/settings_context.cpp
+msgid "Inherit"
+msgstr "継承"
+
+#: views/volume_control.cpp
+msgid "Muted: click to hear the games again"
+msgstr "サウンドミュート: クリックしてゲームのミュートを解除します"
+
+#: views/volume_control.cpp
+msgid "Mute"
+msgstr "サウンドをミュートします"
+
+#: views/main_window.cpp
+msgid "Restart"
+msgstr "再起動"
+
+#: assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "インターフェースのテーマ"
+
+#: assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "システムの外観を使用するか、ライトテーマまたはダークテーマを選択します。"
+
+#: views/general_dialog.cpp
+msgid "Light"
+msgstr "ライト"
+
+#: views/general_dialog.cpp
+msgid "Dark"
+msgstr "ダーク"
+
+#: assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "バージョンをクリップボードにコピーしました"
+
+#: views/main_window.cpp
+msgid "Show emulation controls"
+msgstr "エミュレーション操作ボタンを表示"
+
+msgid "Debug"
+msgstr "デバッグ"
+
+msgid "Emulation diagnostics"
+msgstr "エミュレーション診断"
+
+msgid "Threads and input"
+msgstr "スレッドと入力"
+
+msgid "Gamepad"
+msgstr "ゲームパッド"
+
+msgid "Not assigned"
+msgstr "未割り当て"
+
+msgid "Press the buttons..."
+msgstr "ボタンを押してください..."
+
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "TVモード：ゲームは1080pで動作し、テレビでの表示を想定します。"
+
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "携帯モード：本体画面と同じように、ゲームは720pで動作します。"
+
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "ゲームの実行中は、グレー表示の設定を変更できません。言語はゲームの起動時に適用されます。"
+
+msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
+msgstr "ゲーム、更新データ、DLCは同じフォルダーにも別々のフォルダーにも保存できます。NXEmuが自動的に関連付けます。ゲームは各フォルダーの直下、追加コンテンツはサブフォルダーも検索します。"
+
+msgid "Profile"
+msgstr "プロフィール"
+
+msgid "Who plays, with saves of their own."
+msgstr "プレイヤーと、そのプレイヤー専用のセーブデータ。"
+
+msgid "Add players, and change their names and pictures"
+msgstr "プレイヤーを追加し、名前と画像を変更"
+
+msgid "Manage"
+msgstr "管理"
+
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "本体モード：テレビ（1080p）または携帯モード（720p）"
+
+msgid "Clear shortcut"
+msgstr "ショートカットを解除"
+
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "ショートカットをクリックしてキーを押すか、ゲームパッドのボタンを押して離します。解除するには隣の×をクリックするか、ショートカットをクリックしてDeleteを押します。"
+
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "解像度倍率：値を上げると映像が鮮明になりますが、より高いグラフィックス性能が必要です。"
+
+msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
+msgstr "このゲームには使用可能な実行ファイル（ExeFS）がありません。\n\n更新が必要な場合は、設定 > ゲームフォルダーで更新のフォルダーを追加し、ゲームの詳細で有効にしてください。有効になっている場合は、ファイルが完全で読み取り可能か確認してください。\n\nゲーム：%1"
+
+msgid "Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr "ゲームを読み込めませんでした：\n%1\n\nローダーエラー：%2。ゲームファイルが完全で、必要なキーとファームウェアが利用可能か確認してください。"
+
+msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
+msgstr "インターフェースを読み込めません。NXEmu の ui フォルダーが完全か確認してください。"

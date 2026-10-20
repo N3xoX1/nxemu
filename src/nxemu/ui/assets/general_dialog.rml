@@ -106,6 +106,22 @@
                 </div>
                 <select id="language" translate="no" />
               </div>
+              <div class="row">
+                <div class="row-texts">
+                  <div class="row-label">Region</div>
+                  <div id="region-text" class="row-text" />
+                </div>
+                <select id="region" class="short" />
+                <div id="region-chosen" class="switch" data-command="toggle-region" title="On, the region is the one chosen here. Off, it follows the console language."><div class="switch-knob" /></div>
+              </div>
+              <div class="row global-only">
+                <div class="row-texts">
+                  <div class="row-label">Interface language</div>
+                  <div id="interface-language-text" class="row-text" />
+                </div>
+                <select id="interface-language" class="short" translate="no" />
+                <div id="interface-language-chosen" class="switch" data-command="toggle-interface-language" title="On, the interface language is chosen here. Off, it follows the console language."><div class="switch-knob" /></div>
+              </div>
             </div>
             <div id="next-game" class="cards-note">A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts.</div>
           </div>

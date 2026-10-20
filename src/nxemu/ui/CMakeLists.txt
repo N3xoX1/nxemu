@@ -19,6 +19,8 @@ add_library(nxemu_ui STATIC
     host/sdl_input.h
     host/shell.cpp
     host/shell.h
+    host/system_language.cpp
+    host/system_language.h
     host/system_fonts.cpp
     host/system_fonts.h
     host/ui_notification.cpp
@@ -47,6 +49,8 @@ add_library(nxemu_ui STATIC
     library/firmware_avatars.h
     library/firmware_installer.cpp
     library/firmware_installer.h
+    library/interface_language.cpp
+    library/interface_language.h
     library/game_cache.cpp
     library/game_cache.h
     library/game_details.cpp

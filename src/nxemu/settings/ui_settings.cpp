@@ -118,6 +118,8 @@ namespace
 
         // New interface
         {nullptr, "InterfaceTheme", &uiSettings.interfaceTheme, kInterfaceThemeDefault},
+        {nullptr, "InterfaceLanguage", &uiSettings.interfaceLanguage, ""},
+        {nullptr, "ConsoleLanguageSet", &uiSettings.consoleLanguageSet, false},
         {nullptr, "GameBrowser\\IconSize", &uiSettings.gameIconSize, 146},
         {nullptr, "GameBrowser\\Sort", &uiSettings.gameSort, 0},
         {nullptr, "GameBrowser\\ListView", &uiSettings.gameListView, false},

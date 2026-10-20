@@ -15,6 +15,7 @@ namespace NXOsSetting
     constexpr const char * DockedMode = "nxos:DockedMode";
     constexpr const char * MemoryLayout = "nxos:MemoryLayout";
     constexpr const char * LanguageIndex = "nxos:LanguageIndex";
+    constexpr const char * Region = "nxos:Region";
     constexpr const char * CurrentUser = "nxos:CurrentUser";
     constexpr const char * RngSeedEnabled = "nxos:RngSeedEnabled";
     constexpr const char * RngSeed = "nxos:RngSeed";

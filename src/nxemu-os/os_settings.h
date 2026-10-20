@@ -45,7 +45,7 @@ struct OSSettings
 
     // System
     Language language_index;
-    Region region_index;
+    s32 region_setting;
     TimeZone time_zone_index;
     MemoryLayout memory_layout_mode;
     bool custom_rtc_enabled;
@@ -107,3 +107,4 @@ extern OSSettings osSettings;
 void SetupOsSetting(void);
 void CleanupOsSetting(void);
 void SaveOsSettings(void);
+Region ConsoleRegion();
