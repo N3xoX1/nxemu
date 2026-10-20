@@ -107,4 +107,7 @@ private:
     uint32_t m_viewportWidth = 0;
     uint32_t m_viewportHeight = 0;
     bool m_releasePending = false;
+#ifdef __APPLE__
+    uint64_t m_idleTrimAt = 0;
+#endif
 };

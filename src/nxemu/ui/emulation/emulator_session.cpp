@@ -1,4 +1,5 @@
 #include "emulator_session.h"
+#include <chrono>
 #include <filesystem>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
@@ -9,6 +10,10 @@
 #include <nxemu/ui/i18n/translation.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/fs_util.h>
+#include <yuzu_common/logging/log.h>
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#endif
 
 EmulatorSession::EmulatorSession(IRenderWindow & renderWindow, UiNotification & notification, SDL_Window * window) :
     m_renderWindow(renderWindow),
@@ -119,7 +124,17 @@ void EmulatorSession::Update(bool releaseStoppedResources)
             return;
         }
         SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::Stopped));
+#ifdef __APPLE__
+        m_idleTrimAt = SDL_GetTicks64() + 1000;
+#endif
     }
+#ifdef __APPLE__
+    if (m_idleTrimAt != 0 && releaseStoppedResources && !IsRunning() && SDL_GetTicks64() >= m_idleTrimAt)
+    {
+        m_idleTrimAt = 0;
+        malloc_zone_pressure_relief(nullptr, 0);
+    }
+#endif
     if (m_modules.IsValid())
     {
         m_modules.Modules().OperatingSystem().PumpInputEvents();
@@ -151,6 +166,7 @@ void EmulatorSession::SetViewportSize(uint32_t width, uint32_t height)
 bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                                   ApplicationLaunchType launchType, const UserChannel & userChannel)
 {
+    const auto started = std::chrono::steady_clock::now();
     std::error_code error;
     if (!std::filesystem::is_regular_file(std::filesystem::path{Common::FS::ToU8String(path)}, error))
     {
@@ -171,6 +187,8 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
         ReportError(Tr("Required modules failed to load."));
         return false;
     }
+    const auto resetDone = std::chrono::steady_clock::now();
+    LOG_INFO(Frontend, "Game launch: reset modules in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(resetDone - started).count());
 
     IOperatingSystem & os = m_modules.Modules().OperatingSystem();
     m_releasePending = true;
@@ -180,9 +198,24 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     }
     if (!m_modules.Modules().Systemloader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
     {
-        ReportError(Tr("Could not load the game:\n%1", {path}));
+        const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
+        if (result == LoaderResultStatus::ErrorNoExeFS)
+        {
+            ReportError(Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path}));
+        }
+        else if (result != LoaderResultStatus::ErrorNotInitialized)
+        {
+            ReportError(Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))}));
+        }
+        else
+        {
+            ReportError(Tr("Could not load the game:\n%1", {path}));
+        }
         return false;
     }
+    const auto loaded = std::chrono::steady_clock::now();
+    LOG_INFO(Frontend, "Game launch: load ROM in {} ms, total {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(loaded - resetDone).count(),
+             std::chrono::duration_cast<std::chrono::milliseconds>(loaded - started).count());
     m_currentProgramIndex = programIndex;
     m_previousProgramIndex = previousProgramIndex;
     if (m_listener != nullptr)
@@ -195,6 +228,9 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
 bool EmulatorSession::ResetModules()
 {
     m_releasePending = false;
+#ifdef __APPLE__
+    m_idleTrimAt = 0;
+#endif
     if (m_listener != nullptr)
     {
         m_listener->OnModulesReleasing();

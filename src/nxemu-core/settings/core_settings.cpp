@@ -96,6 +96,7 @@ namespace
         { NXCoreSetting::LogFilter, "", "LogFilter", &coreSettings.LogFilter, "*:Info" },
         { NXCoreSetting::EmulationRunning, false },
         { NXCoreSetting::EmulationState, (int)EmulationState::Stopped },
+        { NXCoreSetting::GameLoadResult, 0 },
         { NXCoreSetting::Has39BitAddressSpace, false },
         { NXCoreSetting::DisplayedFrames, false },
         { NXCoreSetting::ShuttingDown, false},
