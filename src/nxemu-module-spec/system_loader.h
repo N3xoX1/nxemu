@@ -153,12 +153,20 @@ struct ContentProviderEntry
     LoaderContentRecordType type;
 };
 
+enum class GamePatchType : uint8_t
+{
+    Update,
+    AddOnContent,
+    Mod,
+};
+
 struct GamePatchInfo
 {
     bool enabled;
     char name[128];
     char version[128];
     char key[128];
+    GamePatchType type;
 };
 
 struct SaveDataAttribute 
@@ -385,7 +393,7 @@ nxinterface ISystemloader
     virtual IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * LoadedRomInfo() = 0;
-    virtual bool ScanGameList(const char * const * gameDirs, uint32_t gameDirCount, IGameListScanCallback & callback) = 0;
+    virtual bool ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback) = 0;
 
     virtual IContentProvider & ContentProvider() = 0;
     virtual IFilesystem & Filesystem() = 0;

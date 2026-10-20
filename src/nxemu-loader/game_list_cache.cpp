@@ -24,7 +24,7 @@ extern IModuleSettings * g_settings;
 namespace
 {
 constexpr uint32_t CacheMagic = 0x4C47584E; // "NXGL"
-constexpr uint32_t CacheVersion = 2;
+constexpr uint32_t CacheVersion = 3;
 constexpr const char * CacheFileName = "game_list.bin";
 
 std::string GetLowerExtension(const std::string & path)
@@ -480,7 +480,7 @@ GameListCache::~GameListCache()
 {
 }
 
-bool GameListCache::Scan(const std::vector<std::string> & gameDirs, IGameListScanCallback & callback)
+bool GameListCache::Scan(const std::vector<GameDirectory> & gameDirs, IGameListScanCallback & callback)
 {
     std::lock_guard<std::mutex> lock(m_scanMutex);
     if (!m_loaded)
@@ -488,6 +488,7 @@ bool GameListCache::Scan(const std::vector<std::string> & gameDirs, IGameListSca
         Load();
         m_loaded = true;
     }
+    m_gameDirectories = gameDirs;
 
     m_disabledAddOns = loaderSettings.disabled_addons;
     for (GameFiles::value_type & game : m_gameFiles)
@@ -495,8 +496,12 @@ bool GameListCache::Scan(const std::vector<std::string> & gameDirs, IGameListSca
         game.second.seen = false;
     }
 
-    uint64_t addOnDirsId = 0;
-    bool complete = ScanAddOnDirectories(callback, addOnDirsId);
+    bool complete = ScanAddOnDirectories(callback);
+    for (size_t i = 0; complete && i < gameDirs.size(); i++)
+    {
+        complete = ScanGameDirectory(gameDirs[i], callback);
+    }
+
     if (complete)
     {
         UpdateIndex addOnIndex;
@@ -511,40 +516,81 @@ bool GameListCache::Scan(const std::vector<std::string> & gameDirs, IGameListSca
             }
         }
 
-        for (const std::string & gameDir : gameDirs)
-        {
-            if (!ScanGameDirectory(gameDir, addOnDirsId, addOnIndex, callback))
-            {
-                complete = false;
-                break;
-            }
-        }
-    }
-
-    if (complete)
-    {
         for (GameFiles::iterator itr = m_gameFiles.begin(); itr != m_gameFiles.end();)
         {
             itr = itr->second.seen ? std::next(itr) : m_gameFiles.erase(itr);
         }
-        for (DirListIds::iterator itr = m_dirListIds.begin(); itr != m_dirListIds.end();)
+
+        UpdateIndex gameDirIndex;
+        for (const GameFiles::value_type & game : m_gameFiles)
         {
-            const bool scanned = std::find(gameDirs.begin(), gameDirs.end(), itr->first) != gameDirs.end();
-            itr = scanned ? std::next(itr) : m_dirListIds.erase(itr);
+            for (const AddOnEntry & entry : game.second.addOns)
+            {
+                if (entry.titleType == LoaderTitleType::Update && entry.contentType == LoaderContentRecordType::Control)
+                {
+                    gameDirIndex.emplace(entry.titleId, UpdateCandidate{&game.first, game.second.stamp, entry.version});
+                }
+            }
+        }
+        for (GameFiles::value_type & game : m_gameFiles)
+        {
+            if (!game.second.isGame)
+            {
+                continue;
+            }
+            for (ProgramRecord & program : game.second.programs)
+            {
+                if (RefreshUpdate(program, addOnIndex, gameDirIndex))
+                {
+                    ReportProgram(game.first, program, true, callback);
+                }
+            }
         }
     }
     Save();
     return complete;
 }
 
-bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback, uint64_t & addOnDirsId)
+std::vector<GameDirectory> GameListCache::Directories()
+{
+    std::lock_guard<std::mutex> lock(m_scanMutex);
+    if (!m_loaded)
+    {
+        Load();
+        m_loaded = true;
+    }
+    return m_gameDirectories;
+}
+
+std::vector<std::string> GameListCache::GameDirectoryAddOnFiles(uint64_t baseProgramId)
+{
+    std::lock_guard<std::mutex> lock(m_scanMutex);
+    if (!m_loaded)
+    {
+        Load();
+        m_loaded = true;
+    }
+    std::vector<std::string> files;
+    for (const GameFiles::value_type & game : m_gameFiles)
+    {
+        const bool matches = std::any_of(game.second.addOns.begin(), game.second.addOns.end(), [baseProgramId](const AddOnEntry & entry) {
+            return FileSys::GetBaseTitleID(entry.titleId) == baseProgramId;
+        });
+        if (matches)
+        {
+            files.push_back(game.first);
+        }
+    }
+    return files;
+}
+
+bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback)
 {
     for (AddOnFiles::value_type & addOnFile : m_addOnFiles)
     {
         addOnFile.second.seen = false;
     }
 
-    Fingerprint fingerprint;
     bool stopped = false;
     for (const std::string & dir : loaderSettings.addOnDirectories)
     {
@@ -576,9 +622,6 @@ bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback, uint6
                 record.stamp = stamp;
             }
             record.seen = true;
-            fingerprint.Add(path);
-            fingerprint.Add(stamp.size);
-            fingerprint.Add((uint64_t)stamp.modifiedTime);
             return true;
         };
         Common::FS::IterateDirEntriesRecursively(dir, callbackEntry, Common::FS::DirEntryFilter::File);
@@ -592,21 +635,12 @@ bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback, uint6
     {
         itr = itr->second.seen ? std::next(itr) : m_addOnFiles.erase(itr);
     }
-
-    for (const DisabledAddOns::value_type & disabled : m_disabledAddOns)
-    {
-        fingerprint.Add(disabled.first);
-        for (const std::string & name : disabled.second)
-        {
-            fingerprint.Add(name);
-        }
-    }
-    addOnDirsId = fingerprint.Value();
     return true;
 }
 
-bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addOnDirsId, const UpdateIndex & addOnIndex, IGameListScanCallback & callback)
+bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGameListScanCallback & callback)
 {
+    const std::string & gameDir = gameDirectory.path;
     struct DirFile
     {
         std::string path;
@@ -614,8 +648,6 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
         bool game;
     };
     std::vector<DirFile> files;
-    Fingerprint fingerprint;
-    fingerprint.Add(addOnDirsId);
 
     bool stopped = false;
     const auto callbackEntry = [&](const std::filesystem::directory_entry & entry) -> bool {
@@ -635,53 +667,31 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
         FileStamp stamp;
         stamp.size = entry.file_size(ec);
         stamp.modifiedTime = (int64_t)entry.last_write_time(ec).time_since_epoch().count();
-        if (addOn)
-        {
-            fingerprint.Add(path);
-            fingerprint.Add(stamp.size);
-            fingerprint.Add((uint64_t)stamp.modifiedTime);
-        }
         files.push_back({std::move(path), stamp, game});
         return true;
     };
-    Common::FS::IterateDirEntries(gameDir, callbackEntry, Common::FS::DirEntryFilter::File);
+    if (gameDirectory.scanSubfolders)
+    {
+        Common::FS::IterateDirEntriesRecursively(gameDir, callbackEntry, Common::FS::DirEntryFilter::File);
+    }
+    else
+    {
+        Common::FS::IterateDirEntries(gameDir, callbackEntry, Common::FS::DirEntryFilter::File);
+    }
     if (stopped)
     {
         return false;
     }
 
-    const uint64_t listId = fingerprint.Value();
-    DirListIds::const_iterator listItr = m_dirListIds.find(gameDir);
-    const bool listChanged = listItr == m_dirListIds.end() || listItr->second != listId;
-
-    UpdateIndex siblingIndex;
-    const auto addSiblings = [&siblingIndex](const std::string & path, const GameFileRecord & record) {
-        for (const AddOnEntry & entry : record.addOns)
-        {
-            if (entry.titleType == LoaderTitleType::Update && entry.contentType == LoaderContentRecordType::Control)
-            {
-                siblingIndex.emplace(entry.titleId, UpdateCandidate{&path, record.stamp, entry.version});
-            }
-        }
-    };
-
     std::vector<bool> parse(files.size(), false);
     for (size_t i = 0; i < files.size(); i++)
     {
         GameFiles::iterator itr = m_gameFiles.find(files[i].path);
-        if (itr != m_gameFiles.end() && itr->second.stamp == files[i].stamp)
-        {
-            addSiblings(itr->first, itr->second);
-        }
-        else
-        {
-            parse[i] = true;
-        }
+        parse[i] = itr == m_gameFiles.end() || !(itr->second.stamp == files[i].stamp);
     }
 
     const uint32_t parseTotal = static_cast<uint32_t>(std::count(parse.begin(), parse.end(), true));
     uint32_t parseStarted = 0;
-    std::vector<GameFiles::value_type *> pending;
     for (size_t i = 0; i < files.size(); i++)
     {
         if (callback.ScanStopRequested())
@@ -700,23 +710,10 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
             record.seen = true;
             record.stamp = files[i].stamp;
             ParseGameFile(game.first, record);
-            addSiblings(game.first, record);
         }
-        if (!record.isGame)
+        if (record.isGame)
         {
-            continue;
-        }
-
-        const bool updatesValid = std::all_of(record.programs.begin(), record.programs.end(), [](const ProgramRecord & program) { return program.updateValid; });
-        if (parse[i] || !updatesValid || listChanged)
-        {
-            const bool rebuilt = RefreshUpdates(record, addOnIndex, siblingIndex);
-            ReportGame(game.first, record, parse[i] || rebuilt, callback);
-            pending.push_back(&game);
-        }
-        else
-        {
-            ReportGame(game.first, record, false, callback);
+            ReportGame(game.first, record, parse[i], callback);
         }
     }
 
@@ -724,17 +721,6 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
     {
         callback.ScanProgress(0, 0);
     }
-    for (GameFiles::value_type * game : pending)
-    {
-        for (ProgramRecord & program : game->second.programs)
-        {
-            if (RefreshUpdate(program, addOnIndex, siblingIndex))
-            {
-                ReportProgram(game->first, program, true, callback);
-            }
-        }
-    }
-    m_dirListIds[gameDir] = listId;
     return true;
 }
 
@@ -863,20 +849,7 @@ GameListCache::AddOnEntries GameListCache::ReadAddOnEntries(const std::string & 
     return entries;
 }
 
-bool GameListCache::RefreshUpdates(GameFileRecord & record, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const
-{
-    bool rebuilt = false;
-    for (ProgramRecord & program : record.programs)
-    {
-        if (RefreshUpdate(program, addOnIndex, siblingIndex))
-        {
-            rebuilt = true;
-        }
-    }
-    return rebuilt;
-}
-
-bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const
+bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & gameDirIndex) const
 {
     const uint64_t programId = program.base.programIdStatus == LoaderResultStatus::Success ? program.base.programId : 0;
     const uint64_t updateTitleId = FileSys::GetUpdateTitleID(programId);
@@ -887,7 +860,7 @@ bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & a
     const UpdateCandidate * best = nullptr;
     if (programId != 0)
     {
-        for (const UpdateIndex * index : {&addOnIndex, &siblingIndex})
+        for (const UpdateIndex * index : {&addOnIndex, &gameDirIndex})
         {
             const auto range = index->equal_range(updateTitleId);
             for (UpdateIndex::const_iterator itr = range.first; itr != range.second; ++itr)
@@ -1028,7 +1001,6 @@ void GameListCache::Load()
 
     AddOnFiles addOnFiles;
     GameFiles gameFiles;
-    DirListIds dirListIds;
 
     const auto readAddOns = [&reader](AddOnEntries & entries) {
         const uint32_t count = reader.U32();
@@ -1075,11 +1047,14 @@ void GameListCache::Load()
         readAddOns(record.addOns);
     }
 
-    const uint32_t dirCount = reader.U32();
-    for (uint32_t i = 0; i < dirCount && reader.Ok(); i++)
+    std::vector<GameDirectory> gameDirectories;
+    const uint32_t gameDirectoryCount = reader.U32();
+    for (uint32_t i = 0; i < gameDirectoryCount && reader.Ok(); i++)
     {
-        std::string dir = reader.String();
-        dirListIds[dir] = reader.U64();
+        GameDirectory gameDirectory;
+        gameDirectory.path = reader.String();
+        gameDirectory.scanSubfolders = reader.U32() != 0;
+        gameDirectories.push_back(std::move(gameDirectory));
     }
 
     if (!reader.Ok())
@@ -1088,7 +1063,7 @@ void GameListCache::Load()
     }
     m_addOnFiles = std::move(addOnFiles);
     m_gameFiles = std::move(gameFiles);
-    m_dirListIds = std::move(dirListIds);
+    m_gameDirectories = std::move(gameDirectories);
 }
 
 void GameListCache::Save() const
@@ -1139,11 +1114,11 @@ void GameListCache::Save() const
         writeAddOns(record.addOns);
     }
 
-    writer.U32((uint32_t)m_dirListIds.size());
-    for (const DirListIds::value_type & dir : m_dirListIds)
+    writer.U32((uint32_t)m_gameDirectories.size());
+    for (const GameDirectory & gameDirectory : m_gameDirectories)
     {
-        writer.String(dir.first);
-        writer.U64(dir.second);
+        writer.String(gameDirectory.path);
+        writer.U32(gameDirectory.scanSubfolders ? 1u : 0u);
     }
 
     const std::filesystem::path cacheFile = CacheFilePath();

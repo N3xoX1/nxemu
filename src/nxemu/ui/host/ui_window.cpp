@@ -70,6 +70,7 @@ UiWindow::~UiWindow()
 bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir)
 {
     SDL_SetMainReady();
+    SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
 #if defined(_WIN32)
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
     // Keep what the window manager does for a framed window: snapping, the

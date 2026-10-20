@@ -466,6 +466,9 @@
     <ClCompile Include="ui\views\dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\game_details_panel.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\general_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -596,6 +599,9 @@
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\game_details_panel.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\general_dialog.h">

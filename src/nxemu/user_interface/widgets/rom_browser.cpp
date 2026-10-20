@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <algorithm>
 #include <map>
 #include <common/json.h>
 #include <common/path.h>
@@ -70,7 +71,7 @@ class RomListWorker :
     public IGameListScanCallback
 {
 public:
-    RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories);
+    RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories, Stringlist recursiveDirectories);
     ~RomListWorker();
 
     void Start();
@@ -91,6 +92,7 @@ private:
     RomEntrys & m_roms;
     SciterElement & m_rootElement;
     const Stringlist m_gameDirectories;
+    const Stringlist m_recursiveDirectories;
     std::thread m_thread;
     std::atomic<bool> m_stop;
 };
@@ -559,7 +561,8 @@ void WidgetRomBrowser::SettingChanged(const char * setting, void * userData)
     {
         impl->m_gameGrid.SetAttribute("data-size", stdstr_f("%d", settings.GetInt(NXUISetting::MyGameIconSize)).c_str());
     }
-    else if (strcmp(setting, NXUISetting::GameDirectories) == 0 || strcmp(setting, NXLoaderSetting::AddOnDirectories) == 0)
+    else if (strcmp(setting, NXUISetting::GameDirectories) == 0 || strcmp(setting, NXUISetting::GameDirectoriesRecursive) == 0 ||
+             strcmp(setting, NXLoaderSetting::AddOnDirectories) == 0)
     {
         impl->PopulateAsync();
     }
@@ -595,6 +598,7 @@ void WidgetRomBrowser::Attached(SCITER_ELEMENT element, IBaseElement * baseEleme
     SettingsStore & settings = SettingsStore::GetInstance();
     settings.RegisterCallback(NXUISetting::MyGameIconSize, WidgetRomBrowser::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::GameDirectories, WidgetRomBrowser::SettingChanged, this);
+    settings.RegisterCallback(NXUISetting::GameDirectoriesRecursive, WidgetRomBrowser::SettingChanged, this);
     settings.RegisterCallback(NXLoaderSetting::AddOnDirectories, WidgetRomBrowser::SettingChanged, this);
 
     RenderUI();
@@ -623,7 +627,7 @@ void WidgetRomBrowser::PopulateAsync()
     if (m_modules != nullptr)
     {    
         m_currentWorker.reset();
-        m_currentWorker = std::make_unique<RomListWorker>(*this, *m_modules, uiSettings.gameDirectories);
+        m_currentWorker = std::make_unique<RomListWorker>(*this, *m_modules, uiSettings.gameDirectories, uiSettings.gameDirectoriesRecursive);
         m_currentWorker->Start();
         UpdateDirectoryWatcher();
     }
@@ -656,11 +660,17 @@ void WidgetRomBrowser::UpdateDirectoryWatcher()
         }
     }
 
-    if (addOnDirs == m_watchedAddOnDirs && uiSettings.gameDirectories == m_watchedGameDirs)
+    Stringlist gameDirs;
+    for (const std::string & dir : uiSettings.gameDirectories)
+    {
+        const Stringlist & recursive = uiSettings.gameDirectoriesRecursive;
+        (std::find(recursive.begin(), recursive.end(), dir) != recursive.end() ? addOnDirs : gameDirs).push_back(dir);
+    }
+    if (addOnDirs == m_watchedAddOnDirs && gameDirs == m_watchedGameDirs)
     {
         return;
     }
-    m_watchedGameDirs = uiSettings.gameDirectories;
+    m_watchedGameDirs = std::move(gameDirs);
     m_watchedAddOnDirs = std::move(addOnDirs);
 
     SciterElement rootElement = m_rootElement;
@@ -710,12 +720,13 @@ void WidgetRomBrowser::ClearItems()
     m_roms.clear();
 }
 
-RomListWorker::RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories) :
+RomListWorker::RomListWorker(WidgetRomBrowser & romBrowser, ISystemModules & modules, Stringlist gameDirectories, Stringlist recursiveDirectories) :
     m_modules(modules),
     m_romsMutex(romBrowser.m_romsMutex),
     m_roms(romBrowser.m_roms),
     m_rootElement(romBrowser.m_rootElement),
     m_gameDirectories(std::move(gameDirectories)),
+    m_recursiveDirectories(std::move(recursiveDirectories)),
     m_stop(false)
 {
 }
@@ -752,12 +763,14 @@ void RomListWorker::Run()
     }
 
     std::vector<const char *> gameDirs;
+    std::unique_ptr<bool[]> scanSubfolders(new bool[m_gameDirectories.size() + 1]);
     for (const std::string & game_dir : m_gameDirectories)
     {
+        scanSubfolders[gameDirs.size()] = std::find(m_recursiveDirectories.begin(), m_recursiveDirectories.end(), game_dir) != m_recursiveDirectories.end();
         gameDirs.push_back(game_dir.c_str());
     }
     ISystemloader & systemloader = m_modules.Systemloader();
-    if (!systemloader.ScanGameList(gameDirs.data(), (uint32_t)gameDirs.size(), *this) || m_stop)
+    if (!systemloader.ScanGameList(gameDirs.data(), scanSubfolders.get(), (uint32_t)gameDirs.size(), *this) || m_stop)
     {
         return;
     }

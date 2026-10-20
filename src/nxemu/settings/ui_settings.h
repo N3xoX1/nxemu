@@ -13,6 +13,7 @@ struct UISettings
     // Both interfaces
     Stringlist recentFiles;
     Stringlist gameDirectories;
+    Stringlist gameDirectoriesRecursive;
     bool performVulkanCheck;
     bool startGamesInFullscreen;
     bool startGamesWithUiHidden;
@@ -26,6 +27,7 @@ struct UISettings
     bool showCardInformation;
     bool showCardTitle;
     bool showPlayTime;
+    bool showGameDetails;
     bool showEmulationControls;
     StringMap shortcuts;
     bool showPerformance;

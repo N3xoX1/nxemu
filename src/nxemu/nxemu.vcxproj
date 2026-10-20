@@ -80,6 +80,7 @@
     <ClCompile Include="ui\input\input_text.cpp" />
     <ClCompile Include="ui\library\firmware_avatars.cpp" />
     <ClCompile Include="ui\views\dialog.cpp" />
+    <ClCompile Include="ui\views\game_details_panel.cpp" />
     <ClCompile Include="ui\views\general_dialog.cpp" />
     <ClCompile Include="ui\views\settings_context.cpp" />
     <ClCompile Include="ui\views\settings_controls.cpp" />
@@ -162,6 +163,7 @@
     <ClInclude Include="ui\input\input_text.h" />
     <ClInclude Include="ui\library\firmware_avatars.h" />
     <ClInclude Include="ui\views\dialog.h" />
+    <ClInclude Include="ui\views\game_details_panel.h" />
     <ClInclude Include="ui\views\general_dialog.h" />
     <ClInclude Include="ui\views\settings_context.h" />
     <ClInclude Include="ui\views\settings_controls.h" />

@@ -8,6 +8,12 @@
 
 class Systemloader;
 
+struct GameDirectory
+{
+    std::string path;
+    bool scanSubfolders = false;
+};
+
 struct CachedGameMetadata
 {
     LoaderFileType fileType = LoaderFileType::Unknown;
@@ -29,7 +35,9 @@ public:
     explicit GameListCache(Systemloader & systemloader);
     ~GameListCache();
 
-    bool Scan(const std::vector<std::string> & gameDirs, IGameListScanCallback & callback);
+    bool Scan(const std::vector<GameDirectory> & gameDirs, IGameListScanCallback & callback);
+    std::vector<GameDirectory> Directories();
+    std::vector<std::string> GameDirectoryAddOnFiles(uint64_t baseProgramId);
 
 private:
     GameListCache() = delete;
@@ -96,15 +104,13 @@ private:
 
     using AddOnFiles = std::map<std::string, AddOnFileRecord>;
     using GameFiles = std::map<std::string, GameFileRecord>;
-    using DirListIds = std::map<std::string, uint64_t>;
     using DisabledAddOns = std::map<uint64_t, std::vector<std::string>>;
 
-    bool ScanAddOnDirectories(IGameListScanCallback & callback, uint64_t & addOnDirsId);
-    bool ScanGameDirectory(const std::string & gameDir, uint64_t addOnDirsId, const UpdateIndex & addOnIndex, IGameListScanCallback & callback);
+    bool ScanAddOnDirectories(IGameListScanCallback & callback);
+    bool ScanGameDirectory(const GameDirectory & gameDir, IGameListScanCallback & callback);
     void ParseGameFile(const std::string & path, GameFileRecord & record) const;
     AddOnEntries ReadAddOnEntries(const std::string & path) const;
-    bool RefreshUpdates(GameFileRecord & record, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const;
-    bool RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & siblingIndex) const;
+    bool RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & gameDirIndex) const;
     void ReadUpdateMetadata(const UpdateCandidate & candidate, uint64_t updateTitleId, ProgramRecord & program) const;
     void ReportGame(const std::string & path, GameFileRecord & record, bool changed, IGameListScanCallback & callback);
     void ReportProgram(const std::string & path, ProgramRecord & program, bool changed, IGameListScanCallback & callback);
@@ -117,6 +123,6 @@ private:
     bool m_loaded;
     AddOnFiles m_addOnFiles;
     GameFiles m_gameFiles;
-    DirListIds m_dirListIds;
+    std::vector<GameDirectory> m_gameDirectories;
     DisabledAddOns m_disabledAddOns;
 };

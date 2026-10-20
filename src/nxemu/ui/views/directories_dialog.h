@@ -27,6 +27,7 @@ private:
     void ShowDirectories();
     void AddDirectory();
     void RemoveDirectory(size_t index);
+    void ToggleSubfolders(size_t index);
 
     UiWindow & m_window;
     GameLibrary & m_library;

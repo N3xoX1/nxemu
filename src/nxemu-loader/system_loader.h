@@ -1,10 +1,13 @@
 #pragma once
 #include <nxemu-module-spec/system_loader.h>
 #include <memory>
+#include <string>
+#include <vector>
 #include "core/file_sys/vfs/vfs_types.h"
 #include "core/file_sys/registered_cache.h"
 
 class FileSystemController;
+struct GameDirectory;
 
 namespace FileSys
 {
@@ -21,6 +24,8 @@ public:
     FileSys::ContentProvider & GetContentProvider();
     FileSys::VirtualFilesystem GetFilesystem();
     ::FileSystemController & GetFileSystemController();
+    std::vector<GameDirectory> GameDirectories();
+    std::vector<std::string> GameDirectoryAddOnFiles(uint64_t baseProgramId);
     void RegisterContentProvider(FileSys::ContentProviderUnionSlot slot, FileSys::ContentProvider* provider);
 
     void SetProcessID(uint64_t processID);
@@ -33,7 +38,7 @@ public:
     IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * LoadedRomInfo() override;
-    bool ScanGameList(const char * const * gameDirs, uint32_t gameDirCount, IGameListScanCallback & callback) override;
+    bool ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback) override;
 
     IFileSystemController & FileSystemController() override;
     IContentProvider & ContentProvider() override;
