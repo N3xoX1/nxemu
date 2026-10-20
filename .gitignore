@@ -47,3 +47,7 @@ src/android/app/build/
 src/android/local.properties
 src/android/*.iml
 src/android/app/*.iml
+
+# Python bytecode
+__pycache__/
+*.pyc

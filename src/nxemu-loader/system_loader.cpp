@@ -184,6 +184,7 @@ uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint
 
 bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
+    g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
     if (fileName == nullptr || fileName[0] == '\0')
     {
         return false;
@@ -242,8 +243,9 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     const auto [load_result, load_parameters] = app_loader->Load(*this, impl->m_modules);
     if (load_result != LoaderResultStatus::Success)
     {
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)load_result);
         LOG_CRITICAL(Core, "Failed to load ROM (Error {})!", load_result);
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
     std::vector<u8> nacp_data;
@@ -269,6 +271,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     StorageId baseGameStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(impl->m_titleID, LoaderContentRecordType::Program));
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
 
+    g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::Success);
     operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size());
     return true;
 }
