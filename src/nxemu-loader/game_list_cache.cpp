@@ -679,11 +679,14 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
         }
     }
 
+    const uint32_t parseTotal = static_cast<uint32_t>(std::count(parse.begin(), parse.end(), true));
+    uint32_t parseStarted = 0;
     std::vector<GameFiles::value_type *> pending;
     for (size_t i = 0; i < files.size(); i++)
     {
         if (callback.ScanStopRequested())
         {
+            callback.ScanProgress(0, 0);
             return false;
         }
         GameFiles::value_type & game = *m_gameFiles.try_emplace(files[i].path).first;
@@ -692,6 +695,7 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
 
         if (parse[i])
         {
+            callback.ScanProgress(++parseStarted, parseTotal);
             record = GameFileRecord();
             record.seen = true;
             record.stamp = files[i].stamp;
@@ -716,6 +720,10 @@ bool GameListCache::ScanGameDirectory(const std::string & gameDir, uint64_t addO
         }
     }
 
+    if (parseTotal != 0)
+    {
+        callback.ScanProgress(0, 0);
+    }
     for (GameFiles::value_type * game : pending)
     {
         for (ProgramRecord & program : game->second.programs)

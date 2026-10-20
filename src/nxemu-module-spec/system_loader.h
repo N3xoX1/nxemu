@@ -374,6 +374,7 @@ nxinterface IGameListScanCallback
 {
     virtual bool ScanStopRequested() = 0;
     virtual void GameFound(const char * path, IRomInfo * romInfo, bool changed) = 0;
+    virtual void ScanProgress(uint32_t filesStarted, uint32_t filesTotal) = 0;
 };
 
 nxinterface ISystemloader

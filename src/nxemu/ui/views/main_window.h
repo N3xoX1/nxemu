@@ -152,6 +152,9 @@ private:
     void RebuildMenu();
     void AddGames(std::vector<FoundGame> found);
     void RescanGames();
+    void FinishRescan();
+    void ReleaseIcons(const std::vector<GameEntry> & games);
+    void UpdateScanIndicator();
     void RenderGames();
     void RenderVisibleGames();
     std::string IconRml(const std::string & icon);
@@ -227,6 +230,11 @@ private:
     std::string m_gameSearch;
     bool m_gamesDirty = false;
     bool m_gamesScanning = false;
+    bool m_rescanning = false;
+    std::vector<GameEntry> m_nextGames;
+    uint64_t m_scanIndicatorTime = 0;
+    uint64_t m_scanReadingSince = 0;
+    float m_scanIndicatorShown = 0.0f;
     std::vector<size_t> m_shownGames;
     bool m_shownDirty = false;
     size_t m_gameColumns = 0;

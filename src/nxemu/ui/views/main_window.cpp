@@ -53,6 +53,9 @@ constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse th
 constexpr int kScrollbarWidth = 12;
 constexpr uint64_t kIconSizeSaveDelayMs = 400;
 constexpr int kFilterSharpnessRange = 1;
+constexpr float kScanStepShare = 0.85f;
+constexpr float kScanEaseSeconds = 0.7f;
+constexpr uint64_t kScanIndicatorDelayMs = 250;
 constexpr int kPerformanceSizeRange = 2;
 constexpr int kPerformanceRateRange = 3;
 constexpr int kPerformanceLengthRange = 4;
@@ -365,16 +368,21 @@ void MainWindow::Update()
     m_advancedDialog->Update();
     m_directoriesDialog->Update();
     m_profilesDialog->Update();
-    if (m_library.Scanning() != m_gamesScanning)
-    {
-        m_gamesScanning = !m_gamesScanning;
-        m_gamesDirty = true;
-    }
     std::vector<FoundGame> found;
     if (m_library.TakeFound(found))
     {
         AddGames(std::move(found));
     }
+    if (m_library.Scanning() != m_gamesScanning)
+    {
+        m_gamesScanning = !m_gamesScanning;
+        m_gamesDirty = true;
+        if (!m_gamesScanning && m_rescanning)
+        {
+            FinishRescan();
+        }
+    }
+    UpdateScanIndicator();
     if (m_gamesDirty)
     {
         RenderGames();
@@ -1012,13 +1020,18 @@ void MainWindow::RebuildMenu()
 
 void MainWindow::AddGames(std::vector<FoundGame> found)
 {
+    std::vector<GameEntry> & games = m_rescanning ? m_nextGames : m_games;
     for (FoundGame & entry : found)
     {
         if (!entry.icon.empty())
         {
             entry.game.icon = m_window.Renderer().AddMemoryImage(std::move(entry.icon));
         }
-        m_games.push_back(std::move(entry.game));
+        games.push_back(std::move(entry.game));
+    }
+    if (m_rescanning)
+    {
+        return;
     }
     std::stable_sort(m_games.begin(), m_games.end(), [](const GameEntry & left, const GameEntry & right) {
         return std::forward_as_tuple(Folded(left.title), left.path) < std::forward_as_tuple(Folded(right.title), right.path);
@@ -1029,7 +1042,46 @@ void MainWindow::AddGames(std::vector<FoundGame> found)
 
 void MainWindow::RescanGames()
 {
-    for (const GameEntry & game : m_games)
+    ReleaseIcons(m_nextGames);
+    m_nextGames.clear();
+    m_rescanning = !m_games.empty();
+    m_library.StartScan(m_session.Modules());
+    m_gamesDirty = true;
+}
+
+void MainWindow::FinishRescan()
+{
+    m_rescanning = false;
+    if (!m_library.ScanCompleted())
+    {
+        ReleaseIcons(m_nextGames);
+        m_nextGames.clear();
+        return;
+    }
+    std::stable_sort(m_nextGames.begin(), m_nextGames.end(), [](const GameEntry & left, const GameEntry & right) {
+        return std::forward_as_tuple(Folded(left.title), left.path) < std::forward_as_tuple(Folded(right.title), right.path);
+    });
+    const auto same = [](const GameEntry & left, const GameEntry & right) {
+        return left.path == right.path && left.programId == right.programId && left.title == right.title && left.version == right.version &&
+               left.publisher == right.publisher && left.size == right.size && left.icon.empty() == right.icon.empty();
+    };
+    if (std::equal(m_games.begin(), m_games.end(), m_nextGames.begin(), m_nextGames.end(), same))
+    {
+        ReleaseIcons(m_nextGames);
+    }
+    else
+    {
+        ReleaseIcons(m_games);
+        m_games.swap(m_nextGames);
+        m_selectedGame = nullptr;
+        m_gamesDirty = true;
+    }
+    m_nextGames.clear();
+}
+
+void MainWindow::ReleaseIcons(const std::vector<GameEntry> & games)
+{
+    for (const GameEntry & game : games)
     {
         if (!game.icon.empty())
         {
@@ -1037,10 +1089,38 @@ void MainWindow::RescanGames()
             m_window.Renderer().RemoveMemoryImage(game.icon);
         }
     }
-    m_games.clear();
-    m_selectedGame = nullptr;
-    m_library.StartScan(m_session.Modules());
-    m_gamesDirty = true;
+}
+
+void MainWindow::UpdateScanIndicator()
+{
+    Rml::Element * indicator = m_document->GetElementById("games-scan-indicator");
+    Rml::Element * fill = m_document->GetElementById("games-scan-fill");
+    if (indicator == nullptr || fill == nullptr)
+    {
+        return;
+    }
+    const uint64_t now = SDL_GetTicks64();
+    const float elapsed = static_cast<float>(now - m_scanIndicatorTime) / 1000.0f;
+    m_scanIndicatorTime = now;
+    if (!m_library.ReadingGames())
+    {
+        indicator->SetClass("active", false);
+        m_scanReadingSince = 0;
+        m_scanIndicatorShown = 0.0f;
+        return;
+    }
+    if (m_scanReadingSince == 0)
+    {
+        m_scanReadingSince = now;
+    }
+    indicator->SetClass("active", now - m_scanReadingSince >= kScanIndicatorDelayMs);
+    const uint32_t total = m_library.FilesTotal();
+    const float target = total != 0 ? (static_cast<float>(m_library.FilesStarted()) - (1.0f - kScanStepShare)) / static_cast<float>(total) : 0.0f;
+    if (target > m_scanIndicatorShown)
+    {
+        m_scanIndicatorShown += (target - m_scanIndicatorShown) * (1.0f - std::exp(-elapsed / kScanEaseSeconds));
+    }
+    fill->SetProperty(Rml::PropertyId::Width, Rml::Property(m_scanIndicatorShown * 100.0f, Rml::Unit::PERCENT));
 }
 
 void MainWindow::RenderGames()
