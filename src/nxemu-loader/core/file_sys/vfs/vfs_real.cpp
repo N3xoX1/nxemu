@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <filesystem>
 #include <iterator>
 #include <utility>
 #include "yuzu_common/yuzu_assert.h"
@@ -29,6 +30,19 @@ namespace FileSys {
 namespace FS = Common::FS;
 
 namespace {
+
+// Windows can resolve case aliases and junctions to one file. Reuse the same
+// cached handle instead of opening it twice with mutually exclusive write access.
+std::string FileCacheKey(const std::string& path) {
+#ifdef _WIN32
+    std::error_code ec;
+    const auto canonical = std::filesystem::canonical(std::filesystem::path{FS::ToU8String(path)}, ec);
+    if (!ec) {
+        return FS::PathToUTF8String(canonical);
+    }
+#endif
+    return path;
+}
 
 constexpr size_t MaxOpenFiles = 512;
 
@@ -86,6 +100,15 @@ VirtualFile RealVfsFilesystem::OpenFileFromEntry(std::string_view path_, std::op
         }
     }
 
+    const auto cache_key = FileCacheKey(path);
+    if (cache_key != path) {
+        if (auto it = cache.find(cache_key); it != cache.end()) {
+            if (auto file = it->second.lock(); file) {
+                return file;
+            }
+        }
+    }
+
     if (!size && !FS::IsFile(path)) {
         return nullptr;
     }
@@ -95,7 +118,7 @@ VirtualFile RealVfsFilesystem::OpenFileFromEntry(std::string_view path_, std::op
 
     auto file = std::shared_ptr<RealVfsFile>(
         new RealVfsFile(*this, std::move(reference), path, perms, size));
-    cache[path] = file;
+    cache[cache_key] = file;
 
     return file;
 }
@@ -108,7 +131,7 @@ VirtualFile RealVfsFilesystem::CreateFile(std::string_view path_, VirtualFileOpe
     const auto path = FS::SanitizePath(path_, FS::DirectorySeparator::PlatformDefault);
     {
         std::scoped_lock lk{list_lock};
-        cache.erase(path);
+        cache.erase(FileCacheKey(path));
     }
 
     // Current usages of CreateFile expect to delete the contents of an existing file.
@@ -141,8 +164,8 @@ VirtualFile RealVfsFilesystem::MoveFile(std::string_view old_path_, std::string_
     const auto new_path = FS::SanitizePath(new_path_, FS::DirectorySeparator::PlatformDefault);
     {
         std::scoped_lock lk{list_lock};
-        cache.erase(old_path);
-        cache.erase(new_path);
+        cache.erase(FileCacheKey(old_path));
+        cache.erase(FileCacheKey(new_path));
     }
     if (!FS::RenameFile(old_path, new_path)) {
         return nullptr;
@@ -154,7 +177,7 @@ bool RealVfsFilesystem::DeleteFile(std::string_view path_) {
     const auto path = FS::SanitizePath(path_, FS::DirectorySeparator::PlatformDefault);
     {
         std::scoped_lock lk{list_lock};
-        cache.erase(path);
+        cache.erase(FileCacheKey(path));
     }
     return FS::RemoveFile(path);
 }

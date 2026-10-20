@@ -78,8 +78,8 @@ void CDmaPusher::ExecuteCommand(u32 state_offset, u32 data)
     switch (current_class)
     {
     case ChClassId::NvDec:
-        ThiStateWrite(nvdec_thi_state, offset, data);
-        switch (static_cast<ThiMethod>(offset))
+        ThiStateWrite(nvdec_thi_state, state_offset, data);
+        switch (static_cast<ThiMethod>(state_offset))
         {
         case ThiMethod::IncSyncpt: {
             LOG_DEBUG(Service_NVDRV, "NVDEC Class IncSyncpt Method");
@@ -131,7 +131,7 @@ void CDmaPusher::ExecuteCommand(u32 state_offset, u32 data)
     case ChClassId::Control:
         // This device is mainly for syncpoint synchronization
         LOG_DEBUG(Service_NVDRV, "Host1X Class Method");
-        host1x_processor->ProcessMethod(static_cast<Host1x::Control::Method>(offset), data);
+        host1x_processor->ProcessMethod(static_cast<Host1x::Control::Method>(state_offset), data);
         break;
     default:
         UNIMPLEMENTED_MSG("Current class not implemented {:X}", static_cast<u32>(current_class));
