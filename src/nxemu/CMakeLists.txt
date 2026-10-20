@@ -74,6 +74,8 @@ add_executable(nxemu
     applets/web_browser.h
 )
 
+file(GLOB _nxemu_ui_catalogues CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang/*.po")
+
 if(APPLE)
     target_sources(nxemu PRIVATE
         user_interface/render_window_macos.mm
@@ -223,6 +225,8 @@ else()
                 "${NXEMU_MOLTENVK_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>/libMoltenVK.dylib"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/lang" "$<TARGET_FILE_DIR:nxemu>/lang"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets" "$<TARGET_FILE_DIR:nxemu>/ui"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:nxemu>/ui/lang"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_nxemu_ui_catalogues} "$<TARGET_FILE_DIR:nxemu>/ui/lang"
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 "$<TARGET_FILE_DIR:nxemu>/modules/loader"
                 "$<TARGET_FILE_DIR:nxemu>/modules/cpu"

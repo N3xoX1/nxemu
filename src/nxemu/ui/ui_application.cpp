@@ -4,6 +4,7 @@
 #include "ui/host/ui_notification.h"
 #include "ui/host/ui_window.h"
 #include "ui/library/game_library.h"
+#include "ui/library/interface_language.h"
 #include "ui/views/main_window.h"
 #include "ui/views/message_dialog.h"
 #include <RmlUi/Core/Context.h>
@@ -105,6 +106,8 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
         notification.DisplayError("Required modules failed to load.", "NXEmu");
         return 1;
     }
+    InterfaceLanguage::AdoptSystemLanguage(session);
+    InterfaceLanguage::Use(InterfaceLanguage::Code(), assetDir);
     if (!window.AttachVideo(session.Modules().Video()))
     {
         notification.DisplayError(window.Error().c_str(), "NXEmu");

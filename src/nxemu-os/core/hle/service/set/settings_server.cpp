@@ -163,7 +163,7 @@ Result ISettingsServer::GetRegionCode(Out<SystemRegionCode> out_region_code)
 {
     LOG_DEBUG(Service_SET, "called");
 
-    *out_region_code = static_cast<SystemRegionCode>(osSettings.region_index);
+    *out_region_code = static_cast<SystemRegionCode>(ConsoleRegion());
     R_SUCCEED();
 }
 

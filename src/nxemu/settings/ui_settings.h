@@ -22,6 +22,8 @@ struct UISettings
 
     // New interface
     std::string interfaceTheme;
+    std::string interfaceLanguage;
+    bool consoleLanguageSet;
     int32_t gameIconSize;
     int32_t gameSort;
     bool gameListView;

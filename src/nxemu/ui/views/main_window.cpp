@@ -25,6 +25,7 @@
 #include <nxemu/ui/library/game_cache.h>
 #include <nxemu/ui/library/firmware_avatars.h>
 #include <nxemu/ui/library/game_details.h>
+#include <nxemu/ui/library/interface_language.h>
 #include <nxemu/ui/platform/file_dialogs.h>
 #include <tuple>
 #include <yuzu_common/fs/filesystem_interfaces.h>
@@ -182,6 +183,7 @@ MainWindow::~MainWindow()
 
 bool MainWindow::Create()
 {
+    m_interfaceLanguage = InterfaceLanguage::Code();
     m_document = Translation::LoadDocument(*m_window.Context(), m_assetDir / "main_window.rml");
     if (m_document == nullptr)
     {
@@ -376,6 +378,7 @@ void MainWindow::Update()
     m_advancedDialog->Update();
     m_directoriesDialog->Update();
     m_profilesDialog->Update();
+    SyncInterfaceLanguage();
     std::vector<FoundGame> found;
     if (m_library.TakeFound(found))
     {
@@ -1917,6 +1920,44 @@ void MainWindow::ShowPanel(Panel panel)
         }
     }
     m_document->SetClass("video-visible", panel == Panel::Renderer || panel == Panel::Pause);
+}
+
+void MainWindow::SyncInterfaceLanguage()
+{
+    const std::string language = InterfaceLanguage::Code();
+    if (language == m_interfaceLanguage)
+    {
+        return;
+    }
+    m_interfaceLanguage = language;
+    InterfaceLanguage::Use(language, m_assetDir);
+
+    Translation::RefreshDocument(*m_document);
+    m_aboutDialog->RefreshTranslation();
+    m_firmwareDialog->RefreshTranslation();
+    m_controllerDialog->RefreshTranslation();
+    m_advancedDialog->RefreshLanguage();
+    m_directoriesDialog->RefreshTranslation();
+    m_profilesDialog->RefreshTranslation();
+    m_generalDialog->RefreshLanguage();
+
+    m_menuBar->Close();
+    m_gameMenu->Close();
+    m_pendingGameMenu = nullptr;
+    m_pendingSelectMenu = nullptr;
+    RebuildMenu();
+    ApplyLibraryOptions();
+    RenderGames();
+    RenderVisibleGames();
+    RenderDetails();
+    UpdateScanIndicator();
+    SyncPhase();
+    UpdateStatusWidgets();
+    UpdateStatusText();
+    if (m_phase == EmulatorSession::Phase::Loading)
+    {
+        UpdateLoadingScreen();
+    }
 }
 
 void MainWindow::SyncPhase()
