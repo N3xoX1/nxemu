@@ -381,6 +381,12 @@
       <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
     </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_indirect_count.comp">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_comp_spv.h</Outputs>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_quad_indexed.comp">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
