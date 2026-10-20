@@ -28,6 +28,13 @@
               <div class="card-title" data-upper=""><img src="images/docked.png" /><div>Display</div></div>
               <div class="row global-only">
                 <div class="row-texts">
+                  <div class="row-label">Interface theme</div>
+                  <div class="row-text">Use the system appearance, or choose a light or dark theme.</div>
+                </div>
+                <select id="interface-theme" />
+              </div>
+              <div class="row global-only">
+                <div class="row-texts">
                   <div class="row-label">Graphics device</div>
                   <div id="device-text" class="row-text" />
                 </div>

@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <SDL_metal.h>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <nxemu-module-spec/base.h>
 #include <string>
@@ -52,6 +53,7 @@ public:
     float PixelScale() const { return m_pixelScale; }
 
     void SetTitle(const std::string & title);
+    void SetTheme(const std::string & choice);
     bool IsFullscreen() const;
     void SetFullscreen(bool fullscreen);
     bool IsMaximised() const;
@@ -82,12 +84,22 @@ private:
     void UpdateDimensions();
     SDL_HitTestResult HitTest(const SDL_Point & point);
     bool TitleBarPressed(const SDL_Point & point);
+    void ApplyTheme(bool light, bool modeChanged);
+#if defined(__linux__)
+    void RefreshSystemTheme();
+#endif
 
     SDL_Window * m_window = nullptr;
     SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
     std::unique_ptr<UiRenderer> m_renderer;
     std::unique_ptr<UiThemeFileInterface> m_themeFiles;
+    std::string m_themeChoice = "system";
+#if defined(__linux__)
+    Uint32 m_themeEvent = Uint32(-1);
+    Uint32 m_themeRequest = 0;
+    std::future<void> m_themeQuery;
+#endif
     Rml::Context * m_context = nullptr;
     IVideo * m_video = nullptr;
     int m_drawableWidth = 0;

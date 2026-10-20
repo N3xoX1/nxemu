@@ -60,6 +60,8 @@ add_library(nxemu_ui STATIC
     platform/file_dialogs.cpp
     platform/file_dialogs.h
     platform/native_window.h
+    platform/system_theme.cpp
+    platform/system_theme.h
     views/main_window.cpp
     views/main_window.h
     views/menu_bar.cpp

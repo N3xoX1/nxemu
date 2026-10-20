@@ -21,6 +21,7 @@ struct UISettings
     bool enableDiscordPresence;
 
     // New interface
+    std::string interfaceTheme;
     int32_t gameIconSize;
     int32_t gameSort;
     bool gameListView;

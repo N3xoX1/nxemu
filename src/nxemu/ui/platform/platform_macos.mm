@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 
 #include "native_window.h"
+#include "system_theme.h"
 #include <SDL.h>
 #include <SDL_syswm.h>
 #include <unordered_map>
@@ -150,6 +151,33 @@ void PerformNativeTitleBarDoubleClick(SDL_Window * window)
     {
         [it->second.window performZoom:nil];
     }
+}
+
+bool SystemPrefersDarkTheme()
+{
+    NSString * match = [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+    return match == nil || [match isEqualToString:NSAppearanceNameDarkAqua];
+}
+
+void SetNativeWindowTheme(SDL_Window * window, const char * choice)
+{
+    SDL_SysWMinfo info{};
+    SDL_VERSION(&info.version);
+    if (window == nullptr || !SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_COCOA)
+    {
+        return;
+    }
+    NSString * mode = [NSString stringWithUTF8String:choice];
+    NSAppearance * appearance = nil;
+    if ([mode isEqualToString:@"light"])
+    {
+        appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    }
+    else if ([mode isEqualToString:@"dark"])
+    {
+        appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    }
+    info.info.cocoa.window.appearance = appearance;
 }
 
 void ReleaseNativeWindowStyle(SDL_Window * window)

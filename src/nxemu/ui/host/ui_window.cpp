@@ -14,6 +14,7 @@
 #include <nxemu-module-spec/video.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/platform/native_window.h>
+#include <nxemu/ui/platform/system_theme.h>
 #include <stb_image.h>
 #include <vector>
 #include <yuzu_common/fs/fs_util.h>
@@ -43,6 +44,12 @@ UiWindow::UiWindow() = default;
 
 UiWindow::~UiWindow()
 {
+#if defined(__linux__)
+    if (m_themeQuery.valid())
+    {
+        m_themeQuery.wait();
+    }
+#endif
     DetachVideo();
     if (m_rmlInitialised)
     {
@@ -85,6 +92,13 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail(SDL_GetError());
     }
     m_sdlInitialised = true;
+#if defined(__linux__)
+    m_themeEvent = SDL_RegisterEvents(1);
+    if (m_themeEvent == Uint32(-1))
+    {
+        return Fail("Unable to register the theme notification");
+    }
+#endif
 
     Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 #if defined(__APPLE__)
@@ -182,10 +196,31 @@ void UiWindow::DetachVideo()
 
 void UiWindow::HandleEvent(const SDL_Event & event)
 {
+#if defined(__linux__)
+    if (event.type == m_themeEvent)
+    {
+        const Uint32 result = static_cast<Uint32>(event.user.code);
+        if (m_themeChoice == "system" && event.user.windowID == SDL_GetWindowID(m_window) && (result >> 1) == m_themeRequest)
+        {
+            ApplyTheme((result & 1) != 0, false);
+        }
+        return;
+    }
+#endif
     if (event.type == SDL_WINDOWEVENT)
     {
         switch (event.window.event)
         {
+        case SDL_WINDOWEVENT_FOCUS_GAINED:
+            if (m_themeChoice == "system")
+            {
+#if defined(__linux__)
+                RefreshSystemTheme();
+#else
+                SetTheme(m_themeChoice);
+#endif
+            }
+            break;
         case SDL_WINDOWEVENT_SIZE_CHANGED:
         case SDL_WINDOWEVENT_DISPLAY_CHANGED:
         case SDL_WINDOWEVENT_MOVED:
@@ -343,6 +378,65 @@ void UiWindow::SetTitle(const std::string & title)
 {
     SDL_SetWindowTitle(m_window, title.c_str());
 }
+
+void UiWindow::SetTheme(const std::string & choice)
+{
+    const std::string next = choice == "light" || choice == "dark" ? choice : "system";
+    const bool modeChanged = next != m_themeChoice;
+    m_themeChoice = next;
+#if defined(__linux__)
+    if (m_themeChoice == "system" && m_context->GetNumDocuments() > 0)
+    {
+        RefreshSystemTheme();
+        return;
+    }
+#endif
+    const bool light = m_themeChoice == "light" || (m_themeChoice == "system" && !SystemPrefersDarkTheme());
+    ApplyTheme(light, modeChanged);
+}
+
+void UiWindow::ApplyTheme(bool light, bool modeChanged)
+{
+    const bool coloursChanged = m_themeFiles->SetLight(light);
+    if (modeChanged || coloursChanged)
+    {
+        SetNativeWindowTheme(m_window, m_themeChoice.c_str());
+    }
+    if (!coloursChanged)
+    {
+        return;
+    }
+    m_context->ActivateTheme("light", light);
+    for (int index = 0; index < m_context->GetNumDocuments(); ++index)
+    {
+        m_context->GetDocument(index)->ReloadStyleSheet();
+    }
+}
+
+#if defined(__linux__)
+void UiWindow::RefreshSystemTheme()
+{
+    if (m_themeQuery.valid())
+    {
+        if (m_themeQuery.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+        {
+            return;
+        }
+        m_themeQuery.get();
+    }
+    const Uint32 type = m_themeEvent;
+    const Uint32 windowId = SDL_GetWindowID(m_window);
+    m_themeRequest = (m_themeRequest + 1) & 0x3fffffffu;
+    const Uint32 request = m_themeRequest;
+    m_themeQuery = std::async(std::launch::async, [type, windowId, request] {
+        SDL_Event event{};
+        event.type = type;
+        event.user.windowID = windowId;
+        event.user.code = static_cast<Sint32>((request << 1) | (SystemPrefersDarkTheme() ? 0u : 1u));
+        SDL_PushEvent(&event);
+    });
+}
+#endif
 
 bool UiWindow::IsFullscreen() const
 {

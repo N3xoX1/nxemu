@@ -18,6 +18,12 @@ namespace
     constexpr bool kShowEmulationControlsDefault = false;
 #endif
 
+#ifdef _WIN32
+    constexpr const char * kInterfaceThemeDefault = "dark";
+#else
+    constexpr const char * kInterfaceThemeDefault = "system";
+#endif
+
     const HotkeyMap g_defaultHotkeys = {
         {Hotkey::LoadFile, {.key = (uint32_t)SCITER_KEY_O, .ctrl = true}},
         {Hotkey::Exit, {.key = (uint32_t)SCITER_KEY_Q, .ctrl = true}},
@@ -111,6 +117,7 @@ namespace
         {NXUISetting::EnableDiscordPresence, "EnableDiscordPresence", &uiSettings.enableDiscordPresence, true},
 
         // New interface
+        {nullptr, "InterfaceTheme", &uiSettings.interfaceTheme, kInterfaceThemeDefault},
         {nullptr, "GameBrowser\\IconSize", &uiSettings.gameIconSize, 146},
         {nullptr, "GameBrowser\\Sort", &uiSettings.gameSort, 0},
         {nullptr, "GameBrowser\\ListView", &uiSettings.gameListView, false},

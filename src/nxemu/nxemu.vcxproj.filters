@@ -198,6 +198,9 @@
     <ClCompile Include="ui\platform\file_dialogs.cpp">
       <Filter>Source Files\ui\platform</Filter>
     </ClCompile>
+    <ClCompile Include="ui\platform\system_theme.cpp">
+      <Filter>Source Files\ui\platform</Filter>
+    </ClCompile>
     <ClCompile Include="ui\ui_application.cpp">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
@@ -333,6 +336,9 @@
       <Filter>Header Files\user_interface</Filter>
     </ClInclude>
     <ClInclude Include="ui\platform\file_dialogs.h">
+      <Filter>Header Files\ui\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\platform\system_theme.h">
       <Filter>Header Files\ui\platform</Filter>
     </ClInclude>
     <ClInclude Include="ui\ui_application.h">
