@@ -106,7 +106,7 @@ constexpr std::array MOLTENVK_SETTINGS{
     if (AreExtensionsSupported(properties, std::array{VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME})) {
         extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
-    if (AreExtensionsSupported(dld, std::array{VK_EXT_LAYER_SETTINGS_EXTENSION_NAME})) {
+    if (AreExtensionsSupported(properties, std::array{VK_EXT_LAYER_SETTINGS_EXTENSION_NAME})) {
         extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
     }
 #endif
