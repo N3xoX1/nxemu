@@ -21,6 +21,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nxemu-core", "src\nxemu-cor
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "update_version", "src\update_version\update_version.vcxproj", "{D442FBFE-1018-4056-A0AE-CBCB6BF9DD90}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ui_packer", "src\ui_packer\ui_packer.vcxproj", "{46F35990-6C03-485D-928B-E71A313700FD}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "common", "src\common\common.vcxproj", "{EC81BE93-8316-4DB6-8A26-B13FB5B13848}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nxemu-os", "src\nxemu-os\nxemu-os.vcxproj", "{148184C3-456B-409C-8112-2FC35DE07D92}"
@@ -154,6 +156,14 @@ Global
 		{D442FBFE-1018-4056-A0AE-CBCB6BF9DD90}.Release|x64.Build.0 = Release|x64
 		{D442FBFE-1018-4056-A0AE-CBCB6BF9DD90}.Release|x86.ActiveCfg = Release|x64
 		{D442FBFE-1018-4056-A0AE-CBCB6BF9DD90}.Release|x86.Build.0 = Release|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Debug|x64.ActiveCfg = Debug|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Debug|x64.Build.0 = Debug|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Debug|x86.ActiveCfg = Debug|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Debug|x86.Build.0 = Debug|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Release|x64.ActiveCfg = Release|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Release|x64.Build.0 = Release|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Release|x86.ActiveCfg = Release|x64
+		{46F35990-6C03-485D-928B-E71A313700FD}.Release|x86.Build.0 = Release|x64
 		{EC81BE93-8316-4DB6-8A26-B13FB5B13848}.Debug|x64.ActiveCfg = Debug|x64
 		{EC81BE93-8316-4DB6-8A26-B13FB5B13848}.Debug|x64.Build.0 = Debug|x64
 		{EC81BE93-8316-4DB6-8A26-B13FB5B13848}.Debug|x86.ActiveCfg = Debug|x64

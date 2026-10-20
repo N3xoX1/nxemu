@@ -1,5 +1,6 @@
 #include "ui_window.h"
 #include "system_fonts.h"
+#include "ui_pack.h"
 #include "ui_theme.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
@@ -142,7 +143,8 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail("RmlUi initialization failed");
     }
     m_rmlInitialised = true;
-    m_themeFiles = std::make_unique<UiThemeFileInterface>(*Rml::GetFileInterface());
+    m_packFiles = std::make_unique<UiPackFileInterface>(*Rml::GetFileInterface());
+    m_themeFiles = std::make_unique<UiThemeFileInterface>(*m_packFiles);
     Rml::SetFileInterface(m_themeFiles.get());
     if (!LoadFonts(assetDir / "fonts"))
     {
@@ -558,8 +560,11 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
 
 void UiWindow::SetWindowIcon(const std::filesystem::path & iconFile)
 {
-    std::ifstream file(iconFile, std::ios::binary);
-    const std::vector<char> encoded{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    std::string encoded;
+    if (!UiPack::ReadFile(iconFile, encoded))
+    {
+        return;
+    }
     int width = 0, height = 0, channels = 0;
     stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc *>(encoded.data()), static_cast<int>(encoded.size()), &width, &height, &channels, 4);
     if (pixels == nullptr)
