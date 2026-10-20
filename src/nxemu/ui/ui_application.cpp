@@ -2,6 +2,7 @@
 #include "settings/ui_settings.h"
 #include "ui/emulation/emulator_session.h"
 #include "ui/host/ui_notification.h"
+#include "ui/host/ui_pack.h"
 #include "ui/host/ui_window.h"
 #include "ui/library/game_library.h"
 #include "ui/library/interface_language.h"
@@ -38,6 +39,11 @@ bool KeepGraphicsBusy(const UiWindow & window, EmulatorSession & session)
 std::filesystem::path FindAssetDirectory()
 {
     const std::filesystem::path exeDir = Common::FS::GetExeDirectory();
+    std::error_code packError;
+    if (std::filesystem::is_regular_file(exeDir / "nxemu.lang", packError) && UiPack::Open(exeDir / "nxemu.lang", exeDir / "ui"))
+    {
+        return exeDir / "ui";
+    }
     const std::filesystem::path candidates[] = {
         exeDir / "ui",
         // macOS application bundle: Contents/MacOS/../Resources/ui

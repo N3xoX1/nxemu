@@ -9,6 +9,7 @@
 #include <string>
 
 class SystemInterface_SDL;
+class UiPackFileInterface;
 class UiThemeFileInterface;
 nxinterface IVideo;
 namespace Rml
@@ -93,6 +94,7 @@ private:
     SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
     std::unique_ptr<UiRenderer> m_renderer;
+    std::unique_ptr<UiPackFileInterface> m_packFiles;
     std::unique_ptr<UiThemeFileInterface> m_themeFiles;
     std::string m_themeChoice = "system";
 #if defined(__linux__)

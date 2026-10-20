@@ -50,6 +50,10 @@ copy "%base_dir%\modules\%VSPlatform%\video\nxemu-video.dll" "%base_dir%\bin\pac
 echo packaging languages
 "%base_dir%\bin\%VSPlatform%\Release\resource_packer.exe" "%base_dir%\lang\english" "%base_dir%\bin\package\lang\english.lang"
 
+echo packaging interface
+"%base_dir%\bin\%VSPlatform%\Release\ui_packer.exe" "%base_dir%\src\nxemu\ui\assets" "%base_dir%\src\nxemu\ui\lang" "%base_dir%\bin\package\nxemu.lang"
+IF %ERRORLEVEL% NEQ 0 GOTO EndErr
+
 cd %base_dir%\bin\package
 "%zip%" a -tzip -r "%base_dir%\package\%ZipFileName%" *
 cd /d %current_dir%

@@ -204,6 +204,9 @@
     <ClCompile Include="ui\host\system_language.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
+    <ClCompile Include="ui\host\ui_pack.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
     <ClCompile Include="ui\library\interface_language.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
@@ -348,6 +351,9 @@
       <Filter>Header Files\ui\platform</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\system_language.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\ui_pack.h">
       <Filter>Header Files\ui\host</Filter>
     </ClInclude>
     <ClInclude Include="ui\library\interface_language.h">

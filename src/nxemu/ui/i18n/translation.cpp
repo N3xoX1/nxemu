@@ -5,6 +5,8 @@
 #include <RmlUi/Core/ElementText.h>
 #include <nxemu-os/os_types.h>
 #include <fstream>
+#include <nxemu/ui/host/ui_pack.h>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 #include <yuzu_common/fs/fs_util.h>
@@ -298,11 +300,12 @@ bool IsSupportedLanguage(const std::string & code)
 
 bool Load(const std::filesystem::path & file)
 {
-    std::ifstream stream(file);
-    if (!stream)
+    std::string text;
+    if (!UiPack::ReadFile(file, text))
     {
         return false;
     }
+    std::istringstream stream(text);
     Catalogue catalogue;
     Entry entry;
     std::string * continued = nullptr; // what a line of quoted text alone adds to
