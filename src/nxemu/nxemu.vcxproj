@@ -98,6 +98,7 @@
     <ClCompile Include="ui\library\rom_properties.cpp" />
     <ClCompile Include="vulkan_probe.cpp" />
     <ClCompile Include="ui\platform\file_dialogs.cpp" />
+    <ClCompile Include="ui\platform\system_theme.cpp" />
     <ClCompile Include="user_interface\game_list_worker.cpp" />
     <ClCompile Include="user_interface\hotkey_map.cpp" />
     <ClCompile Include="user_interface\html_utils.cpp" />
@@ -186,6 +187,7 @@
     <ClInclude Include="vulkan_probe.h" />
     <ClInclude Include="user_interface\app_events.h" />
     <ClInclude Include="ui\platform\file_dialogs.h" />
+    <ClInclude Include="ui\platform\system_theme.h" />
     <ClInclude Include="user_interface\game_list_worker.h" />
     <ClInclude Include="user_interface\hotkey_map.h" />
     <ClInclude Include="user_interface\html_utils.h" />

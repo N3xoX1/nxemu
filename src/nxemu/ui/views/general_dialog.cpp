@@ -17,6 +17,7 @@
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-os/os_types.h>
 #include <nxemu-video/video_settings_identifiers.h>
+#include <nxemu/settings/ui_settings.h>
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
@@ -138,6 +139,14 @@ void GeneralDialog::FillLists()
     SettingsContext & settings = m_settings;
     Choices choices;
 
+    Fill(Select(Document(), "interface-theme"),
+         {
+             {Tr("System default"), "system", {}},
+             {Tr("Light"), "light", {}},
+             {Tr("Dark"), "dark", {}},
+         },
+         uiSettings.interfaceTheme);
+
     m_devices = m_window.Renderer().GraphicsDevices();
     for (size_t index = 0; index < m_devices.size(); ++index)
     {
@@ -255,8 +264,19 @@ void GeneralDialog::ApplyChange(const std::string & id)
     {
         return;
     }
-    if (m_settings.IsGame() && (id == "device" || id == "profile")) return;
+    if (m_settings.IsGame() && (id == "device" || id == "profile" || id == "interface-theme")) return;
     const int value = std::atoi(text.c_str());
+
+    if (id == "interface-theme")
+    {
+        if ((text == "system" || text == "light" || text == "dark") && text != uiSettings.interfaceTheme)
+        {
+            uiSettings.interfaceTheme = text;
+            SaveUISetting();
+            m_window.SetTheme(text);
+        }
+        return;
+    }
 
     const char * setting = nullptr;
     if (id == "profile")

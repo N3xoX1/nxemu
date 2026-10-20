@@ -97,6 +97,7 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
         std::cerr << "NXEmu: " << window.Error() << '\n';
         return 1;
     }
+    window.SetTheme(uiSettings.interfaceTheme);
 
     EmulatorSession session(window, notification, window.Handle());
     if (!session.Initialise())
