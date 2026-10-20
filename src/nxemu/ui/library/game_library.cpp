@@ -78,6 +78,9 @@ void GameLibrary::StartScan(ISystemModules & modules)
         m_found.clear();
     }
     m_stop = false;
+    m_scanCompleted = false;
+    m_filesStarted = 0;
+    m_filesTotal = 0;
     m_scanning = true;
     m_thread = std::thread([this, &modules, directories = Directories()] { Scan(modules, directories); });
 }
@@ -111,13 +114,20 @@ void GameLibrary::Scan(ISystemModules & modules, std::vector<std::string> direct
     {
         paths.push_back(directory.c_str());
     }
-    modules.Systemloader().ScanGameList(paths.data(), static_cast<uint32_t>(paths.size()), *this);
+    m_scanCompleted = modules.Systemloader().ScanGameList(paths.data(), static_cast<uint32_t>(paths.size()), *this) && !m_stop;
+    m_filesTotal = 0;
     m_scanning = false;
 }
 
 bool GameLibrary::ScanStopRequested()
 {
     return m_stop;
+}
+
+void GameLibrary::ScanProgress(uint32_t filesStarted, uint32_t filesTotal)
+{
+    m_filesStarted = filesStarted;
+    m_filesTotal = filesTotal;
 }
 
 void GameLibrary::GameFound(const char * path, IRomInfo * romInfo, bool /*changed*/)

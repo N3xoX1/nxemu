@@ -42,6 +42,10 @@ public:
     void StartScan(ISystemModules & modules);
     void StopScan();
     bool Scanning() const { return m_scanning; }
+    bool ScanCompleted() const { return m_scanCompleted; }
+    bool ReadingGames() const { return m_scanning && m_filesTotal != 0; }
+    uint32_t FilesStarted() const { return m_filesStarted; }
+    uint32_t FilesTotal() const { return m_filesTotal; }
     bool TakeFound(std::vector<FoundGame> & games);
 
 private:
@@ -53,11 +57,15 @@ private:
     // IGameListScanCallback
     bool ScanStopRequested() override;
     void GameFound(const char * path, IRomInfo * romInfo, bool changed) override;
+    void ScanProgress(uint32_t filesStarted, uint32_t filesTotal) override;
 
     std::vector<std::string> m_directories;
     std::thread m_thread;
     std::atomic<bool> m_stop{false};
     std::atomic<bool> m_scanning{false};
+    std::atomic<bool> m_scanCompleted{false};
+    std::atomic<uint32_t> m_filesStarted{0};
+    std::atomic<uint32_t> m_filesTotal{0};
     std::mutex m_foundMutex;
     std::vector<FoundGame> m_found;
 };

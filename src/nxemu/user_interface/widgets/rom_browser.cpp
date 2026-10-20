@@ -82,6 +82,9 @@ private:
     // IGameListScanCallback
     bool ScanStopRequested() override;
     void GameFound(const char * path, IRomInfo * romInfo, bool changed) override;
+    void ScanProgress(uint32_t /*filesStarted*/, uint32_t /*filesTotal*/) override
+    {
+    }
 
     ISystemModules & m_modules;
     std::mutex & m_romsMutex;
