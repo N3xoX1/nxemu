@@ -36,7 +36,6 @@ struct GuestContext {
     u64 tpidrro_el0{};
     u64 tpidr_el0{};
     std::atomic<u64> esr_el1{};
-    u32 nzcv{};
     u32 svc{};
     IMemory * memory{};
     ArmNce * parent{};

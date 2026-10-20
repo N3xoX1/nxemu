@@ -18,6 +18,7 @@ using namespace oaknut::util;
 
 constexpr size_t MaxRelativeBranch = 128_MiB;
 constexpr u32 ModuleCodeIndex = 0x24 / sizeof(u32);
+constexpr u32 PstateNzcvMask = 0xF0000000;
 
 Patcher::Patcher() : c(m_patch_instructions) {
     // The first word of the patch section is always a branch to the first instruction of the
@@ -230,7 +231,8 @@ void Patcher::WriteLoadContext() {
     c.MSR(oaknut::SystemReg::FPSR, X0);
     c.LDR(W0, X30, offsetof(GuestContext, fpcr));
     c.MSR(oaknut::SystemReg::FPCR, X0);
-    c.LDR(W0, X30, offsetof(GuestContext, nzcv));
+    c.LDR(W0, X30, offsetof(GuestContext, pstate));
+    c.AND(W0, W0, PstateNzcvMask);
     c.MSR(oaknut::SystemReg::NZCV, X0);
 
     // Load all vector registers.
@@ -269,8 +271,8 @@ void Patcher::WriteSaveContext() {
         c.STP(oaknut::QReg{i}, oaknut::QReg{i + 1}, X30, VEC_OFF + 16 * i);
     }
 
-    // Store guest system registers, X30 and SP, using X0 as a scratch register.
-    c.STR(X0, SP, PRE_INDEXED, -16);
+    // Store guest system registers, X30 and SP, using X0 and X1 as scratch registers.
+    c.STP(X0, X1, SP, PRE_INDEXED, -16);
     c.LDR(X0, SP, 16);
     c.STR(X0, X30, 8 * 30);
     c.ADD(X0, SP, 32);
@@ -279,9 +281,13 @@ void Patcher::WriteSaveContext() {
     c.STR(W0, X30, offsetof(GuestContext, fpsr));
     c.MRS(X0, oaknut::SystemReg::FPCR);
     c.STR(W0, X30, offsetof(GuestContext, fpcr));
+    // The flags live in pstate, like on a signal exit, so GetContext sees them.
     c.MRS(X0, oaknut::SystemReg::NZCV);
-    c.STR(W0, X30, offsetof(GuestContext, nzcv));
-    c.LDR(X0, SP, POST_INDEXED, 16);
+    c.LDR(W1, X30, offsetof(GuestContext, pstate));
+    c.AND(W1, W1, ~PstateNzcvMask);
+    c.ORR(W0, W0, W1);
+    c.STR(W0, X30, offsetof(GuestContext, pstate));
+    c.LDP(X0, X1, SP, POST_INDEXED, 16);
 
     // Reload our return X30 from the stack, and return.
     c.LDR(X30, SP, 8);
