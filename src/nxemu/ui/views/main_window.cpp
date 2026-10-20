@@ -1094,7 +1094,16 @@ void MainWindow::AddGames(std::vector<FoundGame> found)
         {
             entry.game.icon = m_window.Renderer().AddMemoryImage(std::move(entry.icon));
         }
-        games.push_back(std::move(entry.game));
+        const std::vector<GameEntry>::iterator existing = std::find_if(games.begin(), games.end(), [&entry](const GameEntry & game) {
+            return game.path == entry.game.path && game.programId == entry.game.programId;
+        });
+        if (existing == games.end())
+        {
+            games.push_back(std::move(entry.game));
+            continue;
+        }
+        ReleaseIcons({*existing});
+        *existing = std::move(entry.game);
     }
     if (m_rescanning)
     {
