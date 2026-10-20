@@ -83,6 +83,8 @@ void * ArmNce::RestoreGuestContext(void * raw_context)
     std::memcpy(guest_ctx->host_ctx.host_saved_regs.data(), &host_ctx.regs[19], sizeof(guest_ctx->host_ctx.host_saved_regs));
 
     guest_ctx->host_ctx.host_sp = host_ctx.sp;
+    guest_ctx->host_ctx.host_fpcr = fpctx->fpcr;
+    guest_ctx->host_ctx.host_fpsr = fpctx->fpsr;
 
     host_ctx.sp = guest_ctx->sp;
     host_ctx.pc = guest_ctx->pc;
@@ -108,6 +110,8 @@ void ArmNce::SaveGuestContext(GuestContext * guest_ctx, void * raw_context)
     guest_ctx->sp = host_ctx.sp;
 
     host_ctx.sp = guest_ctx->host_ctx.host_sp;
+    fpctx->fpcr = guest_ctx->host_ctx.host_fpcr;
+    fpctx->fpsr = guest_ctx->host_ctx.host_fpsr;
 
     std::memcpy(&host_ctx.regs[19], guest_ctx->host_ctx.host_saved_regs.data(), sizeof(guest_ctx->host_ctx.host_saved_regs));
     std::memcpy(&fpctx->vregs[8], guest_ctx->host_ctx.host_saved_vregs.data(), sizeof(guest_ctx->host_ctx.host_saved_vregs));

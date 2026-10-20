@@ -18,6 +18,7 @@
 
 #define HostContextSpTpidrEl0 0xE0
 #define HostContextTpidrEl0 0xE8
+#define HostContextFpcrFpsr 0xF0
 #define HostContextRegs 0x0
 #define HostContextVregs 0x60
 

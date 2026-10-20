@@ -327,6 +327,12 @@ void Patcher::WriteSvcTrampoline(ModuleDestLabel module_dest, u32 svc_id) {
     // NB: Due to this all offsets below are from the start of HostContext.
     c.ADD(X1, X1, offsetof(GuestContext, host_ctx));
 
+    // Reload host FPCR and FPSR, so host code does not run with the guest rounding mode.
+    static_assert(offsetof(HostContext, host_fpcr) + 4 == offsetof(HostContext, host_fpsr));
+    c.LDP(W2, W3, X1, offsetof(HostContext, host_fpcr));
+    c.MSR(oaknut::SystemReg::FPCR, X2);
+    c.MSR(oaknut::SystemReg::FPSR, X3);
+
     // Reload host TPIDR_EL0 and SP.
     static_assert(offsetof(HostContext, host_sp) + 8 == offsetof(HostContext, host_tpidr_el0));
     c.LDP(X2, X3, X1, offsetof(HostContext, host_sp));

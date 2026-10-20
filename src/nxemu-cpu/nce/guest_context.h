@@ -20,6 +20,8 @@ struct HostContext {
     alignas(16) std::array<u128, 8> host_saved_vregs{};
     u64 host_sp{};
     void* host_tpidr_el0{};
+    u32 host_fpcr{};
+    u32 host_fpsr{};
 };
 
 struct GuestContext {
@@ -46,6 +48,8 @@ static_assert(offsetof(GuestContext, host_ctx) == GuestContextHostContext);
 static_assert(offsetof(HostContext, host_sp) == HostContextSpTpidrEl0);
 static_assert(offsetof(HostContext, host_tpidr_el0) - 8 == HostContextSpTpidrEl0);
 static_assert(offsetof(HostContext, host_tpidr_el0) == HostContextTpidrEl0);
+static_assert(offsetof(HostContext, host_fpcr) == HostContextFpcrFpsr);
+static_assert(offsetof(HostContext, host_fpsr) - 4 == HostContextFpcrFpsr);
 static_assert(offsetof(HostContext, host_saved_regs) == HostContextRegs);
 static_assert(offsetof(HostContext, host_saved_vregs) == HostContextVregs);
 
