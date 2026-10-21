@@ -162,7 +162,7 @@ public:
     }
 
 private:
-    std::array<StorageReadBus, 3> storage_read_buses{
+    std::array<StorageReadBus, static_cast<size_t>(StorageReadDomain::Count)> storage_read_buses{
         StorageReadBus{}, StorageReadBus{}, StorageReadBus{StorageReadBus::Profile::SdSdr104}};
     struct Event;
 

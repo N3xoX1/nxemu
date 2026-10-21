@@ -308,7 +308,7 @@ RealVfsFile::RealVfsFile(RealVfsFilesystem& base_, std::unique_ptr<FileReference
                          const std::string& path_, VirtualFileOpenMode perms_, std::optional<uint64_t> size_)
     : base(base_), reference(std::move(reference_)), path(path_),
       parent_path(FS::GetParentPath(path_)), path_components(FS::SplitPathComponentsCopy(path_)),
-        size(size_), perms(perms_) {
+      size(size_), perms(perms_) {
     read_domain = ReadDomainForPath(path);
 }
 
@@ -357,7 +357,6 @@ std::size_t RealVfsFile::Read(u8* data, std::size_t length, std::size_t offset) 
         return 0;
     }
     const auto bytes = reference->file->ReadSpan(std::span{data, length});
-    backing_read_bytes += bytes;
     backing_read_traffic.bytes[static_cast<std::uint32_t>(read_domain)] += bytes;
     return bytes;
 }
