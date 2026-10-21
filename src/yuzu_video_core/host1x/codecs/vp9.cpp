@@ -356,12 +356,97 @@ void VP9::WriteMvProbabilityUpdate(VpxRangeEncoder& writer, u8 new_prob, u8 old_
     }
 }
 
-Vp9PictureInfo VP9::GetVp9PictureInfo(const Host1x::NvdecCommon::NvdecRegisters& state) {
+void VP9::WriteSegmentation(VpxBitStreamWriter & writer)
+{
+    // setup_past_independence resets decoder features even when this frame
+    // disables segmentation. A later frame must not reuse the pre-reset cache.
+    if (current_frame_info.is_key_frame || current_frame_info.intra_only ||
+        current_frame_info.error_resilient_mode)
+    {
+        last_segmentation = {};
+    }
+    const auto & segmentation = current_frame_info.segmentation;
+    writer.WriteBit(segmentation.enabled != 0);
+    if (!segmentation.enabled)
+    {
+        return;
+    }
+
+    writer.WriteBit(segmentation.update_map != 0);
+    if (segmentation.update_map)
+    {
+        const auto write_prob = [&](u8 probability) {
+            writer.WriteBit(probability != 255);
+            if (probability != 255)
+            {
+                writer.WriteU(probability, 8);
+            }
+        };
+        for (const auto probability : current_frame_info.segmentation_tree_probs)
+        {
+            write_prob(probability);
+        }
+        writer.WriteBit(segmentation.temporal_update != 0);
+        if (segmentation.temporal_update)
+        {
+            for (const auto probability : current_frame_info.segmentation_pred_probs)
+            {
+                write_prob(probability);
+            }
+        }
+    }
+
+    // Map-update flags and disabled feature values do not change decoder
+    // features. Compare only effective state to avoid redundant data updates.
+    bool update_data = (segmentation.abs_delta != 0) != (last_segmentation.abs_delta != 0);
+    for (size_t segment = 0; segment < 8; ++segment)
+    {
+        for (size_t feature = 0; feature < 4; ++feature)
+        {
+            const bool enabled = segmentation.feature_enabled[segment][feature] != 0;
+            const bool previous = last_segmentation.feature_enabled[segment][feature] != 0;
+            update_data |= enabled != previous ||
+                           (enabled && feature < 3 && segmentation.feature_data[segment][feature] != last_segmentation.feature_data[segment][feature]);
+        }
+    }
+    writer.WriteBit(update_data);
+    if (!update_data)
+    {
+        return;
+    }
+    writer.WriteBit(segmentation.abs_delta != 0);
+    constexpr std::array<u32, 4> feature_bits{8, 6, 2, 0};
+    for (size_t segment = 0; segment < 8; ++segment)
+    {
+        for (size_t feature = 0; feature < 4; ++feature)
+        {
+            const bool enabled = segmentation.feature_enabled[segment][feature] != 0;
+            writer.WriteBit(enabled);
+            if (!enabled || feature == 3)
+            {
+                continue;
+            }
+            const auto value = segmentation.feature_data[segment][feature];
+            if (feature < 2)
+            {
+                writer.WriteS(value, feature_bits[feature]);
+            }
+            else
+            {
+                writer.WriteU(value, feature_bits[feature]);
+            }
+        }
+    }
+    last_segmentation = segmentation;
+}
+
+Vp9PictureInfo VP9::GetVp9PictureInfo(const Host1x::NvdecCommon::NvdecRegisters & state)
+{
     PictureInfo picture_info;
     host1x.GMMU().ReadBlock(state.picture_info_offset, &picture_info, sizeof(PictureInfo));
     Vp9PictureInfo vp9_info = picture_info.Convert();
 
-    InsertEntropy(state.vp9_entropy_probs_offset, vp9_info.entropy);
+    InsertEntropy(state.vp9_entropy_probs_offset, vp9_info);
 
     // surface_luma_offset[0:3] contains the address of the reference frame offsets in the following
     // order: last, golden, altref, current.
@@ -371,10 +456,12 @@ Vp9PictureInfo VP9::GetVp9PictureInfo(const Host1x::NvdecCommon::NvdecRegisters&
     return vp9_info;
 }
 
-void VP9::InsertEntropy(u64 offset, Vp9EntropyProbs& dst) {
+void VP9::InsertEntropy(u64 offset, Vp9PictureInfo& dst) {
     EntropyProbs entropy;
     host1x.GMMU().ReadBlock(offset, &entropy, sizeof(EntropyProbs));
-    entropy.Convert(dst);
+    entropy.Convert(dst.entropy);
+    dst.segmentation_tree_probs = entropy.mb_segment_tree_probs;
+    dst.segmentation_pred_probs = entropy.segment_pred_probs;
 }
 
 Vp9FrameContainer VP9::GetCurrentFrame(const Host1x::NvdecCommon::NvdecRegisters& state) {
@@ -742,8 +829,7 @@ VpxBitStreamWriter VP9::ComposeUncompressedHeader() {
     uncomp_writer.WriteDeltaQ(current_frame_info.uv_dc_delta_q);
     uncomp_writer.WriteDeltaQ(current_frame_info.uv_ac_delta_q);
 
-    ASSERT(!current_frame_info.segment_enabled);
-    uncomp_writer.WriteBit(false); // Segmentation enabled (TODO).
+    WriteSegmentation(uncomp_writer);
 
     const s32 min_tile_cols_log2 = CalcMinLog2TileCols(current_frame_info.frame_size.width);
     const s32 max_tile_cols_log2 = CalcMaxLog2TileCols(current_frame_info.frame_size.width);
