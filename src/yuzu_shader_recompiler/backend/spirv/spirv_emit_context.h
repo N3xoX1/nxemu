@@ -271,6 +271,7 @@ public:
     std::vector<ImageDefinition> images;
 
     bool uses_nonuniform_sampled_image{};
+    bool uses_nonuniform_uniform_texel_buffer{};
     bool uses_nonuniform_storage_image{};
     std::unordered_set<u32> nonuniform_sampled_ids;
 

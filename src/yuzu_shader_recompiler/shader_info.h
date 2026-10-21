@@ -6,6 +6,7 @@
 #include <array>
 #include <bitset>
 #include <map>
+#include <vector>
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_shader_recompiler/frontend/ir/type.h"
@@ -173,6 +174,21 @@ struct StorageBufferDescriptor {
     auto operator<=>(const StorageBufferDescriptor&) const = default;
 };
 
+struct TextureHandleSource {
+    bool has_secondary;
+    u32 cbuf_index;
+    u32 cbuf_offset;
+    u32 shift_left;
+    u32 secondary_cbuf_index;
+    u32 secondary_cbuf_offset;
+    u32 secondary_shift_left;
+    u32 count;
+    u32 size_shift;
+    u32 handle_or_bits{};
+
+    auto operator<=>(const TextureHandleSource&) const = default;
+};
+
 struct TextureBufferDescriptor {
     bool has_secondary;
     u32 cbuf_index;
@@ -184,6 +200,9 @@ struct TextureBufferDescriptor {
     u32 count;
     u32 size_shift;
     u32 handle_or_bits{};
+
+    /// Compact alternatives for a handle selected by a Phi or Select.
+    std::vector<TextureHandleSource> sources;
 
     auto operator<=>(const TextureBufferDescriptor&) const = default;
 };
@@ -222,6 +241,9 @@ struct TextureDescriptor {
     bool in_table_set{};
     /// Constant bits combined with the cbuf handle, including an immediate sampler index.
     u32 handle_or_bits{};
+
+    /// Finite SSA alternatives, bound as a compact array instead of the entire TIC table.
+    std::vector<TextureHandleSource> sources;
 
     auto operator<=>(const TextureDescriptor&) const = default;
 };

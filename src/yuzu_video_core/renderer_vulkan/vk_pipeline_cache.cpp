@@ -519,6 +519,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_descriptor_aliasing = device.IsDescriptorAliasingSupported(),
         .support_sampled_image_array_nonuniform_indexing =
             device.IsSampledImageArrayNonUniformIndexingSupported(),
+        .support_uniform_texel_buffer_array_nonuniform_indexing =
+            device.IsUniformTexelBufferArrayNonUniformIndexingSupported(),
         .support_storage_image_array_nonuniform_indexing =
             device.IsStorageImageArrayNonUniformIndexingSupported(),
         .disable_uniform_buffer_descriptor_aliasing =

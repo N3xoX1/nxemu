@@ -78,6 +78,7 @@
     <ClInclude Include="frontend\maxwell\translate_program.h" />
     <ClInclude Include="host_translate_info.h" />
     <ClInclude Include="ir_opt\passes.h" />
+    <ClInclude Include="ir_opt\conditional_value.h" />
     <ClInclude Include="object_pool.h" />
     <ClInclude Include="precompiled_headers.h" />
     <ClInclude Include="profile.h" />

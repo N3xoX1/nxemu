@@ -412,6 +412,13 @@ void SetupCapabilities(const Profile& profile, const Info& info, EmitContext& ct
         ctx.AddCapability(spv::Capability::ShaderNonUniform);
         ctx.AddCapability(spv::Capability::SampledImageArrayNonUniformIndexing);
     }
+    if (ctx.uses_nonuniform_uniform_texel_buffer) {
+        if (profile.supported_spirv < 0x00010500) {
+            ctx.AddExtension("SPV_EXT_descriptor_indexing");
+        }
+        ctx.AddCapability(spv::Capability::ShaderNonUniform);
+        ctx.AddCapability(spv::Capability::UniformTexelBufferArrayNonUniformIndexing);
+    }
     if (info.uses_sampled_1d) {
         ctx.AddCapability(spv::Capability::Sampled1D);
     }

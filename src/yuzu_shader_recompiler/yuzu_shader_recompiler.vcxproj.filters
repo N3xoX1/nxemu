@@ -236,6 +236,9 @@
     <ClInclude Include="frontend\maxwell\translate\impl\video_helper.h">
       <Filter>Header Files\frontend\maxwell\translate\impl</Filter>
     </ClInclude>
+    <ClInclude Include="ir_opt\conditional_value.h">
+      <Filter>Header Files\ir_opt</Filter>
+    </ClInclude>
     <ClInclude Include="ir_opt\passes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
