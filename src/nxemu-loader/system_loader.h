@@ -60,6 +60,8 @@ public:
     LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,
                                        uint32_t buffer_size, uint32_t & actual_size) override;
 
+    void GetBackingReadTraffic(StorageReadTraffic* out) const override;
+
 private:
     Systemloader() = delete;
     Systemloader(const Systemloader &) = delete;

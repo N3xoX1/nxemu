@@ -7,6 +7,8 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <deque>
+#include <thread>
 #include <list>
 #include <memory>
 
@@ -37,6 +39,70 @@
 
 namespace Tegra
 {
+class AsyncCdma
+{
+public:
+    AsyncCdma(Host1x::Host1x & host, std::function<void()> register_thread) :
+        thread{[this, &host, register_thread = std::move(register_thread)] {
+            const auto stop = cancellation.get_token();
+            register_thread();
+            CDmaPusher pusher{host, stop};
+            for (;;)
+            {
+                Work entries;
+                {
+                    std::unique_lock lock{mutex};
+                    if (!cv.wait(lock, stop, [&] { return !queue.empty(); })) return;
+                    if (stop.stop_requested()) return;
+                    entries = std::move(queue.front());
+                    queue.pop_front();
+                }
+                pusher.ProcessEntries(std::move(entries.commands));
+            }
+        }}
+    {
+    }
+    ~AsyncCdma()
+    {
+        Join();
+    }
+    void Join()
+    {
+        Stop();
+        std::scoped_lock join_lock{join_mutex};
+        if (thread.joinable()) thread.join();
+        std::deque<Work> discarded;
+        {
+            std::scoped_lock lock{mutex};
+            discarded.swap(queue);
+        }
+    }
+    void Stop()
+    {
+        cancellation.request_stop();
+        cv.notify_all();
+    }
+    void ProcessEntries(ChCommandHeaderList && entries, std::shared_ptr<void> resources)
+    {
+        std::scoped_lock lock{mutex};
+        if (cancellation.stop_requested()) return;
+        queue.push_back({std::move(entries), std::move(resources)});
+        cv.notify_one();
+    }
+
+private:
+    std::mutex join_mutex;
+    std::stop_source cancellation;
+    std::mutex mutex;
+    std::condition_variable_any cv;
+    struct Work
+    {
+        ChCommandHeaderList commands;
+        std::shared_ptr<void> resources;
+    };
+    std::deque<Work> queue;
+    std::jthread thread;
+};
 struct GPU::Impl :
     public ICacheInvalidator
 {
@@ -53,6 +119,7 @@ struct GPU::Impl :
     ~Impl()
     {
         NotifyShutdown();
+        cdma_pushers.clear();
         composite_requests.Cancel();
     }
 
@@ -284,6 +351,14 @@ struct GPU::Impl :
             shutting_down.store(true, std::memory_order::relaxed);
             sync_cv.notify_all();
         }
+        std::vector<std::shared_ptr<AsyncCdma>> workers;
+        {
+            std::scoped_lock lock{cdma_mutex};
+            for (auto & [id, worker] : cdma_pushers)
+                workers.push_back(worker);
+        }
+        for (auto & worker : workers)
+            worker->Stop();
         composite_requests.RequestCancel();
     }
 
@@ -315,34 +390,37 @@ struct GPU::Impl :
     }
 
     /// Push GPU command buffer entries to be processed
-    void PushCommandBuffer(u32 id, Tegra::ChCommandHeaderList & entries)
+    void PushCommandBuffer(u32 id, Tegra::ChCommandHeaderList & entries, std::shared_ptr<void> resources)
     {
         if (!use_nvdec)
         {
             return;
         }
 
+        std::scoped_lock cdma_lock{cdma_mutex};
+        if (shutting_down.load(std::memory_order_acquire)) return;
         if (!cdma_pushers.contains(id))
         {
-            cdma_pushers.insert_or_assign(id, std::make_unique<Tegra::CDmaPusher>(host1x));
+            cdma_pushers.insert_or_assign(id, std::make_shared<AsyncCdma>(host1x, [this] { RegisterHostThread(); }));
         }
 
-        // SubmitCommandBuffer would make the nvdec operations async, this is not currently working
-        // TODO(ameerj): RE proper async nvdec operation
-        // gpu_thread.SubmitCommandBuffer(std::move(entries));
-        cdma_pushers[id]->ProcessEntries(std::move(entries));
+        // Keep submission asynchronous; the queue owns resources until execution retires.
+        cdma_pushers[id]->ProcessEntries(std::move(entries), std::move(resources));
     }
 
     /// Frees the CDMAPusher instance to free up resources
     void ClearCdmaInstance(u32 id)
     {
-        const auto iter = cdma_pushers.find(id);
-        if (iter != cdma_pushers.end())
+        std::shared_ptr<AsyncCdma> worker;
         {
-            cdma_pushers.erase(iter);
+            std::scoped_lock lock{cdma_mutex};
+            auto found = cdma_pushers.find(id);
+            if (found == cdma_pushers.end()) return;
+            worker = std::move(found->second);
+            cdma_pushers.erase(found);
         }
+        worker->Join();
     }
-
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, uint64_t size)
     {
@@ -470,7 +548,8 @@ struct GPU::Impl :
     GPU & gpu;
     Host1x::Host1x & host1x;
 
-    std::map<u32, std::unique_ptr<Tegra::CDmaPusher>> cdma_pushers;
+    std::mutex cdma_mutex;
+    std::map<u32, std::shared_ptr<AsyncCdma>> cdma_pushers;
     std::unique_ptr<VideoCore::RendererBase> renderer;
     VideoCore::RasterizerInterface * rasterizer = nullptr;
     const bool use_nvdec;
@@ -724,9 +803,9 @@ void GPU::PushGPUEntries(s32 channel, Tegra::CommandList && entries)
     impl->PushGPUEntries(channel, std::move(entries));
 }
 
-void GPU::PushCommandBuffer(u32 id, Tegra::ChCommandHeaderList & entries)
+void GPU::PushCommandBuffer(u32 id, Tegra::ChCommandHeaderList & entries, std::shared_ptr<void> resources)
 {
-    impl->PushCommandBuffer(id, entries);
+    impl->PushCommandBuffer(id, entries, std::move(resources));
 }
 
 void GPU::ClearCdmaInstance(u32 id)

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -20,6 +21,8 @@
 
 #include <nxemu-module-spec/cpu.h>
 #include "core/shared_cpu_clock.h"
+#include "core/storage_read_bus.h"
+#include "nxemu-module-spec/storage_read_traffic.h"
 
 namespace Core::Timing {
 
@@ -154,7 +157,13 @@ public:
     void SetTimerResolutionNs(std::chrono::nanoseconds ns);
 #endif
 
+    u64 ReserveStorageRead(StorageReadDomain domain, u64 now, u64 bytes) {
+        return storage_read_buses.at(static_cast<size_t>(domain)).Reserve(now, bytes);
+    }
+
 private:
+    std::array<StorageReadBus, 3> storage_read_buses{
+        StorageReadBus{}, StorageReadBus{}, StorageReadBus{StorageReadBus::Profile::SdSdr104}};
     struct Event;
 
     static void ThreadEntry(CoreTiming& instance);
@@ -167,6 +176,8 @@ private:
     std::unique_ptr<Common::WallClock> clock;
     SharedCpuClock shared_clock;
     std::atomic<bool> cpu_hle_native_clock{};
+    // Device deadlines require a coherent guest clock even without HLE CPU charging.
+    std::atomic<bool> shared_cpu_clock_enabled{};
     std::atomic<bool> cpu_hle_enabled{};
     std::atomic<bool> cpu_hle_failed{};
     std::atomic<s64> fallback_time_offset_ns{};

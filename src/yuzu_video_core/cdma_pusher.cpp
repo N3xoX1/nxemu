@@ -13,11 +13,11 @@
 #include "yuzu_video_core/memory_manager.h"
 
 namespace Tegra {
-CDmaPusher::CDmaPusher(Host1x::Host1x& host1x_) : 
+CDmaPusher::CDmaPusher(Host1x::Host1x& host1x_, std::stop_token stop_) : stop{stop_},
     host1x{host1x_}, 
     nvdec_processor(std::make_shared<Host1x::Nvdec>(host1x)),
     vic_processor(std::make_unique<Host1x::Vic>(host1x, nvdec_processor)),
-    host1x_processor(std::make_unique<Host1x::Control>(host1x)),
+    host1x_processor(std::make_unique<Host1x::Control>(host1x, stop)),
     sync_manager(std::make_unique<Host1x::SyncptIncrManager>(host1x))
 {
 }
@@ -28,6 +28,7 @@ void CDmaPusher::ProcessEntries(ChCommandHeaderList&& entries)
 {
     for (const auto& value : entries) 
     {
+        if (stop.stop_requested()) return;
         if (mask != 0)
         {
             const auto lbs = static_cast<u32>(std::countr_zero(mask));
@@ -97,7 +98,10 @@ void CDmaPusher::ExecuteCommand(u32 state_offset, u32 data)
         }
         case ThiMethod::SetMethod1:
             LOG_DEBUG(Service_NVDRV, "NVDEC method 0x{:X}", static_cast<u32>(nvdec_thi_state.method_0));
-            nvdec_processor->ProcessMethod(nvdec_thi_state.method_0, data);
+            {
+                std::scoped_lock memory_lock{host1x.MemoryMutex()};
+                nvdec_processor->ProcessMethod(nvdec_thi_state.method_0, data);
+            }
             break;
         default:
             break;
@@ -122,7 +126,10 @@ void CDmaPusher::ExecuteCommand(u32 state_offset, u32 data)
         }
         case ThiMethod::SetMethod1:
             LOG_DEBUG(Service_NVDRV, "VIC method 0x{:X}, Args=({})", static_cast<u32>(vic_thi_state.method_0), data);
-            vic_processor->ProcessMethod(static_cast<Host1x::Vic::Method>(vic_thi_state.method_0), data);
+            {
+                std::scoped_lock memory_lock{host1x.MemoryMutex()};
+                vic_processor->ProcessMethod(static_cast<Host1x::Vic::Method>(vic_thi_state.method_0), data);
+            }
             break;
         default:
             break;

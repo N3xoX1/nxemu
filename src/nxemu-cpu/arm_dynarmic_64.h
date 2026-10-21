@@ -60,5 +60,5 @@ private:
     uint32_t m_svc;
     IKernelProcess & m_process;
     uint32_t m_coreIndex;
-    bool m_cpu_hle_synchronization{};
+    bool m_track_guest_clock{};
 };
