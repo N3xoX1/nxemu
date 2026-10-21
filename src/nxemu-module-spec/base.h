@@ -45,6 +45,22 @@ enum class NotificationResponse : uint32_t
     Yes = 1,
 };
 
+// Native files under the configured NAND/SD mounts retain their emulated
+// device identity. Files mounted directly as game content use a separate
+// virtual-content device rather than their host PC's drive identity.
+enum class StorageReadDomain : uint32_t
+{
+    Content,
+    Nand,
+    SdCard,
+    Count
+};
+
+struct StorageReadTraffic
+{
+    uint64_t bytes[static_cast<uint32_t>(StorageReadDomain::Count)]{};
+};
+
 nxinterface IModuleNotification
 {
     virtual void DisplayError(const char * message, const char * title) = 0;

@@ -1,7 +1,6 @@
 #pragma once
 #include "base.h"
 #include "operating_system.h"
-#include "storage_read_traffic.h"
 
 enum class LoaderTitleType : uint8_t {
     SystemProgram = 0x01,

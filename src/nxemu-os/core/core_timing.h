@@ -22,7 +22,7 @@
 #include <nxemu-module-spec/cpu.h>
 #include "core/shared_cpu_clock.h"
 #include "core/storage_read_bus.h"
-#include "nxemu-module-spec/storage_read_traffic.h"
+#include "nxemu-module-spec/base.h"
 
 namespace Core::Timing {
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
-#include "nxemu-module-spec/storage_read_traffic.h"
+#include "nxemu-module-spec/base.h"
 
 #include <map>
 #include <mutex>

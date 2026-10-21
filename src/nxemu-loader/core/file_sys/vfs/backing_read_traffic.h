@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "nxemu-module-spec/storage_read_traffic.h"
+#include "nxemu-module-spec/base.h"
 
 namespace FileSys
 {
