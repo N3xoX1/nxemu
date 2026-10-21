@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <stop_token>
 
 #include <memory>
 #include <vector>
@@ -89,7 +90,7 @@ enum class ThiMethod : u32 {
 
 class CDmaPusher {
 public:
-    explicit CDmaPusher(Host1x::Host1x& host1x);
+    explicit CDmaPusher(Host1x::Host1x& host1x, std::stop_token stop = {});
     ~CDmaPusher();
 
     /// Process the command entry
@@ -102,6 +103,7 @@ private:
     /// Write arguments value to the ThiRegisters member at the specified offset
     void ThiStateWrite(ThiRegisters& state, u32 offset, u32 argument);
 
+    std::stop_token stop;
     Host1x::Host1x& host1x;
     std::shared_ptr<Tegra::Host1x::Nvdec> nvdec_processor;
     std::unique_ptr<Tegra::Host1x::Vic> vic_processor;

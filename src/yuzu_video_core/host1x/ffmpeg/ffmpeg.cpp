@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <map>
+#include <mutex>
+#include <cerrno>
+
 #include "yuzu_video_core/host1x/ffmpeg/ffmpeg.h"
+#include "yuzu_video_core/host1x/ffmpeg/device_cache.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
@@ -22,6 +27,24 @@ namespace FFmpeg
 namespace
 {
 
+std::mutex device_cache_mutex;
+std::map<AVHWDeviceType, AVBufferRef *> device_cache;
+int GetCachedDevice(AVBufferRef ** output, AVHWDeviceType type)
+{
+    std::scoped_lock lock{device_cache_mutex};
+    auto & device = device_cache[type];
+    if (!device)
+    {
+        const auto ret = av_hwdevice_ctx_create(&device, type, nullptr, nullptr, 0);
+        if (ret < 0)
+        {
+            device_cache.erase(type);
+            return ret;
+        }
+    }
+    *output = av_buffer_ref(device);
+    return *output ? 0 : AVERROR(ENOMEM);
+}
 constexpr AVPixelFormat PreferredGpuFormat = AV_PIX_FMT_NV12;
 constexpr AVPixelFormat PreferredCpuFormat = AV_PIX_FMT_YUV420P;
 constexpr std::array PreferredGpuDecoders = {
@@ -75,6 +98,24 @@ std::string AVError(int errnum)
 
 } // namespace
 
+void WarmHardwareDecoderDevices()
+{
+    if (videoSettings.nvdec_emulation != NvdecEmulation::Gpu) return;
+    Decoder decoder{Tegra::Host1x::NvdecCommon::VideoCodec::H264};
+    if (decoder.GetCodec())
+    {
+        DecoderContext context{decoder};
+        HardwareContext hardware;
+        hardware.InitializeForDecoder(context, decoder);
+    }
+}
+void ReleaseHardwareDecoderDevices()
+{
+    std::scoped_lock lock{device_cache_mutex};
+    for (auto & [type, device] : device_cache)
+        av_buffer_unref(&device);
+    device_cache.clear();
+}
 Packet::Packet(std::span<const u8> data)
 {
     m_packet = av_packet_alloc();
@@ -191,7 +232,7 @@ bool HardwareContext::InitializeForDecoder(DecoderContext & decoder_context, con
 bool HardwareContext::InitializeWithType(AVHWDeviceType type)
 {
     av_buffer_unref(&m_gpu_decoder);
-    const int ret = av_hwdevice_ctx_create(&m_gpu_decoder, type, nullptr, nullptr, 0);
+    const int ret = GetCachedDevice(&m_gpu_decoder, type);
     if (ret < 0)
     {
         LOG_DEBUG(HW_GPU, "av_hwdevice_ctx_create({}) failed: {}", av_hwdevice_get_type_name(type), AVError(ret));

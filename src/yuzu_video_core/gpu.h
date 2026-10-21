@@ -246,7 +246,7 @@ public:
     void PushGPUEntries(s32 channel, Tegra::CommandList&& entries);
 
     /// Push GPU command buffer entries to be processed
-    void PushCommandBuffer(u32 id, Tegra::ChCommandHeaderList& entries);
+    void PushCommandBuffer(u32 id, Tegra::ChCommandHeaderList& entries, std::shared_ptr<void> resources = {});
 
     /// Frees the CDMAPusher instance to free up resources
     void ClearCdmaInstance(u32 id);

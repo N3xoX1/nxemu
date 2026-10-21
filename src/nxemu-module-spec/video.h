@@ -227,6 +227,10 @@ nxinterface IVideo
     virtual bool BeginInterfaceFrame(uint32_t width, uint32_t height, VideoInterfaceFrame * frame) = 0;
     virtual void EndInterfaceFrame(const VideoInterfaceArea * gameArea) = 0;
     virtual void WaitInterfaceIdle() = 0;
+    // Owns resources on every path; release exactly once after completion or cancellation,
+    // before ClearCdmaInstance returns. The callback must not throw.
+    virtual void PushCommandBufferWithResources(int32_t bindId, const uint32_t* commandList,
+        uint32_t commandListSize, void* resources, void (*release)(void*)) = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

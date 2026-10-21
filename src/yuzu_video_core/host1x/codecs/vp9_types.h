@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <vector>
 
 #include "yuzu_common/common_funcs.h"
@@ -52,7 +53,7 @@ struct Segmentation {
     u8 update_map;
     u8 temporal_update;
     u8 abs_delta;
-    std::array<u32, 8> feature_mask;
+    std::array<std::array<u8, 4>, 8> feature_enabled;
     std::array<std::array<s16, 4>, 8> feature_data;
 };
 static_assert(sizeof(Segmentation) == 0x64, "Segmentation is an invalid size");
@@ -117,7 +118,9 @@ struct Vp9PictureInfo {
     bool show_frame;
     bool lossless;
     bool allow_high_precision_mv;
-    bool segment_enabled;
+    Segmentation segmentation;
+    std::array<u8, 7> segmentation_tree_probs;
+    std::array<u8, 3> segmentation_pred_probs;
     bool mode_ref_delta_enabled;
 };
 
@@ -182,7 +185,9 @@ struct PictureInfo {
             .show_frame = true,
             .lossless = lossless != 0,
             .allow_high_precision_mv = allow_high_precision_mv != 0,
-            .segment_enabled = segmentation.enabled != 0,
+            .segmentation = segmentation,
+            .segmentation_tree_probs{},
+            .segmentation_pred_probs{},
             .mode_ref_delta_enabled = loop_filter.mode_ref_delta_enabled != 0,
         };
     }
@@ -190,7 +195,10 @@ struct PictureInfo {
 static_assert(sizeof(PictureInfo) == 0x100, "PictureInfo is an invalid size");
 
 struct EntropyProbs {
-    INSERT_PADDING_BYTES_NOINIT(1024);                 ///< 0x0000
+    INSERT_PADDING_BYTES_NOINIT(0x387);                ///< 0x0000
+    std::array<u8, 7> mb_segment_tree_probs;           ///< 0x0387
+    std::array<u8, 3> segment_pred_probs;              ///< 0x038E
+    INSERT_PADDING_BYTES_NOINIT(0x6F);                 ///< 0x0391
     std::array<u8, 28> inter_mode_prob;                ///< 0x0400
     std::array<u8, 4> intra_inter_prob;                ///< 0x041C
     INSERT_PADDING_BYTES_NOINIT(80);                   ///< 0x0420
@@ -258,6 +266,10 @@ struct EntropyProbs {
         }
     }
 };
+static_assert(offsetof(EntropyProbs, mb_segment_tree_probs) == 0x387);
+static_assert(offsetof(EntropyProbs, segment_pred_probs) == 0x38E);
+static_assert(offsetof(Segmentation, feature_enabled) == 0x4);
+static_assert(offsetof(Segmentation, feature_data) == 0x24);
 static_assert(sizeof(EntropyProbs) == 0xEA0, "EntropyProbs is an invalid size");
 
 enum class Ref { Last, Golden, AltRef };

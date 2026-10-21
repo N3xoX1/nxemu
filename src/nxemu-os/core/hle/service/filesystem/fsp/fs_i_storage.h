@@ -16,6 +16,7 @@ public:
 
 private:
     IVirtualFilePtr backend;
+    void ReadWithTiming(HLERequestContext& ctx);
 
     Result Read(
         OutBuffer<BufferAttr_HipcMapAlias | BufferAttr_HipcMapTransferAllowsNonSecure> out_bytes,

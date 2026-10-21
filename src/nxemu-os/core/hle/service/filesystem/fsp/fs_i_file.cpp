@@ -4,6 +4,7 @@
 #include "core/file_sys/errors.h"
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/filesystem/fsp/fs_i_file.h"
+#include "core/hle/service/filesystem/storage_read_timing.h"
 
 namespace Service::FileSystem {
 
@@ -13,7 +14,7 @@ IFile::IFile(Core::System& system_, IVirtualFilePtr && file_) :
 {
     // clang-format off
     static const FunctionInfo functions[] = {
-        {0, D<&IFile::Read>, "Read"},
+        {0, &IFile::ReadWithTiming, "Read"},
         {1, D<&IFile::Write>, "Write"},
         {2, D<&IFile::Flush>, "Flush"},
         {3, D<&IFile::SetSize>, "SetSize"},
@@ -25,9 +26,14 @@ IFile::IFile(Core::System& system_, IVirtualFilePtr && file_) :
     RegisterHandlers(functions);
 }
 
+void IFile::ReadWithTiming(HLERequestContext& ctx) {
+    ReplyWithStorageReadTiming(system, ctx, [&] { CmifReplyWrap<true, &IFile::Read>(ctx); });
+}
+
 Result IFile::Read(FileSys::ReadOption option, Out<s64> out_size, s64 offset, const OutBuffer<BufferAttr_HipcMapAlias | BufferAttr_HipcMapTransferAllowsNonSecure> out_buffer, s64 size)
 {
     LOG_DEBUG(Service_FS, "called, option={}, offset=0x{:X}, length={}", option.value, offset, size);
+    R_UNLESS(size >= 0 && static_cast<u64>(size) <= out_buffer.size(), FileSys::ResultInvalidSize);
 
     // Read the data from the Storage backend
     R_RETURN(backend->Read(reinterpret_cast<size_t*>(out_size.Get()), offset, out_buffer.data(), size));

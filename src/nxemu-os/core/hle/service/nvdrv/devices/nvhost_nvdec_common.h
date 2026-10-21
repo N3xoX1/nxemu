@@ -5,6 +5,7 @@
 
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -19,6 +20,7 @@ namespace NvCore {
 class Container;
 class NvMap;
 struct Session;
+class PinnedHandle;
 } // namespace NvCore
 
 namespace Devices {
@@ -118,6 +120,10 @@ protected:
     NvResult MapBuffer(IoctlMapBuffer& params, std::span<MapBufferEntry> entries, DeviceFD fd);
     NvResult UnmapBuffer(IoctlMapBuffer& params, std::span<MapBufferEntry> entries);
     NvResult SetSubmitTimeout(u32 timeout);
+
+    using Mappings = std::vector<std::shared_ptr<NvCore::PinnedHandle>>;
+    std::mutex mappings_mutex;
+    std::shared_ptr<const Mappings> mappings = std::make_shared<const Mappings>();
 
     Kernel::KEvent* QueryEvent(u32 event_id) override;
 

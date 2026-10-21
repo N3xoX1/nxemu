@@ -13,6 +13,7 @@
 #include "yuzu_common/logging/log.h"
 #include "core/file_sys/vfs/vfs.h"
 #include "core/file_sys/vfs/vfs_real.h"
+#include "core/file_sys/vfs/backing_read_traffic.h"
 
 // For FileTimeStampRaw
 #include <sys/stat.h>
@@ -45,6 +46,19 @@ std::string FileCacheKey(const std::string& path) {
 }
 
 constexpr size_t MaxOpenFiles = 512;
+
+StorageReadDomain ReadDomainForPath(const std::string& path) {
+    const std::filesystem::path file{FS::ToU8String(FileCacheKey(path))};
+    const auto in_mount = [&](Common::FS::YuzuPath mount) {
+        const auto root_string = FS::GetYuzuPathString(mount);
+        if (root_string.empty()) return false;
+        const std::filesystem::path root{FS::ToU8String(FileCacheKey(root_string))};
+        return std::mismatch(root.begin(), root.end(), file.begin(), file.end()).first == root.end();
+    };
+    if (in_mount(FS::YuzuPath::NANDDir)) return StorageReadDomain::Nand;
+    if (in_mount(FS::YuzuPath::SDMCDir)) return StorageReadDomain::SdCard;
+    return StorageReadDomain::Content;
+}
 
 constexpr FS::FileAccessMode ModeFlagsToFileAccessMode(VirtualFileOpenMode mode) {
     switch (mode) {
@@ -294,7 +308,9 @@ RealVfsFile::RealVfsFile(RealVfsFilesystem& base_, std::unique_ptr<FileReference
                          const std::string& path_, VirtualFileOpenMode perms_, std::optional<uint64_t> size_)
     : base(base_), reference(std::move(reference_)), path(path_),
       parent_path(FS::GetParentPath(path_)), path_components(FS::SplitPathComponentsCopy(path_)),
-      size(size_), perms(perms_) {}
+      size(size_), perms(perms_) {
+    read_domain = ReadDomainForPath(path);
+}
 
 RealVfsFile::~RealVfsFile() {
     base.DropReference(std::move(reference));
@@ -340,7 +356,9 @@ std::size_t RealVfsFile::Read(u8* data, std::size_t length, std::size_t offset) 
     if (!reference->file || !reference->file->Seek(static_cast<s64>(offset))) {
         return 0;
     }
-    return reference->file->ReadSpan(std::span{data, length});
+    const auto bytes = reference->file->ReadSpan(std::span{data, length});
+    backing_read_traffic.bytes[static_cast<std::uint32_t>(read_domain)] += bytes;
+    return bytes;
 }
 
 std::size_t RealVfsFile::Write(const u8* data, std::size_t length, std::size_t offset) {

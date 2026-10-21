@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include "yuzu_common/nvdata.h"
+#include "core/hle/service/nvdrv/core/host1x_mappings.h"
 #include <nxemu-module-spec/video.h>
 
 namespace Kernel {
@@ -73,6 +74,7 @@ public:
     const SyncpointManager& GetSyncpointManager() const;
 
     struct Host1xDeviceFileData {
+        Host1xMappings mappings;
         std::unordered_map<DeviceFD, u32> fd_to_id{};
         std::deque<u32> syncpts_accumulated{};
         u32 nvdec_next_id{};

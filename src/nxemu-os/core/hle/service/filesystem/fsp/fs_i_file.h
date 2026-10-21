@@ -19,6 +19,7 @@ public:
 
 private:
     std::unique_ptr<FileSys::Fsa::IFile> backend;
+    void ReadWithTiming(HLERequestContext& ctx);
 
     Result Read(FileSys::ReadOption option, Out<s64> out_size, s64 offset, const OutBuffer<BufferAttr_HipcMapAlias | BufferAttr_HipcMapTransferAllowsNonSecure> out_buffer, s64 size);
     Result Write(const InBuffer<BufferAttr_HipcMapAlias | BufferAttr_HipcMapTransferAllowsNonSecure> buffer, FileSys::WriteOption option, s64 offset, s64 size);

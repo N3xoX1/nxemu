@@ -412,6 +412,8 @@ nxinterface ISystemloader
     virtual void SetDisabledAddons(uint64_t program_id, const char * const * names, uint32_t count) = 0;
     virtual bool IsAddonDisabled(uint64_t program_id, const char * name) const = 0;
     virtual LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer, uint32_t buffer_size, uint32_t & actual_size) = 0;
+    // Backing-file traffic on this thread; internal cache hits perform no backing I/O.
+    virtual void GetBackingReadTraffic(StorageReadTraffic* out) const = 0;
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);

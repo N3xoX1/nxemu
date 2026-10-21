@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <mutex>
+
 #include "yuzu_common/common_types.h"
 
 #include "yuzu_common/address_space.h"
@@ -68,11 +70,16 @@ public:
         return *allocator;
     }
 
+    // Host1x workers and NVDRV mapping operations share page-table and allocator
+    // state. Never hold this lock while waiting for a syncpoint or joining a worker.
+    std::recursive_mutex& MemoryMutex() { return memory_mutex; }
+
 private:
     SyncpointManager syncpoint_manager;
     Tegra::MaxwellDeviceMemoryManager memory_manager;
     Tegra::MemoryManager gmmu_manager;
     std::unique_ptr<Common::FlatAllocator<u32, 0, 32>> allocator;
+    std::recursive_mutex memory_mutex;
 };
 
 } // namespace Host1x

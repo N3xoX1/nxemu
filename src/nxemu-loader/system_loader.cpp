@@ -1,4 +1,5 @@
 #include "system_loader.h"
+#include "core/file_sys/vfs/backing_read_traffic.h"
 #include <nxemu-module-spec/application_control_data.h>
 #include "core/core.h"
 #include "core/file_sys/card_image.h"
@@ -601,4 +602,8 @@ FirmwareInstallStatus Systemloader::InstallFirmwarePackage(const char * utf8_pat
         versionBuffer[length] = '\0';
     }
     return result.status;
+}
+
+void Systemloader::GetBackingReadTraffic(StorageReadTraffic* out) const {
+    *out = FileSys::backing_read_traffic;
 }
