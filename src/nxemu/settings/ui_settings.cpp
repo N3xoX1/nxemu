@@ -146,7 +146,7 @@ namespace
         {nullptr, "Language\\Base", &uiSettings.languageBase, "english"},
         {nullptr, "Language\\Current", &uiSettings.languageCurrent, "english"},
         {nullptr, "SciterConsole", &uiSettings.sciterConsole, false},
-        {nullptr, "UseRmlUI", &uiSettings.useRmlUI, false},
+        {nullptr, "UseRmlUI", &uiSettings.useRmlUI, true},
         {NXUISetting::MyGameIconSize, "GameBrowser\\MyGameIconSize", &uiSettings.gameBrowserMyGameIconSize, 2},
         {nullptr, nullptr, &uiSettings.hasBrokenVulkan, false},
         {nullptr, nullptr, &uiSettings.enableAllControllers, false},
