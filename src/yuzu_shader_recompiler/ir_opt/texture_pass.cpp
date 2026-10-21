@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <memory>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -264,8 +265,8 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst * inst, Environm
 class TextureHandleTracker
 {
 public:
-    TextureHandleTracker(Environment & env_, const IR::Program & program) :
-        env{env_}, conditions{program}
+    TextureHandleTracker(Environment & env_, const IR::Program & program_, bool conditional_ = true) :
+        env{env_}, program{program_}, conditions{program_}, conditional{conditional_}
     {
     }
 
@@ -301,6 +302,14 @@ public:
                 continue;
             }
             if (!cache.emplace(inst, std::nullopt).second) continue;
+            if (CrossesLoop(inst))
+            {
+                // The incoming expression can belong to a previous iteration.
+                // Current branch facts cannot specialize that expression.
+                const auto addr = Unconditional().Track(IR::Value{const_cast<IR::Inst *>(inst)});
+                if (addr && addr->count == 1 && addr->dynamic_offset.IsEmpty()) cache.at(inst) = addr;
+                continue;
+            }
             work.push_back({inst, true});
             const auto add = [&](IR::Value operand) {
                 operand = operand.Resolve();
@@ -319,11 +328,11 @@ public:
                 }
                 for (size_t i = 0; i < inst->NumArgs(); ++i)
                 {
-                    if (conditions.IncomingPossible(inst, i)) add(inst->Arg(i));
+                    if (IncomingPossible(inst, i)) add(inst->Arg(i));
                 }
                 break;
             case IR::Opcode::SelectU32:
-                if (const auto truth = conditions.Truth(inst->Arg(0)))
+                if (const auto truth = Truth(inst->Arg(0)))
                     add(inst->Arg(*truth ? 1 : 2));
                 else
                 {
@@ -351,18 +360,31 @@ public:
     std::vector<ConstBufferAddr> Alternatives(IR::Value value, u32 limit)
     {
         std::vector<ConstBufferAddr> result;
+        std::unordered_set<ConstBufferAddr, AddressHash, AddressEqual> unique;
         std::vector<IR::Value> pending{value};
         std::unordered_set<const IR::Inst *> visited;
+        const auto add = [&](const ConstBufferAddr & addr) {
+            if (addr.count != 1 || addr.is_direct || !addr.dynamic_offset.IsEmpty()) return false;
+            if (unique.insert(addr).second) result.push_back(addr);
+            return result.size() <= limit;
+        };
         while (!pending.empty())
         {
             const auto input = pending.back().Resolve();
             pending.pop_back();
+            if (const auto * inst = input.TryInstRecursive(); inst && CrossesLoop(inst))
+            {
+                // Keep the actual loop-carried handle as the runtime selector.
+                // Only its finite, context-independent cbuf sources are collected.
+                const auto incoming = Unconditional().Alternatives(input, limit);
+                if (incoming.empty()) return {};
+                for (const auto & addr : incoming)
+                    if (!add(addr)) return {};
+                continue;
+            }
             if (const auto addr = Track(input))
             {
-                if (addr->count != 1 || addr->is_direct) return {};
-                if (std::ranges::none_of(result, [&](const auto & existing) { return Same(existing, *addr); }))
-                    result.push_back(*addr);
-                if (result.size() > limit) return {};
+                if (!add(*addr)) return {};
                 continue;
             }
             if (input.IsImmediate()) return {};
@@ -372,11 +394,11 @@ public:
             if (inst->GetOpcode() == IR::Opcode::Phi)
             {
                 for (size_t i = 0; i < inst->NumArgs(); ++i)
-                    if (conditions.IncomingPossible(inst, i)) pending.push_back(inst->Arg(i));
+                    if (IncomingPossible(inst, i)) pending.push_back(inst->Arg(i));
             }
             else if (inst->GetOpcode() == IR::Opcode::SelectU32)
             {
-                if (const auto truth = conditions.Truth(inst->Arg(0)))
+                if (const auto truth = Truth(inst->Arg(0)))
                     pending.push_back(inst->Arg(*truth ? 1 : 2));
                 else
                 {
@@ -391,6 +413,31 @@ public:
     }
 
 private:
+    bool CrossesLoop(const IR::Inst * inst)
+    {
+        return conditional && inst->GetOpcode() == IR::Opcode::Phi && conditions.CrossesLoop(inst);
+    }
+
+    TextureHandleTracker & Unconditional()
+    {
+        // No branch facts enter this cache, so it can be shared across use blocks.
+        if (!unconditional) unconditional = std::make_unique<TextureHandleTracker>(env, program, false);
+        return *unconditional;
+    }
+
+    bool IncomingPossible(const IR::Inst * phi, size_t index)
+    {
+        return !conditional || conditions.IncomingPossible(phi, index);
+    }
+
+    std::optional<bool> Truth(IR::Value value)
+    {
+        if (conditional) return conditions.Truth(value);
+        value = value.Resolve();
+        if (value.IsImmediate() && value.Type() == IR::Type::U1) return value.U1();
+        return std::nullopt;
+    }
+
     // A self edge carries the last iteration's value unchanged. If all other
     // defined edges carry the same SSA value, the phi is invariant without path
     // analysis. An undefined register can take that value too.
@@ -417,24 +464,41 @@ private:
                a.is_direct == b.is_direct && a.handle_or_bits == b.handle_or_bits;
     }
 
+    struct AddressHash
+    {
+        size_t operator()(const ConstBufferAddr & addr) const
+        {
+            size_t hash{};
+            for (const u32 part : {addr.index, addr.offset, addr.shift_left, addr.secondary_index,
+                                   addr.secondary_offset, addr.secondary_shift_left,
+                                   u32{addr.has_secondary}, addr.handle_or_bits})
+                hash ^= part + 0x9e3779b9U + (hash << 6) + (hash >> 2);
+            return hash;
+        }
+    };
+    struct AddressEqual
+    {
+        bool operator()(const ConstBufferAddr & a, const ConstBufferAddr & b) const { return Same(a, b); }
+    };
+
     std::optional<ConstBufferAddr> Evaluate(const IR::Inst * inst)
     {
         if (inst->GetOpcode() == IR::Opcode::Phi)
         {
-            if (const auto input = InvariantPhiInput(inst); !input.IsEmpty()) return Track(input);
+            if (const auto input = InvariantPhiInput(inst); !input.IsEmpty()) return PhiResult(Track(input));
             std::optional<ConstBufferAddr> result;
             for (size_t i = 0; i < inst->NumArgs(); ++i)
             {
-                if (!conditions.IncomingPossible(inst, i)) continue;
+                if (!IncomingPossible(inst, i)) continue;
                 const auto input = Track(inst->Arg(i));
                 if (!input || (result && !Same(*result, *input))) return std::nullopt;
                 result = input;
             }
-            return result;
+            return PhiResult(result);
         }
         if (inst->GetOpcode() == IR::Opcode::SelectU32)
         {
-            if (const auto truth = conditions.Truth(inst->Arg(0))) return Track(inst->Arg(*truth ? 1 : 2));
+            if (const auto truth = Truth(inst->Arg(0))) return Track(inst->Arg(*truth ? 1 : 2));
             const auto yes = Track(inst->Arg(1));
             const auto no = Track(inst->Arg(2));
             return yes && no && Same(*yes, *no) ? yes : std::nullopt;
@@ -453,8 +517,21 @@ private:
         return TryGetConstBuffer(inst, env, *this);
     }
 
+    std::optional<ConstBufferAddr> PhiResult(std::optional<ConstBufferAddr> addr)
+    {
+        // The handle phi dominates its uses, but a dynamic offset taken from
+        // only one incoming branch need not. Keep that choice in the guest handle
+        // instead of emitting an SSA operand outside its defining branch.
+        if (addr && !addr->dynamic_offset.IsEmpty() &&
+            (!conditional || !conditions.DominatesUse(addr->dynamic_offset))) return std::nullopt;
+        return addr;
+    }
+
     Environment & env;
+    const IR::Program & program;
     ConditionalValueResolver conditions;
+    bool conditional;
+    std::unique_ptr<TextureHandleTracker> unconditional;
     std::unordered_map<const IR::Inst *, std::optional<ConstBufferAddr>> cache;
 };
 
@@ -724,8 +801,13 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
                     IR::IREmitter ir{*block, IR::Block::InstructionList::s_iterator_to(inst)};
                     IR::U32 selected = ir.Imm32(0);
                     std::vector<TextureHandleSource> sources;
+                    sources.reserve(choices.size());
                     for (size_t i = 0; i < choices.size(); ++i) {
                         const auto& choice = choices[i];
+                        sources.push_back({choice.has_secondary, choice.index, choice.offset, choice.shift_left,
+                                           choice.secondary_index, choice.secondary_offset, choice.secondary_shift_left,
+                                           1, choice.size_shift, choice.handle_or_bits});
+                        if (i == 0) continue; // The default index needs no handle comparison.
                         auto handle = ir.GetCbuf(ir.Imm32(choice.index), ir.Imm32(choice.offset));
                         if (choice.shift_left != 0) handle = ir.ShiftLeftLogical(handle, ir.Imm32(choice.shift_left));
                         if (choice.has_secondary) {
@@ -734,10 +816,7 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
                             handle = ir.BitwiseOr(handle, secondary);
                         }
                         if (choice.handle_or_bits != 0) handle = ir.BitwiseOr(handle, ir.Imm32(choice.handle_or_bits));
-                        if (i != 0) selected = IR::U32{ir.Select(ir.IEqual(IR::U32{inst.Arg(0)}, handle), ir.Imm32(static_cast<u32>(i)), selected)};
-                        sources.push_back({choice.has_secondary, choice.index, choice.offset, choice.shift_left,
-                                           choice.secondary_index, choice.secondary_offset, choice.secondary_shift_left,
-                                           1, choice.size_shift, choice.handle_or_bits});
+                        selected = IR::U32{ir.Select(ir.IEqual(IR::U32{inst.Arg(0)}, handle), ir.Imm32(static_cast<u32>(i)), selected)};
                     }
                     addr = choices.front();
                     addr.dynamic_offset = selected;

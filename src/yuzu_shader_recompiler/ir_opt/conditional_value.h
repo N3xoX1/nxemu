@@ -34,6 +34,58 @@ public:
         possible.clear();
     }
 
+    bool CrossesLoop(const IR::Inst * phi)
+    {
+        if (!prepared) Prepare();
+        if (const auto found = cross_loop.find(phi); found != cross_loop.end()) return found->second;
+        const bool result = [&] {
+            const auto owner = phi_blocks.find(phi);
+            if (owner == phi_blocks.end()) return true;
+            if (loop_headers.contains(owner->second)) return true;
+            const auto loop = blocks.at(owner->second).loop;
+            for (size_t i = 0; i < phi->NumArgs(); ++i)
+            {
+                const auto source = blocks.find(phi->PhiBlock(i));
+                if (source == blocks.end() || source->second.loop != loop) return true;
+            }
+            return false;
+        }();
+        cross_loop.emplace(phi, result);
+        return result;
+    }
+
+    bool DominatesUse(IR::Value value)
+    {
+        value = value.Resolve();
+        if (value.IsImmediate()) return true;
+        if (!prepared) Prepare();
+        if (!definitions_ready)
+        {
+            definitions_ready = true;
+            for (const auto & node : program.syntax_list)
+            {
+                if (node.type != IR::AbstractSyntaxNode::Type::Block) continue;
+                for (const auto & inst : node.data.block->Instructions())
+                    definitions.emplace(&inst, node.data.block);
+            }
+        }
+        const auto definition = definitions.find(value.Inst());
+        const auto current = blocks.find(use);
+        if (definition == definitions.end() || current == blocks.end()) return false;
+        const auto & source = blocks.at(definition->second);
+        if (source.order > current->second.order) return false;
+        // A lexical ancestor scope executed before this block dominates it.
+        // A definition inside a finished loop is deliberately not assumed to do so.
+        size_t scope = current->second.scope;
+        while (scope != source.scope && scope != 0)
+            scope = scopes[scope].parent;
+        if (scope != source.scope) return false;
+        size_t loop = current->second.loop;
+        while (loop != source.loop && loop != 0)
+            loop = loop_parents[loop];
+        return loop == source.loop;
+    }
+
     std::optional<bool> Truth(IR::Value value)
     {
         const auto [condition, negated] = Normalize(value);
@@ -105,6 +157,7 @@ private:
     {
         size_t scope;
         size_t loop;
+        size_t order{};
     };
     struct Branch
     {
@@ -279,6 +332,7 @@ private:
     {
         prepared = true;
         scopes.push_back({0, {}, false});
+        loop_parents.push_back(0);
         size_t scope{}, loop{}, next_loop{};
         std::vector<size_t> if_scopes;
         std::vector<BlockInfo> loops;
@@ -290,7 +344,7 @@ private:
             {
             case Type::Block:
                 previous = node.data.block;
-                blocks.emplace(previous, BlockInfo{scope, loop});
+                blocks.emplace(previous, BlockInfo{scope, loop, blocks.size()});
                 for (const auto & inst : previous->Instructions())
                 {
                     if (inst.GetOpcode() == IR::Opcode::Phi)
@@ -315,6 +369,7 @@ private:
                 break;
             case Type::Loop:
                 loops.push_back({scope, loop});
+                loop_parents.push_back(loop);
                 loop = ++next_loop;
                 loop_headers.insert(previous);
                 break;
@@ -339,12 +394,15 @@ private:
 
     const IR::Program & program;
     const IR::Block * use{};
-    bool prepared{}, facts_ready{};
+    bool prepared{}, facts_ready{}, definitions_ready{};
     std::vector<Scope> scopes;
+    std::vector<size_t> loop_parents;
+    std::unordered_map<const IR::Inst *, const IR::Block *> definitions;
     std::unordered_map<const IR::Block *, BlockInfo> blocks;
     std::unordered_map<const IR::Inst *, const IR::Block *> phi_blocks;
     std::unordered_map<const IR::Block *, Branch> branches;
     std::unordered_set<const IR::Block *> loop_headers;
+    std::unordered_map<const IR::Inst *, bool> cross_loop;
     std::unordered_map<ConditionKey, unsigned, ConditionHash> facts;
     std::unordered_map<Edge, bool, EdgeHash> possible;
 };
