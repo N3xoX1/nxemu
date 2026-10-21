@@ -369,6 +369,10 @@ public:
         return features.descriptor_indexing.shaderSampledImageArrayNonUniformIndexing != VK_FALSE;
     }
 
+    bool IsUniformTexelBufferArrayNonUniformIndexingSupported() const noexcept {
+        return features.descriptor_indexing.shaderUniformTexelBufferArrayNonUniformIndexing != VK_FALSE;
+    }
+
     bool IsStorageImageArrayNonUniformIndexingSupported() const {
         return features.descriptor_indexing.shaderStorageImageArrayNonUniformIndexing != VK_FALSE;
     }

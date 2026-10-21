@@ -283,6 +283,31 @@ Id Texture(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
 }
 
 Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
+    if (info.type == TextureType::Buffer && ctx.texture_buffers.at(info.descriptor_index).count > 1) {
+        if (!ctx.profile.support_uniform_texel_buffer_array_nonuniform_indexing) {
+            throw NotImplementedException("Nonuniform texel buffer indexing is unsupported by the host");
+        }
+        const auto& def = ctx.texture_buffers.at(info.descriptor_index);
+        const Id array_index{ctx.Def(index)};
+        const Id pointer_type{ctx.TypePointer(spv::StorageClass::UniformConstant, ctx.image_buffer_type)};
+        const Id pointer{ctx.OpAccessChain(pointer_type, def.id, array_index)};
+        const Id image{ctx.OpLoad(ctx.image_buffer_type, pointer)};
+        ctx.uses_nonuniform_uniform_texel_buffer = true;
+        for (const Id object : {array_index, pointer, image}) {
+            if (ctx.nonuniform_sampled_ids.insert(object.value).second) {
+                ctx.Decorate(object, spv::Decoration::NonUniform);
+            }
+        }
+        return image;
+    }
+    if (info.type != TextureType::Buffer && ctx.textures.at(info.descriptor_index).count > 1) {
+        const auto& def = ctx.textures.at(info.descriptor_index);
+        const Id image{ctx.OpImage(def.image_type, Texture(ctx, info, index))};
+        if (!index.IsImmediate() && ctx.nonuniform_sampled_ids.insert(image.value).second) {
+            ctx.Decorate(image, spv::Decoration::NonUniform);
+        }
+        return image;
+    }
     if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
         throw NotImplementedException("Indirect image indexing");
     }

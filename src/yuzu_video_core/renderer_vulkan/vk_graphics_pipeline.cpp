@@ -727,7 +727,11 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }};
         if constexpr (Spec::has_texture_buffers) {
             for (const auto& desc : info.texture_buffer_descriptors) {
-                add_image(desc, false);
+                if (desc.sources.empty())
+                    add_image(desc, false);
+                else
+                    for (const auto & source : desc.sources)
+                        add_image(source, false);
             }
         }
         if constexpr (Spec::has_image_buffers) {
@@ -743,19 +747,29 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 }
                 continue;
             }
-            const auto read_handle = prepare_handle(desc);
-            for (u32 index = 0; index < desc.count; ++index) {
-                const auto handle{read_handle(index)};
-                views[view_index++] = {handle.first};
+            const auto add_texture = [&](const auto & source) {
+                const auto read_handle = prepare_handle(source);
+                for (u32 index = 0; index < source.count; ++index)
+                {
+                    const auto handle{read_handle(index)};
+                    views[view_index++] = {handle.first};
 
-                const VideoCommon::SamplerId sampler = memoize_samplers
-                    ? sampler_lookup->Get(handle.second, lookup_sampler)
-                    : lookup_sampler(handle.second);
-                samplers[sampler_index++] = sampler;
-            }
+                    const VideoCommon::SamplerId sampler = memoize_samplers
+                                                               ? sampler_lookup->Get(handle.second, lookup_sampler)
+                                                               : lookup_sampler(handle.second);
+                    samplers[sampler_index++] = sampler;
+                }
+            };
+            if (desc.sources.empty())
+                add_texture(desc);
+            else
+                for (const auto & source : desc.sources)
+                    add_texture(source);
         }
-        if constexpr (Spec::has_images) {
-            for (const auto& desc : info.image_descriptors) {
+        if constexpr (Spec::has_images)
+        {
+            for (const auto & desc : info.image_descriptors)
+            {
                 add_image(desc, desc.is_written);
             }
         }
@@ -918,8 +932,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             const u32 index_offset{index << desc.size_shift};
             const u32 offset{desc.cbuf_offset + index_offset};
             const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
-            if constexpr (std::is_same_v<decltype(desc), const Shader::TextureDescriptor&> ||
-                          std::is_same_v<decltype(desc), const Shader::TextureBufferDescriptor&>) {
+            if constexpr (requires { desc.has_secondary; }) {
                 if (desc.has_secondary) {
                     ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
                     const u32 second_offset{desc.secondary_cbuf_offset + index_offset};
@@ -946,7 +959,11 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             }
         }};
         for (const auto& desc : info.texture_buffer_descriptors) {
-            add_image(desc, false);
+            if (desc.sources.empty())
+                add_image(desc, false);
+            else
+                for (const auto & source : desc.sources)
+                    add_image(source, false);
         }
         for (const auto& desc : info.image_buffer_descriptors) {
             add_image(desc, false);
@@ -959,7 +976,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                 continue;
             }
             for (u32 index = 0; index < desc.count; ++index) {
-                const auto handle{read_handle(desc, index)};
+                const auto handle{desc.sources.empty() ? read_handle(desc, index) : read_handle(desc.sources[index], 0)};
                 views[view_index++] = {handle.first};
                 samplers[sampler_index++] = texture_cache.GetGraphicsSamplerId(handle.second);
             }

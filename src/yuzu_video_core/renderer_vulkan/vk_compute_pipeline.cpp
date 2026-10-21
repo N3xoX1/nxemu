@@ -196,24 +196,37 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
         }
     }};
     for (const auto& desc : info.texture_buffer_descriptors) {
-        add_image(desc, false);
+        if (desc.sources.empty())
+            add_image(desc, false);
+        else
+            for (const auto & source : desc.sources)
+                add_image(source, false);
     }
     for (const auto& desc : info.image_buffer_descriptors) {
         add_image(desc, false);
     }
     for (const auto& desc : info.texture_descriptors) {
-        const auto read_handle = prepare_handle(desc);
-        for (u32 index = 0; index < desc.count; ++index) {
-            const auto handle{read_handle(index)};
-            views[view_index++] = {handle.first};
+        const auto add_texture = [&](const auto & source) {
+            const auto read_handle = prepare_handle(source);
+            for (u32 index = 0; index < source.count; ++index)
+            {
+                const auto handle{read_handle(index)};
+                views[view_index++] = {handle.first};
 
-            const VideoCommon::SamplerId sampler = memoize_samplers
-                ? sampler_lookup->Get(handle.second, lookup_sampler)
-                : lookup_sampler(handle.second);
-            samplers[sampler_index++] = sampler;
-        }
+                const VideoCommon::SamplerId sampler = memoize_samplers
+                                                           ? sampler_lookup->Get(handle.second, lookup_sampler)
+                                                           : lookup_sampler(handle.second);
+                samplers[sampler_index++] = sampler;
+            }
+        };
+        if (desc.sources.empty())
+            add_texture(desc);
+        else
+            for (const auto & source : desc.sources)
+                add_texture(source);
     }
-    for (const auto& desc : info.image_descriptors) {
+    for (const auto & desc : info.image_descriptors)
+    {
         add_image(desc, desc.is_written);
     }
     ASSERT(view_index == views.size());
