@@ -65,7 +65,7 @@ fi
 install_module() {
     local dir_name="$1"
     local file_name="$2"
-    local src="$root/modules/${platform}/${dir_name}/${file_name}"
+    local src="$root/bin/${platform}/${build_type}/modules/${dir_name}/${file_name}"
     local dest="$appdir/usr/bin/modules/${dir_name}"
     if [[ ! -f "$src" ]]; then
         echo "Built module not found: $src" >&2
@@ -147,13 +147,17 @@ echo "Collecting libraries"
     --exclude-library 'libGLdispatch.so*' \
     --exclude-library 'libvulkan.so*'
 
-# Modules load from ./modules/<name>/ next to the executable. user/ is omitted
-# so data goes to XDG dirs instead of the read-only AppImage mount.
+# Modules load from ./modules/<name>/ next to the executable, and the
+# interface's files from ./ui/. user/ is omitted so data goes to XDG dirs
+# instead of the read-only AppImage mount.
 install_module loader libnxemu-loader.so
 install_module cpu libnxemu-cpu.so
 install_module video libnxemu-video.so
 install_module operating_system libnxemu-os.so
-rm -rf "$appdir/usr/bin/user"
+rm -rf "$appdir/usr/bin/ui" "$appdir/usr/bin/user"
+cp -a "$root/src/nxemu/ui/assets" "$appdir/usr/bin/ui"
+mkdir -p "$appdir/usr/bin/ui/lang"
+cp "$root"/src/nxemu/ui/lang/*.po "$appdir/usr/bin/ui/lang/"
 
 # Deploy dependencies of the files that stay beside the executable, and point
 # their runpath at usr/lib. linuxdeploy does not copy those files again.

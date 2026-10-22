@@ -91,7 +91,7 @@ set(SHADER_FILES
     watermark.vert
 )
 
-find_program(GLSLANGVALIDATOR "glslangValidator")
+find_program(GLSLANGVALIDATOR "glslangValidator" HINTS "$ENV{VULKAN_SDK}/Bin")
 if ("${GLSLANGVALIDATOR}" STREQUAL "GLSLANGVALIDATOR-NOTFOUND")
     message(FATAL_ERROR "Required program `glslangValidator` not found.")
 endif()

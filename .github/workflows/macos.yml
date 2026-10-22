@@ -17,7 +17,12 @@ jobs:
   build:
     runs-on: macos-26
     timeout-minutes: 90
+    env:
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
     steps:
+      - name: Fetch dependencies in parallel
+        run: git config --global submodule.fetchJobs 4
       - uses: actions/checkout@v4
         # act uses the current working tree, including uncommitted changes.
         if: ${{ !env.ACT }}
@@ -27,16 +32,106 @@ jobs:
 
       - name: Install build tools
         run: |
-          if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null; then
-            brew install cmake ninja
+          if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null || ! command -v ccache >/dev/null; then
+            brew install cmake ninja ccache
           fi
           if ! command -v glslangValidator >/dev/null; then
             brew install glslang
           fi
 
+      - name: Prepare build cache paths
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          build_directory="${NXEMU_BUILD_DIRECTORY:-build}"
+          case "$build_directory" in
+            /*) ;;
+            *) build_directory="$PWD/$build_directory" ;;
+          esac
+          mkdir -p "$build_directory"
+          {
+            echo "NXEMU_BUILD_JOBS=${NXEMU_BUILD_JOBS:-$(sysctl -n hw.logicalcpu)}"
+            echo "NXEMU_MOLTENVK_CACHE_DIR=$build_directory/moltenvk-cache"
+            echo "NXEMU_EFFECTIVE_BUILD_DIRECTORY=$build_directory"
+            echo "CCACHE_DIR=$build_directory/ccache"
+            echo "CCACHE_BASEDIR=$PWD"
+            echo "NXEMU_THINLTO_CACHE_DIR=$build_directory/thinlto-cache"
+          } >> "$GITHUB_ENV"
+
+      - name: Identify cache toolchain
+        id: toolchain
+        run: |
+          fingerprint=$( { xcodebuild -version; clang --version; cmake --version; ninja --version; ccache --version; } | shasum -a 256 | cut -d ' ' -f 1)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Restore build caches
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            ${{ env.NXEMU_THINLTO_CACHE_DIR }}
+          key: macos-arm64-release-v2-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-release-v2-${{ steps.toolchain.outputs.fingerprint }}-
+
+      # Cache only the runtime, not ExternalProject stamps or Xcode build trees.
+      # The recipe contains the pinned source revision and patch/build commands.
+      - name: Restore MoltenVK runtime
+        id: moltenvk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.NXEMU_MOLTENVK_CACHE_DIR }}
+          key: macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
+
+      - name: Reset compiler cache statistics
+        run: ccache --zero-stats
+
       - name: Build
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
-        run: sh src/script/build_macos.sh Release "${NXEMU_BUILD_DIRECTORY:-build}"
+        run: |
+          runtime="$NXEMU_MOLTENVK_CACHE_DIR/libMoltenVK.dylib"
+          if [ -f "$runtime" ]; then
+            echo 'Using the cached MoltenVK runtime'
+            prebuilt="$runtime"
+          else
+            echo 'MoltenVK cache miss: building the pinned runtime'
+            prebuilt=""
+          fi
+          sh src/script/build_macos.sh Release "${NXEMU_BUILD_DIRECTORY:-build}" \
+            -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF \
+            -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR" \
+            -DNXEMU_MOLTENVK_PREBUILT="$prebuilt" \
+            -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON
+          if [ -z "$prebuilt" ]; then
+            mkdir -p "$NXEMU_MOLTENVK_CACHE_DIR"
+            cp "$NXEMU_EFFECTIVE_BUILD_DIRECTORY/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
+          fi
+
+      - name: Save MoltenVK runtime
+        if: ${{ steps.moltenvk-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.NXEMU_MOLTENVK_CACHE_DIR }}
+          key: ${{ steps.moltenvk-cache.outputs.cache-primary-key }}
+
+      - name: Test
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests --parallel "${NXEMU_BUILD_JOBS:-2}"
+          ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build}" --output-on-failure
+
+      - name: Compiler cache statistics
+        if: ${{ always() }}
+        run: ccache --show-stats --verbose
+
+      - name: Save compiler cache
+        if: ${{ !cancelled() && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            ${{ env.NXEMU_THINLTO_CACHE_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
       # The disk image preserves the bundle and includes an Applications shortcut.
       - name: Package

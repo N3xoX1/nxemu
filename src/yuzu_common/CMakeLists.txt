@@ -170,15 +170,21 @@ if(ARCHITECTURE_arm64)
     )
 endif()
 
-set_source_files_properties(stb.cpp PROPERTIES COMPILE_OPTIONS "-Wno-implicit-fallthrough;-Wno-missing-declarations;-Wno-missing-field-initializers")
+if(NOT MSVC)
+    set_source_files_properties(stb.cpp PROPERTIES COMPILE_OPTIONS "-Wno-implicit-fallthrough;-Wno-missing-declarations;-Wno-missing-field-initializers")
+endif()
 
 set_source_files_properties(zbic_compression.cpp PROPERTIES
     INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/external/zbic/src"
     COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-unused-function;-Wno-missing-declarations;-Wno-shadow>")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  # Public headers call sized operator delete; their consumers need Clang's
+  # opt-in as well, especially when using Linux libstdc++.
+  target_compile_options(yuzu_common PUBLIC
+    "$<$<COMPILE_LANGUAGE:CXX>:-fsized-deallocation>"
+  )
   target_compile_options(yuzu_common PRIVATE
-    -fsized-deallocation
     -Werror=unreachable-code-aggressive
   )
   target_compile_definitions(yuzu_common PRIVATE
