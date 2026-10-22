@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <algorithm>
 #include <bit>
+#include <memory>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -11,7 +13,7 @@
 
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/frontend/ir/basic_block.h"
-#include "yuzu_shader_recompiler/frontend/ir/breadth_first_search.h"
+#include "yuzu_shader_recompiler/ir_opt/conditional_value.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
 #include "yuzu_shader_recompiler/host_translate_info.h"
 #include "yuzu_shader_recompiler/ir_opt/passes.h"
@@ -42,6 +44,7 @@ struct TextureInst {
     ConstBufferAddr cbuf;
     IR::Inst* inst;
     IR::Block* block;
+    std::vector<TextureHandleSource> sources;
 };
 
 using TextureInstVector = boost::container::small_vector<TextureInst, 24>;
@@ -252,15 +255,289 @@ bool IsTextureInstruction(const IR::Inst& inst) {
     return IndexedInstruction(inst) != IR::Opcode::Void;
 }
 
-std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environment& env);
+class TextureHandleTracker;
+std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst * inst, Environment & env,
+                                                 TextureHandleTracker & tracker);
 
-std::optional<ConstBufferAddr> Track(const IR::Value& value, Environment& env) {
-    return IR::BreadthFirstSearch(
-        value, [&env](const IR::Inst* inst) { return TryGetConstBuffer(inst, env); });
-}
+// Evaluate the value expression, not the first cbuf reachable anywhere in its
+// operands. In particular, Phi and Select inputs must agree unless the branch
+// context proves which input is live. Cache failures as well as successes.
+class TextureHandleTracker
+{
+public:
+    TextureHandleTracker(Environment & env_, const IR::Program & program_, bool conditional_ = true) :
+        env{env_}, program{program_}, conditions{program_}, conditional{conditional_}
+    {
+    }
 
-std::optional<ConstBufferAddr> TrackLocalLoad(const IR::Value& value, const IR::Block* block,
-                                           Environment& env) {
+    void BeginBlock(const IR::Block * block)
+    {
+        conditions.BeginBlock(block);
+        cache.clear();
+    }
+
+    std::optional<ConstBufferAddr> Track(IR::Value value)
+    {
+        value = value.Resolve();
+        if (value.IsImmediate()) return std::nullopt;
+        const auto * root = value.Inst();
+        if (root->GetOpcode() == IR::Opcode::GetCbufU32 || root->GetOpcode() == IR::Opcode::GetCbufU32x2)
+            return TryGetConstBuffer(root, env, *this);
+        if (const auto it = cache.find(root); it != cache.end()) return it->second;
+        // Explicit postorder avoids recursive walks and stack limits, including
+        // loop-carried/cyclic SSA. An in-progress dependency stays unresolved.
+        struct Work
+        {
+            const IR::Inst * inst;
+            bool evaluate;
+        };
+        boost::container::small_vector<Work, 16> work{{root, false}};
+        while (!work.empty())
+        {
+            const auto [inst, evaluate] = work.back();
+            work.pop_back();
+            if (evaluate)
+            {
+                cache.at(inst) = Evaluate(inst);
+                continue;
+            }
+            if (!cache.emplace(inst, std::nullopt).second) continue;
+            if (CrossesLoop(inst))
+            {
+                // The incoming expression can belong to a previous iteration.
+                // Current branch facts cannot specialize that expression.
+                const auto addr = Unconditional().Track(IR::Value{const_cast<IR::Inst *>(inst)});
+                if (addr && addr->count == 1 && addr->dynamic_offset.IsEmpty()) cache.at(inst) = addr;
+                continue;
+            }
+            work.push_back({inst, true});
+            const auto add = [&](IR::Value operand) {
+                operand = operand.Resolve();
+                if (!operand.IsImmediate() && !cache.contains(operand.Inst()))
+                {
+                    work.push_back({operand.Inst(), false});
+                }
+            };
+            switch (inst->GetOpcode())
+            {
+            case IR::Opcode::Phi:
+                if (const auto input = InvariantPhiInput(inst); !input.IsEmpty())
+                {
+                    add(input);
+                    break;
+                }
+                for (size_t i = 0; i < inst->NumArgs(); ++i)
+                {
+                    if (IncomingPossible(inst, i)) add(inst->Arg(i));
+                }
+                break;
+            case IR::Opcode::SelectU32:
+                if (const auto truth = Truth(inst->Arg(0)))
+                    add(inst->Arg(*truth ? 1 : 2));
+                else
+                {
+                    add(inst->Arg(1));
+                    add(inst->Arg(2));
+                }
+                break;
+            case IR::Opcode::BitwiseOr32:
+            case IR::Opcode::BitwiseAnd32:
+                add(inst->Arg(0));
+                add(inst->Arg(1));
+                break;
+            case IR::Opcode::ShiftLeftLogical32:
+                add(inst->Arg(0));
+                break;
+            default:
+                break;
+            }
+        }
+        return cache.at(root);
+    }
+
+    // Only finite Phi/Select merges of proven descriptors qualify. A cbuf in
+    // an unsupported address expression is not evidence of a texture source.
+    std::vector<ConstBufferAddr> Alternatives(IR::Value value, u32 limit)
+    {
+        std::vector<ConstBufferAddr> result;
+        std::unordered_set<ConstBufferAddr, AddressHash, AddressEqual> unique;
+        std::vector<IR::Value> pending{value};
+        std::unordered_set<const IR::Inst *> visited;
+        const auto add = [&](const ConstBufferAddr & addr) {
+            if (addr.count != 1 || addr.is_direct || !addr.dynamic_offset.IsEmpty()) return false;
+            if (unique.insert(addr).second) result.push_back(addr);
+            return result.size() <= limit;
+        };
+        while (!pending.empty())
+        {
+            const auto input = pending.back().Resolve();
+            pending.pop_back();
+            if (const auto * inst = input.TryInstRecursive(); inst && CrossesLoop(inst))
+            {
+                // Keep the actual loop-carried handle as the runtime selector.
+                // Only its finite, context-independent cbuf sources are collected.
+                const auto incoming = Unconditional().Alternatives(input, limit);
+                if (incoming.empty()) return {};
+                for (const auto & addr : incoming)
+                    if (!add(addr)) return {};
+                continue;
+            }
+            if (const auto addr = Track(input))
+            {
+                if (!add(*addr)) return {};
+                continue;
+            }
+            if (input.IsImmediate()) return {};
+            const auto * inst = input.Inst();
+            if (!visited.insert(inst).second) continue;
+            if (inst->GetOpcode() == IR::Opcode::UndefU32) continue;
+            if (inst->GetOpcode() == IR::Opcode::Phi)
+            {
+                for (size_t i = 0; i < inst->NumArgs(); ++i)
+                    if (IncomingPossible(inst, i)) pending.push_back(inst->Arg(i));
+            }
+            else if (inst->GetOpcode() == IR::Opcode::SelectU32)
+            {
+                if (const auto truth = Truth(inst->Arg(0)))
+                    pending.push_back(inst->Arg(*truth ? 1 : 2));
+                else
+                {
+                    pending.push_back(inst->Arg(1));
+                    pending.push_back(inst->Arg(2));
+                }
+            }
+            else
+                return {}; // Not a finite merge of known descriptors.
+        }
+        return result;
+    }
+
+private:
+    bool CrossesLoop(const IR::Inst * inst)
+    {
+        return conditional && inst->GetOpcode() == IR::Opcode::Phi && conditions.CrossesLoop(inst);
+    }
+
+    TextureHandleTracker & Unconditional()
+    {
+        // No branch facts enter this cache, so it can be shared across use blocks.
+        if (!unconditional) unconditional = std::make_unique<TextureHandleTracker>(env, program, false);
+        return *unconditional;
+    }
+
+    bool IncomingPossible(const IR::Inst * phi, size_t index)
+    {
+        return !conditional || conditions.IncomingPossible(phi, index);
+    }
+
+    std::optional<bool> Truth(IR::Value value)
+    {
+        if (conditional) return conditions.Truth(value);
+        value = value.Resolve();
+        if (value.IsImmediate() && value.Type() == IR::Type::U1) return value.U1();
+        return std::nullopt;
+    }
+
+    // A self edge carries the last iteration's value unchanged. If all other
+    // defined edges carry the same SSA value, the phi is invariant without path
+    // analysis. An undefined register can take that value too.
+    static IR::Value InvariantPhiInput(const IR::Inst * phi)
+    {
+        IR::Value same;
+        for (size_t i = 0; i < phi->NumArgs(); ++i)
+        {
+            const auto input = phi->Arg(i).Resolve();
+            const auto * source = input.TryInstRecursive();
+            if (source == phi || (source && source->GetOpcode() == IR::Opcode::UndefU32)) continue;
+            if (!same.IsEmpty() && same != input) return {};
+            same = input;
+        }
+        return same;
+    }
+
+    static bool Same(const ConstBufferAddr & a, const ConstBufferAddr & b)
+    {
+        return a.index == b.index && a.offset == b.offset && a.shift_left == b.shift_left &&
+               a.secondary_index == b.secondary_index && a.secondary_offset == b.secondary_offset &&
+               a.secondary_shift_left == b.secondary_shift_left && a.dynamic_offset.Resolve() == b.dynamic_offset.Resolve() &&
+               a.count == b.count && a.has_secondary == b.has_secondary &&
+               a.is_direct == b.is_direct && a.handle_or_bits == b.handle_or_bits;
+    }
+
+    struct AddressHash
+    {
+        size_t operator()(const ConstBufferAddr & addr) const
+        {
+            size_t hash{};
+            for (const u32 part : {addr.index, addr.offset, addr.shift_left, addr.secondary_index,
+                                   addr.secondary_offset, addr.secondary_shift_left,
+                                   u32{addr.has_secondary}, addr.handle_or_bits})
+                hash ^= part + 0x9e3779b9U + (hash << 6) + (hash >> 2);
+            return hash;
+        }
+    };
+    struct AddressEqual
+    {
+        bool operator()(const ConstBufferAddr & a, const ConstBufferAddr & b) const { return Same(a, b); }
+    };
+
+    std::optional<ConstBufferAddr> Evaluate(const IR::Inst * inst)
+    {
+        if (inst->GetOpcode() == IR::Opcode::Phi)
+        {
+            if (const auto input = InvariantPhiInput(inst); !input.IsEmpty()) return PhiResult(Track(input));
+            std::optional<ConstBufferAddr> result;
+            for (size_t i = 0; i < inst->NumArgs(); ++i)
+            {
+                if (!IncomingPossible(inst, i)) continue;
+                const auto input = Track(inst->Arg(i));
+                if (!input || (result && !Same(*result, *input))) return std::nullopt;
+                result = input;
+            }
+            return PhiResult(result);
+        }
+        if (inst->GetOpcode() == IR::Opcode::SelectU32)
+        {
+            if (const auto truth = Truth(inst->Arg(0))) return Track(inst->Arg(*truth ? 1 : 2));
+            const auto yes = Track(inst->Arg(1));
+            const auto no = Track(inst->Arg(2));
+            return yes && no && Same(*yes, *no) ? yes : std::nullopt;
+        }
+        if (inst->GetOpcode() == IR::Opcode::CompositeExtractU32x2 && inst->Arg(1).IsImmediate())
+        {
+            const auto * source = inst->Arg(0).TryInstRecursive();
+            if (source && source->GetOpcode() == IR::Opcode::GetCbufU32x2 && inst->Arg(1).U32() < 2 && source->Arg(1).IsImmediate())
+            {
+                auto addr = TryGetConstBuffer(source, env, *this);
+                if (addr) addr->offset += inst->Arg(1).U32() * sizeof(u32);
+                return addr;
+            }
+            return std::nullopt;
+        }
+        return TryGetConstBuffer(inst, env, *this);
+    }
+
+    std::optional<ConstBufferAddr> PhiResult(std::optional<ConstBufferAddr> addr)
+    {
+        // The handle phi dominates its uses, but a dynamic offset taken from
+        // only one incoming branch need not. Keep that choice in the guest handle
+        // instead of emitting an SSA operand outside its defining branch.
+        if (addr && !addr->dynamic_offset.IsEmpty() &&
+            (!conditional || !conditions.DominatesUse(addr->dynamic_offset))) return std::nullopt;
+        return addr;
+    }
+
+    Environment & env;
+    const IR::Program & program;
+    ConditionalValueResolver conditions;
+    bool conditional;
+    std::unique_ptr<TextureHandleTracker> unconditional;
+    std::unordered_map<const IR::Inst *, std::optional<ConstBufferAddr>> cache;
+};
+
+std::optional<ConstBufferAddr> TrackLocalLoad(const IR::Value & value, const IR::Block * block,
+                                              Environment & env, TextureHandleTracker & tracker)
+{
     if (value.IsImmediate()) {
         return std::nullopt;
     }
@@ -317,7 +594,7 @@ std::optional<ConstBufferAddr> TrackLocalLoad(const IR::Value& value, const IR::
     if (source->GetOpcode() != IR::Opcode::GetCbufU32) {
         return std::nullopt;
     }
-    return TryGetConstBuffer(source, env);
+    return TryGetConstBuffer(source, env, tracker);
 }
 
 std::optional<u32> TryGetConstant(IR::Value& value, Environment& env) {
@@ -341,7 +618,8 @@ std::optional<u32> TryGetConstant(IR::Value& value, Environment& env) {
     return env.ReadCbufValue(index_number, offset_number);
 }
 
-std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environment& env) {
+std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environment& env,
+                                               TextureHandleTracker& tracker) {
     switch (inst->GetOpcode()) {
     default:
         return std::nullopt;
@@ -351,15 +629,15 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         for (size_t immediate = 0; immediate < 2; ++immediate) {
             if (inst->Arg(immediate).IsImmediate() &&
                 (inst->Arg(immediate).U32() & 0xfffffU) == 0) {
-                auto source = Track(inst->Arg(1 - immediate), env);
+                auto source = tracker.Track(inst->Arg(1 - immediate));
                 if (source) {
                     source->handle_or_bits |= inst->Arg(immediate).U32();
                 }
                 return source;
             }
         }
-        std::optional lhs{Track(inst->Arg(0), env)};
-        std::optional rhs{Track(inst->Arg(1), env)};
+        std::optional lhs{tracker.Track(inst->Arg(0))};
+        std::optional rhs{tracker.Track(inst->Arg(1))};
         if (!lhs || !rhs) {
             return std::nullopt;
         }
@@ -387,10 +665,10 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     }
     case IR::Opcode::ShiftLeftLogical32: {
         const IR::Value shift{inst->Arg(1)};
-        if (!shift.IsImmediate()) {
+        if (!shift.IsImmediate() || shift.U32() >= 32) {
             return std::nullopt;
         }
-        std::optional lhs{Track(inst->Arg(0), env)};
+        std::optional lhs{tracker.Track(inst->Arg(0))};
         if (lhs) {
             lhs->shift_left = shift.U32();
             lhs->handle_or_bits = shift.U32() < 32 ? lhs->handle_or_bits << shift.U32() : 0;
@@ -420,7 +698,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
                 return std::nullopt;
             } while (false);
         }
-        std::optional lhs{Track(op1, env)};
+        std::optional lhs{tracker.Track(op1)};
         if (lhs) {
             lhs->shift_left = static_cast<u32>(std::countr_zero(op2.U32()));
             lhs->handle_or_bits &= op2.U32();
@@ -495,40 +773,58 @@ bool IsRuntimeSampled(const IR::Inst& inst) {
     }
 }
 
-// True when the handle is an unmodified shader input, such as a per-vertex texture handle.
-bool IsShaderInput(const IR::Value& value) {
-    if (value.IsImmediate()) {
-        return false;
-    }
-    const IR::Inst* inst{value.InstRecursive()};
-    if (inst->GetOpcode() == IR::Opcode::BitCastU32F32) {
-        if (inst->Arg(0).IsImmediate()) {
-            return false;
-        }
-        inst = inst->Arg(0).InstRecursive();
-    }
-    return inst->GetOpcode() == IR::Opcode::GetAttribute ||
-           inst->GetOpcode() == IR::Opcode::GetAttributeU32;
-}
-
-std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block, IR::Inst& inst) {
-    std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env)};
+std::optional<ConstBufferAddr> TrackBindless(Environment& env, IR::Block* block, IR::Inst& inst, TextureHandleTracker& tracker) {
+    std::optional<ConstBufferAddr> track_addr{tracker.Track(inst.Arg(0))};
     if (!track_addr) {
-        track_addr = TrackLocalLoad(inst.Arg(0), block, env);
+        track_addr = TrackLocalLoad(inst.Arg(0), block, env, tracker);
     }
     return track_addr;
 }
 
 TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
-                     const HostTranslateInfo& host_info) {
+                     const HostTranslateInfo& host_info, TextureHandleTracker& tracker) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
-        const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst)};
+        const std::optional<ConstBufferAddr> track_addr{TrackBindless(env, block, inst, tracker)};
         if (!track_addr) {
-            // A handle read from a shader input is only known when the shader runs. Index
-            // the whole texture and sampler tables with it and combine them in the shader.
-            if (host_info.support_separate_sampler && IsRuntimeSampled(inst) &&
-                IsShaderInput(inst.Arg(0))) {
+            // An unresolved merge or runtime input has no single static descriptor.
+            // Preserve the original handle and select its texture/sampler at runtime.
+            const bool sampled = IsRuntimeSampled(inst);
+            const bool fetch = inst.GetOpcode() == IR::Opcode::BindlessImageFetch;
+            if (host_info.support_separate_sampler && (sampled || fetch)) {
+                // Keep finite merges compact. The original guest handle selects
+                // among these cbuf sources, so no path is guessed and the full
+                // guest TIC table does not need to be uploaded.
+                auto choices = tracker.Alternatives(inst.Arg(0), host_info.max_bindless_descriptors_per_stage);
+                if (choices.size() == 1) return TextureInst{choices.front(), &inst, block};
+                if (!choices.empty()) {
+                    IR::IREmitter ir{*block, IR::Block::InstructionList::s_iterator_to(inst)};
+                    IR::U32 selected = ir.Imm32(0);
+                    std::vector<TextureHandleSource> sources;
+                    sources.reserve(choices.size());
+                    for (size_t i = 0; i < choices.size(); ++i) {
+                        const auto& choice = choices[i];
+                        sources.push_back({choice.has_secondary, choice.index, choice.offset, choice.shift_left,
+                                           choice.secondary_index, choice.secondary_offset, choice.secondary_shift_left,
+                                           1, choice.size_shift, choice.handle_or_bits});
+                        if (i == 0) continue; // The default index needs no handle comparison.
+                        auto handle = ir.GetCbuf(ir.Imm32(choice.index), ir.Imm32(choice.offset));
+                        if (choice.shift_left != 0) handle = ir.ShiftLeftLogical(handle, ir.Imm32(choice.shift_left));
+                        if (choice.has_secondary) {
+                            auto secondary = ir.GetCbuf(ir.Imm32(choice.secondary_index), ir.Imm32(choice.secondary_offset));
+                            if (choice.secondary_shift_left != 0) secondary = ir.ShiftLeftLogical(secondary, ir.Imm32(choice.secondary_shift_left));
+                            handle = ir.BitwiseOr(handle, secondary);
+                        }
+                        if (choice.handle_or_bits != 0) handle = ir.BitwiseOr(handle, ir.Imm32(choice.handle_or_bits));
+                        selected = IR::U32{ir.Select(ir.IEqual(IR::U32{inst.Arg(0)}, handle), ir.Imm32(static_cast<u32>(i)), selected)};
+                    }
+                    addr = choices.front();
+                    addr.dynamic_offset = selected;
+                    addr.count = static_cast<u32>(sources.size());
+                    return TextureInst{addr, &inst, block, std::move(sources)};
+                }
+            }
+            if (host_info.support_separate_sampler && sampled && env.ShaderStage() != Stage::Compute) {
                 const auto pool = env.ReadTexturePoolInfo();
                 if (pool && pool->num_textures != 0) {
                     // One element is not declared as an array.
@@ -644,7 +940,7 @@ public:
                    desc.secondary_shift_left == existing.secondary_shift_left &&
                    desc.count == existing.count && desc.size_shift == existing.size_shift &&
                    desc.handle_or_bits == existing.handle_or_bits &&
-                   desc.has_secondary == existing.has_secondary;
+                   desc.has_secondary == existing.has_secondary && desc.sources == existing.sources;
         });
     }
 
@@ -672,7 +968,7 @@ public:
                    desc.secondary_shift_left == existing.secondary_shift_left &&
                    desc.count == existing.count && desc.size_shift == existing.size_shift &&
                    desc.handle_or_bits == existing.handle_or_bits &&
-                   desc.is_direct == existing.is_direct;
+                   desc.is_direct == existing.is_direct && desc.sources == existing.sources;
         })};
         // TODO: Read this from TIC
         texture_descriptors[index].is_multisample |= desc.is_multisample;
@@ -777,19 +1073,21 @@ void PatchTexelFetch(IR::Block& block, IR::Inst& inst, TexturePixelFormat pixel_
 
 void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo& host_info) {
     TextureInstVector to_replace;
+    TextureHandleTracker tracker{env, program};
     for (IR::Block* const block : program.post_order_blocks) {
+        tracker.BeginBlock(block);
         for (IR::Inst& inst : block->Instructions()) {
             if (!IsTextureInstruction(inst)) {
                 continue;
             }
-            to_replace.push_back(MakeInst(env, block, inst, host_info));
+            to_replace.push_back(MakeInst(env, block, inst, host_info, tracker));
         }
     }
     // All source expressions are still unchanged here. Share SSA results across accesses.
     std::unordered_set<const IR::Inst*> alignment_visiting;
     std::unordered_map<const IR::Inst*, u32> offset_alignments;
     for (auto& texture : to_replace) {
-        if (texture.cbuf.count <= 1 || texture.cbuf.is_direct) continue;
+        if (texture.cbuf.count <= 1 || texture.cbuf.is_direct || !texture.sources.empty()) continue;
         const u32 buffer_size = env.ReadCbufSize(texture.cbuf.index);
         if (buffer_size == 0) {
             throw NotImplementedException("Bindless constant buffer size is unavailable");
@@ -937,6 +1235,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .count = cbuf.count,
                     .size_shift = size_shift,
                     .handle_or_bits = cbuf.handle_or_bits,
+                    .sources = texture_inst.sources,
                 });
             } else {
                 index = descriptors.Add(TextureDescriptor{
@@ -954,6 +1253,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .size_shift = size_shift,
                     .is_direct = cbuf.is_direct,
                     .handle_or_bits = cbuf.handle_or_bits,
+                    .sources = texture_inst.sources,
                 });
             }
             break;
@@ -961,7 +1261,9 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         flags.descriptor_index.Assign(index);
         inst->SetFlags(flags);
 
-        if (cbuf.is_direct && inst->GetOpcode() != IR::Opcode::ImageWrite) {
+        if (!texture_inst.sources.empty()) {
+            inst->SetArg(0, cbuf.dynamic_offset);
+        } else if (cbuf.is_direct && inst->GetOpcode() != IR::Opcode::ImageWrite) {
             const TexturePoolInfo pool{env.ReadTexturePoolInfo().value()};
             const u32 num_samplers{pool.linked_samplers ? cbuf.count
                                                         : std::max(pool.num_samplers, 2U)};

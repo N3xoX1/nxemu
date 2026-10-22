@@ -11,6 +11,7 @@
 #endif
 
 class SystemInterface_SDL;
+class UiPackFileInterface;
 class UiThemeFileInterface;
 nxinterface IVideo;
 namespace Rml
@@ -60,7 +61,7 @@ public:
     void HandleEvent(const SDL_Event & event);
     // Draws a frame and hands it to the video module, which shows the game
     // through the interface in `gameArea`, or no game when it is null.
-    void Render(const PixelRect * gameArea);
+    bool Render(const PixelRect * gameArea);
     // Paces event/input updates independently of interface redraws.
     void PaceFrame();
     void SyncNativeState();
@@ -125,6 +126,7 @@ private:
     SDL_Window * m_window = nullptr;
     SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
+    std::unique_ptr<UiPackFileInterface> m_packFiles;
     std::unique_ptr<UiThemeFileInterface> m_themeFiles;
     std::string m_themeChoice = "system";
 #if defined(__linux__)

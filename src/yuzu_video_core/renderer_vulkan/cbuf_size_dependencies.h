@@ -34,6 +34,11 @@ public:
         return it != masks.end() ? it->second : std::numeric_limits<u32>::max();
     }
 
+    /// True once translation has reported the dependencies of the shader
+    bool IsKnown(u64 shader) const {
+        return shader == 0 || masks.contains(shader);
+    }
+
     u64 Revision() const noexcept { return revision; }
 
     template <size_t NumBanks>

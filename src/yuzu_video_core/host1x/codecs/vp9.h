@@ -172,7 +172,10 @@ private:
         const Host1x::NvdecCommon::NvdecRegisters& state);
 
     /// Read and convert NVDEC provided entropy probs to Vp9EntropyProbs struct
-    void InsertEntropy(u64 offset, Vp9EntropyProbs& dst);
+    void InsertEntropy(u64 offset, Vp9PictureInfo& dst);
+
+    /// Reconstruct segmentation parameters from the buffered NVDEC frame snapshot.
+    void WriteSegmentation(VpxBitStreamWriter& writer);
 
     /// Returns frame to be decoded after buffering
     [[nodiscard]] Vp9FrameContainer GetCurrentFrame(
@@ -192,6 +195,7 @@ private:
     std::array<Vp9EntropyProbs, 4> frame_ctxs{};
     bool swap_ref_indices{};
 
+    Segmentation last_segmentation{};
     Vp9PictureInfo current_frame_info{};
     Vp9EntropyProbs prev_frame_probs{};
 };

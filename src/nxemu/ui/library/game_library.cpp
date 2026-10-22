@@ -197,6 +197,7 @@ private:
 
 GameLibrary::GameLibrary() :
     m_directories(UiPreferences::GetStringList(UiPreferences::GameDirectories)),
+    m_recursive(UiPreferences::GetStringList(UiPreferences::GameDirectoriesRecursive)),
     m_recentFiles(UiPreferences::GetStringList(UiPreferences::RecentFiles)),
     m_cache(std::make_unique<GameLibraryCache>(Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir) /
                                                "game_library"))
@@ -241,9 +242,24 @@ bool GameLibrary::RemoveDirectory(const std::string & directory)
         return false;
     }
     m_directories.erase(found);
+    SetScanSubfolders(directory, false);
     UiPreferences::SetStringList(UiPreferences::GameDirectories, m_directories);
     return true;
 }
+
+bool GameLibrary::ScanSubfolders(const std::string & directory) const
+{
+    return std::find(m_recursive.begin(), m_recursive.end(), directory) != m_recursive.end();
+}
+
+void GameLibrary::SetScanSubfolders(const std::string & directory, bool scanSubfolders)
+{
+    if (ScanSubfolders(directory) == scanSubfolders) return;
+    if (scanSubfolders) m_recursive.push_back(directory);
+    else std::erase(m_recursive, directory);
+    UiPreferences::SetStringList(UiPreferences::GameDirectoriesRecursive, m_recursive);
+}
+
 
 void GameLibrary::AddRecentFile(const std::string & path)
 {
@@ -415,7 +431,7 @@ void GameLibrary::Scan(ISystemModules & modules, const std::vector<std::string> 
     for (const std::string & directory : directories)
     {
         if (!seenRoots.insert(directory).second) continue;
-        auto listing = LibraryFiles::ListGameContent(std::filesystem::path{Common::FS::ToU8String(directory)}, &m_stop);
+        auto listing = LibraryFiles::ListGameContent(std::filesystem::path{Common::FS::ToU8String(directory)}, &m_stop, ScanSubfolders(directory));
         fileCount += static_cast<uint32_t>(listing.games.files.size());
         if (!listing.containers.complete || listing.containers.missing)
             commonDependencies.clear(); // An unlisted update may change any game.

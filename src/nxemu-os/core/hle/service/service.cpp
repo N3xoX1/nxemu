@@ -120,14 +120,20 @@ Result ServiceFrameworkBase::HandleSyncRequest(Kernel::KServerSession& session,
     ctx.SetCompletionTime(0);
     const auto work = system.Kernel().GlobalSchedulerContext().BeginHle();
     const auto finish_work = [&] {
-        ctx.SetCompletionTime(system.Kernel().GlobalSchedulerContext().EndHle(work));
+        ctx.SetCompletionTime(std::max(ctx.GetCompletionTime(),
+            system.Kernel().GlobalSchedulerContext().EndHle(work)));
     };
-    auto complete_work = SCOPE_GUARD { finish_work(); };
+    auto complete_work = SCOPE_GUARD
+    {
+        finish_work();
+    };
     Result result = ResultSuccess;
 
-    switch (ctx.GetCommandType()) {
+    switch (ctx.GetCommandType())
+    {
     case IPC::CommandType::Close:
-    case IPC::CommandType::TIPC_Close: {
+    case IPC::CommandType::TIPC_Close:
+    {
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(ResultSuccess);
         result = IPC::ResultSessionClosed;

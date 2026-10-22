@@ -413,17 +413,19 @@ Result ServerManager::CompleteSyncRequest(Session* session) {
         R_SUCCEED();
     }
 
-    if (m_system.CoreTiming().CpuHleSynchronizationEnabled()) {
+    if (session->GetContext()->GetCompletionTime() != 0)
+    {
         // Retain the request/context until completion. The reply transaction
         // handles synchronous clients, asynchronous events and session closure.
         const auto deadline = session->GetContext()->GetCompletionTime();
         while (!m_stop_source.stop_requested() &&
-               m_system.CoreTiming().CpuHleSynchronizationEnabled() && deadline >
-               static_cast<u64>(m_system.CoreTiming().GetGlobalTimeNs().count())) {
+               deadline >
+                   static_cast<u64>(m_system.CoreTiming().GetGlobalTimeNs().count()))
+        {
             s32 index{};
-            Kernel::KSynchronizationObject* objects[]{std::addressof(m_shutdown_event->GetReadableEvent())};
+            Kernel::KSynchronizationObject * objects[]{std::addressof(m_shutdown_event->GetReadableEvent())};
             const auto wait = Kernel::KSynchronizationObject::Wait(m_system.Kernel(),
-                std::addressof(index), objects, 1, static_cast<s64>(deadline));
+                                                                   std::addressof(index), objects, 1, static_cast<s64>(deadline));
             if (wait == Kernel::ResultTerminationRequested) R_SUCCEED();
             ASSERT(wait == ResultSuccess || wait == Kernel::ResultTimedOut || wait == Kernel::ResultCancelled);
         }

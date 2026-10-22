@@ -460,6 +460,8 @@ nxinterface ISystemloader
     virtual bool PublishGameContentSnapshot(const GameContentSnapshot & snapshot) = 0;
     // Refresh at launch, also when starting a file without opening the library.
     virtual void RefreshGameContentIndex() = 0;
+    // Backing-file traffic on this thread; cache hits perform no backing I/O.
+    virtual void GetBackingReadTraffic(StorageReadTraffic * out) const = 0;
 
 };
 

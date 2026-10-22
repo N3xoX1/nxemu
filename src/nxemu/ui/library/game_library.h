@@ -42,6 +42,8 @@ public:
     std::vector<GameEntry> CachedGames() const;
     bool AddDirectory(const std::string & directory);
     bool RemoveDirectory(const std::string & directory);
+    bool ScanSubfolders(const std::string & directory) const;
+    void SetScanSubfolders(const std::string & directory, bool scanSubfolders);
     void AddRecentFile(const std::string & path);
 
     // Starts scanning the directories with the given modules' loader, replacing
@@ -90,6 +92,7 @@ private:
     void ReadDetails(ISystemModules & modules);
 
     std::vector<std::string> m_directories;
+    std::vector<std::string> m_recursive;
     std::vector<std::string> m_recentFiles;
     std::unique_ptr<GameLibraryCache> m_cache;
     std::thread m_thread;

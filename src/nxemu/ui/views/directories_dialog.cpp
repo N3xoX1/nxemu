@@ -12,6 +12,7 @@
 namespace
 {
 constexpr const char * kRemovePrefix = "remove-directory:";
+constexpr const char * kSubfoldersPrefix = "toggle-subfolders:";
 
 std::string Escaped(const std::string & text)
 {
@@ -69,6 +70,10 @@ void DirectoriesDialog::OnCommand(const std::string & command)
     {
         RemoveDirectory(static_cast<size_t>(std::atoi(command.c_str() + std::string(kRemovePrefix).size())));
     }
+    else if (command.rfind(kSubfoldersPrefix, 0) == 0)
+    {
+        ToggleSubfolders(static_cast<size_t>(std::atoi(command.c_str() + std::string(kSubfoldersPrefix).size())));
+    }
 }
 
 void DirectoriesDialog::OnCloseRequested()
@@ -91,9 +96,13 @@ void DirectoriesDialog::ShowDirectories()
     for (size_t index = 0; index < directories.size(); ++index)
     {
         const bool found = Exists(directories[index]);
+        const bool subfolders = m_library.ScanSubfolders(directories[index]);
         rml += std::string("<div class=\"directory") + (found ? "" : " missing") + "\"><img src=\"images/folder.png\" /><div class=\"directory-texts\">"
                "<div class=\"directory-path\">" + Escaped(directories[index]) + "</div>" +
                (found ? std::string() : "<div class=\"directory-note\">" + Escaped(Tr("Not found: the games in it are not shown.")) + "</div>") + "</div>" +
+               "<div class=\"directory-subfolders\">" + Escaped(Tr("Scan subfolders")) + "</div><div class=\"switch" + (subfolders ? " on" : "") +
+               (locked ? std::string(" locked\"") : "\" data-command=\"" + std::string(kSubfoldersPrefix) + std::to_string(index) + "\"") +
+               "><div class=\"switch-knob\"/></div>" +
                (locked ? std::string() : "<button data-command=\"" + std::string(kRemovePrefix) + std::to_string(index) + "\">" + Escaped(Tr("Remove")) + "</button>") + "</div>";
     }
     if (directories.empty())
@@ -129,5 +138,17 @@ void DirectoriesDialog::RemoveDirectory(size_t index)
     {
         m_libraryChanged = true;
     }
+    ShowDirectories();
+}
+
+void DirectoriesDialog::ToggleSubfolders(size_t index)
+{
+    if (!m_host.canChangeLibrary() || index >= m_library.Directories().size())
+    {
+        return;
+    }
+    const std::string directory = m_library.Directories()[index];
+    m_library.SetScanSubfolders(directory, !m_library.ScanSubfolders(directory));
+    m_libraryChanged = true;
     ShowDirectories();
 }

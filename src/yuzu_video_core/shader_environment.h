@@ -19,6 +19,7 @@
 #include "yuzu_common/unique_function.h"
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
+#include "yuzu_video_core/snapshot_memory_budget.h"
 
 namespace Tegra {
 class Memorymanager;
@@ -55,6 +56,10 @@ public:
 
     void SetCachedSize(size_t size_bytes);
 
+    void SetCachedCode(std::shared_ptr<const std::vector<u64>> code_, size_t size_bytes);
+
+    std::shared_ptr<const std::vector<u64>> ShareCachedCode(size_t size_bytes);
+
     [[nodiscard]] size_t CachedSizeWords() const noexcept;
 
     [[nodiscard]] size_t CachedSizeBytes() const noexcept;
@@ -81,6 +86,9 @@ public:
     [[nodiscard]] u32 CbufSizeMask() const noexcept;
 
 protected:
+    std::span<const u64> Code() const noexcept {
+        return shared_code ? std::span<const u64>(*shared_code) : std::span<const u64>(code);
+    }
     std::optional<u64> TryFindSize();
 
     /// Returns std::nullopt when the handle points outside of the texture table, which the
@@ -92,6 +100,7 @@ protected:
     GPUVAddr program_base{};
 
     std::vector<u64> code;
+    std::shared_ptr<const std::vector<u64>> shared_code;
     std::unordered_map<u32, Shader::TextureType> texture_types;
     std::unordered_map<u32, Shader::TexturePixelFormat> texture_pixel_formats;
     std::unordered_map<u64, u32> cbuf_values;
@@ -113,17 +122,57 @@ protected:
 
     bool has_unbound_instructions = false;
     bool has_hle_engine_state = false;
+    bool frozen = false;
 };
 
 class GraphicsEnvironment final : public GenericEnvironment {
 public:
+    struct Snapshot {
+        struct ConstantBuffer {
+            size_t data_offset{};
+            u32 size{};
+            bool enabled{};
+        };
+
+        std::array<std::array<ConstantBuffer, Tegra::Engines::Maxwell3D::Regs::MaxConstBuffers>,
+                   Tegra::Engines::Maxwell3D::Regs::MaxShaderStage>
+            constant_buffers{};
+        std::vector<u8> constant_buffer_data;
+        // Shared between snapshots while the guest descriptor table is unchanged.
+        std::shared_ptr<const std::vector<Tegra::Texture::TICEntry>> texture_descriptors;
+        std::unordered_map<u64, Shader::ReplaceConstant> cbuf_replacements;
+        Shader::TexturePoolInfo texture_pool{};
+        u32 texture_limit{};
+        u32 viewport_transform_state{1};
+        bool via_header_index{};
+    };
+
     explicit GraphicsEnvironment() = default;
     explicit GraphicsEnvironment(Tegra::Engines::Maxwell3D& maxwell3d_,
                                  Tegra::MemoryManager& gpu_memory_,
                                  Tegra::Engines::Maxwell3D::Regs::ShaderType program,
-                                 GPUVAddr program_base_, u32 start_address_);
+                                 GPUVAddr program_base_, u32 start_address_,
+                                 std::shared_ptr<const std::vector<u64>> cached_code = {},
+                                 size_t cached_size = 0);
 
     ~GraphicsEnvironment() override = default;
+
+    // Reuses the texture descriptor copy of the previous capture when the guest
+    // table did not change. Only accessed by the thread that captures snapshots.
+    struct SnapshotCache {
+        SnapshotMemoryBudget memory{64 * 1024 * 1024};
+        GPUVAddr texture_address{};
+        std::shared_ptr<const std::vector<Tegra::Texture::TICEntry>> texture_descriptors;
+    };
+
+    // Returns null when the bounded snapshot budget cannot accommodate the capture.
+    [[nodiscard]] static std::shared_ptr<const Snapshot> CaptureSnapshot(
+        Tegra::Engines::Maxwell3D& maxwell3d, Tegra::MemoryManager& gpu_memory,
+        u32 active_stage_mask, SnapshotCache& cache);
+
+    void SetSnapshot(std::shared_ptr<const Snapshot> snapshot_);
+
+    void ReleaseSnapshot();
 
     u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
 
@@ -142,7 +191,10 @@ public:
     std::optional<Shader::ReplaceConstant> GetReplaceConstBuffer(u32 bank, u32 offset) override;
 
 private:
+    [[nodiscard]] std::optional<Tegra::Texture::TICEntry> ReadSnapshotTextureInfo(u32 raw) const;
+
     Tegra::Engines::Maxwell3D* maxwell3d{};
+    std::shared_ptr<const Snapshot> snapshot;
     size_t stage_index{};
 };
 
@@ -256,9 +308,11 @@ void SerializePipeline(const Key& key, const Envs& envs, const std::filesystem::
                       std::span(envs.data(), envs.size()), filename, cache_version);
 }
 
+/// Loads the pipelines of a cache file. The callbacks return false for a record that is not
+/// needed, such as a duplicate of an earlier one, and the file is rewritten without them.
 void LoadPipelines(
     std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
-    Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
-    Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics);
+    Common::UniqueFunction<bool, std::ifstream&, FileEnvironment> load_compute,
+    Common::UniqueFunction<bool, std::ifstream&, std::vector<FileEnvironment>> load_graphics);
 
 } // namespace VideoCommon

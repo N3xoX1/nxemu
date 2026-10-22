@@ -11,7 +11,7 @@ if not exist "%output%\nxemu.exe" goto EndErr
 if not exist "%output%\SDL2.dll" goto EndErr
 for %%m in (cpu loader video operating_system) do if not exist "%output%\modules\%%m" goto EndErr
 pushd "%output%"
-7z a -tzip "%base_dir%\package\%ZipFileName%" nxemu.exe SDL2.dll modules ui -xr!*.pdb -xr!*.lib -xr!*.exp
+7z a -tzip "%base_dir%\package\%ZipFileName%" nxemu.exe SDL2.dll nxemu.lang modules ui -xr!*.pdb -xr!*.lib -xr!*.exp
 if errorlevel 1 (
     popd
     goto EndErr

@@ -81,6 +81,11 @@ namespace
         {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "libnxemu-cpu.so"},
         {NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "libnxemu-video.so"},
         {NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "libnxemu-os.so"},
+#elif !defined(NDEBUG)
+        {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader/libnxemu-loader_d.so"},
+        {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "cpu/libnxemu-cpu_d.so"},
+        {NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "video/libnxemu-video_d.so"},
+        {NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system/libnxemu-os_d.so"},
 #else
         {NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader/libnxemu-loader.so"},
         {NXCoreSetting::ModuleCpu, "modules", "cpu", &coreSettings.moduleCpu, "cpu/libnxemu-cpu.so"},

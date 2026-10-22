@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <limits>
 #include <thread>
 
 #include "yuzu_common/polyfill_ranges.h"
@@ -66,7 +67,15 @@ void MasterSemaphore::Refresh() {
     u64 counter{};
     do {
         this_tick = gpu_tick.load(std::memory_order_acquire);
-        counter = semaphore.GetCounter();
+        try {
+            counter = semaphore.GetCounter();
+        } catch (const vk::Exception& exception) {
+            if (exception.GetResult() != VK_ERROR_DEVICE_LOST) {
+                throw;
+            }
+            MarkDeviceLost();
+            return;
+        }
         if (counter < this_tick) {
             return;
         }
@@ -95,10 +104,27 @@ void MasterSemaphore::Wait(u64 tick) {
     }
 
     // If none of the above is hit, fallback to a regular wait
-    while (!semaphore.Wait(tick)) {
+    try {
+        while (!semaphore.Wait(tick)) {
+        }
+    } catch (const vk::Exception& exception) {
+        if (exception.GetResult() != VK_ERROR_DEVICE_LOST) {
+            throw;
+        }
+        MarkDeviceLost();
+        return;
     }
 
     Refresh();
+}
+
+void MasterSemaphore::MarkDeviceLost() {
+    device.ReportLoss();
+    {
+        std::scoped_lock lock{free_mutex};
+        gpu_tick.store(std::numeric_limits<u64>::max(), std::memory_order_release);
+    }
+    free_cv.notify_all();
 }
 
 VkResult MasterSemaphore::SubmitQueue(vk::CommandBuffer& cmdbuf, vk::CommandBuffer& upload_cmdbuf,

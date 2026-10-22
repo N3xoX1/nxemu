@@ -62,6 +62,8 @@ public:
     std::vector<std::string> GameModificationRoots(uint64_t program_id);
     bool IsInGameDirectory(const std::string & file_path) const;
 
+    void GetBackingReadTraffic(StorageReadTraffic* out) const override;
+
 private:
     Systemloader() = delete;
     Systemloader(const Systemloader &) = delete;

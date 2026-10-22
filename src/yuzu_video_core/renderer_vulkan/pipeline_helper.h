@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -61,6 +62,9 @@ inline bool RasterizesLines(Shader::OutputTopology output,
 }
 
 // Direct texture descriptors are bound through the texture table set instead.
+/// Smallest descriptor array handled as a bindless array
+constexpr u32 LARGE_IMAGE_ARRAY_SIZE = 64;
+
 inline u32 NumCombinedSamplers(const Shader::Info& info) {
     u32 num{};
     for (const auto& desc : info.texture_descriptors) {
@@ -69,12 +73,21 @@ inline u32 NumCombinedSamplers(const Shader::Info& info) {
     return num;
 }
 
+/// Number of combined samplers bound in descriptor set 1 instead of set 0
+inline u32 NumTableSetCombinedSamplers(const Shader::Info& info) {
+    u32 num{};
+    for (const auto& desc : info.texture_descriptors) {
+        num += desc.in_table_set ? desc.count : 0U;
+    }
+    return num;
+}
+
 inline size_t NumDescriptorUpdateEntries(const Shader::Info& info) {
     return size_t{Shader::NumDescriptors(info.constant_buffer_descriptors)} +
            Shader::NumDescriptors(info.storage_buffers_descriptors) +
            Shader::NumDescriptors(info.texture_buffer_descriptors) +
-           Shader::NumDescriptors(info.image_buffer_descriptors) + NumCombinedSamplers(info) +
-           Shader::NumDescriptors(info.image_descriptors) +
+           Shader::NumDescriptors(info.image_buffer_descriptors) + NumCombinedSamplers(info) -
+           NumTableSetCombinedSamplers(info) + Shader::NumDescriptors(info.image_descriptors) +
            (info.runtime_image_write_mask_words != 0 ? 1U : 0U);
 }
 
@@ -151,10 +164,29 @@ public:
         });
     }
 
+    static bool IsLargeImageArray(const VkDescriptorUpdateTemplateEntry& entry) {
+        return entry.descriptorCount >= 64 &&
+               (entry.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ||
+                entry.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
+                entry.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+                entry.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER);
+    }
+
+    std::span<const VkDescriptorUpdateTemplateEntry> TemplateEntries() const {
+        return entries;
+    }
+
     vk::DescriptorUpdateTemplate CreateTemplate(VkDescriptorSetLayout descriptor_set_layout,
                                                 VkPipelineLayout pipeline_layout,
-                                                bool use_push_descriptor) const {
-        if (entries.empty()) {
+                                                bool use_push_descriptor,
+                                                bool exclude_large_images = false) const {
+        auto template_entries = entries;
+        if (exclude_large_images) {
+            template_entries.erase(
+                std::remove_if(template_entries.begin(), template_entries.end(), IsLargeImageArray),
+                template_entries.end());
+        }
+        if (template_entries.empty()) {
             return nullptr;
         }
         const VkDescriptorUpdateTemplateType type =
@@ -164,8 +196,8 @@ public:
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
             .pNext = nullptr,
             .flags = 0,
-            .descriptorUpdateEntryCount = static_cast<u32>(entries.size()),
-            .pDescriptorUpdateEntries = entries.data(),
+            .descriptorUpdateEntryCount = static_cast<u32>(template_entries.size()),
+            .pDescriptorUpdateEntries = template_entries.data(),
             .templateType = type,
             .descriptorSetLayout = descriptor_set_layout,
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -210,6 +242,8 @@ public:
         for (const auto& desc : info.texture_descriptors) {
             if (desc.is_direct) {
                 AddTable(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, stage, desc.count);
+            } else if (desc.in_table_set) {
+                AddTable(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stage, desc.count);
             } else {
                 Add(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stage, desc.count);
             }
@@ -362,7 +396,15 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
                                             !image_view.SupportsAnisotropy()};
             const VkSampler vk_sampler{use_fallback_sampler ? sampler.HandleWithDefaultAnisotropy()
                                                             : sampler.Handle()};
-            guest_descriptor_queue.AddSampledImage(vk_image_view, vk_sampler);
+            if (desc.in_table_set) {
+                texture_table->push_back({
+                    .sampler = vk_sampler,
+                    .imageView = vk_image_view,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                });
+            } else {
+                guest_descriptor_queue.AddSampledImage(vk_image_view, vk_sampler);
+            }
             is_rescaled |= texture_cache.IsRescaling(image_view);
         }
         // SPIR-V allocates one scaling bit per descriptor, including array descriptors.

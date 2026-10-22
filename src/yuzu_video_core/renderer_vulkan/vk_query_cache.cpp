@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <chrono>
 #include <cstddef>
 #include <limits>
 #include <map>
 #include <memory>
 #include <span>
+#include <thread>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -66,17 +68,32 @@ public:
 
     void Sync(size_t start, size_t size) {
         const auto& dev = device.GetLogical();
-        const VkResult query_result = dev.GetQueryResults(
-            *query_pool, static_cast<u32>(start), static_cast<u32>(size), sizeof(u64) * size,
-            &host_results[start], sizeof(u64), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-        switch (query_result) {
-        case VK_SUCCESS:
-            return;
-        case VK_ERROR_DEVICE_LOST:
-            device.ReportLoss();
-            [[fallthrough]];
-        default:
-            throw vk::Exception(query_result);
+        // Some drivers record a submitted command buffer on their own thread, and only wait for
+        // the queries recorded so far. Until then the others are not ready.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{1};
+        while (true) {
+            const VkResult query_result = dev.GetQueryResults(
+                *query_pool, static_cast<u32>(start), static_cast<u32>(size),
+                sizeof(u64) * size, &host_results[start], sizeof(u64),
+                VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            switch (query_result) {
+            case VK_SUCCESS:
+                return;
+            case VK_NOT_READY:
+                if (std::chrono::steady_clock::now() < deadline) {
+                    std::this_thread::sleep_for(std::chrono::microseconds{100});
+                    continue;
+                }
+                // Never written: the available results were stored, the others stay as they were.
+                LOG_WARNING(Render_Vulkan, "Occlusion query results never became available");
+                return;
+            case VK_ERROR_DEVICE_LOST:
+                // The queries will never finish, so their results stay empty.
+                device.ReportLoss();
+                return;
+            default:
+                throw vk::Exception(query_result);
+            }
         }
     }
 

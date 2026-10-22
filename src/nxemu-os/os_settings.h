@@ -111,3 +111,4 @@ Region ConsoleRegion();
 void SetupOsSetting(void);
 void CleanupOsSetting(void);
 void SaveOsSettings(void);
+Region ConsoleRegion();

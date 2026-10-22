@@ -25,6 +25,8 @@ add_library(nxemu_ui STATIC
     host/system_fonts.h
     host/ui_notification.cpp
     host/ui_notification.h
+    host/ui_pack.cpp
+    host/ui_pack.h
     host/ui_renderer.cpp
     host/ui_renderer.h
     host/ui_renderer_effects.cpp
@@ -166,6 +168,7 @@ if(NXEMU_BUILD_TRANSLATION_TESTS)
         views/dialog.cpp
         views/rml_events.cpp
         i18n/translation.cpp
+        host/ui_pack.cpp
         i18n/plural_rule.cpp
         host/system_fonts.cpp
         host/ui_theme.cpp
@@ -191,6 +194,7 @@ if(NXEMU_BUILD_LIBRARY_CACHE_TESTS)
     add_executable(nxemu_game_library_scan_tests
         library/game_library_scan_tests.cpp
         i18n/translation.cpp
+        host/ui_pack.cpp
         i18n/plural_rule.cpp
         library/game_library.cpp
         library/game_library_cache.cpp

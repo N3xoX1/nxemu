@@ -287,21 +287,20 @@ if(APPLE)
         set(NXEMU_MOLTENVK_RUNTIME "${NXEMU_MOLTENVK_PREBUILT}" CACHE INTERNAL "" FORCE)
     else()
         set(_nxemu_moltenvk_root "${CMAKE_BINARY_DIR}/external/moltenvk")
-        set(_nxemu_moltenvk_source "${_nxemu_moltenvk_root}/src")
+        set(_nxemu_moltenvk_source "${_nxemu_moltenvk_root}/fork")
         set(_nxemu_moltenvk_runtime
-            "${_nxemu_moltenvk_source}/MoltenVK/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
+            "${_nxemu_moltenvk_source}/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
 
         ExternalProject_Add(nxemu_moltenvk
-            GIT_REPOSITORY "https://github.com/V380-Ori/Ryujinx.MoltenVK.git"
-            GIT_TAG "45f9b641e45f1d150f3521d74808477add9e975b"
+            GIT_REPOSITORY "https://github.com/fab918/MoltenVK.git"
+            GIT_TAG "1f5ab343e9b840f4194295d3d0ea3b7a95077d57"
             GIT_SHALLOW FALSE
-            GIT_SUBMODULES_RECURSE TRUE
             UPDATE_COMMAND ""
             SOURCE_DIR "${_nxemu_moltenvk_source}"
             CONFIGURE_COMMAND ""
             BUILD_IN_SOURCE TRUE
             BUILD_COMMAND /bin/sh -c
-                "cd MoltenVK && (git apply --reverse --check ../000*.patch || git apply --verbose ../000*.patch) && ./fetchDependencies --macos && make macos"
+                "./fetchDependencies --macos && make macos"
             BUILD_BYPRODUCTS "${_nxemu_moltenvk_runtime}"
             INSTALL_COMMAND ""
         )

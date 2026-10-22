@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #pragma once
+#include <stop_token>
 
 #include <array>
 #include <atomic>
@@ -57,6 +58,7 @@ public:
     void WaitGuest(u32 syncpoint_id, u32 expected_value);
 
     void WaitHost(u32 syncpoint_id, u32 expected_value);
+    bool WaitHost(u32 syncpoint_id, u32 expected_value, std::stop_token stop);
 
     bool IsReadyGuest(u32 syncpoint_id, u32 expected_value) const {
         return HasReached(syncpoints_guest[syncpoint_id].load(std::memory_order_acquire), expected_value);

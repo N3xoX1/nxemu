@@ -247,6 +247,10 @@ nxinterface IVideo
     // Waits for the last interface draw before its resources are released.
     // Call on the interface thread, outside a Begin/EndInterfaceFrame pair.
     virtual void WaitInterfaceIdle() = 0;
+    // Owns resources on every path; release exactly once after completion or cancellation,
+    // before ClearCdmaInstance returns. The callback must not throw.
+    virtual void PushCommandBufferWithResources(int32_t bindId, const uint32_t* commandList,
+        uint32_t commandListSize, void* resources, void (*release)(void*)) = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

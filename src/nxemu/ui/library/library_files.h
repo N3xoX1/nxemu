@@ -38,7 +38,7 @@ struct GameContentListings
     LibraryListing containers;
     LibraryListing modifications; // Title ID directories; files are read live by the loader
 };
-GameContentListings ListGameContent(const std::filesystem::path & directory, const std::atomic<bool> * cancelled = nullptr);
+GameContentListings ListGameContent(const std::filesystem::path & directory, const std::atomic<bool> * cancelled = nullptr, bool scanSubfolders = false);
 
 // The game files directly in a game directory.
 LibraryListing ListGames(const std::filesystem::path & directory);

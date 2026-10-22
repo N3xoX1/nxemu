@@ -81,6 +81,15 @@ public:
                               const Device& device_, MemoryAllocator& memory_allocator_,
                               StateTracker& state_tracker_, Scheduler& scheduler_);
     ~RasterizerVulkan() override;
+    void WaitForShaderBuilds() { pipeline_cache.WaitForBuilds(); }
+
+    struct FrameDraws {
+        u32 total;
+        u32 skipped; ///< Skipped while their pipeline compiles
+        bool new_render_targets; ///< Some image was drawn to for the first time
+    };
+    /// Returns the draws since the previous call
+    FrameDraws TakeFrameDraws();
 
     void Draw(bool is_indexed, u32 instance_count) override;
     bool DrawIndirect() override;
@@ -193,11 +202,13 @@ private:
     Scheduler& scheduler;
 
     StagingBufferPool staging_pool;
+    VtgScratchAllocator indirect_scratch;
     /// Instances of the draw being prepared, zero when it cannot run its stages as compute
     u32 vtg_instance_count{};
     DescriptorPool descriptor_pool;
     GuestDescriptorQueue guest_descriptor_queue;
     ComputePassDescriptorQueue compute_pass_descriptor_queue;
+    std::unique_ptr<IndirectCountPass> indirect_count_pass;
     BlitImageHelper blit_image;
     RenderPassCache render_pass_cache;
 
@@ -217,6 +228,8 @@ private:
 
     VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;
+    u32 frame_draws = 0;
+    u32 frame_skipped_draws = 0;
     float depth_compare_offset = 0.0f;
 };
 

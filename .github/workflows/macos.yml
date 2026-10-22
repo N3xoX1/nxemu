@@ -104,7 +104,7 @@ jobs:
             -DNXEMU_BUILD_GAME_SETTINGS_TESTS=ON -DNXEMU_BUILD_LIBRARY_CACHE_TESTS=ON
           if [ -z "$prebuilt" ]; then
             mkdir -p "$NXEMU_MOLTENVK_CACHE_DIR"
-            cp "$NXEMU_EFFECTIVE_BUILD_DIRECTORY/external/moltenvk/src/MoltenVK/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
+            cp "$NXEMU_EFFECTIVE_BUILD_DIRECTORY/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
           fi
 
       - name: Save MoltenVK runtime

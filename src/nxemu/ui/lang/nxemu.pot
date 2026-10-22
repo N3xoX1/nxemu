@@ -612,7 +612,7 @@ msgid "Save"
 msgstr ""
 
 #: assets/directories_dialog.rml
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
 msgstr ""
 
 #: assets/directories_dialog.rml
@@ -1097,6 +1097,12 @@ msgid ""
 "%1\n"
 "\n"
 "Loader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr ""
+
+#: emulation/emulator_session.cpp
+msgid ""
+"Could not load the game:\n"
+"%1"
 msgstr ""
 
 #: input/input_text.cpp
@@ -1728,6 +1734,10 @@ msgstr ""
 
 #: views/directories_dialog.cpp
 msgid "Not found: the games in it are not shown."
+msgstr ""
+
+#: views/directories_dialog.cpp
+msgid "Scan subfolders"
 msgstr ""
 
 #: views/directories_dialog.cpp

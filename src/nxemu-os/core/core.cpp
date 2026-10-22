@@ -104,8 +104,8 @@ struct System::Impl {
     {
         const bool must_reconfigure = is_multicore != osSettings.use_multi_core ||
             cpu_hle_requested != osSettings.cpu_hle_synchronization ||
-            (cpu_hle_requested && cpu_hle_initialized_supported != CpuHleSupported()) ||
-            (cpu_hle_requested && cpu_hle_initialized_native_clock != CpuHleUsesNativeClock()) ||
+            cpu_hle_initialized_supported != CpuHleSupported() ||
+            cpu_hle_initialized_native_clock != CpuHleUsesNativeClock() ||
             core_timing.CpuHleSynchronizationFailed();
 
         if (!must_reconfigure)

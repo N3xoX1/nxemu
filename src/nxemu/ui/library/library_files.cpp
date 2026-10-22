@@ -97,7 +97,7 @@ bool LibraryFiles::IsContainer(const std::filesystem::path & path)
     return extension == ".dnsp" || extension == ".dxci" || extension == ".nca";
 }
 
-LibraryFiles::GameContentListings LibraryFiles::ListGameContent(const std::filesystem::path & directory, const std::atomic<bool> * cancelled)
+LibraryFiles::GameContentListings LibraryFiles::ListGameContent(const std::filesystem::path & directory, const std::atomic<bool> * cancelled, bool scanSubfolders)
 {
     GameContentListings result;
     std::error_code error;
@@ -139,7 +139,7 @@ LibraryFiles::GameContentListings LibraryFiles::ListGameContent(const std::files
             complete = complete && !fileError;
             continue;
         }
-        const bool game = itr.depth() == 0 && IsGame(itr->path());
+        const bool game = (scanSubfolders || itr.depth() == 0) && IsGame(itr->path());
         const bool container = IsContainer(itr->path());
         if (!game && !container)
             continue;

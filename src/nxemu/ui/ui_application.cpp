@@ -1,6 +1,7 @@
 #include <nxemu-core/settings/game_settings.h>
 #include "ui_application.h"
 #include <common/path.h>
+#include <nxemu/ui/host/ui_pack.h>
 #include <filesystem>
 #include <iostream>
 #include <nxemu-core/app_init.h>
@@ -72,6 +73,11 @@ bool KeepGraphicsBusy(const UiWindow & window, EmulatorSession & session)
 std::filesystem::path FindAssetDirectory()
 {
     const std::filesystem::path exeDir = Common::FS::GetExeDirectory();
+    std::error_code packError;
+    if (std::filesystem::is_regular_file(exeDir / "nxemu.lang", packError) && UiPack::Open(exeDir / "nxemu.lang", exeDir / "ui"))
+    {
+        return exeDir / "ui";
+    }
     for (const std::filesystem::path & candidate : {
              exeDir / "ui",
              exeDir.parent_path() / "Resources" / "ui",
@@ -199,7 +205,12 @@ int Run(UiNotification & notification, const std::string & gamePath)
             window.SyncNativeState();
             window.Context()->Update();
             window.PaceFrame();
-            window.Render(mainWindow.GameArea());
+            if (!window.Render(mainWindow.GameArea()) && !question)
+            {
+                // The dialog cannot be seen, such as after the GPU stopped responding.
+                SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title.c_str(), text.c_str(), window.Handle());
+                dialog.Dismiss();
+            }
         }
         liveResize.busy = wasBusy;
         if (quitting) SDL_PushEvent(&deferred);

@@ -181,6 +181,9 @@ void Display::WaitInterfaceIdle() {
 
 void Display::EndInterfaceFrame(const DisplayArea* area) {
     interface_cmdbuf.End();
+    if (device.IsLost()) {
+        return;
+    }
     const VkSubmitInfo submit_info{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .pNext = nullptr,
@@ -234,7 +237,7 @@ void Display::WaitOwnPresents() {
 
 void Display::PresentLocked(Frame* frame, bool fresh) {
     const void* window = window_info.render_surface;
-    if (window == nullptr) {
+    if (window == nullptr || device.IsLost()) {
         presented_window = nullptr;
         return;
     }
@@ -250,11 +253,18 @@ void Display::PresentLocked(Frame* frame, bool fresh) {
         }
         PresentImage(frame, fresh);
     } catch (const vk::Exception& except) {
-        if (except.GetResult() != VK_ERROR_SURFACE_LOST_KHR &&
-            except.GetResult() != VK_ERROR_INITIALIZATION_FAILED) {
+        switch (except.GetResult()) {
+        case VK_ERROR_SURFACE_LOST_KHR:
+        case VK_ERROR_INITIALIZATION_FAILED:
+            presented_window = nullptr;
+            break;
+        case VK_ERROR_DEVICE_LOST:
+            // Nothing can be shown anymore, so the frame is dropped.
+            device.ReportLoss();
+            break;
+        default:
             throw;
         }
-        presented_window = nullptr;
     }
 }
 

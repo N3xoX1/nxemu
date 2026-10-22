@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <filesystem>
 #include <iterator>
 #include <utility>
 #include "yuzu_common/yuzu_assert.h"
@@ -12,6 +13,7 @@
 #include "yuzu_common/logging/log.h"
 #include "core/file_sys/vfs/vfs.h"
 #include "core/file_sys/vfs/vfs_real.h"
+#include "core/file_sys/vfs/backing_read_traffic.h"
 
 // For FileTimeStampRaw
 #include <sys/stat.h>
@@ -30,7 +32,33 @@ namespace FS = Common::FS;
 
 namespace {
 
+// Windows can resolve case aliases and junctions to one file. Reuse the same
+// cached handle instead of opening it twice with mutually exclusive write access.
+std::string FileCacheKey(const std::string& path) {
+#ifdef _WIN32
+    std::error_code ec;
+    const auto canonical = std::filesystem::canonical(std::filesystem::path{FS::ToU8String(path)}, ec);
+    if (!ec) {
+        return FS::PathToUTF8String(canonical);
+    }
+#endif
+    return path;
+}
+
 constexpr size_t MaxOpenFiles = 512;
+
+StorageReadDomain ReadDomainForPath(const std::string& path) {
+    const std::filesystem::path file{FS::ToU8String(FileCacheKey(path))};
+    const auto in_mount = [&](Common::FS::YuzuPath mount) {
+        const auto root_string = FS::GetYuzuPathString(mount);
+        if (root_string.empty()) return false;
+        const std::filesystem::path root{FS::ToU8String(FileCacheKey(root_string))};
+        return std::mismatch(root.begin(), root.end(), file.begin(), file.end()).first == root.end();
+    };
+    if (in_mount(FS::YuzuPath::NANDDir)) return StorageReadDomain::Nand;
+    if (in_mount(FS::YuzuPath::SDMCDir)) return StorageReadDomain::SdCard;
+    return StorageReadDomain::Content;
+}
 
 constexpr FS::FileAccessMode ModeFlagsToFileAccessMode(VirtualFileOpenMode mode) {
     switch (mode) {
@@ -86,6 +114,15 @@ VirtualFile RealVfsFilesystem::OpenFileFromEntry(std::string_view path_, std::op
         }
     }
 
+    const auto cache_key = FileCacheKey(path);
+    if (cache_key != path) {
+        if (auto it = cache.find(cache_key); it != cache.end()) {
+            if (auto file = it->second.lock(); file) {
+                return file;
+            }
+        }
+    }
+
     if (!size && !FS::IsFile(path)) {
         return nullptr;
     }
@@ -95,7 +132,7 @@ VirtualFile RealVfsFilesystem::OpenFileFromEntry(std::string_view path_, std::op
 
     auto file = std::shared_ptr<RealVfsFile>(
         new RealVfsFile(*this, std::move(reference), path, perms, size));
-    cache[path] = file;
+    cache[cache_key] = file;
 
     return file;
 }
@@ -108,7 +145,7 @@ VirtualFile RealVfsFilesystem::CreateFile(std::string_view path_, VirtualFileOpe
     const auto path = FS::SanitizePath(path_, FS::DirectorySeparator::PlatformDefault);
     {
         std::scoped_lock lk{list_lock};
-        cache.erase(path);
+        cache.erase(FileCacheKey(path));
     }
 
     // Current usages of CreateFile expect to delete the contents of an existing file.
@@ -141,8 +178,8 @@ VirtualFile RealVfsFilesystem::MoveFile(std::string_view old_path_, std::string_
     const auto new_path = FS::SanitizePath(new_path_, FS::DirectorySeparator::PlatformDefault);
     {
         std::scoped_lock lk{list_lock};
-        cache.erase(old_path);
-        cache.erase(new_path);
+        cache.erase(FileCacheKey(old_path));
+        cache.erase(FileCacheKey(new_path));
     }
     if (!FS::RenameFile(old_path, new_path)) {
         return nullptr;
@@ -154,7 +191,7 @@ bool RealVfsFilesystem::DeleteFile(std::string_view path_) {
     const auto path = FS::SanitizePath(path_, FS::DirectorySeparator::PlatformDefault);
     {
         std::scoped_lock lk{list_lock};
-        cache.erase(path);
+        cache.erase(FileCacheKey(path));
     }
     return FS::RemoveFile(path);
 }
@@ -271,7 +308,9 @@ RealVfsFile::RealVfsFile(RealVfsFilesystem& base_, std::unique_ptr<FileReference
                          const std::string& path_, VirtualFileOpenMode perms_, std::optional<uint64_t> size_)
     : base(base_), reference(std::move(reference_)), path(path_),
       parent_path(FS::GetParentPath(path_)), path_components(FS::SplitPathComponentsCopy(path_)),
-      size(size_), perms(perms_) {}
+      size(size_), perms(perms_) {
+    read_domain = ReadDomainForPath(path);
+}
 
 RealVfsFile::~RealVfsFile() {
     base.DropReference(std::move(reference));
@@ -317,7 +356,9 @@ std::size_t RealVfsFile::Read(u8* data, std::size_t length, std::size_t offset) 
     if (!reference->file || !reference->file->Seek(static_cast<s64>(offset))) {
         return 0;
     }
-    return reference->file->ReadSpan(std::span{data, length});
+    const auto bytes = reference->file->ReadSpan(std::span{data, length});
+    backing_read_traffic.bytes[static_cast<std::uint32_t>(read_domain)] += bytes;
+    return bytes;
 }
 
 std::size_t RealVfsFile::Write(const u8* data, std::size_t length, std::size_t offset) {

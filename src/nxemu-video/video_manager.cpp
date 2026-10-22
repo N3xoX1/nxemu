@@ -1,3 +1,4 @@
+#include "yuzu_video_core/host1x/ffmpeg/device_cache.h"
 #include "render_window.h"
 #include "video_manager.h"
 #include "video_settings.h"
@@ -68,6 +69,7 @@ struct VideoManager::Impl
         m_display.reset();
         m_emuWindow.reset();
         m_host1x.reset();
+        FFmpeg::ReleaseHardwareDecoderDevices();
     }
 
     // Creates the device the Vulkan renderer draws with. It is kept from one
@@ -93,6 +95,7 @@ struct VideoManager::Impl
     {
         StopInitialization();
         m_gpuCore.reset();
+        FFmpeg::WarmHardwareDecoderDevices();
         m_memoryManagerRegistry.Clear();
         g_settings->SetBool(NXCoreSetting::DisplayedFrames, false);
 
@@ -213,6 +216,9 @@ uint64_t VideoManager::MapBufferEx(uint32_t gmmu, uint64_t gpuAddr, uint64_t dev
         UNIMPLEMENTED();
         return 0;
     }
+    // Preserve old mappings and renderer state until any readbacks complete.
+    // The same guard surrounds GPU command lists and frame composition.
+    auto execution_lock = impl->m_gpuCore->LockExecution();
     return memory->Map(gpuAddr, deviceAddr, size, (Tegra::PTEKind)kind, isBigPages);
 }
 
@@ -224,6 +230,9 @@ uint64_t VideoManager::MapSparse(uint32_t gmmu, uint64_t gpuAddr, uint64_t size,
         UNIMPLEMENTED();
         return 0;
     }
+    // Preserve old mappings and renderer state until any readbacks complete.
+    // The same guard surrounds GPU command lists and frame composition.
+    auto execution_lock = impl->m_gpuCore->LockExecution();
     return memory->MapSparse(gpuAddr, size, isBigPages);
 }
 
@@ -235,65 +244,79 @@ void VideoManager::Unmap(uint32_t gmmu, uint64_t gpuAddr, uint64_t size)
         UNIMPLEMENTED();
         return;
     }
+    // Preserve old mappings and renderer state until any readbacks complete.
+    // The same guard surrounds GPU command lists and frame composition.
+    auto execution_lock = impl->m_gpuCore->LockExecution();
     memory->Unmap(gpuAddr, size);
 }
 
 uint64_t VideoManager::Host1xMemoryAllocate(uint64_t size)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     return impl->m_host1x->MemoryManager().Allocate(size);
 }
 
 uint32_t VideoManager::Host1xAllocatorAllocate(uint32_t size)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     Common::FlatAllocator<u32, 0, 32> & gmmu_allocator = impl->m_host1x->Allocator();
     return gmmu_allocator.Allocate(static_cast<u32>(size));
 }
 
 void VideoManager::Host1xAllocatorFree(uint32_t address, uint32_t size)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     impl->m_host1x->Allocator().Free(address, size);
 }
 
 void VideoManager::Host1xGMMUMap(uint64_t address, uint64_t virtual_address, uint64_t size)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     auto & gmmu = impl->m_host1x->GMMU();
     gmmu.Map(static_cast<GPUVAddr>(address), virtual_address, size);
 }
 
 void VideoManager::Host1xGMMUUnmap(uint64_t address, uint64_t size)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     auto & gmmu = impl->m_host1x->GMMU();
     gmmu.Unmap(static_cast<GPUVAddr>(address), size);
 }
 
 void VideoManager::Host1xMemoryMap(uint64_t address, uint64_t virtualAddress, uint64_t size, uint64_t asid, bool track)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     impl->m_host1x->MemoryManager().Map(address, virtualAddress, size, Core::Asid{asid}, track);
 }
 
 void VideoManager::Host1xMemoryUnmap(uint64_t address, uint64_t size)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     impl->m_host1x->MemoryManager().Unmap(address, size);
 }
 
 void VideoManager::Host1xFree(uint64_t regionStart, uint64_t regionSize)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     impl->m_host1x->MemoryManager().Free(regionStart, regionSize);
 }
 
 void VideoManager::Host1xMemoryTrackContinuity(uint64_t address, uint64_t virtualAddress, uint64_t size, uint64_t asid)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     impl->m_host1x->MemoryManager().TrackContinuity(address, virtualAddress, size, Core::Asid{asid});
 }
 
 uint64_t VideoManager::Host1xRegisterProcess(IMemory * memory)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     Core::Asid asid = impl->m_host1x->MemoryManager().RegisterProcess(memory);
     return asid.id;
 }
 
 void VideoManager::Host1xUnregisterProcess(uint64_t asid)
 {
+    std::scoped_lock memory_lock{impl->m_host1x->MemoryMutex()};
     Tegra::MaxwellDeviceMemoryManager & smmu = impl->m_host1x->MemoryManager();
     smmu.UnregisterProcess(Core::Asid{asid});
 }
@@ -513,6 +536,15 @@ uint32_t VideoManager::ShadersBuilding()
 bool VideoManager::UseNvdec()
 {
     return impl->m_gpuCore->UseNvdec();
+}
+
+void VideoManager::PushCommandBufferWithResources(int32_t bindId, const uint32_t* commandList,
+    uint32_t commandListSize, void* resources, void (*release)(void*))
+{
+    std::shared_ptr<void> lifetime(resources, release);
+    Tegra::ChCommandHeaderList cmdlist(commandListSize);
+    std::memcpy(cmdlist.data(), commandList, commandListSize * sizeof(uint32_t));
+    impl->m_gpuCore->PushCommandBuffer(bindId, cmdlist, std::move(lifetime));
 }
 
 void VideoManager::ClearCdmaInstance(uint32_t id)

@@ -96,6 +96,7 @@ void CoreTiming::ThreadEntry(CoreTiming& instance) {
 void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_cpu_hle,
                             bool native_cpu_clock) {
     Reset();
+    for (auto& bus : storage_read_buses) bus.Reset();
     cpu_hle_native_clock.store(native_cpu_clock, std::memory_order_relaxed);
     on_thread_init = std::move(on_thread_init_);
     event_fifo_id = 0;
@@ -103,13 +104,15 @@ void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_
     cpu_ticks = 0;
     fallback_time_offset_ns.store(0, std::memory_order_relaxed);
     cpu_hle_failed.store(false, std::memory_order_relaxed);
+    const bool shared_clock_supported = allow_cpu_hle && is_multicore && !native_cpu_clock;
+    shared_cpu_clock_enabled.store(shared_clock_supported, std::memory_order_release);
     bool supported = false;
     bool counter_supported = false;
     if (osSettings.cpu_hle_synchronization && allow_cpu_hle && is_multicore)
         counter_supported = ReadNativeThreadTimeNs().has_value();
     supported = osSettings.cpu_hle_synchronization && allow_cpu_hle && is_multicore && counter_supported;
 #ifdef _WIN32
-    if (supported) {
+    if (supported || shared_clock_supported) {
         windows_timer_wait = std::make_unique<WindowsTimerWait>();
         if (!windows_timer_wait->IsValid()) {
             windows_timer_wait.reset();
@@ -120,8 +123,9 @@ void CoreTiming::Initialize(std::function<void()>&& on_thread_init_, bool allow_
 #endif
     cpu_hle_enabled.store(osSettings.cpu_hle_synchronization && supported, std::memory_order_release);
     shared_clock.Reset(clock.get());
+    LOG_INFO(Core, "Shared CPU clock: {}", UsesSharedCpuClock());
     if (osSettings.cpu_hle_synchronization && !supported)
-        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64_backend={}, thread_counter={}); using normal timing", is_multicore, allow_cpu_hle, counter_supported);
+        LOG_WARNING(Core, "CPU/HLE synchronization unavailable (multicore={}, guest64_backend={}, thread_counter={}); leaving HLE CPU charging disabled", is_multicore, allow_cpu_hle, counter_supported);
     LOG_INFO(Core, "CPU/HLE synchronization: {} (multicore={}, guest64_backend={}, native_cpu_clock={})", CpuHleSynchronizationEnabled(), is_multicore, allow_cpu_hle, native_cpu_clock);
     if (is_multicore) {
         timer_thread = std::make_unique<std::jthread>(ThreadEntry, std::ref(*this));
@@ -337,7 +341,7 @@ void CoreTiming::ThreadLoop() {
                     while (!paused && !event.IsSet() && wait_time > 0) {
                         wait_time = *next_time - GetGlobalTimeNs().count();
                         if (wait_time <= 0) break;
-                        if (CpuHleSynchronizationEnabled() && windows_timer_wait) {
+                        if (UsesSharedCpuClock() && windows_timer_wait) {
                             // Serialize the snapshot with compilation-end notification
                             // so resuming a frozen CPU cannot miss this wakeup.
                             bool blocked;
@@ -452,18 +456,19 @@ bool CoreTiming::CpuHleSynchronizationEnabled() const {
 }
 
 bool CoreTiming::UsesSharedCpuClock() const {
-    return !cpu_hle_native_clock.load(std::memory_order_relaxed) && CpuHleSynchronizationEnabled();
+    return shared_cpu_clock_enabled.load(std::memory_order_acquire);
 }
 
 void CoreTiming::DisableCpuHleSynchronization(const char* reason) {
     std::scoped_lock lock{cpu_hle_transition_guard};
-    if (!CpuHleSynchronizationEnabled()) return;
+    if (!CpuHleSynchronizationEnabled() && !UsesSharedCpuClock()) return;
     // NCE already uses the native time domain; fallback must not offset its
     // ticks away from the counter read directly by guest instructions.
-    if (!cpu_hle_native_clock.load(std::memory_order_relaxed)) {
+    if (UsesSharedCpuClock()) {
         shared_clock.Pause(true);
         const auto now = static_cast<s64>(shared_clock.Now());
         fallback_time_offset_ns.store(now - clock->GetTimeNS().count(), std::memory_order_release);
+        shared_cpu_clock_enabled.store(false, std::memory_order_release);
     }
     cpu_hle_enabled.store(false, std::memory_order_release);
     cpu_hle_failed.store(true, std::memory_order_release);

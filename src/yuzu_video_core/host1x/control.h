@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #pragma once
+#include <stop_token>
 
 #include "yuzu_common/common_types.h"
 
@@ -21,7 +22,7 @@ public:
         WaitSyncpt32 = 0x50,
     };
 
-    explicit Control(Host1x& host1x);
+    explicit Control(Host1x& host1x, std::stop_token stop = {});
     ~Control();
 
     /// Writes the method into the state, Invoke Execute() if encountered
@@ -31,6 +32,7 @@ private:
     /// For Host1x, execute is waiting on a syncpoint previously written into the state
     void Execute(u32 data);
 
+    std::stop_token stop;
     u32 syncpoint_value{};
     Host1x& host1x;
 };

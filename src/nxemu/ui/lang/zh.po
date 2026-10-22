@@ -2487,9 +2487,6 @@ msgstr "掌机模式：游戏以720p运行，如同在主机自带屏幕上显�
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "游戏正在运行：灰色选项只能在停止后更改。语言在游戏启动时生效。"
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "游戏、更新和DLC可以放在同一文件夹或不同文件夹中。NXEmu会自动关联它们。游戏直接从所选文件夹中查找，附加内容也会在子文件夹中查找。"
-
 msgid "Profile"
 msgstr "用户档案"
 
@@ -2522,3 +2519,12 @@ msgstr "无法加载游戏：\n%1\n\n加载器错误：%2。请检查游戏文�
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "无法加载界面。请检查 NXEmu 的 ui 文件夹是否完整。"
+
+msgid "Scan subfolders"
+msgstr "扫描子文件夹"
+
+msgid "Could not load the game:\n%1"
+msgstr "无法加载游戏：\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "添加存放游戏的文件夹。同一文件夹中的更新、DLC 和模组会自动匹配到相应游戏。启用“扫描子文件夹”还可搜索文件夹内的子文件夹。"

@@ -2487,9 +2487,6 @@ msgstr "携帯モード：本体画面と同じように、ゲームは720pで�
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "ゲームの実行中は、グレー表示の設定を変更できません。言語はゲームの起動時に適用されます。"
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "ゲーム、更新データ、DLCは同じフォルダーにも別々のフォルダーにも保存できます。NXEmuが自動的に関連付けます。ゲームは各フォルダーの直下、追加コンテンツはサブフォルダーも検索します。"
-
 msgid "Profile"
 msgstr "プロフィール"
 
@@ -2522,3 +2519,12 @@ msgstr "ゲームを読み込めませんでした：\n%1\n\nローダーエラ�
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "インターフェースを読み込めません。NXEmu の ui フォルダーが完全か確認してください。"
+
+msgid "Scan subfolders"
+msgstr "サブフォルダーをスキャン"
+
+msgid "Could not load the game:\n%1"
+msgstr "ゲームを読み込めませんでした：\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "ゲームが保存されているフォルダーを追加してください。同じフォルダー内の更新データ、DLC、Modは自動的にゲームに関連付けられます。「サブフォルダーをスキャン」を有効にすると、その中のフォルダーも検索します。"

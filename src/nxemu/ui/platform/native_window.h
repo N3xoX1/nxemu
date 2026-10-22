@@ -16,6 +16,7 @@ void SetNativeWindowFullscreen(SDL_Window * window, bool fullscreen);
 // Does what the user chose, in the system's settings, for a double click on a
 // window's title bar.
 void PerformNativeTitleBarDoubleClick(SDL_Window * window);
+void SetNativeWindowTheme(SDL_Window * window, const char * choice);
 void ReleaseNativeWindowStyle(SDL_Window * window);
 void SetNativeWindowTheme(SDL_Window * window, const char * choice);
 #else
@@ -24,6 +25,7 @@ inline int ApplyNativeWindowStyle(SDL_Window * /*window*/)
     return 0;
 }
 inline bool SyncNativeWindowState(SDL_Window * /*window*/) { return false; }
+inline void SetNativeWindowTheme(SDL_Window * /*window*/, const char * /*choice*/) {}
 inline void ReleaseNativeWindowStyle(SDL_Window * /*window*/) {}
 inline void SetNativeWindowTheme(SDL_Window * /*window*/, const char * /*choice*/) {}
 #endif

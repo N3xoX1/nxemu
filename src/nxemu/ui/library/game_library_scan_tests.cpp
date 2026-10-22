@@ -52,6 +52,7 @@ public:
     ISystemloader * real = nullptr;
     size_t reads = 0, containerReads = 0, indexRefreshes = 0;
     std::unordered_map<std::string, size_t> romReadsByPath;
+    void GetBackingReadTraffic(StorageReadTraffic * out) const override { if (real) real->GetBackingReadTraffic(out); else *out = {}; }
     void RefreshGameContentIndex() override { ++indexRefreshes; if (real) real->RefreshGameContentIndex(); }
     bool PublishGameContentSnapshot(const GameContentSnapshot & snapshot) override {
         return real ? real->PublishGameContentSnapshot(snapshot) : true;

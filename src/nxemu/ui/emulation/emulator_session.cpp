@@ -215,9 +215,13 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
         {
             ReportError(Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path}));
         }
-        else
+        else if (result != LoaderResultStatus::ErrorNotInitialized)
         {
             ReportError(Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))}));
+        }
+        else
+        {
+            ReportError(Tr("Could not load the game:\n%1", {path}));
         }
         return false;
     }

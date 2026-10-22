@@ -13,6 +13,7 @@
 #include "yuzu_video_core/engines/maxwell_dma.h"
 #include "yuzu_video_core/engines/puller.h"
 #include "yuzu_video_core/gpu.h"
+#include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 
@@ -60,11 +61,17 @@ void Puller::ProcessBindMethod(const MethodCall& method_call) {
 
 void Puller::ProcessFenceActionMethod() {
     switch (regs.fence_action.op) {
-    case Puller::FenceOperation::Acquire:
+    case Puller::FenceOperation::Acquire: {
         // UNIMPLEMENTED_MSG("Channel Scheduling pending.");
-        // WaitFence(regs.fence_action.syncpoint_id, regs.fence_value);
+        // A syncpoint the host has already reached needs no wait. Otherwise, without channel
+        // scheduling, the pending fences are released as before.
+        const auto& syncpoints = gpu.Host1x().GetSyncpointManager();
+        if (syncpoints.IsReadyHost(regs.fence_action.syncpoint_id, regs.fence_value)) {
+            break;
+        }
         rasterizer->ReleaseFences();
         break;
+    }
     case Puller::FenceOperation::Increment:
         rasterizer->SignalSyncPoint(regs.fence_action.syncpoint_id);
         break;

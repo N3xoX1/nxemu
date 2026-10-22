@@ -2487,9 +2487,6 @@ msgstr "휴대 모드: 콘솔 자체 화면처럼 게임이 720p로 실행됩니
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "게임 실행 중에는 회색으로 표시된 설정을 변경할 수 없습니다. 언어는 게임 시작 시 적용됩니다."
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "게임, 업데이트, DLC를 같은 폴더나 서로 다른 폴더에 보관할 수 있습니다. NXEmu가 자동으로 연결합니다. 게임은 각 폴더 바로 아래에서, 추가 콘텐츠는 하위 폴더에서도 검색합니다."
-
 msgid "Profile"
 msgstr "프로필"
 
@@ -2522,3 +2519,12 @@ msgstr "게임을 불러올 수 없습니다:\n%1\n\n로더 오류: %2. 게임 �
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "인터페이스를 불러올 수 없습니다. NXEmu의 ui 폴더가 완전한지 확인하세요."
+
+msgid "Scan subfolders"
+msgstr "하위 폴더 검색"
+
+msgid "Could not load the game:\n%1"
+msgstr "게임을 불러올 수 없습니다:\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "게임이 있는 폴더를 추가하세요. 같은 폴더에 있는 업데이트, DLC 및 모드는 자동으로 게임에 연결됩니다. 하위 폴더 검색을 켜면 폴더 안의 다른 폴더도 검색합니다."

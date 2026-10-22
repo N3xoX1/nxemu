@@ -1448,10 +1448,8 @@ void EmitContext::DefineTextureBuffers(const Info& info, u32& binding) {
     const Id type{TypePointer(spv::StorageClass::UniformConstant, image_buffer_type)};
     texture_buffers.reserve(info.texture_buffer_descriptors.size());
     for (const TextureBufferDescriptor& desc : info.texture_buffer_descriptors) {
-        if (desc.count != 1) {
-            throw NotImplementedException("Array of texture buffers");
-        }
-        const Id id{AddGlobalVariable(type, spv::StorageClass::UniformConstant)};
+        const Id array_type{DescType(*this, image_buffer_type, type, desc.count)};
+        const Id id{AddGlobalVariable(array_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
         Decorate(id, spv::Decoration::DescriptorSet, 0U);
         Name(id, NameOf(stage, desc, "texbuf"));
@@ -1506,8 +1504,9 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
         const Id desc_type{DescType(*this, element_type, pointer_type, desc.count)};
         const Id id{AddGlobalVariable(desc_type, spv::StorageClass::UniformConstant)};
         // Texture tables are kept in their own set, the host reuses it between draws.
-        Decorate(id, spv::Decoration::Binding, desc.is_direct ? table_binding++ : binding++);
-        Decorate(id, spv::Decoration::DescriptorSet, desc.is_direct ? 1U : 0U);
+        const bool in_table_set{desc.is_direct || desc.in_table_set};
+        Decorate(id, spv::Decoration::Binding, in_table_set ? table_binding++ : binding++);
+        Decorate(id, spv::Decoration::DescriptorSet, in_table_set ? 1U : 0U);
         Name(id, NameOf(stage, desc, "tex"));
         textures.push_back({
             .id = id,

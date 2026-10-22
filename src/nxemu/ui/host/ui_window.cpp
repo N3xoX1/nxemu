@@ -1,5 +1,6 @@
 #include "ui_window.h"
 #include "system_fonts.h"
+#include "ui_pack.h"
 #include "ui_theme.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
@@ -78,6 +79,7 @@ UiWindow::~UiWindow()
 bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir)
 {
     SDL_SetMainReady();
+    SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
 #if defined(_WIN32)
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
     // Keep what the window manager does for a framed window: snapping, the
@@ -139,7 +141,8 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail("RmlUi initialization failed");
     }
     m_rmlInitialised = true;
-    m_themeFiles = std::make_unique<UiThemeFileInterface>(*Rml::GetFileInterface());
+    m_packFiles = std::make_unique<UiPackFileInterface>(*Rml::GetFileInterface());
+    m_themeFiles = std::make_unique<UiThemeFileInterface>(*m_packFiles);
     Rml::SetFileInterface(m_themeFiles.get());
     if (!LoadFonts(assetDir / "fonts"))
     {
@@ -263,14 +266,14 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     RmlSDL::InputEventHandler(m_context, m_window, translated);
 }
 
-void UiWindow::Render(const PixelRect * gameArea)
+bool UiWindow::Render(const PixelRect * gameArea)
 {
     const bool hidden = (SDL_GetWindowFlags(m_window) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) != 0;
     VideoInterfaceFrame frame{};
     if (m_video == nullptr || hidden || m_drawableWidth <= 0 || m_drawableHeight <= 0 ||
         !m_video->BeginInterfaceFrame(static_cast<uint32_t>(m_drawableWidth), static_cast<uint32_t>(m_drawableHeight), &frame))
     {
-        return;
+        return false;
     }
     m_renderer->BeginFrame(static_cast<VkCommandBuffer>(frame.commandBuffer), m_drawableWidth, m_drawableHeight);
     m_context->Render();
@@ -285,6 +288,7 @@ void UiWindow::Render(const PixelRect * gameArea)
     {
         m_video->EndInterfaceFrame(nullptr);
     }
+    return true;
 }
 
 void UiWindow::PaceFrame()
@@ -557,8 +561,11 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
 
 void UiWindow::SetWindowIcon(const std::filesystem::path & iconFile)
 {
-    std::ifstream file(iconFile, std::ios::binary);
-    const std::vector<char> encoded{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    std::string encoded;
+    if (!UiPack::ReadFile(iconFile, encoded))
+    {
+        return;
+    }
     int width = 0, height = 0, channels = 0;
     stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc *>(encoded.data()), static_cast<int>(encoded.size()), &width, &height, &channels, 4);
     if (pixels == nullptr)

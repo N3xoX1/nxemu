@@ -62,6 +62,18 @@ private:
     ComputePassDescriptorQueue& queue;
 };
 
+// Prepares indexed indirect counts on the upload command buffer. The caller
+// must exclude inputs written by the current main command buffer.
+class IndirectCountPass final : public ComputePass {
+public:
+    IndirectCountPass(const Device& device, Scheduler& scheduler, DescriptorPool& pool);
+    void Convert(VkBuffer source, u64 source_offset, VkBuffer count, u64 count_offset,
+                 VkBuffer destination, u64 destination_offset, u32 max_draws, u32 stride);
+
+private:
+    Scheduler& scheduler;
+};
+
 class Uint8Pass final : public ComputePass {
 public:
     explicit Uint8Pass(const Device& device_, Scheduler& scheduler_,

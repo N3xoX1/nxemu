@@ -11,6 +11,7 @@
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/macro/macro.h"
 #include "yuzu_video_core/macro/macro_hle.h"
+#include "yuzu_video_core/macro/indirect_draw_count.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 
@@ -262,16 +263,25 @@ public:
         const u32 indirect_words = 5 + padding;
         const u32 stride = indirect_words * sizeof(u32);
         const std::size_t draw_count = end_indirect - start_indirect;
+        const auto known_count = KnownMultiDrawCount(maxwell3d.AnyParametersDirty(),
+                                                     start_indirect, end_indirect, parameters[4]);
+        if (known_count && *known_count == 0) {
+            return;
+        }
         const u32 estimate = IndexCount(parameters, indirect_words, draw_count);
         maxwell3d.dirty.flags[VideoCommon::Dirty::IndexBuffer] = true;
         auto& params = maxwell3d.draw_manager->GetIndirectParams();
         params.is_byte_count = false;
         params.is_indexed = true;
-        params.include_count = true;
+        // MoltenVK implements an indirect count by interrupting the render pass
+        // for a compute conversion. A CPU-known count can use ordinary indirect
+        // draws without a readback or that conversion. GPU-written arguments
+        // retain the original indirect-count path.
+        params.include_count = !known_count.has_value();
         params.count_start_address = maxwell3d.GetMacroAddress(4);
         params.indirect_start_address = maxwell3d.GetMacroAddress(5);
         params.buffer_size = stride * draw_count;
-        params.max_draw_counts = draw_count;
+        params.max_draw_counts = known_count ? *known_count : draw_count;
         params.stride = stride;
         maxwell3d.dirty.flags[VideoCommon::Dirty::IndexBuffer] = true;
         maxwell3d.engine_state = Maxwell3D::EngineHint::OnHLEMacro;

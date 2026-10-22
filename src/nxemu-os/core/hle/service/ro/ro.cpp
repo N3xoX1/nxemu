@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <common/sha256.h>
 
 #include "yuzu_common/scope_exit.h"
@@ -20,8 +21,8 @@ namespace {
 
 // Convenience definitions.
 constexpr size_t MaxSessions = 0x3;
-constexpr size_t MaxNrrInfos = 0x40;
-constexpr size_t MaxNroInfos = 0x40;
+constexpr size_t MaxNrrInfos = 0x100;
+constexpr size_t MaxNroInfos = 0x100;
 
 constexpr u64 InvalidProcessId = 0xffffffffffffffffULL;
 constexpr u64 InvalidContextId = 0xffffffffffffffffULL;
@@ -58,6 +59,8 @@ struct ProcessContext {
         m_nrr_in_use = {};
         m_nro_infos = {};
         m_nrr_infos = {};
+        m_nro_scan_limit = 0;
+        m_nrr_scan_limit = 0;
 
         m_process = process;
         m_process_id = process_id;
@@ -79,6 +82,8 @@ struct ProcessContext {
         m_nrr_in_use = {};
         m_nro_infos = {};
         m_nrr_infos = {};
+        m_nro_scan_limit = 0;
+        m_nrr_scan_limit = 0;
 
         m_process = nullptr;
         m_process_id = InvalidProcessId;
@@ -109,7 +114,7 @@ struct ProcessContext {
     }
 
     Result GetNrrInfoByAddress(NrrInfo** out, u64 nrr_heap_address) {
-        for (size_t i = 0; i < MaxNrrInfos; i++) {
+        for (size_t i = 0; i < m_nrr_scan_limit; i++) {
             if (m_nrr_in_use[i] && m_nrr_infos[i].nrr_heap_address == nrr_heap_address) {
                 if (out != nullptr) {
                     *out = std::addressof(m_nrr_infos[i]);
@@ -133,7 +138,7 @@ struct ProcessContext {
     }
 
     Result GetNroInfoByAddress(NroInfo** out, u64 nro_address) {
-        for (size_t i = 0; i < MaxNroInfos; i++) {
+        for (size_t i = 0; i < m_nro_scan_limit; i++) {
             if (m_nro_in_use[i] && m_nro_infos[i].base_address == nro_address) {
                 if (out != nullptr) {
                     *out = std::addressof(m_nro_infos[i]);
@@ -145,7 +150,7 @@ struct ProcessContext {
     }
 
     Result GetNroInfoByModuleId(NroInfo** out, const ModuleId* module_id) {
-        for (size_t i = 0; i < MaxNroInfos; i++) {
+        for (size_t i = 0; i < m_nro_scan_limit; i++) {
             if (m_nro_in_use[i] && std::memcmp(std::addressof(m_nro_infos[i].module_id), module_id,
                                                sizeof(*module_id)) == 0) {
                 if (out != nullptr) {
@@ -184,7 +189,7 @@ struct ProcessContext {
             sha256.final(hash.data());
         }
 
-        for (size_t i = 0; i < MaxNrrInfos; i++) {
+        for (size_t i = 0; i < m_nrr_scan_limit; i++) {
             // Ensure we only check NRRs that are used.
             if (!m_nrr_in_use[i]) {
                 continue;
@@ -269,6 +274,13 @@ struct ProcessContext {
                info <= std::addressof(m_nrr_infos[MaxNrrInfos - 1]));
         const size_t index = info - std::addressof(m_nrr_infos[0]);
         m_nrr_in_use[index] = in_use;
+        if (in_use) {
+            m_nrr_scan_limit = std::max(m_nrr_scan_limit, index + 1);
+        } else {
+            while (m_nrr_scan_limit > 0 && !m_nrr_in_use[m_nrr_scan_limit - 1]) {
+                --m_nrr_scan_limit;
+            }
+        }
     }
 
     void SetNroInfoInUse(const NroInfo* info, bool in_use) {
@@ -276,6 +288,13 @@ struct ProcessContext {
                info <= std::addressof(m_nro_infos[MaxNroInfos - 1]));
         const size_t index = info - std::addressof(m_nro_infos[0]);
         m_nro_in_use[index] = in_use;
+        if (in_use) {
+            m_nro_scan_limit = std::max(m_nro_scan_limit, index + 1);
+        } else {
+            while (m_nro_scan_limit > 0 && !m_nro_in_use[m_nro_scan_limit - 1]) {
+                --m_nro_scan_limit;
+            }
+        }
     }
 
 private:
@@ -283,6 +302,10 @@ private:
     std::array<bool, MaxNrrInfos> m_nrr_in_use{};
     std::array<NroInfo, MaxNroInfos> m_nro_infos{};
     std::array<NrrInfo, MaxNrrInfos> m_nrr_infos{};
+    // Upper bounds of slots currently marked in use in this process context. Keep
+    // lookups/hash validation from scanning unused capacity added for plugins.
+    size_t m_nro_scan_limit{};
+    size_t m_nrr_scan_limit{};
     Kernel::KProcess* m_process{};
     u64 m_process_id{InvalidProcessId};
     bool m_in_use{};

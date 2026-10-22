@@ -7,7 +7,7 @@
 
 namespace Tegra::Host1x {
 
-Control::Control(Host1x& host1x_) : host1x(host1x_) {}
+Control::Control(Host1x& host1x_, std::stop_token stop_) : stop{stop_}, host1x(host1x_) {}
 
 Control::~Control() = default;
 
@@ -27,7 +27,7 @@ void Control::ProcessMethod(Method method, u32 argument) {
 }
 
 void Control::Execute(u32 data) {
-    host1x.GetSyncpointManager().WaitHost(data, syncpoint_value);
+    host1x.GetSyncpointManager().WaitHost(data, syncpoint_value, stop);
 }
 
 } // namespace Tegra::Host1x

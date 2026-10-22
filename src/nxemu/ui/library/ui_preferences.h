@@ -10,6 +10,7 @@ namespace UiPreferences
 {
 constexpr const char * RecentFiles = "RecentFiles";
 constexpr const char * GameDirectories = "GameDirectories";
+constexpr const char * GameDirectoriesRecursive = "GameDirectoriesRecursive";
 constexpr const char * GameIconSize = "GameBrowser\\MyGameIconSize";
 constexpr const char * GameListView = "GameBrowser\\ListView";
 constexpr const char * GameSort = "GameBrowser\\Sort";

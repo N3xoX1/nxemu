@@ -320,7 +320,9 @@ ArmDynarmic64::ArmDynarmic64(ICoreSystem & system, bool uses_wall_clock, IKernel
     m_process(process),
     m_coreIndex(core_index)
 {
-    m_cpu_hle_synchronization = m_uses_wall_clock && m_system.Timing().CpuHleSynchronizationEnabled();
+    // Compilation and CPU-run boundaries keep device deadlines in guest time,
+    // independently of the optional HLE service CPU-cost accounting.
+    m_track_guest_clock = m_uses_wall_clock;
     m_jit = MakeJit(process);
     ScopedJitExecution::RegisterHandler();
 }
@@ -371,7 +373,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     // Timing
     config.wall_clock_cntpct = m_uses_wall_clock;
     config.enable_cycle_counting = !m_uses_wall_clock;
-    config.notify_compilation = m_cpu_hle_synchronization;
+    config.notify_compilation = m_track_guest_clock;
 
     // Code cache size
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
@@ -500,9 +502,9 @@ CpuHaltReason ArmDynarmic64::RunThread(IKernelThread * thread)
 
     m_jit->ClearExclusiveState();
     const auto result = [&] {
-        if (m_cpu_hle_synchronization) m_system.Timing().BeginCpuRun(m_coreIndex);
+        if (m_track_guest_clock) m_system.Timing().BeginCpuRun(m_coreIndex);
         SCOPE_EXIT {
-            if (m_cpu_hle_synchronization) m_system.Timing().EndCpuRun(m_coreIndex);
+            if (m_track_guest_clock) m_system.Timing().EndCpuRun(m_coreIndex);
         };
         return m_jit->Run();
     }();
@@ -516,9 +518,9 @@ CpuHaltReason ArmDynarmic64::StepThread(IKernelThread * thread)
 
     m_jit->ClearExclusiveState();
     const auto result = [&] {
-        if (m_cpu_hle_synchronization) m_system.Timing().BeginCpuRun(m_coreIndex);
+        if (m_track_guest_clock) m_system.Timing().BeginCpuRun(m_coreIndex);
         SCOPE_EXIT {
-            if (m_cpu_hle_synchronization) m_system.Timing().EndCpuRun(m_coreIndex);
+            if (m_track_guest_clock) m_system.Timing().EndCpuRun(m_coreIndex);
         };
         return m_jit->Step();
     }();

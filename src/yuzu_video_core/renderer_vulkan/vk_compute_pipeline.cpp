@@ -25,7 +25,7 @@ using Tegra::Texture::TexturePair;
 ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipeline_cache_,
                                  DescriptorPool& descriptor_pool,
                                  GuestDescriptorQueue& guest_descriptor_queue_,
-                                 Common::ThreadWorker* thread_worker,
+                                 NativePipelineBuildQueue* thread_worker,
                                  PipelineStatistics* pipeline_statistics,
                                  VideoCore::ShaderNotify* shader_notify, const Shader::Info& info_,
                                  vk::ShaderModule spv_module_, StagingBufferPool& staging_pool_)
@@ -103,7 +103,8 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
         }
     }};
     if (thread_worker) {
-        thread_worker->QueueWork(std::move(func));
+        build_queue = thread_worker;
+        queued_build = thread_worker->QueueWork(std::move(func));
     } else {
         func();
     }
@@ -195,24 +196,37 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
         }
     }};
     for (const auto& desc : info.texture_buffer_descriptors) {
-        add_image(desc, false);
+        if (desc.sources.empty())
+            add_image(desc, false);
+        else
+            for (const auto & source : desc.sources)
+                add_image(source, false);
     }
     for (const auto& desc : info.image_buffer_descriptors) {
         add_image(desc, false);
     }
     for (const auto& desc : info.texture_descriptors) {
-        const auto read_handle = prepare_handle(desc);
-        for (u32 index = 0; index < desc.count; ++index) {
-            const auto handle{read_handle(index)};
-            views[view_index++] = {handle.first};
+        const auto add_texture = [&](const auto & source) {
+            const auto read_handle = prepare_handle(source);
+            for (u32 index = 0; index < source.count; ++index)
+            {
+                const auto handle{read_handle(index)};
+                views[view_index++] = {handle.first};
 
-            const VideoCommon::SamplerId sampler = memoize_samplers
-                ? sampler_lookup->Get(handle.second, lookup_sampler)
-                : lookup_sampler(handle.second);
-            samplers[sampler_index++] = sampler;
-        }
+                const VideoCommon::SamplerId sampler = memoize_samplers
+                                                           ? sampler_lookup->Get(handle.second, lookup_sampler)
+                                                           : lookup_sampler(handle.second);
+                samplers[sampler_index++] = sampler;
+            }
+        };
+        if (desc.sources.empty())
+            add_texture(desc);
+        else
+            for (const auto & source : desc.sources)
+                add_texture(source);
     }
-    for (const auto& desc : info.image_descriptors) {
+    for (const auto & desc : info.image_descriptors)
+    {
         add_image(desc, desc.is_written);
     }
     ASSERT(view_index == views.size());
@@ -289,6 +303,9 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     if (!is_built.load(std::memory_order::relaxed)) {
         // Wait for the pipeline to be built
         scheduler.Record([this](vk::CommandBuffer) {
+            if (build_queue) {
+                build_queue->RunNow(queued_build);
+            }
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
         });

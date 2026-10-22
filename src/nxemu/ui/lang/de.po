@@ -2496,9 +2496,6 @@ msgstr "Handheld-Modus: Spiele laufen mit 720p, wie auf dem Bildschirm der Konso
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "Ein Spiel läuft: Ausgegraute Optionen lassen sich erst nach dem Beenden ändern. Die Sprache wird beim Spielstart übernommen."
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "Spiele, Updates und DLC können im selben Ordner oder in verschiedenen Ordnern liegen. NXEmu ordnet sie automatisch zu. Spiele werden direkt im jeweiligen Ordner gesucht, Zusatzinhalte auch in Unterordnern."
-
 msgid "Profile"
 msgstr "Profil"
 
@@ -2531,3 +2528,12 @@ msgstr "Spiel konnte nicht geladen werden:\n%1\n\nLadefehler: %2. Prüfen Sie di
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "Die Oberfläche konnte nicht geladen werden. Prüfen Sie, ob der ui-Ordner von NXEmu vollständig ist."
+
+msgid "Scan subfolders"
+msgstr "Unterordner durchsuchen"
+
+msgid "Could not load the game:\n%1"
+msgstr "Das Spiel konnte nicht geladen werden:\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "Füge die Verzeichnisse mit deinen Spielen hinzu. Updates, DLC und Mods in denselben Verzeichnissen werden automatisch zugeordnet. Aktiviere „Unterordner durchsuchen“, um auch darin enthaltene Ordner zu durchsuchen."

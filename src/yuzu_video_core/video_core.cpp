@@ -97,6 +97,9 @@ bool AttachInterface(Vulkan::Display & display, VideoInterfaceDevice & device)
 
 bool BeginInterfaceFrame(Vulkan::Display & display, uint32_t width, uint32_t height, VideoInterfaceFrame & frame)
 {
+    if (display.GetDevice().IsLost()) {
+        return false;
+    }
     try {
         VkImage image{};
         frame.commandBuffer = display.BeginInterfaceFrame(width, height, image);

@@ -2496,9 +2496,6 @@ msgstr "Modalità portatile: i giochi funzionano a 720p, come sullo schermo dell
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "Un gioco è in esecuzione: le opzioni disattivate si possono cambiare solo dopo averlo fermato. Le lingue vengono applicate all’avvio del gioco."
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "Giochi, aggiornamenti e DLC possono essere riuniti o conservati in cartelle diverse. NXEmu li associa automaticamente. I giochi vengono cercati direttamente in ogni cartella; i contenuti aggiuntivi anche nelle sottocartelle."
-
 msgid "Profile"
 msgstr "Profilo"
 
@@ -2531,3 +2528,12 @@ msgstr "Impossibile caricare il gioco:\n%1\n\nErrore del caricatore: %2. Verific
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "Impossibile caricare l'interfaccia. Verificate che la cartella ui di NXEmu sia completa."
+
+msgid "Scan subfolders"
+msgstr "Scansiona le sottocartelle"
+
+msgid "Could not load the game:\n%1"
+msgstr "Impossibile caricare il gioco:\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "Aggiungi le cartelle che contengono i tuoi giochi. Aggiornamenti, DLC e mod nelle stesse cartelle vengono associati automaticamente ai giochi. Attiva Scansiona le sottocartelle per includere anche le cartelle al loro interno."

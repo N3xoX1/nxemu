@@ -384,11 +384,11 @@ GraphicsPipeline::GraphicsPipeline(
     Scheduler& scheduler_, BufferCache& buffer_cache_, TextureCache& texture_cache_,
     vk::PipelineCache& pipeline_cache_, VideoCore::ShaderNotify* shader_notify,
     const Device& device_, DescriptorPool& descriptor_pool,
-    GuestDescriptorQueue& guest_descriptor_queue_, Common::ThreadWorker* worker_thread,
+    GuestDescriptorQueue& guest_descriptor_queue_, NativePipelineBuildQueue* worker_thread,
     PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
     const GraphicsPipelineCacheKey& key_, std::array<vk::ShaderModule, NUM_STAGES> stages,
     const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines_,
-    std::unique_ptr<VtgPipelineInfo> vtg_info)
+    std::unique_ptr<VtgPipelineInfo> vtg_info, bool urgent_build)
     : key{key_}, device{device_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
       pipeline_cache(pipeline_cache_), scheduler{scheduler_},
       guest_descriptor_queue{guest_descriptor_queue_}, spv_modules{std::move(stages)},
@@ -410,7 +410,8 @@ GraphicsPipeline::GraphicsPipeline(
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += NumCombinedSamplers(*info);
-        uses_texture_table |= info->runtime_sampler_count != 0;
+        uses_texture_table |= info->runtime_sampler_count != 0 ||
+                              NumTableSetCombinedSamplers(*info) != 0;
         num_descriptor_entries += NumDescriptorUpdateEntries(*info);
         num_image_elements += Shader::NumDescriptors(info->texture_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_buffer_descriptors);
@@ -518,11 +519,19 @@ GraphicsPipeline::GraphicsPipeline(
                 texture_table_bindings.assign(table_bindings.begin(), table_bindings.end());
                 DescriptorBankInfo bank{};
                 for (const auto& binding : table_bindings) {
-                    (binding.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ? bank.samplers
-                                                                          : bank.sampled_images) +=
-                        binding.descriptorCount;
+                    switch (binding.descriptorType) {
+                    case VK_DESCRIPTOR_TYPE_SAMPLER:
+                        bank.samplers += binding.descriptorCount;
+                        break;
+                    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+                        bank.textures += binding.descriptorCount;
+                        break;
+                    default:
+                        bank.sampled_images += binding.descriptorCount;
+                        break;
+                    }
                 }
-                bank.score = static_cast<s32>(bank.sampled_images + bank.samplers);
+                bank.score = static_cast<s32>(bank.textures + bank.sampled_images + bank.samplers);
                 texture_table_set_layout = builder.CreateTextureTableSetLayout();
                 texture_table_allocator =
                     descriptor_pool.Allocator(*texture_table_set_layout, bank);
@@ -530,6 +539,17 @@ GraphicsPipeline::GraphicsPipeline(
             pipeline_layout = builder.CreatePipelineLayout(set_layout, *texture_table_set_layout);
             descriptor_update_template =
                 builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
+            if (!uses_push_descriptor && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+                for (const auto& entry : builder.TemplateEntries()) {
+                    if (DescriptorLayoutBuilder::IsLargeImageArray(entry)) {
+                        large_image_entries.push_back(entry);
+                    }
+                }
+                if (!large_image_entries.empty()) {
+                    small_descriptor_update_template =
+                        builder.CreateTemplate(set_layout, *pipeline_layout, false, true);
+                }
+            }
 
             const auto build_compute_stage{[&](VtgState::Stage& stage) {
                 DescriptorLayoutBuilder stage_builder{device};
@@ -592,7 +612,8 @@ GraphicsPipeline::GraphicsPipeline(
         }
     }};
     if (worker_thread) {
-        worker_thread->QueueWork(std::move(func));
+        build_queue = worker_thread;
+        queued_build = worker_thread->QueueWork(std::move(func), urgent_build);
     } else {
         func();
     }
@@ -613,6 +634,14 @@ void GraphicsPipeline::Configure(bool is_indexed) {
         }
     }
     configure_func(this, is_indexed);
+}
+
+void GraphicsPipeline::BuildIfQueued() {
+    if (build_queue) {
+        build_queue->Promote(queued_build);
+        // Helping uses the same compiler limit as the background workers.
+        build_queue->RunNow(queued_build);
+    }
 }
 
 // A pipeline can be shared by several keys, so the transition is keyed explicitly.
@@ -698,7 +727,11 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }};
         if constexpr (Spec::has_texture_buffers) {
             for (const auto& desc : info.texture_buffer_descriptors) {
-                add_image(desc, false);
+                if (desc.sources.empty())
+                    add_image(desc, false);
+                else
+                    for (const auto & source : desc.sources)
+                        add_image(source, false);
             }
         }
         if constexpr (Spec::has_image_buffers) {
@@ -714,19 +747,29 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 }
                 continue;
             }
-            const auto read_handle = prepare_handle(desc);
-            for (u32 index = 0; index < desc.count; ++index) {
-                const auto handle{read_handle(index)};
-                views[view_index++] = {handle.first};
+            const auto add_texture = [&](const auto & source) {
+                const auto read_handle = prepare_handle(source);
+                for (u32 index = 0; index < source.count; ++index)
+                {
+                    const auto handle{read_handle(index)};
+                    views[view_index++] = {handle.first};
 
-                const VideoCommon::SamplerId sampler = memoize_samplers
-                    ? sampler_lookup->Get(handle.second, lookup_sampler)
-                    : lookup_sampler(handle.second);
-                samplers[sampler_index++] = sampler;
-            }
+                    const VideoCommon::SamplerId sampler = memoize_samplers
+                                                               ? sampler_lookup->Get(handle.second, lookup_sampler)
+                                                               : lookup_sampler(handle.second);
+                    samplers[sampler_index++] = sampler;
+                }
+            };
+            if (desc.sources.empty())
+                add_texture(desc);
+            else
+                for (const auto & source : desc.sources)
+                    add_texture(source);
         }
-        if constexpr (Spec::has_images) {
-            for (const auto& desc : info.image_descriptors) {
+        if constexpr (Spec::has_images)
+        {
+            for (const auto & desc : info.image_descriptors)
+            {
                 add_image(desc, desc.is_written);
             }
         }
@@ -819,7 +862,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         buffer_cache.BindHostStageBuffers(stage);
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage], rescaling,
                              samplers_it, views_it, &texture_table_scratch);
-        const auto& info{stage_infos[0]};
+        const auto& info{stage_infos[stage]};
         if (info.uses_render_area) {
             render_area.uses_render_area = true;
             render_area.words = {static_cast<float>(regs.surface_clip.width),
@@ -889,8 +932,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             const u32 index_offset{index << desc.size_shift};
             const u32 offset{desc.cbuf_offset + index_offset};
             const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
-            if constexpr (std::is_same_v<decltype(desc), const Shader::TextureDescriptor&> ||
-                          std::is_same_v<decltype(desc), const Shader::TextureBufferDescriptor&>) {
+            if constexpr (requires { desc.has_secondary; }) {
                 if (desc.has_secondary) {
                     ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
                     const u32 second_offset{desc.secondary_cbuf_offset + index_offset};
@@ -917,7 +959,11 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             }
         }};
         for (const auto& desc : info.texture_buffer_descriptors) {
-            add_image(desc, false);
+            if (desc.sources.empty())
+                add_image(desc, false);
+            else
+                for (const auto & source : desc.sources)
+                    add_image(source, false);
         }
         for (const auto& desc : info.image_buffer_descriptors) {
             add_image(desc, false);
@@ -930,7 +976,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                 continue;
             }
             for (u32 index = 0; index < desc.count; ++index) {
-                const auto handle{read_handle(desc, index)};
+                const auto handle{desc.sources.empty() ? read_handle(desc, index) : read_handle(desc.sources[index], 0)};
                 views[view_index++] = {handle.first};
                 samplers[sampler_index++] = texture_cache.GetGraphicsSamplerId(handle.second);
             }
@@ -1084,6 +1130,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
 
     if (runs && !build_complete.load(std::memory_order_acquire)) {
         scheduler.Record([this](vk::CommandBuffer) {
+            BuildIfQueued();
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock,
                                [this] { return build_complete.load(std::memory_order_acquire); });
@@ -1344,6 +1391,7 @@ void GraphicsPipeline::ConfigureTransformFeedback(bool is_indexed) {
 
     if (!build_complete.load(std::memory_order_acquire)) {
         scheduler.Record([this](vk::CommandBuffer) {
+            BuildIfQueued();
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock,
                                [this] { return build_complete.load(std::memory_order_acquire); });
@@ -1404,6 +1452,74 @@ void GraphicsPipeline::ConfigureTransformFeedback(bool is_indexed) {
     });
 }
 
+VkDescriptorSet GraphicsPipeline::WorkerDescriptorSet(const void* data, u64 tick) {
+    const VkDescriptorSet set{descriptor_allocator.Commit()};
+    const auto& dev = device.GetLogical();
+    if (large_image_entries.empty()) {
+        dev.UpdateDescriptorSet(set, *descriptor_update_template, data);
+        return set;
+    }
+    auto& cache = guest_descriptor_queue.CopyCache();
+    cache.Begin(tick);
+    boost::container::small_vector<VkWriteDescriptorSet, 8> writes;
+    boost::container::small_vector<VkCopyDescriptorSet, 8> copies;
+    boost::container::small_vector<const VkDescriptorUpdateTemplateEntry*, 8> uncached;
+    const auto bytes_for = [data](const VkDescriptorUpdateTemplateEntry& entry) {
+        return std::span{static_cast<const std::byte*>(data) + entry.offset,
+                         entry.descriptorCount * sizeof(DescriptorUpdateEntry)};
+    };
+    static_assert(sizeof(DescriptorUpdateEntry) == sizeof(VkDescriptorImageInfo));
+    for (const auto& entry : large_image_entries) {
+        const auto source = cache.Find(entry.descriptorType, bytes_for(entry));
+        if (source) {
+            // Both sets belong to this tick and are immutable once populated.
+            // Commit() still protects the destination against in-flight reuse.
+            copies.push_back({
+                .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .srcSet = source->set,
+                .srcBinding = source->binding,
+                .srcArrayElement = 0,
+                .dstSet = set,
+                .dstBinding = entry.dstBinding,
+                .dstArrayElement = 0,
+                .descriptorCount = entry.descriptorCount,
+            });
+        } else {
+            uncached.push_back(&entry);
+            writes.push_back({
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = set,
+                .dstBinding = entry.dstBinding,
+                .dstArrayElement = 0,
+                .descriptorCount = entry.descriptorCount,
+                .descriptorType = entry.descriptorType,
+                .pImageInfo = reinterpret_cast<const VkDescriptorImageInfo*>(
+                    static_cast<const std::byte*>(data) + entry.offset),
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            });
+        }
+    }
+    if (copies.empty()) {
+        dev.UpdateDescriptorSet(set, *descriptor_update_template, data);
+    } else {
+        if (small_descriptor_update_template) {
+            dev.UpdateDescriptorSet(set, *small_descriptor_update_template, data);
+        }
+        dev.UpdateDescriptorSets(writes, copies);
+    }
+    // Publish only after every write/copy has completed on the host. These
+    // snapshots own their bytes; the descriptor upload block can be retired.
+    for (const auto* entry : uncached) {
+        if (!cache.Find(entry->descriptorType, bytes_for(*entry))) {
+            cache.Store(entry->descriptorType, bytes_for(*entry), {set, entry->dstBinding});
+        }
+    }
+    return set;
+}
+
 void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
@@ -1431,6 +1547,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     if (!build_complete.load(std::memory_order_acquire)) {
         // Completion includes failure, so a failed build cannot strand this worker.
         scheduler.Record([this](vk::CommandBuffer) {
+            BuildIfQueued();
             std::unique_lock lock{build_mutex};
             build_condvar.wait(lock, [this] { return build_complete.load(std::memory_order_acquire); });
         });
@@ -1439,6 +1556,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
     const bool bind_pipeline{scheduler.UpdateGraphicsPipeline(this)};
     const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
+    const u64 descriptor_tick{scheduler.CurrentTick()};
     if (uses_texture_table) {
         // A committed set can be recycled once its tick completes, so it is not kept across
         // ticks. Within a tick, draws share it for as long as the tables hold the same handles.
@@ -1455,7 +1573,8 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
         }
     }
     if (!uses_texture_table) {
-        scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
+        scheduler.Record([this, descriptor_data, descriptor_tick, bind_pipeline,
+                          rescaling_data = rescaling.Data(),
                           is_rescaling, update_rescaling,
                           uses_render_area = render_area.uses_render_area,
                           render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
@@ -1494,15 +1613,15 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                 cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
                                                         0, descriptor_data);
             } else {
-                const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
-                const vk::Device& dev{device.GetLogical()};
-                dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
+                const VkDescriptorSet descriptor_set{
+                    WorkerDescriptorSet(descriptor_data, descriptor_tick)};
                 cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
                                           descriptor_set, nullptr);
             }
         });
     } else {
-        scheduler.Record([this, descriptor_data, bind_pipeline, rescaling_data = rescaling.Data(),
+        scheduler.Record([this, descriptor_data, descriptor_tick, bind_pipeline,
+                          rescaling_data = rescaling.Data(),
                           is_rescaling, update_rescaling,
                           table_data = uses_texture_table ? texture_table_data : nullptr,
                           table_version = texture_table_version,
@@ -1552,8 +1671,13 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                     device.GetLogical().UpdateDescriptorSets(writes, {});
                     texture_table_set_version = table_version;
                 }
-                cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 1,
-                                          texture_table_set, nullptr);
+                // Binding set 0 with this layout leaves set 1 bound. Rebinding it would make
+                // MoltenVK walk every resource of the tables again.
+                if (bind_pipeline || texture_table_bound_set != texture_table_set) {
+                    cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout,
+                                              1, texture_table_set, nullptr);
+                    texture_table_bound_set = texture_table_set;
+                }
             }
             // An empty set 0 has a layout but nothing to update
             if (!descriptor_update_template) {
@@ -1563,9 +1687,8 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                 cmdbuf.PushDescriptorSetWithTemplateKHR(*descriptor_update_template, *pipeline_layout,
                                                         0, descriptor_data);
             } else {
-                const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
-                const vk::Device& dev{device.GetLogical()};
-                dev.UpdateDescriptorSet(descriptor_set, *descriptor_update_template, descriptor_data);
+                const VkDescriptorSet descriptor_set{
+                    WorkerDescriptorSet(descriptor_data, descriptor_tick)};
                 cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0,
                                           descriptor_set, nullptr);
             }

@@ -79,6 +79,10 @@ void TestListings(const std::filesystem::path & root)
     const LibraryListing containers = LibraryFiles::ListContainers(games);
     Check(containers.complete && containers.files.size() == 2, "containers below the directory");
     const auto combined = LibraryFiles::ListGameContent(games);
+    const auto recursive = LibraryFiles::ListGameContent(games, nullptr, true);
+    Check(recursive.games.complete && recursive.games.files.size() == 4 &&
+          LibraryFiles::Fingerprint(recursive.containers) == LibraryFiles::Fingerprint(containers),
+          "recursive game scanning includes nested games without changing the content index");
     std::atomic<bool> cancelled{true};
     const auto interrupted = LibraryFiles::ListGameContent(games, &cancelled);
     Check(!interrupted.containers.complete && interrupted.containers.files.empty(),

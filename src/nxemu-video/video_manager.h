@@ -56,6 +56,8 @@ public:
     uint32_t ShadersBuilding() override;
     bool UseNvdec() override;
     void ClearCdmaInstance(uint32_t id) override;
+    void PushCommandBufferWithResources(int32_t bindId, const uint32_t* commandList,
+        uint32_t commandListSize, void* resources, void (*release)(void*)) override;
     uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) override;
     void InvalidateMemory(const uint8_t * pointer, uint64_t size) override;
     void NotifyWindowChanged() override;
