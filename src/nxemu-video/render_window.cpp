@@ -324,7 +324,6 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
         window_info.type = Core::Frontend::WindowSystemType::Android;
         break;
     case RenderWindowSystem::Default:
-    case RenderWindowSystem::ReservedDisplay:
         window_info.type = Core::Frontend::WindowSystemType::Headless;
         window_info.display_connection = nullptr;
         window_info.render_surface = nullptr;
