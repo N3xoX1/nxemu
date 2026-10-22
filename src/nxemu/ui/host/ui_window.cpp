@@ -5,7 +5,7 @@
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
 #include <SDL_syswm.h>
-// System SDL can expose Xlib macros even when this frontend uses Wayland.
+// System SDL headers may expose platform macros.
 #undef None
 #include <algorithm>
 #include <cstdlib>

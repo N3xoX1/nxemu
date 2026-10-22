@@ -26,7 +26,7 @@
 enum
 {
     MODULE_LOADER_SPECS_VERSION = 0x0136,
-    MODULE_VIDEO_SPECS_VERSION = 0x0126,
+    MODULE_VIDEO_SPECS_VERSION = 0x0127,
     MODULE_CPU_SPECS_VERSION = 0x011F,
     MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0127,
 };
@@ -244,7 +244,6 @@ enum class RenderWindowSystem : uint32_t
 {
     Default = 0,
     Windows,
-    X11,
     Wayland,
     Cocoa,
     Android,
