@@ -260,13 +260,10 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
     snprintf(token, sizeof(token), "nxemu%u_%u", static_cast<unsigned>(getpid()), ++sequence);
     const char * tokenValue = token;
 
+    // A Wayland surface pointer is not a portal window handle. Leave the
+    // parent empty until an xdg-foreign handle can be exported.
+    (void)parentWindow;
     std::string parent;
-    if (parentWindow != nullptr)
-    {
-        char windowId[64];
-        snprintf(windowId, sizeof(windowId), "x11:0x%lx", static_cast<unsigned long>(reinterpret_cast<uintptr_t>(parentWindow)));
-        parent = windowId;
-    }
     const char * parentValue = parent.c_str();
     const char * titleValue = (title != nullptr && title[0] != '\0') ? title : "Select Directory";
     dbus_bool_t yes = TRUE;

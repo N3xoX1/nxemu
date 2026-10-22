@@ -314,9 +314,6 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
     case RenderWindowSystem::Windows:
         window_info.type = Core::Frontend::WindowSystemType::Windows;
         break;
-    case RenderWindowSystem::X11:
-        window_info.type = Core::Frontend::WindowSystemType::X11;
-        break;
     case RenderWindowSystem::Wayland:
         window_info.type = Core::Frontend::WindowSystemType::Wayland;
         break;
