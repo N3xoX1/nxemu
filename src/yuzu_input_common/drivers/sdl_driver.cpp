@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2018 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+
 #include "nxemu-os/os_settings.h"
 #include "yuzu_input_common/drivers/sdl_driver.h"
 #include "yuzu_common/logging/log.h"
