@@ -1,7 +1,8 @@
 # Compiler and linker settings of the Windows (MSVC) build.
 #
-# Every target, bundled third-party libraries included, is built with the
-# same code generation settings. Only the binaries NxEmu ships (the
+# Common defaults preserve user/toolchain flags. Historical stack-cookie
+# settings are applied only to targets covered by the maintained VS projects.
+# Only the binaries NxEmu ships (the
 # executable and its modules) get the linker settings, through
 # nxemu_apply_link_settings().
 
@@ -46,15 +47,12 @@ if(NOT MSVC)
 endif()
 
 # Static C runtime: the executable and the modules need no redistributable.
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
-if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 # /MP       compile the files of a target in parallel
 # /GF       pool identical strings
-# /GS-      no stack cookies
 # /Gy       one section per function, so the linker can drop and fold them
 # /Zi /FS   debug information in a PDB that parallel compilers can share
 set(_nxemu_debug_flags "/Zi /FS")
@@ -64,21 +62,65 @@ if(POLICY CMP0141)
     endif()
     set(_nxemu_debug_flags "/FS")
 endif()
+# Add a default only when no configuration supplies that option family.
+# In particular, never replace CMake's or a toolchain's optimisation flags.
+macro(_nxemu_default_flag lang flag family)
+    set(_nxemu_user_flags "${CMAKE_${lang}_FLAGS}")
+    set(_nxemu_configs Debug Release RelWithDebInfo MinSizeRel ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
+    list(REMOVE_DUPLICATES _nxemu_configs)
+    foreach(_config IN LISTS _nxemu_configs)
+        string(TOUPPER "${_config}" _config_upper)
+        string(APPEND _nxemu_user_flags " ${CMAKE_${lang}_FLAGS_${_config_upper}}")
+    endforeach()
+    if(NOT _nxemu_user_flags MATCHES "(^|[ \t])[-/]${family}([ \t]|$)")
+        string(APPEND CMAKE_${lang}_FLAGS " ${flag}")
+    endif()
+endmacro()
 foreach(_nxemu_lang C CXX)
-    set(CMAKE_${_nxemu_lang}_FLAGS "/DWIN32 /D_WINDOWS /W3 /utf-8 /MP /GF /GS- /Gy /fp:precise ${_nxemu_debug_flags}")
-    set(CMAKE_${_nxemu_lang}_FLAGS_DEBUG "/Od /RTC1 /D_DEBUG /DDEBUG")
-    # /O2 /Oi /Ot   optimise for speed, with intrinsics
-    # /Oy-          keep frame pointers, for usable call stacks
-    # /Gw           one section per global, so the linker can drop and fold them
-    set(CMAKE_${_nxemu_lang}_FLAGS_RELEASE "/O2 /Oi /Ot /Oy- /Gw /DNDEBUG")
+    _nxemu_default_flag(${_nxemu_lang} /W3 "(W[0-4]|Wall|w)")
+    _nxemu_default_flag(${_nxemu_lang} /utf-8 "(utf-8|source-charset:[^ \t]+|execution-charset:[^ \t]+)")
+    _nxemu_default_flag(${_nxemu_lang} /MP "MP[0-9]*")
+    _nxemu_default_flag(${_nxemu_lang} /GF "GF-?")
+    _nxemu_default_flag(${_nxemu_lang} /Gy "Gy-?")
+    _nxemu_default_flag(${_nxemu_lang} /fp:precise "fp:[^ \t]+")
+    if(_nxemu_debug_flags MATCHES "Zi")
+        _nxemu_default_flag(${_nxemu_lang} /Zi "Z[iI7]")
+    endif()
+    _nxemu_default_flag(${_nxemu_lang} /FS "FS-?")
 endforeach()
+_nxemu_default_flag(CXX /EHsc "EH[^ \t]+")
+_nxemu_default_flag(CXX /GR- "GR-?")
 unset(_nxemu_lang)
 unset(_nxemu_debug_flags)
-string(APPEND CMAKE_CXX_FLAGS " /EHsc /GR-")
+
+function(nxemu_apply_legacy_stack_settings target)
+    if(NOT MSVC OR NOT TARGET ${target})
+        return()
+    endif()
+    get_target_property(_imported ${target} IMPORTED)
+    if(_imported)
+        return()
+    endif()
+    # Match platform.props, while respecting an explicit /GS or /GS- in
+    # the developer's flags for each language/configuration.
+    set(_configs Debug Release RelWithDebInfo MinSizeRel ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
+    list(REMOVE_DUPLICATES _configs)
+    foreach(_lang C CXX)
+        foreach(_config IN LISTS _configs)
+            string(TOUPPER "${_config}" _upper)
+            set(_flags "${CMAKE_${_lang}_FLAGS} ${CMAKE_${_lang}_FLAGS_${_upper}}")
+            if(NOT _flags MATCHES "(^|[ \t])[-/]GS-?([ \t]|$)")
+                target_compile_options(${target} PRIVATE
+                    "$<$<AND:$<COMPILE_LANGUAGE:${_lang}>,$<CONFIG:${_config}>>:/GS->")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
 
 add_compile_definitions(
     WIN32_LEAN_AND_MEAN
     _CRT_SECURE_NO_WARNINGS
     UNICODE
     _UNICODE
+    "$<$<CONFIG:Debug>:DEBUG>"
 )

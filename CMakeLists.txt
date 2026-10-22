@@ -157,3 +157,16 @@ if(NOT ANDROID)
     # Visual Studio starts the emulator, not ALL_BUILD.
     set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT nxemu)
 endif()
+
+# These targets correspond to projects that import platform.props in nxemu.sln.
+# Do not propagate /GS- to additional dependency targets, examples or tests.
+if(MSVC)
+    foreach(_target nxemu nxemu_ui nxemu_core nxemu-cpu nxemu-loader nxemu-os nxemu-video
+            common network yuzu_common hid_core input_common shader_recompiler video_core
+            yuzu_audio_core ui_packer bc_decoder discord-rpc glad lz4 stb_dxt
+            fmt nxemu_libusb SDL2 rmlui_core freetype enet mcl opus sirit
+            libzstd_static zlibstatic minizip Zydis Zycore cubeb speex)
+        nxemu_apply_legacy_stack_settings(${_target})
+    endforeach()
+    unset(_target)
+endif()

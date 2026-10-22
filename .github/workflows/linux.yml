@@ -79,8 +79,40 @@ jobs:
         run: |
           mkdir -p package
           tar -C bin/x64/Release -czf package/NxEmu-linux-x64.tar.gz nxemu nxemu.lang modules ui
+      - name: Package AppImage from the existing Release build
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          bash src/script/build-appimage.sh --skip-build
+          cp build/appimage/NxEmu-x86_64.AppImage package/
+      - name: Check AppImage contents and runtime dependencies
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          image="$PWD/package/NxEmu-x86_64.AppImage"
+          check_dir=$(mktemp -d)
+          trap 'rm -rf "$check_dir"' EXIT
+          cd "$check_dir"
+          "$image" --appimage-extract >/dev/null
+          app="$check_dir/squashfs-root/usr/bin"
+          test -x "$app/nxemu"
+          test -s "$app/nxemu.lang"
+          test -s "$app/ui/main_window.rml"
+          export LD_LIBRARY_PATH="$check_dir/squashfs-root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          binaries=("$app/nxemu" "$app/modules/loader/libnxemu-loader.so"
+            "$app/modules/cpu/libnxemu-cpu.so" "$app/modules/video/libnxemu-video.so"
+            "$app/modules/operating_system/libnxemu-os.so")
+          for binary in "${binaries[@]}"; do
+            test -s "$binary"
+            dependencies=$(ldd "$binary")
+            printf '%s\n' "$dependencies"
+            if [[ "$dependencies" == *"not found"* ]]; then
+              echo "Missing runtime dependency for $binary" >&2
+              exit 1
+            fi
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: NxEmu-linux-x64
-          path: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}/package/NxEmu-linux-x64.tar.gz
+          path: |
+            ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}/package/NxEmu-linux-x64.tar.gz
+            ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}/package/NxEmu-x86_64.AppImage
           if-no-files-found: error

@@ -42,6 +42,12 @@ GitHub Actions builds Windows x64, Linux x64, macOS arm64 and Android arm64 on p
 Desktop jobs run the frontend-settings compatibility test; Android runs its Gradle unit tests and checks native libraries in the APK.
 The jobs publish desktop archives or an APK and cache compiler outputs (sccache on Windows, ccache elsewhere).
 The macOS job also caches the pinned MoltenVK runtime; Linux, macOS and Android retain supported ThinLTO caches.
+The Linux job packages the same Release build as both a tarball and an AppImage, then checks
+the AppImage's resources, modules and shared-library dependencies without recompiling.
+
+To build an AppImage locally, run `bash src/script/build-appimage.sh`.
+To package an existing Release build, run `bash src/script/build-appimage.sh --skip-build`.
+The output is `build/appimage/NxEmu-<arch>.AppImage`.
 
 To run the desktop settings test locally, configure with `-DNXEMU_BUILD_UI_SETTINGS_TESTS=ON`,
 build `nxemu_ui_settings_tests`, then run `ctest --test-dir <build-directory> -C Release --output-on-failure`.

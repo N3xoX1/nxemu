@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # Build NxEmu and pack it as a single AppImage.
-# Usage: src/script/build-appimage.sh
+# Usage: src/script/build-appimage.sh [--skip-build]
+# --skip-build packages the existing output without configuring or compiling.
 # Output: build/appimage/NxEmu-<arch>.AppImage
 
 set -euo pipefail
+
+skip_build=false
+case "${1:-}" in
+    --skip-build) skip_build=true; shift ;;
+esac
+if [[ $# -ne 0 ]]; then
+    echo "Usage: $0 [--skip-build]" >&2
+    exit 1
+fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 build_type="${CMAKE_BUILD_TYPE:-Release}"
@@ -37,28 +47,36 @@ need() {
     fi
 }
 
-need cmake
-need ninja
-need g++
-need pkg-config
 need curl
 need python3
 
-if ! pkg-config --exists x11 wayland-client dbus-1; then
-    echo "Missing build packages: x11, wayland-client, and dbus-1 development files." >&2
-    exit 1
+if ! $skip_build; then
+    need cmake
+    need ninja
+    need pkg-config
+    if ! pkg-config --exists x11 wayland-client dbus-1; then
+        echo "Missing build packages: x11, wayland-client, and dbus-1 development files." >&2
+        exit 1
+    fi
+    jobs="${NXEMU_BUILD_JOBS:-2}"
+    case "$jobs" in
+        ''|0|*[!0-9]*) echo "NXEMU_BUILD_JOBS must be a positive integer" >&2; exit 1 ;;
+    esac
+    echo "Configuring ${build_type} (${arch})"
+    cmake -S "$root" -B "$build_dir" -G Ninja \
+        -DCMAKE_BUILD_TYPE="$build_type"
+    echo "Building"
+    cmake --build "$build_dir" --target nxemu --parallel "$jobs"
 fi
-
-echo "Configuring ${build_type} (${arch})"
-cmake -S "$root" -B "$build_dir" -G Ninja \
-    -DCMAKE_BUILD_TYPE="$build_type"
-
-echo "Building"
-cmake --build "$build_dir" --parallel
 
 exe="$root/bin/${platform}/${build_type}/nxemu"
 if [[ ! -x "$exe" ]]; then
     echo "Built executable not found: $exe" >&2
+    exit 1
+fi
+runtime_dir="$(dirname "$exe")"
+if [[ ! -s "$runtime_dir/nxemu.lang" || ! -f "$runtime_dir/ui/main_window.rml" ]]; then
+    echo "Built interface pack or assets not found in: $runtime_dir" >&2
     exit 1
 fi
 
@@ -155,9 +173,8 @@ install_module cpu libnxemu-cpu.so
 install_module video libnxemu-video.so
 install_module operating_system libnxemu-os.so
 rm -rf "$appdir/usr/bin/ui" "$appdir/usr/bin/user"
-cp -a "$root/src/nxemu/ui/assets" "$appdir/usr/bin/ui"
-mkdir -p "$appdir/usr/bin/ui/lang"
-cp "$root"/src/nxemu/ui/lang/*.po "$appdir/usr/bin/ui/lang/"
+cp "$runtime_dir/nxemu.lang" "$appdir/usr/bin/nxemu.lang"
+cp -a "$runtime_dir/ui" "$appdir/usr/bin/ui"
 
 # Deploy dependencies of the files that stay beside the executable, and point
 # their runpath at usr/lib. linuxdeploy does not copy those files again.
