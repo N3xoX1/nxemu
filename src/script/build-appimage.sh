@@ -17,12 +17,10 @@ case "$(uname -m)" in
     x86_64)
         arch="x86_64"
         platform="x64"
-        sciter_lib="$root/external/sciterui/src/3rd_party/sciter-js-sdk-main/bin/linux/x64/libsciter.so"
         ;;
     aarch64 | arm64)
         arch="aarch64"
         platform="arm64"
-        sciter_lib="$root/external/sciterui/src/3rd_party/sciter-js-sdk-main/bin/linux/arm64/libsciter.so"
         ;;
     *)
         echo "Unsupported machine: $(uname -m)" >&2
@@ -48,11 +46,6 @@ need python3
 
 if ! pkg-config --exists x11 wayland-client dbus-1; then
     echo "Missing build packages: x11, wayland-client, and dbus-1 development files." >&2
-    exit 1
-fi
-
-if [[ ! -f "$sciter_lib" ]]; then
-    echo "Sciter engine not found: $sciter_lib" >&2
     exit 1
 fi
 
@@ -154,23 +147,17 @@ echo "Collecting libraries"
     --exclude-library 'libGLdispatch.so*' \
     --exclude-library 'libvulkan.so*'
 
-# Sciter loads libsciter.so from the executable directory (/proc/self/exe).
-# Modules load from ./modules/<name>/ next to the executable.
-# lang/ is the default UI directory. user/ is omitted so data goes to XDG dirs
-# instead of the read-only AppImage mount.
-cp -L "$sciter_lib" "$appdir/usr/bin/libsciter.so"
-chmod 755 "$appdir/usr/bin/libsciter.so"
+# Modules load from ./modules/<name>/ next to the executable. user/ is omitted
+# so data goes to XDG dirs instead of the read-only AppImage mount.
 install_module loader libnxemu-loader.so
 install_module cpu libnxemu-cpu.so
 install_module video libnxemu-video.so
 install_module operating_system libnxemu-os.so
-rm -rf "$appdir/usr/bin/lang" "$appdir/usr/bin/user"
-cp -a "$root/lang" "$appdir/usr/bin/lang"
+rm -rf "$appdir/usr/bin/user"
 
 # Deploy dependencies of the files that stay beside the executable, and point
 # their runpath at usr/lib. linuxdeploy does not copy those files again.
 "$tools/linuxdeploy.AppImage" --appdir "$appdir" \
-    --deploy-deps-only "$appdir/usr/bin/libsciter.so" \
     --deploy-deps-only "$appdir/usr/bin/modules/loader/libnxemu-loader.so" \
     --deploy-deps-only "$appdir/usr/bin/modules/cpu/libnxemu-cpu.so" \
     --deploy-deps-only "$appdir/usr/bin/modules/video/libnxemu-video.so" \

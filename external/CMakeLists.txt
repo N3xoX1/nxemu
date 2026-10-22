@@ -267,8 +267,6 @@ if(APPLE)
 endif()
 
 if(NOT ANDROID)
-    add_subdirectory(sciterui)
-
     # RmlUi interface, with FreeType as its font engine. Both are built from
     # source so every platform renders text with the same library.
     set(_nxemu_saved_build_shared_libs "${BUILD_SHARED_LIBS}")
