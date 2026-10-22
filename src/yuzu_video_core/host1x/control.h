@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #pragma once
-#include <stop_token>
+#include "yuzu_common/polyfill_thread.h"
 
 #include "yuzu_common/common_types.h"
 

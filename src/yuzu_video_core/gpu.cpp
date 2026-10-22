@@ -16,6 +16,7 @@
 #include "frontend/graphics_context.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/nvdata.h"
+#include "yuzu_common/polyfill_thread.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_video_core/cdma_pusher.h"
@@ -52,7 +53,7 @@ public:
                 Work entries;
                 {
                     std::unique_lock lock{mutex};
-                    if (!cv.wait(lock, stop, [&] { return !queue.empty(); })) return;
+                    Common::CondvarWait(cv, lock, stop, [&] { return !queue.empty(); });
                     if (stop.stop_requested()) return;
                     entries = std::move(queue.front());
                     queue.pop_front();
