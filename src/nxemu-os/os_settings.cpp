@@ -1165,13 +1165,3 @@ OsSetting::OsSetting(const char * id, const char * path, s64 * val, s64 defaultV
     value.s64Value = val;
 }
 } // namespace
-
-Region ConsoleRegion()
-{
-    const s32 chosen = osSettings.region_setting;
-    if (chosen >= static_cast<s32>(Region::Japan) && chosen <= static_cast<s32>(Region::Taiwan))
-    {
-        return static_cast<Region>(chosen);
-    }
-    return RegionOfLanguage(osSettings.language_index);
-}

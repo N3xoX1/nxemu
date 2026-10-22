@@ -265,18 +265,6 @@ void AdvancedDialog::RefreshLanguage()
     m_changes.clear();
 }
 
-void AdvancedDialog::RefreshLanguage()
-{
-    if (!IsVisible())
-    {
-        return;
-    }
-    RefreshTranslation();
-    FillLists();
-    ShowValues();
-    m_changes.clear();
-}
-
 void AdvancedDialog::OnOpen()
 {
     m_running = m_session.IsRunning() && !m_settings.IsGame();
