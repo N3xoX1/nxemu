@@ -1,5 +1,5 @@
 # Packages the RmlUi frontend as a self-contained application bundle.
-foreach(required BUNDLE EXECUTABLE LOADER CPU VIDEO OS MOLTENVK SDL ASSETS CODESIGN INSTALL_NAME_TOOL OTOOL INFO_PLIST ICON SHORT_VERSION BUILD_VERSION MINIMUM_MACOS)
+foreach(required BUNDLE EXECUTABLE LOADER CPU VIDEO OS MOLTENVK SDL ASSETS UI_PACK CODESIGN INSTALL_NAME_TOOL OTOOL INFO_PLIST ICON SHORT_VERSION BUILD_VERSION MINIMUM_MACOS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "Missing bundle input: ${required}")
     endif()
@@ -14,6 +14,9 @@ set(MACOSX_BUNDLE_BUNDLE_VERSION "${BUILD_VERSION}")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "${MINIMUM_MACOS}")
 configure_file("${INFO_PLIST}" "${BUNDLE}/Contents/Info.plist")
 file(COPY_FILE "${ICON}" "${resources}/nxemu.icns" ONLY_IF_DIFFERENT)
+# The PE resource pack is data. Putting it in MacOS makes codesign treat it as code.
+file(REMOVE "${BUNDLE}/Contents/MacOS/nxemu.lang")
+file(COPY_FILE "${UI_PACK}" "${resources}/nxemu.lang" ONLY_IF_DIFFERENT)
 
 file(REMOVE_RECURSE "${resources}/ui")
 file(COPY "${ASSETS}/" DESTINATION "${resources}/ui")

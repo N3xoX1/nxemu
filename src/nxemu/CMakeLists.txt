@@ -62,9 +62,6 @@ add_custom_command(OUTPUT "${_nxemu_ui_pack}"
 add_custom_target(nxemu_ui_pack DEPENDS "${_nxemu_ui_pack}")
 add_dependencies(nxemu nxemu_ui_pack)
 set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS "${_nxemu_ui_pack}")
-add_custom_command(TARGET nxemu POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_nxemu_ui_pack}" "$<TARGET_FILE_DIR:nxemu>/nxemu.lang"
-    VERBATIM)
 # Updating a translation also refreshes the files beside the executable.
 set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS ${_nxemu_ui_catalogues})
 
@@ -102,6 +99,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
         "-DSDL=$<TARGET_FILE:SDL2>"
         "-DASSETS=${_nxemu_ui_assets}"
+        "-DUI_PACK=${_nxemu_ui_pack}"
         "-DCODESIGN=${NXEMU_CODESIGN}"
         "-DINSTALL_NAME_TOOL=${NXEMU_INSTALL_NAME_TOOL}"
         "-DOTOOL=${NXEMU_OTOOL}"
@@ -127,6 +125,9 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         VERBATIM
         COMMENT "Refresh NxEmu.app modules and interface files")
 else()
+    add_custom_command(TARGET nxemu POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_nxemu_ui_pack}" "$<TARGET_FILE_DIR:nxemu>/nxemu.lang"
+        VERBATIM)
     include(nxemu_setup_environment)
     nxemu_setup_environment(nxemu)
     foreach(_module nxemu-loader nxemu-cpu nxemu-video nxemu-os)
