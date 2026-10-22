@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.20)
+project(nxemu_acquire_lifetime_test LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+if(NOT WIN32)
+    message(FATAL_ERROR "This WSI regression test requires Win32")
+endif()
+find_package(Vulkan REQUIRED)
+add_executable(acquire-lifetime acquire_lifetime.cpp)
+target_link_libraries(acquire-lifetime PRIVATE Vulkan::Vulkan user32)
+
+include(CTest)
+add_test(NAME acquire-lifetime COMMAND acquire-lifetime)
