@@ -8,6 +8,7 @@
 // System SDL can expose Xlib macros even when this frontend uses Wayland.
 #undef None
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -16,6 +17,7 @@
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/platform/native_window.h>
 #include <nxemu/ui/platform/system_theme.h>
+#include <nxemu/ui/library/ui_preferences.h>
 #include <stb_image.h>
 #include <vector>
 #include <yuzu_common/fs/fs_util.h>
@@ -46,10 +48,9 @@ UiWindow::UiWindow() = default;
 UiWindow::~UiWindow()
 {
 #if defined(__linux__)
-    if (m_themeQuery.valid())
-    {
-        m_themeQuery.wait();
-    }
+    // The worker only queries the OS and posts an SDL event. Let it finish
+    // before destroying the window or shutting SDL down.
+    if (m_themeQuery.valid()) m_themeQuery.wait();
 #endif
     DetachVideo();
     if (m_rmlInitialised)
@@ -95,10 +96,7 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
     m_sdlInitialised = true;
 #if defined(__linux__)
     m_themeEvent = SDL_RegisterEvents(1);
-    if (m_themeEvent == Uint32(-1))
-    {
-        return Fail("Unable to register the theme notification");
-    }
+    if (m_themeEvent == Uint32(-1)) return Fail("Unable to register the theme notification");
 #endif
 
     Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
@@ -157,6 +155,7 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
         return Fail("Unable to create the RmlUi context");
     }
 
+    SetTheme(UiPreferences::GetString(UiPreferences::InterfaceTheme, "system"));
     m_systemTitleBar = ApplyNativeWindowStyle(m_window);
     UpdateDimensions();
     return true;
@@ -189,6 +188,8 @@ void UiWindow::DetachVideo()
     {
         return;
     }
+    // The textures and geometry RmlUi holds live on the module's device. It
+    // builds them again when it next draws.
     m_video->WaitInterfaceIdle();
     Rml::ReleaseTextures();
     Rml::ReleaseCompiledGeometry();
@@ -203,9 +204,7 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     {
         const Uint32 result = static_cast<Uint32>(event.user.code);
         if (m_themeChoice == "system" && event.user.windowID == SDL_GetWindowID(m_window) && (result >> 1) == m_themeRequest)
-        {
             ApplyTheme((result & 1) != 0, false);
-        }
         return;
     }
 #endif
@@ -214,6 +213,7 @@ void UiWindow::HandleEvent(const SDL_Event & event)
         switch (event.window.event)
         {
         case SDL_WINDOWEVENT_FOCUS_GAINED:
+            // Recheck the OS preference on activation, without per-frame polling.
             if (m_themeChoice == "system")
             {
 #if defined(__linux__)
@@ -259,6 +259,7 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     SDL_Event translated = event;
     if (translated.type == SDL_MOUSEMOTION)
     {
+        // SDL reports the pointer in window coordinates; RmlUi lays out in drawable pixels.
         translated.motion.x = static_cast<Sint32>(translated.motion.x * m_pixelScale);
         translated.motion.y = static_cast<Sint32>(translated.motion.y * m_pixelScale);
     }
@@ -292,6 +293,9 @@ bool UiWindow::Render(const PixelRect * gameArea)
 
 void UiWindow::PaceFrame()
 {
+    // Presenting waits for the display where it is synchronised to it. This
+    // keeps the loop to the display's rate where it is not, and while there
+    // is nothing to present to.
     const uint64_t frequency = SDL_GetPerformanceFrequency();
     const uint64_t elapsed = SDL_GetPerformanceCounter() - m_lastFrame;
     if (elapsed < m_frameInterval)
@@ -400,15 +404,10 @@ void UiWindow::SetTheme(const std::string & choice)
 void UiWindow::ApplyTheme(bool light, bool modeChanged)
 {
     const bool coloursChanged = m_themeFiles->SetLight(light);
-    if (modeChanged || coloursChanged)
-    {
-        SetNativeWindowTheme(m_window, m_themeChoice.c_str());
-    }
-    if (!coloursChanged)
-    {
-        return;
-    }
+    if (modeChanged || coloursChanged) SetNativeWindowTheme(m_window, m_themeChoice.c_str());
+    if (!coloursChanged) return;
     m_context->ActivateTheme("light", light);
+    // Reloading styles keeps the DOM, bindings and dialog state intact.
     for (int index = 0; index < m_context->GetNumDocuments(); ++index)
     {
         m_context->GetDocument(index)->ReloadStyleSheet();
@@ -418,12 +417,10 @@ void UiWindow::ApplyTheme(bool light, bool modeChanged)
 #if defined(__linux__)
 void UiWindow::RefreshSystemTheme()
 {
+    // Portal IPC may time out. Never wait for it in the input/render loop.
     if (m_themeQuery.valid())
     {
-        if (m_themeQuery.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
-        {
-            return;
-        }
+        if (m_themeQuery.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
         m_themeQuery.get();
     }
     const Uint32 type = m_themeEvent;
@@ -434,6 +431,7 @@ void UiWindow::RefreshSystemTheme()
         SDL_Event event{};
         event.type = type;
         event.user.windowID = windowId;
+        // Ignore an older result if another activation started a newer query.
         event.user.code = static_cast<Sint32>((request << 1) | (SystemPrefersDarkTheme() ? 0u : 1u));
         SDL_PushEvent(&event);
     });
@@ -508,6 +506,7 @@ void UiWindow::GetClientSize(int & width, int & height) const
 
 void UiWindow::SetClientSize(int width, int height)
 {
+    // No larger than the screen has room for, and not reaching out of it.
     SDL_Rect usable{};
     const bool bounded = SDL_GetDisplayUsableBounds(std::max(SDL_GetWindowDisplayIndex(m_window), 0), &usable) == 0;
     int top = 0, left = 0, bottom = 0, right = 0;
@@ -551,6 +550,8 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
             return Fail(std::string("Unable to load font ") + font);
         }
     }
+    // Use installed fonts for scripts absent from Lato, including game titles.
+    // A missing optional system font must not prevent the application opening.
     for (const SystemFont & font : SystemFallbackFonts())
     {
         Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
@@ -596,6 +597,8 @@ void UiWindow::UpdateDimensions()
     m_pixelScale = static_cast<float>(m_drawableWidth) / static_cast<float>(width);
     m_context->SetDimensions({m_drawableWidth, m_drawableHeight});
 
+    // Where the window already is in physical pixels, the display's scale
+    // still has to enlarge the content.
     float contentScale = m_pixelScale;
 #if defined(_WIN32)
     float dpi = 0;
@@ -639,6 +642,8 @@ SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
             return edges[row][column];
         }
     }
+    // The nearest element that says so decides: the bar moves the window, the
+    // buttons inside it do not.
     const Rml::Vector2f position(static_cast<float>(point.x) * m_pixelScale, static_cast<float>(point.y) * m_pixelScale);
     for (Rml::Element * element = m_context->GetElementAtPoint(position); element != nullptr; element = element->GetParentNode())
     {

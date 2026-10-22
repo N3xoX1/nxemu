@@ -14,6 +14,7 @@ body.narrow .firmware-dialog
     border-radius: 0;
 }
 
+/* Where the installation has got to. */
 .wizard-steps
 {
     display: flex;
@@ -202,6 +203,7 @@ body.narrow .wizard-body
     background-color: var(--accent);
 }
 
+/* Nothing to measure: the bar moves instead of filling. */
 #install-fill.indeterminate
 {
     width: 40%;

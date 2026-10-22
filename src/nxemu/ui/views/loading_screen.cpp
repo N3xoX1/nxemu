@@ -10,6 +10,7 @@
 
 namespace
 {
+// Values of NXCoreSetting::DiskCacheLoadStage.
 enum class LoadStage
 {
     Game = 0,
@@ -69,6 +70,8 @@ void LoadingScreen::Announce(const std::string & title, const std::string & icon
 
 void LoadingScreen::SetGame(IRomInfo & info)
 {
+    // What was announced stays wherever the file has nothing to put in its
+    // place: the screen does not change under the eyes.
     if (m_title.empty())
     {
         m_title = RomProperties::Title(info);
@@ -87,6 +90,8 @@ void LoadingScreen::Update()
 {
     SetText("loading-title", m_title.empty() ? Tr(kUnnamed) : m_title);
     SettingsStore & settings = SettingsStore::GetInstance();
+    // Until this game reports its own progress, what is read is where the
+    // game before it ended.
     const bool reported = settings.GetInt(NXCoreSetting::DiskCacheLoadTick) != m_announcedTick;
     const LoadStage stage = reported ? static_cast<LoadStage>(settings.GetInt(NXCoreSetting::DiskCacheLoadStage)) : LoadStage::Game;
     const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);

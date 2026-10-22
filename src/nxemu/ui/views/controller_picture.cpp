@@ -12,6 +12,7 @@ constexpr uint32_t B(NativeButtonValues button)
     return static_cast<uint32_t>(button);
 }
 
+// Measured on the drawings the pictures are made from.
 constexpr ControllerPart kProParts[] = {
     {kButton, B(NativeButtonValues::A), 0.7574f, 0.2618f, 0.0638f, 0.0882f},
     {kButton, B(NativeButtonValues::B), 0.6915f, 0.3529f, 0.0638f, 0.0882f},
@@ -172,6 +173,7 @@ constexpr ControllerPart kGameCubeParts[] = {
     {kStickCap, 1, 0.5883f, 0.5843f, 0.0670f, 0.1047f},
 };
 
+// A stick's cap and how far it moves, as a fraction of the picture's width.
 struct Cap
 {
     const char * image = nullptr;

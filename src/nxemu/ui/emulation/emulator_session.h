@@ -12,6 +12,8 @@
 
 class UiNotification;
 
+// Owns the emulator modules and the life cycle of the running game. It knows
+// nothing about RmlUi: views observe it through Phase() and the listener.
 class EmulatorSession final
 {
 public:
@@ -26,6 +28,7 @@ public:
     class Listener
     {
     public:
+        // The modules are about to be replaced; nothing may keep using them.
         virtual void OnModulesReleasing() = 0;
         virtual void OnModulesReady() = 0;
         virtual void OnGameStarted(const std::string & path) = 0;
@@ -35,6 +38,7 @@ public:
         ~Listener() = default;
     };
 
+    // `renderWindow` is what the video module presents to.
     EmulatorSession(IRenderWindow & renderWindow, UiNotification & notification, SDL_Window * window);
     ~EmulatorSession();
 
@@ -49,10 +53,12 @@ public:
     void Stop();
     void TogglePause();
     bool IsRunning() const;
-    bool ReleasePending() const { return m_releasePending; }
+    bool StoppedResourcesPending() const { return m_releasePending && !IsRunning(); }
     bool IsPaused();
     Phase CurrentPhase() const;
 
+    // Runs the work queued by the emulator threads; call once per frame.
+    // Defer releasing stopped modules while a background task uses them.
     void Update(bool releaseStoppedResources = true);
     void HandleKey(const SDL_KeyboardEvent & event);
     void SetViewportSize(uint32_t width, uint32_t height);
@@ -84,7 +90,7 @@ private:
 
     bool LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                      ApplicationLaunchType launchType, const UserChannel & userChannel);
-    bool ResetModules();
+    bool ResetModules(uint64_t programId = 0);
     void RegisterSystemCallbacks();
     void ProcessProgramEvents();
     void ReportError(const std::string & message);

@@ -2,6 +2,7 @@
 #include "loader_settings_identifiers.h"
 #include <common/json_util.h>
 #include <cstring>
+#include <algorithm>
 #include <nxemu-module-spec/base.h>
 #include <yuzu_common/yuzu_assert.h>
 
@@ -17,7 +18,6 @@ namespace
     {
         BooleanValue,
         IntegerValue,
-        StringListValue,
         TitleIdStringListMapValue,
     };
 
@@ -26,7 +26,6 @@ namespace
     public:
         LoaderSetting(const char * id, const char * path, bool * val, bool defaultValue);
         LoaderSetting(const char * id, const char * path, int * val, int defaultValue);
-        LoaderSetting(const char * id, const char * path, StringList * val);
         LoaderSetting(const char * path, TitleIdStringListMap * val);
 
         const char * identifier;
@@ -36,7 +35,6 @@ namespace
         {
             bool * boolValue;
             int * intValue;
-            StringList * stringList;
             TitleIdStringListMap * titleIdStringListMap;
         } setting;
         union
@@ -50,7 +48,6 @@ namespace
         {NXLoaderSetting::CheckForUpdatedFirmware, "CheckForUpdatedFirmware", &loaderSettings.checkForUpdatedFirmware, true},
         {NXLoaderSetting::FirmwareInstallCurrent, nullptr, nullptr, 0},
         {NXLoaderSetting::FirmwareInstallTotal, nullptr, nullptr, 0},
-        {NXLoaderSetting::AddOnDirectories, "AddOnDirectories", &loaderSettings.addOnDirectories},
         {"DisabledAddOns", &loaderSettings.disabled_addons},
     };
 
@@ -130,49 +127,7 @@ namespace
         return object;
     }
 
-    void LoadStringList(StringList & out, const JsonValue & value)
-    {
-        out.clear();
-        if (!value.isArray())
-        {
-            return;
-        }
-        out.reserve(value.size());
-        for (uint32_t i = 0, n = value.size(); i < n; ++i)
-        {
-            if (value[i].isString())
-            {
-                out.push_back(value[i].asString());
-            }
-        }
-    }
 
-    std::string SerializeStringList(const StringList & list)
-    {
-        JsonValue jsonArray(JsonValueType::Array);
-        for (const std::string & item : list)
-        {
-            jsonArray.Append(JsonValue(item));
-        }
-        return JsonStyledWriter().write(jsonArray);
-    }
-
-    void ParseStringListFromStore(StringList & out, const char * setting)
-    {
-        out.clear();
-        const std::string json = g_settings->GetString(setting);
-        if (json.empty())
-        {
-            return;
-        }
-        JsonValue root;
-        JsonReader reader;
-        if (!reader.Parse(json.data(), json.data() + json.size(), root) || !root.isArray())
-        {
-            return;
-        }
-        LoadStringList(out, root);
-    }
 };
 
 void LoaderSettingChanged(const char * setting, void * /*userData*/)
@@ -199,12 +154,6 @@ void LoaderSettingChanged(const char * setting, void * /*userData*/)
                 *loaderSetting.setting.intValue = g_settings->GetInt(setting);
             }
             break;
-        case SettingType::StringListValue:
-            if (loaderSetting.setting.stringList != nullptr)
-            {
-                ParseStringListFromStore(*loaderSetting.setting.stringList, setting);
-            }
-            break;
         default:
             UNIMPLEMENTED();
         }
@@ -225,9 +174,6 @@ void SetupLoaderSetting(void)
             {
                 *loaderSetting.setting.intValue = loaderSetting.defaultValue.intValue;
             }
-            break;
-        case SettingType::StringListValue:
-            loaderSetting.setting.stringList->clear();
             break;
         case SettingType::TitleIdStringListMapValue:
             loaderSetting.setting.titleIdStringListMap->clear();
@@ -265,9 +211,6 @@ void SetupLoaderSetting(void)
                     *loaderSetting.setting.intValue = static_cast<int>(value.asInt64());
                 }
                 break;
-            case SettingType::StringListValue:
-                LoadStringList(*loaderSetting.setting.stringList, value);
-                break;
             case SettingType::TitleIdStringListMapValue:
                 LoadTitleIdStringListMap(*loaderSetting.setting.titleIdStringListMap, value);
                 break;
@@ -293,10 +236,6 @@ void SetupLoaderSetting(void)
         case SettingType::IntegerValue:
             g_settings->SetDefaultInt(loaderSetting.identifier, loaderSetting.defaultValue.intValue);
             g_settings->SetInt(loaderSetting.identifier, loaderSetting.setting.intValue != nullptr ? *loaderSetting.setting.intValue : loaderSetting.defaultValue.intValue);
-            break;
-        case SettingType::StringListValue:
-            g_settings->SetDefaultString(loaderSetting.identifier, "[]");
-            g_settings->SetString(loaderSetting.identifier, SerializeStringList(*loaderSetting.setting.stringList).c_str());
             break;
         default:
             UNIMPLEMENTED();
@@ -348,17 +287,6 @@ void SaveLoaderSettings(void)
                 JsonSetNestedValue(root, loaderSetting.json_path, *loaderSetting.setting.intValue);
             }
             break;
-        case SettingType::StringListValue:
-            if (loaderSetting.json_path != nullptr && !loaderSetting.setting.stringList->empty())
-            {
-                JsonValue jsonList(JsonValueType::Array);
-                for (const std::string & item : *loaderSetting.setting.stringList)
-                {
-                    jsonList.Append(JsonValue(item));
-                }
-                JsonSetNestedValue(root, loaderSetting.json_path, std::move(jsonList));
-            }
-            break;
         case SettingType::TitleIdStringListMapValue:
         {
             JsonValue value = SaveTitleIdStringListMap(*loaderSetting.setting.titleIdStringListMap);
@@ -406,18 +334,27 @@ LoaderSetting::LoaderSetting(const char * id, const char * path, int * val, int 
     defaultValue.intValue = defaultValue_;
 }
 
-LoaderSetting::LoaderSetting(const char * id, const char * path, StringList * val) :
-    identifier(id),
-    json_path(path),
-    settingType(SettingType::StringListValue)
-{
-    setting.stringList = val;
-}
-
 LoaderSetting::LoaderSetting(const char * path, TitleIdStringListMap * val) :
     identifier(nullptr),
     json_path(path),
     settingType(SettingType::TitleIdStringListMapValue)
 {
     setting.titleIdStringListMap = val;
+}
+
+std::vector<std::string> ConfiguredGameDirectories()
+{
+    // Read the UI's single source of truth. Do not duplicate it into loader settings.
+    const char * json = g_settings->GetSectionSettings("UI");
+    if (json == nullptr || json[0] == '\0') return {};
+    JsonValue root;
+    JsonReader reader;
+    if (!reader.Parse(json, json + std::strlen(json), root)) return {};
+    const JsonValue dirs = JsonGetNestedValue(root, "GameDirectories");
+    std::vector<std::string> result;
+    for (uint32_t i = 0; dirs.isArray() && i < dirs.size(); ++i)
+        if (dirs[i].isString() && !dirs[i].asString().empty()) result.push_back(dirs[i].asString());
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
 }

@@ -17,18 +17,19 @@
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-os/os_types.h>
 #include <nxemu-video/video_settings_identifiers.h>
-#include <nxemu/settings/ui_settings.h>
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
-#include <nxemu/ui/library/interface_language.h>
+#include <nxemu/ui/library/ui_preferences.h>
 
 using namespace SettingsControls;
 
 namespace
 {
+// In the order of Region.
 constexpr const char * kRegions[] = {TrMark("Japan"), TrMark("Americas"), TrMark("Europe"), TrMark("Australia"), TrMark("China"), TrMark("Korea"), TrMark("Taiwan")};
 
+// In the order of Language. Native names stay recognisable in every UI language.
 constexpr const char * kLanguages[] = {
     "日本語", "English (US)", "Français", "Deutsch", "Italiano", "Español", "中文", "한국어", "Nederlands",
     "Português", "Русский", "中文（台灣）", "English (UK)", "Français (Canada)", "Español (Latinoamérica)",
@@ -58,6 +59,8 @@ Choices VSyncs()
     };
 }
 
+// The names in the order of the alphabet, each with its place in the list
+// given as its value.
 template <size_t Count>
 Choices Sorted(const char * const (&names)[Count], bool translate = true)
 {
@@ -69,16 +72,14 @@ Choices Sorted(const char * const (&names)[Count], bool translate = true)
     std::sort(choices.begin(), choices.end(), [](const Choice & a, const Choice & b) { return a.name < b.name; });
     return choices;
 }
+
 } // namespace
 
 GeneralDialog::~GeneralDialog() = default;
 
 void GeneralDialog::RefreshLanguage()
 {
-    if (!IsVisible())
-    {
-        return;
-    }
+    if (!IsVisible()) return;
     RefreshTranslation();
     FillLists();
     ShowValues();
@@ -100,6 +101,7 @@ void GeneralDialog::OnOpen()
     FillLists();
     ShowValues();
     ShowRunning();
+    // Filling the controls is not the user changing them.
     m_changes.clear();
     UiEvents::Listen(Document(), "change", [this](Rml::Event & event) { m_changes.push_back(event.GetTargetElement()->GetId()); });
 }
@@ -140,12 +142,14 @@ void GeneralDialog::OnCommand(const std::string & command)
     }
     else if (command == "toggle-region")
     {
+        // Choosing starts from the region shown.
         settings.SetInt(NXOsSetting::Region, RegionChosen() ? kRegionOfLanguage : LanguageRegion());
         Changed();
     }
     else if (command == "toggle-interface-language" && !m_settings.IsGame())
     {
-        InterfaceLanguage::SetChoice(InterfaceLanguage::Choice().empty() ? InterfaceLanguage::Code() : std::string());
+        const std::string choice = UiPreferences::InterfaceLanguageChoice();
+        UiPreferences::SetString(UiPreferences::InterfaceLanguage, choice.empty() ? UiPreferences::InterfaceLanguageCode() : "");
         ShowValues();
     }
 }
@@ -165,13 +169,11 @@ void GeneralDialog::FillLists()
     SettingsContext & settings = m_settings;
     Choices choices;
 
-    Fill(Select(Document(), "interface-theme"),
-         {
-             {Tr("System default"), "system", {}},
-             {Tr("Light"), "light", {}},
-             {Tr("Dark"), "dark", {}},
-         },
-         uiSettings.interfaceTheme);
+    Fill(Select(Document(), "interface-theme"), {
+        {Tr("System default"), "system", {}},
+        {Tr("Light"), "light", {}},
+        {Tr("Dark"), "dark", {}},
+    }, UiPreferences::GetString(UiPreferences::InterfaceTheme, "system"));
 
     m_devices = m_window.Renderer().GraphicsDevices();
     for (size_t index = 0; index < m_devices.size(); ++index)
@@ -202,6 +204,7 @@ void GeneralDialog::FillLists()
     }
     if (FindScalingFilter(settings.GetInt(NXVideoSetting::ScalingFilter)) == nullptr)
     {
+        // Not offered, but kept for whoever chose it before.
         choices.push_back(Numbered(Tr("Gaussian"), settings.GetInt(NXVideoSetting::ScalingFilter), {}));
     }
     Fill(Select(Document(), "filter"), choices, std::to_string(settings.GetInt(NXVideoSetting::ScalingFilter)));
@@ -226,7 +229,8 @@ void GeneralDialog::FillLists()
     {
         choices.push_back({language.name, language.code, {}});
     }
-    Fill(Select(Document(), "interface-language"), choices, InterfaceLanguage::Code());
+    Fill(Select(Document(), "interface-language"), choices, UiPreferences::InterfaceLanguageCode());
+
 }
 
 void GeneralDialog::ShowValues()
@@ -241,18 +245,21 @@ void GeneralDialog::ShowValues()
     const int height = static_cast<int>(std::lround((docked ? kDockedHeight : kHandheldHeight) * kResolutionScales[scale].factor));
     SetText("resolution-text", Tr("Games are drawn in %1p.", {std::to_string(height)}));
 
+    // The region is the one of the language unless one is chosen: the list
+    // shows it either way, and can only be changed when it is chosen.
     const bool regionChosen = RegionChosen();
     Choose(Select(Document(), "region"), std::to_string(regionChosen ? settings.GetInt(NXOsSetting::Region) : LanguageRegion()));
     SetDisabled(Document(), "region", !regionChosen);
     SetClass(Document(), "region-chosen", "on", regionChosen);
     SetText("region-text", regionChosen ? Tr("Chosen here, whatever the language.") : Tr("Follows the console language."));
 
-    const bool interfaceChosen = !InterfaceLanguage::Choice().empty();
-    Choose(Select(Document(), "interface-language"), InterfaceLanguage::Code());
+    const bool interfaceChosen = !UiPreferences::InterfaceLanguageChoice().empty();
+    Choose(Select(Document(), "interface-language"), UiPreferences::InterfaceLanguageCode());
     SetDisabled(Document(), "interface-language", !interfaceChosen);
     SetClass(Document(), "interface-language-chosen", "on", interfaceChosen);
     SetText("interface-language-text", interfaceChosen ? Tr("Chosen here, whatever the language.") : Tr("Follows the console language."));
 
+    // Only FSR has a sharpness.
     const int sharpness = std::clamp(settings.GetInt(NXVideoSetting::FSPSharpness), 0, kSharpnessMax);
     SetClass(Document(), "sharpness", "absent", settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::Fsr));
     SetRange(Document(), "sharpness-range", sharpness);
@@ -285,6 +292,7 @@ void GeneralDialog::ShowDevice()
 
 void GeneralDialog::ShowRunning()
 {
+    // The video module reads these when a game starts.
     const bool running = m_session.IsRunning() && !m_settings.IsGame();
     Document()->SetClass("game-running", running);
     SetDisabled(Document(), "device", running || m_devices.empty());
@@ -314,10 +322,10 @@ void GeneralDialog::ApplyChange(const std::string & id)
 
     if (id == "interface-theme")
     {
-        if ((text == "system" || text == "light" || text == "dark") && text != uiSettings.interfaceTheme)
+        if ((text == "system" || text == "light" || text == "dark") &&
+            text != UiPreferences::GetString(UiPreferences::InterfaceTheme, "system"))
         {
-            uiSettings.interfaceTheme = text;
-            SaveUISetting();
+            UiPreferences::SetString(UiPreferences::InterfaceTheme, text);
             m_window.SetTheme(text);
         }
         return;
@@ -325,9 +333,9 @@ void GeneralDialog::ApplyChange(const std::string & id)
 
     if (id == "interface-language")
     {
-        if (!InterfaceLanguage::Choice().empty() && Translation::IsSupportedLanguage(text))
+        if (!UiPreferences::InterfaceLanguageChoice().empty() && Translation::IsSupportedLanguage(text))
         {
-            InterfaceLanguage::SetChoice(text);
+            UiPreferences::SetString(UiPreferences::InterfaceLanguage, text);
             ShowValues();
         }
         return;
@@ -373,6 +381,8 @@ void GeneralDialog::ApplyChange(const std::string & id)
     }
     else if (id == "region")
     {
+        // The list follows the language when no region is chosen: that is
+        // not the user choosing one.
         if (!RegionChosen())
         {
             return;

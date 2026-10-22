@@ -7,7 +7,6 @@
 #include "core/file_sys/registered_cache.h"
 
 class FileSystemController;
-struct GameDirectory;
 
 namespace FileSys
 {
@@ -24,8 +23,6 @@ public:
     FileSys::ContentProvider & GetContentProvider();
     FileSys::VirtualFilesystem GetFilesystem();
     ::FileSystemController & GetFileSystemController();
-    std::vector<GameDirectory> GameDirectories();
-    std::vector<std::string> GameDirectoryAddOnFiles(uint64_t baseProgramId);
     void RegisterContentProvider(FileSys::ContentProviderUnionSlot slot, FileSys::ContentProvider* provider);
 
     void SetProcessID(uint64_t processID);
@@ -34,11 +31,10 @@ public:
     //ISystemloader
     bool Initialize() override;
     uint32_t GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const override;
-    bool LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
+    bool LoadRom(const char * fileName, uint64_t selected_program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
     IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * LoadedRomInfo() override;
-    bool ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback) override;
 
     IFileSystemController & FileSystemController() override;
     IContentProvider & ContentProvider() override;
@@ -59,6 +55,12 @@ public:
     bool IsAddonDisabled(uint64_t program_id, const char * name) const override;
     LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer,
                                        uint32_t buffer_size, uint32_t & actual_size) override;
+    uint32_t GetContainerApplications(const char * utf8_path, uint64_t * application_ids, uint32_t max_count) override;
+    void RefreshGameContentIndex() override;
+    bool PublishGameContentSnapshot(const GameContentSnapshot & snapshot) override;
+    std::vector<std::string> GameContentFiles(uint64_t base_program_id);
+    std::vector<std::string> GameModificationRoots(uint64_t program_id);
+    bool IsInGameDirectory(const std::string & file_path) const;
 
     void GetBackingReadTraffic(StorageReadTraffic* out) const override;
 

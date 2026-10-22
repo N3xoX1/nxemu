@@ -19,6 +19,7 @@ constexpr size_t kMaxEntryNameLength = 4096;
 unzFile OpenZipArchive(const std::filesystem::path & zip_path)
 {
 #ifdef _WIN32
+    // The wide functions open paths the system's code page cannot spell.
     zlib_filefunc64_def file_functions{};
     fill_win32_filefunc64W(&file_functions);
     return unzOpen2_64(zip_path.c_str(), &file_functions);
@@ -39,6 +40,8 @@ struct ZipArchive
     }
 };
 
+// The name the current entry is extracted under, empty to leave it out, and
+// its size once extracted.
 bool CurrentEntry(unzFile zip, const std::function<std::string(std::string_view)> & nameOf, std::string & name, uint64_t & size)
 {
     unz_file_info64 info{};
@@ -69,6 +72,7 @@ FirmwareZipResult ExtractFirmwareZip(const std::filesystem::path & zip_path, con
         return FirmwareZipResult::NotAnArchive;
     }
 
+    // What there is to write, so that the progress has an end.
     uint64_t total = 0;
     for (int entry = unzGoToFirstFile(zip.handle); entry != UNZ_END_OF_LIST_OF_FILE; entry = unzGoToNextFile(zip.handle))
     {
@@ -121,6 +125,7 @@ FirmwareZipResult ExtractFirmwareZip(const std::filesystem::path & zip_path, con
             }
         }
         output.close();
+        // Closing is where the archive's checksum of the entry is verified.
         if (unzCloseCurrentFile(zip.handle) != UNZ_OK && result == FirmwareZipResult::Extracted)
         {
             result = FirmwareZipResult::Failed;

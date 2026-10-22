@@ -12,6 +12,7 @@ public:
 
     void EmulationStarting();
     void EmulationStopping(bool wait);
+    void OperationModeChanged();
 
     // IOperatingSystem
     bool Initialize() override;
@@ -84,3 +85,6 @@ private:
     int32_t m_previousProgramIndex;
     ApplicationLaunchType m_launchType;
 };
+
+// The module's operating system, while one exists.
+extern std::unique_ptr<OSManager> g_osManager;

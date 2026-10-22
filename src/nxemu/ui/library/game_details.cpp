@@ -1,7 +1,12 @@
 #include "game_details.h"
 #include "rom_properties.h"
-#include <common/std_string.h>
+#include <cinttypes>
+#include <common/json.h>
+#include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/fs_util.h>
@@ -11,13 +16,32 @@ namespace
 {
 std::string TitleDirectoryName(uint64_t programId, bool upperCase)
 {
-    return stdstr_f(upperCase ? "%016llX" : "%016llx", static_cast<unsigned long long>(programId));
+    char name[17];
+    std::snprintf(name, sizeof(name), upperCase ? "%016llX" : "%016llx", static_cast<unsigned long long>(programId));
+    return name;
 }
 
 std::string ExistingDirectory(const std::filesystem::path & directory)
 {
     std::error_code error;
     return std::filesystem::is_directory(directory, error) ? Common::FS::PathToUTF8String(directory) : std::string();
+}
+
+// A game's saves are kept per user of the emulated console. The first user
+// that has any is the one shown: there is seldom more than one.
+std::string FindSaveDirectory(uint64_t programId)
+{
+    const std::filesystem::path users = Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir) / "user/save/0000000000000000";
+    std::error_code error;
+    for (std::filesystem::directory_iterator user(users, error), end; !error && user != end; user.increment(error))
+    {
+        const std::string directory = ExistingDirectory(user->path() / TitleDirectoryName(programId, true));
+        if (!directory.empty())
+        {
+            return directory;
+        }
+    }
+    return {};
 }
 
 GameAddOn::Kind KindOf(GamePatchType type)
@@ -33,21 +57,7 @@ GameAddOn::Kind KindOf(GamePatchType type)
 
 std::string GameDetailsReader::SaveDirectory(uint64_t programId)
 {
-    if (programId == 0)
-    {
-        return {};
-    }
-    const std::filesystem::path users = Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir) / "user/save/0000000000000000";
-    std::error_code error;
-    for (std::filesystem::directory_iterator user(users, error), end; !error && user != end; user.increment(error))
-    {
-        const std::string directory = ExistingDirectory(user->path() / TitleDirectoryName(programId, true));
-        if (!directory.empty())
-        {
-            return directory;
-        }
-    }
-    return {};
+    return programId == 0 ? std::string() : FindSaveDirectory(programId);
 }
 
 GameDetails GameDetailsReader::Read(ISystemloader & loader, const std::string & path)
@@ -62,16 +72,25 @@ GameDetails GameDetailsReader::Read(ISystemloader & loader, const std::string & 
         return details;
     }
     details.programId = programId;
-    details.version = RomProperties::Version(*info);
+    std::string publisher, baseVersion;
+    RomProperties::Release(*info, details.version, publisher, baseVersion);
 
-    loader.ManualContentProvider().ClearAllEntries();
-    info->PrepareManualContent();
     std::vector<GamePatchInfo> patches(info->GetGamePatches(nullptr, 0));
     patches.resize(info->GetGamePatches(patches.data(), static_cast<uint32_t>(patches.size())));
     for (const GamePatchInfo & patch : patches)
     {
-        details.addOns.push_back({KindOf(patch.type), patch.key[0] != '\0' ? patch.key : patch.name, patch.name, patch.version, patch.enabled});
+        details.addOns.push_back({KindOf(patch.type), patch.key, patch.name, patch.version, patch.enabled, {}});
+        if (patch.type == GamePatchType::AddOnContent)
+        {
+            std::vector<GameAddOnContentInfo> contents(info->GetAddOnContents(nullptr, 0));
+            contents.resize(info->GetAddOnContents(contents.data(), static_cast<uint32_t>(contents.size())));
+            for (const GameAddOnContentInfo & content : contents)
+            {
+                details.addOns.back().items.push_back({content.titleId, content.version, content.size});
+            }
+        }
     }
+
 
     details.saveDirectory = SaveDirectory(programId);
     details.cacheDirectory = ExistingDirectory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir) / TitleDirectoryName(programId, false));

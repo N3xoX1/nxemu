@@ -12,11 +12,13 @@
 
 namespace
 {
-constexpr uint64_t kRestMs = 450;
-constexpr uint64_t kFollowMs = 400;
-constexpr float kGap = 8.0f;
-constexpr float kEdge = 6.0f;
+constexpr uint64_t kRestMs = 450;   // how long the mouse rests before the explanation shows
+constexpr uint64_t kFollowMs = 400; // after one was shown, the next shows at once
+constexpr float kGap = 8.0f;        // between the explanation and what it explains, in dp
+constexpr float kEdge = 6.0f;       // and the edges of the window
 
+// The text of an element that holds nothing else and has no room to show it
+// whole: a long name cut short. Empty for any other element.
 std::string ClippedText(Rml::Element * element)
 {
     if (element->GetNumChildren() == 0 || element->GetComputedValues().overflow_x() != Rml::Style::Overflow::Hidden)
@@ -36,7 +38,7 @@ std::string ClippedText(Rml::Element * element)
     const bool clipped = element->GetScrollWidth() > element->GetClientWidth() + 0.5f || element->GetScrollHeight() > element->GetClientHeight() + 0.5f;
     return clipped ? text : std::string();
 }
-}
+} // namespace
 
 Tooltip::Tooltip(Rml::Context * context, const std::filesystem::path & assetDir) :
     m_context(context)
@@ -45,6 +47,7 @@ Tooltip::Tooltip(Rml::Context * context, const std::filesystem::path & assetDir)
     if (m_document != nullptr)
     {
         m_tip = m_document->GetElementById("tip");
+        // Above the other documents, without taking the keyboard from them.
         m_document->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
     }
 }
@@ -76,6 +79,7 @@ void Tooltip::Update(bool suppressed)
         text = target->GetAttribute<Rml::String>("title", "");
         if (text.empty() && target == m_context->GetHoverElement())
         {
+            // Without an explanation of its own, a text cut short is shown whole.
             text = ClippedText(target);
         }
         if (!text.empty())
@@ -96,6 +100,7 @@ void Tooltip::Update(bool suppressed)
     {
         return;
     }
+    // An element may ask for a longer rest, and then always gets it.
     const int ownRest = target->GetAttribute<int>("data-title-delay", 0);
     const bool follows = ownRest == 0 && m_hiddenAt != 0 && now - m_hiddenAt < kFollowMs;
     if (follows || now - m_restingSince >= (ownRest != 0 ? static_cast<uint64_t>(ownRest) : kRestMs))
@@ -109,6 +114,7 @@ void Tooltip::Update(bool suppressed)
 
 void Tooltip::Place(Rml::Element * target)
 {
+    // The size of the explanation is known once it is laid out.
     m_document->UpdateDocument();
     const float ratio = m_context->GetDensityIndependentPixelRatio();
     const float gap = kGap * ratio;
@@ -116,6 +122,8 @@ void Tooltip::Place(Rml::Element * target)
     const Rml::Vector2f window(static_cast<float>(m_context->GetDimensions().x), static_cast<float>(m_context->GetDimensions().y));
     const Rml::Vector2f size(m_tip->GetOffsetWidth(), m_tip->GetOffsetHeight());
 
+    // Beside a choice of a list or of a menu, which has others above and
+    // below it; under anything else, or above it at the bottom of the window.
     Rml::Vector2f position;
     if ((target->GetTagName() == "option" || target->IsClassSet("menu-item")) && target->GetParentNode() != nullptr)
     {

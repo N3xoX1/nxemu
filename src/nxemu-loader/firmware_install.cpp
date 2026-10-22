@@ -23,6 +23,8 @@ constexpr uint64_t SystemUpdateTitleId = 0x0100000000000816ULL;
 constexpr uint64_t FirmwareVersionSystemDataId = 0x0100000000000809ULL;
 constexpr size_t kCopyBufferSize = 1024 * 1024;
 
+// The directories of the system storage's contents an installation works in.
+// All three are on one volume, so that renaming one never copies.
 constexpr const char * kInstalled = "registered";
 constexpr const char * kStaging = "registered.installing";
 constexpr const char * kPrevious = "registered.previous";
@@ -32,6 +34,9 @@ std::filesystem::path ContentsDirectory()
     return Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir) / "system" / "Contents";
 }
 
+// The name the system storage keeps a firmware file under, from where a
+// package has it; empty for what is not a firmware file. Packages hold them
+// as "<id>.nca", "<id>.dnca", or as a file "00" in a directory "<id>.nca".
 std::string RegisteredName(std::string_view packagePath)
 {
     const auto lastComponent = [](std::string_view & path) {
@@ -67,6 +72,8 @@ bool ReadVersionFile(const FileSys::NCA & nca, Version & version)
     return version_file != nullptr && version_file->ReadBytes(reinterpret_cast<uint8_t *>(&version), sizeof(version), 0) == sizeof(version);
 }
 
+// What makes a set of files a firmware: the system update's description, and
+// the file that tells its version.
 struct Inspection
 {
     bool describesSystemUpdate = false;
@@ -148,6 +155,8 @@ public:
         }
     }
 
+    // Opens the files one at a time: a firmware has more of them than a
+    // process may hold open at once on some systems.
     FirmwareInstallStatus Inspect(Inspection & inspection)
     {
         std::vector<std::filesystem::path> files;
@@ -175,6 +184,8 @@ public:
         return inspection.IsFirmware() ? FirmwareInstallStatus::Installed : FirmwareInstallStatus::NotFirmware;
     }
 
+    // Makes what was staged the installed firmware. The one it replaces is
+    // kept until the new one is in place, and comes back if that fails.
     FirmwareInstallStatus Commit(::FileSystemController & fs_controller)
     {
         Report(FirmwareInstallStage::Replacing, 0, 0);
@@ -274,6 +285,7 @@ private:
 
     FirmwareInstallStatus FillFromGameCard(FileSys::XCI & card)
     {
+        // A card that carries no update still has the partition, empty.
         const FileSys::VirtualDir update = card.GetUpdatePartition();
         if (update == nullptr || card.GetSystemUpdateVersion() == 0)
         {
@@ -313,6 +325,8 @@ private:
         return FirmwareInstallStatus::Installed;
     }
 
+    // Writes a staged file from what read gives, a buffer at a time, until it
+    // gives nothing. read is told where in the file the buffer starts.
     template <typename Read>
     FirmwareInstallStatus Write(const std::string & name, uint64_t & done, uint64_t total, Read && read)
     {
@@ -376,7 +390,7 @@ FirmwareInstall::Result InstallStaged(const std::filesystem::path & source, cons
     result.status = staging.Commit(fs_controller);
     return result;
 }
-}
+} // namespace
 
 void FirmwareInstall::RecoverInterrupted()
 {
@@ -389,6 +403,8 @@ void FirmwareInstall::RecoverInterrupted()
     {
         return;
     }
+    // The firmware being replaced is only removed after the new one is in
+    // place: without one in place, it is the one to keep.
     if (!std::filesystem::exists(installed, error) || std::filesystem::is_empty(installed, error))
     {
         std::filesystem::remove(installed, error);

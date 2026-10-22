@@ -2496,9 +2496,6 @@ msgstr "Handheldmodus: games draaien op 720p, zoals op het scherm van de console
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "Er draait een game: grijze opties kunnen pas na het stoppen worden gewijzigd. Talen worden bij het starten van een game toegepast."
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "Games, updates en DLC kunnen samen of in verschillende mappen worden bewaard. NXEmu koppelt ze automatisch. Games worden rechtstreeks in elke map gezocht, uitbreidingen ook in submappen."
-
 msgid "Profile"
 msgstr "Profiel"
 
@@ -2531,3 +2528,12 @@ msgstr "Het spel kon niet worden geladen:\n%1\n\nLaadfout: %2. Controleer of de 
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "De interface kon niet worden geladen. Controleer of de ui-map van NXEmu volledig is."
+
+msgid "Scan subfolders"
+msgstr "Submappen scannen"
+
+msgid "Could not load the game:\n%1"
+msgstr "Het spel kon niet worden geladen:\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "Voeg de mappen met je spellen toe. Updates, DLC en mods in dezelfde mappen worden automatisch aan hun spellen gekoppeld. Schakel Submappen scannen in om ook de onderliggende mappen te doorzoeken."

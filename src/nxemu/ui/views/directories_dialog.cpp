@@ -83,6 +83,7 @@ void DirectoriesDialog::OnCloseRequested()
     Close();
     if (changed)
     {
+        // Once, for all that was added and removed.
         m_host.libraryChanged();
     }
 }

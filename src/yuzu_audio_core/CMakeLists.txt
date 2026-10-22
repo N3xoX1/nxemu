@@ -1,9 +1,9 @@
-# Audio engine (matches src/yuzu_audio_core/yuzu_audio_core.vcxproj).
+# Audio engine.
 cmake_minimum_required(VERSION 3.18)
 
 if(NOT TARGET cubeb)
     set(USE_SANITIZERS OFF CACHE BOOL "cubeb: skip sanitizers-cmake" FORCE)
-    if(APPLE)
+    if(APPLE OR WIN32 OR ANDROID)
         set(BUNDLE_SPEEX ON CACHE BOOL "cubeb: use bundled Speex resampler" FORCE)
     endif()
     set(BUILD_TESTS OFF CACHE BOOL "cubeb: skip gtest" FORCE)
@@ -18,7 +18,7 @@ list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/oboe_sink\\.cpp$")
 
 add_library(yuzu_audio_core STATIC ${YUZU_AUDIO_CORE_SOURCES})
 
-if(APPLE AND ENABLE_SDL2)
+if(ENABLE_SDL2)
     target_sources(yuzu_audio_core PRIVATE sink/sdl2_sink.cpp)
     target_compile_definitions(yuzu_audio_core PRIVATE HAVE_SDL2)
     target_link_libraries(yuzu_audio_core PRIVATE SDL2::SDL2)

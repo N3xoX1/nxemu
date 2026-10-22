@@ -3,8 +3,8 @@
 #include <nxemu-core/notification.h>
 
 #include <deque>
-#include <functional>
 #include <future>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -22,11 +22,10 @@ public:
     void BreakPoint(const char* file_name, uint32_t line_number) override;
 
     void BindWindow(SDL_Window* window);
-    void Close();
-
     using Presenter = std::function<NotificationResponse(bool, const std::string &, const std::string &)>;
     void SetPresenter(Presenter presenter);
     void Pump();
+    void Close();
 
 private:
     struct Message

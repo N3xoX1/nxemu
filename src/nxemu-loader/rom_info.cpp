@@ -17,6 +17,17 @@
 #include <map>
 #include <yuzu_common/fs/fs.h>
 
+namespace
+{
+
+using UpdateVersionMap = std::map<uint64_t, uint32_t>;
+
+std::string ToLowerAscii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+    return value;
+}
+
 void CollectUpdateVersions(const FileSys::NSP & nsp, UpdateVersionMap & versions)
 {
     using TitleNcaMap =
@@ -49,35 +60,6 @@ void CollectUpdateVersions(const FileSys::NSP & nsp, UpdateVersionMap & versions
             }
         }
     }
-}
-
-namespace
-{
-
-std::string ToLowerAscii(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-    return value;
-}
-
-bool IsAddOnContentExtension(const char * fileName)
-{
-    static const char * supported_extensions[] = {
-        "nca",
-        "dxci",
-        "dnsp",
-    };
-
-    std::string ext = Path(fileName).GetExtension();
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    for (const char * supported : supported_extensions)
-    {
-        if (ext == supported)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 void RegisterMatchingAddOnEntriesFromNsp(const FileSys::NSP & nsp, uint64_t base_program_id, IManualContentProvider & provider)
@@ -204,71 +186,19 @@ void RegisterSiblingAddOnEntries(uint64_t program_id, const FileSys::VirtualFile
     }
 }
 
-void RegisterGameDirectoryAddOnEntries(Systemloader & systemloader, uint64_t program_id, const FileSys::VirtualFile & game_file,
-                                       FileSys::VirtualFilesystem & vfs, IManualContentProvider & provider)
+void RegisterConfiguredGameDirectoryEntries(uint64_t program_id, const FileSys::VirtualFile & game_file,
+                                            Systemloader & loader, IManualContentProvider & provider)
 {
-    if (program_id == 0 || !game_file || !vfs)
+    if (program_id == 0) return;
+    const uint64_t base_id = FileSys::GetBaseTitleID(program_id);
+    FileSys::VirtualFilesystem vfs = loader.GetFilesystem();
+    if (!vfs) return;
+    const std::string current_game = game_file ? game_file->GetFullPath() : std::string();
+    for (const std::string & path : loader.GameContentFiles(base_id))
     {
-        return;
-    }
-    const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
-    const FileSys::VirtualDir parent = game_file->GetContainingDirectory();
-    const std::string sibling_dir = parent ? parent->GetFullPath() : std::string();
-    for (const std::string & path : systemloader.GameDirectoryAddOnFiles(base_program_id))
-    {
+        if (path == current_game) continue;
         FileSys::VirtualFile file = vfs->OpenFile(path, VirtualFileOpenMode::Read);
-        if (!file || file->GetFullPath() == game_file->GetFullPath())
-        {
-            continue;
-        }
-        const FileSys::VirtualDir file_parent = file->GetContainingDirectory();
-        if (file_parent && file_parent->GetFullPath() == sibling_dir)
-        {
-            continue;
-        }
-        RegisterMatchingAddOnEntriesFromFile(file, base_program_id, provider);
-    }
-}
-
-void RegisterConfiguredAddOnDirectoryEntries(uint64_t program_id, FileSys::VirtualFilesystem & vfs, IManualContentProvider & provider)
-{
-    if (program_id == 0 || loaderSettings.addOnDirectories.empty())
-    {
-        return;
-    }
-
-    const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
-
-    for (const std::string & dir : loaderSettings.addOnDirectories)
-    {
-        if (dir.empty())
-        {
-            continue;
-        }
-
-        const auto callback = [&](const std::filesystem::directory_entry & entry) -> bool {
-            const std::filesystem::path & path = entry.path();
-            if (!Common::FS::IsFile(path))
-            {
-                return true;
-            }
-            const std::string physical_name = Common::FS::PathToUTF8String(path);
-            if (!IsAddOnContentExtension(physical_name.c_str()))
-            {
-                return true;
-            }
-
-            FileSys::VirtualFile file = vfs->OpenFile(physical_name, VirtualFileOpenMode::Read);
-            if (!file)
-            {
-                return true;
-            }
-
-            RegisterMatchingAddOnEntriesFromFile(file, base_program_id, provider);
-            return true;
-        };
-
-        Common::FS::IterateDirEntriesRecursively(dir, callback, Common::FS::DirEntryFilter::File);
+        if (file) RegisterMatchingAddOnEntriesFromFile(file, base_id, provider);
     }
 }
 
@@ -480,33 +410,48 @@ void RomInfo::AddToManualContentProvider(IManualContentProvider & provider)
 
 void RomInfo::PrepareManualContent()
 {
-    IManualContentProvider & provider = m_systemloader.ManualContentProvider();
+    PrepareManualContentFor(m_systemloader.ManualContentProvider());
+}
+
+void RomInfo::PrepareManualContentFor(IManualContentProvider & provider)
+{
     AddToManualContentProvider(provider);
 
     uint64_t program_id = 0;
     ReadProgramId(program_id);
 
-    // Automatically discover matching update/DLC containers stored next to the game.
-    // This makes a base DNSP/DXCI and a separate sibling update DNSP work without
-    // requiring the user to configure the same directory again as an add-on directory.
-    RegisterSiblingAddOnEntries(program_id, m_file, provider);
+    // One indexed lookup across all configured game directories, independent
+    // of their order. Only matching content files are opened for this game.
+    RegisterConfiguredGameDirectoryEntries(program_id, m_file, m_systemloader, provider);
 
-    // Keep the explicit add-on-directory mechanism for content stored elsewhere.
-    FileSys::VirtualFilesystem vfs = m_systemloader.GetFilesystem();
-    RegisterGameDirectoryAddOnEntries(m_systemloader, program_id, m_file, vfs, provider);
-    RegisterConfiguredAddOnDirectoryEntries(program_id, vfs, provider);
+    // Preserve sibling discovery for ROMs launched outside configured folders.
+    // Avoid registering the same update twice when a root is configured.
+    if (m_file && !m_systemloader.IsInGameDirectory(m_file->GetFullPath()))
+        RegisterSiblingAddOnEntries(program_id, m_file, provider);
 }
 
-uint32_t RomInfo::GetGamePatches(GamePatchInfo * patches, uint32_t maxCount)
+std::vector<FileSys::Patch> RomInfo::GetPatchesForThisRom()
 {
     uint64_t program_id = 0;
     if (ReadProgramId(program_id) != LoaderResultStatus::Success || program_id == 0)
     {
-        return 0;
+        return {};
     }
 
-    const FileSys::PatchManager pm(program_id, m_systemloader.GetFileSystemController(), m_systemloader.GetContentProvider());
-    const std::vector<FileSys::Patch> list = pm.GetPatches();
+    // A library scan can run while another game is loaded. Keep its manually
+    // discovered updates separate from the provider used by the running game.
+    ManualContentProviderImpl manual_provider;
+    PrepareManualContentFor(manual_provider);
+    FileSys::ContentProviderUnion content_provider =
+        static_cast<FileSys::ContentProviderUnion &>(m_systemloader.GetContentProvider());
+    content_provider.SetSlot(FileSys::ContentProviderUnionSlot::FrontendManual, &manual_provider.Provider());
+    const FileSys::PatchManager pm(program_id, m_systemloader.GetFileSystemController(), content_provider);
+    return pm.GetPatches();
+}
+
+uint32_t RomInfo::GetGamePatches(GamePatchInfo * patches, uint32_t maxCount)
+{
+    const std::vector<FileSys::Patch> list = GetPatchesForThisRom();
     if (patches == nullptr || maxCount == 0)
     {
         return (uint32_t)list.size();
@@ -516,9 +461,8 @@ uint32_t RomInfo::GetGamePatches(GamePatchInfo * patches, uint32_t maxCount)
     for (uint32_t i = 0; i < count; ++i)
     {
         patches[i].enabled = list[i].enabled;
-        patches[i].type = list[i].type == FileSys::PatchType::Update ? GamePatchType::Update
-                          : list[i].type == FileSys::PatchType::DLC  ? GamePatchType::AddOnContent
-                                                                     : GamePatchType::Mod;
+        patches[i].type = list[i].type == FileSys::PatchType::Update ? GamePatchType::Update :
+                          list[i].type == FileSys::PatchType::DLC ? GamePatchType::AddOnContent : GamePatchType::Mod;
         std::snprintf(patches[i].name, sizeof(patches[i].name), "%s", list[i].name.c_str());
         std::snprintf(patches[i].version, sizeof(patches[i].version), "%s", list[i].version.c_str());
         if (list[i].type == FileSys::PatchType::Update && list[i].title_id != list[i].program_id)
@@ -533,14 +477,104 @@ uint32_t RomInfo::GetGamePatches(GamePatchInfo * patches, uint32_t maxCount)
     return count;
 }
 
-IFileSysNACP * RomInfo::GetControlMetadata()
+uint32_t RomInfo::GetAddOnContents(GameAddOnContentInfo * contents, uint32_t maxCount)
 {
     uint64_t program_id = 0;
     if (ReadProgramId(program_id) != LoaderResultStatus::Success || program_id == 0)
     {
-        return nullptr;
+        return 0;
     }
-    return m_systemloader.GetPMControlMetadata(program_id);
+
+    // As GetPatchesForThisRom(): what is found for this game is kept apart
+    // from the provider of a running one.
+    ManualContentProviderImpl manual_provider;
+    PrepareManualContentFor(manual_provider);
+    FileSys::ContentProviderUnion content_provider =
+        static_cast<FileSys::ContentProviderUnion &>(m_systemloader.GetContentProvider());
+    content_provider.SetSlot(FileSys::ContentProviderUnionSlot::FrontendManual, &manual_provider.Provider());
+
+    std::vector<GameAddOnContentInfo> list;
+    for (const ContentProviderEntry & entry : content_provider.ListEntriesFilter(LoaderTitleType::AOC, LoaderContentRecordType::Data, std::nullopt))
+    {
+        if (FileSys::GetBaseTitleID(entry.titleID) != program_id ||
+            std::any_of(list.begin(), list.end(), [&entry](const GameAddOnContentInfo & known) { return known.titleId == entry.titleID; }))
+        {
+            continue;
+        }
+        const std::unique_ptr<FileSys::NCA> nca = content_provider.GetEntryNCA(entry.titleID, entry.type);
+        if (nca == nullptr || nca->GetStatus() != LoaderResultStatus::Success)
+        {
+            continue;
+        }
+        const FileSys::VirtualFile file = nca->BaseFile();
+        list.push_back({entry.titleID, content_provider.GetEntryVersion(entry.titleID).value_or(0), file != nullptr ? file->GetSize() : 0});
+    }
+    std::sort(list.begin(), list.end(), [](const GameAddOnContentInfo & left, const GameAddOnContentInfo & right) { return left.titleId < right.titleId; });
+    if (contents == nullptr || maxCount == 0)
+    {
+        return static_cast<uint32_t>(list.size());
+    }
+    const uint32_t count = std::min(maxCount, static_cast<uint32_t>(list.size()));
+    std::copy_n(list.begin(), count, contents);
+    return count;
+}
+
+LoaderResultStatus RomInfo::ReadActiveUpdateVersion(char * buffer, uint32_t * bufferSize)
+{
+    if (bufferSize == nullptr)
+    {
+        return LoaderResultStatus::ErrorNotImplemented;
+    }
+
+    std::string version;
+    for (const FileSys::Patch & patch : GetPatchesForThisRom())
+    {
+        if (patch.type == FileSys::PatchType::Update && patch.enabled)
+        {
+            version = patch.version;
+            break;
+        }
+    }
+    if (!version.empty() && (version[0] == 'v' || version[0] == 'V'))
+    {
+        version.erase(0, 1);
+    }
+
+    const uint32_t required = static_cast<uint32_t>(version.size() + 1);
+    if (buffer != nullptr && *bufferSize < required)
+    {
+        *bufferSize = required;
+        return LoaderResultStatus::ErrorBufferTooSmall;
+    }
+    *bufferSize = required;
+    if (buffer != nullptr)
+    {
+        std::memcpy(buffer, version.c_str(), required);
+    }
+    return LoaderResultStatus::Success;
+}
+
+IFileSysNACP * RomInfo::GetControlMetadata()
+{
+    uint64_t program_id = 0;
+    if (ReadProgramId(program_id) == LoaderResultStatus::Success && program_id != 0)
+    {
+        if (IFileSysNACP * metadata = m_systemloader.GetPMControlMetadata(program_id))
+        {
+            return metadata;
+        }
+    }
+    return GetBaseControlMetadata();
+}
+
+IFileSysNACP * RomInfo::GetBaseControlMetadata()
+{
+    FileSys::NACP nacp;
+    if (m_loader && m_loader->ReadControlData(nacp) == LoaderResultStatus::Success)
+    {
+        return new FileSys::NACP(nacp);
+    }
+    return nullptr;
 }
 
 IVirtualFile * RomInfo::ReadManualRomFS()

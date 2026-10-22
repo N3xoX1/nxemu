@@ -4,6 +4,41 @@
 #include <common/path.h>
 
 std::unique_ptr<SettingsStore> SettingsStore::s_instance;
+thread_local bool SettingsStore::s_globalReads = false;
+
+SettingsStore::GlobalReadScope::GlobalReadScope() : m_previous(s_globalReads)
+{
+    s_globalReads = true;
+}
+
+SettingsStore::GlobalReadScope::~GlobalReadScope()
+{
+    s_globalReads = m_previous;
+}
+
+void SettingsStore::SetGameOverrides(JsonValue overrides)
+{
+    m_gameOverrides = std::move(overrides);
+}
+
+void SettingsStore::SetControlOverride(const char * setting, JsonValue value)
+{
+    if (setting == nullptr || (!value.isInt() && !value.isBool())) return;
+    m_controlOverrides[setting] = std::move(value);
+    NotifyChange(setting);
+}
+
+void SettingsStore::ClearControlOverride(const char * setting)
+{
+    if (!HasControlOverride(setting)) return;
+    m_controlOverrides.removeMember(setting);
+    NotifyChange(setting);
+}
+
+bool SettingsStore::HasControlOverride(const char * setting) const
+{
+    return setting != nullptr && m_controlOverrides.Find(setting) != nullptr;
+}
 
 SettingsStore::SettingsStore()
 {
@@ -19,6 +54,7 @@ bool SettingsStore::Initialize(const char * configPath, const char * baseDirecto
     const Path normalization_base(baseDirectory);
 
     m_configPath = configPath;
+    m_controlOverrides = JsonValue();
 
     m_details = JsonValue();
     for (size_t i = 0; i < 100; i++)
@@ -150,6 +186,18 @@ const char * SettingsStore::GetString(const char * setting) const
 
 bool SettingsStore::GetBool(const char * setting) const
 {
+    const JsonValue * control = s_globalReads ? nullptr : m_controlOverrides.Find(setting);
+    if (control != nullptr && control->isBool()) return control->asBool();
+    return GetBoolWithoutControl(setting);
+}
+
+bool SettingsStore::GetBoolWithoutControl(const char * setting) const
+{
+    const JsonValue * value = s_globalReads ? nullptr : m_gameOverrides.Find(setting);
+    if (value != nullptr && value->isBool())
+    {
+        return value->asBool();
+    }
     SettingsMapBool::const_iterator itr = m_settingsBool.find(setting);
     if (itr == m_settingsBool.end())
     {
@@ -170,6 +218,18 @@ bool SettingsStore::GetChanged(const char * setting) const
 
 int32_t SettingsStore::GetInt(const char* setting) const
 {
+    const JsonValue * control = s_globalReads ? nullptr : m_controlOverrides.Find(setting);
+    if (control != nullptr && control->isInt()) return static_cast<int32_t>(control->asInt64());
+    return GetIntWithoutControl(setting);
+}
+
+int32_t SettingsStore::GetIntWithoutControl(const char * setting) const
+{
+    const JsonValue * value = s_globalReads ? nullptr : m_gameOverrides.Find(setting);
+    if (value != nullptr && value->isInt())
+    {
+        return static_cast<int32_t>(value->asInt64());
+    }
     SettingsMapInt::const_iterator itr = m_settingsInt.find(setting);
     if (itr == m_settingsInt.end())
     {

@@ -47,8 +47,11 @@ enum class Region : uint32_t
     Taiwan,
 };
 
+// The region setting that follows the language instead of naming a region.
 constexpr int32_t kRegionOfLanguage = -1;
 
+// Where a console set to the language is sold: the region games are told
+// when none is chosen.
 constexpr Region RegionOfLanguage(Language language)
 {
     switch (language)

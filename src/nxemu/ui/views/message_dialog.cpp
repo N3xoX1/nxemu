@@ -24,6 +24,7 @@ void MessageDialog::OnOpen()
     UiEvents::Listen(Document(), "keydown", [this](Rml::Event & event) {
         if (event.GetParameter<int>("key_identifier", Rml::Input::KI_UNKNOWN) == Rml::Input::KI_RETURN)
         {
+            // Enter follows the focused choice; questions initially focus No.
             m_enter = true;
         }
     });

@@ -12,33 +12,58 @@
 #include <unordered_set>
 #include <vector>
 
+// Draws the interface with Vulkan: the full RmlUi render interface, including
+// clip masks, layers, filters and gradients.
+//
+// The renderer owns neither the device nor a swapchain: it draws with the video
+// module's device. Each frame it records into a command buffer it is handed
+// and leaves the result in an image it is handed, which the video module then
+// lays over the game.
+//
+// That device goes away when the modules are replaced, while RmlUi keeps this
+// renderer for as long as it runs. So the renderer is bound to a device and
+// unbound from it, and what RmlUi holds across the two is rebuilt on demand.
 class UiRenderer final : public Rml::RenderInterface
 {
 public:
     UiRenderer();
     ~UiRenderer() override;
 
+    // Starts drawing with `context`. Returns false, with Error() set, when the
+    // device cannot be used.
     bool Bind(const VulkanContext & context);
+    // Releases everything created on the device. RmlUi has to have released
+    // its textures and geometry first; frames recorded earlier must be done.
     void Unbind();
     bool IsBound() const { return m_context.device != VK_NULL_HANDLE; }
     const std::string & Error() const { return m_error; }
 
+    // A graphics device of the computer, as the video module numbers them.
     struct GraphicsDevice
     {
         std::string name;
-        bool integrated;
-        bool inUse;
+        bool integrated; // shares the processor's memory: the slow one of a computer that has two
+        bool inUse;      // the one the renderer is bound to
     };
+    // The devices a game can be drawn with. None when the renderer is unbound.
     std::vector<GraphicsDevice> GraphicsDevices() const;
 
+    // The value to use as an <img> src for an image file given by its
+    // absolute path.
     static std::string FileImageSource(const std::string & utf8Path);
+    // Registers an encoded image and returns the value to use as an <img> src.
     std::string AddMemoryImage(std::vector<uint8_t> encoded);
+    // Forgets an image no element shows any more.
     void RemoveMemoryImage(const std::string & source);
 
+    // Starts recording a frame of the given size. Everything recorded for
+    // earlier frames must have finished executing.
     void BeginFrame(VkCommandBuffer commandBuffer, int width, int height);
+    // Finishes the frame into `output`, an R8G8B8A8_UNORM image of the frame's
+    // size, initially in TRANSFER_DST_OPTIMAL: it receives the interface with
+    // premultiplied alpha and is left in SHADER_READ_ONLY_OPTIMAL.
     void EndFrame(VkImage output);
 
-    // RenderInterface
     Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices) override;
     void RenderGeometry(Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture) override;
     void ReleaseGeometry(Rml::CompiledGeometryHandle geometry) override;
@@ -100,6 +125,7 @@ private:
         Replace,
         Increment,
     };
+    // Single-sample targets filters read from and write to.
     enum class Scratch : uint8_t
     {
         Primary,
@@ -143,17 +169,20 @@ private:
         Buffer staging;
         VkExtent2D extent{};
     };
+    // An image the interface is drawn into.
     struct Target
     {
         Image image;
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
         DescriptorSet set;
         VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        // Layers retain stencil clipping even when only 1x samples are supported.
         bool hasStencil = false;
         std::chrono::steady_clock::time_point lastUsed{};
     };
     struct GradientShader
     {
+        // The uniform block, kept to rebuild the two below on another device.
         std::vector<uint8_t> data;
         Buffer uniforms;
         DescriptorSet set;
@@ -180,6 +209,7 @@ private:
     void WriteImageSet(const DescriptorSet & set, VkImageView view, VkSampler sampler);
     Texture * CreateTexture(VkExtent2D extent);
     void DestroyTexture(Texture * texture);
+    // Destroys a resource once the frames that may still use it are done.
     void Retire(std::function<void()> destroy);
     void FlushRetired();
     void FlushUploads();
@@ -201,9 +231,11 @@ private:
     void ClearColor(Target & target, VkRect2D rect);
     void BindPipeline(Program program, Blend blend, Stencil stencil);
     Stencil ClipStencil(const Target & target) const;
-    void DrawGeometry(const Geometry & geometry, Rml::Vector2f translation, Program program, VkPipelineLayout layout, VkDescriptorSet set, Stencil stencil, uint32_t stencilReference);
+    void DrawGeometry(const Geometry & geometry, Rml::Vector2f translation, Program program, VkPipelineLayout layout,
+                      VkDescriptorSet set, Stencil stencil, uint32_t stencilReference);
     void DrawFullscreen(Program program, Target & source, Target & destination, Blend blend, const FullscreenConstants & constants,
                         Target * mask = nullptr);
+    // Copies a layer into the primary scratch target, resolving its samples.
     void ResolveLayer(Target & layer);
     void RenderFilters(Rml::Span<const Rml::CompiledFilterHandle> filters);
     void RenderBlur(float sigma, Scratch sourceDestination, Scratch temporary, Rml::Rectanglei window);
@@ -233,12 +265,14 @@ private:
     std::unordered_map<uint32_t, VkPipeline> m_pipelines;
     std::vector<VkDescriptorPool> m_descriptorPools;
 
+    // RmlUi keeps its compiled shaders across devices.
     std::unordered_set<GradientShader *> m_gradients;
     std::vector<std::function<void()>> m_retired;
     std::vector<Upload> m_uploads;
     std::unordered_map<std::string, std::vector<uint8_t>> m_memoryImages;
     uint64_t m_nextMemoryImage = 0;
 
+    // Layers share one stencil buffer, so a clip mask carries across them.
     Image m_stencil;
     bool m_stencilReady = false;
     std::vector<std::unique_ptr<Target>> m_layers;

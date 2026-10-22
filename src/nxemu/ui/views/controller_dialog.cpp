@@ -17,19 +17,20 @@
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/input/input_text.h>
+#include <nxemu/ui/library/ui_preferences.h>
 
 namespace
 {
-constexpr float kStackedBelow = 900.0f;
-constexpr uint64_t kListenMs = 5000;
-constexpr uint64_t kSequenceGapMs = 450;
+constexpr float kStackedBelow = 900.0f;  // dp: the three columns go one under the other
+constexpr uint64_t kListenMs = 5000;     // how long an input is waited for
+constexpr uint64_t kSequenceGapMs = 450; // lets go of one control before the next is asked for
 constexpr uint64_t kDevicesEveryMs = 1000;
 constexpr int kMaxInputsPerFrame = 64;
-constexpr float kStickPressed = 0.5f;
-constexpr float kStickTravel = 46.0f;
-constexpr float kPictureWidth = 430.0f;
+constexpr float kStickPressed = 0.5f; // how far a stick leans to count as pointing somewhere
+constexpr float kStickTravel = 46.0f; // of the dot from the centre of its view, in percent of the view
+constexpr float kPictureWidth = 430.0f;  // the room the picture of the controller fits in, in dp,
 constexpr float kPictureHeight = 325.0f;
-constexpr float kPictureMargin = 8.0f;
+constexpr float kPictureMargin = 8.0f;   // and what its column keeps around it
 
 enum class SlotKind
 {
@@ -39,6 +40,7 @@ enum class SlotKind
     Motion,
 };
 
+// The controller types a control exists on.
 enum TypeBit : uint32_t
 {
     kPro = 1 << 0,
@@ -54,10 +56,10 @@ enum TypeBit : uint32_t
 
 struct Slot
 {
-    const char * group;
+    const char * group; // the rows are added to the element "rows-<group>"
     SlotKind kind;
-    uint32_t index;
-    const char * direction;
+    uint32_t index;         // of the button, the stick or the motion sensor
+    const char * direction; // of a stick
     const char * label;
     uint32_t types;
 };
@@ -67,6 +69,8 @@ constexpr uint32_t B(NativeButtonValues button)
     return static_cast<uint32_t>(button);
 }
 
+// In the order a controller is bound from start to end, which is also the
+// order of the lines: directions and face buttons as they are on a controller.
 constexpr Slot kSlots[] = {
     {"lstick", SlotKind::StickDirection, 0, "up", TrMark("Up"), kLeftSide | kGameCube},
     {"lstick", SlotKind::StickDirection, 0, "left", TrMark("Left"), kLeftSide | kGameCube},
@@ -141,6 +145,7 @@ const TypeChoice & ChoiceOf(NpadStyleIndex type)
     return kTypes[0];
 }
 
+// The keyboard a controller is bound to by default, as virtual key codes.
 constexpr int kKeyButtons[kButtonCount] = {
     'C', 'X', 'V', 'Z', 'F', 'G', 'Q', 'E', 'R', 'T', 'M', 'N', 0x25, 0x26, 0x27, 0x28, 'Q', 'E', 0, 0, 'Q', 'E',
 };
@@ -151,7 +156,7 @@ constexpr int kKeyMotions[kMotionCount] = {'7', '8'};
 
 struct StickOption
 {
-    const char * name;
+    const char * name; // in the ids of its elements
     const char * param;
     float fallback;
 };
@@ -201,9 +206,11 @@ std::string Escaped(const std::string & text)
 bool SameDevice(const IParamPackage & a, const IParamPackage & b)
 {
     return std::string(a.GetString("engine", "")) == b.GetString("engine", "") && std::string(a.GetString("guid", "")) == b.GetString("guid", "") &&
-           a.GetInt("port", 0) == b.GetInt("port", 0) && a.GetInt("pad", 0) == b.GetInt("pad", 0);
+           a.GetInt("port", 0) == b.GetInt("port", 0) && a.GetInt("pad", 0) == b.GetInt("pad", 0) &&
+           std::string(a.GetString("guid2", "")) == b.GetString("guid2", "");
 }
 
+// Alone on its line, in the middle: the top and the bottom of a cross.
 bool Alone(const Slot & slot)
 {
     if (slot.kind == SlotKind::StickDirection)
@@ -276,6 +283,7 @@ ControllerDialog::~ControllerDialog()
 
 void ControllerDialog::HandleKey(const SDL_KeyboardEvent & event)
 {
+    // Escape belongs to the dialog.
     if (IsVisible() && event.keysym.sym != SDLK_ESCAPE)
     {
         ForwardKeyboardEvent(event, Os());
@@ -318,6 +326,8 @@ void ControllerDialog::SetType(int player, NpadStyleIndex type)
         IEmulatedController & to = Pad(player);
         if (&to != &from)
         {
+            // The console and the first controller keep their own bindings;
+            // the player takes theirs along.
             for (uint32_t i = 0; i < kButtonCount; ++i)
             {
                 to.SetButtonParam(i, InputParams::Take(from.GetButtonParamPtr(i)));
@@ -331,6 +341,7 @@ void ControllerDialog::SetType(int player, NpadStyleIndex type)
                 to.SetMotionParam(i, InputParams::Take(from.GetMotionParamPtr(i)));
             }
         }
+        // The first controller remembers that the console is held instead.
         Os().GetEmulatedController(NpadIdType::Player1).SetNpadStyleIndex(type);
         if (m_handheld)
         {
@@ -363,8 +374,19 @@ void ControllerDialog::SetConnected(int player, bool connected)
 
 void ControllerDialog::Finish(bool save)
 {
+    if (save)
+    {
+        // A selection change and Save can arrive before the next frame.
+        std::vector<std::string> changes;
+        changes.swap(m_changes);
+        for (const std::string & id : changes)
+        {
+            ApplyChange(id);
+        }
+    }
     StopListening();
     IOperatingSystem & os = Os();
+    // Every controller, the console included, whoever the first player holds.
     std::vector<IEmulatedController *> pads = {&os.GetEmulatedController(NpadIdType::Handheld)};
     for (const NpadIdType id : kPlayerIds)
     {
@@ -381,6 +403,12 @@ void ControllerDialog::Finish(bool save)
             SettingsStore::GetInstance().SetBool(VibrationEnabledSetting(player), m_vibration[player]);
             SettingsStore::GetInstance().SetInt(VibrationStrengthSetting(player), m_strength[player]);
         }
+        std::vector<std::string> choices;
+        for (const InputParams & device : m_deviceChoice)
+        {
+            choices.push_back(device.Text());
+        }
+        UiPreferences::SetStringList(UiPreferences::ControllerInputDevices, choices);
         m_session.FlushSettings();
     }
     else if (m_changed)
@@ -413,14 +441,28 @@ void ControllerDialog::OnOpen()
     Document()->SetClass("stacked", WindowWidth() < kStackedBelow);
     BuildRows();
     ReadDevices();
+    const auto choices = UiPreferences::GetStringList(UiPreferences::ControllerInputDevices);
     for (int player = 0; player < kPlayers; ++player)
     {
-        m_device[player] = MappedDevice(player);
+        m_deviceChoice[player] = player < static_cast<int>(choices.size()) ? InputParams(choices[player]) : InputParams();
+        // Older configurations contain only bindings. Infer their device once;
+        // an explicit "any" choice must not be inferred as Keyboard later.
+        if (m_deviceChoice[player].Unset())
+        {
+            const int mapped = MappedDevice(player);
+            if (mapped >= 0 && mapped < static_cast<int>(m_devices.size()))
+            {
+                m_deviceChoice[player] = m_devices[mapped];
+            }
+        }
+        m_device[player] = SelectedDevice(player);
     }
     FillDevices();
 
     m_changes.clear();
     UiEvents::Listen(Document(), "change", [this](Rml::Event & event) { m_changes.push_back(event.GetTargetElement()->GetId()); });
+    // The keys are the controllers': they do not move the sliders or open the
+    // lists that happen to have the focus.
     UiEvents::ListenFirst(Document(), "keydown", [](Rml::Event & event) {
         if (event.GetParameter<int>("key_identifier", Rml::Input::KI_UNKNOWN) != Rml::Input::KI_ESCAPE)
         {
@@ -441,6 +483,7 @@ void ControllerDialog::OnUpdate()
     }
     if (SDL_GetTicks64() - m_devicesRead >= kDevicesEveryMs && !Listening())
     {
+        // A controller plugged in or out while the dialog is open.
         const std::vector<InputParams> before = std::move(m_devices);
         ReadDevices();
         const bool same = before.size() == m_devices.size() &&
@@ -449,7 +492,7 @@ void ControllerDialog::OnUpdate()
         {
             for (int player = 0; player < kPlayers; ++player)
             {
-                m_device[player] = MappedDevice(player);
+                m_device[player] = SelectedDevice(player);
             }
             FillDevices();
         }
@@ -471,6 +514,7 @@ void ControllerDialog::OnCommand(const std::string & command)
         Finish(name == "save");
         return;
     }
+    // A click anywhere gives up the input waited for.
     const int listened = m_listenSlot;
     StopListening();
     if (name == "player" && number >= 0 && number < kPlayers)
@@ -522,6 +566,7 @@ void ControllerDialog::OnCommand(const std::string & command)
 
 void ControllerDialog::OnCloseRequested()
 {
+    // Escape first gives up the input waited for.
     if (Listening())
     {
         StopListening();
@@ -571,6 +616,7 @@ void ControllerDialog::ReadDevices()
     for (uint32_t i = 0, count = devices->GetCount(); i < count; ++i)
     {
         InputParams device = InputParams::Copy(devices->GetParamPackage(i));
+        // The interface gives the mouse to no controller.
         if (device.Get("engine") != "mouse")
         {
             m_devices.push_back(std::move(device));
@@ -609,6 +655,7 @@ void ControllerDialog::FillTypes()
     int index = 0;
     for (const TypeChoice & choice : kTypes)
     {
+        // Only the first player can hold the console itself.
         const bool offered = (supported & static_cast<uint32_t>(choice.style)) != 0 && (choice.type != NpadStyleIndex::Handheld || m_player == 0);
         if (offered || choice.type == current)
         {
@@ -620,6 +667,19 @@ void ControllerDialog::FillTypes()
             ++index;
         }
     }
+}
+
+int ControllerDialog::SelectedDevice(int player) const
+{
+    for (size_t i = 0; i < m_devices.size(); ++i)
+    {
+        if (SameDevice(m_devices[i], m_deviceChoice[player]))
+        {
+            return static_cast<int>(i);
+        }
+    }
+    // Keep the saved identity so reconnecting the device restores the choice.
+    return 0;
 }
 
 int ControllerDialog::MappedDevice(int player) const
@@ -644,6 +704,7 @@ int ControllerDialog::MappedDevice(int player) const
     }
     else if (count == 2)
     {
+        // The two halves of a controller made of a pair.
         const IParamPackage & first = mapped->GetParamPackage(0);
         const IParamPackage & second = mapped->GetParamPackage(1);
         const std::string guid1 = first.GetString("guid", ""), guid2 = second.GetString("guid", "");
@@ -696,6 +757,7 @@ void ControllerDialog::ApplyDevice(int player, int device)
     }
     else
     {
+        // What the device's driver knows its buttons to be.
         IOperatingSystem & os = Os();
         if (IButtonMappingList * list = os.GetButtonMappingForDevice(source))
         {
@@ -795,9 +857,11 @@ void ControllerDialog::ShowBindings()
             continue;
         }
         const Slot & info = kSlots[slot];
+        // A letter is the same in every language; a word is not.
         std::string label = Tr(info.label);
         if (gameCube && info.kind == SlotKind::Button)
         {
+            // The GameCube controller's names for the buttons it shares.
             label = info.index == B(NativeButtonValues::Plus) ? Tr("Start") : info.index == B(NativeButtonValues::ZL) ? "L" :
                     info.index == B(NativeButtonValues::ZR) ? "R" : info.index == B(NativeButtonValues::R) ? "Z" : label;
         }
@@ -849,6 +913,7 @@ void ControllerDialog::ShowSticks()
         }
         if (Rml::Element * zone = Document()->GetElementById(prefix + "zone"))
         {
+            // The part of the stick's travel that counts as rest.
             const float size = analog ? params.GetFloat("deadzone", 0.15f) * m_stickView[stick] * kStickTravel / 50.0f : 0.0f;
             SetDp(zone, Rml::PropertyId::Width, size);
             SetDp(zone, Rml::PropertyId::Height, size);
@@ -868,6 +933,7 @@ void ControllerDialog::ShowPicture()
 {
     Rml::Element * host = Document()->GetElementById("picture");
     const NpadStyleIndex type = Type(m_player);
+    // As wide as its column lets it be, once that is laid out.
     Rml::Element * column = Document()->GetElementById("centre");
     const float columnWidth = column != nullptr ? column->GetClientWidth() / Document()->GetContext()->GetDensityIndependentPixelRatio() : 0.0f;
     if (columnWidth <= kPictureMargin)
@@ -890,6 +956,7 @@ void ControllerDialog::ShowPicture()
     const float width = picture.width * scale;
     const float height = picture.height * scale;
     std::string rml = std::string("<img src=\"") + picture.image + "\" style=\"width: " + Dp(width) + "; height: " + Dp(height) + ";\" />";
+    // The caps go under the marks, which light up over them.
     m_capTravel.fill(0.0f);
     for (size_t index = 0; index < picture.partCount; ++index)
     {
@@ -925,6 +992,7 @@ void ControllerDialog::ShowPicture()
         {
             continue;
         }
+        // Round when the part is: a button; otherwise a trigger or an arm of the cross.
         const bool round = std::abs(w - h) < 0.25f * std::max(w, h);
         rml += "<div id=\"mark-" + std::to_string(m_marks.size()) + "\" class=\"mark\" data-command=\"bind:" + std::to_string(slot) + "\" title=\"" + Tr(kSlots[slot].label) +
                "\" style=\"" + box + " border-radius: " + Dp(round ? std::min(w, h) / 2.0f : 4.0f) + ";\" />";
@@ -987,6 +1055,7 @@ void ControllerDialog::ShowState()
         }
         if (Rml::Element * cap = Document()->GetElementById("stick-" + std::to_string(stick) + "-cap"))
         {
+            // The stick of the picture leans the way the real one does.
             const float x = std::clamp(sticks.status[stick].x.value, -1.0f, 1.0f) * m_capTravel[stick];
             const float y = -std::clamp(sticks.status[stick].y.value, -1.0f, 1.0f) * m_capTravel[stick];
             cap->SetProperty("transform", "translate(" + Dp(x) + ", " + Dp(y) + ")");
@@ -1019,6 +1088,7 @@ void ControllerDialog::ShowHint()
     const std::string how = info.kind == SlotKind::StickDirection ? Tr("Press a key, or move the stick sideways and then up and down.")
                             : info.kind == SlotKind::Motion       ? Tr("Shake a controller that has a gyroscope, or press a key that will stand for a shake.")
                                                                   : Tr("Press a key or a button.");
+    // Translators: %1 is what to do, %2 the seconds left to do it.
     SetText("hint", Tr("%1 Esc cancels. (%2)", {how, std::to_string(seconds)}));
 }
 
@@ -1049,6 +1119,9 @@ void ControllerDialog::ApplyChange(const std::string & id)
         {
             StopListening();
             m_device[m_player] = device;
+            m_deviceChoice[m_player] = m_devices[device];
+            // Choosing a device binds the controller to it as its driver
+            // suggests; "any" leaves the bindings as they are.
             if (device != 0)
             {
                 ApplyDevice(m_player, device);
@@ -1132,6 +1205,7 @@ void ControllerDialog::Bind(int slot, const InputParams & input)
         const char * key = info.kind == SlotKind::StickModifier ? "modifier" : info.direction;
         if (input.Has("axis_x") && input.Has("axis_y") && info.kind == SlotKind::StickDirection)
         {
+            // A whole stick was moved: it gives the four directions.
             stick = input;
         }
         else if (input.Unset())
@@ -1147,6 +1221,7 @@ void ControllerDialog::Bind(int slot, const InputParams & input)
         }
         else
         {
+            // A direction of its own replaces a stick bound as a whole.
             if (!fromButtons)
             {
                 stick = InputParams();
@@ -1167,6 +1242,7 @@ bool ControllerDialog::SlotShown(int slot) const
     {
         return false;
     }
+    // Only a stick made of keys has a key that shortens its travel.
     return info.kind != SlotKind::StickModifier || SlotParams(slot).Get("engine") == "analog_from_button";
 }
 
@@ -1237,6 +1313,7 @@ void ControllerDialog::PollListening()
         m_listenBegun = false;
         Bind(slot, input);
 
+        // Binding a controller from start to end: the next control it has.
         const bool wholeStick = info.kind == SlotKind::StickDirection && input.Has("axis_x");
         for (int next = slot + 1; sequence && next < kSlotCount; ++next)
         {

@@ -72,6 +72,7 @@ bool ConsoleLanguageOf(const std::string & code, const std::string & country, La
 
 bool SystemConsoleLanguage(Language & language)
 {
+    // The languages of the user, the preferred one first.
     SDL_Locale * locales = SDL_GetPreferredLocales();
     if (locales == nullptr)
     {

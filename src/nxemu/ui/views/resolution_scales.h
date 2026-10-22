@@ -1,5 +1,6 @@
 #pragma once
 
+// The scales the video module renders at, in the order of ResolutionSetup.
 constexpr struct
 {
     const char * label;
@@ -9,5 +10,5 @@ constexpr struct
     {"4x", 4.0f},   {"5x", 5.0f},     {"6x", 6.0f}, {"7x", 7.0f},   {"8x", 8.0f},
 };
 constexpr int kResolutionScaleCount = static_cast<int>(sizeof(kResolutionScales) / sizeof(kResolutionScales[0]));
-constexpr int kDockedHeight = 1080;
-constexpr int kHandheldHeight = 720;
+constexpr int kDockedHeight = 1080;   // what games render at on a docked console
+constexpr int kHandheldHeight = 720;  // and on its own screen

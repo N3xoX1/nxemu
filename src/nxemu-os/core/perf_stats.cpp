@@ -121,6 +121,7 @@ PerfStatsResults PerfStats::GetAndResetStats(microseconds current_system_time_us
     const auto system_us_per_second = (current_system_time_us - reset_point_system_us) / interval;
     const auto current_frames = static_cast<double>(game_frames.load(std::memory_order_relaxed));
     const auto current_fps = current_frames / interval;
+    // A game frame that has not ended yet counts for the time it has taken so far
     const Clock::rep last_frame = last_game_frame.load(std::memory_order_relaxed);
     const Clock::duration longest_frame{
         std::max(longest_game_frame.exchange(0, std::memory_order_relaxed),

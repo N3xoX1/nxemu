@@ -103,8 +103,6 @@
               <div class="col-version">Version</div>
               <div class="col-last sortable" data-sort="2">Last played</div>
               <div class="col-time sortable" data-sort="3">Play time</div>
-              <div class="col-last sortable" data-sort="2">Last played</div>
-              <div class="col-time sortable" data-sort="3">Play time</div>
               <div class="col-format">Format</div>
               <div class="col-size sortable" data-sort="4">Size</div>
               <div class="col-actions">Actions</div>
@@ -128,6 +126,10 @@
                 <div id="details-play" class="select primary">
                   <img class="select-icon" src="images/play.png" />
                   <div>Play</div>
+                </div>
+                <div id="details-configure" class="select locked" title="Reading game information">
+                  <img class="select-icon" src="images/gear.png" />
+                  <div>Configure</div>
                 </div>
               </div>
               <div class="details-buttons">

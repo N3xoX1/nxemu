@@ -15,9 +15,12 @@
 
 namespace
 {
+// The system title holding the pictures: one file per picture in "chara",
+// 256 pixels a side, compressed.
 constexpr uint64_t kAvatarTitle = 0x010000000000080AULL;
 constexpr int kSide = 256;
 constexpr size_t kPixels = static_cast<size_t>(kSide) * kSide;
+// Written last: the pictures kept are all of them.
 constexpr const char * kComplete = "complete";
 
 std::filesystem::path Directory()
@@ -30,6 +33,7 @@ std::filesystem::path File(size_t index)
     return Directory() / (std::to_string(index) + ".png");
 }
 
+// Expands data in the console's "Yaz0" compression. Empty when it is not.
 std::vector<uint8_t> Expanded(const std::vector<uint8_t> & input)
 {
     if (input.size() < 16 || std::memcmp(input.data(), "Yaz0", 4) != 0)
@@ -65,6 +69,7 @@ std::vector<uint8_t> Expanded(const std::vector<uint8_t> & input)
             output[out++] = input[in++];
             continue;
         }
+        // A run copied from what is already expanded.
         if (in + 1 >= input.size())
         {
             return {};
@@ -97,6 +102,7 @@ std::vector<uint8_t> Expanded(const std::vector<uint8_t> & input)
     return output;
 }
 
+// The pictures of the directory and of those inside it, by their path.
 void Collect(IVirtualDirectory & directory, const std::string & prefix, std::vector<std::pair<std::string, std::vector<uint8_t>>> & pictures)
 {
     if (IVirtualFileListPtr files(directory.GetFiles()); files)
@@ -221,6 +227,7 @@ void FirmwareAvatars::Read(ISystemloader & loader)
     size_t count = 0;
     for (const auto & [path, compressed] : pictures)
     {
+        // Colours multiplied by their opacity; a PNG file holds them plain.
         std::vector<uint8_t> pixels = Expanded(compressed);
         if (pixels.size() != kPixels * 4)
         {

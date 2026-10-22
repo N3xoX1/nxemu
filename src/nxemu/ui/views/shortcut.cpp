@@ -31,6 +31,7 @@ std::string Joined(const Shortcut & shortcut, const char * ctrl, const std::stri
     return shortcut.key == SDLK_UNKNOWN ? std::string() : std::string(shortcut.ctrl ? ctrl : "") + (shortcut.alt ? kAlt : "") + (shortcut.shift ? kShift : "") + key;
 }
 
+// Takes a modifier from the start of the text.
 bool Take(std::string & text, const char * modifier)
 {
     if (text.rfind(modifier, 0) != 0)

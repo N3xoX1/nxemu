@@ -32,6 +32,7 @@ std::string Utf8(CFStringRef value)
     return result;
 }
 
+// Core Text chooses the face; FreeType finds that same face in its TTC file.
 int FaceIndex(FT_Library library, const std::filesystem::path & path, const std::string & name)
 {
     FT_Face face = nullptr;
@@ -74,6 +75,9 @@ std::vector<SystemFont> SystemFallbackFonts()
 #if defined(__APPLE__)
     FT_Library library = nullptr;
     if (FT_Init_FreeType(&library) != 0) return fonts;
+    // Some macOS UI faces use an Apple-only file format which FreeType cannot
+    // read. Ask Core Text for installed public faces instead, without assuming
+    // their location. Reject silent font substitution when a name is absent.
     for (CFStringRef name : {CFSTR("ArialMT"), CFSTR("HiraginoSansGB-W3"), CFSTR("HiraginoSans-W3"), CFSTR("AppleGothic")})
     {
         CTFontRef font = CTFontCreateWithName(name, 14, nullptr);

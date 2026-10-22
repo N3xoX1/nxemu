@@ -45,7 +45,7 @@ struct OSSettings
 
     // System
     Language language_index;
-    s32 region_setting;
+    s32 region_setting; // a Region, or kRegionOfLanguage
     TimeZone time_zone_index;
     MemoryLayout memory_layout_mode;
     bool custom_rtc_enabled;
@@ -104,7 +104,10 @@ struct OSSettings
 
 extern OSSettings osSettings;
 
+// The region games are told the console is from: the one chosen, or the one
+// of the console's language.
+Region ConsoleRegion();
+
 void SetupOsSetting(void);
 void CleanupOsSetting(void);
 void SaveOsSettings(void);
-Region ConsoleRegion();

@@ -1,9 +1,8 @@
 #pragma once
 #include "shortcut.h"
-#include <cstdint>
 #include <nxemu/ui/i18n/translation.h>
-#include <string>
 
+// What a key can start, in the order the settings list it.
 enum class HotkeyId
 {
     LoadFile,
@@ -20,6 +19,8 @@ enum class HotkeyId
     SpeedLimit,
 };
 
+// The key of each, which the user may change: the settings keep the ones
+// that are not the usual ones.
 namespace Hotkeys
 {
 struct Info;
@@ -30,17 +31,18 @@ struct GamepadShortcut
     bool operator==(const GamepadShortcut &) const = default;
     std::string Label() const;
 };
+// Updates held buttons from the event stream. Releases return the chord before
+// release, so a combination can be recorded when the first button is let go.
 GamepadShortcut TrackGamepad(const SDL_Event & event);
 GamepadShortcut GetGamepad(HotkeyId id);
 const Info * GamepadHolder(const GamepadShortcut & shortcut, HotkeyId except);
 void SetGamepad(HotkeyId id, const GamepadShortcut & shortcut);
-
 struct Info
 {
     HotkeyId id;
-    const char * name;
+    const char * name; // in the settings file
     const char * label;
-    bool inGame;
+    bool inGame; // acts on the game that runs
 };
 inline constexpr Info kAll[] = {
     {HotkeyId::LoadFile, "LoadFile", TrMark("Load a file"), false},
@@ -59,9 +61,13 @@ inline constexpr Info kAll[] = {
 
 Shortcut Default(HotkeyId id);
 Shortcut Get(HotkeyId id);
+// A key can be a shortcut when it is not one that is typed: a function key,
+// Escape, or any key with Control, Command or Alt.
 bool Usable(const Shortcut & shortcut);
+// The other action that has the shortcut, or nullptr.
 const Info * Holder(const Shortcut & shortcut, HotkeyId except);
 void Set(HotkeyId id, const Shortcut & shortcut);
 void RestoreDefaults();
+// Changes each time a shortcut does, for those that show them.
 unsigned Revision();
 } // namespace Hotkeys

@@ -18,15 +18,10 @@ bool SystemPrefersDarkTheme()
 #elif !defined(__APPLE__)
 bool SystemPrefersDarkTheme()
 {
-    if (!dbus_threads_init_default())
-    {
-        return true;
-    }
+    // The desktop portal supports GNOME, KDE and other Linux desktops.
+    if (!dbus_threads_init_default()) return true;
     DBusConnection * connection = dbus_bus_get_private(DBUS_BUS_SESSION, nullptr);
-    if (connection == nullptr)
-    {
-        return true;
-    }
+    if (connection == nullptr) return true;
     dbus_connection_set_exit_on_disconnect(connection, false);
     DBusMessage * request = dbus_message_new_method_call("org.freedesktop.portal.Desktop",
         "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Settings", "Read");
@@ -43,21 +38,16 @@ bool SystemPrefersDarkTheme()
     DBusMessageIter value;
     if (reply != nullptr && dbus_message_iter_init(reply, &value))
     {
+        // Read has historically returned either one or two variant wrappers.
         while (dbus_message_iter_get_arg_type(&value) == DBUS_TYPE_VARIANT)
         {
             DBusMessageIter inner;
             dbus_message_iter_recurse(&value, &inner);
             value = inner;
         }
-        if (dbus_message_iter_get_arg_type(&value) == DBUS_TYPE_UINT32)
-        {
-            dbus_message_iter_get_basic(&value, &scheme);
-        }
+        if (dbus_message_iter_get_arg_type(&value) == DBUS_TYPE_UINT32) dbus_message_iter_get_basic(&value, &scheme);
     }
-    if (reply != nullptr)
-    {
-        dbus_message_unref(reply);
-    }
+    if (reply != nullptr) dbus_message_unref(reply);
     dbus_connection_close(connection);
     dbus_connection_unref(connection);
     return scheme != 2;

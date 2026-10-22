@@ -27,6 +27,7 @@ public:
     void BeginSystemFrame();
     void EndSystemFrame();
     void EndGameFrame();
+    /// Sets whether the longest game frame is measured; nothing is done for it otherwise
     void MeasureGameFrames(bool measure);
 
     PerfStatsResults GetAndResetStats(std::chrono::microseconds current_system_time_us);
@@ -64,8 +65,11 @@ private:
     u32 system_frames = 0;
     /// Cumulative number of game frames (GSP frame submissions) since last reset
     std::atomic<u32> game_frames = 0;
+    /// Whether the longest game frame is measured
     std::atomic<bool> measure_game_frames = false;
+    /// Point when the last game frame ended, as a count of the clock; 0 before the first one
     std::atomic<Clock::rep> last_game_frame = 0;
+    /// Longest duration between two game frames since last reset, as a count of the clock
     std::atomic<Clock::rep> longest_game_frame = 0;
 
     /// Point when the previous system frame ended

@@ -7,6 +7,7 @@
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu/ui/i18n/translation.h>
+#include <nxemu/ui/library/ui_preferences.h>
 #include <string>
 
 namespace
@@ -40,11 +41,14 @@ VolumeControl::VolumeControl(Rml::Element * root, std::function<void()> changed)
                         "<input class=\"range volume-slider\" type=\"range\" min=\"0\" max=\"200\" step=\"1\" value=\"100\" /></div>");
 
     UiEvents::Listen(Part(m_root, "volume-toggle"), "click", [this](Rml::Event &) {
-        SettingsStore & store = SettingsStore::GetInstance();
-        store.SetBool(NXOsSetting::AudioMuted, !store.GetBool(NXOsSetting::AudioMuted));
+        UiPreferences::SetStatusBool(NXOsSetting::AudioMuted, !SettingsStore::GetInstance().GetBool(NXOsSetting::AudioMuted));
         Show();
         m_changed();
     });
+    // 100% attracts the slider while it is held, once it has been away from
+    // it: grabbed at 100%, it leaves freely for 98%, and is caught again only
+    // after going further than that. The press is seen before the slider acts
+    // on it, so the volume read here is the one before a click on the track.
     Rml::Element * slider = Part(m_root, "volume-slider");
     UiEvents::ListenFirst(slider, "mousedown", [this](Rml::Event &) {
         m_held = true;
@@ -53,6 +57,7 @@ VolumeControl::VolumeControl(Rml::Element * root, std::function<void()> changed)
     UiEvents::Listen(m_root->GetOwnerDocument(), "mouseup", [this](Rml::Event &) { m_held = false; });
     UiEvents::Listen(slider, "dragend", [this](Rml::Event &) { m_held = false; });
     UiEvents::Listen(slider, "change", [this](Rml::Event & event) {
+        // The volume is this control's: the document it is in has no change of its own to see.
         event.StopPropagation();
         SetFromSlider(static_cast<int>(std::lround(event.GetParameter<float>("value", static_cast<float>(kNormalVolume)))));
     });
@@ -61,6 +66,7 @@ VolumeControl::VolumeControl(Rml::Element * root, std::function<void()> changed)
 
 void VolumeControl::SetFromSlider(int volume)
 {
+    // Keys and the wheel move the slider without holding it: no attraction.
     if (m_held)
     {
         if (!InSnapRange(volume))
@@ -72,10 +78,10 @@ void VolumeControl::SetFromSlider(int volume)
             volume = kNormalVolume;
         }
     }
-    SettingsStore & store = SettingsStore::GetInstance();
-    if (store.GetInt(NXOsSetting::AudioVolume) != volume)
+    auto & store = SettingsStore::GetInstance();
+    if (store.GetInt(NXOsSetting::AudioVolume) != volume || !store.HasControlOverride(NXOsSetting::AudioVolume))
     {
-        store.SetInt(NXOsSetting::AudioVolume, volume);
+        UiPreferences::SetStatusInt(NXOsSetting::AudioVolume, volume);
         Show();
         m_changed();
     }
@@ -87,7 +93,7 @@ void VolumeControl::Show()
     {
         return;
     }
-    SettingsStore & store = SettingsStore::GetInstance();
+    auto & store = SettingsStore::GetInstance();
     const int volume = store.GetInt(NXOsSetting::AudioVolume);
     const bool muted = store.GetBool(NXOsSetting::AudioMuted);
     const Rml::String text = std::to_string(volume) + "%";

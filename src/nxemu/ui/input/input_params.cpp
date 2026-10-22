@@ -3,6 +3,8 @@
 
 namespace
 {
+// The module's format: "key:value,key:value", in which "$0", "$1" and "$2"
+// stand for the two separators and for the dollar itself.
 constexpr char kPairSeparator = ',';
 constexpr char kValueSeparator = ':';
 constexpr char kEscape = '$';

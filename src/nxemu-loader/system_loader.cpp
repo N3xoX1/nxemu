@@ -1,4 +1,5 @@
 #include "system_loader.h"
+#include <nxemu-module-spec/game_content_cache_store.h>
 #include "core/file_sys/vfs/backing_read_traffic.h"
 #include <nxemu-module-spec/application_control_data.h>
 #include "core/core.h"
@@ -21,7 +22,6 @@
 #include "core/hle/service/set/settings_types.h"
 #include "core/loader/loader.h"
 #include "firmware_install.h"
-#include "game_list_cache.h"
 #include "loader_settings.h"
 #include "loader_settings_identifiers.h"
 #include "rom_info.h"
@@ -31,6 +31,14 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <yuzu_common/fs/path_util.h>
+#include <charconv>
+#include <unordered_map>
+#include <unordered_set>
+#include <mutex>
+#include <memory>
+#include <system_error>
+#include <fmt/core.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
@@ -58,12 +66,38 @@ StorageId GetStorageIdForFrontendSlot(std::optional<FileSys::ContentProviderUnio
     return StorageId::None;
 }
 
+std::string ToLowerAscii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+    return value;
+}
+
 const char * const kSupportedGameExtensions[] = {
     "dxci",
     "dnsp",
     "nro",
 };
 constexpr uint32_t kSupportedGameExtensionCount = (uint32_t)(sizeof(kSupportedGameExtensions) / sizeof(kSupportedGameExtensions[0]));
+
+// The independent content cache is a hint only. Each entry is used only
+// after its signature has been matched against the actual file in the scan.
+using LibraryDiskEntry = GameContentCacheStore::Entry;
+
+std::filesystem::path ContentCacheIndexPath()
+{
+    // Modules have their own path manager. Use the frontend's configured data
+    // directory so both sides share the same persistent content index.
+    return GameContentCacheStore::IndexPath(std::filesystem::path{
+        Common::FS::ToU8String(g_settings->GetString(NXCoreSetting::AppDirectory))});
+}
+
+std::unordered_map<std::string, LibraryDiskEntry> LoadContentCache()
+{
+    GameContentCacheStore::Entries contents;
+    GameContentCacheStore::Read(ContentCacheIndexPath(), contents);
+    return contents;
+}
+
 
 bool HasSupportedFileExtension(const char * fileName)
 {
@@ -116,7 +150,6 @@ struct Systemloader::Impl
         m_fsController(loader),
         m_manualContentProvider(std::make_unique<ManualContentProviderImpl>()),
         m_hostFilesystem(m_virtualFilesystem),
-        m_gameListCache(loader),
         m_processID(0),
         m_titleID(0)
     {
@@ -136,9 +169,22 @@ struct Systemloader::Impl
     ::FileSystemController m_fsController;
     std::unique_ptr<ManualContentProviderImpl> m_manualContentProvider;
     HostFilesystemImpl m_hostFilesystem;
-    GameListCache m_gameListCache;
     uint64_t m_processID;
     uint64_t m_titleID;
+
+    using IndexedFile = GameContentCacheStore::Entry;
+    struct ContentIndex
+    {
+        std::unordered_map<std::string, IndexedFile> files;
+        std::unordered_map<uint64_t, std::vector<std::string>> filesByApplication;
+        std::unordered_map<uint64_t, std::vector<std::string>> modificationRoots;
+    };
+    // Build serialization never blocks readers: they only acquire the small
+    // publication mutex long enough to take an immutable snapshot pointer.
+    std::mutex m_contentIndexBuildMutex;
+    std::mutex m_contentIndexMutex;
+    std::shared_ptr<const ContentIndex> m_contentIndex;
+    bool m_diskCacheRead = false; // guarded by m_contentIndexBuildMutex
 };
 
 Systemloader::Systemloader(ISystemModules & modules) :
@@ -183,7 +229,7 @@ uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint
     return kSupportedGameExtensionCount;
 }
 
-bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
+bool Systemloader::LoadRom(const char * fileName, uint64_t selected_program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
     if (fileName == nullptr || fileName[0] == '\0')
@@ -191,13 +237,14 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
         return false;
     }
     
+    RefreshGameContentIndex();
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::LoadingRom);
     impl->m_file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
-    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, program_id, program_index);
+    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, selected_program_id, program_index);
     if (!impl->m_appLoader)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
 
@@ -207,11 +254,11 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     if (file_type == LoaderFileType::Unknown || file_type == LoaderFileType::Error)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
-    uint64_t loaded_program_id = 0;
-    const LoaderResultStatus res = app_loader->ReadProgramId(loaded_program_id);
+    uint64_t program_id = 0;
+    const LoaderResultStatus res = app_loader->ReadProgramId(program_id);
     if (res == LoaderResultStatus::Success)
     {
         ManualContentProvider().ClearAllEntries();
@@ -324,29 +371,6 @@ IRomInfo * Systemloader::LoadedRomInfo()
 {
     std::unique_ptr<::RomInfo> info = std::make_unique<::RomInfo>(*this, impl->m_file, impl->m_appLoader);
     return info.release();
-}
-
-bool Systemloader::ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback)
-{
-    std::vector<GameDirectory> dirs;
-    for (uint32_t i = 0; i < gameDirCount; i++)
-    {
-        if (gameDirs[i] != nullptr && gameDirs[i][0] != '\0')
-        {
-            dirs.push_back({gameDirs[i], scanSubfolders != nullptr && scanSubfolders[i]});
-        }
-    }
-    return impl->m_gameListCache.Scan(dirs, callback);
-}
-
-std::vector<GameDirectory> Systemloader::GameDirectories()
-{
-    return impl->m_gameListCache.Directories();
-}
-
-std::vector<std::string> Systemloader::GameDirectoryAddOnFiles(uint64_t baseProgramId)
-{
-    return impl->m_gameListCache.GameDirectoryAddOnFiles(baseProgramId);
 }
 
 FileSys::VirtualFilesystem Systemloader::GetFilesystem()
@@ -502,6 +526,299 @@ LoaderResultStatus Systemloader::GetPMControlData(uint64_t program_id, uint8_t *
         }, buffer, buffer_size, actual_size);
 }
 
+void Systemloader::RefreshGameContentIndex()
+{
+    // Only concurrent rebuilds wait for filesystem I/O. Readers keep using
+    // the last complete snapshot while the next one is being assembled.
+    std::lock_guard buildLock(impl->m_contentIndexBuildMutex);
+    const std::vector<std::string> configured = ConfiguredGameDirectories();
+    std::shared_ptr<const Impl::ContentIndex> previous;
+    {
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        previous = impl->m_contentIndex;
+    }
+    std::unordered_map<std::string, LibraryDiskEntry> persisted;
+    if (!impl->m_diskCacheRead)
+        persisted = LoadContentCache();
+
+    auto next = std::make_shared<Impl::ContentIndex>();
+    std::unordered_set<std::string> seen;
+    const auto index_mod = [&next](const std::filesystem::path & path) {
+        const std::string name = Common::FS::PathToUTF8String(path.filename());
+        if (name.size() != 16) return;
+        uint64_t id = 0;
+        const auto parsed = std::from_chars(name.data(), name.data() + name.size(), id, 16);
+        if (parsed.ec == std::errc{} && parsed.ptr == name.data() + name.size())
+            next->modificationRoots[id].push_back(Common::FS::PathToUTF8String(path));
+    };
+    std::unordered_set<std::string> seenRoots;
+    for (const std::string & root : configured)
+    {
+        if (!seenRoots.insert(root).second) continue;
+        std::error_code error;
+        const std::filesystem::path dir{Common::FS::ToU8String(root)};
+        if (!std::filesystem::is_directory(dir, error) || error)
+        {
+            LOG_WARNING(Core, "Game content index not refreshed: directory {} is unavailable ({})", root,
+                        error ? error.message() : "not a directory");
+            return;
+        }
+        index_mod(dir);
+        std::filesystem::recursive_directory_iterator it(dir, error), end;
+        if (error)
+        {
+            LOG_WARNING(Core, "Game content index not refreshed: cannot open {} ({})", root, error.message());
+            return;
+        }
+        while (it != end)
+        {
+            std::error_code file_error;
+            const auto & entry = *it;
+            if (entry.is_directory(file_error) && !file_error)
+                index_mod(entry.path());
+            if (file_error)
+            {
+                LOG_WARNING(Core, "Game content index not refreshed: cannot inspect {} ({})",
+                            Common::FS::PathToUTF8String(entry.path()), file_error.message());
+                return;
+            }
+            if (entry.is_regular_file(file_error) && !file_error)
+            {
+                const auto extension = ToLowerAscii(Common::FS::PathToUTF8String(entry.path().extension()));
+                if (extension == ".dnsp" || extension == ".dxci" || extension == ".nca")
+                {
+                    const std::string path = Common::FS::PathToUTF8String(entry.path());
+                    if (seen.insert(path).second)
+                    {
+                        const uintmax_t size = entry.file_size(file_error);
+                        const auto modified = !file_error ? entry.last_write_time(file_error) : std::filesystem::file_time_type{};
+                        if (file_error)
+                        {
+                            LOG_WARNING(Core, "Game content index not refreshed: cannot stat {} ({})", path, file_error.message());
+                            return;
+                        }
+                        Impl::IndexedFile file;
+                        file.signature = std::to_string(size) + ":" +
+                            std::to_string(static_cast<long long>(modified.time_since_epoch().count()));
+                        const auto prev = previous ? previous->files.find(path) : next->files.end();
+                        if (previous && prev != previous->files.end() && prev->second.signature == file.signature &&
+                            !prev->second.applications.empty())
+                            file.applications = prev->second.applications;
+                        else if (const auto saved = persisted.find(path);
+                                 saved != persisted.end() && saved->second.signature == file.signature && !saved->second.applications.empty())
+                            file.applications = saved->second.applications;
+                        else
+                        {
+                            uint64_t ids[16]{};
+                            const uint32_t count = GetContainerApplications(path.c_str(), ids, 16);
+                            if (count <= 16) file.applications.assign(ids, ids + count);
+                            else
+                            {
+                                file.applications.resize(count);
+                                const uint32_t read = GetContainerApplications(path.c_str(), file.applications.data(), count);
+                                file.applications.resize(std::min(read, count));
+                            }
+                        }
+                        for (uint64_t app : file.applications)
+                            next->filesByApplication[app].push_back(path);
+                        next->files.emplace(path, std::move(file));
+                    }
+                }
+            }
+            if (file_error)
+            {
+                LOG_WARNING(Core, "Game content index not refreshed: cannot inspect {} ({})",
+                            Common::FS::PathToUTF8String(entry.path()), file_error.message());
+                return;
+            }
+            it.increment(error);
+            if (error)
+            {
+                LOG_WARNING(Core, "Game content index not refreshed: cannot traverse {} ({})", root, error.message());
+                return;
+            }
+        }
+    }
+    for (auto & [id, files] : next->filesByApplication)
+        std::sort(files.begin(), files.end());
+    for (auto & [id, roots] : next->modificationRoots)
+    {
+        std::sort(roots.begin(), roots.end());
+        roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+    }
+    // Standalone launches also keep the shared metadata warm across restarts.
+    if (configured != ConfiguredGameDirectories()) return;
+    // Unknown containers are retried rather than persisted as negative results.
+    GameContentCacheStore::Entries durable;
+    for (const auto & [path, entry] : next->files)
+        if (!entry.applications.empty()) durable.emplace(path, entry);
+    const bool changed = impl->m_diskCacheRead ? !previous || previous->files != next->files : persisted != durable;
+    const bool saved = !changed || GameContentCacheStore::Write(ContentCacheIndexPath(), durable);
+    if (!saved)
+        LOG_WARNING(Core, "Could not save game content metadata");
+    {
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        impl->m_contentIndex = std::move(next);
+    }
+    impl->m_diskCacheRead = saved;
+}
+
+bool Systemloader::PublishGameContentSnapshot(const GameContentSnapshot & snapshot)
+{
+    std::lock_guard buildLock(impl->m_contentIndexBuildMutex);
+    // A scan of a former configuration is not an authoritative new index.
+    const auto configured = ConfiguredGameDirectories();
+    const auto normalized = [](std::vector<std::string> roots) {
+        std::sort(roots.begin(), roots.end());
+        roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+        return roots;
+    };
+    if (normalized(configured) != normalized(snapshot.directories))
+        return false;
+
+    auto next = std::make_shared<Impl::ContentIndex>();
+    for (const auto & entry : snapshot.files)
+    {
+        // Duplicate paths are expected when the same root was configured
+        // twice; each file must contribute exactly once.
+        if (!next->files.emplace(entry.path, Impl::IndexedFile{entry.signature, entry.applications}).second)
+            continue;
+        for (uint64_t application : entry.applications)
+            next->filesByApplication[application].push_back(entry.path);
+    }
+    for (const std::string & path : snapshot.modificationRoots)
+    {
+        const std::string name = Common::FS::PathToUTF8String(
+            std::filesystem::path{Common::FS::ToU8String(path)}.filename());
+        if (name.size() != 16) continue;
+        uint64_t id = 0;
+        const auto parsed = std::from_chars(name.data(), name.data() + name.size(), id, 16);
+        if (parsed.ec == std::errc{} && parsed.ptr == name.data() + name.size())
+            next->modificationRoots[id].push_back(path);
+    }
+    for (auto & [id, paths] : next->filesByApplication)
+    {
+        std::sort(paths.begin(), paths.end());
+        paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
+    }
+    for (auto & [id, paths] : next->modificationRoots)
+    {
+        std::sort(paths.begin(), paths.end());
+        paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
+    }
+    if (configured != ConfiguredGameDirectories()) return false;
+    {
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        impl->m_contentIndex = std::move(next);
+    }
+    // The next full loader rebuild must still be able to use the disk cache.
+    return true;
+}
+
+std::vector<std::string> Systemloader::GameContentFiles(uint64_t base_program_id)
+{
+    std::shared_ptr<const Impl::ContentIndex> index;
+    {
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        index = impl->m_contentIndex;
+    }
+    if (!index)
+    {
+        RefreshGameContentIndex();
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        index = impl->m_contentIndex;
+    }
+    if (!index) return {};
+    const auto it = index->filesByApplication.find(base_program_id);
+    return it == index->filesByApplication.end() ? std::vector<std::string>{} : it->second;
+}
+
+std::vector<std::string> Systemloader::GameModificationRoots(uint64_t program_id)
+{
+    std::shared_ptr<const Impl::ContentIndex> index;
+    {
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        index = impl->m_contentIndex;
+    }
+    if (!index)
+    {
+        RefreshGameContentIndex();
+        std::lock_guard lock(impl->m_contentIndexMutex);
+        index = impl->m_contentIndex;
+    }
+    if (!index) return {};
+    const auto it = index->modificationRoots.find(program_id);
+    return it == index->modificationRoots.end() ? std::vector<std::string>{} : it->second;
+}
+
+bool Systemloader::IsInGameDirectory(const std::string & file_path) const
+{
+    const std::filesystem::path file{Common::FS::ToU8String(file_path)};
+    for (const auto & directory : ConfiguredGameDirectories())
+    {
+        const auto relative = file.lexically_relative(std::filesystem::path{Common::FS::ToU8String(directory)});
+        if (!relative.empty() && *relative.begin() != "..") return true;
+    }
+    return false;
+}
+
+uint32_t Systemloader::GetContainerApplications(const char * utf8_path, uint64_t * application_ids, uint32_t max_count)
+{
+    const FileSys::VirtualFile file = utf8_path != nullptr ? impl->m_virtualFilesystem->OpenFile(utf8_path, VirtualFileOpenMode::Read) : nullptr;
+    if (!file)
+    {
+        return 0;
+    }
+
+    std::vector<uint64_t> applications;
+    const auto add = [&applications](uint64_t title_id) {
+        const uint64_t application = FileSys::GetBaseTitleID(title_id);
+        if (std::find(applications.begin(), applications.end(), application) == applications.end())
+        {
+            applications.push_back(application);
+        }
+    };
+    const auto addPackage = [&add](const FileSys::NSP & nsp) {
+        if (nsp.GetStatus() != LoaderResultStatus::Success)
+        {
+            return;
+        }
+        for (const auto & title : nsp.GetNCAs())
+        {
+            add(title.first);
+        }
+    };
+
+    const std::string extension = ToLowerAscii(file->GetExtension());
+    if (extension == "dnsp")
+    {
+        addPackage(FileSys::NSP(file));
+    }
+    else if (extension == "dxci")
+    {
+        const FileSys::XCI xci(file);
+        const std::shared_ptr<FileSys::NSP> nsp = xci.GetStatus() == LoaderResultStatus::Success ? xci.GetSecurePartitionNSP() : nullptr;
+        if (nsp)
+        {
+            addPackage(*nsp);
+        }
+    }
+    else if (extension == "nca")
+    {
+        const FileSys::NCA nca(file);
+        if (nca.GetStatus() == LoaderResultStatus::Success || nca.GetStatus() == LoaderResultStatus::ErrorMissingBKTRBaseRomFS)
+        {
+            add(nca.GetTitleId());
+        }
+    }
+
+    if (application_ids != nullptr)
+    {
+        std::copy_n(applications.begin(), std::min<size_t>(applications.size(), max_count), application_ids);
+    }
+    return static_cast<uint32_t>(applications.size());
+}
+
 IManualContentProvider & Systemloader::ManualContentProvider()
 {
     return *(impl->m_manualContentProvider.get());
@@ -558,6 +875,7 @@ uint32_t Systemloader::GetInstalledFirmwareDisplayVersion(char * buffer, uint32_
     return length;
 }
 
+// A game card carries the firmware its game needs.
 uint32_t Systemloader::GetGameCardFirmwareUpdate(const char * utf8_path, char * versionBuffer, uint32_t versionBufferSize) const
 {
     if (utf8_path == nullptr || utf8_path[0] == '\0' || versionBuffer == nullptr || versionBufferSize == 0)

@@ -18,8 +18,10 @@ independently, or disable it to follow the console again. Changes apply
 immediately, including to the open settings dialog. Regional console variants
 share the same interface translation.
 
-The choice is saved as `InterfaceLanguage` in the UI settings; an empty value
-follows the console language. English is the fallback for missing translations.
+The override is saved as `UI.InterfaceLanguage`; an empty value means automatic.
+Existing explicit choices remain overrides. English is the fallback for missing
+translations. This is a global preference: per-game console language overrides
+do not change the interface language.
 
 ## Updating text
 
@@ -39,6 +41,14 @@ Plural rules are language-specific: French treats zero like one; Russian has
 three forms; Japanese, Korean and Chinese have one. The other supplied languages
 have two forms. All forms must be supplied, including those that have identical
 text. A `fuzzy` translation is ignored by the runtime and rejected by the checks.
+
+To run the catalogue and runtime integration tests:
+
+```sh
+cmake -S . -B build -DNXEMU_BUILD_TRANSLATION_TESTS=ON
+cmake --build build --target nxemu_translation_tests
+ctest --test-dir build/src/nxemu/ui -R nxemu_translation --output-on-failure
+```
 
 Register a new interface language in `Translation::Languages` in
 `../i18n/translation.h`. Catalogues are copied to `ui/lang` beside the application

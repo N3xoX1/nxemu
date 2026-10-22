@@ -509,7 +509,7 @@ struct PerfStatsResults
     double frametime;
     /// Ratio of walltime / emulated time elapsed
     double emulation_speed;
-    /// Longest time between two game frames since the last reset, in seconds; 0 when not measured
+    /// Longest walltime between two game frames, in seconds: a stutter or a freeze
     double longest_game_frame;
 };
 
@@ -706,6 +706,7 @@ nxinterface IOperatingSystem
     virtual IParamPackage * GetNextInput() const = 0;
     virtual void PumpInputEvents() const = 0;
     virtual PerfStatsResults GetAndResetPerfStats() = 0;
+    // Whether the longest game frame is measured: it is 0 when it is not.
     virtual void MeasureGameFrames(bool measure) = 0;
     virtual void SetEmulationPaused(bool paused) = 0;
     virtual bool IsEmulationPaused() const = 0;

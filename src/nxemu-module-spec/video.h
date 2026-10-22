@@ -157,6 +157,8 @@ nxinterface IChannelState
     virtual void Release() = 0;
 };
 
+// The Vulkan device the video module presents with, lent to a frontend that
+// draws its interface on it. The fields hold the Vulkan objects named.
 struct VideoInterfaceDevice
 {
     void * getInstanceProcAddr; // PFN_vkGetInstanceProcAddr
@@ -165,6 +167,7 @@ struct VideoInterfaceDevice
     void * device;              // VkDevice
 };
 
+// One frame of the frontend's interface, drawn by the frontend.
 struct VideoInterfaceFrame
 {
     void * commandBuffer; // VkCommandBuffer to record the frame into
@@ -172,6 +175,7 @@ struct VideoInterfaceFrame
                           // Write premultiplied alpha, leave in SHADER_READ_ONLY_OPTIMAL.
 };
 
+// Part of the window, in pixels from its top-left corner.
 struct VideoInterfaceArea
 {
     int32_t x;
@@ -223,9 +227,25 @@ nxinterface IVideo
     virtual uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) = 0;
     virtual void WaitForComposite() = 0;
     virtual void CancelPendingComposite() = 0;
+
+    // A frontend that draws its interface with the video module's device calls
+    // the three below, always from the same thread. The render window then is
+    // the whole window: the module shows the game in the area the frontend
+    // names, under the interface, and shows the interface alone when no game
+    // runs. Without them the game fills the render window.
+    //
+    // Fills `device` and returns true when the module can show an interface.
+    // The device stays valid until the video module is destroyed.
     virtual bool AttachInterface(VideoInterfaceDevice * device) = 0;
+    // Starts a frame `width` by `height` pixels, the size of the window.
+    // Returns false when no frame can be drawn; EndInterfaceFrame is then not
+    // to be called.
     virtual bool BeginInterfaceFrame(uint32_t width, uint32_t height, VideoInterfaceFrame * frame) = 0;
+    // Shows the frame. `gameArea` is where the game shows through the
+    // interface; null hides the game.
     virtual void EndInterfaceFrame(const VideoInterfaceArea * gameArea) = 0;
+    // Waits for the last interface draw before its resources are released.
+    // Call on the interface thread, outside a Begin/EndInterfaceFrame pair.
     virtual void WaitInterfaceIdle() = 0;
     // Owns resources on every path; release exactly once after completion or cancellation,
     // before ClearCdmaInstance returns. The callback must not throw.

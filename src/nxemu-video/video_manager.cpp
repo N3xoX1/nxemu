@@ -72,6 +72,8 @@ struct VideoManager::Impl
         FFmpeg::ReleaseHardwareDecoderDevices();
     }
 
+    // Creates the device the Vulkan renderer draws with. It is kept from one
+    // game to the next, as it also shows the frontend's interface.
     Vulkan::Display * EnsureDisplay()
     {
         if (m_display || m_emuWindow == nullptr || videoSettings.renderer_backend != RendererBackend::Vulkan)

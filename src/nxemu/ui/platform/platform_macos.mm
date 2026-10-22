@@ -33,8 +33,7 @@ int ApplyNativeWindowStyle(SDL_Window * window)
         return 0;
     }
     NSWindow * nativeWindow = info.info.cocoa.window;
-    nativeWindow.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    nativeWindow.backgroundColor = NSColor.blackColor;
+    nativeWindow.backgroundColor = NSColor.windowBackgroundColor;
     nativeWindow.tabbingMode = NSWindowTabbingModeDisallowed;
     const int titleBarHeight = static_cast<int>(NSHeight(nativeWindow.frame) - NSHeight(nativeWindow.contentLayoutRect));
     nativeWindow.titlebarAppearsTransparent = YES;
@@ -155,7 +154,8 @@ void PerformNativeTitleBarDoubleClick(SDL_Window * window)
 
 bool SystemPrefersDarkTheme()
 {
-    NSString * match = [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+    NSString * match = [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:
+        @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
     return match == nil || [match isEqualToString:NSAppearanceNameDarkAqua];
 }
 
@@ -163,20 +163,11 @@ void SetNativeWindowTheme(SDL_Window * window, const char * choice)
 {
     SDL_SysWMinfo info{};
     SDL_VERSION(&info.version);
-    if (window == nullptr || !SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_COCOA)
-    {
-        return;
-    }
+    if (window == nullptr || !SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_COCOA) return;
     NSString * mode = [NSString stringWithUTF8String:choice];
     NSAppearance * appearance = nil;
-    if ([mode isEqualToString:@"light"])
-    {
-        appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-    }
-    else if ([mode isEqualToString:@"dark"])
-    {
-        appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    }
+    if ([mode isEqualToString:@"light"]) appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    else if ([mode isEqualToString:@"dark"]) appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     info.info.cocoa.window.appearance = appearance;
 }
 

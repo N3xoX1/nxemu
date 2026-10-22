@@ -2,31 +2,30 @@
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+
 #include <cstdlib>
 #include <iostream>
+#include <nxemu/ui/i18n/translation.h>
 
-UiNotification::UiNotification() :
-    ui_thread_(std::this_thread::get_id())
-{
-}
+UiNotification::UiNotification() : ui_thread_(std::this_thread::get_id()) {}
 
 void UiNotification::DisplayError(const char* message, const char* title) const
 {
-    std::cerr << (title ? title : "NXEmu") << ": " << (message ? message : "") << '\n';
-    QueueOrShow({false, title ? title : "NXEmu", message ? message : "", {}});
+    std::cerr << (title ? title : "NxEmu") << ": " << (message ? message : "") << '\n';
+    QueueOrShow({false, title ? title : "NxEmu", message ? message : "", {}});
 }
 
 NotificationResponse UiNotification::Query(const char* message, const char* title) const
 {
     auto answer = std::make_shared<std::promise<NotificationResponse>>();
     auto result = answer->get_future();
-    QueueOrShow({true, title ? title : "NXEmu", message ? message : "", answer});
+    QueueOrShow({true, title ? title : "NxEmu", message ? message : "", answer});
     return result.get();
 }
 
 void UiNotification::BreakPoint(const char* file_name, uint32_t line_number)
 {
-    std::cerr << "NXEmu breakpoint at " << file_name << ':' << line_number << '\n';
+    std::cerr << "NxEmu breakpoint at " << file_name << ':' << line_number << '\n';
     std::abort();
 }
 
@@ -50,9 +49,7 @@ void UiNotification::Pump()
         pending.swap(messages_);
     }
     for (const auto& message : pending)
-    {
         Show(message);
-    }
 }
 
 void UiNotification::Close()
@@ -66,9 +63,7 @@ void UiNotification::Close()
     for (const auto& message : pending)
     {
         if (message.answer)
-        {
             message.answer->set_value(NotificationResponse::No);
-        }
     }
 }
 
@@ -85,13 +80,9 @@ void UiNotification::QueueOrShow(Message message) const
         }
     }
     if (window || std::this_thread::get_id() == ui_thread_)
-    {
         Show(message);
-    }
     else if (message.answer)
-    {
         message.answer->set_value(NotificationResponse::No);
-    }
 }
 
 void UiNotification::Show(const Message& message) const
@@ -101,13 +92,11 @@ void UiNotification::Show(const Message& message) const
         std::lock_guard lock(mutex_);
         presenter = presenter_;
     }
+    // Startup failures can happen before RmlUi or its renderer is available.
     if (!presenter && !message.question)
     {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, message.title.c_str(), message.text.c_str(), window_);
     }
-    const NotificationResponse response = presenter ? presenter(message.question, message.title, message.text) : NotificationResponse::No;
-    if (message.answer)
-    {
-        message.answer->set_value(response);
-    }
+    const auto response = presenter ? presenter(message.question, message.title, message.text) : NotificationResponse::No;
+    if (message.answer) message.answer->set_value(response);
 }

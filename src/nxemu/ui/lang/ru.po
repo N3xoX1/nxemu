@@ -2505,9 +2505,6 @@ msgstr "Портативный режим: игры работают в 720p, к
 msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
 msgstr "Игра запущена: недоступные параметры можно изменить после её остановки. Языки применяются при запуске игры."
 
-msgid "Your games, updates and DLC can share a directory or be kept in separate directories. NXEmu matches them automatically. Games are listed directly from each directory; add-ons are also found in subfolders."
-msgstr "Игры, обновления и DLC можно хранить вместе или в разных папках. NXEmu автоматически связывает их. Игры ищутся непосредственно в каждой папке, дополнения — также во вложенных папках."
-
 msgid "Profile"
 msgstr "Профиль"
 
@@ -2540,3 +2537,12 @@ msgstr "Не удалось загрузить игру:\n%1\n\nОшибка з�
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "Не удалось загрузить интерфейс. Проверьте полноту папки ui в NXEmu."
+
+msgid "Scan subfolders"
+msgstr "Сканировать подпапки"
+
+msgid "Could not load the game:\n%1"
+msgstr "Не удалось загрузить игру:\n%1"
+
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "Добавьте папки с играми. Обновления, DLC и моды в тех же папках автоматически сопоставляются с играми. Включите сканирование подпапок, чтобы также искать во вложенных папках."

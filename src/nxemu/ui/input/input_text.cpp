@@ -66,6 +66,7 @@ std::string InputText::Binding(const IOperatingSystem & os, const IParamPackage 
     {
         return std::string();
     }
+    // How the binding behaves, before what it is bound to.
     std::string text = params.GetBool("turbo", false) ? Tr("Turbo") + " " : std::string();
     text += params.GetBool("toggle", false) ? Tr("Toggle") + " " : std::string();
     text += params.GetBool("inverted", false) ? Tr("Not") + " " : std::string();
@@ -84,6 +85,7 @@ std::string InputText::Binding(const IOperatingSystem & os, const IParamPackage 
     {
         return params.GetString("engine", "");
     }
+    // The name the button has on every controller, when it has one.
     const char * marked = CommonName(name);
     const std::string common = marked != nullptr ? Tr(marked) : std::string();
     if (params.Has("hat"))
@@ -126,6 +128,7 @@ std::string InputText::StickDirection(const IOperatingSystem & os, const IParamP
     const std::string name = direction;
     const bool horizontal = name == "left" || name == "right";
     const bool inverted = Is(stick, horizontal ? "invert_x" : "invert_y", "-");
+    // Right and up are the positive ends of the axes.
     const bool positive = (name == "right" || name == "up") != inverted;
     return Tr("Axis %1", {stick.GetString(horizontal ? "axis_x" : "axis_y", "") + std::string(positive ? "+" : "-")});
 }

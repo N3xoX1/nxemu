@@ -24,6 +24,29 @@ class SettingsStore
 public:
     SettingsStore();
 
+    // Effective reads normally include the immutable snapshot of a running
+    // game's overrides. Editors and module serializers read the global layer.
+    // The scope is thread local: saving never changes what emulation reads.
+    class GlobalReadScope
+    {
+    public:
+        GlobalReadScope();
+        ~GlobalReadScope();
+        GlobalReadScope(const GlobalReadScope &) = delete;
+        GlobalReadScope & operator=(const GlobalReadScope &) = delete;
+    private:
+        bool m_previous;
+    };
+    void SetGameOverrides(JsonValue overrides); // only while modules are stopped
+    // Explicit frontend controls take priority over the game's launch snapshot.
+    // GlobalReadScope still exposes the underlying global settings for saving.
+    void SetControlOverride(const char * setting, JsonValue value);
+    void ClearControlOverride(const char * setting);
+    bool HasControlOverride(const char * setting) const;
+    // What a setting would be without its control override.
+    int32_t GetIntWithoutControl(const char * setting) const;
+    bool GetBoolWithoutControl(const char * setting) const;
+
     bool Initialize(const char * configPath, const char * baseDirectory);
     const char * GetConfigFile(void) const;
 
@@ -74,4 +97,7 @@ private:
     static std::unique_ptr<SettingsStore> s_instance;
     std::string m_configPath;
     JsonValue m_details;
+    JsonValue m_gameOverrides;
+    JsonValue m_controlOverrides;
+    static thread_local bool s_globalReads;
 };

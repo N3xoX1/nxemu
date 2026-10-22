@@ -5,25 +5,33 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
-#include <common/std_string.h>
+#include <cstdio>
 #include <numeric>
 #include <nxemu/ui/host/process_usage.h>
-#include <nxemu/settings/ui_settings.h>
+#include <nxemu/ui/library/ui_preferences.h>
 #include <string>
 
 namespace
 {
-constexpr float kFontSize = 13.0f;
-constexpr float kGraphHeight = 1.23f;
-constexpr int kGraphSteps = 16;
+// Sizes are in em, which the size of the overlay sets: 1em is 13dp at the
+// usual size.
+constexpr float kFontSize = 13.0f;   // dp
+constexpr float kGraphHeight = 1.23f; // em, as in the style sheet
+constexpr int kGraphSteps = 16;       // heights a bar can have
+// Pictures a second games run at, and how far over one a measure can be
+// and still be it.
 constexpr float kUsualSpeeds[] = {30.0f, 60.0f, 120.0f, 240.0f};
 constexpr float kOverSpeed = 1.05f;
-constexpr double kSlowSpeed = 0.9;
+constexpr double kSlowSpeed = 0.9; // of the speed of the console: under it, the game is slow
 constexpr const char * kUnknown = "-";
+// A picture that stays this many times longer than the others is a stutter.
 constexpr double kStutterRatio = 2.5;
-constexpr double kSlowestGame = 10.0;
-constexpr double kFreeze = 0.5;
+constexpr double kSlowestGame = 10.0; // pictures a second: with fewer, the game is taken to have stopped
+constexpr double kFreeze = 0.5;       // seconds a picture stays for the game to have frozen
 
+constexpr const char * kSizeKey = "Performance\\Size";
+constexpr const char * kRateKey = "Performance\\Rate";
+constexpr const char * kLengthKey = "Performance\\HistoryLength";
 
 Rml::Element * Part(Rml::Element * root, const char * className)
 {
@@ -32,6 +40,7 @@ Rml::Element * Part(Rml::Element * root, const char * className)
     return found.empty() ? nullptr : found.front();
 }
 
+// Parts the user left out are not there to be set.
 void SetText(Rml::Element * root, const char * className, const std::string & text)
 {
     Rml::Element * element = Part(root, className);
@@ -44,7 +53,9 @@ void SetText(Rml::Element * root, const char * className, const std::string & te
 
 std::string Number(const char * format, double value)
 {
-    return stdstr_f(format, std::isfinite(value) ? value : 0.0);
+    char text[32];
+    std::snprintf(text, sizeof(text), format, std::isfinite(value) ? value : 0.0);
+    return text;
 }
 
 std::string Value(const char * className, const std::string & unit)
@@ -52,21 +63,11 @@ std::string Value(const char * className, const std::string & unit)
     return std::string("<div class=\"perf-value ") + className + "\">" + kUnknown + "</div><div class=\"perf-unit\">" + Rml::StringUtilities::EncodeRml(unit) + "</div>";
 }
 
-bool & Setting(PerformanceItem item)
+std::string Key(const PerformanceOverlay::Item & item)
 {
-    switch (item)
-    {
-    case PerformanceItem::History: return uiSettings.performanceHistory;
-    case PerformanceItem::Range: return uiSettings.performanceRange;
-    case PerformanceItem::FrameTime: return uiSettings.performanceFrameTime;
-    case PerformanceItem::Longest: return uiSettings.performanceLongest;
-    case PerformanceItem::Speed: return uiSettings.performanceSpeed;
-    case PerformanceItem::Processor: return uiSettings.performanceProcessor;
-    case PerformanceItem::Memory: break;
-    }
-    return uiSettings.performanceMemory;
+    return std::string("Performance\\") + item.name;
 }
-}
+} // namespace
 
 PerformanceOverlay::PerformanceOverlay(Rml::Element * root) :
     m_root(root)
@@ -75,13 +76,13 @@ PerformanceOverlay::PerformanceOverlay(Rml::Element * root) :
 
 bool PerformanceOverlay::Has(PerformanceItem item)
 {
-    return Setting(item);
+    const Item & info = kItems[static_cast<size_t>(item)];
+    return UiPreferences::GetBool(Key(info).c_str(), info.usual);
 }
 
 void PerformanceOverlay::Toggle(PerformanceItem item)
 {
-    Setting(item) = !Setting(item);
-    SaveUISetting();
+    UiPreferences::SetBool(Key(kItems[static_cast<size_t>(item)]).c_str(), !Has(item));
     if (m_shown)
     {
         Build();
@@ -90,35 +91,33 @@ void PerformanceOverlay::Toggle(PerformanceItem item)
 
 int PerformanceOverlay::Size()
 {
-    return std::clamp(static_cast<int>(uiSettings.performanceSize), kSmallest, kLargest);
+    return std::clamp(UiPreferences::GetInt(kSizeKey, kUsualSize), kSmallest, kLargest);
 }
 
 int PerformanceOverlay::Rate()
 {
-    return std::clamp(static_cast<int>(uiSettings.performanceRate), kSlowest, kFastest);
+    return std::clamp(UiPreferences::GetInt(kRateKey, kUsualRate), kSlowest, kFastest);
 }
 
 void PerformanceOverlay::SetRate(int rate)
 {
     if (rate != Rate())
     {
-        uiSettings.performanceRate = rate;
-        SaveUISetting();
+        UiPreferences::SetInt(kRateKey, rate);
         m_interval = 1000 / static_cast<uint64_t>(Rate());
     }
 }
 
 int PerformanceOverlay::Length()
 {
-    return std::clamp(static_cast<int>(uiSettings.performanceHistoryLength), kShortest, kLongest);
+    return std::clamp(UiPreferences::GetInt(kLengthKey, kUsualLength), kShortest, kLongest);
 }
 
 void PerformanceOverlay::SetSize(int size)
 {
     if (size != Size())
     {
-        uiSettings.performanceSize = size;
-        SaveUISetting();
+        UiPreferences::SetInt(kSizeKey, size);
         m_root->SetProperty(Rml::PropertyId::FontSize, Rml::Property(kFontSize * static_cast<float>(Size()) / kUsualSize, Rml::Unit::DP));
     }
 }
@@ -129,10 +128,10 @@ void PerformanceOverlay::SetLength(int length)
     {
         return;
     }
-    uiSettings.performanceHistoryLength = length;
-    SaveUISetting();
+    UiPreferences::SetInt(kLengthKey, length);
     if (m_shown)
     {
+        // The newest measures are the ones kept.
         const size_t kept = std::min(m_count, static_cast<size_t>(Length()));
         std::move(m_fps.begin() + (m_count - kept), m_fps.begin() + m_count, m_fps.begin());
         std::move(m_hitches.begin() + (m_count - kept), m_hitches.begin() + m_count, m_hitches.begin());
@@ -168,6 +167,8 @@ void PerformanceOverlay::Build()
 {
     m_length = static_cast<size_t>(Length());
     m_interval = 1000 / static_cast<uint64_t>(Rate());
+    // After the pictures a second, the sign of a speed that is not held to
+    // that of the console: it has no bound. The font of the interface has it.
     std::string rml = Value("perf-fps", "FPS") + "<div class=\"perf-unlocked\">&#8734;</div>";
     if (Has(PerformanceItem::History))
     {
@@ -180,6 +181,7 @@ void PerformanceOverlay::Build()
     }
     if (Has(PerformanceItem::Range))
     {
+        // Each of the three is told by a mark before it: down, level and up.
         for (const char * part : {"low", "mean", "high"})
         {
             rml += std::string("<div class=\"perf-mark ") + part + "\" /><div class=\"perf-" + part + "\">" + kUnknown + "</div>";
@@ -218,6 +220,7 @@ void PerformanceOverlay::Add(const PerfStatsResults & stats, uint32_t shaders, b
     m_stats = stats;
     m_shaders = shaders;
     m_unlocked = unlocked;
+    // What the system is asked is asked for what is shown only.
     if (Has(PerformanceItem::Processor))
     {
         const double seconds = ProcessCpuSeconds();
@@ -257,6 +260,9 @@ void PerformanceOverlay::Render()
     m_root->SetClass("slow", std::isfinite(m_stats.emulation_speed) && m_stats.emulation_speed < kSlowSpeed);
     SetText(m_root, "perf-shaders", m_shaders == 0 ? std::string() : TrCount("Building: %n shader", "Building: %n shaders", m_shaders));
 
+    // The newest measure is on the right. The height is that of a usual
+    // speed, the first the highest measure is not over: bars say how far
+    // from it the game is, and do not all change when one is higher.
     Rml::Element * graph = Part(m_root, "perf-graph");
     if (graph == nullptr)
     {

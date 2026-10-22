@@ -139,6 +139,7 @@ msgid "Accuracy"
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Accuracy level"
 msgstr ""
 
@@ -179,6 +180,7 @@ msgid "Shaders"
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Keep shaders on the disk"
 msgstr ""
 
@@ -191,6 +193,7 @@ msgid "Off only to look for a fault."
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Build shaders in the background"
 msgstr ""
 
@@ -203,6 +206,7 @@ msgid "Performance"
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Keep the graphics device busy"
 msgstr ""
 
@@ -228,6 +232,7 @@ msgstr ""
 
 #: assets/advanced_dialog.rml
 #: views/hotkeys.h
+#: views/settings_context.cpp
 msgid "Limit speed"
 msgstr ""
 
@@ -252,6 +257,7 @@ msgid "Where the sound of games is played."
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Output mode"
 msgstr ""
 
@@ -424,6 +430,7 @@ msgid "Threads and input"
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Graphics on their own thread"
 msgstr ""
 
@@ -432,6 +439,7 @@ msgid "Should stay on."
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "Presentation on its own thread"
 msgstr ""
 
@@ -452,6 +460,7 @@ msgid "Off, games run on one thread: much slower, to look for a fault."
 msgstr ""
 
 #: assets/advanced_dialog.rml
+#: views/settings_context.cpp
 msgid "CPU and system in step"
 msgstr ""
 
@@ -700,6 +709,7 @@ msgstr ""
 
 #: assets/general_dialog.rml
 #: views/advanced_dialog.cpp
+#: views/settings_context.cpp
 msgid "Graphics device"
 msgstr ""
 
@@ -713,6 +723,7 @@ msgstr ""
 
 #: assets/general_dialog.rml
 #: views/main_window.cpp
+#: views/settings_context.cpp
 msgid "Docked"
 msgstr ""
 
@@ -752,6 +763,7 @@ msgid "The shape of the picture in the window."
 msgstr ""
 
 #: assets/general_dialog.rml
+#: views/settings_context.cpp
 msgid "Vertical sync"
 msgstr ""
 
@@ -788,6 +800,7 @@ msgid "The language games are shown in."
 msgstr ""
 
 #: assets/general_dialog.rml
+#: views/settings_context.cpp
 msgid "Region"
 msgstr ""
 
@@ -914,6 +927,15 @@ msgstr ""
 #: assets/main_window.rml
 #: views/main_window.cpp
 msgid "Play"
+msgstr ""
+
+#: assets/main_window.rml
+#: views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Configure"
 msgstr ""
 
 #: assets/main_window.rml
@@ -1056,6 +1078,7 @@ msgid ""
 msgstr ""
 
 #: emulation/emulator_session.cpp
+#: ui_application.cpp
 msgid "Required modules failed to load."
 msgstr ""
 
@@ -1229,14 +1252,17 @@ msgstr ""
 msgid "< 1m"
 msgstr ""
 
+#. a time played, in minutes, then in hours and minutes.
 #: library/play_time.cpp
 msgid "%1m"
 msgstr ""
 
+#. a time played, in minutes, then in hours and minutes.
 #: library/play_time.cpp
 msgid "%1h %2m"
 msgstr ""
 
+#. a date and a time, in the syntax of strftime. The names of the months it gives are English: use %m where they would not do.
 #: library/play_time.cpp
 msgid "%b %d, %Y  %H:%M"
 msgstr ""
@@ -1281,6 +1307,14 @@ msgid_plural "%n years ago"
 msgstr[0] ""
 msgstr[1] ""
 
+#: ui_application.cpp
+msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
+msgstr ""
+
+#: ui_application.cpp
+msgid "Vulkan could not be initialised. Update the graphics driver and try again."
+msgstr ""
+
 #: views/advanced_dialog.cpp
 msgid "None"
 msgstr ""
@@ -1306,6 +1340,7 @@ msgid "Follows the resolution chosen."
 msgstr ""
 
 #: views/advanced_dialog.cpp
+#: views/settings_context.cpp
 msgid "As the game asks"
 msgstr ""
 
@@ -1342,6 +1377,7 @@ msgid "Slow: to look for a fault."
 msgstr ""
 
 #: views/advanced_dialog.cpp
+#: views/settings_context.cpp
 msgid "As the accuracy level"
 msgstr ""
 
@@ -1366,6 +1402,7 @@ msgid "Steadier: it fixes some games."
 msgstr ""
 
 #: views/advanced_dialog.cpp
+#: views/settings_context.cpp
 msgid "Processor"
 msgstr ""
 
@@ -1378,6 +1415,7 @@ msgid "The usual choice."
 msgstr ""
 
 #: views/advanced_dialog.cpp
+#: views/settings_context.cpp
 msgid "Processor, in the background"
 msgstr ""
 
@@ -1689,6 +1727,7 @@ msgstr ""
 msgid "Press a key or a button."
 msgstr ""
 
+#. %1 is what to do, %2 the seconds left to do it.
 #: views/controller_dialog.cpp
 msgid "%1 Esc cancels. (%2)"
 msgstr ""
@@ -1714,6 +1753,7 @@ msgid "Choose a game directory"
 msgstr ""
 
 #: views/firmware_dialog.cpp
+#: views/game_details_panel.cpp
 #: views/main_window.cpp
 #: views/performance_overlay.cpp
 msgid "%1 MB"
@@ -1850,6 +1890,28 @@ msgid "DLC"
 msgstr ""
 
 #: views/game_details_panel.cpp
+#: views/main_window.cpp
+#: views/performance_overlay.cpp
+msgid "%1 GB"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "%1 KB"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Version %1, title ID %2"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "DLC %1"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr ""
+
+#: views/game_details_panel.cpp
 msgid "This game has not saved anything yet"
 msgstr ""
 
@@ -1870,10 +1932,6 @@ msgid "Opens the folder this game's mods go in"
 msgstr ""
 
 #: views/game_details_panel.cpp
-msgid "Add-ons cannot change while a game is running"
-msgstr ""
-
-#: views/game_details_panel.cpp
 msgid "Add-on content"
 msgstr ""
 
@@ -1885,6 +1943,38 @@ msgstr[1] ""
 
 #: views/game_details_panel.cpp
 msgid "No update, DLC or mod found for this game."
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Remove User override; inherit NXEmu or global settings"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Disable NXEmu override for this game"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Enable NXEmu override for this game"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Replaced by User"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "Disabled"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "User"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "User overrides"
+msgstr ""
+
+#: views/game_details_panel.cpp
+msgid "NXEmu overrides"
 msgstr ""
 
 #: views/general_dialog.cpp
@@ -1924,6 +2014,7 @@ msgid "The shape of the console's picture. The right choice for nearly every gam
 msgstr ""
 
 #: views/general_dialog.cpp
+#: views/settings_context.cpp
 msgid "Stretch to the window"
 msgstr ""
 
@@ -1940,6 +2031,7 @@ msgid "Each picture waits for the screen. No tearing: the usual choice."
 msgstr ""
 
 #: views/general_dialog.cpp
+#: views/settings_context.cpp
 msgid "On, late pictures tear"
 msgstr ""
 
@@ -1948,6 +2040,7 @@ msgid "As On, but a picture that comes late is shown at once. It tears instead o
 msgstr ""
 
 #: views/general_dialog.cpp
+#: views/settings_context.cpp
 msgid "On, lowest delay"
 msgstr ""
 
@@ -2021,6 +2114,7 @@ msgid "Chosen here, whatever the language."
 msgstr ""
 
 #: views/general_dialog.cpp
+#: views/settings_context.cpp
 msgid "Follows the console language."
 msgstr ""
 
@@ -2091,11 +2185,6 @@ msgstr ""
 
 #: views/main_window.cpp
 msgid "Recent"
-msgstr ""
-
-#: views/main_window.cpp
-#: views/performance_overlay.cpp
-msgid "%1 GB"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2186,10 +2275,6 @@ msgid "Hide &UI"
 msgstr ""
 
 #: views/main_window.cpp
-msgid "Window size"
-msgstr ""
-
-#: views/main_window.cpp
 msgid "Measures per second"
 msgstr ""
 
@@ -2199,6 +2284,10 @@ msgstr ""
 
 #: views/main_window.cpp
 msgid "How many measures the history shows"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Window size"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2240,7 +2329,15 @@ msgid "No game directory yet."
 msgstr ""
 
 #: views/main_window.cpp
+msgid "Add one in the settings"
+msgstr ""
+
+#: views/main_window.cpp
 msgid "No games found in your game directories."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Change them in the settings"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2249,6 +2346,58 @@ msgstr ""
 
 #: views/main_window.cpp
 msgid "More actions"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Title ID"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Start Game"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Game settings"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open saves"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open cache"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Open Containing Folder"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Resume emulation (F2)"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Press %1 or %2 to leave fullscreen"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Press %1 to show the interface"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Manage profiles"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Default"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Sharpness: once FSR is the filter"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Use game settings"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2268,54 +2417,6 @@ msgid "The profile games start as: its saves are the ones used"
 msgstr ""
 
 #: views/main_window.cpp
-msgid "Start Game"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Open saves"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Open cache"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Open Containing Folder"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Copy File Path"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Manage profiles"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Sharpness: once FSR is the filter"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Title ID"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Resume emulation (F2)"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Switch games"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Press %1 or %2 to leave fullscreen"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Press %1 to show the interface"
-msgstr ""
-
-#: views/main_window.cpp
 #: views/performance_overlay.cpp
 msgid "Building: %n shader"
 msgid_plural "Building: %n shaders"
@@ -2324,6 +2425,10 @@ msgstr[1] ""
 
 #: views/main_window.cpp
 msgid "Firmware: %1"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Switch games"
 msgstr ""
 
 #: views/main_window.cpp
@@ -2393,6 +2498,7 @@ msgid "Pictures"
 msgstr ""
 
 #: views/scaling_filters.h
+#: views/settings_context.cpp
 msgid "Nearest neighbour"
 msgstr ""
 
@@ -2422,6 +2528,38 @@ msgstr ""
 
 #: views/scaling_filters.h
 msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Volume"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Sharpness"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Settings for %1"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Global < NXEmu < User. Editing a setting creates a User override; Inherit removes it. Changes apply on the next launch."
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Choices in the status bar take priority over these settings."
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "User override"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "NXEmu override"
+msgstr ""
+
+#: views/settings_context.cpp
+msgid "Inherit"
 msgstr ""
 
 #: views/volume_control.cpp

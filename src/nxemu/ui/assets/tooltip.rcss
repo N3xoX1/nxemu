@@ -1,3 +1,5 @@
+/* The explanation of what the mouse rests on. It lies over everything and
+   takes nothing from the mouse. */
 body
 {
     position: absolute;

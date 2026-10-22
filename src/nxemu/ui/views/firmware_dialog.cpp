@@ -2,7 +2,7 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <SDL.h>
 #include <common/path.h>
-#include <common/std_string.h>
+#include <cstdio>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/platform/file_dialogs.h>
@@ -10,11 +10,16 @@
 namespace
 {
 constexpr const char * kSteps[] = {"source", "install", "done"};
+// A step that appears puts its buttons where the previous one had its own.
+// What is clicked this soon after was meant for the previous step: the second
+// click of a double click, or one already on its way.
 constexpr uint64_t kStepSettleMs = 400;
 
 std::string Megabytes(uint64_t bytes)
 {
-    return Tr("%1 MB", {stdstr_f("%.0f", static_cast<double>(bytes) / (1024.0 * 1024.0))});
+    char text[32];
+    std::snprintf(text, sizeof(text), "%.0f", static_cast<double>(bytes) / (1024.0 * 1024.0));
+    return Tr("%1 MB", {text});
 }
 
 std::string InstalledVersion(ISystemloader & loader)
@@ -49,7 +54,7 @@ Outcome OutcomeOf(FirmwareInstallStatus status)
                 Tr("The installed firmware was left as it was. Check the free disk space; the log tells what went wrong.")};
     }
 }
-}
+} // namespace
 
 FirmwareDialog::FirmwareDialog(UiWindow & window, ISystemloader & loader, const std::filesystem::path & assetDir, Host host) :
     Dialog(window.Context(), assetDir / "firmware_dialog.rml"),
@@ -180,6 +185,8 @@ void FirmwareDialog::OnCommand(const std::string & command)
 
 void FirmwareDialog::OnCloseRequested()
 {
+    // Closing a running installation stops it first; the dialog stays to
+    // tell that it did.
     if (m_installer.Busy())
     {
         m_installer.Cancel();
@@ -210,6 +217,8 @@ void FirmwareDialog::ShowStep(const char * step, bool failed)
     panel->SetClass("failed", failed);
     m_stepShown = SDL_GetTicks64();
 
+    // Asking belongs to the installation and the offer is a source; a
+    // failure leaves its step unpassed.
     const std::string current = std::string(step) == "ask" ? "install" : std::string(step) == "offer" ? "source" : step;
     bool passed = true;
     for (const char * name : kSteps)

@@ -23,6 +23,7 @@ uint64_t ProcessMemory()
     mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
     return task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS ? info.phys_footprint : 0;
 #else
+    // The second number of the file is the pages that are in memory.
     unsigned long long total = 0, resident = 0;
     std::FILE * file = std::fopen("/proc/self/statm", "r");
     if (file == nullptr)
@@ -44,7 +45,7 @@ double ProcessCpuSeconds()
         return 0.0;
     }
     const auto ticks = [](const FILETIME & time) { return (static_cast<uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime; };
-    return static_cast<double>(ticks(kernel) + ticks(user)) / 1e7;
+    return static_cast<double>(ticks(kernel) + ticks(user)) / 1e7; // a tick is 100 ns
 #else
     rusage usage{};
     if (getrusage(RUSAGE_SELF, &usage) != 0)

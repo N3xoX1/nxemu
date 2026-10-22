@@ -271,6 +271,11 @@ void SetupCpuSetting(void)
         g_settings->RegisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
     }
 
+    // Apply the effective per-game settings after registering global defaults.
+    for (const auto & setting : settings)
+    {
+        CpuSettingChanged(setting.identifier, nullptr);
+    }
     g_settings->RegisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
 
     g_settings->SetDefaultBool(NXCpuSetting::NceEnabled, false);
@@ -296,23 +301,23 @@ void SaveCpuSettings(void)
         switch (cpuSetting.settingType)
         {
         case SettingType::Boolean:
-            if (*cpuSetting.value.boolValue != cpuSetting.defaults.boolValue)
+            if (g_settings->GetBool(cpuSetting.identifier) != cpuSetting.defaults.boolValue)
             {
-                sections[cpuSetting.json_section][cpuSetting.json_key] = *cpuSetting.value.boolValue;
+                sections[cpuSetting.json_section][cpuSetting.json_key] = g_settings->GetBool(cpuSetting.identifier);
             }
             break;
         case SettingType::CpuBackend:
-            if (*cpuSetting.value.cpuBackend != cpuSetting.defaults.cpuBackend)
+            if (static_cast<CpuBackend>(g_settings->GetInt(cpuSetting.identifier)) != cpuSetting.defaults.cpuBackend)
             {
                 sections[cpuSetting.json_section][cpuSetting.json_key] =
-                    CpuBackendToString(*cpuSetting.value.cpuBackend);
+                    CpuBackendToString(static_cast<CpuBackend>(g_settings->GetInt(cpuSetting.identifier)));
             }
             break;
         case SettingType::CpuAccuracy:
-            if (*cpuSetting.value.cpuAccuracy != cpuSetting.defaults.cpuAccuracy)
+            if (static_cast<CpuAccuracy>(g_settings->GetInt(cpuSetting.identifier)) != cpuSetting.defaults.cpuAccuracy)
             {
                 sections[cpuSetting.json_section][cpuSetting.json_key] =
-                    CpuAccuracyToString(*cpuSetting.value.cpuAccuracy);
+                    CpuAccuracyToString(static_cast<CpuAccuracy>(g_settings->GetInt(cpuSetting.identifier)));
             }
             break;
         default:

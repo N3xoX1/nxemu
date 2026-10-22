@@ -22,8 +22,10 @@ namespace
 constexpr const char * kSelectPrefix = "select:";
 constexpr const char * kAvatarPrefix = "avatar:";
 constexpr const char * kColourPrefix = "colour:";
+// How many more pictures of the console a frame shows: each is a file to read.
 constexpr size_t kAvatarsPerFrame = 8;
 
+// What a picture of the console can be put on.
 struct Colour
 {
     const char * css;
@@ -36,6 +38,8 @@ constexpr Colour kColours[] = {
 };
 constexpr int kColourCount = static_cast<int>(sizeof(kColours) / sizeof(kColours[0]));
 
+// The name as the console keeps it: no longer than it has room for, whole
+// characters only, no space around.
 std::string CleanName(std::string name)
 {
     const auto isSpace = [](char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
@@ -61,6 +65,7 @@ std::string CleanName(std::string name)
     return name;
 }
 
+// The first character of the name, shown in place of a picture.
 std::string Initial(const std::string & name)
 {
     size_t size = name.empty() ? 0 : 1;
@@ -100,6 +105,7 @@ void ProfilesDialog::OnOpen()
     ShowProfiles();
     ShowEditor();
     Rml::Element * name = Document()->GetElementById("name");
+    // Typing only edits the field: the name is given when it is left or validated.
     UiEvents::Listen(name, "blur", [this](Rml::Event &) { m_commitName = true; });
     UiEvents::Listen(name, "change", [this](Rml::Event & event) {
         if (event.GetParameter<bool>("linebreak", false))
@@ -130,6 +136,7 @@ void ProfilesDialog::OnUpdate()
     }
     if (m_avatarsOpen)
     {
+        // A few more of those read at a time: showing one reads its file.
         const std::vector<std::string> files = m_avatars.Files();
         const size_t shown = std::min(files.size(), m_avatarFiles.size() + kAvatarsPerFrame);
         m_avatarsPending = shown < files.size();
@@ -329,6 +336,7 @@ void ProfilesDialog::AddProfile()
         return;
     }
     CommitName();
+    // The first "Player N" nobody has.
     std::string name;
     for (int number = static_cast<int>(m_profiles.size()) + 1; name.empty(); number++)
     {
@@ -367,6 +375,7 @@ void ProfilesDialog::RemoveProfile()
     {
         return;
     }
+    // The ones after it moved up by one place.
     if (active == m_selected)
     {
         UserProfiles::SetActive(0);
@@ -407,6 +416,7 @@ void ProfilesDialog::SetPicture(const std::vector<uint8_t> & picture)
         return;
     }
     Document()->SetClass("picture-refused", false);
+    // The file is the same one, with another picture in it.
     if (!m_profiles[m_selected].picture.empty())
     {
         Rml::ReleaseTexture(m_profiles[m_selected].picture);
@@ -444,6 +454,7 @@ void ProfilesDialog::CloseAvatars()
     m_avatarsPending = false;
     Document()->SetClass("avatars-open", false);
     SetText("avatars", {});
+    // Their textures are of no use until they are shown again.
     for (const std::string & file : m_avatarFiles)
     {
         Rml::ReleaseTexture(file);
@@ -480,6 +491,7 @@ void ProfilesDialog::ShowAvatars()
     }
     SetText("colours", rml);
 
+    // The editor shows what the profile would look like.
     if (m_avatar >= 0 && m_avatar < static_cast<int>(m_avatarFiles.size()))
     {
         SetText("picture", "<img src=\"" + Rml::StringUtilities::EncodeRml(UiRenderer::FileImageSource(m_avatarFiles[m_avatar])) + "\"/>");
@@ -523,6 +535,7 @@ void ProfilesDialog::CommitName()
     const std::string name = CleanName(field->GetValue());
     if (name.empty() || name == profile.name || !m_session.Modules().OperatingSystem().RenameProfile(profile.info.uuid, name.c_str()))
     {
+        // A profile keeps the name it had rather than none.
         if (field->GetValue() != profile.name)
         {
             field->SetValue(profile.name);

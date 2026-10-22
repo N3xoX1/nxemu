@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <cinttypes>
 #include <common/json.h>
-#include <common/std_string.h>
 #include <cstdio>
 #include <ctime>
 #include <fstream>
@@ -12,14 +11,14 @@
 
 namespace
 {
-constexpr auto kSaveInterval = std::chrono::minutes(1);
+constexpr auto kSaveInterval = std::chrono::minutes(1); // what a crash may lose
 constexpr uintmax_t kMaxFileBytes = 8 * 1024 * 1024;
 
 int64_t Now()
 {
     return static_cast<int64_t>(std::time(nullptr));
 }
-}
+} // namespace
 
 PlayTime::PlayTime(std::filesystem::path file) :
     m_file(std::move(file))
@@ -43,7 +42,7 @@ void PlayTime::SetPlaying(uint64_t programId)
             Record & record = m_records[m_playing];
             record.seconds += static_cast<uint64_t>(elapsed.count());
             record.lastPlayed = Now();
-            m_since += elapsed;
+            m_since += elapsed; // the fraction of a second left over counts next time
             m_dirty = true;
         }
     }
@@ -81,6 +80,7 @@ std::string PlayTime::Duration(uint64_t seconds)
     {
         return Tr("< 1m");
     }
+    // Translators: a time played, in minutes, then in hours and minutes.
     return minutes < 60 ? Tr("%1m", {std::to_string(minutes)}) : Tr("%1h %2m", {std::to_string(minutes / 60), std::to_string(minutes % 60)});
 }
 
@@ -93,6 +93,7 @@ std::string PlayTime::Date(int64_t time)
     const std::time_t value = static_cast<std::time_t>(time);
     const std::tm * local = std::localtime(&value);
     char text[64];
+    // Translators: a date and a time, in the syntax of strftime. The names of the months it gives are English: use %m where they would not do.
     const std::string format = Tr("%b %d, %Y  %H:%M");
     return local != nullptr && std::strftime(text, sizeof(text), format.c_str(), local) != 0 ? text : std::string();
 }
@@ -171,8 +172,10 @@ void PlayTime::Save()
     JsonValue games(JsonValueType::Array);
     for (const auto & [programId, record] : m_records)
     {
+        char application[17];
+        std::snprintf(application, sizeof(application), "%016" PRIX64, programId);
         JsonValue item(JsonValueType::Object);
-        item["application"] = std::string(stdstr_f("%016llX", static_cast<unsigned long long>(programId)));
+        item["application"] = std::string(application);
         item["seconds"] = static_cast<int64_t>(record.seconds);
         item["lastPlayed"] = record.lastPlayed;
         games.Append(std::move(item));
@@ -181,6 +184,7 @@ void PlayTime::Save()
     root["games"] = std::move(games);
     const std::string contents = JsonStyledWriter().write(root);
 
+    // Written beside the file and moved over it: a crash leaves one or the other.
     std::filesystem::path temporary = m_file;
     temporary += ".tmp";
     std::error_code error;

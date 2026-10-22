@@ -3,14 +3,20 @@
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
 #include <RmlUi/Core/Log.h>
+#include <algorithm>
+#include <cstring>
 #include <stb_image.h>
 
 namespace
 {
+// Contains a colon before any slash, so RmlUi passes it through unchanged
+// instead of resolving it against the document's directory.
+constexpr const char * kMemoryScheme = "nxmem:";
+
+// The interface blends in nonlinear space, like browsers do.
 constexpr VkFormat kColorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 constexpr uint32_t kSetsPerPool = 256;
 constexpr VkDeviceSize kMemoryBlockBytes = 16 * 1024 * 1024;
-constexpr const char * kMemoryScheme = "nxmem:";
 
 std::vector<uint8_t> ReadFile(const Rml::String & source)
 {
@@ -341,7 +347,6 @@ bool UiRenderer::CreateRenderPasses()
     return true;
 }
 
-
 VkPipeline UiRenderer::PipelineFor(Program program, Blend blend, Stencil stencil, bool hasStencil)
 {
     const uint32_t key = static_cast<uint32_t>(program) | static_cast<uint32_t>(blend) << 8 | static_cast<uint32_t>(stencil) << 16 |
@@ -546,6 +551,8 @@ UiRenderer::DescriptorSet UiRenderer::AllocateSet(VkDescriptorSetLayout layout)
         }
         return DescriptorSet{};
     };
+    // Scrolling or closing documents frees sets in older pools too. Reuse
+    // them before growing the allocation for another batch of textures.
     for (auto pool = m_descriptorPools.rbegin(); pool != m_descriptorPools.rend(); ++pool)
     {
         DescriptorSet set = allocate(*pool);
@@ -631,6 +638,7 @@ void UiRenderer::Retire(std::function<void()> destroy)
 {
     if (!IsBound())
     {
+        // Nothing drawn with the device is left to wait for.
         destroy();
         return;
     }
@@ -639,6 +647,7 @@ void UiRenderer::Retire(std::function<void()> destroy)
 
 void UiRenderer::FlushRetired()
 {
+    // Destroying may retire more, so work on what is queued now.
     std::vector<std::function<void()>> retired;
     retired.swap(m_retired);
     for (const std::function<void()> & destroy : retired)
@@ -705,6 +714,8 @@ void UiRenderer::BeginFrame(VkCommandBuffer commandBuffer, int width, int height
     m_clipMask = false;
     m_stencilReference = 1;
 
+    // RmlUi's origin is the top-left corner, like Vulkan's. Depth is squeezed
+    // from [-1, 1] into Vulkan's [0, 1] so transformed elements are not clipped.
     const Rml::Matrix4f depthRange = Rml::Matrix4f::FromRows({1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0.5f, 0.5f}, {0, 0, 0, 1});
     m_projection = depthRange * Rml::Matrix4f::ProjectOrtho(0, static_cast<float>(m_extent.width), 0, static_cast<float>(m_extent.height), -10000, 10000);
     SetTransform(nullptr);
@@ -782,6 +793,8 @@ void UiRenderer::ReleaseGeometry(Rml::CompiledGeometryHandle handle)
 
 std::string UiRenderer::FileImageSource(const std::string & utf8Path)
 {
+    // RmlUi takes a source starting with a slash as relative to the root and
+    // removes that slash before opening the file.
     return utf8Path.starts_with('/') ? "/" + utf8Path : utf8Path;
 }
 
@@ -809,6 +822,7 @@ Rml::TextureHandle UiRenderer::LoadTexture(Rml::Vector2i & dimensions, const Rml
         return {};
     }
 
+    // RmlUi textures use premultiplied alpha.
     const size_t size = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
     for (size_t i = 0; i < size; i += 4)
     {
@@ -836,6 +850,8 @@ Rml::TextureHandle UiRenderer::GenerateTexture(Rml::Span<const Rml::byte> source
     {
         return {};
     }
+    // The pixels reach the image at the next draw; textures are also created
+    // outside frames, when there is no command buffer to record into.
     Upload upload;
     upload.texture = texture;
     upload.extent = extent;
@@ -866,6 +882,7 @@ void UiRenderer::ReleaseTexture(Rml::TextureHandle handle)
 
 void UiRenderer::EnableScissorRegion(bool enable)
 {
+    // Enabling is always followed by SetScissorRegion.
     if (!enable)
     {
         SetScissor(Rml::Rectanglei::MakeInvalid());
@@ -888,6 +905,7 @@ void UiRenderer::RenderToClipMask(Rml::ClipMaskOperation operation, Rml::Compile
     Target & target = TopLayer();
     if (!target.hasStencil)
     {
+        // Filter scratch targets have no stencil attachment.
         return;
     }
 
@@ -1004,6 +1022,9 @@ void UiRenderer::DestroyTargets()
 
 void UiRenderer::ReleaseUnusedTargets()
 {
+    // Menus and filters temporarily need full-window images. Keep them warm
+    // through animations, then release their memory during ordinary gameplay.
+    // BeginFrame runs after the previous UI fence, so these images are idle.
     constexpr auto idle = std::chrono::seconds(5);
     while (m_layers.size() > 1 && m_frameTime - m_layers.back()->lastUsed >= idle)
     {
@@ -1107,6 +1128,7 @@ void UiRenderer::Transition(Target & target, VkImageLayout layout)
     {
         return;
     }
+    // Layouts cannot change inside a render pass.
     EndPass();
     VulkanTransitionImage(m_api, m_commandBuffer, target.image.image, VK_IMAGE_ASPECT_COLOR_BIT, target.layout, layout);
     target.layout = layout;
@@ -1181,6 +1203,7 @@ void UiRenderer::DrawGeometry(const Geometry & geometry, Rml::Vector2f translati
     Target & target = TopLayer();
     if (!target.hasStencil)
     {
+        // Filter scratch targets have no stencil attachment.
         if (stencil == Stencil::Replace || stencil == Stencil::Increment)
         {
             return;

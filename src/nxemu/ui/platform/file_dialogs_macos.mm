@@ -94,6 +94,8 @@ NSArray<UTType *> * ContentTypesFromFilter(const char * fileFilter)
     return types.count == 0 ? nil : types;
 }
 
+// Runs the panel, then gives the keys back to the window that had them: left
+// to itself, that window takes a first click to become active again.
 NSModalResponse RunPanel(NSOpenPanel * panel)
 {
     NSWindow * window = [NSApp keyWindow];
