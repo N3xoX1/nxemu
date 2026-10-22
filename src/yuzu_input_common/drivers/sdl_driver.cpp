@@ -492,7 +492,7 @@ void SDLDriver::PumpEvents() const
     if (initialized)
     {
 #ifdef __APPLE__
-        // Sciter owns the Cocoa event loop; this backend only needs controller
+        // The frontend owns the Cocoa event loop; this backend only needs controller
         // events. Do not let SDL pump native window events in a host frontend.
         SDL_JoystickUpdate();
 #else

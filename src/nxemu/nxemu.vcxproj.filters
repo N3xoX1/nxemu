@@ -16,32 +16,14 @@
     <Filter Include="Header Files\user_interface">
       <UniqueIdentifier>{0ff4acb3-7643-4644-a021-42702b31786a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\user_interface">
-      <UniqueIdentifier>{6dc22b58-fe6d-4140-8ee7-714fe7c5c60e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\settings">
       <UniqueIdentifier>{fd346053-7bff-4ae1-8820-38e576a7116c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\user_interface\settings">
       <UniqueIdentifier>{daf4daaf-7982-479b-bf50-5a630af46883}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\user_interface\settings">
-      <UniqueIdentifier>{5e88d65d-0802-45fd-84d0-1edd8e3305fd}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\settings">
       <UniqueIdentifier>{3bf11314-5055-4185-95ae-653ebe2f8e8e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\user_interface\widgets">
-      <UniqueIdentifier>{465d5a27-da20-4e68-b138-2d8b5b359780}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\user_interface\widgets">
-      <UniqueIdentifier>{a4091b11-2249-4f6f-8fd2-49ae4e48ea92}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\applets">
-      <UniqueIdentifier>{4b652fba-ede2-4e48-81a4-487d72e67c61}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\applets">
-      <UniqueIdentifier>{7c84bbd1-3d6a-4327-9c0e-84e51ef5164d}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\ui">
       <UniqueIdentifier>{14e36445-f296-47af-9634-ec64083d9bac}</UniqueIdentifier>
@@ -99,101 +81,11 @@
     <ClCompile Include="settings\ui_settings.cpp">
       <Filter>Source Files\settings</Filter>
     </ClCompile>
-    <ClCompile Include="user_interface\sciter_about_dialog.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\notification.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\directory_watcher.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\sciter_main_window.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\input_config.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_audio.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_graphics.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_system.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_system_tab.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_input.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\config_setting.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
     <ClCompile Include="startup_checks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vulkan_probe.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_game_browser.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\input_config_player.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\key_mappings.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\game_list_worker.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\widgets\rom_browser.cpp">
-      <Filter>Source Files\user_interface\widgets</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\hotkey_map.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_general.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_hotkeys.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_logging.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="applets\web_browser.cpp">
-      <Filter>Source Files\applets</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\system_config_profiles.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\html_utils.cpp">
-      <Filter>Source Files\user_interface</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\profile_editor_dialog.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\profile_image_selector_dialog.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\game_config.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="user_interface\settings\game_config_addons.cpp">
-      <Filter>Source Files\user_interface\settings</Filter>
-    </ClCompile>
-    <ClCompile Include="applets\profile_select.cpp">
-      <Filter>Source Files\applets</Filter>
     </ClCompile>
     <ClCompile Include="ui\platform\file_dialogs.cpp">
       <Filter>Source Files\ui\platform</Filter>
@@ -236,40 +128,7 @@
     <ClInclude Include="settings\ui_settings.h">
       <Filter>Header Files\settings</Filter>
     </ClInclude>
-    <ClInclude Include="user_interface\sciter_about_dialog.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\notification.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\sciter_main_window.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\input_config.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_audio.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
     <ClInclude Include="settings\ui_settings_identifiers.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_graphics.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_system.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_system_tab.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_input.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\config_setting.h">
       <Filter>Header Files\user_interface\settings</Filter>
     </ClInclude>
     <ClInclude Include="startup_checks.h">
@@ -278,71 +137,8 @@
     <ClInclude Include="vulkan_probe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_debug.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_game_browser.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\input_config_player.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\key_mappings.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\game_list_worker.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\widgets\rom_browser.h">
-      <Filter>Header Files\user_interface\widgets</Filter>
-    </ClInclude>
     <ClInclude Include="settings\ui_identifiers.h">
       <Filter>Header Files\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\hotkey_map.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_general.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_hotkeys.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_logging.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="applets\web_browser.h">
-      <Filter>Header Files\applets</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\system_config_profiles.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\html_utils.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\profile_editor_dialog.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\profile_image_selector_dialog.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\game_config.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\settings\game_config_addons.h">
-      <Filter>Header Files\user_interface\settings</Filter>
-    </ClInclude>
-    <ClInclude Include="applets\profile_select.h">
-      <Filter>Header Files\applets</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\app_events.h">
-      <Filter>Header Files\user_interface</Filter>
-    </ClInclude>
-    <ClInclude Include="user_interface\directory_watcher.h">
-      <Filter>Header Files\user_interface</Filter>
     </ClInclude>
     <ClInclude Include="ui\platform\file_dialogs.h">
       <Filter>Header Files\ui\platform</Filter>

@@ -2,16 +2,12 @@
 #include "ui_identifiers.h"
 #include <common/json.h>
 #include <common/json_util.h>
-#include <common/path.h>
 #include <cstring>
 #include <nxemu-core/notification.h>
 #include <nxemu-core/settings/settings.h>
-#include <sciter_handler.h>
 
 namespace
 {
-    Path GetDefaultLanguageDir();
-
 #ifdef __APPLE__
     constexpr bool kShowEmulationControlsDefault = true;
 #else
@@ -24,40 +20,13 @@ namespace
     constexpr const char * kInterfaceThemeDefault = "system";
 #endif
 
-    const HotkeyMap g_defaultHotkeys = {
-        {Hotkey::LoadFile, {.key = (uint32_t)SCITER_KEY_O, .ctrl = true}},
-        {Hotkey::Exit, {.key = (uint32_t)SCITER_KEY_Q, .ctrl = true}},
-        {Hotkey::Fullscreen, {.key = (uint32_t)SCITER_KEY_F11}},
-        {Hotkey::ExitFullscreen, {.key = (uint32_t)SCITER_KEY_ESCAPE}},
-        {Hotkey::HideUi, {.key = (uint32_t)SCITER_KEY_F4}},
-        {Hotkey::PauseContinue, {.key = (uint32_t)SCITER_KEY_F2}},
-        {Hotkey::ToggleDockedMode, {.key = (uint32_t)SCITER_KEY_F10}},
-        {Hotkey::ToggleSpeedLimit, {.key = (uint32_t)SCITER_KEY_U, .ctrl = true}},
-        {Hotkey::StopEmulation, {.key = (uint32_t)SCITER_KEY_F5}},
-        {Hotkey::Controllers, {.key = (uint32_t)SCITER_KEY_C, .ctrl = true}},
-        {Hotkey::Configure, {.key = (uint32_t)SCITER_KEY_T, .ctrl = true}},
-    };
-
-    void merge_default_hotkeys(HotkeyMap & map)
-    {
-        for (const HotkeyMap::value_type & def : g_defaultHotkeys)
-        {
-            if (map.find(def.first) == map.end())
-            {
-                map.insert(def);
-            }
-        }
-    }
-
     enum class SettingType
     {
-        Path,
         String,
         int32,
         Bool,
         StringList,
         StringMap,
-        Hotkeys,
     };
 
     std::string SerializeStringList(const Stringlist & list)
@@ -73,40 +42,32 @@ namespace
     class UISetting
     {
     public:
-        UISetting(const char * id, const char * key, Path * path, std::string * value, Path defaultPath, const char * defaultValue);
         UISetting(const char * id, const char * key, std::string * value, const char * defaultValue);
         UISetting(const char * id, const char * key, bool * value, bool defaultValue);
         UISetting(const char * id, const char * key, int32_t * value, uint32_t defaultValue);
         UISetting(const char * id, const char * key, Stringlist * value);
         UISetting(const char * id, const char * key, StringMap * value);
-        UISetting(const char * id, const char * key, HotkeyMap * value, const HotkeyMap * defaultHotkeyMap);
 
         const char * identifier;
         const char * json_key;
         SettingType settingType;
         union
         {
-            Path * path;
             std::string * string;
             bool * boolean;
             int32_t * int32;
             Stringlist * string_list;
             StringMap * string_map;
-            HotkeyMap * hotkey_map;
         } setting;
-        std::string * settingValue;
-        Path default_path;
         union
         {
             const char * default_string;
             const uint32_t default_int32;
             const bool default_bool;
-            const HotkeyMap * default_hotKeys;
         };
     };
 
     static UISetting settings[] = {
-        // Both interfaces
         {NXUISetting::RecentFiles, "RecentFiles", &uiSettings.recentFiles},
         {NXUISetting::GameDirectories, "GameDirectories", &uiSettings.gameDirectories},
         {NXUISetting::GameDirectoriesRecursive, "GameDirectoriesRecursive", &uiSettings.gameDirectoriesRecursive},
@@ -116,7 +77,6 @@ namespace
         {NXUISetting::ConfirmBeforeStopping, "ConfirmBeforeStopping", &uiSettings.confirmBeforeStopping, true},
         {NXUISetting::EnableDiscordPresence, "EnableDiscordPresence", &uiSettings.enableDiscordPresence, true},
 
-        // New interface
         {nullptr, "InterfaceTheme", &uiSettings.interfaceTheme, kInterfaceThemeDefault},
         {nullptr, "InterfaceLanguage", &uiSettings.interfaceLanguage, ""},
         {nullptr, "ConsoleLanguageSet", &uiSettings.consoleLanguageSet, false},
@@ -140,18 +100,6 @@ namespace
         {nullptr, "Performance\\Size", &uiSettings.performanceSize, 100},
         {nullptr, "Performance\\Rate", &uiSettings.performanceRate, 2},
         {nullptr, "Performance\\HistoryLength", &uiSettings.performanceHistoryLength, 30},
-
-        // Sciter only: remove with Sciter
-        {nullptr, "Language\\Directory", &uiSettings.languageDir, &uiSettings.languageDirValue, GetDefaultLanguageDir(), "./lang"},
-        {nullptr, "Language\\Base", &uiSettings.languageBase, "english"},
-        {nullptr, "Language\\Current", &uiSettings.languageCurrent, "english"},
-        {nullptr, "SciterConsole", &uiSettings.sciterConsole, false},
-        {nullptr, "UseRmlUI", &uiSettings.useRmlUI, true},
-        {NXUISetting::MyGameIconSize, "GameBrowser\\MyGameIconSize", &uiSettings.gameBrowserMyGameIconSize, 2},
-        {nullptr, nullptr, &uiSettings.hasBrokenVulkan, false},
-        {nullptr, nullptr, &uiSettings.enableAllControllers, false},
-        {NXUISetting::HideMouseOnInactivity, "HideInactiveMouse", &uiSettings.hideMouseOnInactivity, true},
-        {NXUISetting::Hotkeys, "Hotkeys", &uiSettings.hotkeys, &g_defaultHotkeys},
     };
 
     void UISettingChanged(const char * setting, void * /*userData*/);
@@ -169,10 +117,6 @@ void SetupUISetting(void)
     {
         switch (setting.settingType)
         {
-        case SettingType::Path:
-            *(setting.settingValue) = setting.default_string;
-            *(setting.setting.path) = setting.default_path;
-            break;
         case SettingType::String:
             *(setting.setting.string) = setting.default_string;
             break;
@@ -188,9 +132,6 @@ void SetupUISetting(void)
         case SettingType::StringMap:
             *(setting.setting.string_map) = {};
             break;
-        case SettingType::Hotkeys:
-            *setting.setting.hotkey_map = setting.default_hotKeys != nullptr ? *setting.default_hotKeys : HotkeyMap{};
-            break;
         default:
             g_notify->BreakPoint(__FILE__, __LINE__);
         }
@@ -202,17 +143,6 @@ void SetupUISetting(void)
         JsonValue value = JsonGetNestedValue(section, setting.json_key);
         switch (setting.settingType)
         {
-        case SettingType::Path:
-            if (value.isString())
-            {
-                std::string dirValue = value.asString();
-                if (!dirValue.empty())
-                {
-                    *(setting.settingValue) = dirValue;
-                    *(setting.setting.path) = Path(*(setting.settingValue), "").DirectoryNormalize(Path(Path::MODULE_DIRECTORY));
-                }
-            }
-            break;
         case SettingType::String:
             if (value.isString())
             {
@@ -256,43 +186,6 @@ void SetupUISetting(void)
                 }
             }
             break;
-        case SettingType::Hotkeys:
-            if (value.isObject() && setting.setting.hotkey_map != nullptr)
-            {
-                HotkeyMap & map = *setting.setting.hotkey_map;
-                for (const std::string & name : value.GetMemberNames())
-                {
-                    const JsonValue & v = value[name];
-                    if (!v.isObject())
-                    {
-                        continue;
-                    }
-
-                    HotkeyMap::iterator itr = map.find(name);
-                    if (itr == map.end())
-                    {
-                        continue;
-                    }
-                    MenuBarAccelerator & accel = itr->second;
-                    if (v.isMember("key") && v["key"].isInt())
-                    {
-                        accel.key = (uint32_t)v["key"].asInt64();
-                    }
-                    if (v.isMember("ctrl") && v["ctrl"].isBool())
-                    {
-                        accel.ctrl = v["ctrl"].asBool();
-                    }
-                    if (v.isMember("alt") && v["alt"].isBool())
-                    {
-                        accel.alt = v["alt"].asBool();
-                    }
-                    if (v.isMember("shift") && v["shift"].isBool())
-                    {
-                        accel.shift = v["shift"].asBool();
-                    }
-                }
-            }
-            break;
         default:
             g_notify->BreakPoint(__FILE__, __LINE__);
         }
@@ -313,10 +206,6 @@ void SetupUISetting(void)
             case SettingType::String:
                 settingsStore.SetDefaultString(setting.identifier, setting.default_string);
                 settingsStore.SetString(setting.identifier, setting.setting.string != nullptr ? setting.setting.string->c_str() : setting.default_string);
-                break;
-            case SettingType::Hotkeys:
-                settingsStore.SetDefaultString(setting.identifier, setting.default_hotKeys != nullptr ? SerializeUIHotkeysMap(*setting.default_hotKeys).c_str() : "");
-                settingsStore.SetString(setting.identifier, SerializeUIHotkeysMap(*setting.setting.hotkey_map).c_str());
                 break;
             case SettingType::Bool:
                 settingsStore.SetDefaultBool(setting.identifier, setting.default_bool);
@@ -365,12 +254,6 @@ void SaveUISetting(void)
                 JsonSetNestedValue(json, setting.json_key, std::move(jsonMap));
             }
             break;
-        case SettingType::Path:
-            if (strcmp(setting.settingValue->c_str(), setting.default_string) != 0)
-            {
-                JsonSetNestedValue(json, setting.json_key, JsonValue(*setting.settingValue));
-            }
-            break;
         case SettingType::String:
             if (strcmp(setting.setting.string->c_str(), setting.default_string) != 0)
             {
@@ -389,16 +272,6 @@ void SaveUISetting(void)
                 JsonSetNestedValue(json, setting.json_key, JsonValue(*setting.setting.int32));
             }
             break;
-        case SettingType::Hotkeys:
-            if (setting.default_hotKeys != nullptr)
-            {
-                JsonValue diff = HotkeyMapToJsonObjectDiff(*setting.setting.hotkey_map, *setting.default_hotKeys);
-                if (!diff.GetMemberNames().empty())
-                {
-                    JsonSetNestedValue(json, setting.json_key, std::move(diff));
-                }
-            }
-            break;
         default:
             g_notify->BreakPoint(__FILE__, __LINE__);
         }
@@ -411,29 +284,10 @@ void SaveUISetting(void)
 
 namespace
 {
-    Path GetDefaultLanguageDir()
-    {
-        Path dir(Path::MODULE_DIRECTORY);
-        dir.AppendDirectory("lang");
-        return dir;
-    }
-
-    UISetting::UISetting(const char * id, const char * key, Path * path, std::string * value, Path defaultPath, const char * defaultValue) :
-        identifier(id),
-        json_key(key),
-        settingType(SettingType::Path),
-        settingValue(value),
-        default_path(defaultPath),
-        default_string(defaultValue)
-    {
-        setting.path = path;
-    }
-
     UISetting::UISetting(const char * id, const char * key, std::string * value, const char * defaultValue) :
         identifier(id),
         json_key(key),
         settingType(SettingType::String),
-        settingValue(nullptr),
         default_string(defaultValue)
     {
         setting.string = value;
@@ -443,7 +297,6 @@ namespace
         identifier(id),
         json_key(key),
         settingType(SettingType::int32),
-        settingValue(nullptr),
         default_int32(defaultValue)
     {
         setting.int32 = value;
@@ -453,7 +306,6 @@ namespace
         identifier(id),
         json_key(key),
         settingType(SettingType::Bool),
-        settingValue(nullptr),
         default_bool(defaultValue)
     {
         setting.boolean = value;
@@ -463,7 +315,6 @@ namespace
         identifier(id),
         json_key(key),
         settingType(SettingType::StringList),
-        settingValue(nullptr),
         default_string(nullptr)
     {
         setting.string_list = value;
@@ -473,20 +324,9 @@ namespace
         identifier(id),
         json_key(key),
         settingType(SettingType::StringMap),
-        settingValue(nullptr),
         default_string(nullptr)
     {
         setting.string_map = value;
-    }
-
-    UISetting::UISetting(const char * id, const char * key, HotkeyMap * value, const HotkeyMap * defaultHotkeyMap) :
-        identifier(id),
-        json_key(key),
-        settingType(SettingType::Hotkeys),
-        settingValue(nullptr),
-        default_hotKeys(defaultHotkeyMap)
-    {
-        setting.hotkey_map = value;
     }
 
     void UISettingChanged(const char * setting, void * /*userData*/)
@@ -534,27 +374,6 @@ namespace
                 if (uiSetting.setting.string != nullptr)
                 {
                     *uiSetting.setting.string = settingsStore.GetString(setting);
-                }
-                break;
-            case SettingType::Hotkeys:
-                if (uiSetting.setting.hotkey_map != nullptr)
-                {
-                    const std::string json = settingsStore.GetString(setting);
-                    JsonReader reader;
-                    JsonValue root;
-                    if (json.empty())
-                    {
-                        uiSetting.setting.hotkey_map->clear();
-                    }
-                    else if (reader.Parse(json.data(), json.data() + json.size(), root) && root.isObject())
-                    {
-                        DeserializeHotkeyMapFromJsonObject(root, *uiSetting.setting.hotkey_map);
-                    }
-                    else
-                    {
-                        uiSetting.setting.hotkey_map->clear();
-                    }
-                    merge_default_hotkeys(*uiSetting.setting.hotkey_map);
                 }
                 break;
             case SettingType::Bool:

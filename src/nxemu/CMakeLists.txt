@@ -11,86 +11,9 @@ add_executable(nxemu
     settings/ui_settings.cpp
     settings/ui_settings.h
     settings/ui_identifiers.h
-    user_interface/sciter_about_dialog.cpp
-    user_interface/sciter_about_dialog.h
-    user_interface/game_list_worker.cpp
-    user_interface/game_list_worker.h
-    user_interface/hotkey_map.cpp
-    user_interface/hotkey_map.h
-    user_interface/html_utils.cpp
-    user_interface/html_utils.h
-    user_interface/key_mappings.cpp
-    user_interface/key_mappings.h
-    user_interface/notification.cpp
-    user_interface/notification.h
-    user_interface/app_events.h
-    user_interface/directory_watcher.cpp
-    user_interface/directory_watcher.h
-    user_interface/sciter_main_window.cpp
-    user_interface/sciter_main_window.h
-    user_interface/widgets/rom_browser.cpp
-    user_interface/widgets/rom_browser.h
-    user_interface/settings/config_setting.cpp
-    user_interface/settings/config_setting.h
-    user_interface/settings/game_config.cpp
-    user_interface/settings/game_config.h
-    user_interface/settings/game_config_addons.cpp
-    user_interface/settings/game_config_addons.h
-    user_interface/settings/input_config.cpp
-    user_interface/settings/input_config.h
-    user_interface/settings/input_config_player.cpp
-    user_interface/settings/input_config_player.h
-    user_interface/settings/profile_editor_dialog.cpp
-    user_interface/settings/profile_editor_dialog.h
-    user_interface/settings/profile_firmware_avatar_dialog.cpp
-    user_interface/settings/profile_firmware_avatar_dialog.h
-    user_interface/settings/profile_image_selector_dialog.cpp
-    user_interface/settings/profile_image_selector_dialog.h
-    user_interface/settings/system_config.cpp
-    user_interface/settings/system_config.h
-    user_interface/settings/system_config_audio.cpp
-    user_interface/settings/system_config_audio.h
-    user_interface/settings/system_config_game_browser.cpp
-    user_interface/settings/system_config_game_browser.h
-    user_interface/settings/system_config_general.cpp
-    user_interface/settings/system_config_general.h
-    user_interface/settings/system_config_graphics.cpp
-    user_interface/settings/system_config_graphics.h
-    user_interface/settings/system_config_hotkeys.cpp
-    user_interface/settings/system_config_hotkeys.h
-    user_interface/settings/system_config_input.cpp
-    user_interface/settings/system_config_input.h
-    user_interface/settings/system_config_logging.cpp
-    user_interface/settings/system_config_logging.h
-    user_interface/settings/system_config_profiles.cpp
-    user_interface/settings/system_config_profiles.h
-    user_interface/settings/system_config_system.cpp
-    user_interface/settings/system_config_system.h
-    user_interface/settings/system_config_system_tab.cpp
-    user_interface/settings/system_config_system_tab.h
-    applets/profile_select.cpp
-    applets/profile_select.h
-    applets/web_browser.cpp
-    applets/web_browser.h
 )
 
 file(GLOB _nxemu_ui_catalogues CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang/*.po")
-
-if(APPLE)
-    target_sources(nxemu PRIVATE
-        user_interface/render_window_macos.mm
-    )
-    find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
-    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
-    find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
-    find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)
-    target_link_libraries(nxemu PRIVATE
-        ${APPKIT_FRAMEWORK}
-        ${CORESERVICES_FRAMEWORK}
-        ${QUARTZCORE_FRAMEWORK}
-        ${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}
-    )
-endif()
 
 target_include_directories(nxemu PRIVATE
     ${CMAKE_SOURCE_DIR}/src
@@ -100,7 +23,6 @@ target_include_directories(nxemu PRIVATE
     ${CMAKE_SOURCE_DIR}/src/common
     ${CMAKE_SOURCE_DIR}/src/yuzu_common
     ${CMAKE_SOURCE_DIR}/external/boost
-    ${CMAKE_SOURCE_DIR}/external/sciterui/include
 )
 
 if(UNIX)
@@ -109,7 +31,6 @@ endif()
 
 target_link_libraries(nxemu PRIVATE
     nxemu_ui
-    sciterui
     common
     yuzu_common
     nxemu_core
@@ -123,21 +44,6 @@ nxemu_set_app_output(nxemu)
 if(NOT APPLE OR NOT NXEMU_MACOS_BUNDLE)
     include(nxemu_setup_environment)
     nxemu_setup_environment(nxemu)
-endif()
-
-# Runtime needs the Sciter engine beside the executable
-if(WIN32)
-    set(_nxemu_sciter_lib "${CMAKE_SOURCE_DIR}/external/sciterui/src/3rd_party/sciter-js-sdk-main/bin/windows.d2d/x64/sciter.dll")
-    set(_nxemu_sciter_dest "sciter.dll")
-elseif(APPLE)
-    set(_nxemu_sciter_lib "${CMAKE_SOURCE_DIR}/external/sciterui/src/3rd_party/sciter-js-sdk-main/bin/macosx/libsciter.dylib")
-    set(_nxemu_sciter_dest "libsciter.dylib")
-elseif(ARCHITECTURE_arm64)
-    set(_nxemu_sciter_lib "${CMAKE_SOURCE_DIR}/external/sciterui/src/3rd_party/sciter-js-sdk-main/bin/linux/arm64/libsciter.so")
-    set(_nxemu_sciter_dest "libsciter.so")
-else()
-    set(_nxemu_sciter_lib "${CMAKE_SOURCE_DIR}/external/sciterui/src/3rd_party/sciter-js-sdk-main/bin/linux/x64/libsciter.so")
-    set(_nxemu_sciter_dest "libsciter.so")
 endif()
 
 if(APPLE AND NXEMU_MACOS_BUNDLE)
@@ -155,8 +61,8 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         OUTPUT_NAME "NxEmu"
         BUILD_RPATH "@executable_path/../Frameworks"
     )
-    if(NOT NXEMU_MOLTENVK_RUNTIME OR NOT EXISTS "${_nxemu_sciter_lib}")
-        message(FATAL_ERROR "The macOS bundle requires MoltenVK and Sciter")
+    if(NOT NXEMU_MOLTENVK_RUNTIME)
+        message(FATAL_ERROR "The macOS bundle requires MoltenVK")
     endif()
     if(TARGET nxemu_moltenvk)
         add_dependencies(nxemu nxemu_moltenvk)
@@ -174,10 +80,8 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DVIDEO=$<TARGET_FILE:nxemu-video>"
         "-DOS=$<TARGET_FILE:nxemu-os>"
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
-        "-DSCITER=${_nxemu_sciter_lib}"
         "-DSDL=$<TARGET_FILE:SDL2::SDL2>"
         "-DASSETS=${CMAKE_CURRENT_SOURCE_DIR}/ui/assets"
-        "-DLANG=${CMAKE_SOURCE_DIR}/lang"
         "-DCODESIGN=${NXEMU_CODESIGN}"
         "-DINSTALL_NAME_TOOL=${NXEMU_INSTALL_NAME_TOOL}"
         "-DOTOOL=${NXEMU_OTOOL}"
@@ -192,7 +96,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
     set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS
         "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE:nxemu-cpu>"
         "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE:nxemu-os>"
-        "${NXEMU_MOLTENVK_RUNTIME}" "${_nxemu_sciter_lib}" "${_nxemu_bundle_script}"
+        "${NXEMU_MOLTENVK_RUNTIME}" "${_nxemu_bundle_script}"
         "${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in" "${_nxemu_icon}")
     add_custom_command(TARGET nxemu POST_BUILD
         COMMAND ${_nxemu_bundle_command} VERBATIM
@@ -202,40 +106,31 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         DEPENDS nxemu
         VERBATIM
         COMMENT "Refresh NxEmu.app runtime and language resources")
-else()
-    if(EXISTS "${_nxemu_sciter_lib}")
-        add_custom_command(TARGET nxemu POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_nxemu_sciter_lib}" "$<TARGET_FILE_DIR:nxemu>/${_nxemu_sciter_dest}"
-            VERBATIM)
+elseif(APPLE)
+    if(NOT NXEMU_MOLTENVK_RUNTIME)
+        message(FATAL_ERROR "MoltenVK runtime was not configured")
     endif()
-    if(APPLE)
-        if(NOT NXEMU_MOLTENVK_RUNTIME)
-            message(FATAL_ERROR "MoltenVK runtime was not configured")
-        endif()
-        if(TARGET nxemu_moltenvk)
-            add_dependencies(nxemu nxemu_moltenvk)
-        endif()
-        add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
-        set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS
-            "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE:nxemu-cpu>"
-            "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE:nxemu-os>")
-        add_custom_command(TARGET nxemu POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${NXEMU_MOLTENVK_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>/libMoltenVK.dylib"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/lang" "$<TARGET_FILE_DIR:nxemu>/lang"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets" "$<TARGET_FILE_DIR:nxemu>/ui"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:nxemu>/ui/lang"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_nxemu_ui_catalogues} "$<TARGET_FILE_DIR:nxemu>/ui/lang"
-            COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:nxemu>/modules/loader"
-                "$<TARGET_FILE_DIR:nxemu>/modules/cpu"
-                "$<TARGET_FILE_DIR:nxemu>/modules/video"
-                "$<TARGET_FILE_DIR:nxemu>/modules/operating_system"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE_DIR:nxemu>/modules/loader/"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-cpu>" "$<TARGET_FILE_DIR:nxemu>/modules/cpu/"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE_DIR:nxemu>/modules/video/"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-os>" "$<TARGET_FILE_DIR:nxemu>/modules/operating_system/"
-            VERBATIM)
+    if(TARGET nxemu_moltenvk)
+        add_dependencies(nxemu nxemu_moltenvk)
     endif()
+    add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
+    set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS
+        "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE:nxemu-cpu>"
+        "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE:nxemu-os>")
+    add_custom_command(TARGET nxemu POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${NXEMU_MOLTENVK_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>/libMoltenVK.dylib"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets" "$<TARGET_FILE_DIR:nxemu>/ui"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:nxemu>/ui/lang"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_nxemu_ui_catalogues} "$<TARGET_FILE_DIR:nxemu>/ui/lang"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:nxemu>/modules/loader"
+            "$<TARGET_FILE_DIR:nxemu>/modules/cpu"
+            "$<TARGET_FILE_DIR:nxemu>/modules/video"
+            "$<TARGET_FILE_DIR:nxemu>/modules/operating_system"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE_DIR:nxemu>/modules/loader/"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-cpu>" "$<TARGET_FILE_DIR:nxemu>/modules/cpu/"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE_DIR:nxemu>/modules/video/"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-os>" "$<TARGET_FILE_DIR:nxemu>/modules/operating_system/"
+        VERBATIM)
 endif()

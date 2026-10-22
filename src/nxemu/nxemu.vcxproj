@@ -28,7 +28,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)ui\host\shaders;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\rmlui\Backends;$(SolutionDir)external\rmlui\Include;$(SolutionDir)external\sdl\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\sciterui\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ui\host\shaders;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\rmlui\Backends;$(SolutionDir)external\rmlui\Include;$(SolutionDir)external\sdl\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NOMINMAX;RMLUI_STATIC_LIB;RMLUI_SDL_VERSION_MAJOR=2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -36,13 +36,8 @@
       <Command>IF NOT EXIST "$(SolutionDir)config\NxEmu.config" (copy  "$(SolutionDir)config\NxEmu.config.development" "$(SolutionDir)config\NxEmu.config")
 </Command>
     </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>xcopy /Y /D "$(SolutionDir)external\sciterui\src\3rd_party\sciter-js-sdk-main\bin\windows.d2d\x64\sciter.dll" "$(OutDir)"</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="applets\profile_select.cpp" />
-    <ClCompile Include="applets\web_browser.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="settings\ui_settings.cpp" />
     <ClCompile Include="startup_checks.cpp" />
@@ -102,38 +97,8 @@
     <ClCompile Include="ui\host\system_language.cpp" />
     <ClCompile Include="ui\host\ui_pack.cpp" />
     <ClCompile Include="ui\library\interface_language.cpp" />
-    <ClCompile Include="user_interface\game_list_worker.cpp" />
-    <ClCompile Include="user_interface\hotkey_map.cpp" />
-    <ClCompile Include="user_interface\html_utils.cpp" />
-    <ClCompile Include="user_interface\key_mappings.cpp" />
-    <ClCompile Include="user_interface\sciter_about_dialog.cpp" />
-    <ClCompile Include="user_interface\notification.cpp" />
-    <ClCompile Include="user_interface\sciter_main_window.cpp" />
-    <ClCompile Include="user_interface\settings\config_setting.cpp" />
-    <ClCompile Include="user_interface\settings\game_config.cpp" />
-    <ClCompile Include="user_interface\settings\game_config_addons.cpp" />
-    <ClCompile Include="user_interface\settings\input_config_player.cpp" />
-    <ClCompile Include="user_interface\settings\profile_editor_dialog.cpp" />
-    <ClCompile Include="user_interface\settings\profile_firmware_avatar_dialog.cpp" />
-    <ClCompile Include="user_interface\settings\profile_image_selector_dialog.cpp" />
-    <ClCompile Include="user_interface\settings\system_config.cpp" />
-    <ClCompile Include="user_interface\settings\input_config.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_audio.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_game_browser.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_general.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_graphics.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_profiles.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_system.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_system_tab.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_input.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_hotkeys.cpp" />
-    <ClCompile Include="user_interface\settings\system_config_logging.cpp" />
-    <ClCompile Include="user_interface\directory_watcher.cpp" />
-    <ClCompile Include="user_interface\widgets\rom_browser.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="applets\profile_select.h" />
-    <ClInclude Include="applets\web_browser.h" />
     <ClInclude Include="settings\ui_identifiers.h" />
     <ClInclude Include="settings\ui_settings.h" />
     <ClInclude Include="settings\ui_settings_identifiers.h" />
@@ -188,42 +153,12 @@
     <ClInclude Include="ui\library\game_details.h" />
     <ClInclude Include="ui\library\rom_properties.h" />
     <ClInclude Include="vulkan_probe.h" />
-    <ClInclude Include="user_interface\app_events.h" />
     <ClInclude Include="ui\platform\file_dialogs.h" />
     <ClInclude Include="ui\platform\system_theme.h" />
     <ClInclude Include="ui\host\system_language.h" />
     <ClInclude Include="ui\host\ui_pack.h" />
     <ClInclude Include="ui\library\interface_language.h" />
-    <ClInclude Include="user_interface\game_list_worker.h" />
-    <ClInclude Include="user_interface\hotkey_map.h" />
-    <ClInclude Include="user_interface\html_utils.h" />
-    <ClInclude Include="user_interface\key_mappings.h" />
-    <ClInclude Include="user_interface\sciter_about_dialog.h" />
-    <ClInclude Include="user_interface\notification.h" />
     <ClInclude Include="user_interface\resource.h" />
-    <ClInclude Include="user_interface\sciter_main_window.h" />
-    <ClInclude Include="user_interface\settings\config_setting.h" />
-    <ClInclude Include="user_interface\settings\game_config.h" />
-    <ClInclude Include="user_interface\settings\game_config_addons.h" />
-    <ClInclude Include="user_interface\settings\input_config_player.h" />
-    <ClInclude Include="user_interface\settings\profile_editor_dialog.h" />
-    <ClInclude Include="user_interface\settings\profile_firmware_avatar_dialog.h" />
-    <ClInclude Include="user_interface\settings\profile_image_selector_dialog.h" />
-    <ClInclude Include="user_interface\settings\system_config.h" />
-    <ClInclude Include="user_interface\settings\input_config.h" />
-    <ClInclude Include="user_interface\settings\system_config_audio.h" />
-    <ClInclude Include="user_interface\settings\system_config_debug.h" />
-    <ClInclude Include="user_interface\settings\system_config_game_browser.h" />
-    <ClInclude Include="user_interface\settings\system_config_general.h" />
-    <ClInclude Include="user_interface\settings\system_config_graphics.h" />
-    <ClInclude Include="user_interface\settings\system_config_profiles.h" />
-    <ClInclude Include="user_interface\settings\system_config_system.h" />
-    <ClInclude Include="user_interface\settings\system_config_system_tab.h" />
-    <ClInclude Include="user_interface\settings\system_config_input.h" />
-    <ClInclude Include="user_interface\settings\system_config_hotkeys.h" />
-    <ClInclude Include="user_interface\settings\system_config_logging.h" />
-    <ClInclude Include="user_interface\directory_watcher.h" />
-    <ClInclude Include="user_interface\widgets\rom_browser.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\external\freetype.vcxproj">
@@ -231,9 +166,6 @@
     </ProjectReference>
     <ProjectReference Include="..\..\external\rmlui_core.vcxproj">
       <Project>{978d165d-6513-497e-b12c-ca016a6fa48f}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\external\sciterui\src\sciterui\sciterui.vcxproj">
-      <Project>{847b64ee-2c78-48f9-912b-d700f2a5cb91}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\external\sdl.vcxproj">
       <Project>{c44840a5-59bc-4ca0-85c2-b51f0ba6e3bd}</Project>
