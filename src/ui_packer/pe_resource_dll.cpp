@@ -1,4 +1,5 @@
 #include "pe_resource_dll.h"
+#include <cstring>
 #include <map>
 
 namespace

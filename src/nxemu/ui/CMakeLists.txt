@@ -7,6 +7,9 @@ endif()
 # The RmlUi frontend. Everything here is shared by all platforms, apart from
 # the few window conventions macOS needs set natively.
 add_library(nxemu_ui STATIC
+    ../settings/ui_settings.cpp
+    ../settings/ui_settings.h
+    ../settings/ui_identifiers.h
     ui_application.cpp
     ui_application.h
     emulation/emulator_session.cpp
@@ -164,6 +167,8 @@ if(APPLE)
     find_library(UNIFORMTYPEIDENTIFIERS_FRAMEWORK UniformTypeIdentifiers REQUIRED)
     target_sources(nxemu_ui PRIVATE platform/file_dialogs_macos.mm platform/platform_macos.mm)
     target_link_libraries(nxemu_ui PRIVATE "${CORETEXT_FRAMEWORK}" "${APPKIT_FRAMEWORK}" "${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}")
+elseif(WIN32)
+    target_link_libraries(nxemu_ui PRIVATE comdlg32 ole32 shell32 advapi32)
 elseif(UNIX)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(DBUS dbus-1 REQUIRED IMPORTED_TARGET)

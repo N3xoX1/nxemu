@@ -1,18 +1,17 @@
-#include "settings/ui_settings.h"
 #include "startup_checks.h"
-#include "ui/ui_application.h"
+#include "settings/ui_settings.h"
 #include <common/path.h>
-#include <filesystem>
-#include <memory>
 #include <nxemu-core/app_init.h>
-#ifdef __APPLE__
 #include <nxemu-core/settings/core_settings.h>
-#include <sys/resource.h>
-#endif
+#include <filesystem>
 #include <yuzu_common/fs/path_util.h>
+#include <nxemu/ui/ui_application.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <windows.h>
+#endif
+#ifdef __APPLE__
+#include <sys/resource.h>
 #endif
 
 #ifdef _WIN32
@@ -48,32 +47,26 @@ static int RunApplication(int argc, char ** argv)
 #ifdef __APPLE__
     RaiseOpenFileLimit();
 #endif
+    // The process may be the child that probes Vulkan for another instance.
     bool isChild = false;
     if (CheckEnvVars(&isChild))
     {
         return 0;
     }
-
     if (!AppInit(Path(Path::MODULE_DIRECTORY), Common::FS::GetYuzuPathString(Common::FS::YuzuPath::YuzuDir).c_str()))
     {
         AppCleanup();
         return 1;
     }
     SetupUISetting();
-
-#ifdef __APPLE__
-    const auto exe_dir = Common::FS::GetExeDirectory();
-    const bool is_bundle = exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents";
-    const bool has_local_runtime = std::filesystem::is_directory(exe_dir / "modules");
-    if (is_bundle || has_local_runtime) {
-        // A bundle must load its matching modules even when reusing a
-        // development config. Keep the stored path values unchanged for raw runs.
-        const auto module_dir = is_bundle ? exe_dir.parent_path() / "Frameworks/modules" : exe_dir / "modules";
-        coreSettings.moduleDir = Path(module_dir.string(), "");
+    const auto exeDir = Common::FS::GetExeDirectory();
+    const bool bundled = exeDir.filename() == "MacOS" && exeDir.parent_path().filename() == "Contents";
+    const auto modules = bundled ? exeDir.parent_path() / "Frameworks/modules" : exeDir / "modules";
+    if (std::filesystem::is_directory(modules))
+    {
+        coreSettings.moduleDir = Path(modules.string(), "");
     }
-#endif
-
-    int result = RunUiApplication(argc, argv);
+    const int result = RunUiApplication(argc, argv);
     AppCleanup();
     return result;
 }

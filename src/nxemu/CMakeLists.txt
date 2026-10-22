@@ -1,6 +1,20 @@
 option(NXEMU_MACOS_BUNDLE "Build NxEmu as a macOS application bundle" ON)
 
+# The interface derives from RmlUi's classes.
+nxemu_enable_rtti()
+
 add_subdirectory(ui)
+
+option(NXEMU_BUILD_UI_SETTINGS_TESTS "Test frontend settings after removing the legacy UI" OFF)
+if(NXEMU_BUILD_UI_SETTINGS_TESTS)
+    add_executable(nxemu_ui_settings_tests
+        settings/ui_settings_tests.cpp
+        settings/ui_settings.cpp)
+    target_include_directories(nxemu_ui_settings_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+    target_link_libraries(nxemu_ui_settings_tests PRIVATE nxemu_core common yuzu_common)
+    add_test(NAME nxemu_ui_settings COMMAND nxemu_ui_settings_tests)
+endif()
+
 
 add_executable(nxemu
     main.cpp
@@ -8,12 +22,7 @@ add_executable(nxemu
     startup_checks.h
     vulkan_probe.cpp
     vulkan_probe.h
-    settings/ui_settings.cpp
-    settings/ui_settings.h
-    settings/ui_identifiers.h
 )
-
-file(GLOB _nxemu_ui_catalogues CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang/*.po")
 
 target_include_directories(nxemu PRIVATE
     ${CMAKE_SOURCE_DIR}/src
@@ -29,45 +38,64 @@ if(UNIX)
     target_compile_definitions(nxemu PRIVATE NXEMU_UNIX=1)
 endif()
 
+if(WIN32)
+    # A windowed application: no console, and the icon and version details
+    # Explorer shows.
+    set_target_properties(nxemu PROPERTIES WIN32_EXECUTABLE TRUE)
+    target_sources(nxemu PRIVATE windows/nxemu.rc)
+endif()
+
 target_link_libraries(nxemu PRIVATE
     nxemu_ui
     common
     yuzu_common
     nxemu_core
-    discord-rpc
     fmt::fmt
     Vulkan::Headers
     Vulkan::UtilityHeaders
     ${CMAKE_DL_LIBS}
 )
 nxemu_set_app_output(nxemu)
-if(NOT APPLE OR NOT NXEMU_MACOS_BUNDLE)
-    include(nxemu_setup_environment)
-    nxemu_setup_environment(nxemu)
+add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
+
+set(_nxemu_ui_assets "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets")
+file(GLOB _nxemu_ui_catalogues CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang/*.po")
+add_executable(ui_packer
+    ../ui_packer/ui_packer.cpp
+    ../ui_packer/pe_resource_dll.cpp)
+set(_nxemu_ui_pack "${CMAKE_CURRENT_BINARY_DIR}/nxemu.lang")
+file(GLOB_RECURSE _nxemu_ui_pack_inputs CONFIGURE_DEPENDS "${_nxemu_ui_assets}/*")
+add_custom_command(OUTPUT "${_nxemu_ui_pack}"
+    COMMAND $<TARGET_FILE:ui_packer> "${_nxemu_ui_assets}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang" "${_nxemu_ui_pack}"
+    DEPENDS ui_packer ${_nxemu_ui_pack_inputs} ${_nxemu_ui_catalogues}
+    VERBATIM)
+add_custom_target(nxemu_ui_pack DEPENDS "${_nxemu_ui_pack}")
+add_dependencies(nxemu nxemu_ui_pack)
+set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS "${_nxemu_ui_pack}")
+# Updating a translation also refreshes the files beside the executable.
+set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS ${_nxemu_ui_catalogues})
+
+if(APPLE)
+    if(NOT NXEMU_MOLTENVK_RUNTIME)
+        message(FATAL_ERROR "MoltenVK runtime was not configured")
+    endif()
+    if(TARGET nxemu_moltenvk)
+        add_dependencies(nxemu nxemu_moltenvk)
+    endif()
 endif()
 
 if(APPLE AND NXEMU_MACOS_BUNDLE)
     set(_nxemu_icon "${CMAKE_CURRENT_SOURCE_DIR}/macos/nxemu.icns")
-    set_source_files_properties("${_nxemu_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-    target_sources(nxemu PRIVATE "${_nxemu_icon}")
     set_target_properties(nxemu PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in"
-        MACOSX_BUNDLE_ICON_FILE "nxemu.icns"
         MACOSX_BUNDLE_GUI_IDENTIFIER "org.nxemu"
         MACOSX_BUNDLE_BUNDLE_NAME "NxEmu"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${VERSION_BUILD}"
         OUTPUT_NAME "NxEmu"
-        BUILD_RPATH "@executable_path/../Frameworks"
-    )
-    if(NOT NXEMU_MOLTENVK_RUNTIME)
-        message(FATAL_ERROR "The macOS bundle requires MoltenVK")
-    endif()
-    if(TARGET nxemu_moltenvk)
-        add_dependencies(nxemu nxemu_moltenvk)
-    endif()
-    add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
+        BUILD_RPATH "@executable_path/../Frameworks")
     find_program(NXEMU_CODESIGN codesign REQUIRED)
     find_program(NXEMU_INSTALL_NAME_TOOL install_name_tool REQUIRED)
     find_program(NXEMU_OTOOL otool REQUIRED)
@@ -80,8 +108,9 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DVIDEO=$<TARGET_FILE:nxemu-video>"
         "-DOS=$<TARGET_FILE:nxemu-os>"
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
-        "-DSDL=$<TARGET_FILE:SDL2::SDL2>"
-        "-DASSETS=${CMAKE_CURRENT_SOURCE_DIR}/ui/assets"
+        "-DSDL=$<TARGET_FILE:SDL2>"
+        "-DASSETS=${_nxemu_ui_assets}"
+        "-DUI_PACK=${_nxemu_ui_pack}"
         "-DCODESIGN=${NXEMU_CODESIGN}"
         "-DINSTALL_NAME_TOOL=${NXEMU_INSTALL_NAME_TOOL}"
         "-DOTOOL=${NXEMU_OTOOL}"
@@ -105,32 +134,36 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         COMMAND ${_nxemu_bundle_command}
         DEPENDS nxemu
         VERBATIM
-        COMMENT "Refresh NxEmu.app runtime and language resources")
-elseif(APPLE)
-    if(NOT NXEMU_MOLTENVK_RUNTIME)
-        message(FATAL_ERROR "MoltenVK runtime was not configured")
-    endif()
-    if(TARGET nxemu_moltenvk)
-        add_dependencies(nxemu nxemu_moltenvk)
-    endif()
-    add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
-    set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS
-        "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE:nxemu-cpu>"
-        "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE:nxemu-os>")
+        COMMENT "Refresh NxEmu.app modules and interface files")
+else()
     add_custom_command(TARGET nxemu POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${NXEMU_MOLTENVK_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>/libMoltenVK.dylib"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets" "$<TARGET_FILE_DIR:nxemu>/ui"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_nxemu_ui_pack}" "$<TARGET_FILE_DIR:nxemu>/nxemu.lang"
+        VERBATIM)
+    include(nxemu_setup_environment)
+    nxemu_setup_environment(nxemu)
+    foreach(_module nxemu-loader nxemu-cpu nxemu-video nxemu-os)
+        if(_module STREQUAL "nxemu-os")
+            set(_folder operating_system)
+        else()
+            string(REPLACE "nxemu-" "" _folder "${_module}")
+        endif()
+        set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS "$<TARGET_FILE:${_module}>")
+        add_custom_command(TARGET nxemu POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:nxemu>/modules/${_folder}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${_module}>" "$<TARGET_FILE_DIR:nxemu>/modules/${_folder}"
+            VERBATIM)
+    endforeach()
+    # The interface's documents, fonts and images ship beside the executable.
+    add_custom_command(TARGET nxemu POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${_nxemu_ui_assets}" "$<TARGET_FILE_DIR:nxemu>/ui"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:nxemu>/ui/lang"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_nxemu_ui_catalogues} "$<TARGET_FILE_DIR:nxemu>/ui/lang"
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:nxemu>/modules/loader"
-            "$<TARGET_FILE_DIR:nxemu>/modules/cpu"
-            "$<TARGET_FILE_DIR:nxemu>/modules/video"
-            "$<TARGET_FILE_DIR:nxemu>/modules/operating_system"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE_DIR:nxemu>/modules/loader/"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-cpu>" "$<TARGET_FILE_DIR:nxemu>/modules/cpu/"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE_DIR:nxemu>/modules/video/"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:nxemu-os>" "$<TARGET_FILE_DIR:nxemu>/modules/operating_system/"
         VERBATIM)
+    if(APPLE)
+        add_custom_command(TARGET nxemu POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${NXEMU_MOLTENVK_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>/libMoltenVK.dylib"
+            VERBATIM)
+    endif()
 endif()
