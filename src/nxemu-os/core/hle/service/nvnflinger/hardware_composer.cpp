@@ -4,6 +4,8 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <algorithm>
+
 #include <boost/container/small_vector.hpp>
 
 #include "core/hle/service/nvdrv/devices/nvdisp_disp0.h"
@@ -51,6 +53,26 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
 
     // Set default speed limit to 100%.
     *out_speed_scale = 1.0f;
+
+    // Do not consume queued buffers when the display has no visible layers. If a layer
+    // became hidden after its buffer was acquired, the caller has waited for the last
+    // composite before allowing framebuffer updates, so it is safe to release it now.
+    if (std::ranges::none_of(display.stack.layers, [](const auto& layer) { return layer->visible; })) {
+        if (allow_framebuffer_update) {
+            for (const auto& layer : display.stack.layers) {
+                const auto it = m_framebuffers.find(layer->consumer_id);
+                if (it != m_framebuffers.end() && it->second.is_acquired) {
+                    layer->buffer_item_consumer->ReleaseBuffer(it->second.item,
+                                                               android::Fence::NoFence());
+                    it->second.is_acquired = false;
+                    it->second.needs_present = false;
+                    it->second.waiting_for_replacement = false;
+                }
+            }
+        }
+        ++m_frame_number;
+        return 1;
+    }
 
     // Determine the number of vsync periods to wait before composing again.
     std::optional<s32> swap_interval{};
@@ -120,6 +142,13 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
 }
 
 bool HardwareComposer::NeedsFramebufferUpdate(Display& display) const {
+    if (std::ranges::none_of(display.stack.layers, [](const auto& layer) { return layer->visible; })) {
+        return std::ranges::any_of(display.stack.layers, [this](const auto& layer) {
+            const auto it = m_framebuffers.find(layer->consumer_id);
+            return it != m_framebuffers.end() && it->second.is_acquired;
+        });
+    }
+
     for (const auto& layer : display.stack.layers) {
         const auto it = m_framebuffers.find(layer->consumer_id);
         if (it != m_framebuffers.end() && it->second.needs_present) {
