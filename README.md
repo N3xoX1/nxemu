@@ -27,3 +27,5 @@ Contributions are welcome via pull requests.
 ## License
 
 NxEmu is licensed under the [GNU General Public License v3.0](./license.txt).
+
+The Linux RmlUi frontend uses Wayland; a Wayland session is required.

@@ -44,8 +44,8 @@ need pkg-config
 need curl
 need python3
 
-if ! pkg-config --exists x11 wayland-client dbus-1; then
-    echo "Missing build packages: x11, wayland-client, and dbus-1 development files." >&2
+if ! pkg-config --exists wayland-client dbus-1; then
+    echo "Missing build packages: wayland-client and dbus-1 development files." >&2
     exit 1
 fi
 

@@ -244,7 +244,7 @@ enum class RenderWindowSystem : uint32_t
 {
     Default = 0,
     Windows,
-    X11,
+    ReservedDisplay, // Retired display backend; keep subsequent ABI values stable.
     Wayland,
     Cocoa,
     Android,

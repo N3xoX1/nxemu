@@ -314,9 +314,6 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
     case RenderWindowSystem::Windows:
         window_info.type = Core::Frontend::WindowSystemType::Windows;
         break;
-    case RenderWindowSystem::X11:
-        window_info.type = Core::Frontend::WindowSystemType::X11;
-        break;
     case RenderWindowSystem::Wayland:
         window_info.type = Core::Frontend::WindowSystemType::Wayland;
         break;
@@ -327,6 +324,7 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
         window_info.type = Core::Frontend::WindowSystemType::Android;
         break;
     case RenderWindowSystem::Default:
+    case RenderWindowSystem::ReservedDisplay:
         window_info.type = Core::Frontend::WindowSystemType::Headless;
         window_info.display_connection = nullptr;
         window_info.render_surface = nullptr;
