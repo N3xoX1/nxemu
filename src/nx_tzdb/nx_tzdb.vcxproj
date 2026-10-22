@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{93a649b4-9e40-44a4-80a5-5eafa3af6024}</ProjectGuid>
+    <RootNamespace>nxtzdb</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemGroup>
+    <CustomBuild Include="africa.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Africa" africa "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\africa.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="america.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\America" america "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\america.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="america_argentina.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\America\Argentina" america_argentina "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\america_argentina.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="america_indiana.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\America\Indiana" america_indiana "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\america_indiana.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="america_kentucky.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\America\Kentucky" america_kentucky "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\america_kentucky.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="america_north_dakota.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\America\North_Dakota" america_north_dakota "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\america_north_dakota.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="antarctica.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Antarctica" antarctica "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\antarctica.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="arctic.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Arctic" arctic "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\arctic.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="asia.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Asia" asia "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\asia.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="atlantic.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Atlantic" atlantic "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\atlantic.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="australia.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Australia" australia "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\australia.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="base.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Base" base "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\base.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="brazil.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Brazil" brazil "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\brazil.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="canada.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Canada" canada "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\canada.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="chile.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Chile" chile "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\chile.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="etc.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Etc" etc "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\etc.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="europe.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Europe" europe "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\europe.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="indian.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Indian" indian "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\indian.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="mexico.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Mexico" mexico "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\mexico.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="pacific.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\Pacific" pacific "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\pacific.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="us.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo\US" us "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\us.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+    <CustomBuild Include="zoneinfo.h.rule">
+      <FileType>Document</FileType>
+      <Command>"$(OutDir)nx_tzdb_create_header.exe" "$(SolutionDir)src\3rd_party\zoneinfo" zoneinfo "$(SolutionDir)src\3rd_party\nx_tzdb\include" "$(SolutionDir)src\3rd_party\nx_tzdb"</Command>
+      <Outputs>$(SolutionDir)src\3rd_party\nx_tzdb\include\nx_tzdb\zoneinfo.h</Outputs>
+      <Message>Generating include/nx_tzdb/%(Filename)</Message>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\nx_tzdb_create_header\nx_tzdb_create_header.vcxproj">
+      <Project>{7b9e5439-60a1-4aa6-9001-ba1d0d65d500}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{82a8d930-2514-48fa-b811-e5c402f2ab4a}</ProjectGuid>
+    <RootNamespace>libusb</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\libusb\libusb;$(SolutionDir)external\libusb\msvc\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>5287;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="libusb\libusb\core.c" />
+    <ClCompile Include="libusb\libusb\descriptor.c" />
+    <ClCompile Include="libusb\libusb\hotplug.c" />
+    <ClCompile Include="libusb\libusb\io.c" />
+    <ClCompile Include="libusb\libusb\os\events_windows.c" />
+    <ClCompile Include="libusb\libusb\os\threads_windows.c" />
+    <ClCompile Include="libusb\libusb\os\windows_common.c" />
+    <ClCompile Include="libusb\libusb\os\windows_usbdk.c" />
+    <ClCompile Include="libusb\libusb\os\windows_winusb.c" />
+    <ClCompile Include="libusb\libusb\strerror.c" />
+    <ClCompile Include="libusb\libusb\sync.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="libusb\libusb\libusb.h" />
+    <ClInclude Include="libusb\libusb\libusbi.h" />
+    <ClInclude Include="libusb\libusb\os\darwin_usb.h" />
+    <ClInclude Include="libusb\libusb\os\events_posix.h" />
+    <ClInclude Include="libusb\libusb\os\events_windows.h" />
+    <ClInclude Include="libusb\libusb\os\haiku_usb.h" />
+    <ClInclude Include="libusb\libusb\os\haiku_usb_raw.h" />
+    <ClInclude Include="libusb\libusb\os\linux_usbfs.h" />
+    <ClInclude Include="libusb\libusb\os\sunos_usb.h" />
+    <ClInclude Include="libusb\libusb\os\threads_posix.h" />
+    <ClInclude Include="libusb\libusb\os\threads_windows.h" />
+    <ClInclude Include="libusb\libusb\os\windows_common.h" />
+    <ClInclude Include="libusb\libusb\os\windows_usbdk.h" />
+    <ClInclude Include="libusb\libusb\os\windows_winusb.h" />
+    <ClInclude Include="libusb\libusb\version.h" />
+    <ClInclude Include="libusb\libusb\version_nano.h" />
+  </ItemGroup>
+</Project>

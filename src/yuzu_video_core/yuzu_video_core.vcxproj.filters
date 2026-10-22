@@ -1,0 +1,1119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\buffer_cache">
+      <UniqueIdentifier>{f5bb1edc-02cf-49ec-8cea-048dfe85f5b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\buffer_cache">
+      <UniqueIdentifier>{ce78f497-93e3-4980-833b-40d009336949}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\control">
+      <UniqueIdentifier>{fd5cca93-e695-4135-8031-5bc426cac41b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\control">
+      <UniqueIdentifier>{f071cf64-0b8e-4be3-87c6-d19f68fdc625}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\engines">
+      <UniqueIdentifier>{621372ca-6106-4126-b4c3-ef6b42f0b373}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\engines">
+      <UniqueIdentifier>{f9c33fb9-25c0-49d4-b171-ccc27778aeed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\host1x">
+      <UniqueIdentifier>{f8104579-cd8c-4707-a0ac-bffa966cf5b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\host1x\codecs">
+      <UniqueIdentifier>{7e127d0a-d2e2-490c-b94d-549fcfd6b605}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\host1x\ffmpeg">
+      <UniqueIdentifier>{db3b7742-9506-4ad0-a8d8-50505e0b0fea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\host1x">
+      <UniqueIdentifier>{89d5dced-1c86-4d4f-83ab-36518d5fb418}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\host1x\codecs">
+      <UniqueIdentifier>{b1223d8d-fde5-4a8c-a7b6-d40c1b3ba71a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\host1x\ffmpeg">
+      <UniqueIdentifier>{a273a30c-8f21-4e73-b690-f9b2872912c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\macro">
+      <UniqueIdentifier>{f2ca1010-4a1e-4a5e-92c6-1af37ca568d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\macro">
+      <UniqueIdentifier>{bc43839b-2600-4a0d-aa27-a9c27a887671}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\query_cache">
+      <UniqueIdentifier>{d6972dcb-14a1-4d37-af71-2c84fd0116c4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\renderer_null">
+      <UniqueIdentifier>{ad340520-7848-40d6-aa19-8e5ae229c5dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\renderer_null">
+      <UniqueIdentifier>{9ac86e31-47d4-47ad-8cb6-a4effb17391e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\renderer_opengl">
+      <UniqueIdentifier>{aa9a878d-7419-497b-929e-0e74992966fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\renderer_opengl">
+      <UniqueIdentifier>{59bc4c1b-e906-4b3a-a415-48da159d5115}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\renderer_opengl\present">
+      <UniqueIdentifier>{c9f56c1c-50c7-44b8-9e0c-2cc6721160b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\renderer_opengl\present">
+      <UniqueIdentifier>{e9626173-96e1-4dd0-a6d7-90e096ba7281}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\renderer_vulkan">
+      <UniqueIdentifier>{12c74588-13f1-4c19-9806-d64b6589af97}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\renderer_vulkan">
+      <UniqueIdentifier>{ab59a031-2c84-4a7f-93af-c5230678b1f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\renderer_vulkan\present">
+      <UniqueIdentifier>{cf9d30fb-3c2f-4956-b105-342c8212b9e9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\renderer_vulkan\present">
+      <UniqueIdentifier>{e4b6cc87-1eba-4d86-9b0d-8643c4faf5e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\texture_cache">
+      <UniqueIdentifier>{c056b6cd-fb4f-4c26-ad21-04c4dda81693}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\texture_cache">
+      <UniqueIdentifier>{c2424bac-39b3-42c8-86c2-8f613907871a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\textures">
+      <UniqueIdentifier>{365ef648-8d83-41fc-9b2c-9a70f8cca196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\textures">
+      <UniqueIdentifier>{893493b7-e279-4a29-a9b8-90933f0e56f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vulkan_common">
+      <UniqueIdentifier>{a9f3cd95-aec8-485b-b962-a59fe7a9da60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\vulkan_common">
+      <UniqueIdentifier>{bc143c47-0dbc-417a-a92b-f09840b3247e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\engines\sw_blitter">
+      <UniqueIdentifier>{915d2965-de7e-421b-ac01-017959030952}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\engines\sw_blitter">
+      <UniqueIdentifier>{a527bda3-87a0-4c6f-b051-0bb10d136d7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\service">
+      <UniqueIdentifier>{bb49b123-3a69-4e08-bf1c-55867acf019c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\service\nvdrv">
+      <UniqueIdentifier>{b4f3f019-f384-4179-84b9-380ff671cc17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\service\nvnflinger">
+      <UniqueIdentifier>{73e1057b-1b2e-4152-9f70-4d2197167900}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\frontend">
+      <UniqueIdentifier>{3ae2f9a9-6ed4-4389-bae0-2bec7f3600cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\frontend">
+      <UniqueIdentifier>{6ef6a10a-e3b3-400a-be88-123d932d2a56}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="buffer_cache\buffer_base.h">
+      <Filter>Header Files\buffer_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="buffer_cache\buffer_cache.h">
+      <Filter>Header Files\buffer_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="buffer_cache\buffer_cache_base.h">
+      <Filter>Header Files\buffer_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="buffer_cache\memory_tracker_base.h">
+      <Filter>Header Files\buffer_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="buffer_cache\usage_tracker.h">
+      <Filter>Header Files\buffer_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="buffer_cache\word_manager.h">
+      <Filter>Header Files\buffer_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="control\channel_state.h">
+      <Filter>Header Files\control</Filter>
+    </ClInclude>
+    <ClInclude Include="control\channel_state_cache.h">
+      <Filter>Header Files\control</Filter>
+    </ClInclude>
+    <ClInclude Include="control\scheduler.h">
+      <Filter>Header Files\control</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\const_buffer_info.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\draw_manager.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\engine_interface.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\engine_upload.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\fermi_2d.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\kepler_compute.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\kepler_memory.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\maxwell_3d.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\maxwell_dma.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\puller.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\control.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\gpu_device_memory_manager.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\host1x.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\nvdec.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\nvdec_common.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\sync_manager.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\syncpoint_manager.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\vic.h">
+      <Filter>Header Files\host1x</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\codecs\codec.h">
+      <Filter>Header Files\host1x\codecs</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\codecs\h264.h">
+      <Filter>Header Files\host1x\codecs</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\codecs\vp8.h">
+      <Filter>Header Files\host1x\codecs</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\codecs\vp9.h">
+      <Filter>Header Files\host1x\codecs</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\codecs\vp9_types.h">
+      <Filter>Header Files\host1x\codecs</Filter>
+    </ClInclude>
+    <ClInclude Include="host1x\ffmpeg\ffmpeg.h">
+      <Filter>Header Files\host1x\ffmpeg</Filter>
+    </ClInclude>
+    <ClInclude Include="macro\macro.h">
+      <Filter>Header Files\macro</Filter>
+    </ClInclude>
+    <ClInclude Include="macro\macro_hle.h">
+      <Filter>Header Files\macro</Filter>
+    </ClInclude>
+    <ClInclude Include="macro\macro_interpreter.h">
+      <Filter>Header Files\macro</Filter>
+    </ClInclude>
+    <ClInclude Include="macro\macro_jit_x64.h">
+      <Filter>Header Files\macro</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\bank_base.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\query_base.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\query_cache.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\query_cache_base.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\query_stream.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\types.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_null\null_rasterizer.h">
+      <Filter>Header Files\renderer_null</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_null\renderer_null.h">
+      <Filter>Header Files\renderer_null</Filter>
+    </ClInclude>
+    <ClInclude Include="cache_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="flush_region_cache_filter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="capture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cdma_pusher.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="composite_request.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="compatible_formats.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="delayed_destruction_ring.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dirty_flags.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dma_pusher.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fence_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="framebuffer_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fsr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="gpu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="gpu_thread.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="guest_memory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="invalidation_accumulator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="memory_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="precompiled_headers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="present.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pte_kind.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rasterizer_download_area.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rasterizer_interface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_base.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shader_cache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shader_environment.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shader_notify.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="smaa_area_tex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="smaa_search_tex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="surface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="transform_feedback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="video_core.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\blit_image.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_blit_screen.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_buffer_cache.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_compute_pipeline.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_device.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_fence_manager.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_graphics_pipeline.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_query_cache.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_rasterizer.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_resource_manager.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_shader_cache.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_shader_context.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_shader_manager.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_shader_util.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_staging_buffer_pool.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_state_tracker.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\gl_texture_cache.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\maxwell_to_gl.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\renderer_opengl.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\util_shaders.h">
+      <Filter>Header Files\renderer_opengl</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\filters.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\fsr.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\fxaa.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\layer.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\present_uniforms.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\smaa.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\util.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_opengl\present\window_adapt_pass.h">
+      <Filter>Header Files\renderer_opengl\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\blit_image.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\fixed_pipeline_state.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\maxwell_to_vk.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\pipeline_helper.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\pipeline_statistics.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\renderer_vulkan.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_blit_screen.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_buffer_cache.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_command_pool.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_compute_pass.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_limits.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_payload.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_lookup.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\cbuf_size_dependencies.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_compute_pipeline.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_descriptor_pool.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_fence_manager.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_graphics_pipeline.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_master_semaphore.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_pipeline_cache.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_present_manager.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_query_cache.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_rasterizer.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_render_pass_cache.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_resource_pool.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_scheduler.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_shader_util.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_staging_buffer_pool.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_state_tracker.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_swapchain.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_texture_cache.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_turbo_mode.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_update_descriptor.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\anti_alias_pass.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\filters.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\fsr.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\fxaa.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\layer.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\present_push_constants.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\smaa.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\util.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\window_adapt_pass.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\accelerated_swizzle.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\decode_bc.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\descriptor_table.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\format_lookup_table.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\formatter.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\image_base.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\image_info.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\mip_levels.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\image_view_base.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\image_view_info.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\render_targets.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\samples_helper.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\texture_cache.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\texture_cache_base.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\types.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="texture_cache\util.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="textures\astc.h">
+      <Filter>Header Files\textures</Filter>
+    </ClInclude>
+    <ClInclude Include="textures\bcn.h">
+      <Filter>Header Files\textures</Filter>
+    </ClInclude>
+    <ClInclude Include="textures\decoders.h">
+      <Filter>Header Files\textures</Filter>
+    </ClInclude>
+    <ClInclude Include="textures\texture.h">
+      <Filter>Header Files\textures</Filter>
+    </ClInclude>
+    <ClInclude Include="textures\workers.h">
+      <Filter>Header Files\textures</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\nsight_aftermath_tracker.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vk_enum_string_helper.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vma.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_debug_callback.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_device.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\moltenvk_workarounds.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_instance.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_library.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_memory_allocator.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_surface.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="vulkan_common\vulkan_wrapper.h">
+      <Filter>Header Files\vulkan_common</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\sw_blitter\blitter.h">
+      <Filter>Header Files\engines\sw_blitter</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\sw_blitter\converter.h">
+      <Filter>Header Files\engines\sw_blitter</Filter>
+    </ClInclude>
+    <ClInclude Include="service\nvdrv\nvdata.h">
+      <Filter>Header Files\service\nvdrv</Filter>
+    </ClInclude>
+    <ClInclude Include="service\nvnflinger\pixel_format.h">
+      <Filter>Header Files\service\nvnflinger</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\emu_window.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\framebuffer_layout.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\graphics_context.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="watermark.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_display.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="buffer_cache\buffer_cache.cpp">
+      <Filter>Source Files\buffer_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="control\channel_state.cpp">
+      <Filter>Source Files\control</Filter>
+    </ClCompile>
+    <ClCompile Include="control\channel_state_cache.cpp">
+      <Filter>Source Files\control</Filter>
+    </ClCompile>
+    <ClCompile Include="control\scheduler.cpp">
+      <Filter>Source Files\control</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\draw_manager.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\engine_upload.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\fermi_2d.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\kepler_compute.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\kepler_memory.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\maxwell_3d.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\maxwell_dma.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\puller.cpp">
+      <Filter>Source Files\engines</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\control.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\gpu_device_memory_manager.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\host1x.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\nvdec.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\sync_manager.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\syncpoint_manager.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\vic.cpp">
+      <Filter>Source Files\host1x</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\codecs\codec.cpp">
+      <Filter>Source Files\host1x\codecs</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\codecs\h264.cpp">
+      <Filter>Source Files\host1x\codecs</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\codecs\vp8.cpp">
+      <Filter>Source Files\host1x\codecs</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\codecs\vp9.cpp">
+      <Filter>Source Files\host1x\codecs</Filter>
+    </ClCompile>
+    <ClCompile Include="host1x\ffmpeg\ffmpeg.cpp">
+      <Filter>Source Files\host1x\ffmpeg</Filter>
+    </ClCompile>
+    <ClCompile Include="macro\macro.cpp">
+      <Filter>Source Files\macro</Filter>
+    </ClCompile>
+    <ClCompile Include="macro\macro_hle.cpp">
+      <Filter>Source Files\macro</Filter>
+    </ClCompile>
+    <ClCompile Include="macro\macro_interpreter.cpp">
+      <Filter>Source Files\macro</Filter>
+    </ClCompile>
+    <ClCompile Include="macro\macro_jit_x64.cpp">
+      <Filter>Source Files\macro</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_null\null_rasterizer.cpp">
+      <Filter>Source Files\renderer_null</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_null\renderer_null.cpp">
+      <Filter>Source Files\renderer_null</Filter>
+    </ClCompile>
+    <ClCompile Include="cdma_pusher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="compatible_formats.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dirty_flags.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dma_pusher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="framebuffer_config.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fsr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gpu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gpu_thread.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="memory_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shader_cache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shader_environment.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shader_notify.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="surface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="transform_feedback.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="video_core.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\blit_image.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_blit_screen.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_buffer_cache.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_buffer_cache_base.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_compute_pipeline.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_device.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_fence_manager.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_graphics_pipeline.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_query_cache.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_rasterizer.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_resource_manager.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_shader_cache.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_shader_manager.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_shader_util.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_staging_buffer_pool.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_state_tracker.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_texture_cache.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\gl_texture_cache_base.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\renderer_opengl.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\util_shaders.cpp">
+      <Filter>Source Files\renderer_opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\filters.cpp">
+      <Filter>Source Files\renderer_opengl\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\fsr.cpp">
+      <Filter>Source Files\renderer_opengl\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\fxaa.cpp">
+      <Filter>Source Files\renderer_opengl\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\layer.cpp">
+      <Filter>Source Files\renderer_opengl\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\smaa.cpp">
+      <Filter>Source Files\renderer_opengl\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\window_adapt_pass.cpp">
+      <Filter>Source Files\renderer_opengl\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\blit_image.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\fixed_pipeline_state.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\maxwell_to_vk.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\pipeline_statistics.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\renderer_vulkan.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_blit_screen.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_buffer_cache.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_buffer_cache_base.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_command_pool.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_compute_pass.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_compute_pipeline.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_descriptor_pool.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_fence_manager.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_graphics_pipeline.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_master_semaphore.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_pipeline_cache.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_present_manager.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_query_cache.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_rasterizer.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_render_pass_cache.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_resource_pool.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_scheduler.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_shader_util.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_staging_buffer_pool.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_state_tracker.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_swapchain.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_texture_cache.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_texture_cache_base.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_turbo_mode.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_update_descriptor.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\filters.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\fsr.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\fxaa.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\layer.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\smaa.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\util.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\window_adapt_pass.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\accelerated_swizzle.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\decode_bc.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\format_lookup_table.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\formatter.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\image_base.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\image_info.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\image_view_base.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\image_view_info.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\texture_cache.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\util.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="textures\astc.cpp">
+      <Filter>Source Files\textures</Filter>
+    </ClCompile>
+    <ClCompile Include="textures\bcn.cpp">
+      <Filter>Source Files\textures</Filter>
+    </ClCompile>
+    <ClCompile Include="textures\decoders.cpp">
+      <Filter>Source Files\textures</Filter>
+    </ClCompile>
+    <ClCompile Include="textures\texture.cpp">
+      <Filter>Source Files\textures</Filter>
+    </ClCompile>
+    <ClCompile Include="textures\workers.cpp">
+      <Filter>Source Files\textures</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\nsight_aftermath_tracker.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vma.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_debug_callback.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_device.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_instance.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_library.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_memory_allocator.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_surface.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="vulkan_common\vulkan_wrapper.cpp">
+      <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\sw_blitter\blitter.cpp">
+      <Filter>Source Files\engines\sw_blitter</Filter>
+    </ClCompile>
+    <ClCompile Include="engines\sw_blitter\converter.cpp">
+      <Filter>Source Files\engines\sw_blitter</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\emu_window.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\framebuffer_layout.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="watermark.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_display.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{583146af-ee19-454c-8646-b202c0eb82ba}</ProjectGuid>
+    <RootNamespace>sirit</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\sirit\include;$(SolutionDir)external\sirit\src;$(SolutionDir)external\sirit\externals\SPIRV-Headers\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="sirit\src\instructions\annotation.cpp" />
+    <ClCompile Include="sirit\src\instructions\arithmetic.cpp" />
+    <ClCompile Include="sirit\src\instructions\atomic.cpp" />
+    <ClCompile Include="sirit\src\instructions\barrier.cpp" />
+    <ClCompile Include="sirit\src\instructions\bit.cpp" />
+    <ClCompile Include="sirit\src\instructions\constant.cpp" />
+    <ClCompile Include="sirit\src\instructions\conversion.cpp" />
+    <ClCompile Include="sirit\src\instructions\debug.cpp" />
+    <ClCompile Include="sirit\src\instructions\derivatives.cpp" />
+    <ClCompile Include="sirit\src\instructions\extension.cpp" />
+    <ClCompile Include="sirit\src\instructions\flow.cpp" />
+    <ClCompile Include="sirit\src\instructions\function.cpp" />
+    <ClCompile Include="sirit\src\instructions\group.cpp" />
+    <ClCompile Include="sirit\src\instructions\image.cpp" />
+    <ClCompile Include="sirit\src\instructions\logical.cpp" />
+    <ClCompile Include="sirit\src\instructions\memory.cpp" />
+    <ClCompile Include="sirit\src\instructions\misc.cpp" />
+    <ClCompile Include="sirit\src\instructions\type.cpp" />
+    <ClCompile Include="sirit\src\sirit.cpp" />
+    <ClCompile Include="sirit\src\stream.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="sirit\src\common_types.h" />
+    <ClInclude Include="sirit\src\stream.h" />
+  </ItemGroup>
+</Project>

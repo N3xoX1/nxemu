@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{250224f2-2e89-410e-8bdb-875959daba2c}</ProjectGuid>
+    <RootNamespace>yuzucommon</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\lz4;$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)external\zstd\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <WarningLevel>Level3</WarningLevel>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <PreprocessorDefinitions>NOMINMAX;BOOST_CONTEXT_STATIC_LINK;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="address_space.h" />
+    <ClInclude Include="algorithm.h" />
+    <ClInclude Include="alignment.h" />
+    <ClInclude Include="android\java_bridge.h" />
+    <ClInclude Include="announce_multiplayer_room.h" />
+    <ClInclude Include="atomic_helpers.h" />
+    <ClInclude Include="atomic_ops.h" />
+    <ClInclude Include="bit_cast.h" />
+    <ClInclude Include="bit_field.h" />
+    <ClInclude Include="bit_set.h" />
+    <ClInclude Include="bit_util.h" />
+    <ClInclude Include="bounded_threadsafe_queue.h" />
+    <ClInclude Include="cityhash.h" />
+    <ClInclude Include="common_funcs.h" />
+    <ClInclude Include="common_types.h" />
+    <ClInclude Include="concepts.h" />
+    <ClInclude Include="container_hash.h" />
+    <ClInclude Include="div_ceil.h" />
+    <ClInclude Include="dynamic_library.h" />
+    <ClInclude Include="error.h" />
+    <ClInclude Include="expected.h" />
+    <ClInclude Include="fence.h" />
+    <ClInclude Include="fiber.h" />
+    <ClInclude Include="fixed_point.h" />
+    <ClInclude Include="format.h" />
+    <ClInclude Include="free_region_manager.h" />
+    <ClInclude Include="fs\filesystem_interfaces.h" />
+    <ClInclude Include="guest_memory.h" />
+    <ClInclude Include="fs\file.h" />
+    <ClInclude Include="fs\fs.h" />
+    <ClInclude Include="fs\fs_paths.h" />
+    <ClInclude Include="fs\fs_types.h" />
+    <ClInclude Include="fs\fs_util.h" />
+    <ClInclude Include="fs\path_util.h" />
+    <ClInclude Include="hardware_properties.h" />
+    <ClInclude Include="hash.h" />
+    <ClInclude Include="heap_tracker.h" />
+    <ClInclude Include="hex_util.h" />
+    <ClInclude Include="host_memory.h" />
+    <ClInclude Include="input.h" />
+    <ClInclude Include="interface_pointer.h" />
+    <ClInclude Include="interface_pointer_def.h" />
+    <ClInclude Include="intrusive_list.h" />
+    <ClInclude Include="intrusive_red_black_tree.h" />
+    <ClInclude Include="literals.h" />
+    <ClInclude Include="logging\backend.h" />
+    <ClInclude Include="logging\filter.h" />
+    <ClInclude Include="logging\formatter.h" />
+    <ClInclude Include="logging\log.h" />
+    <ClInclude Include="logging\log_entry.h" />
+    <ClInclude Include="logging\text_formatter.h" />
+    <ClInclude Include="lru_cache.h" />
+    <ClInclude Include="lz4_compression.h" />
+    <ClInclude Include="make_unique_for_overwrite.h" />
+    <ClInclude Include="math_util.h" />
+    <ClInclude Include="multi_level_page_table.h" />
+    <ClInclude Include="nvdata.h" />
+    <ClInclude Include="overflow.h" />
+    <ClInclude Include="page_table.h" />
+    <ClInclude Include="param_package.h" />
+    <ClInclude Include="parent_of_member.h" />
+    <ClInclude Include="point.h" />
+    <ClInclude Include="polyfill_ranges.h" />
+    <ClInclude Include="polyfill_thread.h" />
+    <ClInclude Include="quaternion.h" />
+    <ClInclude Include="range_map.h" />
+    <ClInclude Include="range_mutex.h" />
+    <ClInclude Include="range_sets.h" />
+    <ClInclude Include="reader_writer_queue.h" />
+    <ClInclude Include="ring_buffer.h" />
+    <ClInclude Include="scope_exit.h" />
+    <ClInclude Include="scratch_buffer.h" />
+    <ClInclude Include="settings.h" />
+    <ClInclude Include="settings_common.h" />
+    <ClInclude Include="settings_setting.h" />
+    <ClInclude Include="slot_vector.h" />
+    <ClInclude Include="socket_types.h" />
+    <ClInclude Include="spin_lock.h" />
+    <ClInclude Include="stb.h" />
+    <ClInclude Include="steady_clock.h" />
+    <ClInclude Include="stream.h" />
+    <ClInclude Include="string_util.h" />
+    <ClInclude Include="swap.h" />
+    <ClInclude Include="thread.h" />
+    <ClInclude Include="threadsafe_queue.h" />
+    <ClInclude Include="thread_worker.h" />
+    <ClInclude Include="time_zone.h" />
+    <ClInclude Include="tiny_mt.h" />
+    <ClInclude Include="tree.h" />
+    <ClInclude Include="typed_address.h" />
+    <ClInclude Include="uint128.h" />
+    <ClInclude Include="unique_function.h" />
+    <ClInclude Include="uuid.h" />
+    <ClInclude Include="vector_math.h" />
+    <ClInclude Include="virtual_buffer.h" />
+    <ClInclude Include="wall_clock.h" />
+    <ClInclude Include="windows\timer_resolution.h" />
+    <ClInclude Include="x64\cpu_detect.h" />
+    <ClInclude Include="x64\cpu_wait.h" />
+    <ClInclude Include="x64\native_clock.h" />
+    <ClInclude Include="x64\rdtsc.h" />
+    <ClInclude Include="x64\xbyak_abi.h" />
+    <ClInclude Include="x64\xbyak_util.h" />
+    <ClInclude Include="yuzu_assert.h" />
+    <ClInclude Include="zbic_compression.h" />
+    <ClInclude Include="zstd_compression.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="address_space.cpp" />
+    <ClCompile Include="cityhash.cpp" />
+    <ClCompile Include="dynamic_library.cpp" />
+    <ClCompile Include="error.cpp" />
+    <ClCompile Include="fiber.cpp" />
+    <ClCompile Include="fs\file.cpp" />
+    <ClCompile Include="fs\filesystem_interfaces.cpp" />
+    <ClCompile Include="fs\fs.cpp" />
+    <ClCompile Include="fs\fs_android.cpp" />
+    <ClCompile Include="fs\fs_util.cpp" />
+    <ClCompile Include="fs\path_util.cpp" />
+    <ClCompile Include="heap_tracker.cpp" />
+    <ClCompile Include="hex_util.cpp" />
+    <ClCompile Include="host_memory.cpp" />
+    <ClCompile Include="logging\backend.cpp" />
+    <ClCompile Include="logging\filter.cpp" />
+    <ClCompile Include="logging\text_formatter.cpp" />
+    <ClCompile Include="lz4_compression.cpp" />
+    <ClCompile Include="multi_level_page_table.cpp" />
+    <ClCompile Include="page_table.cpp" />
+    <ClCompile Include="param_package.cpp" />
+    <ClCompile Include="settings.cpp" />
+    <ClCompile Include="settings_common.cpp" />
+    <ClCompile Include="spin_lock.cpp" />
+    <ClCompile Include="stb.cpp" />
+    <ClCompile Include="steady_clock.cpp" />
+    <ClCompile Include="stream.cpp" />
+    <ClCompile Include="string_util.cpp" />
+    <ClCompile Include="thread.cpp" />
+    <ClCompile Include="time_zone.cpp" />
+    <ClCompile Include="uuid.cpp" />
+    <ClCompile Include="virtual_buffer.cpp" />
+    <ClCompile Include="wall_clock.cpp" />
+    <ClCompile Include="windows\timer_resolution.cpp" />
+    <ClCompile Include="x64\cpu_detect.cpp" />
+    <ClCompile Include="x64\cpu_wait.cpp" />
+    <ClCompile Include="x64\native_clock.cpp" />
+    <ClCompile Include="x64\rdtsc.cpp" />
+    <ClCompile Include="yuzu_assert.cpp" />
+    <ClCompile Include="zbic_compression.cpp">
+      <AdditionalIncludeDirectories>$(SolutionDir)external\zbic\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="zstd_compression.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

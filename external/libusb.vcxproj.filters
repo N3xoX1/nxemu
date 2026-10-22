@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\os">
+      <UniqueIdentifier>{afe2d53d-f2ee-4602-bb0f-28fa32853253}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\os">
+      <UniqueIdentifier>{c01251de-46bc-4e2b-a7f7-744f5b84943d}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="libusb\libusb\core.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\descriptor.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\hotplug.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\io.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\strerror.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\sync.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\os\events_windows.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\os\threads_windows.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\os\windows_common.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\os\windows_usbdk.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="libusb\libusb\os\windows_winusb.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="libusb\libusb\libusb.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\libusbi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\version_nano.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\darwin_usb.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\events_posix.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\events_windows.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\haiku_usb.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\haiku_usb_raw.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\linux_usbfs.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\sunos_usb.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\threads_posix.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\threads_windows.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\windows_common.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\windows_usbdk.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="libusb\libusb\os\windows_winusb.h">
+      <Filter>Header Files\os</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

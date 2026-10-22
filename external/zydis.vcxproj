@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{9dec236b-f924-4166-a1b1-002f3bf8f0ec}</ProjectGuid>
+    <RootNamespace>zydis</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>ZYCORE_STATIC_BUILD;ZYDIS_STATIC_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/Gw </AdditionalOptions>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\zydis\src;$(SolutionDir)external\zycore\include;$(SolutionDir)external\zydis\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="zydis\src\Disassembler.c" />
+    <ClCompile Include="zydis\src\Encoder.c" />
+    <ClCompile Include="zydis\src\EncoderData.c" />
+    <ClCompile Include="zydis\src\FormatterATT.c" />
+    <ClCompile Include="zydis\src\FormatterBase.c" />
+    <ClCompile Include="zydis\src\FormatterBuffer.c" />
+    <ClCompile Include="zydis\src\FormatterIntel.c" />
+    <ClCompile Include="zydis\src\MetaInfo.c" />
+    <ClCompile Include="zydis\src\Mnemonic.c" />
+    <ClCompile Include="zydis\src\Register.c" />
+    <ClCompile Include="zydis\src\Segment.c" />
+    <ClCompile Include="zydis\src\SharedData.c" />
+    <ClCompile Include="zydis\src\String.c" />
+    <ClCompile Include="zydis\src\Utils.c" />
+    <ClCompile Include="zydis\src\Zydis.c" />
+    <ClCompile Include="zydis\src\Decoder.c" />
+    <ClCompile Include="zydis\src\DecoderData.c" />
+    <ClCompile Include="zydis\src\Formatter.c" />
+  </ItemGroup>
+</Project>

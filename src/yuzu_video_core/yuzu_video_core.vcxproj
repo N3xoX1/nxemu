@@ -1,0 +1,404 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0f7ce378-7060-4b23-990b-8ed758654d81}</ProjectGuid>
+    <RootNamespace>yuzuvideocore</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\ffmpeg\include;$(SolutionDir)external\fmt\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\xbyak;$(SolutionDir)src\3rd_party\bc_decoder;$(SolutionDir)src\3rd_party\glad\include;$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)src\nxemu-video;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <WarningLevel>Level3</WarningLevel>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <PreprocessorDefinitions>NOMINMAX;HAS_OPENGL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="buffer_cache\buffer_base.h" />
+    <ClInclude Include="buffer_cache\buffer_cache.h" />
+    <ClInclude Include="buffer_cache\buffer_cache_base.h" />
+    <ClInclude Include="buffer_cache\memory_tracker_base.h" />
+    <ClInclude Include="buffer_cache\usage_tracker.h" />
+    <ClInclude Include="buffer_cache\word_manager.h" />
+    <ClInclude Include="cache_types.h" />
+    <ClInclude Include="flush_region_cache_filter.h" />
+    <ClInclude Include="capture.h" />
+    <ClInclude Include="cdma_pusher.h" />
+    <ClInclude Include="composite_request.h" />
+    <ClInclude Include="compatible_formats.h" />
+    <ClInclude Include="control\channel_state.h" />
+    <ClInclude Include="control\channel_state_cache.h" />
+    <ClInclude Include="control\scheduler.h" />
+    <ClInclude Include="delayed_destruction_ring.h" />
+    <ClInclude Include="dirty_flags.h" />
+    <ClInclude Include="dma_pusher.h" />
+    <ClInclude Include="engines\const_buffer_info.h" />
+    <ClInclude Include="engines\draw_manager.h" />
+    <ClInclude Include="engines\engine_interface.h" />
+    <ClInclude Include="engines\engine_upload.h" />
+    <ClInclude Include="engines\fermi_2d.h" />
+    <ClInclude Include="engines\kepler_compute.h" />
+    <ClInclude Include="engines\kepler_memory.h" />
+    <ClInclude Include="engines\maxwell_3d.h" />
+    <ClInclude Include="engines\maxwell_dma.h" />
+    <ClInclude Include="engines\puller.h" />
+    <ClInclude Include="engines\sw_blitter\blitter.h" />
+    <ClInclude Include="engines\sw_blitter\converter.h" />
+    <ClInclude Include="fence_manager.h" />
+    <ClInclude Include="framebuffer_config.h" />
+    <ClInclude Include="frontend\emu_window.h" />
+    <ClInclude Include="frontend\framebuffer_layout.h" />
+    <ClInclude Include="frontend\graphics_context.h" />
+    <ClInclude Include="fsr.h" />
+    <ClInclude Include="gpu.h" />
+    <ClInclude Include="gpu_thread.h" />
+    <ClInclude Include="guest_memory.h" />
+    <ClInclude Include="host1x\codecs\codec.h" />
+    <ClInclude Include="host1x\codecs\h264.h" />
+    <ClInclude Include="host1x\codecs\vp8.h" />
+    <ClInclude Include="host1x\codecs\vp9.h" />
+    <ClInclude Include="host1x\codecs\vp9_types.h" />
+    <ClInclude Include="host1x\control.h" />
+    <ClInclude Include="host1x\ffmpeg\ffmpeg.h" />
+    <ClInclude Include="host1x\gpu_device_memory_manager.h" />
+    <ClInclude Include="host1x\host1x.h" />
+    <ClInclude Include="host1x\nvdec.h" />
+    <ClInclude Include="host1x\nvdec_common.h" />
+    <ClInclude Include="host1x\syncpoint_manager.h" />
+    <ClInclude Include="host1x\sync_manager.h" />
+    <ClInclude Include="host1x\vic.h" />
+    <ClInclude Include="invalidation_accumulator.h" />
+    <ClInclude Include="macro\macro.h" />
+    <ClInclude Include="macro\macro_hle.h" />
+    <ClInclude Include="macro\macro_interpreter.h" />
+    <ClInclude Include="macro\macro_jit_x64.h" />
+    <ClInclude Include="memory_manager.h" />
+    <ClInclude Include="precompiled_headers.h" />
+    <ClInclude Include="present.h" />
+    <ClInclude Include="pte_kind.h" />
+    <ClInclude Include="query_cache.h" />
+    <ClInclude Include="query_cache\bank_base.h" />
+    <ClInclude Include="query_cache\query_base.h" />
+    <ClInclude Include="query_cache\query_cache.h" />
+    <ClInclude Include="query_cache\query_cache_base.h" />
+    <ClInclude Include="query_cache\query_stream.h" />
+    <ClInclude Include="query_cache\types.h" />
+    <ClInclude Include="rasterizer_download_area.h" />
+    <ClInclude Include="rasterizer_interface.h" />
+    <ClInclude Include="renderer_base.h" />
+    <ClInclude Include="renderer_null\null_rasterizer.h" />
+    <ClInclude Include="renderer_null\renderer_null.h" />
+    <ClInclude Include="renderer_opengl\blit_image.h" />
+    <ClInclude Include="renderer_opengl\gl_blit_screen.h" />
+    <ClInclude Include="renderer_opengl\gl_buffer_cache.h" />
+    <ClInclude Include="renderer_opengl\gl_compute_pipeline.h" />
+    <ClInclude Include="renderer_opengl\gl_device.h" />
+    <ClInclude Include="renderer_opengl\gl_fence_manager.h" />
+    <ClInclude Include="renderer_opengl\gl_graphics_pipeline.h" />
+    <ClInclude Include="renderer_opengl\gl_query_cache.h" />
+    <ClInclude Include="renderer_opengl\gl_rasterizer.h" />
+    <ClInclude Include="renderer_opengl\gl_resource_manager.h" />
+    <ClInclude Include="renderer_opengl\gl_shader_cache.h" />
+    <ClInclude Include="renderer_opengl\gl_shader_context.h" />
+    <ClInclude Include="renderer_opengl\gl_shader_manager.h" />
+    <ClInclude Include="renderer_opengl\gl_shader_util.h" />
+    <ClInclude Include="renderer_opengl\gl_staging_buffer_pool.h" />
+    <ClInclude Include="renderer_opengl\gl_state_tracker.h" />
+    <ClInclude Include="renderer_opengl\gl_texture_cache.h" />
+    <ClInclude Include="renderer_opengl\maxwell_to_gl.h" />
+    <ClInclude Include="renderer_opengl\present\filters.h" />
+    <ClInclude Include="renderer_opengl\present\fsr.h" />
+    <ClInclude Include="renderer_opengl\present\fxaa.h" />
+    <ClInclude Include="renderer_opengl\present\layer.h" />
+    <ClInclude Include="renderer_opengl\present\present_uniforms.h" />
+    <ClInclude Include="renderer_opengl\present\smaa.h" />
+    <ClInclude Include="renderer_opengl\present\util.h" />
+    <ClInclude Include="renderer_opengl\present\window_adapt_pass.h" />
+    <ClInclude Include="renderer_opengl\renderer_opengl.h" />
+    <ClInclude Include="renderer_opengl\util_shaders.h" />
+    <ClInclude Include="renderer_vulkan\blit_image.h" />
+    <ClInclude Include="renderer_vulkan\fixed_pipeline_state.h" />
+    <ClInclude Include="renderer_vulkan\maxwell_to_vk.h" />
+    <ClInclude Include="renderer_vulkan\pipeline_helper.h" />
+    <ClInclude Include="renderer_vulkan\pipeline_statistics.h" />
+    <ClInclude Include="renderer_vulkan\present\anti_alias_pass.h" />
+    <ClInclude Include="renderer_vulkan\present\filters.h" />
+    <ClInclude Include="renderer_vulkan\present\fsr.h" />
+    <ClInclude Include="renderer_vulkan\present\fxaa.h" />
+    <ClInclude Include="renderer_vulkan\present\layer.h" />
+    <ClInclude Include="renderer_vulkan\present\present_push_constants.h" />
+    <ClInclude Include="renderer_vulkan\present\smaa.h" />
+    <ClInclude Include="renderer_vulkan\present\util.h" />
+    <ClInclude Include="renderer_vulkan\present\window_adapt_pass.h" />
+    <ClInclude Include="renderer_vulkan\renderer_vulkan.h" />
+    <ClInclude Include="renderer_vulkan\vk_blit_screen.h" />
+    <ClInclude Include="renderer_vulkan\vk_buffer_cache.h" />
+    <ClInclude Include="renderer_vulkan\vk_command_pool.h" />
+    <ClInclude Include="renderer_vulkan\vk_compute_pass.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_lookup.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_limits.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_payload.h" />
+    <ClInclude Include="renderer_vulkan\cbuf_size_dependencies.h" />
+    <ClInclude Include="renderer_vulkan\vk_compute_pipeline.h" />
+    <ClInclude Include="renderer_vulkan\vk_descriptor_pool.h" />
+    <ClInclude Include="renderer_vulkan\vk_display.h" />
+    <ClInclude Include="renderer_vulkan\vk_fence_manager.h" />
+    <ClInclude Include="renderer_vulkan\vk_graphics_pipeline.h" />
+    <ClInclude Include="renderer_vulkan\vk_master_semaphore.h" />
+    <ClInclude Include="renderer_vulkan\vk_pipeline_cache.h" />
+    <ClInclude Include="renderer_vulkan\vk_present_manager.h" />
+    <ClInclude Include="renderer_vulkan\vk_query_cache.h" />
+    <ClInclude Include="renderer_vulkan\vk_rasterizer.h" />
+    <ClInclude Include="renderer_vulkan\vk_render_pass_cache.h" />
+    <ClInclude Include="renderer_vulkan\vk_resource_pool.h" />
+    <ClInclude Include="renderer_vulkan\vk_scheduler.h" />
+    <ClInclude Include="renderer_vulkan\vk_shader_util.h" />
+    <ClInclude Include="renderer_vulkan\vk_staging_buffer_pool.h" />
+    <ClInclude Include="renderer_vulkan\vk_state_tracker.h" />
+    <ClInclude Include="renderer_vulkan\vk_swapchain.h" />
+    <ClInclude Include="renderer_vulkan\vk_texture_cache.h" />
+    <ClInclude Include="renderer_vulkan\vk_turbo_mode.h" />
+    <ClInclude Include="renderer_vulkan\vk_update_descriptor.h" />
+    <ClInclude Include="service\nvdrv\nvdata.h" />
+    <ClInclude Include="service\nvnflinger\pixel_format.h" />
+    <ClInclude Include="shader_cache.h" />
+    <ClInclude Include="shader_environment.h" />
+    <ClInclude Include="shader_notify.h" />
+    <ClInclude Include="smaa_area_tex.h" />
+    <ClInclude Include="smaa_search_tex.h" />
+    <ClInclude Include="surface.h" />
+    <ClInclude Include="textures\astc.h" />
+    <ClInclude Include="textures\bcn.h" />
+    <ClInclude Include="textures\decoders.h" />
+    <ClInclude Include="textures\texture.h" />
+    <ClInclude Include="textures\workers.h" />
+    <ClInclude Include="texture_cache\accelerated_swizzle.h" />
+    <ClInclude Include="texture_cache\decode_bc.h" />
+    <ClInclude Include="texture_cache\descriptor_table.h" />
+    <ClInclude Include="texture_cache\formatter.h" />
+    <ClInclude Include="texture_cache\format_lookup_table.h" />
+    <ClInclude Include="texture_cache\image_base.h" />
+    <ClInclude Include="texture_cache\image_info.h" />
+    <ClInclude Include="texture_cache\mip_levels.h" />
+    <ClInclude Include="texture_cache\image_view_base.h" />
+    <ClInclude Include="texture_cache\image_view_info.h" />
+    <ClInclude Include="texture_cache\render_targets.h" />
+    <ClInclude Include="texture_cache\samples_helper.h" />
+    <ClInclude Include="texture_cache\texture_cache.h" />
+    <ClInclude Include="texture_cache\texture_cache_base.h" />
+    <ClInclude Include="texture_cache\types.h" />
+    <ClInclude Include="texture_cache\util.h" />
+    <ClInclude Include="transform_feedback.h" />
+    <ClInclude Include="video_core.h" />
+    <ClInclude Include="vulkan_common\nsight_aftermath_tracker.h" />
+    <ClInclude Include="vulkan_common\vk_enum_string_helper.h" />
+    <ClInclude Include="vulkan_common\vma.h" />
+    <ClInclude Include="vulkan_common\vulkan.h" />
+    <ClInclude Include="vulkan_common\vulkan_debug_callback.h" />
+    <ClInclude Include="vulkan_common\vulkan_device.h" />
+    <ClInclude Include="vulkan_common\moltenvk_workarounds.h" />
+    <ClInclude Include="vulkan_common\vulkan_instance.h" />
+    <ClInclude Include="vulkan_common\vulkan_library.h" />
+    <ClInclude Include="vulkan_common\vulkan_memory_allocator.h" />
+    <ClInclude Include="vulkan_common\vulkan_surface.h" />
+    <ClInclude Include="vulkan_common\vulkan_wrapper.h" />
+    <ClInclude Include="watermark.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="buffer_cache\buffer_cache.cpp" />
+    <ClCompile Include="cdma_pusher.cpp" />
+    <ClCompile Include="compatible_formats.cpp" />
+    <ClCompile Include="control\channel_state.cpp" />
+    <ClCompile Include="control\channel_state_cache.cpp" />
+    <ClCompile Include="control\scheduler.cpp" />
+    <ClCompile Include="dirty_flags.cpp" />
+    <ClCompile Include="dma_pusher.cpp" />
+    <ClCompile Include="engines\draw_manager.cpp" />
+    <ClCompile Include="engines\engine_upload.cpp" />
+    <ClCompile Include="engines\fermi_2d.cpp" />
+    <ClCompile Include="engines\kepler_compute.cpp" />
+    <ClCompile Include="engines\kepler_memory.cpp" />
+    <ClCompile Include="engines\maxwell_3d.cpp" />
+    <ClCompile Include="engines\maxwell_dma.cpp" />
+    <ClCompile Include="engines\puller.cpp" />
+    <ClCompile Include="engines\sw_blitter\blitter.cpp" />
+    <ClCompile Include="engines\sw_blitter\converter.cpp" />
+    <ClCompile Include="framebuffer_config.cpp" />
+    <ClCompile Include="frontend\emu_window.cpp" />
+    <ClCompile Include="frontend\framebuffer_layout.cpp" />
+    <ClCompile Include="fsr.cpp" />
+    <ClCompile Include="gpu.cpp" />
+    <ClCompile Include="gpu_thread.cpp" />
+    <ClCompile Include="host1x\codecs\codec.cpp" />
+    <ClCompile Include="host1x\codecs\h264.cpp" />
+    <ClCompile Include="host1x\codecs\vp8.cpp" />
+    <ClCompile Include="host1x\codecs\vp9.cpp" />
+    <ClCompile Include="host1x\control.cpp" />
+    <ClCompile Include="host1x\ffmpeg\ffmpeg.cpp" />
+    <ClCompile Include="host1x\gpu_device_memory_manager.cpp" />
+    <ClCompile Include="host1x\host1x.cpp" />
+    <ClCompile Include="host1x\nvdec.cpp" />
+    <ClCompile Include="host1x\syncpoint_manager.cpp" />
+    <ClCompile Include="host1x\sync_manager.cpp" />
+    <ClCompile Include="host1x\vic.cpp" />
+    <ClCompile Include="macro\macro.cpp" />
+    <ClCompile Include="macro\macro_hle.cpp" />
+    <ClCompile Include="macro\macro_interpreter.cpp" />
+    <ClCompile Include="macro\macro_jit_x64.cpp" />
+    <ClCompile Include="memory_manager.cpp" />
+    <ClCompile Include="renderer_base.cpp" />
+    <ClCompile Include="renderer_null\null_rasterizer.cpp" />
+    <ClCompile Include="renderer_null\renderer_null.cpp" />
+    <ClCompile Include="renderer_opengl\blit_image.cpp" />
+    <ClCompile Include="renderer_opengl\gl_blit_screen.cpp" />
+    <ClCompile Include="renderer_opengl\gl_buffer_cache.cpp" />
+    <ClCompile Include="renderer_opengl\gl_buffer_cache_base.cpp" />
+    <ClCompile Include="renderer_opengl\gl_compute_pipeline.cpp" />
+    <ClCompile Include="renderer_opengl\gl_device.cpp" />
+    <ClCompile Include="renderer_opengl\gl_fence_manager.cpp" />
+    <ClCompile Include="renderer_opengl\gl_graphics_pipeline.cpp" />
+    <ClCompile Include="renderer_opengl\gl_query_cache.cpp" />
+    <ClCompile Include="renderer_opengl\gl_rasterizer.cpp" />
+    <ClCompile Include="renderer_opengl\gl_resource_manager.cpp" />
+    <ClCompile Include="renderer_opengl\gl_shader_cache.cpp" />
+    <ClCompile Include="renderer_opengl\gl_shader_manager.cpp" />
+    <ClCompile Include="renderer_opengl\gl_shader_util.cpp" />
+    <ClCompile Include="renderer_opengl\gl_staging_buffer_pool.cpp" />
+    <ClCompile Include="renderer_opengl\gl_state_tracker.cpp" />
+    <ClCompile Include="renderer_opengl\gl_texture_cache.cpp" />
+    <ClCompile Include="renderer_opengl\gl_texture_cache_base.cpp" />
+    <ClCompile Include="renderer_opengl\present\filters.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/present/filters.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\fsr.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/present/fsr.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\fxaa.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/present/fxaa.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\layer.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/present/layer.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\smaa.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/present/smaa.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\present\window_adapt_pass.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/present/window_adapt_pass.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_opengl\renderer_opengl.cpp" />
+    <ClCompile Include="renderer_opengl\util_shaders.cpp" />
+    <ClCompile Include="renderer_vulkan\blit_image.cpp">
+      <ObjectFileName>$(IntDir)/renderer_opengl/blit_image.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\fixed_pipeline_state.cpp" />
+    <ClCompile Include="renderer_vulkan\maxwell_to_vk.cpp" />
+    <ClCompile Include="renderer_vulkan\pipeline_statistics.cpp" />
+    <ClCompile Include="renderer_vulkan\present\filters.cpp" />
+    <ClCompile Include="renderer_vulkan\present\fsr.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/fsr.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\fxaa.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/fxaa.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\layer.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/layer.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\smaa.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/smaa.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\util.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/util.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\window_adapt_pass.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/window_adapt_pass.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\renderer_vulkan.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_blit_screen.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_buffer_cache.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_buffer_cache_base.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_command_pool.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_compute_pass.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_compute_pipeline.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_descriptor_pool.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_display.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_fence_manager.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_graphics_pipeline.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_master_semaphore.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_pipeline_cache.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_present_manager.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_query_cache.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_rasterizer.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_render_pass_cache.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_resource_pool.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_scheduler.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_shader_util.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_staging_buffer_pool.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_state_tracker.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_swapchain.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_texture_cache.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_texture_cache_base.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_turbo_mode.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_update_descriptor.cpp" />
+    <ClCompile Include="shader_cache.cpp" />
+    <ClCompile Include="shader_environment.cpp" />
+    <ClCompile Include="shader_notify.cpp" />
+    <ClCompile Include="surface.cpp" />
+    <ClCompile Include="textures\astc.cpp" />
+    <ClCompile Include="textures\bcn.cpp" />
+    <ClCompile Include="textures\decoders.cpp" />
+    <ClCompile Include="textures\texture.cpp" />
+    <ClCompile Include="textures\workers.cpp" />
+    <ClCompile Include="texture_cache\accelerated_swizzle.cpp" />
+    <ClCompile Include="texture_cache\decode_bc.cpp" />
+    <ClCompile Include="texture_cache\formatter.cpp" />
+    <ClCompile Include="texture_cache\format_lookup_table.cpp" />
+    <ClCompile Include="texture_cache\image_base.cpp" />
+    <ClCompile Include="texture_cache\image_info.cpp" />
+    <ClCompile Include="texture_cache\image_view_base.cpp" />
+    <ClCompile Include="texture_cache\image_view_info.cpp" />
+    <ClCompile Include="texture_cache\texture_cache.cpp" />
+    <ClCompile Include="texture_cache\util.cpp" />
+    <ClCompile Include="transform_feedback.cpp" />
+    <ClCompile Include="video_core.cpp" />
+    <ClCompile Include="vulkan_common\nsight_aftermath_tracker.cpp" />
+    <ClCompile Include="vulkan_common\vma.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_debug_callback.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_device.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_instance.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_library.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_memory_allocator.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_surface.cpp" />
+    <ClCompile Include="vulkan_common\vulkan_wrapper.cpp" />
+    <ClCompile Include="watermark.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\3rd_party\bc_decoder\bc_decoder.vcxproj">
+      <Project>{5cc7fda2-67ee-4c85-90f7-291ad93c82af}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\3rd_party\glad\glad.vcxproj">
+      <Project>{38b397d3-0155-4871-a65c-30f3f9f7dd7a}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\3rd_party\stb\stb.vcxproj">
+      <Project>{3a62c094-dbdf-414a-a65e-ebdb939a81e5}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

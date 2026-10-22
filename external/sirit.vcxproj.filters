@@ -1,0 +1,90 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\instructions">
+      <UniqueIdentifier>{5152efa2-5140-4f98-94cf-9cf2813e9540}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="sirit\src\sirit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\stream.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\annotation.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\arithmetic.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\atomic.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\barrier.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\bit.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\constant.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\conversion.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\debug.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\derivatives.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\extension.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\flow.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\function.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\group.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\image.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\logical.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\memory.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\misc.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+    <ClCompile Include="sirit\src\instructions\type.cpp">
+      <Filter>Source Files\instructions</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="sirit\src\common_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sirit\src\stream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

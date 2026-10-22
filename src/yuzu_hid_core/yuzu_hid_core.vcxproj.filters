@@ -1,0 +1,525 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\frontend">
+      <UniqueIdentifier>{d651c474-d11c-4fe2-bb1d-3c901f6c695c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\frontend">
+      <UniqueIdentifier>{c0a3f544-4ed3-4a63-b025-ead2f85c36f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\hidbus">
+      <UniqueIdentifier>{b3fb8ca2-43c9-46a6-acdb-aaf8f4a53029}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\hidbus">
+      <UniqueIdentifier>{2a637e40-5923-4e37-9320-e388c7bd5c1d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\irsensor">
+      <UniqueIdentifier>{189e9158-1977-448f-87ed-5c95a7f7228d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\irsensor">
+      <UniqueIdentifier>{e3f332b7-022f-4d03-b589-e2b36620f4b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources">
+      <UniqueIdentifier>{0633dd74-561d-4151-81b2-8c7fbf8fc44e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources">
+      <UniqueIdentifier>{bc3ae7dd-4623-4ae7-abc3-e7e5e4c8a21b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\abstracted_pad">
+      <UniqueIdentifier>{9da226b7-8a61-47ab-b277-ad1f81ffc1ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\abstracted_pad">
+      <UniqueIdentifier>{b6c97041-40e2-4658-9f97-71cbf3c2d331}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\debug_pad">
+      <UniqueIdentifier>{c33a1369-e76f-4112-bf96-8f4bec83bef0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\debug_pad">
+      <UniqueIdentifier>{5fd803a4-cb7d-42de-8761-3a6bfeb622a6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\digitizer">
+      <UniqueIdentifier>{80e6ae86-9e5a-4be8-b6f4-b97adf15f939}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\digitizer">
+      <UniqueIdentifier>{4346a665-0db9-4437-bfe2-d986c431c905}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\keyboard">
+      <UniqueIdentifier>{2996c74c-2561-4953-8bad-c5a53f1aa40a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\keyboard">
+      <UniqueIdentifier>{d335f779-60c8-48d0-96e4-abd254b11fc0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\mouse">
+      <UniqueIdentifier>{151f515c-753c-4d58-8cbd-73c979293b71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\mouse">
+      <UniqueIdentifier>{91e49484-2eb7-4ab7-af18-52f78ef8786e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\npad">
+      <UniqueIdentifier>{680acba8-5a41-4eed-8d13-82f91aa68e37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\palma">
+      <UniqueIdentifier>{db09f9de-bb7d-4a1b-b436-fb9b1ba42427}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\palma">
+      <UniqueIdentifier>{c89fd7bc-349d-4076-93e4-8d0923ff3732}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\six_axis">
+      <UniqueIdentifier>{15663ce1-8611-4979-ae90-a30c0a0c44d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\six_axis">
+      <UniqueIdentifier>{d51c76ff-7cda-4489-89b7-d4b3dee6c0ad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\system_buttons">
+      <UniqueIdentifier>{5dfda64a-efbe-49b3-89b4-5fe15555c19a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\system_buttons">
+      <UniqueIdentifier>{140e37a6-8749-4eb9-8c10-f615ce6ca931}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\touch_screen">
+      <UniqueIdentifier>{8c03b80c-1b77-47f2-81fe-5c18098859e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\touch_screen">
+      <UniqueIdentifier>{2fadcadc-c78a-42af-aa4a-71b4178a28b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\unique_pad">
+      <UniqueIdentifier>{30616254-f03c-4a09-af25-0f009f6dd8dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\unique_pad">
+      <UniqueIdentifier>{de53efb3-5de1-4654-90fc-b5a215efaee0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\vibration">
+      <UniqueIdentifier>{c9f21a29-8ee7-4afa-b53c-309835dfd785}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\resources\vibration">
+      <UniqueIdentifier>{c110daab-d0d9-4806-9629-88913748c626}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\resources\npad">
+      <UniqueIdentifier>{dba06586-7e1c-468d-9476-fff336cfeff5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="hid_core.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hid_result.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hid_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hid_util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="precompiled_headers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\emulated_console.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\emulated_controller.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\emulated_devices.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\input_converter.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\input_interpreter.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="frontend\motion_input.h">
+      <Filter>Header Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="hidbus\hidbus_base.h">
+      <Filter>Header Files\hidbus</Filter>
+    </ClInclude>
+    <ClInclude Include="hidbus\ringcon.h">
+      <Filter>Header Files\hidbus</Filter>
+    </ClInclude>
+    <ClInclude Include="hidbus\starlink.h">
+      <Filter>Header Files\hidbus</Filter>
+    </ClInclude>
+    <ClInclude Include="hidbus\stubbed.h">
+      <Filter>Header Files\hidbus</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\clustering_processor.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\image_transfer_processor.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\ir_led_processor.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\irs_types.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\moment_processor.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\pointing_processor.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\processor_base.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="irsensor\tera_plugin_processor.h">
+      <Filter>Header Files\irsensor</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\applet_resource.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\controller_base.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\hid_firmware_settings.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\irs_ring_lifo.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\ring_lifo.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\shared_memory_format.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\shared_memory_holder.h">
+      <Filter>Header Files\resources</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_battery_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_button_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_ir_sensor_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_led_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_mcu_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_nfc_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_pad.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_pad_holder.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_palma_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_properties_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_sixaxis_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\abstracted_pad\abstract_vibration_handler.h">
+      <Filter>Header Files\resources\abstracted_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\debug_pad\debug_pad.h">
+      <Filter>Header Files\resources\debug_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\debug_pad\debug_pad_types.h">
+      <Filter>Header Files\resources\debug_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\digitizer\digitizer.h">
+      <Filter>Header Files\resources\digitizer</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\keyboard\keyboard.h">
+      <Filter>Header Files\resources\keyboard</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\keyboard\keyboard_types.h">
+      <Filter>Header Files\resources\keyboard</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\mouse\debug_mouse.h">
+      <Filter>Header Files\resources\mouse</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\mouse\mouse.h">
+      <Filter>Header Files\resources\mouse</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\mouse\mouse_types.h">
+      <Filter>Header Files\resources\mouse</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\npad\npad.h">
+      <Filter>Header Files\resources\npad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\npad\npad_data.h">
+      <Filter>Header Files\resources\npad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\npad\npad_resource.h">
+      <Filter>Header Files\resources\npad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\npad\npad_types.h">
+      <Filter>Header Files\resources\npad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\npad\npad_vibration.h">
+      <Filter>Header Files\resources\npad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\palma\palma.h">
+      <Filter>Header Files\resources\palma</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\six_axis\console_six_axis.h">
+      <Filter>Header Files\resources\six_axis</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\six_axis\seven_six_axis.h">
+      <Filter>Header Files\resources\six_axis</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\six_axis\six_axis.h">
+      <Filter>Header Files\resources\six_axis</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\system_buttons\capture_button.h">
+      <Filter>Header Files\resources\system_buttons</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\system_buttons\home_button.h">
+      <Filter>Header Files\resources\system_buttons</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\system_buttons\sleep_button.h">
+      <Filter>Header Files\resources\system_buttons</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\system_buttons\system_button_types.h">
+      <Filter>Header Files\resources\system_buttons</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\touch_screen\gesture.h">
+      <Filter>Header Files\resources\touch_screen</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\touch_screen\gesture_handler.h">
+      <Filter>Header Files\resources\touch_screen</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\touch_screen\touch_screen.h">
+      <Filter>Header Files\resources\touch_screen</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\touch_screen\touch_screen_driver_resource.h">
+      <Filter>Header Files\resources\touch_screen</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\touch_screen\touch_screen_resource.h">
+      <Filter>Header Files\resources\touch_screen</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\touch_screen\touch_types.h">
+      <Filter>Header Files\resources\touch_screen</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\unique_pad\unique_pad.h">
+      <Filter>Header Files\resources\unique_pad</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\vibration\gc_vibration_device.h">
+      <Filter>Header Files\resources\vibration</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\vibration\n64_vibration_device.h">
+      <Filter>Header Files\resources\vibration</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\vibration\vibration_base.h">
+      <Filter>Header Files\resources\vibration</Filter>
+    </ClInclude>
+    <ClInclude Include="resources\vibration\vibration_device.h">
+      <Filter>Header Files\resources\vibration</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="hid_core.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="resource_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\emulated_console.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\emulated_controller.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\emulated_devices.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\input_converter.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\input_interpreter.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\motion_input.cpp">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="hidbus\hidbus_base.cpp">
+      <Filter>Source Files\hidbus</Filter>
+    </ClCompile>
+    <ClCompile Include="hidbus\ringcon.cpp">
+      <Filter>Source Files\hidbus</Filter>
+    </ClCompile>
+    <ClCompile Include="hidbus\starlink.cpp">
+      <Filter>Source Files\hidbus</Filter>
+    </ClCompile>
+    <ClCompile Include="hidbus\stubbed.cpp">
+      <Filter>Source Files\hidbus</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\clustering_processor.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\image_transfer_processor.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\ir_led_processor.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\moment_processor.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\pointing_processor.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\processor_base.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="irsensor\tera_plugin_processor.cpp">
+      <Filter>Source Files\irsensor</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\controller_base.cpp">
+      <Filter>Source Files\resources</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\hid_firmware_settings.cpp">
+      <Filter>Source Files\resources</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\shared_memory_holder.cpp">
+      <Filter>Source Files\resources</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_battery_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_button_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_ir_sensor_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_led_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_mcu_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_nfc_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_pad.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_pad_holder.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_palma_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_properties_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_sixaxis_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\abstracted_pad\abstract_vibration_handler.cpp">
+      <Filter>Source Files\resources\abstracted_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\debug_pad\debug_pad.cpp">
+      <Filter>Source Files\resources\debug_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\digitizer\digitizer.cpp">
+      <Filter>Source Files\resources\digitizer</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\keyboard\keyboard.cpp">
+      <Filter>Source Files\resources\keyboard</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\mouse\debug_mouse.cpp">
+      <Filter>Source Files\resources\mouse</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\mouse\mouse.cpp">
+      <Filter>Source Files\resources\mouse</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\vibration\gc_vibration_device.cpp">
+      <Filter>Source Files\resources\vibration</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\vibration\n64_vibration_device.cpp">
+      <Filter>Source Files\resources\vibration</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\vibration\vibration_base.cpp">
+      <Filter>Source Files\resources\vibration</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\vibration\vibration_device.cpp">
+      <Filter>Source Files\resources\vibration</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\unique_pad\unique_pad.cpp">
+      <Filter>Source Files\resources\unique_pad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\touch_screen\gesture.cpp">
+      <Filter>Source Files\resources\touch_screen</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\touch_screen\gesture_handler.cpp">
+      <Filter>Source Files\resources\touch_screen</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\touch_screen\touch_screen.cpp">
+      <Filter>Source Files\resources\touch_screen</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\touch_screen\touch_screen_resource.cpp">
+      <Filter>Source Files\resources\touch_screen</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\system_buttons\capture_button.cpp">
+      <Filter>Source Files\resources\system_buttons</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\system_buttons\home_button.cpp">
+      <Filter>Source Files\resources\system_buttons</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\system_buttons\sleep_button.cpp">
+      <Filter>Source Files\resources\system_buttons</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\six_axis\console_six_axis.cpp">
+      <Filter>Source Files\resources\six_axis</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\six_axis\seven_six_axis.cpp">
+      <Filter>Source Files\resources\six_axis</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\six_axis\six_axis.cpp">
+      <Filter>Source Files\resources\six_axis</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\palma\palma.cpp">
+      <Filter>Source Files\resources\palma</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\npad\npad.cpp">
+      <Filter>Source Files\resources\npad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\npad\npad_data.cpp">
+      <Filter>Source Files\resources\npad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\npad\npad_resource.cpp">
+      <Filter>Source Files\resources\npad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\npad\npad_vibration.cpp">
+      <Filter>Source Files\resources\npad</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\touch_screen\touch_screen_driver.cpp">
+      <Filter>Source Files\resources\touch_screen</Filter>
+    </ClCompile>
+    <ClCompile Include="resources\applet_resource.cpp">
+      <Filter>Source Files\resources</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

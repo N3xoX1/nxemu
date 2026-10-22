@@ -13,8 +13,18 @@ install:
   - VulkanSDK.exe --accept-licenses --default-answer --confirm-command install
   - set PATH=C:/VulkanSDK/1.3.268.0/Bin;%PATH%
   
-before_build_script:
-- ps: ./src/script/build_windows.ps1 Release
+before_build:
+- ps: >-
+    If ($env:APPVEYOR_BUILD_VERSION -Like "1.0*") {
+      $version = src/script/set_git_properties.cmd
+      appveyor UpdateBuild -Version $version
+    }
+- cmd: git submodule update --init --recursive
+build:
+  project: nxemu.sln
+  parallel: true
+  verbosity: minimal
+  maximum_number_of_processors: 4
 after_build:
 - src/script/package_zip.cmd %APPVEYOR_BUILD_VERSION%-%platform%.zip %platform%
 

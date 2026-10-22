@@ -1,0 +1,698 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="adsp\adsp.cpp">
+      <Filter>adsp</Filter>
+    </ClCompile>
+    <ClCompile Include="adsp\apps\audio_renderer\audio_renderer.cpp">
+      <Filter>adsp\apps\audio_renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="adsp\apps\audio_renderer\command_list_processor.cpp">
+      <Filter>adsp\apps\audio_renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="adsp\apps\opus\opus_decoder.cpp">
+      <Filter>adsp\apps\opus</Filter>
+    </ClCompile>
+    <ClCompile Include="adsp\apps\opus\opus_decode_object.cpp">
+      <Filter>adsp\apps\opus</Filter>
+    </ClCompile>
+    <ClCompile Include="adsp\apps\opus\opus_multistream_decode_object.cpp">
+      <Filter>adsp\apps\opus</Filter>
+    </ClCompile>
+    <ClCompile Include="audio_core.cpp" />
+    <ClCompile Include="audio_event.cpp" />
+    <ClCompile Include="audio_render_manager.cpp" />
+    <ClCompile Include="audio_in_manager.cpp" />
+    <ClCompile Include="audio_out_manager.cpp" />
+    <ClCompile Include="audio_manager.cpp" />
+    <ClCompile Include="device\device_session.cpp">
+      <Filter>device</Filter>
+    </ClCompile>
+    <ClCompile Include="in\audio_in.cpp">
+      <Filter>in</Filter>
+    </ClCompile>
+    <ClCompile Include="in\audio_in_system.cpp">
+      <Filter>in</Filter>
+    </ClCompile>
+    <ClCompile Include="opus\hardware_opus.cpp">
+      <Filter>opus</Filter>
+    </ClCompile>
+    <ClCompile Include="opus\decoder_manager.cpp">
+      <Filter>opus</Filter>
+    </ClCompile>
+    <ClCompile Include="opus\decoder.cpp">
+      <Filter>opus</Filter>
+    </ClCompile>
+    <ClCompile Include="out\audio_out.cpp">
+      <Filter>out</Filter>
+    </ClCompile>
+    <ClCompile Include="out\audio_out_system.cpp">
+      <Filter>out</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\audio_device.cpp">
+      <Filter>renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\audio_renderer.cpp">
+      <Filter>renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\behavior\behavior_info.cpp">
+      <Filter>renderer\behavior</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\behavior\info_updater.cpp">
+      <Filter>renderer\behavior</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\data_source\adpcm.cpp">
+      <Filter>renderer\command\data_source</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\data_source\decode.cpp">
+      <Filter>renderer\command\data_source</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\data_source\pcm_float.cpp">
+      <Filter>renderer\command\data_source</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\data_source\pcm_int16.cpp">
+      <Filter>renderer\command\data_source</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\aux_.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\biquad_filter.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\capture.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\compressor.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\delay.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\i3dl2_reverb.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\light_limiter.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\multi_tap_biquad_filter.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\effect\reverb.cpp">
+      <Filter>renderer\command\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\clear_mix.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\copy_mix.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\depop_for_mix_buffers.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\depop_prepare.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\mix.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\mix_ramp.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\mix_ramp_grouped.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\volume.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\mix\volume_ramp.cpp">
+      <Filter>renderer\command\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\performance\performance.cpp">
+      <Filter>renderer\command\performance</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\resample\downmix_6ch_to_2ch.cpp">
+      <Filter>renderer\command\resample</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\resample\resample.cpp">
+      <Filter>renderer\command\resample</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\resample\upsample.cpp">
+      <Filter>renderer\command\resample</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\sink\device.cpp">
+      <Filter>renderer\command\sink</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\sink\circular_buffer.cpp">
+      <Filter>renderer\command\sink</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\command_buffer.cpp">
+      <Filter>renderer\command</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\command_generator.cpp">
+      <Filter>renderer\command</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\command\command_processing_time_estimator.cpp">
+      <Filter>renderer\command</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\aux_.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\biquad_filter.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\buffer_mixer.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\capture.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\compressor.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\delay.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\effect_context.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\i3dl2.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\light_limiter.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\effect\reverb.cpp">
+      <Filter>renderer\effect</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\mix\mix_context.cpp">
+      <Filter>renderer\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\mix\mix_info.cpp">
+      <Filter>renderer\mix</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\memory\memory_pool_info.cpp">
+      <Filter>renderer\memory</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\memory\pool_mapper.cpp">
+      <Filter>renderer\memory</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\nodes\edge_matrix.cpp">
+      <Filter>renderer\nodes</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\nodes\node_states.cpp">
+      <Filter>renderer\nodes</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\performance\detail_aspect.cpp">
+      <Filter>renderer\performance</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\performance\entry_aspect.cpp">
+      <Filter>renderer\performance</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\performance\performance_manager.cpp">
+      <Filter>renderer\performance</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\sink\circular_buffer_sink_info.cpp">
+      <Filter>renderer\sink</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\sink\device_sink_info.cpp">
+      <Filter>renderer\sink</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\sink\sink_context.cpp">
+      <Filter>renderer\sink</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\sink\sink_info_base.cpp">
+      <Filter>renderer\sink</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\splitter\splitter_context.cpp">
+      <Filter>renderer\splitter</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\splitter\splitter_destinations_data.cpp">
+      <Filter>renderer\splitter</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\splitter\splitter_info.cpp">
+      <Filter>renderer\splitter</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\system.cpp">
+      <Filter>renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\system_manager.cpp">
+      <Filter>renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\upsampler\upsampler_manager.cpp">
+      <Filter>renderer\upsampler</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\voice\voice_context.cpp">
+      <Filter>renderer\voice</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer\voice\voice_info.cpp">
+      <Filter>renderer\voice</Filter>
+    </ClCompile>
+    <ClCompile Include="sink\sink_details.cpp">
+      <Filter>sink</Filter>
+    </ClCompile>
+    <ClCompile Include="sink\sink_stream.cpp">
+      <Filter>sink</Filter>
+    </ClCompile>
+    <ClCompile Include="sink\cubeb_sink.cpp">
+      <Filter>sink</Filter>
+    </ClCompile>
+    <ClCompile Include="sink\sdl2_sink.cpp">
+      <Filter>sink</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="adsp\adsp.h">
+      <Filter>adsp</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\mailbox.h">
+      <Filter>adsp</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\audio_renderer\audio_renderer.h">
+      <Filter>adsp\apps\audio_renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\audio_renderer\command_buffer.h">
+      <Filter>adsp\apps\audio_renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\audio_renderer\command_list_processor.h">
+      <Filter>adsp\apps\audio_renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\opus\opus_decoder.h">
+      <Filter>adsp\apps\opus</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\opus\opus_decode_object.h">
+      <Filter>adsp\apps\opus</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\opus\opus_multistream_decode_object.h">
+      <Filter>adsp\apps\opus</Filter>
+    </ClInclude>
+    <ClInclude Include="adsp\apps\opus\shared_memory.h">
+      <Filter>adsp\apps\opus</Filter>
+    </ClInclude>
+    <ClInclude Include="audio_core.h" />
+    <ClInclude Include="audio_event.h" />
+    <ClInclude Include="audio_render_manager.h" />
+    <ClInclude Include="audio_in_manager.h" />
+    <ClInclude Include="audio_out_manager.h" />
+    <ClInclude Include="audio_manager.h" />
+    <ClInclude Include="common\audio_renderer_parameter.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\common.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\feature_support.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\wave_buffer.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\workbuffer_allocator.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="device\audio_buffer.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="device\audio_buffers.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="device\device_session.h">
+      <Filter>device</Filter>
+    </ClInclude>
+    <ClInclude Include="in\audio_in.h">
+      <Filter>in</Filter>
+    </ClInclude>
+    <ClInclude Include="in\audio_in_system.h">
+      <Filter>in</Filter>
+    </ClInclude>
+    <ClInclude Include="opus\hardware_opus.h">
+      <Filter>opus</Filter>
+    </ClInclude>
+    <ClInclude Include="opus\decoder_manager.h">
+      <Filter>opus</Filter>
+    </ClInclude>
+    <ClInclude Include="opus\decoder.h">
+      <Filter>opus</Filter>
+    </ClInclude>
+    <ClInclude Include="opus\parameters.h">
+      <Filter>opus</Filter>
+    </ClInclude>
+    <ClInclude Include="out\audio_out.h">
+      <Filter>out</Filter>
+    </ClInclude>
+    <ClInclude Include="out\audio_out_system.h">
+      <Filter>out</Filter>
+    </ClInclude>
+    <ClInclude Include="precompiled_headers.h" />
+    <ClInclude Include="renderer\audio_device.h">
+      <Filter>renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\audio_renderer.h">
+      <Filter>renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\behavior\behavior_info.h">
+      <Filter>renderer\behavior</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\behavior\info_updater.h">
+      <Filter>renderer\behavior</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\data_source\adpcm.h">
+      <Filter>renderer\command\data_source</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\data_source\decode.h">
+      <Filter>renderer\command\data_source</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\data_source\pcm_float.h">
+      <Filter>renderer\command\data_source</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\data_source\pcm_int16.h">
+      <Filter>renderer\command\data_source</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\aux_.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\biquad_filter.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\capture.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\compressor.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\delay.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\i3dl2_reverb.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\light_limiter.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\multi_tap_biquad_filter.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\effect\reverb.h">
+      <Filter>renderer\command\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\clear_mix.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\copy_mix.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\depop_for_mix_buffers.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\depop_prepare.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\mix.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\mix_ramp.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\mix_ramp_grouped.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\volume.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\mix\volume_ramp.h">
+      <Filter>renderer\command\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\performance\performance.h">
+      <Filter>renderer\command\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\resample\downmix_6ch_to_2ch.h">
+      <Filter>renderer\command\resample</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\resample\resample.h">
+      <Filter>renderer\command\resample</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\resample\upsample.h">
+      <Filter>renderer\command\resample</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\sink\device.h">
+      <Filter>renderer\command\sink</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\sink\circular_buffer.h">
+      <Filter>renderer\command\sink</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\command_buffer.h">
+      <Filter>renderer\command</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\command_generator.h">
+      <Filter>renderer\command</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\command_list_header.h">
+      <Filter>renderer\command</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\command_processing_time_estimator.h">
+      <Filter>renderer\command</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\commands.h">
+      <Filter>renderer\command</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\command\icommand.h">
+      <Filter>renderer\command</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\aux_.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\biquad_filter.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\buffer_mixer.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\capture.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\compressor.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\delay.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\effect_context.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\effect_info_base.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\effect_reset.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\effect_result_state.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\i3dl2.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\light_limiter.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\effect\reverb.h">
+      <Filter>renderer\effect</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\mix\mix_context.h">
+      <Filter>renderer\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\mix\mix_info.h">
+      <Filter>renderer\mix</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\memory\address_info.h">
+      <Filter>renderer\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\memory\memory_pool_info.h">
+      <Filter>renderer\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\memory\pool_mapper.h">
+      <Filter>renderer\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\nodes\bit_array.h">
+      <Filter>renderer\nodes</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\nodes\edge_matrix.h">
+      <Filter>renderer\nodes</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\nodes\node_states.h">
+      <Filter>renderer\nodes</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\detail_aspect.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\entry_aspect.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\performance_detail.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\performance_entry.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\performance_entry_addresses.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\performance_frame_header.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\performance\performance_manager.h">
+      <Filter>renderer\performance</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\sink\circular_buffer_sink_info.h">
+      <Filter>renderer\sink</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\sink\device_sink_info.h">
+      <Filter>renderer\sink</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\sink\sink_context.h">
+      <Filter>renderer\sink</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\sink\sink_info_base.h">
+      <Filter>renderer\sink</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\splitter\splitter_context.h">
+      <Filter>renderer\splitter</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\splitter\splitter_destinations_data.h">
+      <Filter>renderer\splitter</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\splitter\splitter_info.h">
+      <Filter>renderer\splitter</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\system.h">
+      <Filter>renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\system_manager.h">
+      <Filter>renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\upsampler\upsampler_info.h">
+      <Filter>renderer\upsampler</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\upsampler\upsampler_manager.h">
+      <Filter>renderer\upsampler</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\upsampler\upsampler_state.h">
+      <Filter>renderer\upsampler</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\voice\voice_channel_resource.h">
+      <Filter>renderer\voice</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\voice\voice_context.h">
+      <Filter>renderer\voice</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\voice\voice_info.h">
+      <Filter>renderer\voice</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\voice\voice_state.h">
+      <Filter>renderer\voice</Filter>
+    </ClInclude>
+    <ClInclude Include="sink\null_sink.h">
+      <Filter>sink</Filter>
+    </ClInclude>
+    <ClInclude Include="sink\sink.h">
+      <Filter>sink</Filter>
+    </ClInclude>
+    <ClInclude Include="sink\sink_details.h">
+      <Filter>sink</Filter>
+    </ClInclude>
+    <ClInclude Include="sink\sink_stream.h">
+      <Filter>sink</Filter>
+    </ClInclude>
+    <ClInclude Include="sink\cubeb_sink.h">
+      <Filter>sink</Filter>
+    </ClInclude>
+    <ClInclude Include="sink\sdl2_sink.h">
+      <Filter>sink</Filter>
+    </ClInclude>
+    <ClInclude Include="audio_types.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="adsp">
+      <UniqueIdentifier>{2C18006E-F94E-332A-856A-83CD8BDE784D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="adsp\apps">
+      <UniqueIdentifier>{38503F67-5CB1-306D-9E43-A6600D929A57}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="adsp\apps\audio_renderer">
+      <UniqueIdentifier>{CC8CA0EA-0F31-315F-9A4A-024E95016B95}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="adsp\apps\opus">
+      <UniqueIdentifier>{634ADE45-919F-3B5B-82B0-C15C6CDFF566}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{EAAE7DAD-82B0-3693-B803-E77E58FABBD3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="device">
+      <UniqueIdentifier>{59D6DD98-ACC2-35B2-B185-236ABC5F0286}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="in">
+      <UniqueIdentifier>{D1FA46B4-136D-3A9B-85D7-7A325229524B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="opus">
+      <UniqueIdentifier>{F013B719-B6F2-30D4-82B4-AB7D84C2525C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="out">
+      <UniqueIdentifier>{2AF3BC6F-38B2-3842-91BC-7C94E5576AA1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer">
+      <UniqueIdentifier>{CEED8F34-F20E-3A6F-97AF-616F9F6BA810}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\behavior">
+      <UniqueIdentifier>{B0EAA779-73C4-3D9B-B107-C90D878ABE6B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command">
+      <UniqueIdentifier>{134F367F-8960-339C-A3B4-11F53698DC5E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command\data_source">
+      <UniqueIdentifier>{B434D0FD-47C3-3BCB-B8F6-9791A9752C9D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command\effect">
+      <UniqueIdentifier>{44B7DD4A-C660-3E2A-8BD1-A67C9741B807}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command\mix">
+      <UniqueIdentifier>{C4B83B72-FC96-3621-9592-F39821B47B01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command\performance">
+      <UniqueIdentifier>{FE33F0F9-58E8-39D0-A99A-322DAEB3FD24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command\resample">
+      <UniqueIdentifier>{C31D8FD6-C0E4-3934-8B64-7B28BC484EC9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\command\sink">
+      <UniqueIdentifier>{DC42F8D0-53EA-3530-B4A0-2890C16BB283}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\effect">
+      <UniqueIdentifier>{67E26B0C-D0E1-3B43-91B2-82FC5A4ACC14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\memory">
+      <UniqueIdentifier>{F6C602A8-1778-39EF-BB1A-C3009FE47636}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\mix">
+      <UniqueIdentifier>{4163C558-D96C-3CDC-AA5E-4A858B24F1FC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\nodes">
+      <UniqueIdentifier>{990BC06D-8CFF-3486-AF5E-280D32700363}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\performance">
+      <UniqueIdentifier>{56D5DFA1-7E1F-3E0C-B4D6-C57EC40FCF17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\sink">
+      <UniqueIdentifier>{49605BBE-795E-35B3-AAA3-7A04AEB13CC3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\splitter">
+      <UniqueIdentifier>{E1DA603D-69D1-38C2-85D9-3759D697D34C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\upsampler">
+      <UniqueIdentifier>{C989E2DF-7941-3C7E-96ED-75724786702C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="renderer\voice">
+      <UniqueIdentifier>{887CE4E9-5154-30E8-B31E-11799CDB602D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sink">
+      <UniqueIdentifier>{2CD35B2D-D0B8-313A-9A1C-B7F4E2558BE0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

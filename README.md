@@ -12,7 +12,11 @@ The latest stable releases are available [here](https://www.nxemu.com/downloads.
 git clone --recursive https://github.com/N3xoX1/nxemu.git
 ```
 
-Build the RmlUi frontend with CMake (Visual Studio 2022 build tools and the Vulkan SDK on Windows):
+On Windows, install Visual Studio 2022 with Desktop development with C++ and the Vulkan SDK.
+Open the repository's `nxemu.sln` to use the maintained Visual Studio projects, or run
+`src\script\build.cmd Release`. These projects remain checked in and are maintained alongside CMake.
+
+Alternatively, build the RmlUi frontend with CMake:
 
 ```powershell
 ./src/script/build_windows.ps1 Release
@@ -22,7 +26,17 @@ On Linux, use `sh src/script/build_linux.sh Release`.
 On macOS with Xcode installed, use `sh src/script/build_macos.sh Release`.
 For Android, use `sh src/script/build_android.sh Release` with JDK 17, Android SDK 36 and NDK 30.0.16248370.
 Each script accepts a build directory after the configuration; the desktop scripts also accept extra CMake options.
-The former frontend, its resource tools and hand-written Visual Studio projects have been removed.
+
+To generate a separate Visual Studio 2022 solution manually, run:
+
+```powershell
+cmake --preset windows-x64
+```
+
+Open `build/windows-x64/nxemu.sln`, or build it with `cmake --build --preset windows-x64-release`.
+Run the configure command again to regenerate this solution after changing CMake files.
+The generated projects stay in the build directory; they do not replace the checked-in solution.
+Changes to sources, dependencies or build options must be reflected in both maintained build systems.
 
 GitHub Actions builds Windows x64, Linux x64, macOS arm64 and Android arm64 on pull requests and pushes to master.
 Desktop jobs run the frontend-settings compatibility test; Android runs its Gradle unit tests and checks native libraries in the APK.

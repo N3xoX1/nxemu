@@ -1,0 +1,281 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{8AEAC824-7FF6-3DCE-BD4F-2D1E1BBCFD0E}</ProjectGuid>
+    <ProjectName>yuzu_audio_core</ProjectName>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <PreprocessorDefinitions>HAVE_CUBEB=1;HAVE_SDL2;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\cubeb\include;$(SolutionDir)external\fmt\include;$(SolutionDir)external\opus\include;$(SolutionDir)external\sdl\include;$(SolutionDir)src\3rd_party\cubeb;$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\nxemu-os;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="adsp\adsp.cpp" />
+    <ClInclude Include="adsp\adsp.h" />
+    <ClInclude Include="adsp\mailbox.h" />
+    <ClCompile Include="adsp\apps\audio_renderer\audio_renderer.cpp">
+      <ObjectFileName>$(IntDir)/adsp/apps/audio_renderer/audio_renderer.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="adsp\apps\audio_renderer\audio_renderer.h" />
+    <ClInclude Include="adsp\apps\audio_renderer\command_buffer.h" />
+    <ClCompile Include="adsp\apps\audio_renderer\command_list_processor.cpp" />
+    <ClInclude Include="adsp\apps\audio_renderer\command_list_processor.h" />
+    <ClCompile Include="adsp\apps\opus\opus_decoder.cpp" />
+    <ClInclude Include="adsp\apps\opus\opus_decoder.h" />
+    <ClCompile Include="adsp\apps\opus\opus_decode_object.cpp" />
+    <ClInclude Include="adsp\apps\opus\opus_decode_object.h" />
+    <ClCompile Include="adsp\apps\opus\opus_multistream_decode_object.cpp" />
+    <ClInclude Include="adsp\apps\opus\opus_multistream_decode_object.h" />
+    <ClInclude Include="adsp\apps\opus\shared_memory.h" />
+    <ClCompile Include="audio_core.cpp" />
+    <ClInclude Include="audio_core.h" />
+    <ClInclude Include="audio_event.h" />
+    <ClCompile Include="audio_event.cpp" />
+    <ClCompile Include="audio_render_manager.cpp" />
+    <ClInclude Include="audio_render_manager.h" />
+    <ClCompile Include="audio_in_manager.cpp" />
+    <ClInclude Include="audio_in_manager.h" />
+    <ClCompile Include="audio_out_manager.cpp" />
+    <ClInclude Include="audio_out_manager.h" />
+    <ClCompile Include="audio_manager.cpp" />
+    <ClInclude Include="audio_manager.h" />
+    <ClInclude Include="audio_types.h" />
+    <ClInclude Include="common\audio_renderer_parameter.h" />
+    <ClInclude Include="common\common.h" />
+    <ClInclude Include="common\feature_support.h" />
+    <ClInclude Include="common\wave_buffer.h" />
+    <ClInclude Include="common\workbuffer_allocator.h" />
+    <ClInclude Include="device\audio_buffer.h" />
+    <ClInclude Include="device\audio_buffers.h" />
+    <ClCompile Include="device\device_session.cpp" />
+    <ClInclude Include="device\device_session.h" />
+    <ClCompile Include="in\audio_in.cpp" />
+    <ClInclude Include="in\audio_in.h" />
+    <ClCompile Include="in\audio_in_system.cpp" />
+    <ClInclude Include="in\audio_in_system.h" />
+    <ClCompile Include="opus\hardware_opus.cpp" />
+    <ClInclude Include="opus\hardware_opus.h" />
+    <ClCompile Include="opus\decoder_manager.cpp" />
+    <ClInclude Include="opus\decoder_manager.h" />
+    <ClCompile Include="opus\decoder.cpp" />
+    <ClInclude Include="opus\decoder.h" />
+    <ClInclude Include="opus\parameters.h" />
+    <ClCompile Include="out\audio_out.cpp" />
+    <ClInclude Include="out\audio_out.h" />
+    <ClCompile Include="out\audio_out_system.cpp" />
+    <ClInclude Include="out\audio_out_system.h" />
+    <ClInclude Include="precompiled_headers.h" />
+    <ClCompile Include="renderer\audio_device.cpp" />
+    <ClInclude Include="renderer\audio_device.h" />
+    <ClInclude Include="renderer\audio_renderer.h" />
+    <ClCompile Include="renderer\audio_renderer.cpp">
+      <ObjectFileName>$(IntDir)/renderer/audio_renderer.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer\behavior\behavior_info.cpp" />
+    <ClInclude Include="renderer\behavior\behavior_info.h" />
+    <ClCompile Include="renderer\behavior\info_updater.cpp" />
+    <ClInclude Include="renderer\behavior\info_updater.h" />
+    <ClCompile Include="renderer\command\data_source\adpcm.cpp" />
+    <ClInclude Include="renderer\command\data_source\adpcm.h" />
+    <ClCompile Include="renderer\command\data_source\decode.cpp" />
+    <ClInclude Include="renderer\command\data_source\decode.h" />
+    <ClCompile Include="renderer\command\data_source\pcm_float.cpp" />
+    <ClInclude Include="renderer\command\data_source\pcm_float.h" />
+    <ClCompile Include="renderer\command\data_source\pcm_int16.cpp" />
+    <ClInclude Include="renderer\command\data_source\pcm_int16.h" />
+    <ClCompile Include="renderer\command\effect\aux_.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/aux_.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\aux_.h" />
+    <ClCompile Include="renderer\command\effect\biquad_filter.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/biquad_filter.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\biquad_filter.h" />
+    <ClCompile Include="renderer\command\effect\capture.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/capture.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\capture.h" />
+    <ClCompile Include="renderer\command\effect\compressor.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/compressor.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\compressor.h" />
+    <ClCompile Include="renderer\command\effect\delay.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/delay.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\delay.h" />
+    <ClCompile Include="renderer\command\effect\i3dl2_reverb.cpp" />
+    <ClInclude Include="renderer\command\effect\i3dl2_reverb.h" />
+    <ClCompile Include="renderer\command\effect\light_limiter.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/light_limiter.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\light_limiter.h" />
+    <ClCompile Include="renderer\command\effect\multi_tap_biquad_filter.cpp" />
+    <ClInclude Include="renderer\command\effect\multi_tap_biquad_filter.h" />
+    <ClCompile Include="renderer\command\effect\reverb.cpp">
+      <ObjectFileName>$(IntDir)/renderer/command/effect/reverb.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\command\effect\reverb.h" />
+    <ClCompile Include="renderer\command\mix\clear_mix.cpp" />
+    <ClInclude Include="renderer\command\mix\clear_mix.h" />
+    <ClCompile Include="renderer\command\mix\copy_mix.cpp" />
+    <ClInclude Include="renderer\command\mix\copy_mix.h" />
+    <ClCompile Include="renderer\command\mix\depop_for_mix_buffers.cpp" />
+    <ClInclude Include="renderer\command\mix\depop_for_mix_buffers.h" />
+    <ClCompile Include="renderer\command\mix\depop_prepare.cpp" />
+    <ClInclude Include="renderer\command\mix\depop_prepare.h" />
+    <ClCompile Include="renderer\command\mix\mix.cpp" />
+    <ClInclude Include="renderer\command\mix\mix.h" />
+    <ClCompile Include="renderer\command\mix\mix_ramp.cpp" />
+    <ClInclude Include="renderer\command\mix\mix_ramp.h" />
+    <ClCompile Include="renderer\command\mix\mix_ramp_grouped.cpp" />
+    <ClInclude Include="renderer\command\mix\mix_ramp_grouped.h" />
+    <ClCompile Include="renderer\command\mix\volume.cpp" />
+    <ClInclude Include="renderer\command\mix\volume.h" />
+    <ClCompile Include="renderer\command\mix\volume_ramp.cpp" />
+    <ClInclude Include="renderer\command\mix\volume_ramp.h" />
+    <ClCompile Include="renderer\command\performance\performance.cpp" />
+    <ClInclude Include="renderer\command\performance\performance.h" />
+    <ClCompile Include="renderer\command\resample\downmix_6ch_to_2ch.cpp" />
+    <ClInclude Include="renderer\command\resample\downmix_6ch_to_2ch.h" />
+    <ClInclude Include="renderer\command\resample\resample.h" />
+    <ClCompile Include="renderer\command\resample\resample.cpp" />
+    <ClCompile Include="renderer\command\resample\upsample.cpp" />
+    <ClInclude Include="renderer\command\resample\upsample.h" />
+    <ClCompile Include="renderer\command\sink\device.cpp" />
+    <ClInclude Include="renderer\command\sink\device.h" />
+    <ClCompile Include="renderer\command\sink\circular_buffer.cpp" />
+    <ClInclude Include="renderer\command\sink\circular_buffer.h" />
+    <ClCompile Include="renderer\command\command_buffer.cpp" />
+    <ClInclude Include="renderer\command\command_buffer.h" />
+    <ClCompile Include="renderer\command\command_generator.cpp" />
+    <ClInclude Include="renderer\command\command_generator.h" />
+    <ClInclude Include="renderer\command\command_list_header.h" />
+    <ClCompile Include="renderer\command\command_processing_time_estimator.cpp" />
+    <ClInclude Include="renderer\command\command_processing_time_estimator.h" />
+    <ClInclude Include="renderer\command\commands.h" />
+    <ClInclude Include="renderer\command\icommand.h" />
+    <ClCompile Include="renderer\effect\aux_.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/aux_.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\effect\aux_.h" />
+    <ClCompile Include="renderer\effect\biquad_filter.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/biquad_filter.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\effect\biquad_filter.h" />
+    <ClCompile Include="renderer\effect\buffer_mixer.cpp" />
+    <ClInclude Include="renderer\effect\buffer_mixer.h" />
+    <ClCompile Include="renderer\effect\capture.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/capture.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\effect\capture.h" />
+    <ClCompile Include="renderer\effect\compressor.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/compressor.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\effect\compressor.h" />
+    <ClCompile Include="renderer\effect\delay.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/delay.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\effect\delay.h" />
+    <ClCompile Include="renderer\effect\effect_context.cpp" />
+    <ClInclude Include="renderer\effect\effect_context.h" />
+    <ClInclude Include="renderer\effect\effect_info_base.h" />
+    <ClInclude Include="renderer\effect\effect_reset.h" />
+    <ClInclude Include="renderer\effect\effect_result_state.h" />
+    <ClCompile Include="renderer\effect\i3dl2.cpp" />
+    <ClInclude Include="renderer\effect\i3dl2.h" />
+    <ClCompile Include="renderer\effect\light_limiter.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/light_limiter.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClInclude Include="renderer\effect\light_limiter.h" />
+    <ClInclude Include="renderer\effect\reverb.h" />
+    <ClCompile Include="renderer\effect\reverb.cpp">
+      <ObjectFileName>$(IntDir)/renderer/effect/reverb.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer\mix\mix_context.cpp" />
+    <ClInclude Include="renderer\mix\mix_context.h" />
+    <ClCompile Include="renderer\mix\mix_info.cpp" />
+    <ClInclude Include="renderer\mix\mix_info.h" />
+    <ClInclude Include="renderer\memory\address_info.h" />
+    <ClCompile Include="renderer\memory\memory_pool_info.cpp" />
+    <ClInclude Include="renderer\memory\memory_pool_info.h" />
+    <ClCompile Include="renderer\memory\pool_mapper.cpp" />
+    <ClInclude Include="renderer\memory\pool_mapper.h" />
+    <ClInclude Include="renderer\nodes\bit_array.h" />
+    <ClCompile Include="renderer\nodes\edge_matrix.cpp" />
+    <ClInclude Include="renderer\nodes\edge_matrix.h" />
+    <ClCompile Include="renderer\nodes\node_states.cpp" />
+    <ClInclude Include="renderer\nodes\node_states.h" />
+    <ClCompile Include="renderer\performance\detail_aspect.cpp" />
+    <ClInclude Include="renderer\performance\detail_aspect.h" />
+    <ClCompile Include="renderer\performance\entry_aspect.cpp" />
+    <ClInclude Include="renderer\performance\entry_aspect.h" />
+    <ClInclude Include="renderer\performance\performance_detail.h" />
+    <ClInclude Include="renderer\performance\performance_entry.h" />
+    <ClInclude Include="renderer\performance\performance_entry_addresses.h" />
+    <ClInclude Include="renderer\performance\performance_frame_header.h" />
+    <ClCompile Include="renderer\performance\performance_manager.cpp" />
+    <ClInclude Include="renderer\performance\performance_manager.h" />
+    <ClCompile Include="renderer\sink\circular_buffer_sink_info.cpp" />
+    <ClInclude Include="renderer\sink\circular_buffer_sink_info.h" />
+    <ClCompile Include="renderer\sink\device_sink_info.cpp" />
+    <ClInclude Include="renderer\sink\device_sink_info.h" />
+    <ClCompile Include="renderer\sink\sink_context.cpp" />
+    <ClInclude Include="renderer\sink\sink_context.h" />
+    <ClCompile Include="renderer\sink\sink_info_base.cpp" />
+    <ClInclude Include="renderer\sink\sink_info_base.h" />
+    <ClCompile Include="renderer\splitter\splitter_context.cpp" />
+    <ClInclude Include="renderer\splitter\splitter_context.h" />
+    <ClCompile Include="renderer\splitter\splitter_destinations_data.cpp" />
+    <ClInclude Include="renderer\splitter\splitter_destinations_data.h" />
+    <ClCompile Include="renderer\splitter\splitter_info.cpp" />
+    <ClInclude Include="renderer\splitter\splitter_info.h" />
+    <ClCompile Include="renderer\system.cpp" />
+    <ClInclude Include="renderer\system.h" />
+    <ClCompile Include="renderer\system_manager.cpp" />
+    <ClInclude Include="renderer\system_manager.h" />
+    <ClInclude Include="renderer\upsampler\upsampler_info.h" />
+    <ClCompile Include="renderer\upsampler\upsampler_manager.cpp" />
+    <ClInclude Include="renderer\upsampler\upsampler_manager.h" />
+    <ClInclude Include="renderer\upsampler\upsampler_state.h" />
+    <ClInclude Include="renderer\voice\voice_channel_resource.h" />
+    <ClCompile Include="renderer\voice\voice_context.cpp" />
+    <ClInclude Include="renderer\voice\voice_context.h" />
+    <ClCompile Include="renderer\voice\voice_info.cpp" />
+    <ClInclude Include="renderer\voice\voice_info.h" />
+    <ClInclude Include="renderer\voice\voice_state.h" />
+    <ClInclude Include="sink\null_sink.h" />
+    <ClInclude Include="sink\sink.h" />
+    <ClCompile Include="sink\sink_details.cpp" />
+    <ClInclude Include="sink\sink_details.h" />
+    <ClCompile Include="sink\sink_stream.cpp" />
+    <ClInclude Include="sink\sink_stream.h" />
+    <ClCompile Include="sink\cubeb_sink.cpp" />
+    <ClInclude Include="sink\cubeb_sink.h" />
+    <ClCompile Include="sink\sdl2_sink.cpp" />
+    <ClInclude Include="sink\sdl2_sink.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

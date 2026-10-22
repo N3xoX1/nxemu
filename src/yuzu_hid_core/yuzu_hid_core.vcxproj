@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{58ed6cb7-4a88-455e-87da-39e34cd7b1cf}</ProjectGuid>
+    <RootNamespace>yuzuhidcore</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)src\nxemu-os;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="frontend\emulated_console.h" />
+    <ClInclude Include="frontend\emulated_controller.h" />
+    <ClInclude Include="frontend\emulated_devices.h" />
+    <ClInclude Include="frontend\input_converter.h" />
+    <ClInclude Include="frontend\input_interpreter.h" />
+    <ClInclude Include="frontend\motion_input.h" />
+    <ClInclude Include="hidbus\hidbus_base.h" />
+    <ClInclude Include="hidbus\ringcon.h" />
+    <ClInclude Include="hidbus\starlink.h" />
+    <ClInclude Include="hidbus\stubbed.h" />
+    <ClInclude Include="hid_core.h" />
+    <ClInclude Include="hid_result.h" />
+    <ClInclude Include="hid_types.h" />
+    <ClInclude Include="hid_util.h" />
+    <ClInclude Include="irsensor\clustering_processor.h" />
+    <ClInclude Include="irsensor\image_transfer_processor.h" />
+    <ClInclude Include="irsensor\irs_types.h" />
+    <ClInclude Include="irsensor\ir_led_processor.h" />
+    <ClInclude Include="irsensor\moment_processor.h" />
+    <ClInclude Include="irsensor\pointing_processor.h" />
+    <ClInclude Include="irsensor\processor_base.h" />
+    <ClInclude Include="irsensor\tera_plugin_processor.h" />
+    <ClInclude Include="precompiled_headers.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_battery_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_button_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_ir_sensor_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_led_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_mcu_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_nfc_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_pad.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_pad_holder.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_palma_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_properties_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_sixaxis_handler.h" />
+    <ClInclude Include="resources\abstracted_pad\abstract_vibration_handler.h" />
+    <ClInclude Include="resources\applet_resource.h" />
+    <ClInclude Include="resources\controller_base.h" />
+    <ClInclude Include="resources\debug_pad\debug_pad.h" />
+    <ClInclude Include="resources\debug_pad\debug_pad_types.h" />
+    <ClInclude Include="resources\digitizer\digitizer.h" />
+    <ClInclude Include="resources\hid_firmware_settings.h" />
+    <ClInclude Include="resources\irs_ring_lifo.h" />
+    <ClInclude Include="resources\keyboard\keyboard.h" />
+    <ClInclude Include="resources\keyboard\keyboard_types.h" />
+    <ClInclude Include="resources\mouse\debug_mouse.h" />
+    <ClInclude Include="resources\mouse\mouse.h" />
+    <ClInclude Include="resources\mouse\mouse_types.h" />
+    <ClInclude Include="resources\npad\npad.h" />
+    <ClInclude Include="resources\npad\npad_data.h" />
+    <ClInclude Include="resources\npad\npad_resource.h" />
+    <ClInclude Include="resources\npad\npad_types.h" />
+    <ClInclude Include="resources\npad\npad_vibration.h" />
+    <ClInclude Include="resources\palma\palma.h" />
+    <ClInclude Include="resources\ring_lifo.h" />
+    <ClInclude Include="resources\shared_memory_format.h" />
+    <ClInclude Include="resources\shared_memory_holder.h" />
+    <ClInclude Include="resources\six_axis\console_six_axis.h" />
+    <ClInclude Include="resources\six_axis\seven_six_axis.h" />
+    <ClInclude Include="resources\six_axis\six_axis.h" />
+    <ClInclude Include="resources\system_buttons\capture_button.h" />
+    <ClInclude Include="resources\system_buttons\home_button.h" />
+    <ClInclude Include="resources\system_buttons\sleep_button.h" />
+    <ClInclude Include="resources\system_buttons\system_button_types.h" />
+    <ClInclude Include="resources\touch_screen\gesture.h" />
+    <ClInclude Include="resources\touch_screen\gesture_handler.h" />
+    <ClInclude Include="resources\touch_screen\touch_screen.h" />
+    <ClInclude Include="resources\touch_screen\touch_screen_driver_resource.h" />
+    <ClInclude Include="resources\touch_screen\touch_screen_resource.h" />
+    <ClInclude Include="resources\touch_screen\touch_types.h" />
+    <ClInclude Include="resources\unique_pad\unique_pad.h" />
+    <ClInclude Include="resources\vibration\gc_vibration_device.h" />
+    <ClInclude Include="resources\vibration\n64_vibration_device.h" />
+    <ClInclude Include="resources\vibration\vibration_base.h" />
+    <ClInclude Include="resources\vibration\vibration_device.h" />
+    <ClInclude Include="resource_manager.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="frontend\emulated_console.cpp" />
+    <ClCompile Include="frontend\emulated_controller.cpp" />
+    <ClCompile Include="frontend\emulated_devices.cpp" />
+    <ClCompile Include="frontend\input_converter.cpp" />
+    <ClCompile Include="frontend\input_interpreter.cpp" />
+    <ClCompile Include="frontend\motion_input.cpp" />
+    <ClCompile Include="hidbus\hidbus_base.cpp" />
+    <ClCompile Include="hidbus\ringcon.cpp" />
+    <ClCompile Include="hidbus\starlink.cpp" />
+    <ClCompile Include="hidbus\stubbed.cpp" />
+    <ClCompile Include="hid_core.cpp" />
+    <ClCompile Include="irsensor\clustering_processor.cpp" />
+    <ClCompile Include="irsensor\image_transfer_processor.cpp" />
+    <ClCompile Include="irsensor\ir_led_processor.cpp" />
+    <ClCompile Include="irsensor\moment_processor.cpp" />
+    <ClCompile Include="irsensor\pointing_processor.cpp" />
+    <ClCompile Include="irsensor\processor_base.cpp" />
+    <ClCompile Include="irsensor\tera_plugin_processor.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_battery_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_button_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_ir_sensor_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_led_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_mcu_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_nfc_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_pad.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_pad_holder.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_palma_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_properties_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_sixaxis_handler.cpp" />
+    <ClCompile Include="resources\abstracted_pad\abstract_vibration_handler.cpp" />
+    <ClCompile Include="resources\applet_resource.cpp" />
+    <ClCompile Include="resources\controller_base.cpp" />
+    <ClCompile Include="resources\debug_pad\debug_pad.cpp" />
+    <ClCompile Include="resources\digitizer\digitizer.cpp" />
+    <ClCompile Include="resources\hid_firmware_settings.cpp" />
+    <ClCompile Include="resources\keyboard\keyboard.cpp" />
+    <ClCompile Include="resources\mouse\debug_mouse.cpp" />
+    <ClCompile Include="resources\mouse\mouse.cpp" />
+    <ClCompile Include="resources\npad\npad.cpp" />
+    <ClCompile Include="resources\npad\npad_data.cpp" />
+    <ClCompile Include="resources\npad\npad_resource.cpp" />
+    <ClCompile Include="resources\npad\npad_vibration.cpp" />
+    <ClCompile Include="resources\palma\palma.cpp" />
+    <ClCompile Include="resources\shared_memory_holder.cpp" />
+    <ClCompile Include="resources\six_axis\console_six_axis.cpp" />
+    <ClCompile Include="resources\six_axis\seven_six_axis.cpp" />
+    <ClCompile Include="resources\six_axis\six_axis.cpp" />
+    <ClCompile Include="resources\system_buttons\capture_button.cpp" />
+    <ClCompile Include="resources\system_buttons\home_button.cpp" />
+    <ClCompile Include="resources\system_buttons\sleep_button.cpp" />
+    <ClCompile Include="resources\touch_screen\gesture.cpp" />
+    <ClCompile Include="resources\touch_screen\gesture_handler.cpp" />
+    <ClCompile Include="resources\touch_screen\touch_screen.cpp" />
+    <ClCompile Include="resources\touch_screen\touch_screen_driver.cpp" />
+    <ClCompile Include="resources\touch_screen\touch_screen_resource.cpp" />
+    <ClCompile Include="resources\unique_pad\unique_pad.cpp" />
+    <ClCompile Include="resources\vibration\gc_vibration_device.cpp" />
+    <ClCompile Include="resources\vibration\n64_vibration_device.cpp" />
+    <ClCompile Include="resources\vibration\vibration_base.cpp" />
+    <ClCompile Include="resources\vibration\vibration_device.cpp" />
+    <ClCompile Include="resource_manager.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

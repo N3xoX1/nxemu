@@ -1,0 +1,596 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\core">
+      <UniqueIdentifier>{68c18db1-6b12-4558-926f-42b71a940e53}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\file_sys">
+      <UniqueIdentifier>{892a26f7-d8ee-4f98-a63b-4647a3e6d42a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\file_sys\fssystem">
+      <UniqueIdentifier>{a9179632-51ea-4d5d-bf2a-3ab949277a03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\file_sys\system_archive">
+      <UniqueIdentifier>{8dcfee80-e69c-41cd-ad2e-28823c68f1f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\file_sys\system_archive\data">
+      <UniqueIdentifier>{237c85d3-29a0-48e4-94ae-d4a3d48b8070}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\file_sys\vfs">
+      <UniqueIdentifier>{017a2f4b-288a-4845-949c-e08b30c688d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core">
+      <UniqueIdentifier>{340d9327-a477-475a-a5cb-2fe611f5c36c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\file_sys">
+      <UniqueIdentifier>{96daeb95-9b23-43eb-b40e-47917be1d24a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\loader">
+      <UniqueIdentifier>{995d00b9-a825-4c79-b50e-b0e62216f356}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\file_sys\fssystem">
+      <UniqueIdentifier>{3e535f6e-71e8-41e0-980f-682e82c9ad09}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\file_sys\system_archive">
+      <UniqueIdentifier>{8ae8eea2-1ec8-4ce2-8554-53fecab662c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\file_sys\vfs">
+      <UniqueIdentifier>{e40b0966-bd74-4c76-9d92-957ebae323dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\file_sys\system_archive\data">
+      <UniqueIdentifier>{15061d4f-9b26-45ea-9896-acb38ec635a6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle">
+      <UniqueIdentifier>{b0dd73aa-2aeb-4dbb-8e14-e1ae49999f15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\loader">
+      <UniqueIdentifier>{f2eabf06-73c1-4f03-99aa-991657f8fa57}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle">
+      <UniqueIdentifier>{d6429173-5deb-45a1-8165-a3e5bb694f4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle\kernel">
+      <UniqueIdentifier>{c6883935-5f41-42f9-a99f-c3a715ad8cbd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\kernel">
+      <UniqueIdentifier>{f6316aee-fbba-418a-a828-390817ba5caa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle\service">
+      <UniqueIdentifier>{1a0219c5-cfb4-400d-a8ea-15f884a79717}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle\service\ns">
+      <UniqueIdentifier>{fad24260-1fa5-4c10-b722-b6f147cc2613}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service">
+      <UniqueIdentifier>{76db1d79-7fcf-4fd3-a99b-acc459d33284}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service\ns">
+      <UniqueIdentifier>{974dd6a9-6dd0-48b7-ae01-6c7e8806cf59}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core\hle\service\set">
+      <UniqueIdentifier>{4b6f891e-a0e9-4c70-89b6-b4be5dda45a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core\hle\service\set">
+      <UniqueIdentifier>{1a42828a-0b0b-469d-8d60-f63f77308949}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="nxemu-loader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="system_loader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\bis_factory.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\card_image.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\content_archive.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\control_metadata.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fsmitm_romfsbuild.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\ips_layer.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\nca_metadata.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\partition_filesystem.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\patch_manager.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\program_metadata.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\registered_cache.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\romfs.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\romfs_factory.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\savedata_factory.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\sdmc_factory.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\xts_archive.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_nca_header.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_nca_reader.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\mii_model.cpp">
+      <Filter>Source Files\core\file_sys\system_archive</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\ng_word.cpp">
+      <Filter>Source Files\core\file_sys\system_archive</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\shared_font.cpp">
+      <Filter>Source Files\core\file_sys\system_archive</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\system_archive.cpp">
+      <Filter>Source Files\core\file_sys\system_archive</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\system_version.cpp">
+      <Filter>Source Files\core\file_sys\system_archive</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\time_zone_binary.cpp">
+      <Filter>Source Files\core\file_sys\system_archive</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\data\font_chinese_simplified.cpp">
+      <Filter>Source Files\core\file_sys\system_archive\data</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\data\font_chinese_traditional.cpp">
+      <Filter>Source Files\core\file_sys\system_archive\data</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\data\font_extended_chinese_simplified.cpp">
+      <Filter>Source Files\core\file_sys\system_archive\data</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\data\font_korean.cpp">
+      <Filter>Source Files\core\file_sys\system_archive\data</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\data\font_nintendo_extended.cpp">
+      <Filter>Source Files\core\file_sys\system_archive\data</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\system_archive\data\font_standard.cpp">
+      <Filter>Source Files\core\file_sys\system_archive\data</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_cached.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_concat.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_layered.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_offset.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_real.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_types.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_vector.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\filesystem.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\core.cpp">
+      <Filter>Source Files\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\loader.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\nro.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\kernel\code_set.cpp">
+      <Filter>Source Files\core\hle\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ns\platform_service_manager.cpp">
+      <Filter>Source Files\core\hle\service\ns</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\xci.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\nca.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\deconstructed_rom_directory.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\submission_package.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\nso.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_nca_file_system_driver.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_integrity_verification_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_aes_ctr_counter_extended_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_hierarchical_integrity_verification_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_hierarchical_sha256_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_bucket_tree.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_sparse_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_alignment_matching_storage_impl.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_pooled_buffer.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_integrity_romfs_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_indirect_storage.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\fssystem\fssystem_compression_configuration.cpp">
+      <Filter>Source Files\core\file_sys\fssystem</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ns\language.cpp">
+      <Filter>Source Files\core\hle\service\ns</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\set\settings_server.cpp">
+      <Filter>Source Files\core\hle\service\set</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\save_data_controller.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
+    <ClCompile Include="core\loader\nsp.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
+    <ClCompile Include="rom_info.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="game_list_cache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_ivirtualdirectory.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="core\file_sys\vfs\vfs_ivirtualfile.cpp">
+      <Filter>Source Files\core\file_sys\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="firmware_install.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="firmware_zip.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="loader_settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="system_loader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\bis_factory.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\card_image.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\common_funcs.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\content_archive.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\control_metadata.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\errors.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fsmitm_romfsbuild.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\ips_layer.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\nca_metadata.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\partition_filesystem.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\patch_manager.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\program_metadata.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\registered_cache.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\romfs.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\romfs_factory.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\savedata_factory.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\sdmc_factory.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\submission_package.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\xts_archive.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fs_types.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_compression_common.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_compression_configuration.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_nca_file_system_driver.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_nca_header.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_cached.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_concat.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_layered.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_offset.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_real.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_static.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_types.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_vector.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\mii_model.h">
+      <Filter>Header Files\core\file_sys\system_archive</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\ng_word.h">
+      <Filter>Header Files\core\file_sys\system_archive</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\shared_font.h">
+      <Filter>Header Files\core\file_sys\system_archive</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\system_archive.h">
+      <Filter>Header Files\core\file_sys\system_archive</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\system_version.h">
+      <Filter>Header Files\core\file_sys\system_archive</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\time_zone_binary.h">
+      <Filter>Header Files\core\file_sys\system_archive</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\data\font_chinese_simplified.h">
+      <Filter>Header Files\core\file_sys\system_archive\data</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\data\font_chinese_traditional.h">
+      <Filter>Header Files\core\file_sys\system_archive\data</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\data\font_extended_chinese_simplified.h">
+      <Filter>Header Files\core\file_sys\system_archive\data</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\data\font_korean.h">
+      <Filter>Header Files\core\file_sys\system_archive\data</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\data\font_nintendo_extended.h">
+      <Filter>Header Files\core\file_sys\system_archive\data</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\system_archive\data\font_standard.h">
+      <Filter>Header Files\core\file_sys\system_archive\data</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\api_version.h">
+      <Filter>Header Files\core\hle</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\result.h">
+      <Filter>Header Files\core\hle</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\loader.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\nso.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fs_save_data_types.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\filesystem.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\core.h">
+      <Filter>Header Files\core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fs_filesystem.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\nro.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\kernel\code_set.h">
+      <Filter>Header Files\core\hle\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\kernel\k_typed_address.h">
+      <Filter>Header Files\core\hle\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\kernel\physical_memory.h">
+      <Filter>Header Files\core\hle\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ns\platform_service_manager.h">
+      <Filter>Header Files\core\hle\service\ns</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\set\settings_types.h">
+      <Filter>Header Files\core\hle\service\set</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\cmif_types.h">
+      <Filter>Header Files\core\hle\service</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\xci.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\nca.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\deconstructed_rom_directory.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fs_i_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_aes_ctr_counter_extended_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_alignment_matching_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_alignment_matching_storage_impl.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_bucket_tree.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_compressed_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_hierarchical_integrity_verification_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_hierarchical_sha256_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_pooled_buffer.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_bucket_tree_template_impl.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_bucket_tree_utils.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_indirect_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_integrity_romfs_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_integrity_verification_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_memory_resource_buffer_hold_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_sparse_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\fssystem\fssystem_switch_storage.h">
+      <Filter>Header Files\core\file_sys\fssystem</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\ns\language.h">
+      <Filter>Header Files\core\hle\service\ns</Filter>
+    </ClInclude>
+    <ClInclude Include="core\hle\service\set\settings_server.h">
+      <Filter>Header Files\core\hle\service\set</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\save_data_controller.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\nsp.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="rom_info.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="firmware_install.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="game_list_cache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_ivirtualdirectory.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\vfs\vfs_ivirtualfile.h">
+      <Filter>Header Files\core\file_sys\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="loader_settings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="loader_settings_identifiers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="version.h.in">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+</Project>

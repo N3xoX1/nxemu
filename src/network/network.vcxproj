@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{286ff3b0-952d-4193-94ab-c8c300bc85f0}</ProjectGuid>
+    <RootNamespace>network</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\enet\include;$(SolutionDir)external\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <WarningLevel>Level3</WarningLevel>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="announce_multiplayer_session.cpp" />
+    <ClCompile Include="network.cpp" />
+    <ClCompile Include="packet.cpp" />
+    <ClCompile Include="room.cpp" />
+    <ClCompile Include="room_member.cpp" />
+    <ClCompile Include="verify_user.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="announce_multiplayer_session.h" />
+    <ClInclude Include="network.h" />
+    <ClInclude Include="packet.h" />
+    <ClInclude Include="precompiled_headers.h" />
+    <ClInclude Include="room.h" />
+    <ClInclude Include="room_member.h" />
+    <ClInclude Include="verify_user.h" />
+  </ItemGroup>
+</Project>

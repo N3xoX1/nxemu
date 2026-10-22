@@ -1,0 +1,222 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\common">
+      <UniqueIdentifier>{db23176d-78d9-4083-b6e4-2db35464a4e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\compress">
+      <UniqueIdentifier>{bfc654bc-f737-447f-a271-4b442621f962}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\decompress">
+      <UniqueIdentifier>{572d826c-0d85-4457-bcf8-b8bfc01b7da7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\common">
+      <UniqueIdentifier>{18045f49-689d-45ca-8c83-3eddb4220b0a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\compress">
+      <UniqueIdentifier>{2d528d63-8e7f-4acf-a596-1efe244a774e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\decompress">
+      <UniqueIdentifier>{d24311cf-f2a3-48bf-9770-fe40c38fea90}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="zstd\lib\common\debug.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\entropy_common.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\error_private.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\fse_decompress.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\pool.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\threading.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\xxhash.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\common\zstd_common.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\fse_compress.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\hist.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\huf_compress.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_compress.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_compress_literals.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_compress_sequences.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_compress_superblock.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_double_fast.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_fast.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_lazy.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_ldm.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_opt.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstd_preSplit.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\compress\zstdmt_compress.c">
+      <Filter>Source Files\compress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\decompress\huf_decompress.c">
+      <Filter>Source Files\decompress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\decompress\zstd_ddict.c">
+      <Filter>Source Files\decompress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\decompress\zstd_decompress.c">
+      <Filter>Source Files\decompress</Filter>
+    </ClCompile>
+    <ClCompile Include="zstd\lib\decompress\zstd_decompress_block.c">
+      <Filter>Source Files\decompress</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="zstd\lib\common\allocations.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\bits.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\bitstream.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\compiler.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\cpu.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\debug.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\error_private.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\fse.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\huf.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\mem.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\pool.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\portability_macros.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\threading.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\xxhash.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\zstd_deps.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\zstd_internal.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\common\zstd_trace.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\clevels.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\hist.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_compress_internal.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_compress_literals.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_compress_sequences.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_compress_superblock.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_cwksp.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_double_fast.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_fast.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_lazy.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_ldm.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_ldm_geartab.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_opt.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstd_preSplit.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\compress\zstdmt_compress.h">
+      <Filter>Header Files\compress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\decompress\zstd_ddict.h">
+      <Filter>Header Files\decompress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\decompress\zstd_decompress_block.h">
+      <Filter>Header Files\decompress</Filter>
+    </ClInclude>
+    <ClInclude Include="zstd\lib\decompress\zstd_decompress_internal.h">
+      <Filter>Header Files\decompress</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

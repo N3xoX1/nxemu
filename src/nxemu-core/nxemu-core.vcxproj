@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{cf365edd-c903-47b1-aaae-a483d3c0d274}</ProjectGuid>
+    <RootNamespace>nxemucore</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)src\script\update_version.cmd" "$(Configuration)" "$(Platform)" "$(SolutionDir)src\nxemu-core\version.h.in" "$(SolutionDir)src\nxemu-core\version.h"</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\nxemu-module-spec\base.h" />
+    <ClInclude Include="..\nxemu-module-spec\cpu.h" />
+    <ClInclude Include="..\nxemu-module-spec\input.h" />
+    <ClInclude Include="..\nxemu-module-spec\operating_system.h" />
+    <ClInclude Include="..\nxemu-module-spec\system_loader.h" />
+    <ClInclude Include="..\nxemu-module-spec\video.h" />
+    <ClInclude Include="app_init.h" />
+    <ClInclude Include="logging.h" />
+    <ClInclude Include="modules\cpu_module.h" />
+    <ClInclude Include="modules\loader_module.h" />
+    <ClInclude Include="modules\module_base.h" />
+    <ClInclude Include="modules\module_list.h" />
+    <ClInclude Include="modules\module_notification.h" />
+    <ClInclude Include="modules\module_settings.h" />
+    <ClInclude Include="modules\operating_system_module.h" />
+    <ClInclude Include="modules\system_modules.h" />
+    <ClInclude Include="modules\video_module.h" />
+    <ClInclude Include="notification.h" />
+    <ClInclude Include="settings\core_settings.h" />
+    <ClInclude Include="settings\identifiers.h" />
+    <ClInclude Include="settings\settings.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="app_init.cpp" />
+    <ClCompile Include="logging.cpp" />
+    <ClCompile Include="modules\cpu_module.cpp" />
+    <ClCompile Include="modules\loader_module.cpp" />
+    <ClCompile Include="modules\module_base.cpp" />
+    <ClCompile Include="modules\module_list.cpp" />
+    <ClCompile Include="modules\module_notification.cpp" />
+    <ClCompile Include="modules\module_settings.cpp" />
+    <ClCompile Include="modules\operating_system_module.cpp" />
+    <ClCompile Include="modules\system_modules.cpp" />
+    <ClCompile Include="modules\video_module.cpp" />
+    <ClCompile Include="notification.cpp" />
+    <ClCompile Include="settings\core_settings.cpp" />
+    <ClCompile Include="settings\settings.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\external\fmt.vcxproj">
+      <Project>{d58bdfc6-1f1e-4c55-9296-1c2411b0fda7}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\yuzu_common\yuzu_common.vcxproj">
+      <Project>{250224f2-2e89-410e-8bdb-875959daba2c}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

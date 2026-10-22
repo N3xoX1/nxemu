@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="africa.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="america.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="america_argentina.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="america_indiana.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="america_kentucky.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="america_north_dakota.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="antarctica.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="arctic.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="asia.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="atlantic.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="australia.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="brazil.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="canada.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="chile.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="etc.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="europe.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="indian.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="mexico.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="pacific.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="us.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="zoneinfo.h.rule">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="base.h.rule">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
+</Project>

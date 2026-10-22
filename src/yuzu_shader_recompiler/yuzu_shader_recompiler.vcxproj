@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{70e74561-b64c-4ff8-9ea5-472bd2d98a4c}</ProjectGuid>
+    <RootNamespace>yuzushaderrecompiler</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(SolutionDir)property_sheets\platform.$(Configuration).props" />
+  </ImportGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)external\sirit\include;$(SolutionDir)external\sirit\externals\SPIRV-Headers\include;$(SolutionDir)src\nxemu-video;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="backend\bindings.h" />
+    <ClInclude Include="backend\glasm\emit_glasm.h" />
+    <ClInclude Include="backend\glasm\emit_glasm_instructions.h" />
+    <ClInclude Include="backend\glasm\glasm_emit_context.h" />
+    <ClInclude Include="backend\glasm\reg_alloc.h" />
+    <ClInclude Include="backend\glsl\emit_glsl.h" />
+    <ClInclude Include="backend\glsl\emit_glsl_instructions.h" />
+    <ClInclude Include="backend\glsl\glsl_emit_context.h" />
+    <ClInclude Include="backend\glsl\var_alloc.h" />
+    <ClInclude Include="backend\spirv\emit_spirv.h" />
+    <ClInclude Include="backend\spirv\emit_spirv_instructions.h" />
+    <ClInclude Include="backend\spirv\spirv_emit_context.h" />
+    <ClInclude Include="ir_opt\bindless_descriptor.h" />
+    <ClInclude Include="environment.h" />
+    <ClInclude Include="exception.h" />
+    <ClInclude Include="frontend\ir\abstract_syntax_list.h" />
+    <ClInclude Include="frontend\ir\attribute.h" />
+    <ClInclude Include="frontend\ir\basic_block.h" />
+    <ClInclude Include="frontend\ir\breadth_first_search.h" />
+    <ClInclude Include="frontend\ir\condition.h" />
+    <ClInclude Include="frontend\ir\flow_test.h" />
+    <ClInclude Include="frontend\ir\ir_emitter.h" />
+    <ClInclude Include="frontend\ir\modifiers.h" />
+    <ClInclude Include="frontend\ir\opcodes.h" />
+    <ClInclude Include="frontend\ir\patch.h" />
+    <ClInclude Include="frontend\ir\post_order.h" />
+    <ClInclude Include="frontend\ir\pred.h" />
+    <ClInclude Include="frontend\ir\program.h" />
+    <ClInclude Include="frontend\ir\reg.h" />
+    <ClInclude Include="frontend\ir\type.h" />
+    <ClInclude Include="frontend\ir\value.h" />
+    <ClInclude Include="frontend\maxwell\control_flow.h" />
+    <ClInclude Include="frontend\maxwell\decode.h" />
+    <ClInclude Include="frontend\maxwell\indirect_branch_table_track.h" />
+    <ClInclude Include="frontend\maxwell\instruction.h" />
+    <ClInclude Include="frontend\maxwell\location.h" />
+    <ClInclude Include="frontend\maxwell\opcodes.h" />
+    <ClInclude Include="frontend\maxwell\structured_control_flow.h" />
+    <ClInclude Include="frontend\maxwell\translate\impl\common_encoding.h" />
+    <ClInclude Include="frontend\maxwell\translate\impl\common_funcs.h" />
+    <ClInclude Include="frontend\maxwell\translate\impl\half_floating_point_helper.h" />
+    <ClInclude Include="frontend\maxwell\translate\impl\impl.h" />
+    <ClInclude Include="frontend\maxwell\translate\impl\load_constant.h" />
+    <ClInclude Include="frontend\maxwell\translate\impl\video_helper.h" />
+    <ClInclude Include="frontend\maxwell\translate\translate.h" />
+    <ClInclude Include="frontend\maxwell\translate_program.h" />
+    <ClInclude Include="host_translate_info.h" />
+    <ClInclude Include="ir_opt\passes.h" />
+    <ClInclude Include="ir_opt\conditional_value.h" />
+    <ClInclude Include="object_pool.h" />
+    <ClInclude Include="precompiled_headers.h" />
+    <ClInclude Include="profile.h" />
+    <ClInclude Include="program_header.h" />
+    <ClInclude Include="runtime_info.h" />
+    <ClInclude Include="shader_info.h" />
+    <ClInclude Include="stage.h" />
+    <ClInclude Include="varying_state.h" />
+    <ClInclude Include="vtg_as_compute.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="backend\glasm\emit_glasm.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_barriers.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_bitwise_conversion.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_composite.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_context_get_set.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_control_flow.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_convert.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_floating_point.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_image.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_integer.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_logical.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_memory.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_not_implemented.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_select.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_shared_memory.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_special.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_undefined.cpp" />
+    <ClCompile Include="backend\glasm\emit_glasm_warp.cpp" />
+    <ClCompile Include="backend\glasm\glasm_emit_context.cpp" />
+    <ClCompile Include="backend\glasm\reg_alloc.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_atomic.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_barriers.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_bitwise_conversion.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_composite.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_context_get_set.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_control_flow.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_convert.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_floating_point.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_image.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_integer.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_logical.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_memory.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_not_implemented.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_select.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_shared_memory.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_special.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_undefined.cpp" />
+    <ClCompile Include="backend\glsl\emit_glsl_warp.cpp" />
+    <ClCompile Include="backend\glsl\glsl_emit_context.cpp" />
+    <ClCompile Include="backend\glsl\var_alloc.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_atomic.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_barriers.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_bitwise_conversion.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_composite.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_context_get_set.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_control_flow.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_convert.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_floating_point.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_image.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_image_atomic.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_integer.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_logical.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_memory.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_select.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_shared_memory.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_special.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_undefined.cpp" />
+    <ClCompile Include="backend\spirv\emit_spirv_warp.cpp" />
+    <ClCompile Include="backend\spirv\spirv_emit_context.cpp" />
+    <ClCompile Include="frontend\ir\attribute.cpp" />
+    <ClCompile Include="frontend\ir\basic_block.cpp" />
+    <ClCompile Include="frontend\ir\condition.cpp" />
+    <ClCompile Include="frontend\ir\flow_test.cpp" />
+    <ClCompile Include="frontend\ir\ir_emitter.cpp" />
+    <ClCompile Include="frontend\ir\microinstruction.cpp" />
+    <ClCompile Include="frontend\ir\opcodes.cpp">
+      <ObjectFileName>$(IntDir)/frontend/ir/opcodes.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frontend\ir\patch.cpp" />
+    <ClCompile Include="frontend\ir\post_order.cpp" />
+    <ClCompile Include="frontend\ir\program.cpp" />
+    <ClCompile Include="frontend\ir\type.cpp" />
+    <ClCompile Include="frontend\ir\value.cpp" />
+    <ClCompile Include="frontend\maxwell\control_flow.cpp" />
+    <ClCompile Include="frontend\maxwell\decode.cpp" />
+    <ClCompile Include="frontend\maxwell\indirect_branch_table_track.cpp" />
+    <ClCompile Include="frontend\maxwell\opcodes.cpp">
+      <ObjectFileName>$(IntDir)/frontend/maxwell/opcodes.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frontend\maxwell\structured_control_flow.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\atomic_operations_global_memory.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\atomic_operations_shared_memory.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\attribute_memory_to_physical.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\barrier_operations.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\bitfield_extract.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\bitfield_insert.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\branch_indirect.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\common_funcs.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\condition_code_set.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\double_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\double_compare_and_set.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\double_fused_multiply_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\double_min_max.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\double_multiply.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\double_set_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\exit_program.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\find_leading_one.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_compare.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_compare_and_set.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_conversion_floating_point.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_conversion_integer.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_fused_multiply_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_min_max.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_multiply.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_multi_function.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_range_reduction.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_set_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\floating_point_swizzled_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\half_floating_point_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\half_floating_point_fused_multiply_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\half_floating_point_helper.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\half_floating_point_multiply.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\half_floating_point_set.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\half_floating_point_set_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\impl.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_add_three_input.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_compare.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_compare_and_set.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_floating_point_conversion.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_funnel_shift.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_minimum_maximum.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_popcount.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_scaled_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_set_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_shift_left.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_shift_right.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_short_multiply_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\integer_to_integer_conversion.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\internal_stage_buffer_entry_read.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\load_constant.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\load_effective_address.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\load_store_attribute.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\load_store_local_shared.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\load_store_memory.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\logic_operation.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\logic_operation_three_input.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\move_predicate_to_register.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\move_register.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\move_register_to_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\move_special_register.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\not_implemented.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\output_geometry.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\pixel_load.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\predicate_set_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\predicate_set_register.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\select_source_with_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\surface_atomic_operations.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\surface_load_store.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_fetch.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_fetch_swizzled.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_gather.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_gather_swizzled.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_gradient.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_load.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_load_swizzled.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_mipmap_level.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\texture_query.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\video_helper.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\video_minimum_maximum.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\video_multiply_add.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\video_set_predicate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\vote.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\impl\warp_shuffle.cpp" />
+    <ClCompile Include="frontend\maxwell\translate\translate.cpp" />
+    <ClCompile Include="frontend\maxwell\translate_program.cpp" />
+    <ClCompile Include="ir_opt\collect_shader_info_pass.cpp" />
+    <ClCompile Include="ir_opt\conditional_barrier_pass.cpp" />
+    <ClCompile Include="ir_opt\constant_propagation_pass.cpp" />
+    <ClCompile Include="ir_opt\dead_code_elimination_pass.cpp" />
+    <ClCompile Include="ir_opt\dual_vertex_pass.cpp" />
+    <ClCompile Include="ir_opt\global_memory_to_storage_buffer_pass.cpp" />
+    <ClCompile Include="ir_opt\identity_removal_pass.cpp" />
+    <ClCompile Include="ir_opt\layer_pass.cpp" />
+    <ClCompile Include="ir_opt\lower_fp16_to_fp32.cpp" />
+    <ClCompile Include="ir_opt\lower_fp64_to_fp32.cpp" />
+    <ClCompile Include="ir_opt\lower_int64_to_int32.cpp" />
+    <ClCompile Include="ir_opt\position_pass.cpp" />
+    <ClCompile Include="ir_opt\rescaling_pass.cpp" />
+    <ClCompile Include="ir_opt\geometry_layer_forwarding_pass.cpp" />
+    <ClCompile Include="ir_opt\shared_memory_packing_pass.cpp" />
+    <ClCompile Include="ir_opt\ssa_rewrite_pass.cpp" />
+    <ClCompile Include="ir_opt\texture_pass.cpp" />
+    <ClCompile Include="ir_opt\vendor_workaround_pass.cpp" />
+    <ClCompile Include="ir_opt\verification_pass.cpp" />
+    <ClCompile Include="ir_opt\vtg_to_compute_pass.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
