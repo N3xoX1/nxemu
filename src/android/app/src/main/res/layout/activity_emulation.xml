@@ -109,6 +109,14 @@
                 android:visibility="gone" />
         </FrameLayout>
 
+        <ImageView
+            android:id="@+id/paused_frame_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
         <FrameLayout
             android:id="@+id/overlay_container"
             android:layout_width="match_parent"
@@ -143,14 +151,6 @@
                 android:textSize="12sp"
                 android:visibility="gone" />
         </FrameLayout>
-
-        <ImageView
-            android:id="@+id/paused_frame_image"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:contentDescription="@null"
-            android:scaleType="fitCenter"
-            android:visibility="gone" />
 
         <ImageView
             android:id="@+id/paused_icon"
