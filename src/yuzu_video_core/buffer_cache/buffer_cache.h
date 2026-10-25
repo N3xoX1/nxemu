@@ -1899,6 +1899,16 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer) {
 
 template <class P>
 void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64 size) {
+    // A CPU read may span several cached buffers. Only consume this buffer's
+    // dirty pages here: the next buffer must retain its own pending download.
+    const DAddr download_begin = std::max(device_addr, buffer.CpuAddr());
+    const DAddr download_end = std::min(device_addr + size,
+                                      buffer.CpuAddr() + buffer.SizeBytes());
+    if (download_begin >= download_end) {
+        return;
+    }
+    device_addr = download_begin;
+    size = download_end - download_begin;
     boost::container::small_vector<BufferCopy, 1> copies;
     u64 total_size_bytes = 0;
     u64 largest_copy = 0;
