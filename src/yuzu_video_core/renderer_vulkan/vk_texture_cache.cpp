@@ -887,6 +887,33 @@ void BlitScale(Scheduler& scheduler, VkImage src_image, VkImage dst_image, const
                                0, nullptr, nullptr, write_barriers);
     });
 }
+
+/// Returns the color channels a format stores, those it lacks read as 0, 0 and 1
+[[nodiscard]] size_t NumColorChannels(VkFormat format) {
+    switch (format) {
+    case VK_FORMAT_R8_UNORM:
+    case VK_FORMAT_R8_SNORM:
+    case VK_FORMAT_R16_UNORM:
+    case VK_FORMAT_R16_SNORM:
+    case VK_FORMAT_R16_SFLOAT:
+    case VK_FORMAT_R32_SFLOAT:
+        return 1;
+    case VK_FORMAT_R8G8_UNORM:
+    case VK_FORMAT_R8G8_SNORM:
+    case VK_FORMAT_R16G16_UNORM:
+    case VK_FORMAT_R16G16_SNORM:
+    case VK_FORMAT_R16G16_SFLOAT:
+    case VK_FORMAT_R32G32_SFLOAT:
+        return 2;
+    case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
+    case VK_FORMAT_R5G6B5_UNORM_PACK16:
+    case VK_FORMAT_B5G6R5_UNORM_PACK16:
+        return 3;
+    default:
+        return 4;
+    }
+}
+
 } // Anonymous namespace
 
 TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& scheduler_,
@@ -2021,6 +2048,15 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
         }
     }
     const auto format_info = MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal, true, format);
+    // A swizzle naming the values of the channels the format lacks reads like the identity
+    const size_t num_channels = NumColorChannels(format_info.format);
+    identity_swizzle = true;
+    for (size_t component = 0; component < swizzle.size(); ++component) {
+        const auto own = static_cast<SwizzleSource>(static_cast<u32>(SwizzleSource::R) + component);
+        const auto lacked = component == 3 ? SwizzleSource::OneFloat : SwizzleSource::Zero;
+        identity_swizzle &= swizzle[component] == own ||
+                            (component >= num_channels && swizzle[component] == lacked);
+    }
     const VkImageViewUsageCreateInfo image_view_usage{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
         .pNext = nullptr,

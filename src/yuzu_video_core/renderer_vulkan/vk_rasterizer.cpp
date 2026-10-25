@@ -82,6 +82,8 @@ float EmulatedDepthCompareOffset(const Device& device, const Maxwell& regs) {
     }
 }
 
+} // Anonymous namespace
+
 VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t index, float scale,
                             float depth_offset) {
     const auto& src = regs.viewport_transform[index];
@@ -130,6 +132,8 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
     }
     return viewport;
 }
+
+namespace {
 
 VkRect2D GetScissorState(const Maxwell& regs, size_t index, u32 up_scale = 1, u32 down_shift = 0) {
     const auto& src = regs.scissor_test[index];

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <optional>
 #include <span>
@@ -88,7 +89,8 @@ inline size_t NumDescriptorUpdateEntries(const Shader::Info& info) {
            Shader::NumDescriptors(info.texture_buffer_descriptors) +
            Shader::NumDescriptors(info.image_buffer_descriptors) + NumCombinedSamplers(info) -
            NumTableSetCombinedSamplers(info) + Shader::NumDescriptors(info.image_descriptors) +
-           (info.runtime_image_write_mask_words != 0 ? 1U : 0U);
+           (info.runtime_image_write_mask_words != 0 ? 1U : 0U) +
+           static_cast<size_t>(std::popcount(info.input_attachment_mask));
 }
 
 class DescriptorLayoutBuilder {
@@ -255,6 +257,9 @@ public:
         if (info.runtime_image_write_mask_words != 0) {
             const std::array mask_descriptor{Shader::StorageBufferDescriptor{.count = 1}};
             Add(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stage, mask_descriptor);
+        }
+        for (u32 mask = info.input_attachment_mask; mask != 0; mask &= mask - 1) {
+            Add(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, stage, 1U);
         }
     }
 

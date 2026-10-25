@@ -45,7 +45,13 @@ namespace Vulkan {
 
 struct FramebufferTextureInfo;
 
+class Device;
 class StateTracker;
+
+/// Host viewport of a guest viewport, with its coordinates multiplied by scale
+[[nodiscard]] VkViewport GetViewportState(const Device& device,
+                                          const Tegra::Engines::Maxwell3D::Regs& regs,
+                                          size_t index, float scale, float depth_offset);
 
 class AccelerateDMA : public Tegra::Engines::AccelerateDMAInterface {
 public:

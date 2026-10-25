@@ -215,6 +215,12 @@ public:
         return std::exchange(has_new_render_targets, false);
     }
 
+    /// Image view bound as a color render target, null when none is
+    /// UpdateRenderTargets should be called before this
+    [[nodiscard]] ImageViewId ColorBufferViewId(size_t index) const noexcept {
+        return render_targets.color_buffer_ids[index];
+    }
+
     /// Find a framebuffer with the currently bound render targets
     /// UpdateRenderTargets should be called before this
     Framebuffer* GetFramebuffer();

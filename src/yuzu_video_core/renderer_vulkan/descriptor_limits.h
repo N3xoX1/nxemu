@@ -13,6 +13,7 @@ namespace Vulkan {
 namespace DescriptorLimitsDetail {
 struct DescriptorUsage {
     uint64_t samplers{}, sampled_images{}, storage_images{}, uniform_buffers{}, storage_buffers{};
+    uint64_t input_attachments{};
     uint64_t resources{};
 
     bool Add(VkDescriptorType type, uint32_t count) {
@@ -37,6 +38,9 @@ struct DescriptorUsage {
         case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
             samplers += count;
             sampled_images += count;
+            break;
+        case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+            input_attachments += count;
             break;
         default:
             return false;
@@ -77,7 +81,8 @@ inline const char* DescriptorLimitViolation(
         total.sampled_images > limits.maxDescriptorSetSampledImages ||
         total.storage_images > limits.maxDescriptorSetStorageImages ||
         total.uniform_buffers > limits.maxDescriptorSetUniformBuffers ||
-        total.storage_buffers > limits.maxDescriptorSetStorageBuffers) {
+        total.storage_buffers > limits.maxDescriptorSetStorageBuffers ||
+        total.input_attachments > limits.maxDescriptorSetInputAttachments) {
         return "Pipeline exceeds descriptor set resource limits";
     }
     for (std::size_t stage = 0; stage < stages.size(); ++stage) {
@@ -89,6 +94,7 @@ inline const char* DescriptorLimitViolation(
             count.storage_images > limits.maxPerStageDescriptorStorageImages ||
             count.uniform_buffers > limits.maxPerStageDescriptorUniformBuffers ||
             count.storage_buffers > limits.maxPerStageDescriptorStorageBuffers ||
+            count.input_attachments > limits.maxPerStageDescriptorInputAttachments ||
             count.resources + attachments > limits.maxPerStageResources) {
             return "Pipeline exceeds per-stage resource limits";
         }

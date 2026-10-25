@@ -269,6 +269,11 @@ public:
         return image_handle;
     }
 
+    /// True when the view reads the channels of the image as they are stored
+    [[nodiscard]] bool HasIdentitySwizzle() const noexcept {
+        return identity_swizzle;
+    }
+
     [[nodiscard]] VkImageView RenderTarget() const noexcept {
         return render_target;
     }
@@ -297,6 +302,7 @@ private:
 
     const Device* device = nullptr;
     const SlotVector<Image>* slot_images = nullptr;
+    bool identity_swizzle = false;
 
     std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> image_views;
     std::unique_ptr<StorageViews> storage_views;
@@ -369,6 +375,10 @@ public:
     }
 
     [[nodiscard]] u32 ColorScratchMask(u32 color_write_mask) const;
+
+    [[nodiscard]] u32 ColorAttachmentAliasMask(size_t slot) const noexcept {
+        return color_attachment_alias_masks[slot];
+    }
 
     [[nodiscard]] VkExtent2D RenderArea() const noexcept {
         return render_area;

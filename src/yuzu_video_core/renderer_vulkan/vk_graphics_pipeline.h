@@ -9,14 +9,17 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <boost/container/small_vector.hpp>
+#include <boost/container/static_vector.hpp>
 
 #include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
+#include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_shader_recompiler/vtg_as_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -215,8 +218,15 @@ private:
     /// Runs the vertex stage as compute to write what transform feedback captures
     void ConfigureTransformFeedback(bool is_indexed);
 
+    /// Returns the color attachments the draw writes
+    [[nodiscard]] u32 ColorWriteMask() const;
+
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
+
+    /// Reads the pixel local textures of the fragment stage from the color attachments they
+    /// sample when the draw allows it, unbinding their views. Returns the shader selectors.
+    u32 SelectAttachmentReads(std::span<VideoCommon::ImageViewInOut> views);
 
     VkDescriptorSet WorkerDescriptorSet(const void* data, u64 tick);
 
@@ -257,6 +267,12 @@ private:
     boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
     boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
     std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
+
+    // Pixel local texture reads of the fragment stage in selector order, and their views
+    boost::container::static_vector<Shader::PixelLocalRead, Shader::MAX_PIXEL_LOCAL_READS>
+        attachment_read_kinds;
+    std::array<size_t, Shader::MAX_PIXEL_LOCAL_READS> attachment_read_views{};
+    u32 attachment_reads{Shader::Backend::SPIRV::NO_ATTACHMENT_READS};
 
     vk::DescriptorSetLayout descriptor_set_layout;
     DescriptorAllocator descriptor_allocator;
