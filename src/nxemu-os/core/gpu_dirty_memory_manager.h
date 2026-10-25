@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <bit>
 #include <functional>
@@ -22,27 +23,14 @@ public:
     ~GPUDirtyMemoryManager() = default;
 
     void Collect(PAddr address, size_t size) {
-        TransformAddress t = BuildTransform(address, size);
-        TransformAddress tmp, original;
-        do {
-            tmp = current.load(std::memory_order_acquire);
-            original = tmp;
-            if (tmp.address != t.address) {
-                if (IsValid(tmp.address)) {
-                    std::scoped_lock lk(guard);
-                    back_buffer.emplace_back(tmp);
-                    current.exchange(t, std::memory_order_relaxed);
-                    return;
-                }
-                tmp.address = t.address;
-                tmp.mask = 0;
-            }
-            if ((tmp.mask | t.mask) == tmp.mask) {
-                return;
-            }
-            tmp.mask |= t.mask;
-        } while (!current.compare_exchange_weak(original, tmp, std::memory_order_release,
-                                                std::memory_order_relaxed));
+        // The mask represents one 2-KiB window. A CPU block write can cross
+        // that boundary (including a full 4-KiB guest page), so retain each part.
+        while (size != 0) {
+            const size_t chunk = std::min<size_t>(size, page_size - (address & page_mask));
+            CollectSingleWindow(address, chunk);
+            address += chunk;
+            size -= chunk;
+        }
     }
 
     void Gather(ICacheInvalidator * invalidator)
@@ -94,12 +82,9 @@ private:
 
     template <typename T>
     T CreateMask(size_t top_bit, size_t minor_bit) {
-        T mask = ~T(0);
-        mask <<= (sizeof(T) * 8 - top_bit);
-        mask >>= (sizeof(T) * 8 - top_bit);
-        mask >>= minor_bit;
-        mask <<= minor_bit;
-        return mask;
+        // Non-empty fragments guarantee 1 <= top_bit <= width and minor_bit < width.
+        // Two shifts suffice, including a full-window mask, without a width-sized shift.
+        return (~T{0} >> (sizeof(T) * 8 - top_bit)) & (~T{0} << minor_bit);
     }
 
     TransformAddress BuildTransform(PAddr address, size_t size) {
@@ -110,6 +95,30 @@ private:
         result.address = static_cast<u32>(address >> page_bits);
         result.mask = CreateMask<u32>(top_bit, minor_bit);
         return result;
+    }
+
+    void CollectSingleWindow(PAddr address, size_t size) {
+        TransformAddress t = BuildTransform(address, size);
+        TransformAddress tmp, original;
+        do {
+            tmp = current.load(std::memory_order_acquire);
+            original = tmp;
+            if (tmp.address != t.address) {
+                if (IsValid(tmp.address)) {
+                    std::scoped_lock lk(guard);
+                    back_buffer.emplace_back(tmp);
+                    current.exchange(t, std::memory_order_relaxed);
+                    return;
+                }
+                tmp.address = t.address;
+                tmp.mask = 0;
+            }
+            if ((tmp.mask | t.mask) == tmp.mask) {
+                return;
+            }
+            tmp.mask |= t.mask;
+        } while (!current.compare_exchange_weak(original, tmp, std::memory_order_release,
+                                                std::memory_order_relaxed));
     }
 
     std::atomic<TransformAddress> current{};

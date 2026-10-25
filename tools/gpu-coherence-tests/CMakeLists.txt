@@ -1,0 +1,38 @@
+cmake_minimum_required(VERSION 3.22)
+project(nxemu_gpu_coherence_tests LANGUAGES CXX)
+enable_testing()
+find_package(Threads REQUIRED)
+get_filename_component(NXEMU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(NXEMU_EXTERNAL "${NXEMU_ROOT}/external" CACHE PATH "Directory containing fmt and boost dependencies")
+
+# Compile the production method in a narrow fixture without duplicating its policy.
+set(CPU_WRITE_SOURCE "${NXEMU_ROOT}/src/yuzu_video_core/buffer_cache/buffer_cache.h")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CPU_WRITE_SOURCE}")
+file(READ "${CPU_WRITE_SOURCE}" CPU_WRITE_TEXT)
+string(REPLACE "\r\n" "\n" CPU_WRITE_TEXT "${CPU_WRITE_TEXT}")
+string(FIND "${CPU_WRITE_TEXT}" "void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size) {" CPU_WRITE_BEGIN)
+string(FIND "${CPU_WRITE_TEXT}" "\ntemplate <class P>\nvoid BufferCache<P>::CachedWriteMemory" CPU_WRITE_END)
+if(CPU_WRITE_BEGIN LESS 0 OR CPU_WRITE_END LESS CPU_WRITE_BEGIN)
+    message(FATAL_ERROR "Cannot extract production CPU-write invalidation")
+endif()
+math(EXPR CPU_WRITE_LENGTH "${CPU_WRITE_END} - ${CPU_WRITE_BEGIN}")
+string(SUBSTRING "${CPU_WRITE_TEXT}" ${CPU_WRITE_BEGIN} ${CPU_WRITE_LENGTH} CPU_WRITE_BODY)
+string(REPLACE "BufferCache<P>" "BufferCacheFixture<P>" CPU_WRITE_BODY "${CPU_WRITE_BODY}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/production_cpu_write.inc" "template <class P>\n${CPU_WRITE_BODY}")
+
+add_executable(cpu-write-readback cpu_write_readback.cpp)
+target_include_directories(cpu-write-readback PRIVATE
+    "${NXEMU_ROOT}/src/yuzu_video_core" "${NXEMU_ROOT}/src/nxemu-video"
+    "${NXEMU_ROOT}/src" "${NXEMU_EXTERNAL}/boost" "${NXEMU_EXTERNAL}/fmt/include"
+    "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(cpu-write-readback PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN FMT_HEADER_ONLY)
+add_executable(gpu-dirty-ranges gpu_dirty_ranges.cpp)
+target_include_directories(gpu-dirty-ranges PRIVATE "${NXEMU_ROOT}/src")
+target_link_libraries(gpu-dirty-ranges PRIVATE Threads::Threads)
+foreach(target cpu-write-readback gpu-dirty-ranges)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /utf-8 /EHsc)
+    endif()
+    add_test(NAME ${target} COMMAND ${target})
+endforeach()
