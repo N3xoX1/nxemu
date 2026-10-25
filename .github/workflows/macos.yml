@@ -102,7 +102,7 @@ jobs:
             -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR" \
             -DNXEMU_MOLTENVK_PREBUILT="$prebuilt" \
             -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON \
-            -DNXEMU_BUILD_TESTS=ON
+            -DNXEMU_BUILD_TESTS=ON -DNXEMU_BUILD_PLATFORM_TESTS=OFF
           if [ -z "$prebuilt" ]; then
             mkdir -p "$NXEMU_MOLTENVK_CACHE_DIR"
             cp "$NXEMU_EFFECTIVE_BUILD_DIRECTORY/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"

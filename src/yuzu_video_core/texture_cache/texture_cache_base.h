@@ -34,6 +34,7 @@
 #include "yuzu_video_core/texture_cache/image_info.h"
 #include "yuzu_video_core/texture_cache/image_view_base.h"
 #include "yuzu_video_core/texture_cache/render_targets.h"
+#include "yuzu_video_core/texture_cache/readback_page_tracker.h"
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/textures/texture.h"
 
@@ -235,7 +236,7 @@ public:
     void WriteMemory(DAddr cpu_addr, size_t size);
 
     /// Download contents of host images to guest memory in a region
-    void DownloadMemory(DAddr cpu_addr, size_t size);
+    void DownloadMemory(DAddr cpu_addr, size_t size, bool native_read = false);
 
     std::optional<RasterizerDownloadArea> GetFlushArea(DAddr cpu_addr, u64 size);
 
@@ -438,7 +439,9 @@ private:
     void RemoveFramebuffers(std::span<const ImageViewId> removed_views);
 
     /// Mark an image as modified from the GPU
-    void MarkModification(ImageBase& image) noexcept;
+    void MarkModification(ImageBase& image, ImageId image_id) noexcept;
+    void UpdateNativeReadTracking(ImageBase& image, ImageId image_id);
+    void NotifyNativeImageModification(ImageBase& image, ImageId image_id);
 
     /// Synchronize image aliases, copying data if needed
     void SynchronizeAliases(ImageId image_id);
@@ -515,11 +518,21 @@ private:
         size_t size;
     };
 
+    bool PublishObservedReadback(const ImageBase& image, std::span<const BufferImageCopy> copies,
+                                 std::span<const u8> memory, u64 observation_serial,
+                                 Tegra::MemoryManager* publication_memory = nullptr);
+    void MarkReadbackSynchronized(Image& image);
+    ReadbackPageTracker readback_pages;
+
     struct PendingDownload {
         bool is_swizzle;
         size_t async_buffer_id;
         Common::SlotId object_id;
+        u64 observation_serial{};
+        bool observed_partial{};
+        size_t observed_address_space{};
     };
+    bool TryDownloadObservedImage(Image& image, AsyncBuffer& map, PendingDownload& download);
 
     Common::SlotVector<Image> slot_images;
     Common::SlotVector<ImageMapView> slot_map_views;

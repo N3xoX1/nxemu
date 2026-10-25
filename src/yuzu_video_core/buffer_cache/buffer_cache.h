@@ -276,6 +276,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     const auto& copy = copies[0];
     src_buffer.MarkUsage(copy.src_offset, copy.size);
     dest_buffer.MarkUsage(copy.dst_offset, copy.size);
+    device_memory.InvalidateNativeReadRegion(*cpu_dest_address, amount);
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
@@ -305,6 +306,7 @@ bool BufferCache<P>::DMAClear(GPUVAddr dst_address, u64 amount, u32 value) {
     const BufferId buffer = FindBuffer(*cpu_dst_address, static_cast<u32>(size));
     Buffer& dest_buffer = slot_buffers[buffer];
     const u32 offset = dest_buffer.Offset(*cpu_dst_address);
+    device_memory.InvalidateNativeReadRegion(*cpu_dst_address, size);
     runtime.ClearBuffer(dest_buffer, offset, size, value);
     MarkBufferContentChanged(dest_buffer, *cpu_dst_address, size);
     dest_buffer.MarkUsage(offset, size);
@@ -1559,6 +1561,7 @@ void BufferCache<P>::UpdateComputeTextureBuffers() {
 
 template <class P>
 void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size) {
+    device_memory.InvalidateNativeReadRegion(device_addr, size);
     gpu_write_history.Mark(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
@@ -2380,6 +2383,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         // The canonical buffer receives the bytes after the draw or dispatch is recorded.
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
+        device_memory.InvalidateNativeReadRegion(device_addr, write_size);
         gpu_write_history.Mark(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);

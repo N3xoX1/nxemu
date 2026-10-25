@@ -157,7 +157,31 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     metadata.Print();
 
     const bool is_application = metadata.GetPoolPartition() == PoolPartition::Application;
+    LOG_INFO(Loader, "Process CPU: AArch{}, address-space type {}",
+             metadata.Is64BitProgram() ? 64 : 32, static_cast<unsigned>(metadata.GetAddressSpaceType()));
+    // Disable eligibility while publishing the new process metadata.
+    g_settings->SetBool(NXCoreSetting::Is64BitProgram, false);
+    g_settings->SetBool(NXCoreSetting::Has36BitAddressSpace, metadata.GetAddressSpaceType() == ProgramAddressSpaceType::Is36Bit);
     g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, metadata.GetAddressSpaceType() == ProgramAddressSpaceType::Is39Bit);
+    g_settings->SetBool(NXCoreSetting::Is64BitProgram, metadata.Is64BitProgram());
+
+    IOperatingSystem & operatingSystem = systemModules.OperatingSystem();
+
+    // Enable direct memory mapping in case of NCE.
+    uint64_t fastmem_base = 0;
+    if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
+    {
+        IDeviceMemory & buffer = operatingSystem.DeviceMemory();
+        buffer.EnableDirectMappedAddress();
+        fastmem_base = reinterpret_cast<uint64_t>(buffer.VirtualBasePointer());
+#if defined(__APPLE__)
+        if (fastmem_base == 0)
+        {
+            LOG_WARNING(Loader, "NCE address windows unavailable, falling back to Dynarmic before patching");
+            g_settings->SetBool(NXCpuSetting::NceEnabled, false);
+        }
+#endif
+    }
 
     IPatchCollectionPtr patch_ctx(systemModules.Cpu().CreatePatchCollection(is_application));
     const std::array static_modules = {"rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};
@@ -186,17 +210,6 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
             patch_ctx->SaveIndex((uint32_t)i);
         }
         code_size = *tentative_next_load_addr;
-    }
-
-    IOperatingSystem & operatingSystem = systemModules.OperatingSystem();
-
-    // Enable direct memory mapping in case of NCE.
-    uint64_t fastmem_base = 0;
-    if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
-    {
-        IDeviceMemory & buffer = operatingSystem.DeviceMemory();
-        buffer.EnableDirectMappedAddress();
-        fastmem_base = reinterpret_cast<uint64_t>(buffer.VirtualBasePointer());
     }
 
     // Add patch size to the total module size

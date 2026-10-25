@@ -125,7 +125,7 @@ struct System::Impl {
 
     bool CpuHleUsesNativeClock() const
     {
-#if (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)) && (defined(__linux__) || defined(__ANDROID__))
+#if (defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)) && (defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__))
         return cpu_hle_guest64 && g_settings->GetBool(NXCpuSetting::NceEnabled);
 #else
         return false;
@@ -441,8 +441,12 @@ std::span<GPUDirtyMemoryManager> System::GetGPUDirtyMemoryManager()
     return impl->gpu_dirty_memory_managers;
 }
 
-void System::GatherGPUDirtyMemory(ICacheInvalidator * invalidator)
+void System::GatherGPUDirtyMemory(ICacheInvalidator * invalidator, bool rearm_native_reads)
 {
+    if (Kernel::KProcess * process = impl->kernel.ApplicationProcess())
+    {
+        process->GetCoreMemory().FlushNceWrites(rearm_native_reads);
+    }
     for (auto & manager : impl->gpu_dirty_memory_managers)
     {
         manager.Gather(invalidator);

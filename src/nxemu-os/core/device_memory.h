@@ -33,6 +33,11 @@ public:
         return buffer.BackingBasePointer();
     }
 
+    uint64_t BackingSize() const
+    {
+        return buffer.BackingSize();
+    }
+
     uint8_t * VirtualBasePointer()
     {
         return buffer.VirtualBasePointer();

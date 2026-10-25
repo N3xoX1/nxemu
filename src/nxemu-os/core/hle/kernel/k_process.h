@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include "yuzu_common/native_code_metadata.h"
 
 #include <map>
 #include <unordered_map>
@@ -138,6 +139,11 @@ private:
     std::atomic<s64> m_num_ipc_replies{};
     std::atomic<s64> m_num_ipc_receives{};
     std::unordered_map<u64, u64> m_post_handlers{};
+    std::unordered_map<u64, u64> m_nce_restart_pcs{};
+    Common::NativeCodeMetadata m_runtime_code_metadata;
+    std::unordered_map<u64, u64> m_nce_atomic_handlers;
+    std::unordered_map<u64, u64> m_nce_read_handlers;
+    std::atomic<bool> m_native_atomics_enabled{};
     ExclusiveMonitorPtr m_exclusive_monitor;
     Core::Memory::Memory m_memory;
 
@@ -562,7 +568,7 @@ public:
         const auto it = m_post_handlers.find(pc);
         if (it == m_post_handlers.end())
         {
-            return 0;
+            return m_runtime_code_metadata.FindHandler(pc);
         }
         return it->second;
     }
@@ -571,6 +577,36 @@ public:
     {
         m_post_handlers.insert_or_assign(module_text, patch_text);
     }
+
+    uint64_t GetNceRestartPc(uint64_t pc) const override
+    {
+        const auto it = m_nce_restart_pcs.find(pc);
+        if (it != m_nce_restart_pcs.end()) return it->second;
+        const auto restart = m_runtime_code_metadata.FindRestart(pc);
+        return restart ? restart : pc;
+    }
+
+    void RegisterNceRestartPc(uint64_t interrupted_pc, uint64_t restart_pc) override
+    {
+        m_nce_restart_pcs.insert_or_assign(interrupted_pc, restart_pc);
+    }
+
+    uint64_t FindNceAtomicHandler(uint64_t pc) const override {
+        const auto it = m_nce_atomic_handlers.find(pc);
+        return it != m_nce_atomic_handlers.end() ? it->second : m_runtime_code_metadata.FindAtomic(pc);
+    }
+    void RegisterNceAtomicHandler(uint64_t pc, uint64_t handler) override {
+        m_nce_atomic_handlers.insert_or_assign(pc, handler);
+    }
+
+    void RegisterNceReadHandler(uint64_t pc, uint64_t handler) override {
+        m_nce_read_handlers.insert_or_assign(pc, handler);
+    }
+    uint64_t InstallNceReadHandler(uint64_t pc) override;
+    void EnableNceAtomicHandlers() override;
+    void PatchRuntimeAtomics();
+
+    Common::NativeCodeMetadata& RuntimeCodeMetadata() { return m_runtime_code_metadata; }
 
     ICpuCore * GetCpuCore(int32_t coreIndex) const
     {

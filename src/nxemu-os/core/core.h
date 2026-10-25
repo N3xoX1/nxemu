@@ -223,7 +223,7 @@ public:
 
     std::span<GPUDirtyMemoryManager> GetGPUDirtyMemoryManager();
 
-    void GatherGPUDirtyMemory(ICacheInvalidator * invalidator);
+    void GatherGPUDirtyMemory(ICacheInvalidator * invalidator, bool rearm_native_reads = true);
 
     ISystemModules & GetSystemModules();
     IVideo & GetVideo();

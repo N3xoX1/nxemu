@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/hle/kernel/k_process.h"
+#include "core/hle/kernel/board/nintendo/nx/k_system_control.h"
 #include "core/arm/debug.h"
 #include "core/core.h"
 #include "core/hle/kernel/k_scoped_resource_reservation.h"
@@ -1307,7 +1308,11 @@ Result KProcess::LoadFromMetadata(const IProgramMetadata & metadata, std::size_t
 {
     // Create a resource limit for the process.
     const auto pool = (KMemoryManager::Pool)metadata.GetPoolPartition();
-    const auto physical_memory_size = m_kernel.MemoryManager().GetSize(pool);
+    auto physical_memory_size = m_kernel.MemoryManager().GetSize(pool);
+    if (pool == KMemoryManager::Pool::Application) {
+        // The host page margin is not memory the process can use.
+        physical_memory_size -= Board::Nintendo::Nx::KSystemControl::Init::GetHostPageMemoryMargin();
+    }
     auto * res_limit = Kernel::CreateResourceLimitForProcess(m_kernel.System(), physical_memory_size);
 
     // Ensure we maintain a clean state on exit.
@@ -1404,9 +1409,18 @@ void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
         const uint64_t code_addr = module.CodeSegmentAddr();
         const uint64_t code_size = module.CodeSegmentSize();
         const uint64_t patch_addr = module.PatchSegmentAddr();
+#if defined(__APPLE__)
+        // The guest permission is the host one there, so make the patch section executable
+        // for the host after hiding it from the guest.
+        m_page_table.SetProcessMemoryPermission((KProcessAddress)(patch_addr) + base_addr, patch_size, Svc::MemoryPermission::None);
+        buffer.Protect(base_addr.GetValue() + patch_addr, patch_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
+        (void)code_addr;
+        (void)code_size;
+#else
         buffer.Protect(base_addr.GetValue() + code_addr, code_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
         buffer.Protect(base_addr.GetValue() + patch_addr, patch_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
         m_page_table.SetProcessMemoryPermission((KProcessAddress)(patch_addr) + base_addr, patch_size, Svc::MemoryPermission::None);
+#endif
     }
 #endif
 }
@@ -1494,4 +1508,49 @@ bool KProcess::RemoveWatchpoint(KProcessAddress addr, u64 size, CpuDebugWatchpoi
     return true;
 }
 
+} // namespace Kernel
+
+#if defined(__APPLE__)
+#include <libkern/OSCacheControl.h>
+#endif
+namespace Kernel {
+namespace {
+void InstallAtomicBranch(Core::Memory::Memory& memory, uint64_t pc, uint64_t target) {
+#if defined(__APPLE__)
+    const auto distance = static_cast<s64>(target) - static_cast<s64>(pc);
+    auto* word = reinterpret_cast<u32*>(memory.GetPointerSilent(pc));
+    std::atomic_ref<u32>(*word).store(0x14000000u | ((distance >> 2) & 0x03ffffffu),
+                                     std::memory_order_release);
+    sys_dcache_flush(word, sizeof(u32));
+    sys_icache_invalidate(reinterpret_cast<void*>(pc), sizeof(u32));
+#else
+    (void)memory; (void)pc; (void)target;
+#endif
+}
+}
+uint64_t KProcess::InstallNceReadHandler(uint64_t pc) {
+    const auto it = m_nce_read_handlers.find(pc);
+    if (it == m_nce_read_handlers.end()) return 0;
+    InstallAtomicBranch(m_memory, pc, it->second);
+    static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
+    if (profile) {
+        static std::atomic<u64> attempts{};
+        const u64 n = attempts.fetch_add(1, std::memory_order_relaxed) + 1;
+        if ((n & (n - 1)) == 0)
+            std::fprintf(stderr, "[NCE-READ-THUNKS] install_attempts=%llu pc=%llx\n",
+                         (unsigned long long)n, (unsigned long long)pc);
+    }
+    return it->second;
+}
+void KProcess::EnableNceAtomicHandlers() {
+    if (m_native_atomics_enabled.exchange(true)) return;
+    // Every LL/SC pair must use the same VA alias for its hardware reservation. Specialize
+    // both halves together: a store to another alias may fail without ever raising a fault.
+    for (const auto& [pc, target] : m_nce_atomic_handlers) InstallAtomicBranch(m_memory, pc, target);
+    m_runtime_code_metadata.VisitAtomics([&](u64 pc, u64 target) { InstallAtomicBranch(m_memory, pc, target); });
+}
+void KProcess::PatchRuntimeAtomics() {
+    if (m_native_atomics_enabled.load())
+        m_runtime_code_metadata.VisitAtomics([&](u64 pc, u64 target) { InstallAtomicBranch(m_memory, pc, target); });
+}
 } // namespace Kernel

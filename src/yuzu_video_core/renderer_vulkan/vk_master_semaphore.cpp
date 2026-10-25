@@ -8,6 +8,7 @@
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
+#include "yuzu_video_core/renderer_vulkan/vk_stall_profile.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -84,6 +85,7 @@ void MasterSemaphore::Refresh() {
 }
 
 void MasterSemaphore::Wait(u64 tick) {
+    const StallProfile profile{"gpu_wait", tick};
     if (!semaphore) {
         // If we don't support timeline semaphores, wait for the value normally
         std::unique_lock lk{free_mutex};
@@ -147,6 +149,7 @@ VkResult MasterSemaphore::SubmitQueueTimeline(vk::CommandBuffer& cmdbuf,
                                               vk::CommandBuffer& upload_cmdbuf,
                                               VkSemaphore signal_semaphore,
                                               VkSemaphore wait_semaphore, u64 host_tick) {
+    const StallProfile profile{"driver_submit", host_tick};
     const VkSemaphore timeline_semaphore = *semaphore;
 
     const u32 num_signal_semaphores = signal_semaphore ? 2 : 1;
@@ -183,6 +186,7 @@ VkResult MasterSemaphore::SubmitQueueFence(vk::CommandBuffer& cmdbuf,
                                            vk::CommandBuffer& upload_cmdbuf,
                                            VkSemaphore signal_semaphore, VkSemaphore wait_semaphore,
                                            u64 host_tick) {
+    const StallProfile profile{"driver_submit", host_tick};
     const u32 num_signal_semaphores = signal_semaphore ? 1 : 0;
     const u32 num_wait_semaphores = wait_semaphore ? 1 : 0;
 

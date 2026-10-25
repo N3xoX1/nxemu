@@ -98,6 +98,8 @@ namespace
         { NXCoreSetting::EmulationState, (int)EmulationState::Stopped },
         { NXCoreSetting::GameLoadResult, 0 },
         { NXCoreSetting::Has39BitAddressSpace, false },
+        { NXCoreSetting::Has36BitAddressSpace, false },
+        { NXCoreSetting::Is64BitProgram, false },
         { NXCoreSetting::DisplayedFrames, false },
         { NXCoreSetting::ShuttingDown, false},
         { NXCoreSetting::DiskCacheLoadStage, -1 },

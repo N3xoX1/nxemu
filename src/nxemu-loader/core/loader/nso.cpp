@@ -25,7 +25,11 @@
 #include "yuzu_common/zbic_compression.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/swap.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
+#include <nxemu-module-spec/base.h>
 
+
+extern IModuleSettings * g_settings;
 namespace Loader
 {
 namespace
@@ -182,6 +186,15 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
 
     codeset.DataSegment().size += nso_header.segments[2].bss_size;
     u32 image_size{PageAlignSize(static_cast<u32>(program_image.size()) + nso_header.segments[2].bss_size)};
+#if defined(__APPLE__)
+    // Native code execution maps 16 KiB host pages: start every module, and the patch section
+    // after the last one, on a host page, so the end of .bss never shares one with code.
+    if (g_settings->GetBool(NXCpuSetting::NceEnabled))
+    {
+        constexpr u32 HostPageMask = 0x3FFF;
+        image_size = (image_size + HostPageMask) & ~HostPageMask;
+    }
+#endif
     const bool relocating = patch_collection && patch_index >= 0 && load_into_process;
     const bool patch_follows_image = relocating && module_start == 0;
     if (patch_follows_image)
@@ -193,6 +206,10 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     {
         codeset.segments[i].size = PageAlignSize(codeset.segments[i].size);
     }
+#if defined(__APPLE__)
+    // The padding to the host page belongs to .bss, so it is not taken for code.
+    codeset.DataSegment().size = image_size - static_cast<u32>(codeset.DataSegment().addr.GetValue());
+#endif
 
     // Apply patches if necessary
     const auto name = nso_file.GetName();

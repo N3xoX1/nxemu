@@ -92,7 +92,7 @@ int SDLCALL DrawWhileResizing(void * userdata, SDL_Event * event)
     return 0;
 }
 
-int Run(UiNotification & notification, const std::string & /*gamePath*/)
+int Run(UiNotification & notification, const std::string & gamePath)
 {
     const std::filesystem::path assetDir = FindAssetDirectory();
     if (assetDir.empty())
@@ -129,6 +129,11 @@ int Run(UiNotification & notification, const std::string & /*gamePath*/)
     {
         std::cerr << "NXEmu: unable to load the main window document\n";
         return 1;
+    }
+
+    if (!gamePath.empty())
+    {
+        mainWindow.OpenGame(gamePath);
     }
 
     LiveResize liveResize{window, mainWindow};

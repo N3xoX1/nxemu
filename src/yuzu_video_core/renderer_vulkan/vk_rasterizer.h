@@ -110,6 +110,8 @@ public:
     void FlushAll() override;
     void FlushRegion(DAddr addr, u64 size,
                      VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
+    void FlushNativeRegion(DAddr addr, u64 size) override;
+    void FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheType which, bool native_read);
     bool MustFlushRegion(DAddr addr, u64 size,
                          VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     RasterizerDownloadArea GetFlushArea(DAddr addr, u64 size) override;

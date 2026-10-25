@@ -3,10 +3,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <array>
 #include <cstring>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <set>
 #include <limits>
 #include <mutex>
 #include <span>
+#include <map>
+#include <vector>
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/atomic_ops.h"
@@ -14,6 +21,7 @@
 #include "yuzu_common/hardware_properties.h"
 #include "yuzu_common/heap_tracker.h"
 #include "yuzu_common/logging/log.h"
+#include "yuzu_common/make_unique_for_overwrite.h"
 #include "yuzu_common/page_table.h"
 #include "yuzu_common/scope_exit.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
@@ -103,6 +111,13 @@ struct Memory::Impl {
         if (!current_page_table->fastmem_arena) {
             return;
         }
+
+#if defined(__APPLE__)
+        // The GPU cache keeps its own access mask there, so the guest permission applies to
+        // every page.
+        buffer->Protect(vaddr, size, perms);
+        return;
+#endif
 
         u64 protect_bytes{};
         u64 protect_begin{};
@@ -526,7 +541,11 @@ struct Memory::Impl {
         {
             const auto perm{debug ? Common::MemoryPermission{}
                                   : Common::MemoryPermission::ReadWrite};
+#if defined(__APPLE__)
+            buffer->ProtectAccess(vaddr, size, perm);
+#else
             buffer->Protect(vaddr, size, perm);
+#endif
         }
 
         // Iterate over a contiguous CPU address space, marking/unmarking the region.
@@ -590,11 +609,20 @@ struct Memory::Impl {
         {
             return;
         }
+#if defined(__APPLE__)
+        std::scoped_lock nce_lock{nce_write_mutex};
+#endif
 
         if (current_page_table->fastmem_arena)
         {
             Common::MemoryPermission perm{};
-            if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing) || !cached)
+            bool deny_reads = cached && g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+#if defined(__APPLE__)
+            // Buffer caches only need write tracking. Texture readback protection is applied
+            // separately below, including when a texture overlaps an already cached buffer.
+            deny_reads = deny_reads && !buffer->UsesNce();
+#endif
+            if (!deny_reads)
             {
                 perm |= Common::MemoryPermission::Read;
             }
@@ -602,7 +630,12 @@ struct Memory::Impl {
             {
                 perm |= Common::MemoryPermission::Write;
             }
+#if defined(__APPLE__)
+            if (cached && buffer->UsesNce()) ProtectNceReadCached(vaddr, size);
+            else buffer->ProtectAccess(vaddr, size, perm);
+#else
             buffer->Protect(vaddr, size, perm);
+#endif
         }
 
         // Iterate over a contiguous CPU address space, which corresponds to the specified GPU
@@ -653,6 +686,9 @@ struct Memory::Impl {
                     break;
                 case Common::PageType::RasterizerCachedMemory:
                 {
+#if defined(__APPLE__)
+                    nce_written.erase(vaddr & ~YUZU_PAGEMASK);
+#endif
                     u8 * const pointer{GetPointerFromRasterizerCachedMemory(vaddr & ~YUZU_PAGEMASK)};
                     if (pointer == nullptr)
                     {
@@ -887,9 +923,344 @@ struct Memory::Impl {
         context.impl->gpu_dirty_managers[context.core].Collect(address, size);
     }
 
+#if defined(__APPLE__)
+    // Caller holds nce_write_mutex. Apply each contiguous permission run once, and never
+    // temporarily expose GPU-dirty pages while changing buffer write tracking.
+    void ProtectNceReadCached(u64 vaddr, u64 size)
+    {
+        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
+        u64 cursor = Common::AlignDown(vaddr, YUZU_PAGESIZE);
+        if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing))
+        {
+            buffer->ProtectAccess(cursor, end - cursor, Common::MemoryPermission::Read);
+            return;
+        }
+        if (PreciseNceReadTracking())
+        {
+            u64 begin = cursor;
+            auto permission = [&](u64 page) {
+                return nce_read_cached.contains(page) && !nce_open_read_pages.contains(page)
+                    ? Common::MemoryPermission{} : Common::MemoryPermission::Read;
+            };
+            auto current = permission(cursor);
+            for (u64 page = cursor + YUZU_PAGESIZE; page < end; page += YUZU_PAGESIZE)
+            {
+                const auto next = permission(page);
+                if (next != current)
+                {
+                    buffer->ProtectAccess(begin, page - begin, current);
+                    begin = page;
+                    current = next;
+                }
+            }
+            if (begin < end) buffer->ProtectAccess(begin, end - begin, current);
+            return;
+        }
+        auto it = nce_read_cached.lower_bound(cursor);
+        while (it != nce_read_cached.end() && it->first < end)
+        {
+            const u64 begin = it->first;
+            u64 run_end = begin;
+            do {
+                run_end += YUZU_PAGESIZE;
+                ++it;
+            } while (it != nce_read_cached.end() && it->first == run_end && it->first < end);
+            if (cursor < begin)
+                buffer->ProtectAccess(cursor, begin - cursor, Common::MemoryPermission::Read);
+            buffer->ProtectAccess(begin, run_end - begin, Common::MemoryPermission{});
+            cursor = run_end;
+        }
+        if (cursor < end)
+            buffer->ProtectAccess(cursor, end - cursor, Common::MemoryPermission::Read);
+    }
+
+    void RasterizerMarkRegionReadCached(u64 vaddr, u64 size, s32 delta)
+    {
+        if (!buffer->UsesNce() || size == 0 || !AddressSpaceContains(*current_page_table, vaddr, size))
+            return;
+        std::scoped_lock lk{nce_write_mutex};
+        const bool reactive = g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+        u64 run_begin{}, run_end{};
+        Common::MemoryPermission run_perm{};
+        const auto flush = [&] {
+            if (run_begin != run_end) buffer->ProtectAccess(run_begin, run_end - run_begin, run_perm);
+            run_begin = run_end = 0;
+        };
+        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
+        for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
+        {
+            auto it = nce_read_cached.find(page);
+            if (delta > 0)
+            {
+                nce_open_read_pages.erase(page);
+                if (it == nce_read_cached.end()) it = nce_read_cached.emplace(page, 0).first;
+                it->second += static_cast<u32>(delta);
+            }
+            else if (it != nce_read_cached.end())
+            {
+                if (it->second <= static_cast<u32>(-delta))
+                {
+                    nce_read_cached.erase(it);
+                    nce_open_read_pages.erase(page);
+                    it = nce_read_cached.end();
+                }
+                else it->second -= static_cast<u32>(-delta);
+            }
+            if (current_page_table->pointers[page >> YUZU_PAGEBITS].Type() ==
+                Common::PageType::RasterizerCachedMemory)
+            {
+                const bool protect = it != nce_read_cached.end() && reactive;
+                const auto perm = protect ? Common::MemoryPermission{} : Common::MemoryPermission::Read;
+                if (run_begin != run_end && (run_end != page || run_perm != perm)) flush();
+                if (run_begin == run_end) { run_begin = page; run_perm = perm; }
+                run_end = page + YUZU_PAGESIZE;
+            }
+            else flush();
+        }
+        flush();
+    }
+
+    bool DemandNceReadback() const
+    {
+        static const bool enabled = std::getenv("NXEMU_NCE_DEMAND_READBACK") != nullptr;
+        return enabled && buffer->UsesNce();
+    }
+
+    bool PreciseNceReadTracking() const
+    {
+        static const bool enabled = std::getenv("NXEMU_NCE_PRECISE_READ_TRACKING") != nullptr;
+        return enabled && DemandNceReadback();
+    }
+
+    void SetNativeReadAccess(u64 vaddr, u64 size, bool readable)
+    {
+        if (!PreciseNceReadTracking() || size == 0 ||
+            !AddressSpaceContains(*current_page_table, vaddr, size)) return;
+        std::scoped_lock lk{nce_write_mutex};
+        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
+        for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
+        {
+            const bool cached = current_page_table->pointers[page >> YUZU_PAGEBITS].Type() ==
+                                Common::PageType::RasterizerCachedMemory;
+            const bool tracked = cached && nce_read_cached.contains(page);
+            if (readable)
+            {
+                if (tracked) nce_open_read_pages.insert(page);
+                buffer->ProtectAccess(page, YUZU_PAGESIZE,
+                    cached ? Common::MemoryPermission::Read : Common::MemoryPermission::ReadWrite);
+            }
+            else
+            {
+                nce_open_read_pages.erase(page);
+                if (tracked) buffer->ProtectAccess(page, YUZU_PAGESIZE, Common::MemoryPermission{});
+            }
+        }
+    }
+
+    void RearmNceReads()
+    {
+        if (nce_open_read_pages.empty()) return;
+        if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing))
+        {
+            nce_open_read_pages.clear();
+            return;
+        }
+        u64 begin{}, end{};
+        const auto flush = [&] {
+            if (begin != end) buffer->ProtectAccess(begin, end - begin, Common::MemoryPermission{});
+            begin = end = 0;
+        };
+        for (const u64 page : nce_open_read_pages)
+        {
+            if (!nce_read_cached.contains(page) ||
+                current_page_table->pointers[page >> YUZU_PAGEBITS].Type() !=
+                    Common::PageType::RasterizerCachedMemory)
+            {
+                flush();
+                continue;
+            }
+            if (begin != end && end != page) flush();
+            if (begin == end) begin = page;
+            end = page + YUZU_PAGESIZE;
+        }
+        flush();
+        nce_open_read_pages.clear();
+    }
+
+    void DownloadNceHostPage(u64 vaddr)
+    {
+        std::array<u64, NceHostPageSize / YUZU_PAGESIZE> pages{};
+        size_t count{};
+        const u64 host_page = vaddr & ~(NceHostPageSize - 1);
+        {
+            std::scoped_lock lk{nce_write_mutex};
+            if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing)) return;
+            for (auto it = nce_read_cached.lower_bound(host_page);
+                 it != nce_read_cached.end() && it->first < host_page + NceHostPageSize; ++it)
+            {
+                // A different 4 KiB neighbor may have trapped this 16 KiB host page.
+                // Pages already synchronized remain readable until a real GPU write
+                // revokes them on the producer; do not download them again here.
+                if (!PreciseNceReadTracking() || !nce_open_read_pages.contains(it->first))
+                    pages[count++] = it->first;
+            }
+        }
+        // GPU readback may untrack textures and acquire nce_write_mutex. Do not hold it
+        // while synchronizing. Read every protected neighbor before opening the host page.
+        for (size_t i = 0; i < count;)
+        {
+            const u64 begin = pages[i++];
+            u64 end = begin + YUZU_PAGESIZE;
+            const auto pointer = reinterpret_cast<uintptr_t>(GetPointerFromRasterizerCachedMemory(begin));
+            // Adjacent guest pages may map unrelated physical pages. Merge only when
+            // their CPU backing is also contiguous.
+            while (DemandNceReadback() && i < count && pages[i] == end && pointer != 0 &&
+                   reinterpret_cast<uintptr_t>(GetPointerFromRasterizerCachedMemory(pages[i])) ==
+                       pointer + end - begin)
+            {
+                end += YUZU_PAGESIZE;
+                ++i;
+            }
+            HandleRasterizerDownload(begin, end - begin);
+        }
+        // Precise mode grants access and registers the observer on the GPU producer
+        // before it resumes drawing. Reopening here could undo a subsequent GPU write.
+        if (PreciseNceReadTracking()) return;
+        std::scoped_lock lk{nce_write_mutex};
+        for (size_t i = 0; i < count; ++i)
+        {
+            const bool cached = current_page_table->pointers[pages[i] >> YUZU_PAGEBITS].Type() ==
+                                Common::PageType::RasterizerCachedMemory;
+            if (DemandNceReadback() && cached && nce_read_cached.contains(pages[i]))
+                nce_open_read_pages.insert(pages[i]);
+            buffer->ProtectAccess(pages[i], YUZU_PAGESIZE, cached ? Common::MemoryPermission::Read
+                                                               : Common::MemoryPermission::ReadWrite);
+        }
+    }
+
+    bool NceTrackWrites(u64 vaddr, bool canonical = false)
+    {
+        std::unique_lock lk{nce_write_mutex};
+        const u64 host_page = vaddr & ~(NceHostPageSize - 1);
+        const u64 target_page = vaddr & ~YUZU_PAGEMASK;
+        if (canonical) {
+            if (!buffer->NceAccessAllowed(vaddr, true)) return false;
+            const bool cached = current_page_table->pointers[target_page >> YUZU_PAGEBITS].Type() ==
+                                Common::PageType::RasterizerCachedMemory;
+            // A canonical store touches only this 4 KiB page. A dirty neighbour
+            // cannot require another readback/snapshot for an already owned page.
+            if (buffer->NceTrackedAccessAllowed(vaddr, false) &&
+                buffer->NceTrackedAccessAllowed(vaddr, true) &&
+                (!cached || nce_written.contains(target_page))) return true;
+        }
+        // A host page containing texture data must retain reactive read protection. Other
+        // cached pages keep the snapshot path; opening them cannot expose a stale texture.
+        if (g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing))
+        {
+            const auto it = nce_read_cached.lower_bound(host_page);
+            if (it != nce_read_cached.end() && it->first < host_page + NceHostPageSize)
+            {
+                lk.unlock();
+                DownloadNceHostPage(vaddr);
+                lk.lock();
+                if (!(canonical ? buffer->NceTrackedAccessAllowed(vaddr, false)
+                                : buffer->NceHostAccessAllowed(vaddr, false))) return false;
+            }
+        }
+        // The GPU cache may have released the page since the fault.
+        bool opened = buffer->NceHostAccessAllowed(vaddr, true);
+        const u64 begin = canonical ? target_page : host_page;
+        const u64 end = canonical ? target_page + YUZU_PAGESIZE : host_page + NceHostPageSize;
+        for (u64 page = begin; page < end; page += YUZU_PAGESIZE)
+        {
+            if (current_page_table->pointers[page >> YUZU_PAGEBITS].Type() !=
+                Common::PageType::RasterizerCachedMemory)
+            {
+                continue;
+            }
+            const u8 * const pointer = GetPointerFromRasterizerCachedMemory(page);
+            if (pointer == nullptr)
+            {
+                continue;
+            }
+            auto [it, inserted] = nce_written.try_emplace(page);
+            if (inserted)
+            {
+                // The snapshot is completely overwritten before the page becomes writable.
+                it->second = Common::make_unique_for_overwrite<PageCopy>();
+                std::memcpy(it->second->data(), pointer, YUZU_PAGESIZE);
+            }
+            // Readback may have write-protected a page already in nce_written. Restore
+            // access for existing snapshots too, otherwise retrying the store loops forever.
+            if (inserted || !buffer->NceHostAccessAllowed(vaddr, true))
+                buffer->ProtectAccess(page, YUZU_PAGESIZE, Common::MemoryPermission::ReadWrite);
+            opened = true;
+        }
+        // A fragmented or read-only guest mapping can still forbid a native store.
+        // Such accesses must be interpreted rather than retried without progress.
+        if (canonical) return buffer->NceTrackedAccessAllowed(vaddr, false) &&
+                              buffer->NceTrackedAccessAllowed(vaddr, true);
+        return opened && buffer->NceHostAccessAllowed(vaddr, true);
+    }
+
+    void FlushNceWrites(bool rearm_native_reads = true)
+    {
+        std::vector<u64> written;
+        {
+            std::scoped_lock lk{nce_write_mutex};
+            // Pages unmapped since are not cached anymore.
+            std::erase_if(nce_written, [this](const auto & entry) {
+                return current_page_table->pointers[entry.first >> YUZU_PAGEBITS].Type() !=
+                       Common::PageType::RasterizerCachedMemory;
+            });
+            // Only pages opened by a native read are rearmed; untouched image pages
+            // retain their existing protection without a per-image walk.
+            if (rearm_native_reads && DemandNceReadback() && !PreciseNceReadTracking())
+                RearmNceReads();
+            // Protect before comparing, so that later writes fault again.
+            for (auto it = nce_written.begin(); it != nce_written.end();)
+            {
+                const u64 begin = it->first;
+                u64 end = begin;
+                while (it != nce_written.end() && it->first == end)
+                {
+                    end += YUZU_PAGESIZE;
+                    ++it;
+                }
+                if (rearm_native_reads) ProtectNceReadCached(begin, end - begin);
+                else buffer->ProtectAccess(begin, end - begin, Common::MemoryPermission::Read);
+            }
+            for (const auto & [page, copy] : nce_written)
+            {
+                const u8 * const pointer = GetPointerFromRasterizerCachedMemory(page);
+                if (pointer != nullptr && std::memcmp(pointer, copy->data(), YUZU_PAGESIZE) != 0)
+                {
+                    written.push_back(page);
+                }
+            }
+            nce_written.clear();
+        }
+        for (const u64 page : written)
+        {
+            HandleRasterizerWrite(page, YUZU_PAGESIZE);
+        }
+    }
+#endif
+
     void HandleRasterizerDownload(VAddr v_address, size_t size)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
+#if defined(__APPLE__)
+        if (DemandNceReadback())
+        {
+            // Do not reuse a whole-image range across GPU submissions. It carries no
+            // generation and could otherwise suppress a required native readback.
+            RasterizerDownloadArea request{};
+            request.native_read = true;
+            system.GetVideo().HandleRasterizerDownload(p, size, request);
+            return;
+        }
+#endif
         const size_t core = system.GetCurrentHostThreadID();
         RasterizerDownloadArea & area = rasterizer_read_areas[core];
         area = system.GetVideo().HandleRasterizerDownload(p, size, area);
@@ -948,6 +1319,19 @@ struct Memory::Impl {
     std::array<GPUDirtyState, Hardware::NUM_CPU_CORES> rasterizer_write_areas{};
     std::span<Core::GPUDirtyMemoryManager> gpu_dirty_managers;
     std::mutex sys_core_guard;
+
+#if defined(__APPLE__)
+    // Native code execution on 16 KiB pages: a write to a host page holding guest pages the GPU
+    // caches makes them writable instead of invalidating the GPU cache, which would make it
+    // reload them even when the write went to another guest page. Their contents are compared
+    // with a copy at the next GPU synchronization, when the writes of the JIT are reported too.
+    static constexpr u64 NceHostPageSize = 0x4000;
+    using PageCopy = std::array<u8, YUZU_PAGESIZE>;
+    std::mutex nce_write_mutex;
+    std::map<u64, std::unique_ptr<PageCopy>> nce_written;
+    std::map<u64, u32> nce_read_cached;
+    std::set<u64> nce_open_read_pages;
+#endif
 
     std::optional<Common::HeapTracker> heap_tracker;
 #ifdef __linux__
@@ -1174,6 +1558,12 @@ Result Memory::FlushDataCache(Common::ProcessAddress dest_addr, const std::size_
     return impl->FlushDataCache(dest_addr, size);
 }
 
+void Memory::RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {
+#if defined(__APPLE__)
+    impl->RasterizerMarkRegionReadCached(vaddr, size, delta);
+#endif
+}
+
 void Memory::RasterizerMarkRegionCached(uint64_t vaddr, uint64_t size, bool cached) {
     impl->RasterizerMarkRegionCached(vaddr, size, cached);
 }
@@ -1208,7 +1598,78 @@ bool Memory::InvalidateNCE(Common::ProcessAddress vaddr, size_t size) {
     }
 #endif
 
+#if defined(__APPLE__)
+    // Retrying only helps when the GPU cache denied the access; other faults on mapped pages
+    // come from host pages shared with other guest pages, and are emulated.
+    return rasterizer;
+#else
     return mapped && ptr != nullptr;
+#endif
+}
+
+void Memory::RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) {
+#if defined(__APPLE__)
+    impl->SetNativeReadAccess(vaddr, size, readable);
+#endif
+}
+
+bool Memory::NceTrackReads(uint64_t vaddr) {
+#if defined(__APPLE__)
+    static const bool fast = std::getenv("NXEMU_NCE_PAGE_READ_FASTPATH") != nullptr;
+    static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
+    const bool ready = impl->buffer->NceTrackedAccessAllowed(vaddr, false);
+    // A native load can fault because a different 4 KiB page denies access to
+    // their shared 16 KiB host page. Already-current data needs no GPU readback;
+    // return false if the load must still be interpreted through its backing.
+    if (!fast || !ready) impl->DownloadNceHostPage(vaddr);
+    const bool host_ready = impl->buffer->NceHostAccessAllowed(vaddr, false);
+    if (profile) {
+        using Clock = std::chrono::steady_clock;
+        static thread_local u64 reads{}, ready_reads{}, emulated{};
+        static thread_local auto reported = Clock::now();
+        ++reads;
+        ready_reads += ready;
+        emulated += !host_ready;
+        const auto now = Clock::now();
+        if (now - reported >= std::chrono::seconds(5)) {
+            std::fprintf(stderr, "[NCE-PAGE-FAULT] interval=%.3f reads=%llu target_ready=%llu host_blocked=%llu fast=%d\n",
+                std::chrono::duration<double>(now - reported).count(),
+                (unsigned long long)reads, (unsigned long long)ready_reads,
+                (unsigned long long)emulated, fast);
+            reads = ready_reads = emulated = 0;
+            reported = now;
+        }
+    }
+    return host_ready;
+#else
+    return false;
+#endif
+}
+
+bool Memory::NceTrackWrites(uint64_t vaddr) {
+#if defined(__APPLE__)
+    return impl->NceTrackWrites(vaddr);
+#else
+    return false;
+#endif
+}
+
+bool Memory::NcePrepareCanonicalWrite(uint64_t vaddr) {
+#if defined(__APPLE__)
+    return impl->NceTrackWrites(vaddr, true);
+#else
+    return false;
+#endif
+}
+
+void Memory::FlushNceWrites(bool rearm_native_reads) {
+#if defined(__APPLE__)
+    impl->FlushNceWrites(rearm_native_reads);
+#endif
+}
+
+bool Memory::NceAccessAllowed(uint64_t vaddr, bool write) {
+    return system.DeviceMemory().buffer.NceAccessAllowed(vaddr, write);
 }
 
 bool Memory::InvalidateSeparateHeap(void* fault_address) {
