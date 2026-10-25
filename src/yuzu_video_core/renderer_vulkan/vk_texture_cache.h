@@ -122,6 +122,9 @@ public:
 
     void BarrierFeedbackLoop();
 
+    /// Changes each time render target writes become visible to sampled reads.
+    u64 AttachmentBarrierTick() const noexcept;
+
     const Device& device;
     Scheduler& scheduler;
     MemoryAllocator& memory_allocator;

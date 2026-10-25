@@ -1026,6 +1026,10 @@ void TextureCacheRuntime::BarrierFeedbackLoop() {
     scheduler.RequestOutsideRenderPassOperationContext();
 }
 
+u64 TextureCacheRuntime::AttachmentBarrierTick() const noexcept {
+    return scheduler.RenderPassEndTick();
+}
+
 void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
                                            std::span<const VideoCommon::ImageCopy> copies) {
     boost::container::small_vector<VkBufferImageCopy, 16> vk_in_copies(copies.size());

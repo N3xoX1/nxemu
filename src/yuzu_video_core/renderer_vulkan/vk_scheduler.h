@@ -110,6 +110,12 @@ public:
             });
     }
 
+    /// Returns a value that changes each time a render pass ends and makes its attachment
+    /// writes visible to later reads.
+    [[nodiscard]] u64 RenderPassEndTick() const noexcept {
+        return render_pass_end_tick;
+    }
+
     /// Returns the current command buffer tick.
     [[nodiscard]] u64 CurrentTick() const noexcept {
         return master_semaphore->CurrentTick();
@@ -262,6 +268,7 @@ private:
     bool all_buffers_written = false;
 
     u32 num_renderpass_images = 0;
+    u64 render_pass_end_tick = 0;
     std::array<VkImage, 9> renderpass_images{};
     std::array<VkImageSubresourceRange, 9> renderpass_image_ranges{};
 

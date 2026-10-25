@@ -363,6 +363,7 @@ void Scheduler::EndRenderPass() {
     });
     state.renderpass = nullptr;
     num_renderpass_images = 0;
+    ++render_pass_end_tick;
 }
 
 void Scheduler::AcquireNewChunk() {

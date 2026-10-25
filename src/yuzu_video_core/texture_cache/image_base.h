@@ -106,6 +106,8 @@ struct ImageBase {
     VAddr cpu_addr_end = 0;
 
     u64 modification_tick = 0;
+    /// Attachment barrier tick, plus one, of the last write to the image as a render target
+    u64 attachment_write_tick = 0;
     /// Frame in which the image was first bound as a render target
     u64 first_render_frame = std::numeric_limits<u64>::max();
     size_t lru_index = SIZE_MAX;

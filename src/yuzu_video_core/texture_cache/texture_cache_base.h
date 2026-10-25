@@ -174,6 +174,9 @@ public:
     /// Handle feedback loops during draws.
     void CheckFeedbackLoop(std::span<const ImageViewInOut> views);
 
+    /// Marks the render targets a draw writes, for the feedback loop checks of later draws.
+    void MarkRenderTargetsWritten(u32 color_mask, bool depth);
+
     /// Get the sampler from the graphics descriptor table in the specified index
     Sampler* GetGraphicsSampler(u32 index);
 
