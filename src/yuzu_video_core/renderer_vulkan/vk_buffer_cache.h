@@ -99,6 +99,8 @@ public:
 
     bool CanReportMemoryUsage() const;
 
+    bool ShouldStreamUniformBuffer(const Buffer& buffer, u32 offset, u32 size) const;
+
     u32 GetStorageBufferAlignment() const;
 
     [[nodiscard]] StagingBufferRef UploadStagingBuffer(size_t size);
