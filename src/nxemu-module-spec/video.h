@@ -1,6 +1,7 @@
 #pragma once
 #include "base.h"
 #include <stdint.h>
+#include <stop_token>
 
 enum class AnisotropyMode : uint32_t
 {
@@ -213,7 +214,7 @@ nxinterface IVideo
     virtual uint32_t HostSyncpointValue(uint32_t id) = 0;
     virtual void HostSyncpointIncrement(uint32_t id) = 0;
     virtual uint32_t HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void * userData) = 0;
-    virtual void WaitHost(uint32_t syncpoint_id, uint32_t expected_value) = 0;
+    virtual bool WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std::stop_token stop) = 0;
     virtual uint32_t ShadersBuilding() = 0;
     virtual bool UseNvdec() = 0;
     virtual void ClearCdmaInstance(uint32_t id) = 0;

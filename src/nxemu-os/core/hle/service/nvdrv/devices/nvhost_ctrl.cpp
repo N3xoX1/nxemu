@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2021 Skyline Team and Contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <optional>
 #include <bit>
 #include <cstdlib>
 #include <cstring>
@@ -222,17 +223,21 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
 
     must_unmark_fail = false;
 
-    const auto check_failing = [&]() {
+    const auto check_failing = [&]() -> std::optional<NvResult> {
         if (events[slot].fails > 2) {
             {
                 auto lk = system.StallApplication();
-                system.GetVideo().WaitHost(fence_id, target_value);
+                if (!system.GetVideo().WaitHost(fence_id, target_value,
+                                               system.GetShutdownToken())) {
+                    return NvResult::Timeout;
+                }
                 system.UnstallApplication();
             }
             params.value.raw = target_value;
-            return true;
+            events[slot].fails = 0;
+            return NvResult::Success;
         }
-        return false;
+        return std::nullopt;
     };
 
     if (slot >= MaxNvEvents) {
@@ -240,9 +245,8 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
     }
 
     if (params.timeout == 0) {
-        if (check_failing()) {
-            events[slot].fails = 0;
-            return NvResult::Success;
+        if (const auto result = check_failing()) {
+            return *result;
         }
         return NvResult::Timeout;
     }
@@ -257,9 +261,8 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
         return NvResult::BadParameter;
     }
 
-    if (check_failing()) {
-        event.fails = 0;
-        return NvResult::Success;
+    if (const auto result = check_failing()) {
+        return *result;
     }
 
     params.value.raw = 0;
