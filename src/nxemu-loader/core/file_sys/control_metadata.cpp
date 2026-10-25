@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cstring>
+#include <algorithm>
 
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/vfs/vfs.h"
@@ -71,6 +72,16 @@ NACP::NACP(VirtualFile file)
 {
     valid = file != nullptr && file->GetSize() == sizeof(raw) &&
             file->ReadObject(&raw) == sizeof(raw);
+    const auto valid_string = [](const auto& buffer) {
+        const auto end = std::find(buffer.begin(), buffer.end(), '\0');
+        return end != buffer.end() && Common::IsValidUTF8(
+            std::string_view(buffer.data(), static_cast<size_t>(end - buffer.begin())));
+    };
+    valid = valid && std::all_of(raw.language_entries.begin(), raw.language_entries.end(),
+        [&](const auto& entry) {
+            return valid_string(entry.application_name) && valid_string(entry.developer_name);
+        }) && valid_string(raw.version_string);
+    if (!valid) raw = {};
     version = Common::StringFromFixedZeroTerminatedBuffer(raw.version_string.data(), raw.version_string.size());
 }
 

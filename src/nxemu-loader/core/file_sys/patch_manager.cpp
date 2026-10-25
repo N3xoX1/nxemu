@@ -926,7 +926,14 @@ PatchManager::Metadata PatchManager::ParseControlNCA(const NCA & nca) const
         return {};
     }
 
-    return ParseControlRomFS(PatchRomFS(&nca, base_romfs, LoaderContentRecordType::Control));
+    const auto patched = PatchRomFS(&nca, base_romfs, LoaderContentRecordType::Control);
+    auto metadata = ParseControlRomFS(patched);
+    if (!metadata.first && patched != base_romfs)
+    {
+        LOG_WARNING(Loader, "Invalid updated control metadata for {:016X}; using base metadata", title_id);
+        return ParseControlRomFS(base_romfs);
+    }
+    return metadata;
 }
 
 PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
@@ -949,6 +956,11 @@ PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
     }
 
     auto nacp = nacp_file == nullptr ? nullptr : std::make_unique<NACP>(nacp_file);
+    if (nacp && !nacp->IsValid())
+    {
+        LOG_ERROR(Loader, "Invalid control.nacp: truncated file, unterminated string or invalid UTF-8");
+        return {};
+    }
 
     // Get language code from settings
     const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)g_settings->GetInt(NXOsSetting::LanguageIndex));

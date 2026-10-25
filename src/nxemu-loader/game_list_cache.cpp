@@ -24,7 +24,7 @@ extern IModuleSettings * g_settings;
 namespace
 {
 constexpr uint32_t CacheMagic = 0x4C47584E; // "NXGL"
-constexpr uint32_t CacheVersion = 3;
+constexpr uint32_t CacheVersion = 4; // Reparse metadata cached before NACP string validation.
 constexpr const char * CacheFileName = "game_list.bin";
 
 std::string GetLowerExtension(const std::string & path)

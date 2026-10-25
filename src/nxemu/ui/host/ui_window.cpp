@@ -19,6 +19,7 @@
 #include <stb_image.h>
 #include <vector>
 #include <yuzu_common/fs/fs_util.h>
+#include <yuzu_common/string_util.h>
 
 namespace
 {
@@ -378,7 +379,9 @@ float UiWindow::PixelRatio() const
 
 void UiWindow::SetTitle(const std::string & title)
 {
-    SDL_SetWindowTitle(m_window, title.c_str());
+    // Cocoa cannot construct an NSString from malformed UTF-8. Validate at the
+    // native boundary too, including titles read from an older library cache.
+    SDL_SetWindowTitle(m_window, Common::IsValidUTF8(title) ? title.c_str() : "NXEmu");
 }
 
 void UiWindow::SetTheme(const std::string & choice)
