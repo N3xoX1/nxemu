@@ -20,13 +20,17 @@
 namespace Vulkan {
 namespace {
 
+[[nodiscard]] bool IsExtensionAvailable(const std::vector<VkExtensionProperties>& properties,
+                                        const char* extension) {
+    return std::ranges::any_of(properties, [extension](const auto& prop) {
+        return std::strcmp(extension, prop.extensionName) == 0;
+    });
+}
+
 [[nodiscard]] bool AreExtensionsSupported(const std::vector<VkExtensionProperties>& properties,
                                           std::span<const char* const> extensions) {
     for (const char* extension : extensions) {
-        const auto it = std::ranges::find_if(properties, [extension](const auto& prop) {
-            return std::strcmp(extension, prop.extensionName) == 0;
-        });
-        if (it == properties.end()) {
+        if (!IsExtensionAvailable(properties, extension)) {
             LOG_ERROR(Render_Vulkan, "Required instance extension {} is not available", extension);
             return false;
         }
@@ -47,6 +51,9 @@ constexpr std::array MOLTENVK_SETTINGS{
     MoltenVKSetting{"MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS", VK_LAYER_SETTING_TYPE_BOOL32_EXT,
                     VK_FALSE},
     MoltenVKSetting{"MVK_CONFIG_RESUME_LOST_DEVICE", VK_LAYER_SETTING_TYPE_BOOL32_EXT, VK_TRUE},
+    // Everything is submitted to one queue, whose order makes binary semaphores redundant
+    // (MVK_CONFIG_VK_SEMAPHORE_SUPPORT_STYLE_SINGLE_QUEUE)
+    MoltenVKSetting{"MVK_CONFIG_VK_SEMAPHORE_SUPPORT_STYLE", VK_LAYER_SETTING_TYPE_UINT32_EXT, 0},
 };
 
 [[nodiscard]] std::vector<VkLayerSettingEXT> MoltenVKLayerSettings() {
@@ -100,15 +107,15 @@ constexpr std::array MOLTENVK_SETTINGS{
         extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
     }
 #ifdef __APPLE__
-    if (AreExtensionsSupported(properties, std::array{VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME})) {
+    if (IsExtensionAvailable(properties, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {
         extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
-    if (AreExtensionsSupported(properties, std::array{VK_EXT_LAYER_SETTINGS_EXTENSION_NAME})) {
+    if (IsExtensionAvailable(properties, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME)) {
         extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
     }
 #endif
     if (enable_validation &&
-        AreExtensionsSupported(properties, std::array{VK_EXT_DEBUG_UTILS_EXTENSION_NAME})) {
+        IsExtensionAvailable(properties, VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
     return extensions;
