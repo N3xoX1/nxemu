@@ -191,9 +191,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         val leftApp = leavingApp
         if (!NativeLibrary.isPaused()) {
             NativeLibrary.pauseEmulation()
-            if (!leftApp) {
-                resumeAfterBackground.set(true)
-            }
+            resumeAfterBackground.set(true)
         }
         if (leftApp) {
             capturePausedFrame()
@@ -254,9 +252,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun onDrawerClosed(drawerView: View) {
                 releaseDrawerStick()
                 drawerLayout.setDrawerLockMode(savedDrawerLockMode())
-                if (loadingIndicator.visibility != View.VISIBLE) {
-                    surfaceInputOverlay.visibility = View.VISIBLE
-                }
+                updateInputOverlayVisibility()
             }
         })
         pauseItem.setOnClickListener { togglePause() }
@@ -281,6 +277,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             NativeLibrary.unpauseEmulation()
             clearPausedFrame()
         } else {
+            resumeAfterBackground.set(false)
             NativeLibrary.pauseEmulation()
             capturePausedFrame()
         }
@@ -300,6 +297,20 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             pausedFrameImage.setImageBitmap(frame)
             pausedFrameImage.visibility = if (frame != null) View.VISIBLE else View.GONE
         }
+        updateInputOverlayVisibility()
+    }
+
+    private fun updateInputOverlayVisibility() {
+        if (!::surfaceInputOverlay.isInitialized || !::drawerLayout.isInitialized || !::loadingIndicator.isInitialized) {
+            return
+        }
+        val show = loadingIndicator.visibility != View.VISIBLE &&
+            !drawerLayout.isDrawerOpen(Gravity.START) &&
+            !NativeLibrary.isPaused()
+        if (!show && surfaceInputOverlay.visibility == View.VISIBLE) {
+            releaseOverlayTouches()
+        }
+        surfaceInputOverlay.visibility = if (show) View.VISIBLE else View.INVISIBLE
     }
 
     private fun capturePausedFrame() {
@@ -454,9 +465,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             stopAnimatedDrawables()
             loadingIndicator.visibility = View.GONE
             startPerfOverlay()
-            if (!drawerLayout.isDrawerOpen(Gravity.START)) {
-                surfaceInputOverlay.visibility = View.VISIBLE
-            }
+            updateInputOverlayVisibility()
             drawerLayout.setDrawerLockMode(savedDrawerLockMode())
             updateInputOverlayLayout()
             surfaceInputOverlay.refreshControls()

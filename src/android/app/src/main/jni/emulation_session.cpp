@@ -19,7 +19,7 @@ namespace
     constexpr const char * kLogTag = "NxEmu";
     constexpr uint32_t kMaxArtworkBytes = 16 * 1024 * 1024;
 
-    std::string EncodeRomImage(IRomInfo * rom, LoaderResultStatus (IRomInfo::*reader)(uint8_t *, uint32_t *))
+    std::vector<uint8_t> ReadRomImage(IRomInfo * rom, LoaderResultStatus (IRomInfo::*reader)(uint8_t *, uint32_t *))
     {
         if (rom == nullptr)
         {
@@ -38,7 +38,13 @@ namespace
             return {};
         }
         data.resize(size);
-        return base64_encode(data.data(), data.size());
+        return data;
+    }
+
+    std::string EncodeRomImage(IRomInfo * rom, LoaderResultStatus (IRomInfo::*reader)(uint8_t *, uint32_t *))
+    {
+        const std::vector<uint8_t> data = ReadRomImage(rom, reader);
+        return data.empty() ? std::string() : base64_encode(data.data(), data.size());
     }
 
     std::string ReadRomTitle(IRomInfo * rom)
@@ -320,6 +326,25 @@ std::string EmulationSession::QueryRomMetadata(const std::string & path)
     obj["icon"] = icon_b64;
     obj["error"] = JsonValue();
     return JsonStyledWriter().write(obj);
+}
+
+bool EmulationSession::QueryRomListing(const std::string & path, std::string & title, std::vector<uint8_t> & icon)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return false;
+    }
+
+    IRomInfo * const rom = m_system_modules->Modules().Systemloader().RomInfo(path.c_str(), 0, 0);
+    if (rom == nullptr)
+    {
+        return false;
+    }
+    title = ReadRomTitle(rom);
+    icon = ReadRomImage(rom, &IRomInfo::ReadIcon);
+    rom->Release();
+    return true;
 }
 
 std::string EmulationSession::QueryRomInfo(const std::string & path)

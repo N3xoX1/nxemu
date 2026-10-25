@@ -1,26 +1,31 @@
 package org.nxemu.ui.main
 
+import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.webkit.ConsoleMessage
-import android.webkit.JsResult
-import android.webkit.WebChromeClient
-import android.webkit.WebSettings
-import android.webkit.WebView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NXUISetting
@@ -36,35 +41,35 @@ import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
 
 open class MainActivity : ComponentActivity() {
-    private lateinit var webView: WebView
+    private lateinit var surfaceView: SurfaceView
+    private var screen = 0L
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
+    private var touchPointer = MotionEvent.INVALID_POINTER_ID
     private var stickX = 0
     private var stickY = 0
+
     private val stickRepeat = object : Runnable {
         override fun run() {
             if (stickX == 0 && stickY == 0) return
             nudgeBrowserStick()
-            if (::webView.isInitialized && !isDestroyed) {
-                webView.postDelayed(this, STICK_REPEAT_MS)
+            if (!isDestroyed) {
+                surfaceView.postDelayed(this, STICK_REPEAT_MS)
             }
         }
     }
+
     private val inputDeviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) = refreshConnectedControllers()
         override fun onInputDeviceRemoved(deviceId: Int) = refreshConnectedControllers()
         override fun onInputDeviceChanged(deviceId: Int) = refreshConnectedControllers()
     }
+
     private val settingChangedForwarder: (String) -> Unit = { setting ->
-        runOnUiThread {
-            if (setting == NXUISetting.ThemeMode) {
-                applyWebViewTheme()
-            }
-            webView.evaluateJavascript(
-                "onSettingChanged('${setting.replace("'", "\\'")}')",
-                null
-            )
+        if (setting == NXUISetting.ThemeMode) {
+            runOnUiThread { applyWindowTheme() }
         }
+        dispatchUiEvent("setting", setting)
     }
 
     private val addGameDirectory = registerForActivityResult(
@@ -73,7 +78,7 @@ open class MainActivity : ComponentActivity() {
         uri?.let {
             contentResolver.takePersistableUriPermission(
                 it,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
             Log.d("NxEmu", "Folder selected: $it")
 
@@ -111,58 +116,39 @@ open class MainActivity : ComponentActivity() {
         }, "GpuDriverImport").start()
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         if (this !is SettingsActivity) {
             installSplashScreen()
         }
         super.onCreate(savedInstanceState)
-        webView = WebView(this).apply {
-            setBackgroundColor(ThemeHelper.backgroundColor(this@MainActivity))
-            settings.javaScriptEnabled = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                @Suppress("DEPRECATION")
-                settings.forceDark = WebSettings.FORCE_DARK_OFF
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                settings.isAlgorithmicDarkeningAllowed = false
-            }
-            webChromeClient = object : WebChromeClient() {
-                override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
-                    Log.d("NxEmu-JS", "${msg.message()} [${msg.sourceId()}:${msg.lineNumber()}]")
-                    return true
-                }
+        enableEdgeToEdge()
+        bootstrapControllerOnFirstRun()
 
-                override fun onJsAlert(
-                    view: WebView?,
-                    url: String?,
-                    message: String?,
-                    result: JsResult,
-                ): Boolean {
-                    android.app.AlertDialog.Builder(this@MainActivity)
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
-                        .setOnCancelListener { result.confirm() }
-                        .show()
-                    return true
-                }
+        NativeUi.start(applicationContext.assets)
+        screen = NativeUi.create(UiHost(this), this is SettingsActivity)
+        surfaceView = SurfaceView(this)
+        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {}
 
-                override fun onJsConfirm(
-                    view: WebView?,
-                    url: String?,
-                    message: String?,
-                    result: JsResult,
-                ): Boolean {
-                    android.app.AlertDialog.Builder(this@MainActivity)
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
-                        .setNegativeButton(android.R.string.cancel) { _, _ -> result.cancel() }
-                        .setOnCancelListener { result.cancel() }
-                        .show()
-                    return true
-                }
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+                NativeUi.setSurface(screen, holder.surface, width, height)
             }
-            addJavascriptInterface(NxEmuBridge(this@MainActivity), "NxEmu")
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                NativeUi.setSurface(screen, null, 0, 0)
+            }
+        })
+        surfaceView.setOnTouchListener { _, event ->
+            forwardTouch(event)
+            true
         }
+        ViewCompat.setOnApplyWindowInsetsListener(surfaceView) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            NativeUi.setMetrics(screen, resources.displayMetrics.density, bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
@@ -171,20 +157,28 @@ open class MainActivity : ComponentActivity() {
                         inputMapping.dismiss()
                         return
                     }
-                    webView.evaluateJavascript("handleAndroidBack()") { result ->
-                        if (result != "true" && result != "\"true\"") {
-                            finish()
-                        }
-                    }
+                    dispatchUiEvent("back", "")
                 }
             },
         )
         NativeLibrary.addSettingChangedListener(settingChangedForwarder)
-        bootstrapControllerOnFirstRun()
-        val page = if (this is SettingsActivity) "settings.html" else "index.html"
-        webView.loadUrl("file:///android_asset/$page")
-        setContentView(webView)
-        ThemeHelper.applySystemBars(this)
+        setContentView(surfaceView)
+        applyWindowTheme()
+        hideNavigationBar()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideNavigationBar()
+        }
+    }
+
+    private fun hideNavigationBar() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.navigationBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     private fun bootstrapControllerOnFirstRun() {
@@ -208,8 +202,8 @@ open class MainActivity : ComponentActivity() {
         emulationLaunchPending = false
         InputHandler.updateControllerData()
         inputManager()?.registerInputDeviceListener(inputDeviceListener, null)
-        applyWebViewTheme()
-        refreshConnectedControllers()
+        applyWindowTheme()
+        dispatchUiEvent("resume", "")
         resumeRunningGame()
     }
 
@@ -239,6 +233,38 @@ open class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    override fun onDestroy() {
+        NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
+        surfaceView.removeCallbacks(stickRepeat)
+        NativeUi.destroy(screen)
+        super.onDestroy()
+    }
+
+    private fun forwardTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchPointer = event.getPointerId(0)
+                NativeUi.touch(screen, NativeUi.TOUCH_DOWN, event.x, event.y)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val index = event.findPointerIndex(touchPointer)
+                if (index >= 0) {
+                    NativeUi.touch(screen, NativeUi.TOUCH_MOVE, event.getX(index), event.getY(index))
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                if (event.getPointerId(event.actionIndex) == touchPointer) {
+                    NativeUi.touch(screen, NativeUi.TOUCH_UP, event.getX(event.actionIndex), event.getY(event.actionIndex))
+                    touchPointer = MotionEvent.INVALID_POINTER_ID
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                NativeUi.touch(screen, NativeUi.TOUCH_CANCEL, event.x, event.y)
+                touchPointer = MotionEvent.INVALID_POINTER_ID
+            }
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (inputMapping.onKey(event)) {
             return true
@@ -253,33 +279,20 @@ open class MainActivity : ComponentActivity() {
     }
 
     private fun handleBrowserPad(event: KeyEvent): Boolean {
-        val script = when (event.keyCode) {
-            KeyEvent.KEYCODE_BUTTON_Y ->
-                browserPadScript(event, repeat = false, "typeof openSettingsFromPad==='function'&&openSettingsFromPad()")
-            KeyEvent.KEYCODE_BUTTON_B ->
-                browserPadScript(event, repeat = false, "typeof goBackFromPad==='function'&&goBackFromPad()")
-            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER ->
-                browserPadScript(event, repeat = false, "typeof launchSelectedGame==='function'&&launchSelectedGame()")
-            KeyEvent.KEYCODE_DPAD_LEFT ->
-                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('left')")
-            KeyEvent.KEYCODE_DPAD_RIGHT ->
-                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('right')")
-            KeyEvent.KEYCODE_DPAD_UP ->
-                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('up')")
-            KeyEvent.KEYCODE_DPAD_DOWN ->
-                browserPadScript(event, repeat = true, "typeof moveGameSelection==='function'&&moveGameSelection('down')")
+        val (button, repeats) = when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_Y -> "y" to false
+            KeyEvent.KEYCODE_BUTTON_B -> "b" to false
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER -> "a" to false
+            KeyEvent.KEYCODE_DPAD_LEFT -> "left" to true
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "right" to true
+            KeyEvent.KEYCODE_DPAD_UP -> "up" to true
+            KeyEvent.KEYCODE_DPAD_DOWN -> "down" to true
             else -> return false
         }
-        if (script.isNotEmpty() && ::webView.isInitialized && !isDestroyed) {
-            webView.evaluateJavascript(script, null)
+        if (event.action == KeyEvent.ACTION_DOWN && (repeats || event.repeatCount == 0)) {
+            dispatchUiEvent("pad", button)
         }
         return true
-    }
-
-    private fun browserPadScript(event: KeyEvent, repeat: Boolean, script: String): String {
-        if (event.action != KeyEvent.ACTION_DOWN) return ""
-        if (!repeat && event.repeatCount != 0) return ""
-        return script
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
@@ -309,15 +322,13 @@ open class MainActivity : ComponentActivity() {
         }
         stickX = x
         stickY = y
-        if (::webView.isInitialized) {
-            webView.removeCallbacks(stickRepeat)
-        }
+        surfaceView.removeCallbacks(stickRepeat)
         if (x == 0 && y == 0) {
             return false
         }
         nudgeBrowserStick()
-        if (::webView.isInitialized && !isDestroyed) {
-            webView.postDelayed(stickRepeat, STICK_REPEAT_MS)
+        if (!isDestroyed) {
+            surfaceView.postDelayed(stickRepeat, STICK_REPEAT_MS)
         }
         return true
     }
@@ -331,25 +342,24 @@ open class MainActivity : ComponentActivity() {
     }
 
     private fun nudgeBrowserStick() {
-        if (!::webView.isInitialized || isDestroyed) {
+        if (isDestroyed) {
             return
         }
-        val moves = buildString {
-            if (stickX < 0) append("moveGameSelection('left');")
-            if (stickX > 0) append("moveGameSelection('right');")
-            if (stickY < 0) append("moveGameSelection('up');")
-            if (stickY > 0) append("moveGameSelection('down');")
-        }
-        if (moves.isEmpty()) {
-            return
-        }
-        webView.evaluateJavascript("if(typeof moveGameSelection==='function'){$moves}", null)
+        if (stickX < 0) dispatchUiEvent("pad", "left")
+        if (stickX > 0) dispatchUiEvent("pad", "right")
+        if (stickY < 0) dispatchUiEvent("pad", "up")
+        if (stickY > 0) dispatchUiEvent("pad", "down")
     }
+
     private fun releaseBrowserStick() {
         stickX = 0
         stickY = 0
-        if (::webView.isInitialized) {
-            webView.removeCallbacks(stickRepeat)
+        surfaceView.removeCallbacks(stickRepeat)
+    }
+
+    fun dispatchUiEvent(name: String, payload: String) {
+        if (screen != 0L) {
+            NativeUi.event(screen, name, payload)
         }
     }
 
@@ -359,36 +369,39 @@ open class MainActivity : ComponentActivity() {
         }
     }
 
-    fun refreshControllerPages() {
-        if (!::webView.isInitialized || isDestroyed) {
-            return
-        }
-        webView.post {
-            if (!isDestroyed) {
-                webView.evaluateJavascript(
-                    "typeof renderControllerPages==='function'&&renderControllerPages()",
-                    null,
-                )
-            }
-        }
-    }
+    fun refreshControllerPages() = dispatchUiEvent("controllerPages", "")
+
+    private fun refreshConnectedControllers() = dispatchUiEvent("controllers", "")
+
+    fun refreshGpuDrivers() = dispatchUiEvent("gpuDrivers", "")
 
     private fun inputManager(): InputManager? {
         return getSystemService(Context.INPUT_SERVICE) as? InputManager
     }
 
-    private fun refreshConnectedControllers() {
-        if (!::webView.isInitialized || isDestroyed) {
+    fun confirm(id: Int, message: String) {
+        if (isDestroyed) {
             return
         }
-        webView.post {
-            if (!isDestroyed) {
-                webView.evaluateJavascript(
-                    "typeof renderControllersSummary==='function'&&renderControllersSummary()",
-                    null,
-                )
-            }
+        val answer = { ok: Boolean ->
+            dispatchUiEvent("confirm", JSONObject().put("id", id).put("ok", ok).toString())
         }
+        AlertDialog.Builder(this)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok) { _, _ -> answer(true) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> answer(false) }
+            .setOnCancelListener { answer(false) }
+            .show()
+    }
+
+    fun alert(message: String) {
+        if (isDestroyed) {
+            return
+        }
+        AlertDialog.Builder(this)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     fun editOverlayLayout() {
@@ -399,11 +412,6 @@ open class MainActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             overridePendingTransition(0, 0)
         }
-    }
-
-    override fun onDestroy() {
-        NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
-        super.onDestroy()
     }
 
     fun installGpuDriver() {
@@ -427,26 +435,7 @@ open class MainActivity : ComponentActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
-    fun dispatchGpuDriverEvent(function: String, json: String) {
-        runOnUiThread {
-            if (!::webView.isInitialized || isDestroyed) {
-                return@runOnUiThread
-            }
-            webView.evaluateJavascript("typeof $function==='function'&&$function($json)", null)
-        }
-    }
-
-    fun refreshGpuDrivers() {
-        if (!::webView.isInitialized || isDestroyed) {
-            return
-        }
-        webView.evaluateJavascript(
-            "typeof renderGpuDriversPage==='function'&&renderGpuDriversPage()",
-            null,
-        )
-    }
-
-    fun AddGameDirectory() {
+    fun addGameDirectory() {
         addGameDirectory.launch(null)
     }
 
@@ -463,19 +452,17 @@ open class MainActivity : ComponentActivity() {
     }
 
     fun dispatchGameLibraryPaths(gen: Int, json: String) {
-        webView.evaluateJavascript(
-            "onGameLibraryPaths($gen, ${JSONObject.quote(json)})",
-            null,
-        )
+        val paths = try {
+            JSONArray(json)
+        } catch (e: Exception) {
+            JSONArray()
+        }
+        dispatchUiEvent("libraryPaths", JSONObject().put("gen", gen).put("paths", paths).toString())
     }
 
-    private fun applyWebViewTheme() {
-        if (!::webView.isInitialized) {
-            return
-        }
-        webView.setBackgroundColor(ThemeHelper.backgroundColor(this))
+    private fun applyWindowTheme() {
+        window.setBackgroundDrawable(ColorDrawable(ThemeHelper.backgroundColor(this)))
         ThemeHelper.applySystemBars(this)
-        webView.evaluateJavascript("typeof applyTheme==='function'&&applyTheme()", null)
     }
 
     companion object {

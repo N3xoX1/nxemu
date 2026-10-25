@@ -22,6 +22,7 @@ public:
     void ShutdownSystem();
 
     std::string QueryRomMetadata(const std::string & path);
+    bool QueryRomListing(const std::string & path, std::string & title, std::vector<uint8_t> & icon);
     std::string QueryRomInfo(const std::string & path);
 
     std::array<double, 4> GetPerfStats();
