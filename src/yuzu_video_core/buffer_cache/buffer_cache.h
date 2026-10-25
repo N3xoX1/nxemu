@@ -108,7 +108,12 @@ void BufferCache<P>::TickFrame() {
 
 template <class P>
 void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size) {
-    if (memory_tracker.IsRegionGpuModified(device_addr, size)) {
+    // A preceding CPU write can untrack this whole page while other byte ranges
+    // still belong to an older GPU download. Cancel those ranges independently
+    // of the coarse page predicate before marking another CPU write.
+    if (memory_tracker.IsRegionGpuModified(device_addr, size) ||
+        (!gpu_modified_ranges.Empty() && gpu_write_history.MayHaveWrites(device_addr, size) &&
+         IsRegionGpuModified(device_addr, size))) {
         ClearDownload(device_addr, size);
         gpu_modified_ranges.Subtract(device_addr, size);
     } else {
