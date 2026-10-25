@@ -56,6 +56,7 @@ struct Toggle
 
 constexpr Toggle kToggles[] = {
     {"gpu-sync", NXVideoSetting::GpuCommandSynchronization, Store::Module, true},
+    {"fast-readback", NXVideoSetting::FastGpuReadback, Store::Module, true},
     {"reactive-flushing", NXVideoSetting::EnableReactiveFlushing, Store::Module, false},
     {"feedback-loops", NXVideoSetting::BarrierFeedbackLoops, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::FastGPUTime, Store::Module, true},
@@ -213,6 +214,22 @@ constexpr const char * kAudioEngines[] = {TrMark("Automatic"), "Cubeb", "SDL", T
 bool Get(const Toggle & toggle, const SettingsContext & settings)
 {
     return settings.GetBool(toggle.setting);
+}
+
+// A switch that does nothing with the current value of another setting: shown off and locked.
+bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
+{
+    const std::string_view id = toggle.id;
+    if (id == "cpu-hle")
+    {
+        return !settings.GetBool(NXOsSetting::UseMultiCore);
+    }
+    if (id == "fast-readback")
+    {
+        // Normal accuracy already lets games read the results without waiting for the GPU.
+        return settings.GetInt(NXVideoSetting::AccuracyLevel) == static_cast<int>(GpuAccuracy::Normal);
+    }
+    return false;
 }
 
 void Set(const Toggle & toggle, bool value, SettingsContext & settings)
@@ -401,7 +418,8 @@ void AdvancedDialog::OnCommand(const std::string & command)
     {
         const std::string id = command.substr(std::string(kTogglePrefix).size());
         const auto toggle = std::find_if(std::begin(kToggles), std::end(kToggles), [&id](const Toggle & candidate) { return id == candidate.id; });
-        if (toggle != std::end(kToggles) && (!m_settings.IsGame() || toggle->store == Store::Module) && (toggle->live || !m_running))
+        if (toggle != std::end(kToggles) && (!m_settings.IsGame() || toggle->store == Store::Module) && (toggle->live || !m_running) &&
+            !Inapplicable(*toggle, m_settings))
         {
             Set(*toggle, !Get(*toggle, m_settings), m_settings);
             m_unsaved = m_unsaved || toggle->store == Store::Module;
@@ -669,12 +687,11 @@ void AdvancedDialog::ShowValues()
 {
     SettingsContext & settings = m_settings;
     Document()->SetClass("game-running", m_running);
-    const bool multicore = settings.GetBool(NXOsSetting::UseMultiCore);
     for (const Toggle & toggle : kToggles)
     {
-        const bool needsMulticore = std::string_view(toggle.id) == "cpu-hle";
-        SetClass(Document(), toggle.id, "on", Get(toggle, m_settings) && (multicore || !needsMulticore));
-        SetClass(Document(), toggle.id, "locked", (m_running && !toggle.live) || (needsMulticore && !multicore));
+        const bool inapplicable = Inapplicable(toggle, m_settings);
+        SetClass(Document(), toggle.id, "on", Get(toggle, m_settings) && !inapplicable);
+        SetClass(Document(), toggle.id, "locked", (m_running && !toggle.live) || inapplicable);
     }
     for (const List & list : kLists)
     {

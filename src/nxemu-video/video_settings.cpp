@@ -17,6 +17,7 @@ namespace
 // Configuration storage stays on the settings thread; the GPU reads these snapshots.
 std::atomic<int32_t> runtime_dma_accuracy{0};
 std::atomic<bool> runtime_gpu_command_synchronization{false};
+std::atomic<bool> runtime_fast_gpu_readback{false};
 }
 
 namespace Settings
@@ -57,6 +58,13 @@ bool UseSafeDMAReads()
 bool IsGpuCommandSynchronizationEnabled()
 {
     return runtime_gpu_command_synchronization.load(std::memory_order_relaxed);
+}
+
+// High accuracy waits for the host GPU before the guest sees fences and query results.
+// Fast readback publishes them at submission, as Normal does, keeping High rendering.
+bool IsGpuReadbackExact()
+{
+    return IsGPULevelHigh() && !runtime_fast_gpu_readback.load(std::memory_order_relaxed);
 }
 
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info)
@@ -244,6 +252,7 @@ static VideoSetting settings[] = {
 #endif
     {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2},
     {NXVideoSetting::GpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, false},
+    {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, false},
     {NXVideoSetting::VSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu},
 #ifdef _WIN32
@@ -348,6 +357,11 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
         if (strcmp(setting, NXVideoSetting::GpuCommandSynchronization) == 0)
         {
             runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
+            return;
+        }
+        if (strcmp(setting, NXVideoSetting::FastGpuReadback) == 0)
+        {
+            runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
             return;
         }
     }
@@ -619,6 +633,7 @@ void SetupVideoSetting(void)
     }
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
+    runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();
     Settings::UpdateGPUAccuracy();
 }

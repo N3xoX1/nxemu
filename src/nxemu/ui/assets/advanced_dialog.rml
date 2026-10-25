@@ -331,6 +331,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Fast readback</div>
+                      <div class="row-text">Lets games read what the chip drew without waiting for it.</div>
+                    </div>
+                    <div id="fast-readback" class="switch" data-command="toggle:fast-readback" title="Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Reactive flushing</div>
                       <div class="row-text">Brings memory up to date when it is read.</div>
                     </div>

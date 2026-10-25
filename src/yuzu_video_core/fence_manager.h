@@ -167,7 +167,7 @@ private:
 
     bool SubmitFence(std::function<void()>&& func, bool force_delay,
                      bool allow_stub_fast_path, std::atomic<bool>* waiter) {
-        const bool delay_fence = force_delay || Settings::IsGPULevelHigh();
+        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact();
         if constexpr (!can_async_check) {
             TryReleasePendingFences<false>();
         }
