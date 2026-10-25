@@ -96,6 +96,7 @@
     <ClInclude Include="pte_kind.h" />
     <ClInclude Include="query_cache.h" />
     <ClInclude Include="query_cache\bank_base.h" />
+    <ClInclude Include="query_cache\query_bank_operations.h" />
     <ClInclude Include="query_cache\query_base.h" />
     <ClInclude Include="query_cache\query_cache.h" />
     <ClInclude Include="query_cache\query_cache_base.h" />

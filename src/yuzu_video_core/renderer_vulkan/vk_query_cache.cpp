@@ -18,6 +18,7 @@
 #include "yuzu_video_core/engines/draw_manager.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/query_cache/query_cache.h"
+#include "yuzu_video_core/query_cache/query_bank_operations.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
@@ -41,8 +42,8 @@ class SamplesQueryBank : public VideoCommon::BankBase {
 public:
     static constexpr size_t BANK_SIZE = 256;
     static constexpr size_t QUERY_SIZE = 8;
-    explicit SamplesQueryBank(const Device& device_, size_t index_)
-        : BankBase(BANK_SIZE), device{device_}, index{index_} {
+    explicit SamplesQueryBank(const Device& device_, Scheduler& scheduler_, size_t index_)
+        : BankBase(BANK_SIZE), device{device_}, scheduler{scheduler_}, index{index_} {
         const auto& dev = device.GetLogical();
         query_pool = dev.CreateQueryPool({
             .sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
@@ -64,6 +65,16 @@ public:
         dev.ResetQueryPool(*query_pool, 0, BANK_SIZE);
         host_results.fill(0ULL);
         next_bank = 0;
+    }
+
+    // CPU references do not cover commands recorded for an abandoned counter.
+    // Do not host-reset its queries before their GPU submission has completed.
+    void DeferReuseUntil(u64 tick) {
+        reuse_after_tick = std::max(reuse_after_tick, tick);
+    }
+
+    bool IsDead() const {
+        return VideoCommon::BankBase::IsDead() && scheduler.IsFree(reuse_after_tick);
     }
 
     void Sync(size_t start, size_t size) {
@@ -113,7 +124,9 @@ public:
 
 private:
     const Device& device;
+    Scheduler& scheduler;
     const size_t index;
+    u64 reuse_after_tick{};
     vk::QueryPool query_pool;
     std::array<u64, BANK_SIZE> host_results;
 };
@@ -212,6 +225,12 @@ public:
         if (has_started) {
             PauseCounter();
         }
+        if (current_query) {
+            const u64 tick = scheduler.CurrentTick();
+            ApplyBankOp(current_query, [tick](SamplesQueryBank* bank, size_t, size_t) {
+                bank->DeferReuseUntil(tick);
+            });
+        }
         AbandonCurrentQuery();
         std::function<void()> func([this, counts = pending_flush_queries.size()] {
             amend_value = 0;
@@ -275,6 +294,10 @@ public:
 
         ApplyBanksWideOp<true>(pending_sync, [&](SamplesQueryBank* bank, size_t start,
                                                  size_t amount) {
+            // CPU result availability is not GPU copy completion. Keep the pool
+            // alive until this CopyQueryPoolResults submission finishes, even if
+            // the readback thread releases its last logical query reference.
+            bank->DeferReuseUntil(scheduler.CurrentTick());
             size_t bank_id = bank->GetIndex();
             auto& resolve_buffer = buffers[resolve_buffer_index];
             VkQueryPool query_pool = bank->GetInnerPool();
@@ -452,21 +475,7 @@ private:
 
     template <typename Func>
     void ApplyBankOp(VideoCommon::HostQueryBase* query, Func&& func) {
-        size_t size_slots = query->size_slots;
-        if (size_slots == 0) {
-            return;
-        }
-        size_t bank_id = query->start_bank_id;
-        size_t banks_set = query->size_banks;
-        size_t start_slot = query->start_slot;
-        for (size_t i = 0; i < banks_set; i++) {
-            auto& the_bank = bank_pool.GetBank(bank_id);
-            size_t amount = std::min(the_bank.Size() - start_slot, size_slots);
-            func(&the_bank, start_slot, amount);
-            bank_id = the_bank.next_bank - 1;
-            start_slot = 0;
-            size_slots -= amount;
-        }
+        VideoCommon::ApplyQueryBankOp(*query, bank_pool, std::forward<Func>(func));
     }
 
     template <bool is_ordered, typename Func>
@@ -494,7 +503,7 @@ private:
     void ReserveBank() {
         current_bank_id =
             bank_pool.ReserveBank([this](std::deque<SamplesQueryBank>& queue, size_t index) {
-                queue.emplace_back(device, index);
+                queue.emplace_back(device, scheduler, index);
             });
         if (current_bank) {
             current_bank->next_bank = current_bank_id + 1;

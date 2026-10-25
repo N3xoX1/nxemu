@@ -49,7 +49,8 @@ public:
         if (how_many > references.load(std::memory_order_relaxed)) {
             UNREACHABLE();
         }
-        references.fetch_sub(how_many, std::memory_order_relaxed);
+        // Publish the traversal's reads before IsDead() permits resetting this bank.
+        references.fetch_sub(how_many, std::memory_order_release);
     }
 
     void Close() {
