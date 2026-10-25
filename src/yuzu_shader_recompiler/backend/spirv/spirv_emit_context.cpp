@@ -529,6 +529,7 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
             interfaces.push_back(runtime_image_write_mask);
         }
     }
+    DefineInputAttachments(program.info, texture_binding);
     DefineAttributeMemAccess(program.info);
     DefineWriteStorageCasLoopFunction(program.info);
     DefineGlobalMemoryFunctions(program.info);
@@ -1148,7 +1149,7 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
 }
 
 void EmitContext::DefineRescalingInput(const Info& info) {
-    if (!info.uses_rescaling_uniform) {
+    if (!info.uses_rescaling_uniform && info.input_attachment_mask == 0) {
         return;
     }
     if (profile.unified_descriptor_binding) {
@@ -1159,7 +1160,7 @@ void EmitContext::DefineRescalingInput(const Info& info) {
 }
 
 void EmitContext::DefineRescalingInputPushConstant() {
-    boost::container::static_vector<Id, 3> members{};
+    boost::container::static_vector<Id, 4> members{};
     u32 member_index{0};
 
     rescaling_textures_type = TypeArray(U32[1], Const(4u));
@@ -1175,6 +1176,11 @@ void EmitContext::DefineRescalingInputPushConstant() {
     if (stage != Stage::Compute) {
         members.push_back(F32[1]);
         rescaling_downfactor_member_index = member_index++;
+    }
+    const bool reads_attachments{stage == Stage::Fragment && Sirit::ValidId(input_attachment_type)};
+    if (reads_attachments) {
+        members.push_back(U32[1]);
+        rescaling_attachment_reads_member_index = member_index++;
     }
     const Id push_constant_struct{TypeStruct(std::span(members.data(), members.size()))};
     Decorate(push_constant_struct, spv::Decoration::Block);
@@ -1194,6 +1200,13 @@ void EmitContext::DefineRescalingInputPushConstant() {
                        static_cast<u32>(offsetof(RescalingLayout, down_factor)));
         MemberName(push_constant_struct, rescaling_downfactor_member_index, "down_factor");
     }
+    if (reads_attachments) {
+        MemberDecorate(push_constant_struct, rescaling_attachment_reads_member_index,
+                       spv::Decoration::Offset,
+                       static_cast<u32>(offsetof(RescalingLayout, attachment_reads)));
+        MemberName(push_constant_struct, rescaling_attachment_reads_member_index,
+                   "attachment_reads");
+    }
     const Id pointer_type{TypePointer(spv::StorageClass::PushConstant, push_constant_struct)};
     rescaling_push_constants = AddGlobalVariable(pointer_type, spv::StorageClass::PushConstant);
     Name(rescaling_push_constants, "rescaling_push_constants");
@@ -1211,6 +1224,36 @@ void EmitContext::DefineRescalingInputUniformConstant() {
 
     if (profile.supported_spirv >= 0x00010400) {
         interfaces.push_back(rescaling_uniform_constant);
+    }
+}
+
+void EmitContext::DefineInputAttachments(const Info& info, u32& binding) {
+    if (stage != Stage::Fragment || info.input_attachment_mask == 0) {
+        return;
+    }
+    AddCapability(spv::Capability::InputAttachment);
+    input_attachment_type =
+        TypeImage(F32[1], spv::Dim::SubpassData, 0, false, false, 2, spv::ImageFormat::Unknown);
+    const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, input_attachment_type)};
+    for (u32 index = 0; index < input_attachments.size(); ++index) {
+        if (((info.input_attachment_mask >> index) & 1) == 0) {
+            continue;
+        }
+        const Id id{AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant)};
+        Decorate(id, spv::Decoration::Binding, binding++);
+        Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        Decorate(id, spv::Decoration::InputAttachmentIndex, index);
+        Name(id, fmt::format("attachment{}", index));
+        input_attachments[index] = id;
+        if (profile.supported_spirv >= 0x00010400) {
+            interfaces.push_back(id);
+        }
+    }
+    u32 slot{};
+    for (size_t index = 0; index < info.texture_descriptors.size(); ++index) {
+        if (info.texture_descriptors[index].pixel_local_read != PixelLocalRead::None) {
+            textures[index].attachment_read_slot = slot++;
+        }
     }
 }
 

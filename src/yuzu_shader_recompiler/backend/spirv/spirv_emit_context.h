@@ -39,6 +39,10 @@ struct TextureDefinition {
     u32 count;
     bool is_multisample;
     bool is_direct{};
+    /// Slot of the host selector reading this texture from a color attachment instead
+    u32 attachment_read_slot{NO_ATTACHMENT_READ};
+
+    static constexpr u32 NO_ATTACHMENT_READ = ~0U;
 };
 
 struct TextureBufferDefinition {
@@ -316,8 +320,12 @@ public:
     u32 rescaling_textures_member_index{};
     u32 rescaling_images_member_index{};
     u32 rescaling_downfactor_member_index{};
+    u32 rescaling_attachment_reads_member_index{};
     u32 texture_rescaling_index{};
     u32 image_rescaling_index{};
+
+    Id input_attachment_type{};
+    std::array<Id, 8> input_attachments{};
 
     Id render_area_push_constant{};
     u32 render_are_member_index{};
@@ -404,6 +412,7 @@ private:
     void DefineRescalingInputPushConstant();
     void DefineRescalingInputUniformConstant();
     void DefineRenderArea(const Info& info);
+    void DefineInputAttachments(const Info& info, u32& binding);
 
     void DefineInputs(const IR::Program& program);
     void DefineOutputs(const IR::Program& program);

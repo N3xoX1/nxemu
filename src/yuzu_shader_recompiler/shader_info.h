@@ -158,6 +158,18 @@ enum class Interpolation {
     NoPerspective,
 };
 
+/// How a fragment shader texture read is known to only read the fragment's own pixel
+enum class PixelLocalRead : u8 {
+    None,
+    /// texelFetch at the integer fragment coordinate
+    FragCoord,
+    /// Sample at a varying holding the clip position mapped to the viewport, divided by w
+    ScreenPosition,
+};
+
+/// Textures of a fragment shader that can be read from the color attachment they render to
+constexpr u32 MAX_PIXEL_LOCAL_READS = 8;
+
 struct ConstantBufferDescriptor {
     u32 index;
     u32 count;
@@ -244,6 +256,8 @@ struct TextureDescriptor {
 
     /// Finite SSA alternatives, bound as a compact array instead of the entire TIC table.
     std::vector<TextureHandleSource> sources;
+
+    PixelLocalRead pixel_local_read{};
 
     auto operator<=>(const TextureDescriptor&) const = default;
 };
@@ -363,6 +377,9 @@ struct Info {
     IR::Attribute emulated_layer{};
 
     u32 used_clip_distances{};
+
+    /// Color attachments read as input attachments by the pixel local texture reads
+    u32 input_attachment_mask{};
 
     boost::container::static_vector<ConstantBufferDescriptor, MAX_CBUFS>
         constant_buffer_descriptors;

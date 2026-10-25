@@ -229,6 +229,7 @@ add_library(shader_recompiler STATIC
     ir_opt/lower_int64_to_int32.cpp
     ir_opt/bindless_descriptor.h
     ir_opt/passes.h
+    ir_opt/pixel_local_read_pass.cpp
     ir_opt/position_pass.cpp
     ir_opt/rescaling_pass.cpp
     ir_opt/geometry_layer_forwarding_pass.cpp

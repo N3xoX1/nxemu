@@ -52,6 +52,11 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                                         u32 input_vertices, const VtgVaryingLayout& input_layout,
                                         const VtgVaryingLayout& output_layout,
                                         VtgGeometryBindings& bindings);
+// Returns the generics a vertex stage writes as ((x + w) / 2, (w - y) / 2, z, w) of its position.
+[[nodiscard]] u32 FindScreenPositionGenerics(const IR::Program& program);
+// Marks the fragment shader textures only read at the fragment's own pixel.
+// Returns true when any texture was marked.
+bool FindPixelLocalTextureReads(IR::Program& program, u32 screen_position_generics);
 void LayerPass(IR::Program& program, const HostTranslateInfo& host_info);
 void VendorWorkaroundPass(IR::Program& program);
 void VerificationPass(const IR::Program& program);
