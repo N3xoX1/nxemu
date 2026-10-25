@@ -7,16 +7,43 @@
 #include <future>
 #include <RmlUi_Renderer_GL3.h>
 #include <RmlUi/Core.h>
+#include <sys/stat.h>
 #include <thread>
+
 namespace
 {
     constexpr const char * kLogTag = "NxEmu-UI";
     constexpr auto kBusyTime = std::chrono::milliseconds(1000);
+
+    constexpr const char * kFallbackFonts[] = {
+        "/system/fonts/Roboto-Regular.ttf",
+        "/system/fonts/NotoSansCJK-Regular.ttc",
+    };
+
+    bool FileExists(const char * path)
+    {
+        struct stat info{};
+        return stat(path, &info) == 0;
+    }
 }
 
 class UiSystem final : public Rml::SystemInterface
 {
 public:
+    double GetElapsedTime() override
+    {
+        return std::chrono::duration<double>(std::chrono::steady_clock::now() - m_start).count();
+    }
+
+    bool LogMessage(Rml::Log::Type type, const Rml::String & message) override
+    {
+        const int priority = type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT ? ANDROID_LOG_ERROR
+                             : type == Rml::Log::LT_WARNING                             ? ANDROID_LOG_WARN
+                                                                                       : ANDROID_LOG_INFO;
+        __android_log_print(priority, kLogTag, "%s", message.c_str());
+        return true;
+    }
+
 private:
     const std::chrono::steady_clock::time_point m_start = std::chrono::steady_clock::now();
 };
@@ -177,7 +204,26 @@ bool UiThread::InitialiseRml(AAssetManager * assets)
     {
         return false;
     }
+    LoadFonts();
     return true;
+}
+
+void UiThread::LoadFonts()
+{
+    for (const char * font : {"ui/fonts/LatoLatin-Regular.ttf", "ui/fonts/LatoLatin-Bold.ttf"})
+    {
+        if (!Rml::LoadFontFace(font))
+        {
+            __android_log_print(ANDROID_LOG_ERROR, kLogTag, "Unable to load font %s", font);
+        }
+    }
+    for (const char * font : kFallbackFonts)
+    {
+        if (FileExists(font))
+        {
+            Rml::LoadFontFace(font, true);
+        }
+    }
 }
 
 bool UiThread::WantsFrame() const

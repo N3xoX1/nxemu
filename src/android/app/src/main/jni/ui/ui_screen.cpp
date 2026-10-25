@@ -90,6 +90,48 @@ void UiScreen::SetMetrics(float density, int insetLeft, int insetTop, int insetR
     m_activity->SetInsets(insetLeft, insetTop, insetRight, insetBottom);
 }
 
+void UiScreen::Touch(int action, float x, float y)
+{
+    if (m_context == nullptr)
+    {
+        return;
+    }
+    const Rml::TouchList touches = {Rml::Touch{0, {x, y}}};
+    switch (action)
+    {
+    case TouchDown:
+        if (m_touching)
+        {
+            m_context->ProcessTouchCancel(touches);
+        }
+        m_touching = true;
+        m_context->ProcessTouchStart(touches, 0);
+        break;
+    case TouchMove:
+        if (m_touching)
+        {
+            m_context->ProcessTouchMove(touches, 0);
+        }
+        break;
+    case TouchUp:
+        if (m_touching)
+        {
+            m_touching = false;
+            m_context->ProcessTouchEnd(touches, 0);
+            m_context->ProcessMouseLeave();
+        }
+        break;
+    case TouchCancel:
+        if (m_touching)
+        {
+            m_touching = false;
+            m_context->ProcessTouchCancel(touches);
+            m_context->ProcessMouseLeave();
+        }
+        break;
+    }
+}
+
 void UiScreen::Event(const std::string & name, const std::string & payload)
 {
     if (m_activity)

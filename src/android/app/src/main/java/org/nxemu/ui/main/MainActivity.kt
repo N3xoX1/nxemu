@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
@@ -22,7 +23,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NXUISetting
@@ -42,9 +45,31 @@ open class MainActivity : ComponentActivity() {
     private var screen = 0L
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
+    private var touchPointer = MotionEvent.INVALID_POINTER_ID
     private var stickX = 0
     private var stickY = 0
+
+    private val stickRepeat = object : Runnable {
+        override fun run() {
+            if (stickX == 0 && stickY == 0) return
+            nudgeBrowserStick()
+            if (!isDestroyed) {
+                surfaceView.postDelayed(this, STICK_REPEAT_MS)
+            }
+        }
+    }
+
+    private val inputDeviceListener = object : InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) = refreshConnectedControllers()
+        override fun onInputDeviceRemoved(deviceId: Int) = refreshConnectedControllers()
+        override fun onInputDeviceChanged(deviceId: Int) = refreshConnectedControllers()
+    }
+
     private val settingChangedForwarder: (String) -> Unit = { setting ->
+        if (setting == NXUISetting.ThemeMode) {
+            runOnUiThread { applyWindowTheme() }
+        }
+        dispatchUiEvent("setting", setting)
     }
 
     private val addGameDirectory = registerForActivityResult(
@@ -138,28 +163,198 @@ open class MainActivity : ComponentActivity() {
         )
         NativeLibrary.addSettingChangedListener(settingChangedForwarder)
         setContentView(surfaceView)
+        applyWindowTheme()
+        hideNavigationBar()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideNavigationBar()
+        }
+    }
+
+    private fun hideNavigationBar() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.navigationBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     private fun bootstrapControllerOnFirstRun() {
+        if (InputHandler.getDevices().isEmpty()) {
+            return
+        }
+        if (NativeInput.getButtonParam(0, NativeButton.A).get("engine", "") != "keyboard") {
+            return
+        }
+        InputHandler.updateControllerData()
+        ControllerSettings.autoMap(this, playerIndex = 0, index = 0)
+        if (NativeInput.getButtonParam(0, NativeButton.A).get("engine", "") == "keyboard") {
+            return
+        }
+        NativeLibrary.setSettingBool(NXUISetting.ShowInputOverlay, false)
+        NativeLibrary.saveSettings()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        emulationLaunchPending = false
+        InputHandler.updateControllerData()
+        inputManager()?.registerInputDeviceListener(inputDeviceListener, null)
+        applyWindowTheme()
+        dispatchUiEvent("resume", "")
+        resumeRunningGame()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        resumeRunningGame()
     }
 
     private fun resumeRunningGame() {
+        if (this is SettingsActivity) {
+            return
+        }
+        val path = EmulationActivity.activeGamePath ?: return
+        startActivity(
+            Intent(this, EmulationActivity::class.java).apply {
+                putExtra(EmulationActivity.EXTRA_GAME_PATH, path)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
+        )
+    }
+
+    override fun onPause() {
+        inputMapping.dismiss()
+        inputManager()?.unregisterInputDeviceListener(inputDeviceListener)
+        releaseBrowserStick()
+        super.onPause()
     }
 
     override fun onDestroy() {
+        NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
+        surfaceView.removeCallbacks(stickRepeat)
         NativeUi.destroy(screen)
         super.onDestroy()
     }
 
     private fun forwardTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchPointer = event.getPointerId(0)
+                NativeUi.touch(screen, NativeUi.TOUCH_DOWN, event.x, event.y)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val index = event.findPointerIndex(touchPointer)
+                if (index >= 0) {
+                    NativeUi.touch(screen, NativeUi.TOUCH_MOVE, event.getX(index), event.getY(index))
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                if (event.getPointerId(event.actionIndex) == touchPointer) {
+                    NativeUi.touch(screen, NativeUi.TOUCH_UP, event.getX(event.actionIndex), event.getY(event.actionIndex))
+                    touchPointer = MotionEvent.INVALID_POINTER_ID
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                NativeUi.touch(screen, NativeUi.TOUCH_CANCEL, event.x, event.y)
+                touchPointer = MotionEvent.INVALID_POINTER_ID
+            }
+        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (inputMapping.onKey(event)) {
+            return true
+        }
+        if (handleBrowserPad(event)) {
+            return true
+        }
+        if (InputHandler.dispatchKeyEvent(event)) {
+            return true
+        }
         return super.dispatchKeyEvent(event)
     }
 
     private fun handleBrowserPad(event: KeyEvent): Boolean {
+        val (button, repeats) = when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_Y -> "y" to false
+            KeyEvent.KEYCODE_BUTTON_B -> "b" to false
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER -> "a" to false
+            KeyEvent.KEYCODE_DPAD_LEFT -> "left" to true
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "right" to true
+            KeyEvent.KEYCODE_DPAD_UP -> "up" to true
+            KeyEvent.KEYCODE_DPAD_DOWN -> "down" to true
+            else -> return false
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && (repeats || event.repeatCount == 0)) {
+            dispatchUiEvent("pad", button)
+        }
         return true
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (inputMapping.onMotion(event)) {
+            return true
+        }
+        if (handleBrowserStick(event)) {
+            return true
+        }
+        if (InputHandler.dispatchGenericMotionEvent(event)) {
+            return true
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    private fun handleBrowserStick(event: MotionEvent): Boolean {
+        val source = event.source
+        val fromStick = source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK ||
+            source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD
+        if (!fromStick) {
+            return false
+        }
+        val x = stickDirection(event.getAxisValue(MotionEvent.AXIS_X))
+        val y = stickDirection(event.getAxisValue(MotionEvent.AXIS_Y))
+        if (x == stickX && y == stickY) {
+            return x != 0 || y != 0
+        }
+        stickX = x
+        stickY = y
+        surfaceView.removeCallbacks(stickRepeat)
+        if (x == 0 && y == 0) {
+            return false
+        }
+        nudgeBrowserStick()
+        if (!isDestroyed) {
+            surfaceView.postDelayed(stickRepeat, STICK_REPEAT_MS)
+        }
+        return true
+    }
+
+    private fun stickDirection(value: Float): Int {
+        return when {
+            value > STICK_DEADZONE -> 1
+            value < -STICK_DEADZONE -> -1
+            else -> 0
+        }
+    }
+
+    private fun nudgeBrowserStick() {
+        if (isDestroyed) {
+            return
+        }
+        if (stickX < 0) dispatchUiEvent("pad", "left")
+        if (stickX > 0) dispatchUiEvent("pad", "right")
+        if (stickY < 0) dispatchUiEvent("pad", "up")
+        if (stickY > 0) dispatchUiEvent("pad", "down")
+    }
+
+    private fun releaseBrowserStick() {
+        stickX = 0
+        stickY = 0
+        surfaceView.removeCallbacks(stickRepeat)
     }
 
     fun dispatchUiEvent(name: String, payload: String) {
@@ -176,7 +371,13 @@ open class MainActivity : ComponentActivity() {
 
     fun refreshControllerPages() = dispatchUiEvent("controllerPages", "")
 
+    private fun refreshConnectedControllers() = dispatchUiEvent("controllers", "")
+
     fun refreshGpuDrivers() = dispatchUiEvent("gpuDrivers", "")
+
+    private fun inputManager(): InputManager? {
+        return getSystemService(Context.INPUT_SERVICE) as? InputManager
+    }
 
     fun confirm(id: Int, message: String) {
         if (isDestroyed) {
@@ -257,6 +458,16 @@ open class MainActivity : ComponentActivity() {
             JSONArray()
         }
         dispatchUiEvent("libraryPaths", JSONObject().put("gen", gen).put("paths", paths).toString())
+    }
+
+    private fun applyWindowTheme() {
+        window.setBackgroundDrawable(ColorDrawable(ThemeHelper.backgroundColor(this)))
+        ThemeHelper.applySystemBars(this)
+    }
+
+    companion object {
+        private const val STICK_REPEAT_MS = 220L
+        private const val STICK_DEADZONE = 0.5f
     }
 }
 

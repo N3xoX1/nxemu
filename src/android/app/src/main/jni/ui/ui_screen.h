@@ -16,12 +16,21 @@ public:
     bool Create();
     void SetWindow(ANativeWindow * window, int width, int height);
     void SetMetrics(float density, int insetLeft, int insetTop, int insetRight, int insetBottom);
+    void Touch(int action, float x, float y);
     void Event(const std::string & name, const std::string & payload);
 
     bool HasSurface() const { return m_surface != EGL_NO_SURFACE; }
     EGLSurface Surface() const { return m_surface; }
     bool Animating() const;
     void Render(UiRenderer & renderer);
+
+    enum TouchAction
+    {
+        TouchDown = 0,
+        TouchMove = 1,
+        TouchUp = 2,
+        TouchCancel = 3,
+    };
 
 private:
     UiScreen(const UiScreen &) = delete;
@@ -35,4 +44,5 @@ private:
     EGLSurface m_surface = EGL_NO_SURFACE;
     int m_width = 0;
     int m_height = 0;
+    bool m_touching = false;
 };

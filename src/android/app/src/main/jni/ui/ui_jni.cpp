@@ -51,6 +51,11 @@ extern "C" JNIEXPORT jlong JNICALL Java_org_nxemu_ui_main_NativeUi_create(JNIEnv
     return handle;
 }
 
+extern "C" JNIEXPORT void JNICALL Java_org_nxemu_ui_main_NativeUi_destroy(JNIEnv * /*env*/, jobject /*thiz*/, jlong handle)
+{
+    UiThread::Instance().Run([handle] { s_screens.erase(handle); });
+}
+
 extern "C" JNIEXPORT void JNICALL Java_org_nxemu_ui_main_NativeUi_setSurface(JNIEnv * env, jobject /*thiz*/, jlong handle, jobject surface,
                                                                             jint width, jint height)
 {
@@ -81,6 +86,12 @@ extern "C" JNIEXPORT void JNICALL Java_org_nxemu_ui_main_NativeUi_setMetrics(JNI
                                                                             jint left, jint top, jint right, jint bottom)
 {
     WithScreen(handle, [=](UiScreen & screen) { screen.SetMetrics(density, left, top, right, bottom); });
+}
+
+extern "C" JNIEXPORT void JNICALL Java_org_nxemu_ui_main_NativeUi_touch(JNIEnv * /*env*/, jobject /*thiz*/, jlong handle, jint action, jfloat x,
+                                                                       jfloat y)
+{
+    WithScreen(handle, [=](UiScreen & screen) { screen.Touch(action, x, y); });
 }
 
 extern "C" JNIEXPORT void JNICALL Java_org_nxemu_ui_main_NativeUi_event(JNIEnv * env, jobject /*thiz*/, jlong handle, jstring name, jstring payload)

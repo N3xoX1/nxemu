@@ -450,7 +450,11 @@ bool UiActivity::RunAction(Rml::Element * element)
 
 void UiActivity::RunCommand(const std::string & command)
 {
-    if (command == "settings")
+    if (command == "refresh")
+    {
+        RefreshGameList();
+    }
+    else if (command == "settings")
     {
         m_host.Request("openSettings");
     }

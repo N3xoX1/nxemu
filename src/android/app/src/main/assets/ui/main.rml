@@ -1,12 +1,12 @@
 <rml>
 <head>
-    <title>NXEmu</title>
+    <title>NxEmu</title>
     <link type="text/rcss" href="main.rcss"/>
 </head>
 <body>
     <div id="games-page" class="page hidden">
         <div class="topbar">
-            <div class="logo"><img src="images/window-icon.png"/><div class="logo-name">NXEmu</div></div>
+            <div class="logo"><img src="images/window-icon.png"/><div class="logo-name">NxEmu</div></div>
             <div class="title-button" data-command="settings"><img src="images/gear.png"/></div>
         </div>
         <div id="library-status" class="library-status hidden"></div>
