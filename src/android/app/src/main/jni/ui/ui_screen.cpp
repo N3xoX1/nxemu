@@ -80,6 +80,24 @@ void UiScreen::SetWindow(ANativeWindow * window, int width, int height)
     }
 }
 
+void UiScreen::SetMetrics(float density, int insetLeft, int insetTop, int insetRight, int insetBottom)
+{
+    if (m_context == nullptr)
+    {
+        return;
+    }
+    m_context->SetDensityIndependentPixelRatio(density);
+    m_activity->SetInsets(insetLeft, insetTop, insetRight, insetBottom);
+}
+
+void UiScreen::Event(const std::string & name, const std::string & payload)
+{
+    if (m_activity)
+    {
+        m_activity->Event(name, payload);
+    }
+}
+
 bool UiScreen::Animating() const
 {
     return m_activity && m_activity->Animating();

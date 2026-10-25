@@ -19,6 +19,7 @@ public:
     void Start(AAssetManager * assets);
 
     void Post(std::function<void()> task);
+    void Run(std::function<void()> task);
 
     // These are only called on the thread.
     bool Ready() const { return m_ready; }
@@ -38,6 +39,7 @@ private:
     void Main(AAssetManager * assets);
     bool InitialiseGraphics();
     bool InitialiseRml(AAssetManager * assets);
+    void LoadFonts();
     bool WantsFrame() const;
     void RenderScreens();
 

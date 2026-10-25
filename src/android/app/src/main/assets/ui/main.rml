@@ -1,0 +1,37 @@
+<rml>
+<head>
+    <title>NXEmu</title>
+    <link type="text/rcss" href="main.rcss"/>
+</head>
+<body>
+    <div id="games-page" class="page hidden">
+        <div class="topbar">
+            <div class="logo"><img src="images/window-icon.png"/><div class="logo-name">NXEmu</div></div>
+            <div class="title-button" data-command="settings"><img src="images/gear.png"/></div>
+        </div>
+        <div id="library-status" class="library-status hidden"></div>
+        <div id="game-scroll" class="page-scroll">
+            <div id="game-list"></div>
+        </div>
+        <div class="browser-hint">
+            <div id="play-hint" class="hint hidden">Press <span class="hint-key">A</span> <span class="hint-action">to play</span></div>
+            <div id="settings-hint" class="hint hidden">Press <span class="hint-key">Y</span> <span class="hint-action">to open settings</span></div>
+            <div id="touch-hint" class="hint">Tap a game <span class="hint-action">to play</span></div>
+        </div>
+    </div>
+    <div id="settings-shell" class="page hidden">
+        <div class="topbar-back">
+            <div id="back-button" class="icon-btn" data-command="back"><img src="images/arrow-left.png"/></div>
+            <div id="settings-title" class="page-title">Settings</div>
+            <div id="back-hint" class="back-hint hidden">
+                <span class="hint-key">A</span> <span class="hint-action">Select</span>
+                <span class="hint-key hint-gap">B</span> <span class="hint-action">Back</span>
+            </div>
+        </div>
+        <div id="settings-scroll" class="page-scroll">
+            <div id="settings-body"></div>
+        </div>
+        <div id="settings-fab" class="fab hidden" data-command="fab"><img src="images/plus.png"/></div>
+    </div>
+</body>
+</rml>

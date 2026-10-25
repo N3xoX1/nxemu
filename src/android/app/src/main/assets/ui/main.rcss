@@ -1,0 +1,689 @@
+/* The phone interface. Sizes are in dp, which follow the display density,
+   and colours come from the light or dark palette in ui_files.cpp. */
+
+body
+{
+    display: flex;
+    flex-direction: column;
+    /* The system bars' insets are padding inside the screen, not added to it. */
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    font-family: LatoLatin;
+    font-size: 16dp;
+    color: var(--text);
+    background-color: var(--band);
+}
+
+div, p
+{
+    display: block;
+}
+
+.hidden
+{
+    display: none;
+}
+
+.page
+{
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 0;
+    background-color: var(--bg);
+}
+
+.page.hidden
+{
+    display: none;
+}
+
+.page-scroll
+{
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+scrollbarvertical
+{
+    width: 0;
+}
+
+/* Top bars */
+
+.topbar,
+.topbar-back
+{
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    height: 56dp;
+    background-color: var(--band);
+    border-bottom: 1dp var(--line);
+}
+
+.topbar
+{
+    justify-content: space-between;
+    padding: 0 12dp 0 16dp;
+}
+
+.topbar-back
+{
+    padding: 0 8dp;
+}
+
+.logo
+{
+    display: flex;
+    align-items: center;
+    font-size: 22dp;
+    font-weight: bold;
+}
+
+.logo img
+{
+    width: 24dp;
+    height: 24dp;
+    margin-right: 10dp;
+}
+
+/* The settings button of the desktop's title bar, sized for a finger. */
+.title-button
+{
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 46dp;
+    height: 36dp;
+    border: 1dp var(--line);
+    border-radius: 6dp;
+    background-color: var(--card);
+}
+
+.title-button:active
+{
+    background-color: var(--line);
+}
+
+.title-button img
+{
+    width: 20dp;
+    height: 20dp;
+    image-color: var(--muted);
+}
+
+.icon-btn
+{
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 44dp;
+    height: 44dp;
+    border-radius: 22dp;
+}
+
+.icon-btn:active
+{
+    background-color: var(--card);
+}
+
+.icon-btn img
+{
+    width: 22dp;
+    height: 22dp;
+    image-color: var(--text);
+}
+
+#back-button.invisible
+{
+    visibility: hidden;
+}
+
+.page-title
+{
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 20dp;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.back-hint
+{
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    margin: 0 8dp;
+    color: var(--muted);
+    font-size: 13dp;
+    line-height: 20dp;
+}
+
+.back-hint.hidden
+{
+    display: none;
+}
+
+/* Controller hints */
+
+.browser-hint
+{
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    padding: 12dp 16dp;
+    background-color: var(--band);
+    border-top: 1dp var(--line);
+    color: var(--muted);
+    font-size: 13dp;
+    line-height: 20dp;
+}
+
+.hint
+{
+    margin: 2dp 7dp;
+}
+
+.hint.hidden
+{
+    display: none;
+}
+
+.hint-key
+{
+    display: inline-block;
+    width: 20dp;
+    height: 20dp;
+    border-radius: 10dp;
+    background-color: var(--text);
+    color: var(--band);
+    font-size: 11dp;
+    font-weight: bold;
+    line-height: 20dp;
+    text-align: center;
+}
+
+.hint-gap
+{
+    margin-left: 10dp;
+}
+
+.hint-action
+{
+    color: var(--text);
+    font-weight: bold;
+}
+
+/* Game library */
+
+.library-status
+{
+    flex: 0 0 auto;
+    padding: 8dp 16dp;
+    font-size: 13dp;
+    color: var(--muted);
+}
+
+.library-status.hidden
+{
+    display: none;
+}
+
+#game-list
+{
+    display: flex;
+    flex-wrap: wrap;
+    padding: 8dp 16dp 24dp;
+}
+
+.game-card
+{
+    display: block;
+}
+
+.game-card.hidden
+{
+    display: none;
+}
+
+#game-list .empty-state,
+#game-list .empty-hint
+{
+    width: 100%;
+}
+
+.game-card:active
+{
+    opacity: 0.7;
+}
+
+.game-art
+{
+    display: block;
+    box-sizing: border-box;
+    border: 3dp transparent;
+    border-radius: 15dp;
+}
+
+.game-card.is-selected .game-art
+{
+    border-color: var(--select);
+    box-shadow: var(--select) 0 0 10dp 0;
+}
+
+.game-icon,
+.game-icon-ph
+{
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 12dp;
+    background-color: var(--card);
+}
+
+.game-icon-ph
+{
+    animation: 0.6s sine-in-out infinite alternate pulse;
+}
+
+@keyframes pulse
+{
+    from { opacity: 1; }
+    to { opacity: 0.45; }
+}
+
+.game-title
+{
+    margin-top: 5dp;
+    max-height: 34dp;
+    overflow: hidden;
+    font-size: 13dp;
+    font-weight: bold;
+    line-height: 17dp;
+    word-break: break-word;
+}
+
+/* Empty states */
+
+.empty-hint
+{
+    padding: 40dp 16dp;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14dp;
+}
+
+.empty-state
+{
+    padding: 48dp 24dp 96dp;
+    text-align: center;
+}
+
+.empty-title
+{
+    margin-bottom: 8dp;
+    font-size: 18dp;
+    font-weight: bold;
+}
+
+.empty-copy
+{
+    margin-bottom: 20dp;
+    font-size: 14dp;
+    line-height: 20dp;
+    color: var(--muted);
+}
+
+.primary-btn
+{
+    display: inline-block;
+    padding: 9dp 15dp;
+    border: 3dp transparent;
+    border-radius: 12dp;
+    background-color: var(--accent);
+    color: var(--accent-text);
+    font-size: 15dp;
+    font-weight: bold;
+}
+
+.primary-btn:active
+{
+    opacity: 0.85;
+}
+
+.primary-btn.done-btn
+{
+    background-color: var(--done);
+    color: var(--done-text);
+}
+
+.link-btn
+{
+    display: inline-block;
+    padding: 8dp 8dp 0;
+    color: var(--accent);
+    font-size: 14dp;
+    font-weight: bold;
+}
+
+/* Settings */
+
+.settings-list
+{
+    padding: 8dp 0;
+}
+
+.settings-list.with-fab
+{
+    padding-bottom: 96dp;
+}
+
+.settings-header
+{
+    margin: 0 16dp;
+    padding: 20dp 0 8dp;
+    font-size: 13dp;
+    color: var(--muted);
+}
+
+.settings-item,
+.folder-item
+{
+    display: flex;
+    align-items: center;
+    margin: 0 16dp;
+    padding: 16dp 0;
+    border-bottom: 1dp var(--line);
+}
+
+.settings-item:active
+{
+    margin: 0;
+    padding-left: 16dp;
+    padding-right: 16dp;
+    background-color: var(--card);
+}
+
+.settings-item.static:active
+{
+    margin: 0 16dp;
+    padding-left: 0;
+    padding-right: 0;
+    background-color: transparent;
+}
+
+.settings-item.is-selected,
+.folder-item.is-selected
+{
+    margin: 0;
+    padding-left: 13dp;
+    padding-right: 16dp;
+    border-left: 3dp var(--select);
+    background-color: var(--select-fill);
+}
+
+.primary-btn.is-selected,
+.fab.is-selected
+{
+    border-color: var(--select);
+}
+
+.setting-info
+{
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.setting-label
+{
+    font-size: 16dp;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.setting-sub
+{
+    margin-top: 4dp;
+    font-size: 13dp;
+    color: var(--muted);
+}
+
+.settings-list > .setting-sub
+{
+    margin: 4dp 16dp 0;
+}
+
+.slider-value
+{
+    color: var(--muted);
+}
+
+.setting-chevron
+{
+    flex: 0 0 auto;
+    width: 18dp;
+    height: 18dp;
+    margin-left: 12dp;
+    image-color: var(--text);
+    opacity: 0.45;
+}
+
+.setting-check,
+.setting-download
+{
+    flex: 0 0 auto;
+    width: 22dp;
+    height: 22dp;
+    margin-left: 12dp;
+    image-color: var(--accent);
+}
+
+.setting-check
+{
+    opacity: 0;
+}
+
+.setting-check.on
+{
+    opacity: 1;
+}
+
+.setting-download.busy
+{
+    animation: 0.5s sine-in-out infinite alternate download-pulse;
+}
+
+@keyframes download-pulse
+{
+    from { opacity: 1; }
+    to { opacity: 0.3; }
+}
+
+.settings-toggle
+{
+    position: relative;
+    flex: 0 0 auto;
+    width: 44dp;
+    height: 26dp;
+    margin-left: 12dp;
+    border-radius: 13dp;
+    background-color: var(--line);
+}
+
+.settings-toggle.on
+{
+    background-color: var(--accent);
+}
+
+.toggle-knob
+{
+    position: absolute;
+    top: 3dp;
+    left: 3dp;
+    width: 20dp;
+    height: 20dp;
+    border-radius: 10dp;
+    background-color: var(--knob);
+    transition: left 0.15s quadratic-out;
+}
+
+.settings-toggle.on .toggle-knob
+{
+    left: 21dp;
+}
+
+input.range
+{
+    display: block;
+    width: 100%;
+    height: 28dp;
+    margin-top: 8dp;
+}
+
+input.range slidertrack
+{
+    height: 4dp;
+    margin-top: 12dp;
+    border-radius: 2dp;
+    background-color: var(--line);
+}
+
+input.range sliderprogress
+{
+    height: 4dp;
+    margin-top: 12dp;
+    border-radius: 2dp;
+    background-color: var(--accent);
+}
+
+input.range sliderbar
+{
+    width: 24dp;
+    height: 24dp;
+    margin-top: 2dp;
+    border-radius: 12dp;
+    background-color: var(--accent);
+}
+
+input.range sliderarrowdec,
+input.range sliderarrowinc
+{
+    width: 0;
+    height: 0;
+}
+
+.folder-remove
+{
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 44dp;
+    height: 44dp;
+    margin-left: 12dp;
+    border-radius: 22dp;
+}
+
+.folder-remove:active
+{
+    background-color: var(--card);
+}
+
+.folder-remove img
+{
+    width: 22dp;
+    height: 22dp;
+    image-color: var(--text);
+}
+
+.fab
+{
+    position: absolute;
+    right: 20dp;
+    bottom: 24dp;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56dp;
+    height: 56dp;
+    border: 3dp transparent;
+    border-radius: 16dp;
+    background-color: var(--accent);
+}
+
+.fab.hidden
+{
+    display: none;
+}
+
+.fab img
+{
+    width: 24dp;
+    height: 24dp;
+    image-color: var(--knob);
+}
+
+#settings-shell
+{
+    position: relative;
+}
+
+/* First run */
+
+.setup-intro
+{
+    margin: 0 16dp;
+    padding: 20dp 0 12dp;
+}
+
+.setup-step
+{
+    margin-bottom: 8dp;
+    font-size: 13dp;
+    color: var(--muted);
+}
+
+.setup-copy
+{
+    font-size: 15dp;
+    line-height: 22dp;
+}
+
+.setup-folder
+{
+    margin: 0 16dp;
+    padding: 12dp 0;
+    border-bottom: 1dp var(--line);
+    font-size: 14dp;
+    color: var(--muted);
+    word-break: break-word;
+}
+
+.setup-actions
+{
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 16dp;
+    padding: 28dp 0 40dp;
+}
+
+.release-notes
+{
+    margin: 0 16dp;
+    padding-bottom: 96dp;
+    font-size: 13dp;
+    line-height: 19dp;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+}

@@ -689,6 +689,45 @@ void UiActivity::LoadGpuCatalog(bool force)
     m_host.Request("fetchGpuDriverCatalog", {force ? "true" : "false"});
 }
 
+void UiActivity::OnGpuDriverCatalog(const JsonValue & catalog)
+{
+    m_gpuLoading = false;
+    m_gpuCatalog = catalog;
+    m_gpuCatalogReady = true;
+    const std::string & top = Top();
+    if (top == "gpuDriverDownload" || top == "gpuDriverGroup" || top == "gpuDriverRelease" || top == "setup" || top == "gpuDrivers")
+    {
+        RenderCurrentSettings();
+    }
+}
+
+void UiActivity::OnGpuDriverDownload(const JsonValue & event)
+{
+    if (!m_gpuDownload)
+    {
+        return;
+    }
+    if (event.isMember("result"))
+    {
+        m_gpuDownload.reset();
+    }
+    else
+    {
+        const int percent = static_cast<int>(event["percent"].asInt64());
+        if (m_gpuDownload->percent == percent)
+        {
+            return;
+        }
+        m_gpuDownload->percent = percent;
+        if (Rml::Element * status = m_document->GetElementById("gpu-download-status"))
+        {
+            status->SetInnerRML("Downloading " + std::to_string(percent) + "%");
+            return;
+        }
+    }
+    RenderGpuDriversPage();
+}
+
 void UiActivity::AppendGpuAssetRow(const std::string & title, const std::string & repo, const std::string & tag, const std::string & asset,
                                    int64_t size, const std::string & file, const JsonValue & stored, const std::string & published)
 {
@@ -960,6 +999,23 @@ void UiActivity::RenderGpuDriverAdd()
         m_host.Request("installGpuDriver");
     });
     CommitBody();
+}
+
+void UiActivity::RenderControllersSummary()
+{
+    ApplyControllerBrowser();
+    if (Top() == "settingsPage" || Top() == "setup")
+    {
+        RenderCurrentSettings();
+    }
+}
+
+void UiActivity::RenderControllerPages()
+{
+    if (Top() == "controllerSettings" || Top() == "controllerPlayer")
+    {
+        RenderCurrentSettings();
+    }
 }
 
 void UiActivity::RenderControllerSettings()

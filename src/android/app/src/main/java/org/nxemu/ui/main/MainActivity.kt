@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -20,6 +21,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NXUISetting
@@ -95,9 +98,46 @@ open class MainActivity : ComponentActivity() {
         }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        bootstrapControllerOnFirstRun()
+
         NativeUi.start(applicationContext.assets)
         screen = NativeUi.create(UiHost(this), this is SettingsActivity)
         surfaceView = SurfaceView(this)
+        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {}
+
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+                NativeUi.setSurface(screen, holder.surface, width, height)
+            }
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                NativeUi.setSurface(screen, null, 0, 0)
+            }
+        })
+        surfaceView.setOnTouchListener { _, event ->
+            forwardTouch(event)
+            true
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(surfaceView) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            NativeUi.setMetrics(screen, resources.displayMetrics.density, bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (inputMapping.isShowing()) {
+                        inputMapping.dismiss()
+                        return
+                    }
+                    dispatchUiEvent("back", "")
+                }
+            },
+        )
+        NativeLibrary.addSettingChangedListener(settingChangedForwarder)
+        setContentView(surfaceView)
     }
 
     private fun bootstrapControllerOnFirstRun() {
@@ -109,6 +149,13 @@ open class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         NativeUi.destroy(screen)
         super.onDestroy()
+    }
+
+    private fun forwardTouch(event: MotionEvent) {
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        return super.dispatchKeyEvent(event)
     }
 
     private fun handleBrowserPad(event: KeyEvent): Boolean {

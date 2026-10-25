@@ -1,12 +1,15 @@
 #include "ui_activity.h"
+#include "settings/ui_identifiers.h"
 #include "ui_files.h"
 #include "ui_host.h"
 #include "ui_renderer.h"
 #include "ui_thread.h"
 #include "ui_util.h"
 
+#include <nxemu-core/settings/identifiers.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Factory.h>
 #include <set>
@@ -121,6 +124,89 @@ void UiActivity::Resized()
     m_layoutDirty = true;
 }
 
+void UiActivity::SetInsets(int left, int top, int right, int bottom)
+{
+    m_insets[0] = left;
+    m_insets[1] = top;
+    m_insets[2] = right;
+    m_insets[3] = bottom;
+    if (m_document != nullptr)
+    {
+        m_document->SetProperty(Rml::PropertyId::PaddingLeft, Pixels(static_cast<float>(left)));
+        m_document->SetProperty(Rml::PropertyId::PaddingTop, Pixels(static_cast<float>(top)));
+        m_document->SetProperty(Rml::PropertyId::PaddingRight, Pixels(static_cast<float>(right)));
+        m_document->SetProperty(Rml::PropertyId::PaddingBottom, Pixels(static_cast<float>(bottom)));
+    }
+    m_layoutDirty = true;
+}
+
+void UiActivity::Event(const std::string & name, const std::string & payload)
+{
+    if (name == "setting")
+    {
+        OnSettingChanged(payload);
+    }
+    else if (name == "libraryPaths")
+    {
+        const JsonValue result = UiUtil::ParseJson(payload);
+        if (static_cast<int>(result["gen"].asInt64()) == m_gameListGen)
+        {
+            OnGameLibraryPaths(result["paths"]);
+        }
+    }
+    else if (name == "gpuCatalog")
+    {
+        OnGpuDriverCatalog(UiUtil::ParseJson(payload));
+    }
+    else if (name == "gpuDownload")
+    {
+        OnGpuDriverDownload(UiUtil::ParseJson(payload));
+    }
+    else if (name == "gpuDrivers")
+    {
+        RenderGpuDriversPage();
+    }
+    else if (name == "controllers")
+    {
+        RenderControllersSummary();
+    }
+    else if (name == "controllerPages")
+    {
+        RenderControllerPages();
+    }
+    else if (name == "confirm")
+    {
+        const JsonValue result = UiUtil::ParseJson(payload);
+        const auto itr = m_confirms.find(static_cast<int>(result["id"].asInt64()));
+        if (itr != m_confirms.end())
+        {
+            std::function<void()> accepted = std::move(itr->second);
+            m_confirms.erase(itr);
+            if (result["ok"].asBool())
+            {
+                accepted();
+            }
+        }
+    }
+    else if (name == "resume")
+    {
+        ApplyTheme();
+        RenderControllersSummary();
+        RescanGameList();
+    }
+    else if (name == "pad")
+    {
+        OnPad(payload);
+    }
+    else if (name == "back")
+    {
+        if (!HandleBack())
+        {
+            m_host.Request("finish");
+        }
+    }
+}
+
 bool UiActivity::IsSettingsPage(const std::string & id) const
 {
     return kSettingsPages.contains(id);
@@ -154,6 +240,20 @@ void UiActivity::GoBack()
     {
         m_host.Request("finish");
     }
+}
+
+bool UiActivity::HandleBack()
+{
+    if (Top() == "setup" && m_setupStep == 0)
+    {
+        return false;
+    }
+    if (m_navStack.size() > 1)
+    {
+        GoBack();
+        return true;
+    }
+    return false;
 }
 
 void UiActivity::ShowPage(const std::string & page)
@@ -375,6 +475,57 @@ void UiActivity::RunCommand(const std::string & command)
         Navigate("gameFolders");
     }
 }
+
+void UiActivity::OnPad(const std::string & button)
+{
+    if (button == "y")
+    {
+        if (Top() == "gamesPage")
+        {
+            m_host.Request("openSettings");
+        }
+    }
+    else if (button == "b")
+    {
+        if (ControllerAttached() && Top() != "gamesPage")
+        {
+            GoBack();
+        }
+    }
+    else if (button == "a")
+    {
+        LaunchSelectedGame();
+    }
+    else
+    {
+        MoveGameSelection(button);
+    }
+}
+
+void UiActivity::OnSettingChanged(const std::string & setting)
+{
+    if (setting == NXUISetting::GameDirectories)
+    {
+        m_libraryDirty = true;
+        if (Top() == "gameFolders" || Top() == "settingsPage" || Top() == "setup")
+        {
+            RenderCurrentSettings();
+        }
+        if (Top() == "gamesPage")
+        {
+            RefreshGameList();
+        }
+    }
+    else if (setting == NXUISetting::ThemeMode)
+    {
+        ApplyTheme();
+        if (Top() == "themeSettings" || Top() == "settingsPage")
+        {
+            RenderCurrentSettings();
+        }
+    }
+}
+
 void UiActivity::Confirm(const std::string & message, std::function<void()> accepted)
 {
     const int id = m_nextConfirm++;
@@ -439,6 +590,173 @@ void UiActivity::RefreshGameList()
     m_quietScan = false;
     m_host.Request("requestGameLibraryScan", {std::to_string(gen)});
 }
+
+void UiActivity::RescanGameList()
+{
+    if (Top() != "gamesPage" || m_scanning || m_libraryLoading)
+    {
+        return;
+    }
+    if (m_cards.empty())
+    {
+        RefreshGameList();
+        return;
+    }
+    const int gen = ++m_gameListGen;
+    m_scanning = true;
+    m_quietScan = true;
+    m_host.Request("requestGameLibraryScan", {std::to_string(gen)});
+}
+
+void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
+{
+    const std::vector<std::string> files = UiUtil::StringArray(paths);
+    m_scanning = false;
+    if (m_quietScan)
+    {
+        m_quietScan = false;
+        std::vector<std::string> shown;
+        for (const Card & card : m_cards)
+        {
+            shown.push_back(card.path);
+        }
+        std::vector<std::string> found = files;
+        std::sort(shown.begin(), shown.end());
+        std::sort(found.begin(), found.end());
+        if (shown == found)
+        {
+            return;
+        }
+        SyncGameSelection(-1);
+    }
+    if (files.empty())
+    {
+        SetLibraryStatus("");
+        RenderEmptyGames("no-roms");
+        return;
+    }
+    ClearCards();
+    for (const std::string & path : files)
+    {
+        Card card;
+        card.path = path;
+        card.title = UiUtil::ShortPath(path);
+        m_cards.push_back(std::move(card));
+    }
+    m_loaded = 0;
+    m_libraryLoading = true;
+    RenderGameList();
+    SetLibraryStatus("Loading 0 of " + std::to_string(files.size()));
+
+    const int gen = m_gameListGen;
+    m_library.Read(files, [alive = std::weak_ptr<bool>(m_alive), this, gen](const UiLibrary::Game * game) {
+        std::function<void()> task;
+        if (game != nullptr)
+        {
+            task = [this, gen, read = *game] {
+                if (gen == m_gameListGen)
+                {
+                    OnGameRead(read);
+                }
+            };
+        }
+        else
+        {
+            task = [this, gen] {
+                if (gen == m_gameListGen)
+                {
+                    FinishGameList();
+                }
+            };
+        }
+        UiThread::Instance().Post([alive, task = std::move(task)] {
+            if (alive.lock())
+            {
+                task();
+            }
+        });
+    });
+}
+
+void UiActivity::OnGameRead(const UiLibrary::Game & game)
+{
+    if (game.index >= m_cards.size())
+    {
+        return;
+    }
+    Card & card = m_cards[game.index];
+    card.loading = false;
+    SetLibraryStatus("Loading " + std::to_string(game.index + 1) + " of " + std::to_string(m_cards.size()));
+    Rml::Element * element = m_document->GetElementById("game-" + std::to_string(game.index));
+    if (!game.readable)
+    {
+        card.failed = true;
+        if (element != nullptr)
+        {
+            element->SetClass("hidden", true);
+        }
+        m_layoutDirty = true;
+        return;
+    }
+    m_loaded++;
+    if (!game.title.empty())
+    {
+        card.title = game.title;
+    }
+    card.icon = game.icon.empty() ? "images/nxemu-logo.png" : m_renderer.AddMemoryImage(game.icon);
+    if (element != nullptr)
+    {
+        element->SetInnerRML(CardInner(card));
+        element->SetAttribute("data-game", static_cast<int>(game.index));
+    }
+    m_layoutDirty = true;
+}
+
+void UiActivity::FinishGameList()
+{
+    m_libraryLoading = false;
+    if (m_loaded == 0)
+    {
+        SetLibraryStatus("");
+        RenderEmptyGames("unreadable");
+        return;
+    }
+    std::erase_if(m_cards, [this](const Card & card) {
+        if (card.failed && card.icon.starts_with("nxmem:"))
+        {
+            m_renderer.RemoveMemoryImage(card.icon);
+        }
+        return card.failed;
+    });
+    std::stable_sort(m_cards.begin(), m_cards.end(), [](const Card & a, const Card & b) { return UiUtil::Lowercase(a.title) < UiUtil::Lowercase(b.title); });
+    RenderGameList();
+    SetLibraryStatus("");
+    SyncGameSelection(0);
+}
+
+std::string UiActivity::CardInner(const Card & card) const
+{
+    std::string art = card.loading ? "<div class=\"game-icon-ph\"/>" : "<img class=\"game-icon\" src=\"" + UiUtil::Escape(card.icon) + "\"/>";
+    return "<div class=\"game-art\">" + art + "</div><div class=\"game-title\">" + UiUtil::Escape(card.title) + "</div>";
+}
+
+void UiActivity::RenderGameList()
+{
+    std::string rml;
+    for (size_t i = 0; i < m_cards.size(); i++)
+    {
+        const Card & card = m_cards[i];
+        rml += "<div class=\"game-card" + std::string(card.failed ? " hidden" : "") + "\" id=\"game-" + std::to_string(i) + "\"";
+        if (!card.loading && !card.failed)
+        {
+            rml += " data-game=\"" + std::to_string(i) + "\"";
+        }
+        rml += ">" + CardInner(card) + "</div>";
+    }
+    m_gameList->SetInnerRML(rml);
+    m_layoutDirty = true;
+}
+
 void UiActivity::RenderEmptyGames(const char * kind)
 {
     SyncGameSelection(-1);
@@ -550,6 +868,53 @@ void UiActivity::SyncGameSelection(int index)
     UpdatePlayHint();
 }
 
+void UiActivity::MoveGameSelection(const std::string & direction)
+{
+    if (!ControllerAttached())
+    {
+        return;
+    }
+    if (Top() != "gamesPage")
+    {
+        MoveSettingsSelection(direction);
+        return;
+    }
+    const std::vector<size_t> cards = SelectableGames();
+    if (cards.empty())
+    {
+        return;
+    }
+    if (m_selectedGame < 0)
+    {
+        SyncGameSelection(0);
+        return;
+    }
+    int next = m_selectedGame;
+    if (direction == "left") next -= 1;
+    else if (direction == "right") next += 1;
+    else if (direction == "up") next -= m_columns;
+    else if (direction == "down") next += m_columns;
+    SyncGameSelection(std::clamp(next, 0, static_cast<int>(cards.size()) - 1));
+}
+
+void UiActivity::LaunchSelectedGame()
+{
+    if (!ControllerAttached())
+    {
+        return;
+    }
+    if (Top() != "gamesPage")
+    {
+        ActivateSettingsSelection();
+        return;
+    }
+    const std::vector<size_t> cards = SelectableGames();
+    if (m_selectedGame >= 0 && m_selectedGame < static_cast<int>(cards.size()))
+    {
+        LaunchGame(m_cards[cards[m_selectedGame]].path);
+    }
+}
+
 void UiActivity::LaunchGame(const std::string & path)
 {
     m_host.Request("launchGame", {path});
@@ -643,4 +1008,74 @@ void UiActivity::SyncSettingsSelection(int index)
 void UiActivity::RefreshSettingsSelection()
 {
     SyncSettingsSelection(m_settingsSelection < 0 ? 0 : m_settingsSelection);
+}
+
+void UiActivity::MoveSettingsSelection(const std::string & direction)
+{
+    const std::vector<Rml::Element *> rows = SettingsRows();
+    if (rows.empty())
+    {
+        return;
+    }
+    if (direction == "left" || direction == "right")
+    {
+        NudgeSelectedSlider(direction);
+        return;
+    }
+    if (m_settingsSelection < 0)
+    {
+        SyncSettingsSelection(0);
+        return;
+    }
+    const int next = m_settingsSelection + (direction == "up" ? -1 : 1);
+    SyncSettingsSelection(std::clamp(next, 0, static_cast<int>(rows.size()) - 1));
+}
+
+void UiActivity::NudgeSelectedSlider(const std::string & direction)
+{
+    const std::vector<Rml::Element *> rows = SettingsRows();
+    if (m_settingsSelection < 0 || m_settingsSelection >= static_cast<int>(rows.size()))
+    {
+        return;
+    }
+    auto * input = dynamic_cast<Rml::ElementFormControlInput *>(rows[m_settingsSelection]->QuerySelector("input"));
+    if (input == nullptr)
+    {
+        return;
+    }
+    const float min = input->GetAttribute<float>("min", 0.0f);
+    const float max = input->GetAttribute<float>("max", 1.0f);
+    const float stepAttribute = input->GetAttribute<float>("step", 1.0f);
+    const float span = max - min;
+    const float step = stepAttribute >= 1 ? stepAttribute : (span > 0 ? span / 20 : 0.05f);
+    float value = std::strtof(input->GetValue().c_str(), nullptr) + (direction == "right" ? step : -step);
+    if (stepAttribute >= 1)
+    {
+        value = std::round(value / stepAttribute) * stepAttribute;
+    }
+    value = std::clamp(value, min, max);
+    input->SetValue(std::to_string(value));
+}
+
+void UiActivity::ActivateSettingsSelection()
+{
+    const std::vector<Rml::Element *> rows = SettingsRows();
+    if (m_settingsSelection < 0 || m_settingsSelection >= static_cast<int>(rows.size()))
+    {
+        return;
+    }
+    Rml::Element * row = rows[m_settingsSelection];
+    if (row->QuerySelector("input") != nullptr)
+    {
+        return;
+    }
+    if (row->IsClassSet("folder-item"))
+    {
+        if (Rml::Element * remove = row->QuerySelector(".folder-remove"))
+        {
+            RunAction(remove);
+        }
+        return;
+    }
+    RunAction(row);
 }

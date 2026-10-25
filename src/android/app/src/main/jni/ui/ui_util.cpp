@@ -44,6 +44,13 @@ std::string UrlDecode(std::string_view text)
     return decoded;
 }
 
+std::string ShortPath(const std::string & uri)
+{
+    const std::string decoded = UrlDecode(uri);
+    const size_t last = decoded.rfind('/');
+    return last == std::string::npos ? decoded : decoded.substr(last + 1);
+}
+
 std::string FormatGameFolder(const std::string & uri)
 {
     const std::string decoded = UrlDecode(uri);
@@ -61,6 +68,12 @@ std::string FormatGameFolder(const std::string & uri)
         return "Internal storage / " + folder;
     }
     return volume + " / " + folder;
+}
+
+std::string Lowercase(std::string text)
+{
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return text;
 }
 
 JsonValue ParseJson(const std::string & text)

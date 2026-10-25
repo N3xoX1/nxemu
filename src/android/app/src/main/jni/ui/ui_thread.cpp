@@ -4,6 +4,7 @@
 #include "ui_screen.h"
 
 #include <android/log.h>
+#include <future>
 #include <RmlUi_Renderer_GL3.h>
 #include <RmlUi/Core.h>
 #include <thread>
@@ -48,6 +49,17 @@ void UiThread::Post(std::function<void()> task)
         m_busyUntil = std::chrono::steady_clock::now() + kBusyTime;
     }
     m_wake.notify_one();
+}
+
+void UiThread::Run(std::function<void()> task)
+{
+    std::promise<void> done;
+    std::future<void> finished = done.get_future();
+    Post([&] {
+        task();
+        done.set_value();
+    });
+    finished.wait();
 }
 
 EGLSurface UiThread::CreateSurface(ANativeWindow * window)

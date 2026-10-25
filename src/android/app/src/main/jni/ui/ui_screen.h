@@ -15,6 +15,8 @@ public:
 
     bool Create();
     void SetWindow(ANativeWindow * window, int width, int height);
+    void SetMetrics(float density, int insetLeft, int insetTop, int insetRight, int insetBottom);
+    void Event(const std::string & name, const std::string & payload);
 
     bool HasSurface() const { return m_surface != EGL_NO_SURFACE; }
     EGLSurface Surface() const { return m_surface; }

@@ -9,8 +9,10 @@
 class UiRenderer final : public RenderInterface_GL3
 {
 public:
+    std::string AddMemoryImage(std::vector<uint8_t> encoded);
     void RemoveMemoryImage(const std::string & source);
 
 private:
     std::unordered_map<std::string, std::vector<uint8_t>> m_memoryImages;
+    uint64_t m_nextMemoryImage = 0;
 };

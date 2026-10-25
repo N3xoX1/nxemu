@@ -9,7 +9,9 @@ namespace UiUtil
 {
 std::string Escape(std::string_view text);
 std::string UrlDecode(std::string_view text);
+std::string ShortPath(const std::string & uri);
 std::string FormatGameFolder(const std::string & uri);
+std::string Lowercase(std::string text);
 JsonValue ParseJson(const std::string & text);
 std::vector<std::string> StringArray(const JsonValue & value);
 
