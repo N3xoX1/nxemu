@@ -101,7 +101,8 @@ jobs:
             -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF \
             -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR" \
             -DNXEMU_MOLTENVK_PREBUILT="$prebuilt" \
-            -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON
+            -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON \
+            -DNXEMU_BUILD_TESTS=ON
           if [ -z "$prebuilt" ]; then
             mkdir -p "$NXEMU_MOLTENVK_CACHE_DIR"
             cp "$NXEMU_EFFECTIVE_BUILD_DIRECTORY/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
@@ -117,7 +118,7 @@ jobs:
       - name: Test
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
-          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests --parallel "${NXEMU_BUILD_JOBS:-2}"
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests test_session_lifecycle test_spirv_constant_buffers test_loader_metadata --parallel "${NXEMU_BUILD_JOBS:-2}"
           ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build}" --output-on-failure
 
       - name: Compiler cache statistics

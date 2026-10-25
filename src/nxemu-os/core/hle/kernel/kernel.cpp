@@ -38,6 +38,7 @@
 #include "core/hle/kernel/k_thread.h"
 #include "core/hle/kernel/k_worker_task_manager.h"
 #include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/host_thread_state.h"
 #include "core/hle/kernel/physical_core.h"
 #include "core/hle/result.h"
 #include "core/hle/service/server_manager.h"
@@ -59,6 +60,7 @@ struct KernelCore::Impl {
     }
 
     void Initialize(KernelCore& kernel) {
+        session_generation = next_session_generation.fetch_add(1, std::memory_order_relaxed);
         hardware_timer = std::make_unique<Kernel::KHardwareTimer>(kernel);
         hardware_timer->Initialize();
 
@@ -373,16 +375,19 @@ struct KernelCore::Impl {
         return host_thread_id;
     }
 
-    // Gets the dummy KThread for the caller, allocating a new one if this is the first time
-    LTO_NOINLINE KThread* GetHostDummyThread(KThread* existing_thread) {
-        const auto initialize{[](KThread* thread) LTO_NOINLINE {
-            ASSERT(KThread::InitializeDummyThread(thread, nullptr).IsSuccess());
-            return thread;
-        }};
+    static inline std::atomic<std::uint64_t> next_session_generation{1};
+    std::uint64_t session_generation{};
+    static inline thread_local HostThreadState<KThread> host_thread_state;
 
-        thread_local KThread raw_thread{system.Kernel()};
-        thread_local KThread* thread = existing_thread ? existing_thread : initialize(&raw_thread);
-        return thread;
+    LTO_NOINLINE KThread* GetHostDummyThread(KThread* existing_thread) {
+        if (existing_thread) {
+            host_thread_state.Set(session_generation, existing_thread);
+        }
+        return host_thread_state.Get(session_generation, [&] {
+            auto thread = std::make_unique<KThread>(system.Kernel());
+            ASSERT(KThread::InitializeDummyThread(thread.get(), nullptr).IsSuccess());
+            return thread;
+        });
     }
 
     /// Registers a CPU core thread by allocating a host thread ID for it
@@ -422,17 +427,12 @@ struct KernelCore::Impl {
         return is_shutting_down.load(std::memory_order_relaxed);
     }
 
-    static inline thread_local KThread* current_thread{nullptr};
-
     LTO_NOINLINE KThread* GetCurrentEmuThread() {
-        if (!current_thread) {
-            current_thread = GetHostDummyThread(nullptr);
-        }
-        return current_thread;
+        return GetHostDummyThread(nullptr);
     }
 
     LTO_NOINLINE void SetCurrentEmuThread(KThread* thread) {
-        current_thread = thread;
+        host_thread_state.Set(session_generation, thread);
     }
 
     void DeriveInitialMemoryLayout() {

@@ -515,9 +515,9 @@ uint32_t VideoManager::HostSyncpointRegisterAction(uint32_t fence_id, uint32_t t
     });
 }
 
-void VideoManager::WaitHost(uint32_t syncpoint_id, uint32_t expected_value)
+bool VideoManager::WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std::stop_token stop)
 {
-    impl->m_host1x->GetSyncpointManager().WaitHost(syncpoint_id, expected_value);
+    return impl->m_host1x->GetSyncpointManager().WaitHost(syncpoint_id, expected_value, stop);
 }
 
 

@@ -165,7 +165,7 @@ struct System::Impl {
 
     void UnstallApplication()
     {
-        if (!IsPaused())
+        if (!IsPaused() && !stop_event.stop_requested())
         {
             core_timing.SyncPause(false);
             kernel.SuspendEmulation(false);
@@ -399,6 +399,11 @@ void System::SetShuttingDown(bool shutting_down)
 void System::ShutdownMainProcess()
 {
     impl->ShutdownMainProcess();
+}
+
+std::stop_token System::GetShutdownToken() const
+{
+    return impl->stop_event.get_token();
 }
 
 std::unique_lock<std::mutex> System::StallApplication()

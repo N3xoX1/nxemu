@@ -5,6 +5,7 @@
 #include <array>
 #include <bit>
 #include <climits>
+#include <unordered_map>
 
 #include <boost/container/static_vector.hpp>
 
@@ -265,20 +266,38 @@ void Name(EmitContext& ctx, Id object, std::string_view format_str, Args&&... ar
 
 void DefineConstBuffers(EmitContext& ctx, const Info& info, Id UniformDefinitions::*member_type,
                         u32 binding, Id type, char type_char, u32 element_size) {
-    const Id array_type{ctx.TypeArray(type, ctx.Const(65536U / element_size))};
-    ctx.Decorate(array_type, spv::Decoration::ArrayStride, element_size);
-
-    const Id struct_type{ctx.TypeStruct(array_type)};
-    Name(ctx, struct_type, "{}_cbuf_block_{}{}", ctx.stage, type_char, element_size * CHAR_BIT);
-    ctx.Decorate(struct_type, spv::Decoration::Block);
-    ctx.MemberName(struct_type, 0, "data");
-    ctx.MemberDecorate(struct_type, 0, spv::Decoration::Offset, 0U);
-
-    const Id struct_pointer_type{ctx.TypePointer(spv::StorageClass::Uniform, struct_type)};
     const Id uniform_type{ctx.TypePointer(spv::StorageClass::Uniform, type)};
     ctx.uniform_types.*member_type = uniform_type;
+    std::unordered_map<u32, Id> buffer_pointer_types;
 
     for (const ConstantBufferDescriptor& desc : info.constant_buffer_descriptors) {
+        // Metal validates the entire declared array against the backing buffer,
+        // even when a draw only reads a small constant range near its end.
+        // Indirect accesses already report 64 KiB; global-memory helpers also
+        // need the full range because they add accesses after info collection.
+        u32 size = 65536U;
+        if (ctx.profile.disable_uniform_buffer_descriptor_aliasing && !info.uses_global_memory) {
+            size = 16U;
+            for (u32 i = 0; i < desc.count; ++i) {
+                size = std::max(size, info.constant_buffer_used_sizes[desc.index + i]);
+            }
+        }
+        const u32 element_count = Common::DivCeil(size, element_size);
+        auto [pointer, inserted] = buffer_pointer_types.try_emplace(element_count);
+        if (inserted) {
+            // Sirit interns identical array/struct types. Decorate each shared
+            // type once, even when several buffers have the same declared size.
+            const Id array_type{ctx.TypeArray(type, ctx.Const(element_count))};
+            ctx.Decorate(array_type, spv::Decoration::ArrayStride, element_size);
+            const Id struct_type{ctx.TypeStruct(array_type)};
+            Name(ctx, struct_type, "{}_cbuf_block_{}{}_{}", ctx.stage, type_char,
+                 element_size * CHAR_BIT, element_count);
+            ctx.Decorate(struct_type, spv::Decoration::Block);
+            ctx.MemberName(struct_type, 0, "data");
+            ctx.MemberDecorate(struct_type, 0, spv::Decoration::Offset, 0U);
+            pointer->second = ctx.TypePointer(spv::StorageClass::Uniform, struct_type);
+        }
+        const Id struct_pointer_type = pointer->second;
         const Id id{ctx.AddGlobalVariable(struct_pointer_type, spv::StorageClass::Uniform)};
         ctx.Decorate(id, spv::Decoration::Binding, binding);
         ctx.Decorate(id, spv::Decoration::DescriptorSet, 0U);

@@ -277,6 +277,14 @@ void IOFile::Open(const fs::path& path, FileAccessMode mode, FileType type, File
     file = std::fopen(path.c_str(), AccessModeToStr(mode, type));
 #endif
 
+#ifndef _WIN32
+    // stdio buffers st_blksize bytes, 1 MiB on exFAT on macOS, so every seek out of the buffer
+    // read a whole MiB for the small scattered reads of game file systems
+    if (IsOpen()) {
+        std::setvbuf(file, nullptr, _IOFBF, 64 * 1024);
+    }
+#endif
+
     if (!IsOpen()) {
         const auto ec = std::error_code{errno, std::generic_category()};
         LOG_ERROR(Common_Filesystem, "Failed to open the file at path={}, ec_message={}",

@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <vector>
 
@@ -188,6 +189,7 @@ public:
     /// Forcibly detach the debugger if it is running.
     void DetachDebugger();
 
+    [[nodiscard]] std::stop_token GetShutdownToken() const;
     std::unique_lock<std::mutex> StallApplication();
     void UnstallApplication();
 

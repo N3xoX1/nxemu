@@ -20,6 +20,32 @@
 
 namespace Common {
 
+bool IsValidUTF8(std::string_view input) {
+    size_t i = 0;
+    while (i < input.size()) {
+        const auto first = static_cast<unsigned char>(input[i++]);
+        if (first < 0x80) continue;
+        unsigned remaining;
+        uint32_t value, minimum;
+        if (first >= 0xc2 && first <= 0xdf) {
+            remaining = 1; value = first & 0x1f; minimum = 0x80;
+        } else if (first >= 0xe0 && first <= 0xef) {
+            remaining = 2; value = first & 0x0f; minimum = 0x800;
+        } else if (first >= 0xf0 && first <= 0xf4) {
+            remaining = 3; value = first & 0x07; minimum = 0x10000;
+        } else return false;
+        if (remaining > input.size() - i) return false;
+        while (remaining--) {
+            const auto next = static_cast<unsigned char>(input[i++]);
+            if ((next & 0xc0) != 0x80) return false;
+            value = (value << 6) | (next & 0x3f);
+        }
+        if (value < minimum || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff))
+            return false;
+    }
+    return true;
+}
+
 /// Make a string lowercase
 std::string ToLower(std::string str) {
     std::transform(str.begin(), str.end(), str.begin(),

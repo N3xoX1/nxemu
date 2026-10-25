@@ -158,6 +158,11 @@ if(NOT ANDROID)
     set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT nxemu)
 endif()
 
+option(NXEMU_BUILD_TESTS "Build the tests in tests/" OFF)
+if(NXEMU_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
 # These targets correspond to projects that import platform.props in nxemu.sln.
 # Do not propagate /GS- to additional dependency targets, examples or tests.
 if(MSVC)

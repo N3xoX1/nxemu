@@ -52,7 +52,7 @@ public:
     uint32_t HostSyncpointValue(uint32_t id) override;
     void HostSyncpointIncrement(uint32_t id) override;
     uint32_t HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void * userData) override;
-    void WaitHost(uint32_t syncpoint_id, uint32_t expected_value) override;
+    bool WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std::stop_token stop) override;
     uint32_t ShadersBuilding() override;
     bool UseNvdec() override;
     void ClearCdmaInstance(uint32_t id) override;
