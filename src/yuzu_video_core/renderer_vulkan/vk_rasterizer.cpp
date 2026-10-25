@@ -82,6 +82,8 @@ float EmulatedDepthCompareOffset(const Device& device, const Maxwell& regs) {
     }
 }
 
+} // Anonymous namespace
+
 VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t index, float scale,
                             float depth_offset) {
     const auto& src = regs.viewport_transform[index];
@@ -130,6 +132,8 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
     }
     return viewport;
 }
+
+namespace {
 
 VkRect2D GetScissorState(const Maxwell& regs, size_t index, u32 up_scale = 1, u32 down_shift = 0) {
     const auto& src = regs.scissor_test[index];
@@ -281,6 +285,17 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     HandleTransformFeedback();
     draw_func(pipeline);
     buffer_cache.CopySparseWrites();
+
+    const auto& regs = maxwell3d->regs;
+    u32 color_mask = 0;
+    for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+        const auto& mask = regs.color_mask[regs.color_mask_common ? 0 : index];
+        if (mask.R || mask.G || mask.B || mask.A) {
+            color_mask |= 1U << index;
+        }
+    }
+    texture_cache.MarkRenderTargetsWritten(color_mask,
+                                           regs.depth_write_enabled != 0 || regs.stencil_enable != 0);
 }
 
 void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
@@ -484,6 +499,7 @@ void RasterizerVulkan::DrawTexture() {
                          static_cast<u32>(ScaleSrc(texture.size.height)), texture.size.depth};
     blit_image.BlitColor(framebuffer, texture.RenderTarget(), texture.ImageHandle(),
                          sampler->Handle(), dst_region, src_region, src_size);
+    texture_cache.MarkRenderTargetsWritten(~0U, false);
 }
 
 void RasterizerVulkan::Clear(u32 layer_count) {
@@ -504,6 +520,10 @@ void RasterizerVulkan::Clear(u32 layer_count) {
     }
 
     std::scoped_lock lock{texture_cache.mutex};
+    // After the clear has opened its render pass
+    SCOPE_EXIT {
+        texture_cache.MarkRenderTargetsWritten(~0U, true);
+    };
     texture_cache.UpdateRenderTargets(true, layer_count);
     const Framebuffer* framebuffer = texture_cache.GetFramebuffer();
     const VkExtent2D render_area = framebuffer->RenderArea();

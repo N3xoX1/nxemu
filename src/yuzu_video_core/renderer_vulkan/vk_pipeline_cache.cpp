@@ -158,6 +158,31 @@ bool IsUnorm8(VideoCore::Surface::PixelFormat format) {
     }
 }
 
+/// Lets the host read the pixel local texture reads of a fragment shader from the color
+/// attachments they sample, which float attachments are declared as input attachments for.
+void FindColorAttachmentReads(Shader::IR::Program& program, const GraphicsPipelineCacheKey& key,
+                              u32 screen_position_generics) {
+    if (!Shader::Optimization::FindPixelLocalTextureReads(program, screen_position_generics)) {
+        return;
+    }
+    u32 mask{};
+    for (size_t index = 0; index < key.state.color_formats.size(); ++index) {
+        const auto format = static_cast<Tegra::RenderTargetFormat>(key.state.color_formats[index]);
+        if (format != Tegra::RenderTargetFormat::NONE &&
+            !VideoCore::Surface::IsPixelFormatInteger(
+                VideoCore::Surface::PixelFormatFromRenderTargetFormat(format))) {
+            mask |= 1U << index;
+        }
+    }
+    if (mask == 0) {
+        for (auto& desc : program.info.texture_descriptors) {
+            desc.pixel_local_read = Shader::PixelLocalRead::None;
+        }
+        return;
+    }
+    program.info.input_attachment_mask = mask;
+}
+
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
@@ -1427,6 +1452,10 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
     }
     const bool vtg_replaces_stages{vtg_info && !vtg_info->is_transform_feedback};
+    const bool reads_color_attachments{device.SupportsColorAttachmentFetch() &&
+                                       videoSettings.barrier_feedback_loops &&
+                                       !vtg_replaces_stages};
+    u32 screen_position_generics{};
     for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0; index < Maxwell::MaxShaderProgram;
          ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
@@ -1470,6 +1499,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             // Bindless arrays seldom change between draws. The host keeps set 1 bound.
             for (auto& desc : program.info.texture_descriptors) {
                 desc.in_table_set = !desc.is_direct && desc.count >= LARGE_IMAGE_ARRAY_SIZE;
+            }
+        }
+        if (reads_color_attachments) {
+            if (program.stage == Shader::Stage::Fragment) {
+                FindColorAttachmentReads(program, key, screen_position_generics);
+            } else {
+                screen_position_generics =
+                    Shader::Optimization::FindScreenPositionGenerics(program);
             }
         }
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};

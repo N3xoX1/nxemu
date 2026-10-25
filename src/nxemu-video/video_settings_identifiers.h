@@ -20,6 +20,7 @@ namespace NXVideoSetting
     constexpr const char * ForceMaximumClocks = "nxvideo:ForceMaximumClocks";
     constexpr const char * EnableReactiveFlushing = "nxvideo:EnableReactiveFlushing";
     constexpr const char * GpuCommandSynchronization = "nxvideo:GpuCommandSynchronization";
+    constexpr const char * FastGpuReadback = "nxvideo:FastGpuReadback";
     constexpr const char * UseAsynchronousShaderBuilding = "nxvideo:UseAsynchronousShaderBuilding";
     constexpr const char * FastGPUTime = "nxvideo:FastGPUTime";
     constexpr const char * UseVulkanPipelineCache = "nxvideo:UseVulkanPipelineCache";

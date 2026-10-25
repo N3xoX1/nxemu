@@ -294,12 +294,17 @@ if(APPLE)
         set(_nxemu_moltenvk_source "${_nxemu_moltenvk_root}/fork")
         set(_nxemu_moltenvk_runtime
             "${_nxemu_moltenvk_source}/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
-
+        # The fork's nxemu branch carries the Ryujinx fixes and ours.
+        set(_nxemu_moltenvk_tag "eb9a230c02655de3cc151dedf23e0a35d9961915")
         ExternalProject_Add(nxemu_moltenvk
             GIT_REPOSITORY "https://github.com/fab918/MoltenVK.git"
-            GIT_TAG "1f5ab343e9b840f4194295d3d0ea3b7a95077d57"
+            GIT_TAG "${_nxemu_moltenvk_tag}"
             GIT_SHALLOW FALSE
-            UPDATE_COMMAND ""
+            # Runs only when the tag changes, so an existing build checks out a new tag without
+            # updating and rebuilding MoltenVK on every build.
+            UPDATE_DISCONNECTED TRUE
+            UPDATE_COMMAND /bin/sh -c
+                "git cat-file -e ${_nxemu_moltenvk_tag}^{commit} 2>/dev/null || git fetch origin && git checkout --quiet ${_nxemu_moltenvk_tag}"
             SOURCE_DIR "${_nxemu_moltenvk_source}"
             CONFIGURE_COMMAND ""
             BUILD_IN_SOURCE TRUE
@@ -310,6 +315,7 @@ if(APPLE)
         )
 
         set(NXEMU_MOLTENVK_RUNTIME "${_nxemu_moltenvk_runtime}" CACHE INTERNAL "" FORCE)
+        unset(_nxemu_moltenvk_tag)
         unset(_nxemu_moltenvk_root)
         unset(_nxemu_moltenvk_source)
         unset(_nxemu_moltenvk_runtime)

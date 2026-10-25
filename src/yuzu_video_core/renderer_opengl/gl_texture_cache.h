@@ -145,6 +145,10 @@ public:
         // OpenGL does not require a barrier for attachment feedback loops.
     }
 
+    u64 AttachmentBarrierTick() const noexcept {
+        return 0;
+    }
+
 private:
     const Device& device;
     StateTracker& state_tracker;

@@ -174,6 +174,9 @@ public:
     /// Handle feedback loops during draws.
     void CheckFeedbackLoop(std::span<const ImageViewInOut> views);
 
+    /// Marks the render targets a draw writes, for the feedback loop checks of later draws.
+    void MarkRenderTargetsWritten(u32 color_mask, bool depth);
+
     /// Get the sampler from the graphics descriptor table in the specified index
     Sampler* GetGraphicsSampler(u32 index);
 
@@ -213,6 +216,12 @@ public:
     /// True when an image was drawn to for the first time since the previous call
     [[nodiscard]] bool TakeNewRenderTargets() {
         return std::exchange(has_new_render_targets, false);
+    }
+
+    /// Image view bound as a color render target, null when none is
+    /// UpdateRenderTargets should be called before this
+    [[nodiscard]] ImageViewId ColorBufferViewId(size_t index) const noexcept {
+        return render_targets.color_buffer_ids[index];
     }
 
     /// Find a framebuffer with the currently bound render targets

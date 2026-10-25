@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <optional>
+
 #include <boost/container/static_vector.hpp>
 
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
@@ -390,6 +392,48 @@ Id Emit(MethodPtrType sparse_ptr, MethodPtrType non_sparse_ptr, EmitContext& ctx
     return ctx.OpCompositeExtract(result_type, sample, 1U);
 }
 
+/// The color attachment the host reads a pixel local texture from, or 0xF to sample it
+std::optional<Id> AttachmentReadSelector(EmitContext& ctx, IR::TextureInstInfo info) {
+    if (info.type == TextureType::Buffer) {
+        return std::nullopt;
+    }
+    const TextureDefinition& def{ctx.textures.at(info.descriptor_index)};
+    if (def.attachment_read_slot == TextureDefinition::NO_ATTACHMENT_READ) {
+        return std::nullopt;
+    }
+    const Id pointer_type{ctx.TypePointer(spv::StorageClass::PushConstant, ctx.U32[1])};
+    const Id member{ctx.Const(ctx.rescaling_attachment_reads_member_index)};
+    const Id pointer{ctx.OpAccessChain(pointer_type, ctx.rescaling_push_constants, member)};
+    const Id reads{ctx.OpLoad(ctx.U32[1], pointer)};
+    return ctx.OpBitFieldUExtract(ctx.U32[1], reads, ctx.Const(def.attachment_read_slot * 4),
+                                  ctx.Const(4U));
+}
+
+Id Splat(EmitContext& ctx, Id condition, u32 size) {
+    const Id type{ctx.TypeVector(ctx.U1, static_cast<int>(size))};
+    return size == 2 ? ctx.OpCompositeConstruct(type, condition, condition)
+                     : ctx.OpCompositeConstruct(type, condition, condition, condition, condition);
+}
+
+/// Replaces the texel by the selected color attachment of the fragment's own pixel.
+/// The host binds a null texture while it selects one, so the sample above reads nothing.
+Id ReadAttachment(EmitContext& ctx, std::optional<Id> selector, Id texel) {
+    if (!selector) {
+        return texel;
+    }
+    const Id coords{ctx.SConst(0, 0)};
+    for (u32 index = 0; index < ctx.input_attachments.size(); ++index) {
+        if (!Sirit::ValidId(ctx.input_attachments[index])) {
+            continue;
+        }
+        const Id attachment{ctx.OpLoad(ctx.input_attachment_type, ctx.input_attachments[index])};
+        const Id value{ctx.OpImageRead(ctx.F32[4], attachment, coords)};
+        const Id is_selected{ctx.OpIEqual(ctx.U1, *selector, ctx.Const(index))};
+        texel = ctx.OpSelect(ctx.F32[4], Splat(ctx, is_selected, 4), value, texel);
+    }
+    return texel;
+}
+
 Id IsScaled(EmitContext& ctx, const IR::Value& index, Id member_index, u32 base_index) {
     const Id push_constant_u32{ctx.TypePointer(spv::StorageClass::PushConstant, ctx.U32[1])};
     Id bit{};
@@ -588,9 +632,11 @@ Id EmitImageSampleImplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value&
     if (ctx.stage == Stage::Fragment) {
         const ImageOperands operands(ctx, info.has_bias != 0, false, info.has_lod_clamp != 0,
                                      bias_lc, offset);
-        return Emit(&EmitContext::OpImageSparseSampleImplicitLod,
-                    &EmitContext::OpImageSampleImplicitLod, ctx, inst, ctx.F32[4],
-                    Texture(ctx, info, index), coords, operands.MaskOptional(), operands.Span());
+        const Id texel{Emit(&EmitContext::OpImageSparseSampleImplicitLod,
+                            &EmitContext::OpImageSampleImplicitLod, ctx, inst, ctx.F32[4],
+                            Texture(ctx, info, index), coords, operands.MaskOptional(),
+                            operands.Span())};
+        return ReadAttachment(ctx, AttachmentReadSelector(ctx, info), texel);
     } else {
         // We can't use implicit lods on non-fragment stages on SPIR-V. Maxwell hardware behaves as
         // if the lod was explicitly zero.  This may change on Turing with implicit compute
@@ -607,9 +653,10 @@ Id EmitImageSampleExplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value&
                               Id lod, const IR::Value& offset) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const ImageOperands operands(ctx, false, true, false, lod, offset);
-    return Emit(&EmitContext::OpImageSparseSampleExplicitLod,
-                &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
-                Texture(ctx, info, index), coords, operands.Mask(), operands.Span());
+    const Id texel{Emit(&EmitContext::OpImageSparseSampleExplicitLod,
+                        &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
+                        Texture(ctx, info, index), coords, operands.Mask(), operands.Span())};
+    return ReadAttachment(ctx, AttachmentReadSelector(ctx, info), texel);
 }
 
 Id EmitImageSampleDrefImplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value& index,
@@ -677,9 +724,17 @@ Id EmitImageFetch(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
         // This image is multisampled, lod must be implicit
         lod = Id{};
     }
+    const std::optional<Id> selector{AttachmentReadSelector(ctx, info)};
+    if (selector) {
+        // Keep the fetch inside the null texture bound while an attachment is read
+        const Id reads{ctx.OpINotEqual(ctx.U1, *selector, ctx.Const(0xFU))};
+        coords = ctx.OpSelect(ctx.U32[2], Splat(ctx, reads, 2), ctx.Const(0U, 0U), coords);
+    }
     const ImageOperands operands(lod, ms);
-    return Emit(&EmitContext::OpImageSparseFetch, &EmitContext::OpImageFetch, ctx, inst, ctx.F32[4],
-                TextureImage(ctx, info, index), coords, operands.MaskOptional(), operands.Span());
+    const Id texel{Emit(&EmitContext::OpImageSparseFetch, &EmitContext::OpImageFetch, ctx, inst,
+                        ctx.F32[4], TextureImage(ctx, info, index), coords,
+                        operands.MaskOptional(), operands.Span())};
+    return ReadAttachment(ctx, selector, texel);
 }
 
 Id EmitImageQueryDimensions(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id lod,
@@ -729,9 +784,10 @@ Id EmitImageGradient(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, I
                                               ctx.Def(offset), {}, lod_clamp)
                               : ImageOperands(ctx, info.has_lod_clamp != 0, derivatives,
                                               info.num_derivatives, offset, lod_clamp);
-    return Emit(&EmitContext::OpImageSparseSampleExplicitLod,
-                &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
-                Texture(ctx, info, index), coords, operands.Mask(), operands.Span());
+    const Id texel{Emit(&EmitContext::OpImageSparseSampleExplicitLod,
+                        &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
+                        Texture(ctx, info, index), coords, operands.Mask(), operands.Span())};
+    return ReadAttachment(ctx, AttachmentReadSelector(ctx, info), texel);
 }
 
 Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords) {

@@ -307,6 +307,15 @@ public:
         return properties.driver.driverID;
     }
 
+    /// True when fragment shaders read input attachments from tile memory, coherent with
+    /// earlier draws of the render pass, so a texture read of the pixel being shaded needs
+    /// no render pass break.
+    bool SupportsColorAttachmentFetch() const {
+        constexpr u32 APPLE_VENDOR_ID = 0x106B;
+        return GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+               properties.properties.vendorID == APPLE_VENDOR_ID;
+    }
+
     bool ShouldBoostClocks() const;
 
     /// Returns uniform buffer alignment requirement.

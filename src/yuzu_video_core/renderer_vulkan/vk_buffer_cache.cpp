@@ -462,6 +462,10 @@ bool BufferCacheRuntime::CanReportMemoryUsage() const {
     return device.CanReportMemoryUsage();
 }
 
+bool BufferCacheRuntime::ShouldStreamUniformBuffer(const Buffer& buffer, u32 offset, u32 size) const {
+    return device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && buffer.IsRegionUsed(offset, size);
+}
+
 u32 BufferCacheRuntime::GetStorageBufferAlignment() const {
     return static_cast<u32>(device.GetStorageBufferAlignment());
 }

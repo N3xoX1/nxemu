@@ -1216,12 +1216,18 @@ bool Device::GetSuitability(bool requires_swapchain)
     physical.GetFeatures2(features2);
     features.features = features2.features;
 
-    // Some features are mandatory. Check those.
-#define CHECK_FEATURE(feature, name)                                    \
-    if (!features.feature.name)                                         \
-    {                                                                   \
-        LOG_ERROR(Render_Vulkan, "Missing required feature {}", #name); \
-        suitable = false;                                               \
+    // Some features are mandatory. Check those. Metal has no geometry shaders or cull
+    // distances, and MoltenVK runs without them: not an error there.
+#ifdef __APPLE__
+#define LOG_MISSING_FEATURE LOG_WARNING
+#else
+#define LOG_MISSING_FEATURE LOG_ERROR
+#endif
+#define CHECK_FEATURE(feature, name)                                              \
+    if (!features.feature.name)                                                   \
+    {                                                                             \
+        LOG_MISSING_FEATURE(Render_Vulkan, "Missing required feature {}", #name); \
+        suitable = false;                                                         \
     }
 
 #define LOG_FEATURE(feature, name)                                           \
@@ -1235,6 +1241,7 @@ bool Device::GetSuitability(bool requires_swapchain)
 
 #undef LOG_FEATURE
 #undef CHECK_FEATURE
+#undef LOG_MISSING_FEATURE
 
     // Generate linked list of properties.
     properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;

@@ -15,6 +15,17 @@ namespace Vulkan {
 namespace {
 using VideoCore::Surface::PixelFormat;
 
+// Lets a draw read the color attachments written by earlier draws of the subpass
+constexpr VkSubpassDependency COLOR_READ_DEPENDENCY{
+    .srcSubpass = 0,
+    .dstSubpass = 0,
+    .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+};
+
 VkAttachmentDescription AttachmentDescription(const Device& device, PixelFormat format,
                                               VkSampleCountFlagBits samples) {
     using MaxwellToVK::SurfaceFormat;
@@ -72,11 +83,14 @@ VkRenderPass RenderPassCache::Get(const RenderPassKey& key) {
         };
         descriptions.push_back(AttachmentDescription(*device, key.depth_format, key.samples));
     }
+    // Every color attachment is also an input attachment of the same index, so that any
+    // pipeline may read the pixel it shades. Render pass compatibility includes them.
+    const bool reads_colors{device->SupportsColorAttachmentFetch() && num_attachments != 0};
     const VkSubpassDescription subpass{
         .flags = 0,
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .inputAttachmentCount = 0,
-        .pInputAttachments = nullptr,
+        .inputAttachmentCount = reads_colors ? num_attachments : 0,
+        .pInputAttachments = reads_colors ? references.data() : nullptr,
         .colorAttachmentCount = num_attachments,
         .pColorAttachments = references.data(),
         .pResolveAttachments = nullptr,
@@ -92,8 +106,8 @@ VkRenderPass RenderPassCache::Get(const RenderPassKey& key) {
         .pAttachments = descriptions.empty() ? nullptr : descriptions.data(),
         .subpassCount = 1,
         .pSubpasses = &subpass,
-        .dependencyCount = 0,
-        .pDependencies = nullptr,
+        .dependencyCount = reads_colors ? 1U : 0U,
+        .pDependencies = reads_colors ? &COLOR_READ_DEPENDENCY : nullptr,
     });
     return *pair->second;
 }

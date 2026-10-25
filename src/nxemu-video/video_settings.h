@@ -42,6 +42,7 @@ bool IsDMALevelDefault();
 bool IsDMALevelSafe();
 bool UseSafeDMAReads();
 bool IsGpuCommandSynchronizationEnabled();
+bool IsGpuReadbackExact();
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info);
 void UpdateRescalingInfo();
 
@@ -81,6 +82,7 @@ struct VideoSettings
     bool async_presentation;
     bool use_reactive_flushing;
     bool gpu_command_synchronization;
+    bool fast_gpu_readback;
 
     bool use_asynchronous_shaders;
     bool use_fast_gpu_time;

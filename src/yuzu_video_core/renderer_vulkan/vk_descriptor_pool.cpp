@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <bit>
 #include <mutex>
 #include <span>
 #include <vector>
@@ -29,7 +30,8 @@ bool DescriptorBankInfo::IsSuperset(const DescriptorBankInfo& subset) const noex
     return uniform_buffers >= subset.uniform_buffers && storage_buffers >= subset.storage_buffers &&
            texture_buffers >= subset.texture_buffers && image_buffers >= subset.image_buffers &&
            textures >= subset.textures && sampled_images >= subset.sampled_images &&
-           samplers >= subset.samplers && images >= subset.images;
+           samplers >= subset.samplers && images >= subset.images &&
+           input_attachments >= subset.input_attachments;
 }
 
 template <typename Descriptors>
@@ -54,15 +56,16 @@ static DescriptorBankInfo MakeBankInfo(std::span<const Shader::Info> infos) {
             bank.textures += desc.is_direct || desc.in_table_set ? 0U : desc.count;
         }
         bank.images += Accumulate(info.image_descriptors);
+        bank.input_attachments += static_cast<u32>(std::popcount(info.input_attachment_mask));
     }
     bank.score = bank.uniform_buffers + bank.storage_buffers + bank.texture_buffers +
                  bank.image_buffers + bank.textures + bank.sampled_images + bank.samplers +
-                 bank.images;
+                 bank.images + bank.input_attachments;
     return bank;
 }
 
 static void AllocatePool(const Device& device, DescriptorBank& bank) {
-    std::array<VkDescriptorPoolSize, 8> pool_sizes;
+    std::array<VkDescriptorPoolSize, 9> pool_sizes;
     size_t pool_cursor{};
     const u32 sets_per_pool = device.GetSetsPerPool();
     const auto add = [&](VkDescriptorType type, u32 count) {
@@ -82,6 +85,7 @@ static void AllocatePool(const Device& device, DescriptorBank& bank) {
     add(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, info.sampled_images);
     add(VK_DESCRIPTOR_TYPE_SAMPLER, info.samplers);
     add(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, info.images);
+    add(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, info.input_attachments);
     bank.pools.push_back(device.GetLogical().CreateDescriptorPool({
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = nullptr,

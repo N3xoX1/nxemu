@@ -993,8 +993,17 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
+    bool stream_modified_uniform{};
+    if constexpr (!IS_OPENGL) {
+        // A CPU-written uniform range that an earlier draw of this frame uses cannot be
+        // uploaded ahead of the render pass. Stream a copy instead of ending the pass.
+        stream_modified_uniform = binding.buffer_id != NULL_BUFFER_ID &&
+            runtime.ShouldStreamUniformBuffer(buffer, buffer.Offset(device_addr), size) &&
+            memory_tracker.IsRegionCpuModified(device_addr, size);
+    }
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
-                                 size <= channel_state->uniform_buffer_skip_cache_size &&
+                                 (size <= channel_state->uniform_buffer_skip_cache_size ||
+                                  stream_modified_uniform) &&
                                  !memory_tracker.IsRegionGpuModified(device_addr, size);
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {

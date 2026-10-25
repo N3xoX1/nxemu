@@ -379,20 +379,43 @@ void TextureCache<P>::CheckFeedbackLoop(std::span<const ImageViewInOut> views) {
     }
 
     const bool requires_barrier = [&] {
-        std::array<ImageId, NUM_RT + 1> target_images;
+        // Only writes since the last barrier can be missing from sampled reads, and they went to
+        // the current render targets: the render pass changes when they change.
+        const u64 written_tick = runtime.AttachmentBarrierTick() + 1;
+        std::array<const ImageViewBase*, NUM_RT + 1> target_views;
         size_t num_targets = 0;
-        for (const auto& ct_view_id : render_targets.color_buffer_ids) {
-            if (ct_view_id) {
-                target_images[num_targets++] = slot_image_views[ct_view_id].image_id;
+        const auto add_target = [&](ImageViewId target_id) {
+            if (!target_id) {
+                return;
             }
+            const ImageViewBase& target = slot_image_views[target_id];
+            if (slot_images[target.image_id].attachment_write_tick == written_tick) {
+                target_views[num_targets++] = &target;
+            }
+        };
+        for (const auto& ct_view_id : render_targets.color_buffer_ids) {
+            add_target(ct_view_id);
         }
-        if (render_targets.depth_buffer_id) {
-            target_images[num_targets++] = slot_image_views[render_targets.depth_buffer_id].image_id;
-        }
+        add_target(render_targets.depth_buffer_id);
         if (num_targets == 0) {
             return false;
         }
-        const std::span targets{target_images.data(), num_targets};
+        const std::span targets{target_views.data(), num_targets};
+        const auto overlaps = [&](const ImageViewBase& lhs, const ImageViewBase& rhs) {
+            if (lhs.image_id != rhs.image_id) {
+                return false;
+            }
+            // Slices of 3D images are not described by the layer range
+            if (slot_images[lhs.image_id].info.type == ImageType::e3D) {
+                return true;
+            }
+            const SubresourceRange& a = lhs.range;
+            const SubresourceRange& b = rhs.range;
+            return a.base.level < b.base.level + b.extent.levels &&
+                   b.base.level < a.base.level + a.extent.levels &&
+                   a.base.layer < b.base.layer + b.extent.layers &&
+                   b.base.layer < a.base.layer + a.extent.layers;
+        };
         // Large bindless arrays repeat their views, often back to back
         ImageViewId last_checked{};
         for (const auto& view : views) {
@@ -401,9 +424,11 @@ void TextureCache<P>::CheckFeedbackLoop(std::span<const ImageViewInOut> views) {
                 continue;
             }
             last_checked = view.id;
-            const ImageId image_id = slot_image_views[view.id].image_id;
-            if (std::ranges::find(targets, image_id) != targets.end()) {
-                return true;
+            const ImageViewBase& sampled = slot_image_views[view.id];
+            for (const ImageViewBase* target : targets) {
+                if (overlaps(sampled, *target)) {
+                    return true;
+                }
             }
         }
 
@@ -412,6 +437,24 @@ void TextureCache<P>::CheckFeedbackLoop(std::span<const ImageViewInOut> views) {
 
     if (requires_barrier) {
         runtime.BarrierFeedbackLoop();
+    }
+}
+
+template <class P>
+void TextureCache<P>::MarkRenderTargetsWritten(u32 color_mask, bool depth) {
+    const u64 written_tick = runtime.AttachmentBarrierTick() + 1;
+    const auto mark = [&](ImageViewId target_id) {
+        if (target_id) {
+            slot_images[slot_image_views[target_id].image_id].attachment_write_tick = written_tick;
+        }
+    };
+    for (size_t index = 0; index < NUM_RT; ++index) {
+        if ((color_mask >> index) & 1) {
+            mark(render_targets.color_buffer_ids[index]);
+        }
+    }
+    if (depth) {
+        mark(render_targets.depth_buffer_id);
     }
 }
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
 #include <span>
 
@@ -16,6 +17,7 @@
 #include "yuzu_video_core/renderer_vulkan/pipeline_statistics.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
+#include "yuzu_video_core/renderer_vulkan/vk_rasterizer.h"
 #include "yuzu_video_core/renderer_vulkan/vk_render_pass_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_staging_buffer_pool.h"
@@ -37,6 +39,7 @@ namespace {
 using boost::container::static_vector;
 using Shader::ImageBufferDescriptor;
 using Shader::Backend::SPIRV::RENDERAREA_LAYOUT_OFFSET;
+using Shader::Backend::SPIRV::RESCALING_LAYOUT_ATTACHMENT_READS_OFFSET;
 using Shader::Backend::SPIRV::RESCALING_LAYOUT_DOWN_FACTOR_OFFSET;
 using Shader::Backend::SPIRV::RESCALING_LAYOUT_WORDS_OFFSET;
 using Tegra::Texture::TexturePair;
@@ -418,6 +421,13 @@ GraphicsPipeline::GraphicsPipeline(
         num_image_elements += Shader::NumDescriptors(info->texture_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_descriptors);
     }
+    if (stage_infos[NUM_STAGES - 1].input_attachment_mask != 0) {
+        for (const auto& desc : stage_infos[NUM_STAGES - 1].texture_descriptors) {
+            if (desc.pixel_local_read != Shader::PixelLocalRead::None) {
+                attachment_read_kinds.push_back(desc.pixel_local_read);
+            }
+        }
+    }
     if (vtg_info && vtg_info->is_transform_feedback) {
         // The compute stage reuses the guest resources bound for the vertex stage
         const Shader::Info& info{vtg_info->infos[VtgPipelineInfo::VERTEX]};
@@ -675,6 +685,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
 
     const auto& regs{maxwell3d->regs};
     const bool via_header_index{regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding};
+    size_t attachment_read_slot{};
     const auto config_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
         const Shader::Info& info{stage_infos[stage]};
         buffer_cache.UnbindGraphicsStorageBuffers(stage);
@@ -747,6 +758,10 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 }
                 continue;
             }
+            if (stage == NUM_STAGES - 1 && !attachment_read_kinds.empty() &&
+                desc.pixel_local_read != Shader::PixelLocalRead::None) {
+                attachment_read_views[attachment_read_slot++] = view_index;
+            }
             const auto add_texture = [&](const auto & source) {
                 const auto read_handle = prepare_handle(source);
                 for (u32 index = 0; index < source.count; ++index)
@@ -792,6 +807,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     ASSERT(view_index == views.size());
     ASSERT(sampler_index == samplers.size());
     texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
+    attachment_reads = attachment_read_kinds.empty()
+                           ? Shader::Backend::SPIRV::NO_ATTACHMENT_READS
+                           : SelectAttachmentReads(std::span(views.data(), views.size()));
 
     VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
     const auto bind_stage_info{[&](size_t stage) LAMBDA_FORCEINLINE {
@@ -883,10 +901,80 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     }
     if constexpr (Spec::enabled_stages[4]) {
         prepare_stage(4);
+        // The fragment stage is the last, its input attachments end the descriptor set
+        for (u32 mask = stage_infos[4].input_attachment_mask; mask != 0; mask &= mask - 1) {
+            const VideoCommon::ImageViewId id{
+                texture_cache.ColorBufferViewId(static_cast<size_t>(std::countr_zero(mask)))};
+            const ImageView& image_view{texture_cache.GetImageView(id)};
+            guest_descriptor_queue.AddImage(id ? image_view.RenderTarget()
+                                               : image_view.Handle(Shader::TextureType::Color2D));
+        }
     }
     texture_cache.UpdateRenderTargets(false);
     texture_cache.CheckFeedbackLoop(views);
     ConfigureDraw(rescaling, render_area);
+}
+
+u32 GraphicsPipeline::SelectAttachmentReads(std::span<VideoCommon::ImageViewInOut> views) {
+    using Shader::Backend::SPIRV::NO_ATTACHMENT_READS;
+    texture_cache.UpdateRenderTargets(false);
+    const Framebuffer* const framebuffer{texture_cache.GetFramebuffer()};
+    if (framebuffer->Samples() != VK_SAMPLE_COUNT_1_BIT) {
+        return NO_ATTACHMENT_READS;
+    }
+    // Aliased attachments are drawn through scratch images unless written, and an attachment
+    // sharing its image with another one written by the draw no longer holds what was sampled
+    const u32 written{framebuffer->DuplicateColorAttachmentMask() != 0 ? ColorWriteMask() : 0};
+    const u32 scratch{framebuffer->ColorScratchMask(written)};
+    const auto& regs{maxwell3d->regs};
+    const auto& viewport{regs.viewport_transform[0]};
+    // The viewport maps the screen position varying to the texel of the pixel being shaded
+    const auto covers{[&](const VideoCommon::Extent3D& size) {
+        if (regs.viewport_scale_offset_enabled == 0 ||
+            viewport.swizzle.x != Maxwell::ViewportSwizzle::PositiveX ||
+            (viewport.swizzle.y != Maxwell::ViewportSwizzle::PositiveY &&
+             (device.IsNvViewportSwizzleSupported() ||
+              viewport.swizzle.y != Maxwell::ViewportSwizzle::NegativeY))) {
+            return false;
+        }
+        const VkViewport host{GetViewportState(device, regs, 0, 1.0f, 0.0f)};
+        const f32 width{static_cast<f32>(size.width)};
+        const f32 height{static_cast<f32>(size.height)};
+        return host.x == 0.0f && host.width == width && host.y == height && host.height == -height;
+    }};
+    const u32 mask{stage_infos[NUM_STAGES - 1].input_attachment_mask};
+    u32 reads{NO_ATTACHMENT_READS};
+    for (size_t slot = 0; slot < attachment_read_kinds.size(); ++slot) {
+        VideoCommon::ImageViewInOut& view{views[attachment_read_views[slot]]};
+        if (!view.id) {
+            continue;
+        }
+        const ImageView& sampled{texture_cache.GetImageView(view.id)};
+        for (u32 index = 0; index < Maxwell::NumRenderTargets; ++index) {
+            const VideoCommon::ImageViewId target_id{texture_cache.ColorBufferViewId(index)};
+            if (((mask >> index) & 1) == 0 || !target_id) {
+                continue;
+            }
+            const ImageView& target{texture_cache.GetImageView(target_id)};
+            if (sampled.image_id != target.image_id || sampled.range.base != target.range.base ||
+                ((scratch >> index) & 1) != 0 ||
+                (framebuffer->ColorAttachmentAliasMask(index) & written) != 0) {
+                continue;
+            }
+            if (sampled.type == VideoCommon::ImageViewType::e2D &&
+                sampled.range.extent.levels == 1 && sampled.range.extent.layers == 1 &&
+                sampled.format == target.format && sampled.HasIdentitySwizzle() &&
+                (attachment_read_kinds[slot] != Shader::PixelLocalRead::ScreenPosition ||
+                 covers(sampled.size))) {
+                const u32 shift{static_cast<u32>(slot) * 4};
+                reads = (reads & ~(0xFU << shift)) | (index << shift);
+                // Sampling nothing, the read sees what earlier draws wrote to the attachment
+                view.id = VideoCommon::NULL_IMAGE_VIEW_ID;
+            }
+            break;
+        }
+    }
+    return reads;
 }
 
 void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
@@ -1520,6 +1608,19 @@ VkDescriptorSet GraphicsPipeline::WorkerDescriptorSet(const void* data, u64 tick
     return set;
 }
 
+u32 GraphicsPipeline::ColorWriteMask() const {
+    u32 color_write_mask{};
+    const auto& regs = maxwell3d->regs;
+    const Shader::Info& fragment_info = stage_infos[4];
+    for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+        const auto& mask = regs.color_mask[regs.color_mask_common ? 0 : index];
+        if ((mask.R || mask.G || mask.B || mask.A) && fragment_info.stores_frag_color[index]) {
+            color_write_mask |= 1U << index;
+        }
+    }
+    return color_write_mask;
+}
+
 void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                      const RenderAreaPushConstant& render_area) {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
@@ -1527,22 +1628,26 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
         const u32 duplicate_mask = framebuffer->DuplicateColorAttachmentMask();
         if (duplicate_mask != 0) {
-            u32 color_write_mask{};
-            const auto& regs = maxwell3d->regs;
-            const Shader::Info& fragment_info = stage_infos[4];
-            for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
-                const auto& mask = regs.color_mask[regs.color_mask_common ? 0 : index];
-                if ((mask.R || mask.G || mask.B || mask.A) &&
-                    fragment_info.stores_frag_color[index]) {
-                    color_write_mask |= 1U << index;
-                }
-            }
             // Avoid independent Metal tile copies of
             // the same image. Keep the render-pass shape, using scratch for masked slots.
-            color_scratch_mask = framebuffer->ColorScratchMask(color_write_mask);
+            color_scratch_mask = framebuffer->ColorScratchMask(ColorWriteMask());
         }
     }
     scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
+    if (attachment_reads != Shader::Backend::SPIRV::NO_ATTACHMENT_READS) {
+        // Reads of the pixel being shaded only wait for earlier draws to the same region
+        scheduler.Record([](vk::CommandBuffer cmdbuf) {
+            const VkMemoryBarrier barrier{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                   VK_DEPENDENCY_BY_REGION_BIT, barrier);
+        });
+    }
 
     if (!build_complete.load(std::memory_order_acquire)) {
         // Completion includes failure, so a failed build cannot strand this worker.
@@ -1575,7 +1680,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     if (!uses_texture_table) {
         scheduler.Record([this, descriptor_data, descriptor_tick, bind_pipeline,
                           rescaling_data = rescaling.Data(),
-                          is_rescaling, update_rescaling,
+                          is_rescaling, update_rescaling, reads = attachment_reads,
                           uses_render_area = render_area.uses_render_area,
                           render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
             if (!IsBuilt()) {
@@ -1605,6 +1710,11 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                                  RESCALING_LAYOUT_WORDS_OFFSET,
                                  sizeof(rescaling_data) + (update_factor ? sizeof(f32) : 0),
                                  &scaling_data);
+            if (!attachment_read_kinds.empty()) {
+                cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
+                                     RESCALING_LAYOUT_ATTACHMENT_READS_OFFSET, sizeof(reads),
+                                     &reads);
+            }
             // An empty set 0 has a layout but nothing to update
             if (!descriptor_update_template) {
                 return;
@@ -1624,7 +1734,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                           rescaling_data = rescaling.Data(),
                           is_rescaling, update_rescaling,
                           table_data = uses_texture_table ? texture_table_data : nullptr,
-                          table_version = texture_table_version,
+                          table_version = texture_table_version, reads = attachment_reads,
                           uses_render_area = render_area.uses_render_area,
                           render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
             if (!IsBuilt()) {
@@ -1636,6 +1746,11 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
                                  RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
                                  rescaling_data.data());
+            if (!attachment_read_kinds.empty()) {
+                cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
+                                     RESCALING_LAYOUT_ATTACHMENT_READS_OFFSET, sizeof(reads),
+                                     &reads);
+            }
             if (update_rescaling || bind_pipeline) {
                 const f32 config_down_factor{videoSettings.resolution_info.down_factor};
                 const f32 scale_down_factor{is_rescaling ? config_down_factor : 1.0f};
