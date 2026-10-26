@@ -82,18 +82,18 @@ int main() {
 
     NceDirectMap map(entry);
     if (!map.Reserve(8 * GiB)) {
-        Check(false, "Réservation des fenêtres");
+        Check(false, "Window reservation");
         return 1;
     }
-    Check(true, "Réservation des fenêtres");
+    Check(true, "Window reservation");
     const auto & w = map.Windows();
     Check(w.size() == 2 && w[1].start == 448 * GiB && w[1].end == 512 * GiB && w[0].end <= 63 * GiB,
-          "Fenêtres : basse [" + std::to_string(w[0].start / GiB) + ", " + std::to_string(w[0].end / GiB) +
-              ") Gio, haute [448, 512) Gio");
+          "Windows: low [" + std::to_string(w[0].start / GiB) + ", " + std::to_string(w[0].end / GiB) +
+              ") GiB, high [448, 512) GiB");
     Check(map.Contains(w[0].start, w[0].end - w[0].start) &&
           !map.Contains(w[0].end - 0x1000, 0x2000) &&
           !map.Contains(w[0].start, ~u64{0}) && !map.Contains(0x8000000, 0x1000),
-          "D0 bornes exactes, dépassement entier rejeté, adresses 32 bits exclues");
+          "D0 exact bounds, integer overflow rejected, 32-bit addresses excluded");
     const u64 base = w[0].start + 64 * MiB;
 
     // D1: aligned contiguous backing -> direct, same contents, guest perm.
@@ -103,22 +103,22 @@ int main() {
     for (u64 o = 0; o < 64 * KiB; o += 4 * KiB) {
         same &= TryRead(base + o, &v) == 0 && v == 0x100000 + o;
     }
-    Check(same && HostProt(base) == (VM_PROT_READ | VM_PROT_WRITE), "D1 support aligné : direct RW, contenu exact");
+    Check(same && HostProt(base) == (VM_PROT_READ | VM_PROT_WRITE), "D1 aligned backing: direct RW, exact contents");
     Check(TryWrite(base + 0x2000, 0xABCD) == 0 && backing[(0x100000 + 0x2000) / 4] == 0xABCD,
-          "D1 écriture visible dans le support");
+          "D1 write visible in the backing");
     backing[(0x100000 + 0x2000) / 4] = 0x100000 + 0x2000;
 
     // D2: misaligned backing (offset 4 KiB into a host page) -> inaccessible.
     map.Map(base + 1 * MiB, 0x201000, 32 * KiB, R | W);
     Check(HostProt(base + 1 * MiB) == VM_PROT_NONE && TryRead(base + 1 * MiB, &v) == 1,
-          "D2 support décalé de 4 Kio : page hôte inaccessible");
+          "D2 backing offset by 4 KiB: host page inaccessible");
     Check(map.AccessAllowed(base + 1 * MiB + 0x1000, true) && map.AccessAllowed(base + 1 * MiB + 0x1000, false),
-          "D2 permission invitée connue pour l'émulation");
+          "D2 guest permission known for emulation");
 
     // D3: non-contiguous backing inside a host page -> inaccessible.
     map.Map(base + 2 * MiB, 0x300000, 8 * KiB, R | W);
     map.Map(base + 2 * MiB + 8 * KiB, 0x400000 + 8 * KiB, 8 * KiB, R | W);
-    Check(HostProt(base + 2 * MiB) == VM_PROT_NONE, "D3 support non contigu : inaccessible");
+    Check(HostProt(base + 2 * MiB) == VM_PROT_NONE, "D3 non-contiguous backing: inaccessible");
 
     // D4: union of permissions, R|RW -> RW; RX|R -> RX; RW|RX -> RX (never W and X).
     map.Map(base + 3 * MiB, 0x500000, 16 * KiB, R);
@@ -131,26 +131,26 @@ int main() {
     map.Protect(base + 3 * MiB + 40 * KiB, 8 * KiB, R | X);
     Check(HostProt(base + 3 * MiB + 32 * KiB) == (VM_PROT_READ | VM_PROT_EXECUTE) &&
               map.AccessAllowed(base + 3 * MiB + 32 * KiB, true),
-          "D4 RW|RX -> RX, écriture invitée permise donc émulée");
+          "D4 RW|RX -> RX, guest write allowed so emulated");
 
     // D5: partially mapped host page keeps the direct mapping of the mapped pages.
     map.Map(base + 4 * MiB, 0x600000, 8 * KiB, R | W);
     Check(HostProt(base + 4 * MiB) == (VM_PROT_READ | VM_PROT_WRITE) && TryRead(base + 4 * MiB + 4 * KiB, &v) == 0 &&
               v == 0x601000,
-          "D5 page hôte à moitié mappée : directe");
+          "D5 half-mapped host page: direct");
     map.Unmap(base + 4 * MiB, 8 * KiB);
     Check(HostProt(base + 4 * MiB) == VM_PROT_NONE && !map.AccessAllowed(base + 4 * MiB, false),
-          "D5 démappage : inaccessible");
+          "D5 unmapped: inaccessible");
 
     // D6: access mask (GPU cache): one guest page denied write -> whole host page read only,
     // guest permission unchanged; mask removed -> RW again. With reads denied too -> none.
     map.SetAccessMask(base + 0x1000, 0x1000, R);
     Check(HostProt(base) == VM_PROT_READ && TryWrite(base + 0x3000, 1) == 1 && map.AccessAllowed(base + 0x3000, true),
-          "D6 masque écriture sur 1 page : page hôte R, voisine émulée");
+          "D6 write mask on 1 page: host page R, neighbour emulated");
     map.SetAccessMask(base + 0x1000, 0x1000, R | W);
-    Check(HostProt(base) == (VM_PROT_READ | VM_PROT_WRITE), "D6 masque levé : RW");
+    Check(HostProt(base) == (VM_PROT_READ | VM_PROT_WRITE), "D6 mask lifted: RW");
     map.SetAccessMask(base, 0x4000, 0);
-    Check(HostProt(base) == VM_PROT_NONE && map.AccessAllowed(base, false), "D6 masque lecture : aucune");
+    Check(HostProt(base) == VM_PROT_NONE && map.AccessAllowed(base, false), "D6 read mask: none");
     map.SetAccessMask(base, 0x4000, R | W);
     map.Map(base, 0x100000, 16 * KiB, R | W);
 
@@ -221,7 +221,7 @@ int main() {
         }
         const int got = HostProt(hp);
         if (got != expect) {
-            if (mismatches++ < 5) std::printf("  page %llx: %d attendu %d\n", (unsigned long long)hp, got, expect);
+            if (mismatches++ < 5) std::printf("  page %llx: %d expected %d\n", (unsigned long long)hp, got, expect);
         }
         // Contents of the direct mapped pages are those of the backing.
         if (any && direct && (expect & R)) {
@@ -230,7 +230,7 @@ int main() {
             }
         }
     }
-    Check(mismatches == 0, "D8 4000 pages hôtes aléatoires conformes au modèle (" + std::to_string(mismatches) + " écarts)");
+    Check(mismatches == 0, "D8 4000 random host pages match the model (" + std::to_string(mismatches) + " mismatches)");
 
     // P1: cost of mapping 1 GiB of heap in 64 KiB calls and of 4 KiB calls (MapPhysicalMemory).
     using clk = std::chrono::steady_clock;
@@ -242,7 +242,7 @@ int main() {
     auto t2 = clk::now();
     const double us64 = std::chrono::duration<double, std::micro>(t1 - t0).count() / (128 * MiB / (64 * KiB));
     const double us4 = std::chrono::duration<double, std::micro>(t2 - t1).count() / (128 * MiB / (4 * KiB));
-    std::printf("INFO P1 Map 64 Kio : %.2f µs/appel ; Map 4 Kio : %.2f µs/appel\n", us64, us4);
+    std::printf("INFO P1 Map 64 KiB: %.2f us/call; Map 4 KiB: %.2f us/call\n", us64, us4);
 
     // P2: GPU cache toggles on one 4 KiB page (protect only path) and on 1 MiB.
     t0 = clk::now();
@@ -250,7 +250,7 @@ int main() {
     t1 = clk::now();
     for (int i = 0; i < 2000; i++) map.SetAccessMask(big, 1 * MiB, (i & 1) ? (R | W) : R);
     t2 = clk::now();
-    std::printf("INFO P2 masque 4 Kio : %.2f µs ; masque 1 Mio : %.2f µs\n",
+    std::printf("INFO P2 4 KiB mask: %.2f us; 1 MiB mask: %.2f us\n",
                 std::chrono::duration<double, std::micro>(t1 - t0).count() / 20000,
                 std::chrono::duration<double, std::micro>(t2 - t1).count() / 2000);
 
@@ -262,10 +262,10 @@ int main() {
     t1 = clk::now();
     for (int r = 0; r < 20; r++) for (u64 i = 0; i < 16 * MiB / 8; i++) q[i] = q[i] + 1;
     t2 = clk::now();
-    std::printf("INFO P3 balayage 16 Mio x20 : fenêtre %.1f ms, vue support %.1f ms\n",
+    std::printf("INFO P3 16 MiB sweep x20: window %.1f ms, backing view %.1f ms\n",
                 std::chrono::duration<double, std::milli>(t1 - t0).count(),
                 std::chrono::duration<double, std::milli>(t2 - t1).count());
 
-    std::printf("%s : %d échec(s)\n", g_failures == 0 ? "RÉUSSI" : "ÉCHEC", g_failures);
+    std::printf("%s: %d failure(s)\n", g_failures == 0 ? "PASSED" : "FAILED", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

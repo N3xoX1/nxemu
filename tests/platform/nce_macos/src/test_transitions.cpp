@@ -71,9 +71,9 @@ void TestSignalRoundTrip() {
         }
     }
     Expect("T4.1", bad == 0, Class::Blocker,
-           "Entrée par signal (contexte complet) puis sortie par signal : état invité restitué exactement",
-           Fmt("%d états aléatoires (x0-x30, sp, pc, NZCV, FPCR, FPSR, v0-v31) : %d divergence(s) %s; x18 perdu %d fois ; "
-               "aller-retour %s",
+           "Entry through a signal (full context), then exit through a signal: guest state restored exactly",
+           Fmt("%d random states (x0-x30, sp, pc, NZCV, FPCR, FPSR, v0-v31): %d divergence(s) %s; x18 lost %d times; "
+               "round trip %s",
                Trials, bad, first.c_str(), x18_lost, StatsText(Summarize(times)).c_str()));
 }
 
@@ -106,8 +106,8 @@ void TestHostState() {
     CalleeSavedArgs args{&vcpu, Entry(image), 0, 0};
     const std::uint64_t changed = ncev_call_check_callee_saved(RunSvcThenBrk, &args);
     Expect("T4.2", changed == 0 && args.hr1 == HrSupervisorCall() && args.hr2 == HrBreakpoint(), Class::Blocker,
-           "Registres hôte préservés (x19-x28, d8-d15, sp) à travers sortie SVC et sortie signal",
-           Fmt("%llu registre(s) modifié(s) ; sorties %#llx puis %#llx", (unsigned long long)changed,
+           "Host registers preserved (x19-x28, d8-d15, sp) across an SVC exit and a signal exit",
+           Fmt("%llu register(s) changed; exits %#llx then %#llx", (unsigned long long)changed,
                (unsigned long long)args.hr1, (unsigned long long)args.hr2));
 
     // Host floating-point control after the guest ran with its own FPCR.
@@ -127,14 +127,13 @@ void TestHostState() {
     const std::uint64_t hr_brk = vcpu.Run();
     const std::uint64_t after_signal = read_fpcr();
     write_fpcr(0);
-    Expect("T4.3", after_signal == 0, Class::Blocker, "FPCR hôte restauré après une sortie par signal (runtime Darwin)",
-           Fmt("sortie %#llx, FPCR hôte après = %#llx", (unsigned long long)hr_brk, (unsigned long long)after_signal));
-    Expect("T4.4", after_svc == 0, Class::Change, "FPCR hôte restauré après une sortie SVC (trampoline du patcher)",
-           Fmt("sortie %#llx, FPCR hôte après = %#llx (FPCR invité %#x)", (unsigned long long)hr_svc,
+    Expect("T4.3", after_signal == 0, Class::Blocker, "Host FPCR restored after a signal exit (Darwin runtime)",
+           Fmt("exit %#llx, host FPCR after = %#llx", (unsigned long long)hr_brk, (unsigned long long)after_signal));
+    Expect("T4.4", after_svc == 0, Class::Change, "Host FPCR restored after an SVC exit (patcher trampoline)",
+           Fmt("exit %#llx, host FPCR after = %#llx (guest FPCR %#x)", (unsigned long long)hr_svc,
                (unsigned long long)after_svc, guest_fpcr),
-           "Trampoline SVC (patcher.cpp) et sortie par signal du NCE : sauvegarder/restaurer FPCR et FPSR hôte, sinon le "
-           "code hôte (services HLE, audio, GPU) s'exécute avec l'arrondi et le flush-to-zero du jeu (même défaut sous "
-           "Linux)");
+           "SVC trampoline (patcher.cpp) and NCE signal exit: save and restore the host FPCR and FPSR, otherwise host "
+           "code (HLE services, audio, GPU) runs with the game's rounding and flush-to-zero (same fault on Linux)");
 }
 
 void TestSvcLoop() {
@@ -174,8 +173,8 @@ void TestSvcLoop() {
     const double per = double(NowNs() - t0) / double(N);
     const bool ok = handled == N && vcpu.ctx.cpu_registers[0] == N && vcpu.ctx.cpu_registers[19] == 0 &&
                     vcpu.ctx.cpu_registers[25] == 0x2525 && other == 0;
-    Expect("T4.5", ok, Class::Blocker, "Boucle de 200 000 SVC invité -> hôte -> invité (trampolines du patcher)",
-           Fmt("%llu SVC traités, x0=%llu, entrées trampoline %llu, signal %llu ; %.0f ns par aller-retour SVC",
+    Expect("T4.5", ok, Class::Blocker, "Loop of 200,000 guest -> host -> guest SVCs (patcher trampolines)",
+           Fmt("%llu SVCs handled, x0=%llu, trampoline entries %llu, signal %llu; %.0f ns per SVC round trip",
                (unsigned long long)handled, (unsigned long long)vcpu.ctx.cpu_registers[0],
                (unsigned long long)vcpu.entries_trampoline, (unsigned long long)vcpu.entries_signal, per));
 }
@@ -247,13 +246,13 @@ void TestFlagsAcrossMigration() {
     };
     const bool same_core = run(false);
     const bool migrated = run(true);
-    Expect("T4.6", same_core, Class::Blocker, "Drapeaux NZCV conservés à travers un SVC (même cœur)",
-           same_core ? "b.eq pris après le retour" : "drapeaux perdus");
-    Expect("T4.7", migrated, Class::Change, "Drapeaux NZCV conservés si le thread reprend sur un autre cœur après un SVC",
-           migrated ? "b.eq pris" : "b.eq non pris : la sortie SVC écrit GuestContext::nzcv, GetContext/SetContext ne copient "
-                                    "que pstate, le trampoline recharge le nzcv du cœur",
-           "GuestContext : un seul champ de drapeaux (sortie SVC, sortie signal, Get/SetContext et LoadContext) ; "
-           "défaut présent aussi sous Linux");
+    Expect("T4.6", same_core, Class::Blocker, "NZCV flags kept across an SVC (same core)",
+           same_core ? "b.eq taken after the return" : "flags lost");
+    Expect("T4.7", migrated, Class::Change, "NZCV flags kept when the thread resumes on another core after an SVC",
+           migrated ? "b.eq taken" : "b.eq not taken: the SVC exit writes GuestContext::nzcv, GetContext/SetContext only "
+                                    "copy pstate, the trampoline reloads the core's nzcv",
+           "GuestContext: a single flags field (SVC exit, signal exit, Get/SetContext and LoadContext); "
+           "the fault exists on Linux too");
 }
 
 void TestStacksAndFaults() {
@@ -280,8 +279,8 @@ void TestStacksAndFaults() {
         svcs += hr == HrSupervisorCall();
     } while (hr == HrSupervisorCall());
     Expect("T4.8", hr == HrBreakpoint() && svcs == 1000 && vcpu.ctx.sp == stack + 64, Class::Blocker,
-           "Pile invitée minimale (64 octets au-dessus d'une page de garde) : aucun accès hors pile",
-           Fmt("1000 SVC, sortie finale %#llx, sp final +%llu ; gestionnaires sur pile alternative", (unsigned long long)hr,
+           "Minimal guest stack (64 bytes above a guard page): no access outside the stack",
+           Fmt("1000 SVCs, final exit %#llx, final sp +%llu; handlers on the alternate stack", (unsigned long long)hr,
                (unsigned long long)(vcpu.ctx.sp - stack)));
 
     // Guest faults: exact state and address.
@@ -312,16 +311,16 @@ void TestStacksAndFaults() {
             }
         }
     }
-    Expect("T4.9", bad == 0, Class::Blocker, "Faute d'accès invitée : sortie DataAbort, état et adresse exacts",
-           Fmt("page PROT_NONE de la fenêtre et adresse hors fenêtre : %s; %d divergence(s) %s", sigs.c_str(), bad,
+    Expect("T4.9", bad == 0, Class::Blocker, "Guest access fault: DataAbort exit, exact state and address",
+           Fmt("PROT_NONE page of the window and address outside the window: %s; %d divergence(s) %s", sigs.c_str(), bad,
                first.c_str()));
 
     ClearProbeFault();
     std::uint64_t dummy = 0;
     const int host_fault = ncev_probe_load(reinterpret_cast<void *>(none + 8), &dummy);
     Expect("T4.10", host_fault == 1 && LastProbeFault().sig != 0, Class::Blocker,
-           "Faute dans le code hôte transmise au gestionnaire précédent (chaînage)",
-           Fmt("lecture hôte d'une page invitée PROT_NONE : %s", SignalName(LastProbeFault().sig)));
+           "Fault in host code passed to the previous handler (chaining)",
+           Fmt("host read of a PROT_NONE guest page: %s", SignalName(LastProbeFault().sig)));
 }
 
 // Task-level EXC_BAD_ACCESS port that declines every exception, as Dynarmic's macOS
@@ -418,11 +417,11 @@ void TestMachExceptions() {
     const Stats with_port = measure(2000, bad_mach);
     port.Stop();
     Expect("T4.11", bad_plain == 0 && bad_mach == 0 && port.received() >= 2000, Class::Blocker,
-           "Port d'exceptions Mach (comme Dynarmic) qui décline : le signal BSD du NCE est toujours délivré",
-           Fmt("%llu exceptions Mach reçues puis déclinées, %d sortie(s) fausse(s)", (unsigned long long)port.received(),
+           "Mach exception port (as Dynarmic uses) that declines: the NCE BSD signal is still delivered",
+           Fmt("%llu Mach exceptions received then declined, %d wrong exit(s)", (unsigned long long)port.received(),
                bad_plain + bad_mach));
-    Note("T4.12", "Coût d'une faute invitée jusqu'au retour hôte",
-         "signal seul : " + StatsText(plain) + " ; avec port Mach qui décline : " + StatsText(with_port));
+    Note("T4.12", "Cost of a guest fault until the return to the host",
+         "signal only: " + StatsText(plain) + "; with a declining Mach port: " + StatsText(with_port));
 }
 
 void TestInterrupts() {
@@ -459,7 +458,7 @@ void TestInterrupts() {
                 ok = ok && vcpu.ctx.cpu_registers[r] == std::uint64_t(0x1000 + r);
             }
             if (!ok && bad++ == 0) {
-                first = Fmt("sortie %#llx pc=%#llx", (unsigned long long)hr, (unsigned long long)vcpu.ctx.pc);
+                first = Fmt("exit %#llx pc=%#llx", (unsigned long long)hr, (unsigned long long)vcpu.ctx.pc);
             }
             last_x0 = vcpu.ctx.cpu_registers[0];
             exits = i + 1;
@@ -481,8 +480,8 @@ void TestInterrupts() {
         latency.push_back(received[i] > sent[i] ? received[i] - sent[i] : 0);
     }
     Expect("T4.13", bad == 0 && exits == N, Class::Blocker,
-           "Interruption d'un thread invité en boucle infinie (SIGURG ciblé) puis reprise exacte",
-           Fmt("%d interruptions, %d sortie(s) fausse(s) %s; latence demande -> retour hôte %s", N, bad, first.c_str(),
+           "Interrupting a guest thread in an infinite loop (targeted SIGURG), then exact resume",
+           Fmt("%d interrupts, %d wrong exit(s) %s; latency request -> host return %s", N, bad, first.c_str(),
                StatsText(Summarize(latency)).c_str()));
 }
 
@@ -549,9 +548,9 @@ void TestInterruptSvcRace() {
     guest.join();
     const bool ok = !timeout && unexpected == 0 && bad_svc == 0 && svcs == N && vcpu.ctx.cpu_registers[0] == N &&
                     vcpu.ctx.cpu_registers[1] == N;
-    Expect("T4.14", ok, Class::Blocker, "Interruptions aléatoires pendant 20 M de SVC : ni perte, ni doublon, ni blocage",
-           Fmt("%llu SVC (attendu %llu), x0=%llu x1=%llu, %llu interruptions envoyées / %llu sorties BreakLoop, "
-               "%llu sortie(s) inattendue(s)%s",
+    Expect("T4.14", ok, Class::Blocker, "Random interrupts during 20 M SVCs: no loss, no duplicate, no hang",
+           Fmt("%llu SVCs (expected %llu), x0=%llu x1=%llu, %llu interrupts sent / %llu BreakLoop exits, "
+               "%llu unexpected exit(s)%s",
                (unsigned long long)svcs, (unsigned long long)N, (unsigned long long)vcpu.ctx.cpu_registers[0],
                (unsigned long long)vcpu.ctx.cpu_registers[1], (unsigned long long)sent, (unsigned long long)breaks,
                (unsigned long long)unexpected, timeout ? " ; BLOCAGE" : ""));
@@ -583,8 +582,8 @@ void TestSpuriousInterrupts() {
     stop = true;
     host.join();
     const std::uint64_t seen = g_spurious_interrupts.load() - before;
-    Expect("T4.15", seen > 0, Class::Blocker, "SIGURG reçu dans du code hôte ignoré sans effet",
-           Fmt("%d envoyés, %llu reçus (coalescés par le noyau) et ignorés, thread hôte intact", N, (unsigned long long)seen));
+    Expect("T4.15", seen > 0, Class::Blocker, "SIGURG received in host code is ignored without effect",
+           Fmt("%d sent, %llu received (coalesced by the kernel) and ignored, host thread intact", N, (unsigned long long)seen));
 }
 
 void TestExclusiveUnderInterrupts() {
@@ -648,8 +647,8 @@ void TestExclusiveUnderInterrupts() {
                     (unsigned long long)cores[k].ctx.cpu_registers[3],
                     (unsigned long long)cores[k].ctx.cpu_registers[2]);
     }
-    Expect("T4.16", total == 2 * N, Class::Blocker, "Exclusifs invités sur 2 cœurs sous tempête d'interruptions",
-           Fmt("compteur %llu (attendu %llu), interruptions traitées %llu + %llu", (unsigned long long)total,
+    Expect("T4.16", total == 2 * N, Class::Blocker, "Guest exclusives on 2 cores under an interrupt storm",
+           Fmt("counter %llu (expected %llu), interrupts handled %llu + %llu", (unsigned long long)total,
                (unsigned long long)(2 * N), (unsigned long long)breaks[0], (unsigned long long)breaks[1]));
 }
 

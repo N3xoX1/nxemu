@@ -166,7 +166,7 @@ int main(int argc, char ** argv) {
         RunMemoryTests();
     }
     if (!g_startup.reserved) {
-        std::printf("Fenêtre invitée non réservée : étapes 3 et 4 impossibles.\n");
+        std::printf("Guest window not reserved: steps 3 and 4 cannot run.\n");
         WriteTsv();
         return 2;
     }

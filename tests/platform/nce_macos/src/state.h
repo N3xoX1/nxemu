@@ -93,23 +93,23 @@ inline DiffResult Diff(const GuestState & expected, const GuestState & got) {
     for (int i = 0; i < 31; i++) {
         if (expected.x[i] != got.x[i]) {
             d.x18_lost |= i == 18;
-            add(Fmt("x%d=%#llx(attendu %#llx)", i, (unsigned long long)got.x[i], (unsigned long long)expected.x[i]));
+            add(Fmt("x%d=%#llx(expected %#llx)", i, (unsigned long long)got.x[i], (unsigned long long)expected.x[i]));
         }
     }
     if (expected.sp != got.sp) {
-        add(Fmt("sp=%#llx(attendu %#llx)", (unsigned long long)got.sp, (unsigned long long)expected.sp));
+        add(Fmt("sp=%#llx(expected %#llx)", (unsigned long long)got.sp, (unsigned long long)expected.sp));
     }
     if (expected.pc != got.pc) {
-        add(Fmt("pc=%#llx(attendu %#llx)", (unsigned long long)got.pc, (unsigned long long)expected.pc));
+        add(Fmt("pc=%#llx(expected %#llx)", (unsigned long long)got.pc, (unsigned long long)expected.pc));
     }
     if (expected.nzcv != got.nzcv) {
-        add(Fmt("nzcv=%#x(attendu %#x)", got.nzcv, expected.nzcv));
+        add(Fmt("nzcv=%#x(expected %#x)", got.nzcv, expected.nzcv));
     }
     if (expected.fpcr != got.fpcr) {
-        add(Fmt("fpcr=%#x(attendu %#x)", got.fpcr, expected.fpcr));
+        add(Fmt("fpcr=%#x(expected %#x)", got.fpcr, expected.fpcr));
     }
     if (expected.fpsr != got.fpsr) {
-        add(Fmt("fpsr=%#x(attendu %#x)", got.fpsr, expected.fpsr));
+        add(Fmt("fpsr=%#x(expected %#x)", got.fpsr, expected.fpsr));
     }
     for (int i = 0; i < 32; i++) {
         if (expected.v[i][0] != got.v[i][0] || expected.v[i][1] != got.v[i][1]) {

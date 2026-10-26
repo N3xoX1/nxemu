@@ -14,7 +14,7 @@ bool MetalSmoke(std::string & detail) {
     @autoreleasepool {
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();
         if (device == nil) {
-            detail = "pas de périphérique Metal";
+            detail = "no Metal device";
             return false;
         }
         constexpr NSUInteger Size = 256u << 20;
@@ -30,8 +30,8 @@ bool MetalSmoke(std::string & detail) {
         const std::uint64_t addr = reinterpret_cast<std::uint64_t>(bytes);
         const bool filled = bytes[0] == 0x5A && bytes[Size - 1] == 0x5A;
         const bool outside = !InGuestWindow(addr) && !InGuestWindow(addr + Size - 1);
-        detail = Fmt("%s, tampon 256 Mio à %#llx (%s), remplissage GPU %s", [[device name] UTF8String],
-                     (unsigned long long)addr, outside ? "hors fenêtre" : "DANS la fenêtre", filled ? "ok" : "faux");
+        detail = Fmt("%s, 256 MiB buffer at %#llx (%s), GPU fill %s", [[device name] UTF8String],
+                     (unsigned long long)addr, outside ? "outside the window" : "INSIDE the window", filled ? "ok" : "wrong");
         return filled && outside && cmd.status == MTLCommandBufferStatusCompleted;
     }
 }

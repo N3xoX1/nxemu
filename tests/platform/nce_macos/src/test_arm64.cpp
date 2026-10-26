@@ -104,8 +104,8 @@ X18Survival MeasureX18() {
 }
 
 std::string X18Text(const X18Survival & r) {
-    return Fmt("perdu après préemption %llu/%llu (valeur lue %#llx), après appel système %llu/1000, après signal "
-               "%llu/1000, x18 écrit dans le contexte du signal non appliqué %llu/1000 ; TPIDR_EL0 bit 48 = %d",
+    return Fmt("lost after preemption %llu/%llu (value read %#llx), after a system call %llu/1000, after a signal "
+               "%llu/1000, x18 written to the signal context not applied %llu/1000; TPIDR_EL0 bit 48 = %d",
                (unsigned long long)r.spin_lost, (unsigned long long)r.spin_total, (unsigned long long)r.spin_seen,
                (unsigned long long)r.sys_lost, (unsigned long long)r.sig_lost, (unsigned long long)r.mcontext_lost,
                r.tpidr_flag);
@@ -116,10 +116,10 @@ namespace {
 void TestX18() {
     const X18Survival r = MeasureX18();
     Expect("A3.1", r.Preserved() && r.tpidr_flag, Class::Blocker,
-           "x18 conservé par le noyau (exécutable déclarant le SDK " NCEV_LEGACY_SDK ")", X18Text(r),
-           "Lier l'exécutable principal de NxEmu avec -Wl,-platform_version,macos,<min>," NCEV_LEGACY_SDK
-           " : XNU conserve alors x18 pour tout le processus (bit 48 de TPIDR_EL0). Vérifier au démarrage, "
-           "sinon repli sur Dynarmic");
+           "x18 kept by the kernel (executable declaring SDK " NCEV_LEGACY_SDK ")", X18Text(r),
+           "Link the NxEmu main executable with -Wl,-platform_version,macos,<min>," NCEV_LEGACY_SDK
+           ": XNU then keeps x18 for the whole process (bit 48 of TPIDR_EL0). Check at startup, "
+           "otherwise fall back to Dynarmic");
 
     // Control: the same measurement in a binary that declares the current SDK.
     int status = 0;
@@ -127,8 +127,8 @@ void TestX18() {
         RunChild(g_startup.probe_dir + "/nce_macos_validate_current_sdk", {"--child", "x18"}, status);
     const bool cleared = out.find("x18 cleared") != std::string::npos;
     Record("A3.2", cleared ? Outcome::Info : Outcome::Fail, Class::Info,
-           "Témoin : avec le SDK actuel, le noyau efface x18",
-           Fmt("%s (statut %d)", out.empty() ? "aucune sortie" : out.c_str(), status));
+           "Control: with the current SDK, the kernel clears x18",
+           Fmt("%s (status %d)", out.empty() ? "no output" : out.c_str(), status));
 }
 
 void TestTpidr() {
@@ -155,11 +155,11 @@ void TestTpidr() {
     int ncpu = 0;
     std::size_t len = sizeof(ncpu);
     sysctlbyname("hw.ncpu", &ncpu, &len, nullptr, 0);
-    Expect("A3.3", lost == 0, Class::Change, "TPIDR_EL0 écrit par l'espace utilisateur conservé",
-           Fmt("écrasé %llu/%llu fois ; valeurs trouvées à la place : %s(hw.ncpu=%d : numéro de CPU)",
+    Expect("A3.3", lost == 0, Class::Change, "TPIDR_EL0 written by user space is kept",
+           Fmt("overwritten %llu/%llu times; values found instead: %s(hw.ncpu=%d: CPU number)",
                (unsigned long long)lost, (unsigned long long)total, values.c_str(), ncpu),
-           "Le code de patch et les gestionnaires ne doivent plus utiliser TPIDR_EL0 : paramètres de thread via "
-           "TPIDRRO_EL0 + slot TSD (A3.3) et discrimination invité/hôte par PC dans la fenêtre invitée");
+           "Patch code and handlers must stop using TPIDR_EL0: thread parameters through "
+           "TPIDRRO_EL0 + TSD slot (A3.3), and guest/host decided by the PC being in the guest window");
 }
 
 void TestTsdSlot() {
@@ -191,9 +191,9 @@ void TestTsdSlot() {
     }
     pthread_key_delete(key);
     Expect("A3.4", bad == 0 && low_bits == 0, Class::Blocker,
-           "Paramètres de thread lus via TPIDRRO_EL0 + slot TSD (remplacement de TPIDR_EL0)",
-           Fmt("8 threads × 2M lectures sous préemption : %llu erreur(s), %llu valeur(s) TPIDRRO_EL0 avec bits bas non nuls ; "
-               "slot à l'octet %u (ldr à immédiat)",
+           "Thread parameters read through TPIDRRO_EL0 + TSD slot (instead of TPIDR_EL0)",
+           Fmt("8 threads x 2M reads under preemption: %llu error(s), %llu TPIDRRO_EL0 value(s) with nonzero low bits; "
+               "slot at byte %u (immediate ldr)",
                (unsigned long long)bad.load(), (unsigned long long)low_bits.load(), offset));
 }
 
@@ -204,17 +204,17 @@ void TestRawSvc() {
     unsigned long long a = 0, b = 0, c = 0;
     std::sscanf(out.c_str(), "pid=%u svc0=%llu svc26=%llu svc7f=%llu", &pid, &a, &b, &c);
     const bool host_syscall = pid != 0 && a == pid && b == pid && c == pid;
-    Expect("A3.5", !host_syscall, Class::Change, "SVC invité non patché piégé (et non exécuté comme appel système hôte)",
-           Fmt("svc #0, #0x26, #0x7f avec x16=SYS_getpid renvoient %llu/%llu/%llu (pid %u) : l'immédiat est ignoré, x16 "
-               "invité choisit un appel système macOS réel",
+    Expect("A3.5", !host_syscall, Class::Change, "Unpatched guest SVC trapped (and not run as a host system call)",
+           Fmt("svc #0, #0x26, #0x7f with x16=SYS_getpid return %llu/%llu/%llu (pid %u): the immediate is ignored, the guest's "
+               "x16 picks a real macOS system call",
                a, b, c, pid),
-           "Le patcher doit couvrir 100 % des SVC avant toute exécution, modules chargés plus tard compris (NRO/ro), "
-           "sinon refuser le NCE pour ce processus ; aucun code invité non scanné ne doit s'exécuter");
+           "The patcher must cover every SVC before anything runs, including modules loaded later (NRO/ro), "
+           "otherwise refuse NCE for the process; no unscanned guest code may run");
 }
 
 void TestCounters() {
     const std::uint64_t freq = ncev_read_cntfrq();
-    Note("A3.6", "Fréquence du compteur", Fmt("CNTFRQ_EL0 hôte = %llu Hz ; Switch : 19 200 000 Hz", (unsigned long long)freq));
+    Note("A3.6", "Counter frequency", Fmt("host CNTFRQ_EL0 = %llu Hz; Switch: 19,200,000 Hz", (unsigned long long)freq));
 
     std::uint64_t prev = ncev_read_cntvct(), backwards = 0;
     for (int i = 0; i < 1'000'000; i++) {
@@ -222,13 +222,13 @@ void TestCounters() {
         backwards += v < prev;
         prev = v;
     }
-    Expect("A3.7", backwards == 0, Class::Blocker, "CNTVCT_EL0 lisible en EL0 et monotone",
-           Fmt("1M lectures, %llu retour(s) en arrière", (unsigned long long)backwards));
+    Expect("A3.7", backwards == 0, Class::Blocker, "CNTVCT_EL0 readable at EL0 and monotonic",
+           Fmt("1M reads, %llu step(s) backwards", (unsigned long long)backwards));
 
     int status = 0;
     const std::string pct = RunChild(g_startup.self_path, {"--child", "cntpct"}, status);
-    Note("A3.8", "CNTPCT_EL0 en EL0 (instruction non patchée)",
-         pct.find("sigill") != std::string::npos ? "SIGILL : le noyau ne l'expose pas" : "lisible : " + pct.substr(0, pct.find('\n')));
+    Note("A3.8", "CNTPCT_EL0 at EL0 (unpatched instruction)",
+         pct.find("sigill") != std::string::npos ? "SIGILL: the kernel does not expose it" : "readable: " + pct.substr(0, pct.find('\n')));
 
     // Real patcher on CNTVCT_EL0 and CNTFRQ_EL0 reads.
     std::vector<std::uint32_t> text(0x1000, 0xD503201F);
@@ -241,17 +241,17 @@ void TestCounters() {
     Core::NCE::EntryTrampolines trampolines;
     patcher.RelocateAndCopy(0x10000000, 0, text.size() * 4, image.data(), &image_size, &trampolines);
     const std::uint32_t after = reinterpret_cast<std::uint32_t *>(image.data())[16];
-    Expect("A3.9", after != 0xD53BE040, Class::Change, "Lecture invitée de CNTVCT_EL0 convertie à 19,2 MHz",
-           after == 0xD53BE040 ? Fmt("instruction laissée telle quelle : le jeu lit le compteur hôte à %llu Hz",
+    Expect("A3.9", after != 0xD53BE040, Class::Change, "Guest CNTVCT_EL0 read converted to 19.2 MHz",
+           after == 0xD53BE040 ? Fmt("instruction left as is: the game reads the host counter at %llu Hz",
                                      (unsigned long long)freq)
-                               : std::string("instruction remplacée"),
-           "patcher : traiter MRS CNTVCT_EL0 comme CNTPCT_EL0 (mise à l'échelle vers 19,2 MHz)");
+                               : std::string("instruction replaced"),
+           "patcher: handle MRS CNTVCT_EL0 like CNTPCT_EL0 (scaled to 19.2 MHz)");
 
     const std::string frq = RunChild(g_startup.self_path, {"--child", "cntfrq_patch"}, status);
     const bool frq_ok = WIFEXITED(status) && WEXITSTATUS(status) == 0 && frq.find("patched") != std::string::npos;
-    Expect("A3.10", frq_ok, Class::Change, "Module contenant MRS CNTFRQ_EL0 accepté par le patcher",
-           frq_ok ? "ok" : Fmt("le patcher s'arrête (UNREACHABLE), statut %#x", status),
-           "patcher : remplacer UNREACHABLE par l'écriture de la constante 19 200 000 dans le registre destination");
+    Expect("A3.10", frq_ok, Class::Change, "Module containing MRS CNTFRQ_EL0 accepted by the patcher",
+           frq_ok ? "ok" : Fmt("the patcher stops (UNREACHABLE), status %#x", status),
+           "patcher: replace UNREACHABLE with writing the constant 19,200,000 to the destination register");
 
 }
 
@@ -287,15 +287,15 @@ void TestSystemInstructions() {
         }
     }
     Expect("A3.11", trapped_unpatched.empty(), Class::Change,
-           "Instructions système EL0 des jeux exécutables nativement (ou déjà réécrites)",
-           Fmt("autorisées : %s| piégées (SIGILL) : %s(MIDR_EL1 est aussi interdit sur Switch)", allowed.c_str(),
+           "EL0 system instructions used by games run natively (or are already rewritten)",
+           Fmt("allowed: %s| trapped (SIGILL): %s(MIDR_EL1 is also forbidden on Switch)", allowed.c_str(),
                trapped.c_str()),
-           "patcher : émuler MRS CTR_EL0 (valeur du Cortex-A57 0x8444c004 ou hôte, au choix explicite) : le noyau macOS "
-           "le refuse en EL0 alors que les routines de cache des jeux le lisent");
-    Expect("A3.12", (dczid & 0x1F) == 4, Class::Change, "DC ZVA : taille de bloc identique à la Switch (64 octets)",
-           Fmt("DCZID_EL0 = %#llx (bloc %u octets, DZP=%llu) ; Cortex-A57 : 0x4", (unsigned long long)dczid,
+           "patcher: emulate MRS CTR_EL0 (Cortex-A57 value 0x8444c004 or the host's, chosen explicitly): macOS refuses "
+           "it at EL0 while the cache routines of games read it");
+    Expect("A3.12", (dczid & 0x1F) == 4, Class::Change, "DC ZVA: same block size as the Switch (64 bytes)",
+           Fmt("DCZID_EL0 = %#llx (block %u bytes, DZP=%llu); Cortex-A57: 0x4", (unsigned long long)dczid,
                4u << (dczid & 0xF), (unsigned long long)((dczid >> 4) & 1)),
-           "Taille DC ZVA différente : émuler les lectures DCZID_EL0 et réécrire DC ZVA");
+           "Different DC ZVA size: emulate DCZID_EL0 reads and rewrite DC ZVA");
 }
 
 // ---- Differential: original instruction semantics vs patched code.
@@ -336,7 +336,7 @@ struct Differential {
             DiffResult d = Diff(expected, got);
             if (hr != HrBreakpoint()) {
                 d.mismatches++;
-                d.text = Fmt("sortie %#llx (attendu brk) ", (unsigned long long)hr) + d.text;
+                d.text = Fmt("exit %#llx (expected brk) ", (unsigned long long)hr) + d.text;
             }
             r.trials++;
             r.x18_lost += d.x18_lost;
@@ -405,7 +405,7 @@ void TestDifferential() {
     std::string error;
     std::vector<std::uint32_t> patched;
     if (!BuildPatchedImage(words, image, error, &patched)) {
-        Expect("A3.13", false, Class::Blocker, "Construction du module patché", error);
+        Expect("A3.13", false, Class::Blocker, "Building the patched module", error);
         return;
     }
     const std::uint64_t code = image.base + image.code_offset;
@@ -430,9 +430,9 @@ void TestDifferential() {
         }
     }
     Expect("A3.13", bad_sites == 0 && sites_patched == int(placed.size()), Class::Blocker,
-           "Différentiel original/réécrit : MRS TPIDRRO_EL0, MRS/MSR TPIDR_EL0 (x0-x30)",
-           Fmt("%d sites × %d états aléatoires (x0-x30, sp, NZCV, FPCR, FPSR, v0-v31) : %d site(s) divergent(s) ; "
-               "%d/%zu sites réécrits ; x18 d'entrée perdu %d fois %s",
+           "Original/rewritten differential: MRS TPIDRRO_EL0, MRS/MSR TPIDR_EL0 (x0-x30)",
+           Fmt("%d sites x %d random states (x0-x30, sp, NZCV, FPCR, FPSR, v0-v31): %d diverging site(s); "
+               "%d/%zu sites rewritten; entry x18 lost %d times %s",
                total_sites, Trials, bad_sites, sites_patched, placed.size(), x18_lost, failures.c_str()));
 
     // Negative controls: the comparison must catch a wrong rewrite.
@@ -459,9 +459,9 @@ void TestDifferential() {
     PatchImageWord(image, victim, site_word);
     const bool restored = diff.RunSite(image, victim, 5, ModelTpidrro, Trials).bad == 0;
     Expect("A3.14", caught == 2 && restored, Class::Blocker,
-           "Contrôle négatif : une réécriture fausse est détectée par le différentiel",
-           Fmt("mutations détectées %d/2 (mauvais champ lu, branchement retiré), site restauré correct : %s", caught,
-               restored ? "oui" : "non"));
+           "Negative control: a wrong rewrite is caught by the differential",
+           Fmt("mutations caught %d/2 (wrong field read, branch removed), restored site correct: %s", caught,
+               restored ? "yes" : "no"));
 
     // CNTPCT_EL0: exact registers, counter value checked against the host clock.
     int cnt_bad = 0;
@@ -505,8 +505,8 @@ void TestDifferential() {
         }
     }
     Expect("A3.15", cnt_bad == 0, Class::Blocker,
-           "Différentiel MRS CNTPCT_EL0 réécrit : registres exacts, compteur à 19,2 MHz encadré par les horodatages hôtes",
-           Fmt("%zu registres destination, %d divergence(s) %s; écart de fréquence max %.4f %% (mesure sur 50 ms)",
+           "Rewritten MRS CNTPCT_EL0 differential: exact registers, 19.2 MHz counter bracketed by host timestamps",
+           Fmt("%zu destination registers, %d divergence(s) %s; max frequency error %.4f %% (measured over 50 ms)",
                std::size(cntpct_regs), cnt_bad, cnt_fail.c_str(), worst_rate_error * 100.0));
 
     // Exclusive pair rewritten to the ordered form.
@@ -535,8 +535,8 @@ void TestDifferential() {
         }
     }
     Expect("A3.16", excl_bad == 0 && ldxr_after == 0xC85FFC01 && stxr_after == 0xC802FC01, Class::Blocker,
-           "Différentiel LDXR/STXR réécrits en LDAXR/STLXR",
-           Fmt("ldxr -> %#x, stxr -> %#x ; %d divergence(s) sur %d états %s", ldxr_after, stxr_after, excl_bad, Trials,
+           "Differential of LDXR/STXR rewritten as LDAXR/STLXR",
+           Fmt("ldxr -> %#x, stxr -> %#x; %d divergence(s) over %d states %s", ldxr_after, stxr_after, excl_bad, Trials,
                excl_fail.c_str()));
 
     // SVC: exit to the host with the full state, then return through the trampoline.
@@ -575,14 +575,14 @@ void TestDifferential() {
             if (!svc_ok || d.mismatches != 0 || hr2 != HrBreakpoint() || d2.mismatches != 0 ||
                 diff.vcpu.entries_trampoline == 0) {
                 svc_bad++;
-                svc_fail = Fmt("sortie %#llx svc=%#x %s| retour %#llx %s", (unsigned long long)hr, diff.vcpu.ctx.svc,
+                svc_fail = Fmt("exit %#llx svc=%#x %s| return %#llx %s", (unsigned long long)hr, diff.vcpu.ctx.svc,
                                d.text.c_str(), (unsigned long long)hr2, d2.text.c_str());
             }
         }
     }
     Expect("A3.17", svc_bad == 0, Class::Blocker,
-           "Différentiel SVC : sortie vers l'hôte avec état complet, numéro, PC+4, puis retour par le trampoline",
-           Fmt("%zu SVC × %d états : %d divergence(s) %s; entrées par trampoline : %llu", std::size(svc_ids), Trials,
+           "SVC differential: exit to the host with full state, number and PC+4, then return through the trampoline",
+           Fmt("%zu SVCs x %d states: %d divergence(s) %s; trampoline entries: %llu", std::size(svc_ids), Trials,
                svc_bad, svc_fail.c_str(), (unsigned long long)diff.vcpu.entries_trampoline));
 }
 
@@ -624,8 +624,8 @@ void TestLegacyModuleScan() {
         }
     }
     Expect("A3.22", failures == 0, Class::Blocker,
-           "Scanner rtld 36 bits : déplacement exact, garde de signature et 39 bits inchangé",
-           Fmt("3 variantes x 24 états complets : %d écart(s) ; base native > 4 Gio", failures));
+           "36-bit rtld scanner: exact relocation, signature guard, 39-bit unchanged",
+           Fmt("3 variants x 24 full states: %d mismatch(es); native base > 4 GiB", failures));
 }
 
 void TestLegacyAllocators() {
@@ -664,8 +664,8 @@ void TestLegacyAllocators() {
         }
     }
     Expect("A3.23", failures == 0, Class::Blocker,
-           "Allocateurs SDK 36 bits : bornes ASLR et pile, garde de signature, 39 bits inchangé",
-           Fmt("2 paires x 3 variantes x 24 états complets : %d écart(s)", failures));
+           "36-bit SDK allocators: ASLR and stack bounds, signature guard, 39-bit unchanged",
+           Fmt("2 pairs x 3 variants x 24 full states: %d mismatch(es)", failures));
 }
 
 // Data in .text (Absolum keeps 1.7 MiB of it there) must come out of the patcher unchanged,
@@ -706,9 +706,9 @@ void TestDataInText() {
     const bool code_ok = out[16] == (Ldxr | (1u << 15)) && out[17] == (Stxr | (1u << 15)) && out[20] != Svc6 &&
                          out[0x804] == (Ldxr | (1u << 15)) && out[0x805] == (Stxr | (1u << 15));
     Expect("A3.24", data_changed == 0 && code_ok, Class::Blocker,
-           "Données dans .text laissées intactes, exclusifs et SVC du code réécrits",
-           Fmt("%d mot(s) de données modifié(s) ; code : ldxr %#x, stxr %#x, svc %s", data_changed, out[16], out[17],
-               out[20] != Svc6 ? "réécrit" : "laissé"));
+           "Data in .text left intact, exclusives and SVCs of the code rewritten",
+           Fmt("%d data word(s) changed; code: ldxr %#x, stxr %#x, svc %s", data_changed, out[16], out[17],
+               out[20] != Svc6 ? "rewritten" : "left"));
 }
 
 void TestBranchRange() {
@@ -730,8 +730,8 @@ void TestBranchRange() {
     for (int i = 0; i < 3 && built; i++) {
         bad += diff.RunSite(image, code + indices[i] * 4, 1 + i, ModelTpidrro, 4).bad;
     }
-    Expect("A3.18", built && bad == 0, Class::Blocker, "Branchements module <-> section de patch (module de 64 Mio)",
-           built ? Fmt("début, milieu et fin du module : %d divergence(s) ; section de patch à %#llx octets du 1er site",
+    Expect("A3.18", built && bad == 0, Class::Blocker, "Branches between module and patch section (64 MiB module)",
+           built ? Fmt("start, middle and end of the module: %d divergence(s); patch section %#llx bytes from the first site",
                        bad, (unsigned long long)(words.size() * 4))
                  : error);
 }
@@ -757,8 +757,8 @@ void TestAtomics() {
     const std::uint64_t plain = run(ncev_excl_add, s_plain);
     const std::uint64_t ordered = run(ncev_excl_add_ordered, s_ordered);
     Expect("A3.19", plain == Threads * PerThread && ordered == Threads * PerThread, Class::Blocker,
-           "Incréments LDXR/STXR concurrents exacts, forme d'origine et forme ordonnée",
-           Fmt("%d threads × %llu : d'origine %llu (%.0f ms), LDAXR/STLXR %llu (%.0f ms, ×%.2f)", Threads,
+           "Concurrent LDXR/STXR increments exact, original and ordered forms",
+           Fmt("%d threads x %llu: original %llu (%.0f ms), LDAXR/STLXR %llu (%.0f ms, x%.2f)", Threads,
                (unsigned long long)PerThread, (unsigned long long)plain, s_plain * 1000, (unsigned long long)ordered,
                s_ordered * 1000, s_ordered / s_plain));
 
@@ -800,8 +800,8 @@ void TestAtomics() {
     const std::uint64_t relaxed_bad = litmus(0);
     const std::uint64_t ordered_bad = litmus(1);
     Expect("A3.20", ordered_bad == 0, Class::Blocker,
-           "Passage de message avec exclusifs ordonnés (sémantique supposée par AsOrdered)",
-           Fmt("forme ordonnée : %llu violation(s) ; forme d'origine : %llu réordonnancement(s) observé(s) sur 200 000",
+           "Message passing with ordered exclusives (semantics AsOrdered assumes)",
+           Fmt("ordered form: %llu violation(s); original form: %llu reordering(s) observed out of 200,000",
                (unsigned long long)ordered_bad, (unsigned long long)relaxed_bad));
 
     // Exclusive loops keep making progress under a signal storm.
@@ -827,8 +827,8 @@ void TestAtomics() {
     }
     worker.join();
     std::signal(SIGUSR1, SIG_DFL);
-    Expect("A3.21", counter == 20'000'000, Class::Blocker, "Boucle exclusive sous tempête de signaux : progression et résultat exacts",
-           Fmt("%llu incréments, %llu signaux reçus pendant la boucle", (unsigned long long)counter,
+    Expect("A3.21", counter == 20'000'000, Class::Blocker, "Exclusive loop under a signal storm: progress and exact result",
+           Fmt("%llu increments, %llu signals received during the loop", (unsigned long long)counter,
                (unsigned long long)sent.load()));
 }
 

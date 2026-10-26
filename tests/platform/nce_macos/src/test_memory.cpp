@@ -47,7 +47,7 @@ struct Backing {
 };
 
 const char * BackingName(BackingKind k) {
-    return k == BackingKind::Shm ? "shm_open (support actuel de HostMemory)" : "entrée mémoire Mach nommée";
+    return k == BackingKind::Shm ? "shm_open (current HostMemory backing)" : "named Mach memory entry";
 }
 
 Backing CreateBacking(std::uint64_t size, BackingKind kind = BackingKind::MachEntry) {
@@ -142,7 +142,7 @@ int RegionProt(std::uint64_t addr, std::uint64_t * region_start = nullptr, std::
 
 std::string ProtText(int prot) {
     if (prot < 0) {
-        return "non mappé";
+        return "unmapped";
     }
     std::string s;
     s += (prot & VM_PROT_READ) ? 'r' : '-';
@@ -165,7 +165,7 @@ const char * TagName(std::uint32_t tag) {
     case VM_MEMORY_MALLOC_LARGE: return "malloc_large";
     case VM_MEMORY_MALLOC_TINY: return "malloc_tiny";
     case VM_MEMORY_MALLOC_NANO: return "malloc_nano";
-    case VM_MEMORY_STACK: return "pile";
+    case VM_MEMORY_STACK: return "stack";
     case VM_MEMORY_DYLD: return "dyld";
     case VM_MEMORY_SHARED_PMAP: return "shared_pmap";
     case VM_MEMORY_UNSHARED_PMAP: return "unshared_pmap";
@@ -176,8 +176,8 @@ const char * TagName(std::uint32_t tag) {
 }
 
 void TestPageSizes() {
-    Note("M2.1", "Tailles de page",
-         Fmt("hôte : sysconf=%ld, vm_page_size=%lu, vm_kernel_page_size=%lu ; invitée Horizon : 4 Kio", sysconf(_SC_PAGESIZE),
+    Note("M2.1", "Page sizes",
+         Fmt("host: sysconf=%ld, vm_page_size=%lu, vm_kernel_page_size=%lu; Horizon guest: 4 KiB", sysconf(_SC_PAGESIZE),
              (unsigned long)vm_page_size, (unsigned long)vm_kernel_page_size));
 
     int status = 0;
@@ -187,12 +187,12 @@ void TestPageSizes() {
     // (Rosetta). A native arm64 executable is refused with EBADMACHO.
     const std::string forced = RunChild(g_startup.self_path, {"--child", "page_size"}, status, 0x1000, &spawn_error);
     const bool four_k = plain.find("page=4096") != std::string::npos || forced.find("page=4096") != std::string::npos;
-    Expect("M2.2", four_k, Class::Change, "Pages hôte de 4 Kio disponibles pour un processus arm64 natif",
-           Fmt("processus fils : %s ; avec l'attribut privé 4K (0x1000) : %s",
+    Expect("M2.2", four_k, Class::Change, "4 KiB host pages available to a native arm64 process",
+           Fmt("child process: %s; with the private 4K attribute (0x1000): %s",
                plain.empty() ? "?" : plain.substr(0, plain.find('\n')).c_str(),
-               spawn_error ? Fmt("refusé (%s)", strerror(spawn_error)).c_str() : forced.substr(0, forced.find('\n')).c_str()),
-           "Mapping invité 4 Kio impossible tel quel : appliquer le plan exact 16 Kio (pages directes + pages scindées "
-           "dont les accès refusés par l'hôte sont émulés, M2.21-M2.25)");
+               spawn_error ? Fmt("refused (%s)", strerror(spawn_error)).c_str() : forced.substr(0, forced.find('\n')).c_str()),
+           "A 4 KiB guest mapping is not possible as is: apply the exact 16 KiB plan (direct pages + split pages "
+           "whose accesses the host refuses are emulated, M2.21-M2.25)");
 }
 
 void TestPageZero() {
@@ -205,17 +205,17 @@ void TestPageZero() {
     if (low != MAP_FAILED) {
         munmap(low, 0x4000);
     }
-    std::string why = spawn_error != 0 ? Fmt("exec refusé (%s)", strerror(spawn_error))
-                      : WIFSIGNALED(status) ? Fmt("tué par le signal %d", WTERMSIG(status))
-                                            : Fmt("statut %d", status);
-    Expect("M2.3", ran || low_err == 0, Class::Change, "Adresses invitées sous 4 Gio mappables en identité",
-           Fmt("binaire avec __PAGEZERO de 16 Kio : %s ; mmap fixe à 128 Mio dans ce processus : %s",
+    std::string why = spawn_error != 0 ? Fmt("exec refused (%s)", strerror(spawn_error))
+                      : WIFSIGNALED(status) ? Fmt("killed by signal %d", WTERMSIG(status))
+                                            : Fmt("status %d", status);
+    Expect("M2.3", ran || low_err == 0, Class::Change, "Guest addresses below 4 GiB can be identity mapped",
+           Fmt("binary with a 16 KiB __PAGEZERO: %s; fixed mmap at 128 MiB in this process: %s",
                ran ? out.c_str() : why.c_str(), low_err ? strerror(low_err) : "ok"),
-           "Processus 32 et 36 bits -> Dynarmic, décidé avant le lancement");
+           "32- and 36-bit processes -> Dynarmic, decided before launch");
 }
 
 std::string GiBText(std::uint64_t v) {
-    return Fmt("%.1f Gio", double(v) / double(GiB));
+    return Fmt("%.1f GiB", double(v) / double(GiB));
 }
 
 void TestHostMap() {
@@ -227,7 +227,7 @@ void TestHostMap() {
     auto flush = [&] {
         if (run_end > run_start) {
             text += Fmt("[%#llx-%#llx %s%s] ", (unsigned long long)run_start, (unsigned long long)run_end, TagName(run_tag),
-                        run_prot == 0 ? " réservé" : "");
+                        run_prot == 0 ? " reserved" : "");
         }
     };
     for (const HostRegion & r : g_startup.regions_before) {
@@ -243,7 +243,7 @@ void TestHostMap() {
         run_prot = r.prot;
     }
     flush();
-    Note("M2.4", "Occupation hôte sous 512 Gio avant main() (réservé = protection max nulle)", text);
+    Note("M2.4", "Host occupancy below 512 GiB before main() (reserved = zero max protection)", text);
 
     void * carve = mmap(reinterpret_cast<void *>(0x20'0000'0000ULL), 0x4000, PROT_READ | PROT_WRITE,
                         MAP_ANON | MAP_PRIVATE | MAP_FIXED, -1, 0);
@@ -251,11 +251,11 @@ void TestHostMap() {
     mach_vm_address_t a = 0x20'0000'0000ULL;
     const kern_return_t overwrite = mach_vm_map(mach_task_self(), &a, 0x4000, 0, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
                                                 MACH_PORT_NULL, 0, FALSE, VM_PROT_DEFAULT, VM_PROT_ALL, VM_INHERIT_NONE);
-    Expect("M2.5", carve != MAP_FAILED, Class::Change, "Plage [63 Gio, 448 Gio) utilisable pour les adresses invitées",
-           Fmt("réservation permanente du noyau : mmap MAP_FIXED -> %s, mach_vm_map OVERWRITE -> %d",
+    Expect("M2.5", carve != MAP_FAILED, Class::Change, "Range [63 GiB, 448 GiB) usable for guest addresses",
+           Fmt("permanent kernel reservation: mmap MAP_FIXED -> %s, mach_vm_map OVERWRITE -> %d",
                carve_err ? strerror(carve_err) : "ok", overwrite),
-           "Disposition 39 bits adaptée : région ASLR invitée = [bas, 512 Gio) avec [63 Gio, 448 Gio) marqué "
-           "inaccessible dans KPageTable ; régions code/heap/alias/pile/kernel-map placées dans les fenêtres réservées");
+           "Adapted 39-bit layout: guest ASLR region = [low, 512 GiB) with [63 GiB, 448 GiB) marked "
+           "inaccessible in KPageTable; code/heap/alias/stack/kernel-map regions placed in the reserved windows");
 
     std::uint64_t low_total = 0, low_largest = 0;
     std::string pieces;
@@ -264,9 +264,9 @@ void TestHostMap() {
         low_largest = std::max(low_largest, w.second - w.first);
         pieces += Fmt("[%#llx-%#llx] ", (unsigned long long)w.first, (unsigned long long)w.second);
     }
-    Expect("M2.6", g_startup.reserved, Class::Blocker, "Réservation identité des fenêtres invitées au démarrage",
-           Fmt("haute [448 Gio, 512 Gio) : %s (kr=%d) ; trous bas réservés : %s= %s (plus grand %s)",
-               g_startup.reserved ? "ok" : "ÉCHEC", g_startup.reserve_kr, pieces.c_str(), GiBText(low_total).c_str(),
+    Expect("M2.6", g_startup.reserved, Class::Blocker, "Identity reservation of the guest windows at startup",
+           Fmt("high [448 GiB, 512 GiB): %s (kr=%d); low holes reserved: %s= %s (largest %s)",
+               g_startup.reserved ? "ok" : "FAILED", g_startup.reserve_kr, pieces.c_str(), GiBText(low_total).c_str(),
                GiBText(low_largest).c_str()));
 
     // Horizon 39-bit region sizes (k_address_space_info.cpp) against the windows.
@@ -274,7 +274,7 @@ void TestHostMap() {
         const char * name;
         std::uint64_t size;
     };
-    const Need needs[] = {{"alias", 64 * GiB}, {"kernel-map", 64 * GiB}, {"heap", 8 * GiB}, {"pile", 2 * GiB}, {"code", 4 * GiB}};
+    const Need needs[] = {{"alias", 64 * GiB}, {"kernel-map", 64 * GiB}, {"heap", 8 * GiB}, {"stack", 2 * GiB}, {"code", 4 * GiB}};
     std::vector<std::uint64_t> free_space;
     for (const auto & w : g_startup.low_windows) {
         free_space.push_back(w.second - w.first);
@@ -295,10 +295,10 @@ void TestHostMap() {
             placed += Fmt("%s ", n.name);
         }
     }
-    Expect("M2.7", missing.empty(), Class::Change, "Régions Horizon 39 bits de taille d'origine dans les fenêtres",
-           Fmt("placées : %s; sans place : %s", placed.c_str(), missing.empty() ? "aucune" : missing.c_str()),
-           "Réduire la région kernel-map (et l'annoncer via svcGetInfo) pour le NCE macOS ; le disposer avant le lancement "
-           "ou basculer sur Dynarmic si les fenêtres ne suffisent pas");
+    Expect("M2.7", missing.empty(), Class::Change, "39-bit Horizon regions at their original size in the windows",
+           Fmt("placed: %s; no room: %s", placed.c_str(), missing.empty() ? "none" : missing.c_str()),
+           "Shrink the kernel-map region (and report it through svcGetInfo) for the macOS NCE; lay it out before launch "
+           "or switch to Dynarmic when the windows are not enough");
 }
 
 void * StackThread(void * arg) {
@@ -313,10 +313,10 @@ void TestHostAllocationsAfterReservation() {
 
     void * big = mmap(nullptr, 4 * GiB, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     ok = ok && big != MAP_FAILED && outside(reinterpret_cast<std::uint64_t>(big), 4 * GiB);
-    detail += Fmt("mmap 4 Gio à %p ; ", big);
+    detail += Fmt("mmap 4 GiB at %p; ", big);
     void * heap = std::malloc(512 * MiB);
     ok = ok && heap != nullptr && outside(reinterpret_cast<std::uint64_t>(heap), 512 * MiB);
-    detail += Fmt("malloc 512 Mio à %p ; ", heap);
+    detail += Fmt("malloc 512 MiB at %p; ", heap);
     std::free(heap);
     if (big != MAP_FAILED) {
         munmap(big, 4 * GiB);
@@ -332,13 +332,13 @@ void TestHostAllocationsAfterReservation() {
         stacks_outside += outside(sp, 1) ? 1 : 0;
     }
     ok = ok && stacks_outside == Threads;
-    detail += Fmt("%d/%d piles de threads hors fenêtre ; ", stacks_outside, Threads);
+    detail += Fmt("%d/%d thread stacks outside the window; ", stacks_outside, Threads);
 
     std::string metal;
     const bool metal_ok = MetalSmoke(metal);
     ok = ok && metal_ok;
     detail += "Metal : " + metal;
-    Expect("M2.8", ok, Class::Blocker, "Allocations hôte (mmap, malloc, piles, Metal) intactes avec la fenêtre réservée",
+    Expect("M2.8", ok, Class::Blocker, "Host allocations (mmap, malloc, stacks, Metal) intact with the window reserved",
            detail);
 }
 
@@ -347,32 +347,32 @@ void TestGranularity() {
 
     void * p = mmap(reinterpret_cast<void *>(base + 0x1000), 0x1000, PROT_READ, MAP_ANON | MAP_PRIVATE | MAP_FIXED, -1, 0);
     const int map_err = p == MAP_FAILED ? errno : 0;
-    Expect("M2.9", p == MAP_FAILED, Class::Change, "mmap MAP_FIXED sur une adresse alignée 4 Kio (non 16 Kio) refusé",
-           p == MAP_FAILED ? Fmt("refusé : %s", strerror(map_err)) : Fmt("ACCEPTÉ à %p", p),
-           "Ne jamais déléguer l'alignement au noyau");
+    Expect("M2.9", p == MAP_FAILED, Class::Change, "mmap MAP_FIXED at a 4 KiB (not 16 KiB) aligned address refused",
+           p == MAP_FAILED ? Fmt("refused: %s", strerror(map_err)) : Fmt("ACCEPTED at %p", p),
+           "Never leave alignment to the kernel");
 
     int r = mprotect(reinterpret_cast<void *>(base + 0x1000), 0x1000, PROT_READ);
     const int prot_err = r != 0 ? errno : 0;
-    Expect("M2.10", r != 0, Class::Change, "mprotect sur une adresse alignée 4 Kio refusé",
-           r != 0 ? Fmt("refusé : %s", strerror(prot_err)) : std::string("ACCEPTÉ"),
-           "Ne jamais déléguer l'alignement au noyau");
+    Expect("M2.10", r != 0, Class::Change, "mprotect at a 4 KiB aligned address refused",
+           r != 0 ? Fmt("refused: %s", strerror(prot_err)) : std::string("ACCEPTED"),
+           "Never leave alignment to the kernel");
 
     r = mprotect(reinterpret_cast<void *>(base + 0x4000), 0x1000, PROT_READ);
     std::uint64_t start = 0, size = 0;
     const int prot_after = RegionProt(base + 0x4000 + 0x3000, &start, &size);
     const bool widened = r == 0 && (prot_after & VM_PROT_WRITE) == 0;
-    Expect("M2.11", !widened, Class::Change, "mprotect d'une longueur de 4 Kio n'agit que sur 4 Kio",
-           Fmt("mprotect(base+16K, 4K, R) = %d ; protection effective de base+16K+12K : %s (région %#llx+%#llx)", r,
+    Expect("M2.11", !widened, Class::Change, "mprotect of a 4 KiB length acts on 4 KiB only",
+           Fmt("mprotect(base+16K, 4K, R) = %d; effective protection of base+16K+12K: %s (region %#llx+%#llx)", r,
                ProtText(prot_after).c_str(), (unsigned long long)start, (unsigned long long)size),
-           "Le noyau arrondit silencieusement la longueur à 16 Kio : la couche mémoire NCE ne doit émettre que des "
-           "plages alignées et multiples de 16 Kio (assertion), issues du plan 4K->16K");
+           "The kernel silently rounds the length to 16 KiB: the NCE memory layer must only issue "
+           "ranges aligned to and multiple of 16 KiB (asserted), from the 4K->16K plan");
 
     const kern_return_t kr = mach_vm_protect(mach_task_self(), base + 0x9000, 0x1000, FALSE, VM_PROT_READ);
     const int prot_mach = RegionProt(base + 0x8000);
     const bool mach_widened = kr == KERN_SUCCESS && (prot_mach & VM_PROT_WRITE) == 0;
-    Expect("M2.12", !mach_widened, Class::Change, "mach_vm_protect sur 4 Kio non aligné n'agit que sur 4 Kio",
-           Fmt("mach_vm_protect(base+36K, 4K, R) = %d ; protection de base+32K : %s", kr, ProtText(prot_mach).c_str()),
-           "mach_vm_protect tronque/arrondit silencieusement aux pages de 16 Kio : même règle que M2.11");
+    Expect("M2.12", !mach_widened, Class::Change, "mach_vm_protect on an unaligned 4 KiB acts on 4 KiB only",
+           Fmt("mach_vm_protect(base+36K, 4K, R) = %d; protection of base+32K: %s", kr, ProtText(prot_mach).c_str()),
+           "mach_vm_protect silently truncates/rounds to 16 KiB pages: same rule as M2.11");
 }
 
 struct AliasResult {
@@ -389,7 +389,7 @@ AliasResult CheckAliases(BackingKind kind) {
     AliasResult r;
     Backing b = CreateBacking(4 * MiB, kind);
     if (!b.ok()) {
-        r.misaligned_text = "support non créé";
+        r.misaligned_text = "backing not created";
         return r;
     }
     const std::uint64_t va_rw = WindowAlloc(64 * KiB, PROT_NONE);
@@ -406,9 +406,9 @@ AliasResult CheckAliases(BackingKind kind) {
         first_word = *reinterpret_cast<volatile std::uint64_t *>(va_rw);
     }
     r.misaligned_refused = !misaligned;
-    r.misaligned_text = misaligned ? Fmt("ACCEPTÉ, 1er mot lu %#llx (attendu le support à +4 Kio, soit 0xabab…)",
+    r.misaligned_text = misaligned ? Fmt("ACCEPTED, first word read %#llx (expected the backing at +4 KiB, i.e. 0xabab...)",
                                          (unsigned long long)first_word)
-                                   : "refusé : " + MapErrorText(b, err);
+                                   : "refused: " + MapErrorText(b, err);
 
     const bool m1 = MapBacking(b, va_rw, 0x4000, 0x8000, PROT_READ | PROT_WRITE);
     const bool m2 = MapBacking(b, va_r, 0x4000, 0x8000, PROT_READ);
@@ -425,7 +425,7 @@ AliasResult CheckAliases(BackingKind kind) {
         const ProbeFault fr = LastProbeFault();
         const int fault_rw = ncev_probe_store(reinterpret_cast<void *>(va_rw + 0x10), 2);
         r.perms = fault_r == 1 && fault_rw == 0 && *reinterpret_cast<volatile std::uint64_t *>(va_r + 0x10) == 2;
-        r.perm_text = "écriture sur l'alias R : " + FaultText(fr);
+        r.perm_text = "write to the R alias: " + FaultText(fr);
     }
 
     // Guest code in the backing, executed through an RX alias, then rewritten through
@@ -449,11 +449,11 @@ AliasResult CheckAliases(BackingKind kind) {
     }
     r.exec = mx && first == 42 && second == 43;
     if (!mx) {
-        r.exec_text = "mapping RX refusé : " + MapErrorText(b, err);
+        r.exec_text = "RX mapping refused: " + MapErrorText(b, err);
     } else if (first == 0xFA17) {
-        r.exec_text = "faute d'instruction à l'exécution : " + FaultText(ff);
+        r.exec_text = "instruction fault on execution: " + FaultText(ff);
     } else {
-        r.exec_text = Fmt("1re exécution = %llu, après réécriture + invalidation = %llu", (unsigned long long)first,
+        r.exec_text = Fmt("first run = %llu, after rewrite + invalidation = %llu", (unsigned long long)first,
                           (unsigned long long)second);
     }
     DestroyBacking(b);
@@ -464,26 +464,26 @@ void TestAliases() {
     const AliasResult shm = CheckAliases(BackingKind::Shm);
     const AliasResult entry = CheckAliases(BackingKind::MachEntry);
     Expect("M2.13", shm.misaligned_refused && entry.misaligned_refused, Class::Change,
-           "Mapping d'un décalage de support aligné 4 Kio (non 16 Kio) refusé",
-           "shm : " + shm.misaligned_text + " | entrée Mach : " + entry.misaligned_text,
-           "La couche NCE doit vérifier elle-même l'alignement 16 Kio du décalage de support (plan 4K->16K)");
+           "Mapping a 4 KiB (not 16 KiB) aligned backing offset refused",
+           "shm: " + shm.misaligned_text + " | Mach entry: " + entry.misaligned_text,
+           "The NCE layer must check the 16 KiB alignment of the backing offset itself (4K->16K plan)");
     Expect("M2.14", entry.coherent && entry.perms, Class::Blocker,
-           "Mapping direct du support et alias multiples cohérents, permissions indépendantes par alias",
-           Fmt("entrée Mach : cohérence %s, %s | shm : cohérence %s", entry.coherent ? "ok" : "FAUX", entry.perm_text.c_str(),
-               shm.coherent && shm.perms ? "ok" : "FAUX"));
-    Expect("M2.15", shm.exec, Class::Change, "Code invité exécutable depuis le support shm actuel de HostMemory",
+           "Direct backing mapping and multiple aliases coherent, independent permissions per alias",
+           Fmt("Mach entry: coherence %s, %s | shm: coherence %s", entry.coherent ? "ok" : "WRONG", entry.perm_text.c_str(),
+               shm.coherent && shm.perms ? "ok" : "WRONG"));
+    Expect("M2.15", shm.exec, Class::Change, "Guest code executable from the current HostMemory shm backing",
            shm.exec_text,
-           "Support du NCE macOS = entrée mémoire Mach nommée (mach_make_memory_entry_64 + mach_vm_map FIXED|OVERWRITE) "
-           "au lieu de shm_open ; HostMemory de Dynarmic inchangé");
+           "macOS NCE backing = named Mach memory entry (mach_make_memory_entry_64 + mach_vm_map FIXED|OVERWRITE) "
+           "instead of shm_open; Dynarmic's HostMemory unchanged");
     Expect("M2.16", entry.exec, Class::Blocker,
-           "Code exécutable depuis une entrée mémoire Mach (alias RX) et réécrit via l'alias RW", entry.exec_text);
+           "Code executable from a Mach memory entry (RX alias) and rewritten through the RW alias", entry.exec_text);
 
     Backing b = CreateBacking(1 * MiB);
     const std::uint64_t va_rw = WindowAlloc(64 * KiB, PROT_NONE);
     MapBacking(b, va_rw, 0, 0x10000, PROT_READ | PROT_WRITE);
     const int rwx = mprotect(reinterpret_cast<void *>(va_rw), 0x4000, PROT_READ | PROT_WRITE | PROT_EXEC);
-    Note("M2.17", "Page RWX unique",
-         rwx == 0 ? std::string("acceptée") : Fmt("refusée (%s) : W^X, Horizon n'en a pas besoin (code = alias RX + RW)", strerror(errno)));
+    Note("M2.17", "Single RWX page",
+         rwx == 0 ? std::string("accepted") : Fmt("refused (%s): W^X, Horizon does not need it (code = RX + RW aliases)", strerror(errno)));
 
     // Fault classification.
     const std::uint64_t va_r = WindowAlloc(64 * KiB, PROT_NONE);
@@ -512,20 +512,20 @@ void TestAliases() {
                            e_none.IsDataAbort() && !e_none.WnR() && read_none.far == none + 0x1238 &&
                            e_align.IsAlignment() && align.far == va_rw + 0x10D;
     Expect("M2.18", esr_exact, Class::Blocker,
-           "Faute précise à l'octet avec syndrome ESR fiable (donnée/instruction, lecture/écriture, alignement)",
-           "FSC traduction/permission non significatif (pages paresseuses) : décider par la table des pages invitée | "
-           "écriture sur R : " + FaultText(write_ro) + " | lecture PROT_NONE : " + FaultText(read_none) +
-               " | LDXR à cheval sur 16 octets : " + FaultText(align) + " | adresse non mappée : " + FaultText(unmapped));
+           "Byte-precise fault with a reliable ESR syndrome (data/instruction, read/write, alignment)",
+           "Translation/permission FSC not meaningful (lazy pages): decide from the guest page table | "
+           "write to R: " + FaultText(write_ro) + " | PROT_NONE read: " + FaultText(read_none) +
+               " | LDXR across 16 bytes: " + FaultText(align) + " | unmapped address: " + FaultText(unmapped));
     const bool linux_split = write_ro.sig == SIGSEGV && read_none.sig == SIGSEGV && align.sig == SIGBUS;
     Expect("M2.19", linux_split, Class::Change,
-           "Répartition Linux des signaux (SIGSEGV = accès, SIGBUS = alignement) valable",
-           Fmt("écriture sur R -> %s, PROT_NONE -> %s, alignement -> %s, non mappé -> %s", SignalName(write_ro.sig),
+           "Linux signal split (SIGSEGV = access, SIGBUS = alignment) holds",
+           Fmt("write to R -> %s, PROT_NONE -> %s, alignment -> %s, unmapped -> %s", SignalName(write_ro.sig),
                SignalName(read_none.sig), SignalName(align.sig), SignalName(unmapped.sig)),
-           "Même gestionnaire sur SIGBUS et SIGSEGV, classification par ESR (__es.__esr : EC/FSC/WnR) et __es.__far");
-    Note("M2.20", "Écart matériel M4 / Cortex-A57 (non corrigeable en natif)",
-         inside == 0 ? "LDXR non aligné à l'intérieur de 16 octets : aucune faute sur l'hôte (FEAT_LSE2), faute sur "
-                       "Cortex-A57 ; seul un programme qui planterait sur Switch voit la différence"
-                     : "LDXR non aligné à l'intérieur de 16 octets : faute, comme sur Cortex-A57");
+           "Same handler for SIGBUS and SIGSEGV, classified by ESR (__es.__esr: EC/FSC/WnR) and __es.__far");
+    Note("M2.20", "Hardware difference M4 / Cortex-A57 (cannot be fixed natively)",
+         inside == 0 ? "Unaligned LDXR within 16 bytes: no fault on the host (FEAT_LSE2), a fault on "
+                       "Cortex-A57; only a program that would crash on Switch sees the difference"
+                     : "Unaligned LDXR within 16 bytes: fault, as on Cortex-A57");
     DestroyBacking(b);
 }
 
@@ -635,12 +635,12 @@ void TestSplitPages() {
                        vcpu.ctx.pc == code + 8 && vcpu.exit_far == sp.va + 0x2010 && stored == 0x1111222233334444ULL &&
                        vcpu.ctx.cpu_registers[2] == 0x1111222233334444ULL && ro_after == 0 && sp.emulated == 1;
     Expect("M2.21", exact, Class::Blocker,
-           "Page hôte scindée [RW,RW,R,R] : écriture permise émulée, écriture interdite = faute invitée exacte",
-           Fmt("hôte %s ; écriture page 0 émulée (%llu), lecture native = %#llx, écriture page 2 -> sortie %#llx à "
-               "pc=+%llu far=%#llx ; page 2 inchangée = %s",
+           "Split host page [RW,RW,R,R]: allowed write emulated, forbidden write = exact guest fault",
+           Fmt("host %s; page 0 write emulated (%llu), native read = %#llx, page 2 write -> exit %#llx at "
+               "pc=+%llu far=%#llx; page 2 unchanged = %s",
                plan.host_perm == PermR ? "R" : "?", (unsigned long long)sp.emulated,
                (unsigned long long)vcpu.ctx.cpu_registers[2], (unsigned long long)hr,
-               (unsigned long long)(vcpu.ctx.pc - code), (unsigned long long)vcpu.exit_far, ro_after == 0 ? "oui" : "non"));
+               (unsigned long long)(vcpu.ctx.pc - code), (unsigned long long)vcpu.exit_far, ro_after == 0 ? "yes" : "no"));
 
     // Cost of one emulated access.
     words.clear();
@@ -660,8 +660,8 @@ void TestSplitPages() {
     const std::uint64_t t0 = NowNs();
     const std::uint64_t hr2 = vcpu.Run();
     const double per = double(NowNs() - t0) / double(N);
-    Note("M2.22", "Coût d'un accès émulé sur page scindée (signal + décodage + support)",
-         Fmt("%.2f µs par accès (%llu émulés, sortie %#llx) ; un accès natif coûte ~0,3 ns", per / 1000.0,
+    Note("M2.22", "Cost of an emulated access on a split page (signal + decode + backing)",
+         Fmt("%.2f us per access (%llu emulated, exit %#llx); a native access costs ~0.3 ns", per / 1000.0,
              (unsigned long long)sp.emulated, (unsigned long long)hr2));
 
     // Execution in a split page: [RX, R, R, R] gives a host R page.
@@ -685,14 +685,14 @@ void TestSplitPages() {
     const std::uint64_t hr3 = vcpu.Run();
     const Esr esr{vcpu.exit_esr};
     const bool detected = hr3 == HrPrefetchAbort() && vcpu.ctx.pc == ex.va && esr.IsInstructionAbort();
-    Expect("M2.23", detected, Class::Blocker, "Exécution dans une page scindée détectée exactement (faute d'instruction)",
-           Fmt("hôte %s, emulated_exec=%#x ; sortie %#llx, pc=%#llx, %s", exec_plan.host_perm == PermR ? "R" : "?",
+    Expect("M2.23", detected, Class::Blocker, "Execution in a split page detected exactly (instruction fault)",
+           Fmt("host %s, emulated_exec=%#x; exit %#llx, pc=%#llx, %s", exec_plan.host_perm == PermR ? "R" : "?",
                exec_plan.emulated_exec, (unsigned long long)hr3, (unsigned long long)vcpu.ctx.pc,
                FaultText({vcpu.exit_signal, 0, 0, vcpu.exit_far, vcpu.exit_esr, 0}).c_str()));
-    Expect("M2.24", false, Class::Change, "Exécution native du code invité situé dans une page scindée",
-           "la page hôte ne peut pas être X sans rendre X les pages voisines non exécutables",
-           "Décision : soit interpréteur A64 complet pour les pages exécutables scindées (InterpreterVisitor ne couvre "
-           "que les accès mémoire), soit politique RX explicite et journalisée par page ; jamais implicite");
+    Expect("M2.24", false, Class::Change, "Native execution of guest code in a split page",
+           "the host page cannot be X without making the non-executable neighbour pages X",
+           "Decision: either a full A64 interpreter for split executable pages (InterpreterVisitor only covers "
+           "memory accesses), or an explicit RX policy logged per page; never implicit");
 
     g_split = nullptr;
     DestroyBacking(b);
@@ -711,14 +711,14 @@ void TestPlanner() {
         std::uint8_t emu_x;
     };
     const Case cases[] = {
-        {"4×RW contigu aligné", {page(0x4000, RW), page(0x5000, RW), page(0x6000, RW), page(0x7000, RW)}, HostPageKind::Direct, RW, 0, 0},
-        {"4×RX contigu aligné", {page(0, RX), page(0x1000, RX), page(0x2000, RX), page(0x3000, RX)}, HostPageKind::Direct, RX, 0, 0},
-        {"support non aligné", {page(0x1000, RW), page(0x2000, RW), page(0x3000, RW), page(0x4000, RW)}, HostPageKind::Split, PermNone, 0xF, 0},
-        {"support non contigu", {page(0x4000, RW), page(0x9000, RW), page(0x6000, RW), page(0x7000, RW)}, HostPageKind::Split, PermNone, 0xF, 0},
-        {"fin de .text | .rodata", {page(0, RX), page(0x1000, RX), page(0x2000, PermR), page(0x3000, PermR)}, HostPageKind::Split, PermR, 0, 0x3},
-        {"fin de .rodata | .data", {page(0, PermR), page(0x1000, RW), page(0x2000, RW), page(0x3000, RW)}, HostPageKind::Split, PermR, 0xE, 0},
-        {"page partiellement présente", {page(0, RW), page(0x1000, RW), GuestPage{}, GuestPage{}}, HostPageKind::Split, PermNone, 0x3, 0},
-        {"aucune page", {GuestPage{}, GuestPage{}, GuestPage{}, GuestPage{}}, HostPageKind::Unmapped, PermNone, 0, 0},
+        {"4xRW contiguous aligned", {page(0x4000, RW), page(0x5000, RW), page(0x6000, RW), page(0x7000, RW)}, HostPageKind::Direct, RW, 0, 0},
+        {"4xRX contiguous aligned", {page(0, RX), page(0x1000, RX), page(0x2000, RX), page(0x3000, RX)}, HostPageKind::Direct, RX, 0, 0},
+        {"unaligned backing", {page(0x1000, RW), page(0x2000, RW), page(0x3000, RW), page(0x4000, RW)}, HostPageKind::Split, PermNone, 0xF, 0},
+        {"non-contiguous backing", {page(0x4000, RW), page(0x9000, RW), page(0x6000, RW), page(0x7000, RW)}, HostPageKind::Split, PermNone, 0xF, 0},
+        {"end of .text | .rodata", {page(0, RX), page(0x1000, RX), page(0x2000, PermR), page(0x3000, PermR)}, HostPageKind::Split, PermR, 0, 0x3},
+        {"end of .rodata | .data", {page(0, PermR), page(0x1000, RW), page(0x2000, RW), page(0x3000, RW)}, HostPageKind::Split, PermR, 0xE, 0},
+        {"partly present page", {page(0, RW), page(0x1000, RW), GuestPage{}, GuestPage{}}, HostPageKind::Split, PermNone, 0x3, 0},
+        {"no page", {GuestPage{}, GuestPage{}, GuestPage{}, GuestPage{}}, HostPageKind::Unmapped, PermNone, 0, 0},
     };
     int bad = 0;
     std::string fails;
@@ -757,9 +757,9 @@ void TestPlanner() {
             }
         }
     }
-    Expect("M2.25", bad == 0 && violations == 0, Class::Blocker, "Plan 4K->16K exact (cas types + 65 536 combinaisons)",
-           Fmt("%d cas faux %s; %llu combinaisons, %llu violation(s) : l'hôte n'accorde jamais plus que l'invité, "
-               "hôte + émulation = permission invitée",
+    Expect("M2.25", bad == 0 && violations == 0, Class::Blocker, "Exact 4K->16K plan (typical cases + 65,536 combinations)",
+           Fmt("%d wrong case(s) %s; %llu combinations, %llu violation(s): the host never grants more than the guest, "
+               "host + emulation = guest permission",
                bad, fails.c_str(), (unsigned long long)combos, (unsigned long long)violations));
 }
 
@@ -802,9 +802,9 @@ void TestModuleLayouts() {
             }
         }
     }
-    Note("M2.26", "Plan sur 200 modules synthétiques (.text/.rodata/.data à 4 Kio)",
-         Fmt("%llu pages hôte : %llu directes, %llu scindées (%.3f %%), dont %llu avec exécution émulée et %llu avec "
-             "écriture émulée ; au plus 3 pages scindées par module, toujours aux frontières de segments",
+    Note("M2.26", "Plan over 200 synthetic modules (.text/.rodata/.data at 4 KiB)",
+         Fmt("%llu host pages: %llu direct, %llu split (%.3f %%), of which %llu with emulated execution and %llu with "
+             "emulated writes; at most 3 split pages per module, always at segment boundaries",
              (unsigned long long)total, (unsigned long long)direct, (unsigned long long)split,
              100.0 * double(split) / double(total), (unsigned long long)split_exec, (unsigned long long)split_write));
 
@@ -812,17 +812,17 @@ void TestModuleLayouts() {
     std::vector<std::uint8_t> image(64 * KiB);
     patcher.PatchText(image.data(), image.size(), 0, image.size());
     const std::uint64_t section = patcher.GetSectionSize();
-    Expect("M2.27", section % HostPageSize == 0, Class::Change, "Section de patch du NCE alignée sur 16 Kio",
-           Fmt("Patcher::GetSectionSize() = %#llx (alignement NcePageSize = 4 Kio) ; en mode PostData elle suit .bss",
+    Expect("M2.27", section % HostPageSize == 0, Class::Change, "NCE patch section aligned to 16 KiB",
+           Fmt("Patcher::GetSectionSize() = %#llx (NcePageSize alignment = 4 KiB); in PostData mode it follows .bss",
                (unsigned long long)section),
-           "patcher : aligner la taille et le début de la section de patch sur 16 Kio, sinon sa première page partage "
-           "une page hôte avec la fin de .data/.bss (RW) et devient une page scindée exécutable");
+           "patcher: align the size and start of the patch section to 16 KiB, otherwise its first page shares "
+           "a host page with the end of .data/.bss (RW) and becomes a split executable page");
 }
 
 } // namespace
 
 void RunMemoryTests() {
-    BeginStep("2", "Mémoire (bloquant)");
+    BeginStep("2", "Memory (blocking)");
     TestPageSizes();
     TestPageZero();
     TestHostMap();

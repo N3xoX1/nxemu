@@ -30,12 +30,9 @@ NxEmu does, so that XNU keeps x18.
 
 | Test | Checks |
 |---|---|
-| `nce_macos_validate` | Memory, ARM64 rewriting and transitions with the production patcher; see `platform/nce_macos/README.md`. `platform/nce_macos/run_all.sh` also keeps a dated report |
+| `nce_macos_validate` | Memory, ARM64 rewriting and transitions with the production patcher; see `platform/nce_macos/README.md` |
 | `test_direct_map` | NceDirectMap page model and bounds |
 | `test_nce_settings`, `test_nce_settings_current_sdk` | Backend selection by address space width; refusal when the host does not keep x18 |
 | `nce_runtime`, `nce_runtime_interrupts` | SVC, TLS and migration of guest contexts between host threads, with the real CPU module |
 | `nce_runtime_modules` | NRO loading and unloading, native atomics |
 | `nce_native_mapping` | Guest memory mapped through Mach memory entries |
-
-A test that needs a game, a save or a GPU stays a script next to the tests it relates
-to, for example `platform/nce_macos/launch_botw_checkpoint.sh`.

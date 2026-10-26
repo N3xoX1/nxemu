@@ -343,7 +343,7 @@ bool BuildPatchedImage(const std::vector<std::uint32_t> & code_words, GuestImage
     Core::NCE::Patcher patcher;
     if (run_patcher) {
         if (!patcher.PatchText(image.data(), text_size, 0, text_size, read_table, legacy_36bit, legacy_36bit_sdk, read_table != 0, all_read_bases, {}, float_reads, store_thunks)) {
-            error = "PatchText a échoué";
+            error = "PatchText failed";
             return false;
         }
         patch_size = patcher.GetSectionSize();
@@ -357,7 +357,7 @@ bool BuildPatchedImage(const std::vector<std::uint32_t> & code_words, GuestImage
     if (read_table) patcher.SetAtomicTable(read_table);
     if (run_patcher) {
         if (!patcher.RelocateAndCopy(base, 0, text_size, image.data(), &image_size, &out.post_handlers, &out.restart_pcs, nullptr, &out.read_handlers)) {
-            error = "RelocateAndCopy a échoué";
+            error = "RelocateAndCopy failed";
             return false;
         }
     }
@@ -408,8 +408,8 @@ const char * SignalName(int sig) {
     case SIGILL: return "SIGILL";
     case SIGURG: return "SIGURG";
     case SIGSYS: return "SIGSYS";
-    case 0: return "aucun";
-    default: return "autre";
+    case 0: return "none";
+    default: return "other";
     }
 }
 

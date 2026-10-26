@@ -26,8 +26,8 @@ const char * OutcomeText(Outcome o) {
 
 const char * ClassText(Class c) {
     switch (c) {
-    case Class::Blocker: return "bloquant";
-    case Class::Change: return "changement";
+    case Class::Blocker: return "blocking";
+    case Class::Change: return "change";
     case Class::Info: return "info";
     }
     return "?";
@@ -71,14 +71,14 @@ Stats Summarize(std::vector<uint64_t> s) {
 }
 
 std::string StatsText(const Stats & s) {
-    return Fmt("médiane %.2f µs, p99 %.2f µs, max %.1f µs", s.median_ns / 1000.0, s.p99_ns / 1000.0,
+    return Fmt("median %.2f us, p99 %.2f us, max %.1f us", s.median_ns / 1000.0, s.p99_ns / 1000.0,
                s.max_ns / 1000.0);
 }
 
 void BeginStep(const char * step, const char * title) {
     g_step = step;
     g_step_title = title;
-    std::printf("\n==== Étape %s : %s ====\n", step, title);
+    std::printf("\n==== Step %s: %s ====\n", step, title);
     std::fflush(stdout);
 }
 
@@ -90,7 +90,7 @@ void Record(const char * id, Outcome outcome, Class cls, const std::string & tit
         std::printf("          %s\n", detail.c_str());
     }
     if (outcome == Outcome::Fail && !change.empty()) {
-        std::printf("          -> changement requis : %s\n", change.c_str());
+        std::printf("          -> change needed: %s\n", change.c_str());
     }
     std::fflush(stdout);
 }
@@ -108,14 +108,14 @@ void EndStep() {
             changes.push_back(&c);
         }
     }
-    const char * verdict = blocker ? "NO-GO" : (changes.empty() ? "GO" : "GO SOUS CONDITIONS");
-    std::printf("---- Verdict étape %s (%s) : %s\n", g_step.c_str(), g_step_title.c_str(), verdict);
+    const char * verdict = blocker ? "NO-GO" : (changes.empty() ? "GO" : "GO WITH CONDITIONS");
+    std::printf("---- Step %s verdict (%s): %s\n", g_step.c_str(), g_step_title.c_str(), verdict);
     for (const Check * c : changes) {
         std::printf("     * [%s] %s\n", c->id.c_str(), c->change.c_str());
     }
     for (const Check & c : g_checks) {
         if (c.step == g_step && c.outcome == Outcome::Fail && c.cls == Class::Blocker) {
-            std::printf("     ! bloquant [%s] %s\n", c.id.c_str(), c.title.c_str());
+            std::printf("     ! blocking [%s] %s\n", c.id.c_str(), c.title.c_str());
         }
     }
     g_any_blocker = g_any_blocker || blocker;

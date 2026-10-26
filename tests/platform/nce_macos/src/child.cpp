@@ -29,7 +29,7 @@ int RunChildMode(const std::string & mode) {
     if (mode == "page_size") {
         void * p = mmap(nullptr, 0x10000, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
         const int r = mprotect(static_cast<char *>(p) + 0x1000, 0x1000, PROT_READ);
-        std::printf("page=%lu mprotect4k=%s\n", (unsigned long)vm_page_size, r == 0 ? "ok" : "refusé");
+        std::printf("page=%lu mprotect4k=%s\n", (unsigned long)vm_page_size, r == 0 ? "ok" : "refused");
         return 0;
     }
     if (mode == "cntfrq_patch") {
