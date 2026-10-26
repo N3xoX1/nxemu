@@ -7,6 +7,7 @@
 
 #include <common/base64.h>
 #include <common/json.h>
+#include <yuzu_common/android/java_bridge.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/base.h>
@@ -109,6 +110,11 @@ void EmulationSession::ShutdownSystem()
 void EmulationSession::RestoreStubModulesLocked()
 {
     m_system_modules.reset();
+    {
+        std::lock_guard events_lock(m_program_events_mutex);
+        m_program_events.clear();
+        m_module_generation++;
+    }
     m_render_window.ClearSurface();
     m_native_window = nullptr;
     m_pixel_ratio = 1.0f;
@@ -116,7 +122,7 @@ void EmulationSession::RestoreStubModulesLocked()
     m_system_modules->Setup(m_render_window);
 }
 
-bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path)
+bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path, uint64_t program_id)
 {
     std::lock_guard lock(m_mutex);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
@@ -148,13 +154,142 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
                                                                  static_cast<uint32_t>(native_h));
     }
 
-    ISystemloader & loader = m_system_modules->Modules().Systemloader();
-    if (!loader.LoadRom(rom_path.c_str(), 0, 0, -1, ApplicationLaunchType::FrontendInitiated))
+    m_rom_path = rom_path;
+    m_program_id = program_id;
+    if (!StartProgramLocked(program_id, 0, -1, ApplicationLaunchType::FrontendInitiated, {}))
     {
         RestoreStubModulesLocked();
         return false;
     }
     return true;
+}
+
+bool EmulationSession::StartProgramLocked(uint64_t program_id, int32_t program_index, int32_t previous_program_index,
+                                          ApplicationLaunchType launch_type, const UserChannel & user_channel)
+{
+    if (!m_system_modules)
+    {
+        SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+        m_system_modules = std::make_unique<SystemModules>();
+        m_system_modules->Setup(m_render_window);
+        if (!m_system_modules->IsValid())
+        {
+            return false;
+        }
+        const int native_w = m_native_window != nullptr ? ANativeWindow_getWidth(m_native_window) : 0;
+        const int native_h = m_native_window != nullptr ? ANativeWindow_getHeight(m_native_window) : 0;
+        if (native_w > 0 && native_h > 0)
+        {
+            m_system_modules->Modules().Video().UpdateFramebufferLayout(static_cast<uint32_t>(native_w), static_cast<uint32_t>(native_h));
+        }
+    }
+
+    IOperatingSystem & os = m_system_modules->Modules().OperatingSystem();
+    m_callback_context = std::make_unique<CallbackContext>(CallbackContext{this, &os, ++m_module_generation});
+    os.RegisterExecuteProgramCallback(ExecuteProgramCallback, m_callback_context.get());
+    os.RegisterExitCallback(ExitProgramCallback, m_callback_context.get());
+    for (const std::vector<uint8_t> & entry : user_channel)
+    {
+        os.PushUserChannelEntry(entry.data(), static_cast<uint32_t>(entry.size()));
+    }
+
+    if (!m_system_modules->Modules().Systemloader().LoadRom(m_rom_path.c_str(), program_id, program_index, previous_program_index, launch_type))
+    {
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag, "LoadRom failed for program %d of %s", program_index, m_rom_path.c_str());
+        return false;
+    }
+    m_current_program_index = program_index;
+    m_previous_program_index = previous_program_index;
+    return true;
+}
+
+EmulationSession::ProgramEventResult EmulationSession::ProcessProgramEvents()
+{
+    std::deque<ProgramEvent> events;
+    {
+        std::lock_guard lock(m_program_events_mutex);
+        events.swap(m_program_events);
+    }
+    std::lock_guard lock(m_mutex);
+    ProgramEventResult result = ProgramEventResult::None;
+    for (const ProgramEvent & event : events)
+    {
+        if (event.generation != m_module_generation || !m_system_modules || !m_system_modules->IsValid())
+        {
+            continue;
+        }
+        int32_t index = 0;
+        const int32_t previous = m_current_program_index;
+        if (event.type == ProgramEvent::Type::Execute)
+        {
+            index = static_cast<int32_t>(event.index);
+        }
+        else if (m_current_program_index != 0)
+        {
+            index = m_previous_program_index >= 0 ? m_previous_program_index : 0;
+        }
+        else
+        {
+            return ProgramEventResult::Exited;
+        }
+
+        m_system_modules.reset();
+        if (!StartProgramLocked(m_program_id, index, previous, ApplicationLaunchType::ApplicationInitiated,
+                                event.type == ProgramEvent::Type::Execute ? event.userChannel : UserChannel{}))
+        {
+            return ProgramEventResult::Failed;
+        }
+        result = ProgramEventResult::Reloaded;
+    }
+    return result;
+}
+
+void EmulationSession::QueueProgramEvent(ProgramEvent event)
+{
+    {
+        std::lock_guard lock(m_program_events_mutex);
+        m_program_events.push_back(std::move(event));
+    }
+    if (JNIEnv * env = GetEnvForThread(); env != nullptr)
+    {
+        jclass clazz = static_cast<jclass>(GetNativeLibraryGlobalRef());
+        if (jmethodID method = env->GetStaticMethodID(clazz, "onProgramEvent", "()V"); method != nullptr)
+        {
+            env->CallStaticVoidMethod(clazz, method);
+        }
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        }
+    }
+}
+
+void EmulationSession::CollectUserChannel(const uint8_t * data, uint32_t size, void * userData)
+{
+    UserChannel & channel = *static_cast<UserChannel *>(userData);
+    if (data != nullptr && size != 0)
+    {
+        channel.emplace_back(data, data + size);
+    }
+    else
+    {
+        channel.emplace_back();
+    }
+}
+
+void EmulationSession::ExecuteProgramCallback(uint32_t index, void * userData)
+{
+    const CallbackContext & context = *static_cast<CallbackContext *>(userData);
+    ProgramEvent event{ProgramEvent::Type::Execute, context.generation, index, {}};
+    context.os->ExportUserChannel(CollectUserChannel, &event.userChannel);
+    context.session->QueueProgramEvent(std::move(event));
+}
+
+void EmulationSession::ExitProgramCallback(void * userData)
+{
+    const CallbackContext & context = *static_cast<CallbackContext *>(userData);
+    context.session->QueueProgramEvent({ProgramEvent::Type::Exit, context.generation, 0, {}});
 }
 
 void EmulationSession::Stop()
@@ -328,26 +463,61 @@ std::string EmulationSession::QueryRomMetadata(const std::string & path)
     return JsonStyledWriter().write(obj);
 }
 
-bool EmulationSession::QueryRomListing(const std::string & path, std::string & title, std::vector<uint8_t> & icon)
+bool EmulationSession::QueryRomListing(const std::string & path, std::vector<RomListing> & games)
 {
     std::lock_guard lock(m_mutex);
+    games.clear();
     if (!m_system_modules || !m_system_modules->IsValid())
     {
         return false;
     }
 
-    IRomInfo * const rom = m_system_modules->Modules().Systemloader().RomInfo(path.c_str(), 0, 0);
+    ISystemloader & loader = m_system_modules->Modules().Systemloader();
+    IRomInfo * const rom = loader.RomInfo(path.c_str(), 0, 0);
     if (rom == nullptr)
     {
         return false;
     }
-    title = ReadRomTitle(rom);
-    icon = ReadRomImage(rom, &IRomInfo::ReadIcon);
+    const auto listing = [](IRomInfo * info, uint64_t program_id) {
+        return RomListing{program_id, ReadRomTitle(info), ReadRomImage(info, &IRomInfo::ReadIcon)};
+    };
+
+    const LoaderFileType file_type = rom->GetFileType();
+    uint32_t count = 0;
+    std::vector<uint64_t> program_ids;
+    if ((file_type == LoaderFileType::XCI || file_type == LoaderFileType::NSP) &&
+        rom->ReadProgramIds(nullptr, &count) == LoaderResultStatus::Success && count > 1)
+    {
+        program_ids.resize(count);
+        if (rom->ReadProgramIds(program_ids.data(), &count) != LoaderResultStatus::Success)
+        {
+            program_ids.clear();
+        }
+        program_ids.resize(std::min<size_t>(count, program_ids.size()));
+    }
+    for (uint64_t program_id : program_ids)
+    {
+        IRomInfo * const program = loader.RomInfo(path.c_str(), program_id, 0);
+        if (program == nullptr)
+        {
+            continue;
+        }
+        uint64_t read_id = 0;
+        if (program->GetFileType() == file_type && program->ReadProgramId(read_id) == LoaderResultStatus::Success && read_id == program_id)
+        {
+            games.push_back(listing(program, program_id));
+        }
+        program->Release();
+    }
+    if (games.empty())
+    {
+        games.push_back(listing(rom, 0));
+    }
     rom->Release();
     return true;
 }
 
-std::string EmulationSession::QueryRomInfo(const std::string & path)
+std::string EmulationSession::QueryRomInfo(const std::string & path, uint64_t program_id)
 {
     std::lock_guard lock(m_mutex);
     if (!m_system_modules || !m_system_modules->IsValid())
@@ -359,7 +529,7 @@ std::string EmulationSession::QueryRomInfo(const std::string & path)
     IRomInfo * rom = nullptr;
     if (!path.empty())
     {
-        rom = loader.RomInfo(path.c_str(), 0, 0);
+        rom = loader.RomInfo(path.c_str(), program_id, 0);
     }
     if (rom == nullptr)
     {

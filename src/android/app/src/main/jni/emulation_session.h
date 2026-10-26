@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <deque>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -23,8 +24,15 @@ public:
     void ShutdownSystem();
 
     std::string QueryRomMetadata(const std::string & path);
-    bool QueryRomListing(const std::string & path, std::string & title, std::vector<uint8_t> & icon);
-    std::string QueryRomInfo(const std::string & path);
+    struct RomListing
+    {
+        uint64_t programId = 0;
+        std::string title;
+        std::vector<uint8_t> icon;
+    };
+
+    bool QueryRomListing(const std::string & path, std::vector<RomListing> & games);
+    std::string QueryRomInfo(const std::string & path, uint64_t program_id);
 
     std::array<double, 4> GetPerfStats();
     uint32_t GetShadersBuilding();
@@ -36,7 +44,16 @@ public:
     void SetOverlayJoystick(int port, int stick_id, float x, float y);
     int GetStyleIndex(int player_index);
 
-    bool Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path);
+    enum class ProgramEventResult
+    {
+        None,
+        Reloaded,
+        Exited,
+        Failed,
+    };
+
+    bool Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path, uint64_t program_id);
+    ProgramEventResult ProcessProgramEvents();
     void Stop();
     void SetPaused(bool paused);
     bool IsPaused();
@@ -55,11 +72,51 @@ public:
 private:
     EmulationSession() = default;
 
+    using UserChannel = std::vector<std::vector<uint8_t>>;
+
+    struct ProgramEvent
+    {
+        enum class Type
+        {
+            Execute,
+            Exit,
+        };
+        Type type;
+        uint64_t generation;
+        uint32_t index;
+        UserChannel userChannel;
+    };
+
+    struct CallbackContext
+    {
+        EmulationSession * session;
+        IOperatingSystem * os;
+        uint64_t generation;
+    };
+
     void RestoreStubModulesLocked();
+    bool StartProgramLocked(uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type,
+                            const UserChannel & user_channel);
+    void QueueProgramEvent(ProgramEvent event);
+
+    static void CollectUserChannel(const uint8_t * data, uint32_t size, void * userData);
+    static void ExecuteProgramCallback(uint32_t index, void * userData);
+    static void ExitProgramCallback(void * userData);
 
     mutable std::mutex m_mutex;
     AndroidRenderWindow m_render_window;
     std::unique_ptr<SystemModules> m_system_modules;
     ANativeWindow * m_native_window = nullptr;
     float m_pixel_ratio = 1.0f;
+
+    // Programs in a multi-program title (e.g. a collection's menu and its games) ask the frontend to load
+    // another program from the same file, or to go back when they exit. See EmulatorSession on desktop.
+    std::string m_rom_path;
+    uint64_t m_program_id = 0;
+    int32_t m_current_program_index = 0;
+    int32_t m_previous_program_index = -1;
+    std::unique_ptr<CallbackContext> m_callback_context;
+    uint64_t m_module_generation = 0;
+    std::mutex m_program_events_mutex;
+    std::deque<ProgramEvent> m_program_events;
 };

@@ -26,7 +26,7 @@ class UiHost(private val activity: MainActivity) {
                 }
             }
             "finish" -> ui { activity.finish() }
-            "launchGame" -> ui { activity.launchGame(args[0]) }
+            "launchGame" -> ui { activity.launchGame(args[0], args.getOrNull(1)?.toULongOrNull()?.toLong() ?: 0L) }
             "confirm" -> ui { activity.confirm(args[0].toInt(), args[1]) }
             "alert" -> ui { activity.alert(args[0]) }
             "editOverlayLayout" -> ui { activity.editOverlayLayout() }

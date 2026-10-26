@@ -10,12 +10,18 @@
 class UiLibrary
 {
 public:
+    struct Program
+    {
+        uint64_t programId = 0;
+        std::string title;
+        std::vector<uint8_t> icon;
+    };
+
     struct Game
     {
         size_t index = 0;
         bool readable = false;
-        std::string title;
-        std::vector<uint8_t> icon;
+        std::vector<Program> programs;
     };
     using Receiver = std::function<void(const Game * game)>;
 

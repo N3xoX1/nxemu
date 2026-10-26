@@ -61,6 +61,7 @@ private:
     struct Card
     {
         std::string path;
+        uint64_t programId = 0;
         std::string title;
         std::string icon;
         bool loading = true;
@@ -115,7 +116,7 @@ private:
     void SyncGameSelection(int index);
     void MoveGameSelection(const std::string & direction);
     void LaunchSelectedGame();
-    void LaunchGame(const std::string & path);
+    void LaunchGame(const Card & card);
 
     bool ControllerAttached() const;
     void ApplyControllerBrowser();
@@ -227,6 +228,7 @@ private:
     bool m_quietScan = false;
     bool m_layoutDirty = false;
     size_t m_loaded = 0;
+    size_t m_libraryFiles = 0;
     int m_columns = 1;
     int m_selectedGame = -1;
 

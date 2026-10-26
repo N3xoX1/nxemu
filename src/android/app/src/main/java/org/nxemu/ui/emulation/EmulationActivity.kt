@@ -26,6 +26,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
@@ -45,6 +46,7 @@ import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -83,6 +85,23 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             moveDrawerFocus(drawerStickY)
             perfStatsHandler.postDelayed(this, DRAWER_REPEAT_MS)
+        }
+    }
+
+    private val programEventListener: () -> Unit = {
+        try {
+            executor.execute {
+                when (NativeLibrary.processProgramEvents()) {
+                    NativeLibrary.PROGRAM_EVENT_RELOADED -> runOnUiThread { showLoading() }
+                    NativeLibrary.PROGRAM_EVENT_EXITED -> runOnUiThread { exitGame() }
+                    NativeLibrary.PROGRAM_EVENT_FAILED -> runOnUiThread {
+                        Toast.makeText(this, "Could not start the next part of this game.", Toast.LENGTH_LONG).show()
+                        exitGame()
+                    }
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            // The activity is closing and its teardown stops the game.
         }
     }
 
@@ -130,6 +149,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         cacheDeviceOverlayInfo()
 
         NativeLibrary.addSettingChangedListener(settingChangedListener)
+        NativeLibrary.addProgramEventListener(programEventListener)
         hideLoadingIfFirstFrame()
 
         onBackPressedDispatcher.addCallback(
@@ -263,13 +283,26 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         lockDrawerItem.setOnClickListener { toggleDrawerLock() }
         findViewById<View>(R.id.menu_exit).setOnClickListener {
             drawerLayout.closeDrawers()
-            explicitExit = true
-            activeGamePath = null
-            clearPausedFrame()
-            finish()
+            exitGame()
         }
         updatePauseLabel()
         updateLockDrawerLabel()
+    }
+
+    private fun exitGame() {
+        if (isFinishing) {
+            return
+        }
+        explicitExit = true
+        activeGamePath = null
+        clearPausedFrame()
+        finish()
+    }
+
+    private fun showLoading() {
+        stopPerfOverlay()
+        loadingIndicator.visibility = View.VISIBLE
+        hideLoadingIfFirstFrame()
     }
 
     private fun togglePause() {
@@ -536,7 +569,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun loadRomInfo(path: String) {
         try {
-            val json = JSONObject(NativeLibrary.queryRomInfo(path))
+            val json = JSONObject(NativeLibrary.queryRomInfo(path, intent.getLongExtra(EXTRA_PROGRAM_ID, 0L)))
             val title = json.optString("title")
             val icon = json.optString("icon")
             val logo = json.optString("logo")
@@ -618,17 +651,19 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
+        val programId = intent.getLongExtra(EXTRA_PROGRAM_ID, 0L)
         val surface = holder.surface
         val ratio = resources.displayMetrics.density
         executor.execute {
             try {
                 if (!nativeSurfaceSessionOpen.get()) {
-                    if (!NativeLibrary.emulationSurfaceReady(surface, ratio, path)) {
+                    if (!NativeLibrary.emulationSurfaceReady(surface, ratio, path, programId)) {
                         Log.e(TAG, "emulationSurfaceReady returned false")
                         runOnUiThread { finish() }
                     } else {
                         nativeSurfaceSessionOpen.set(true)
                         activeGamePath = path
+                        activeProgramId = programId
                         InputHandler.updateControllerData()
                         unpauseIfBackgrounded()
                         runOnUiThread { updatePauseLabel() }
@@ -662,6 +697,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             frameListener = null
         }
         NativeLibrary.removeSettingChangedListener(settingChangedListener)
+        NativeLibrary.removeProgramEventListener(programEventListener)
         stopPerfOverlay()
         stopAnimatedDrawables()
         if (explicitExit && nativeSurfaceSessionOpen.get()) {
@@ -702,9 +738,11 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     companion object {
         private val resumeAfterBackground = AtomicBoolean(false)
         var activeGamePath: String? = null
+        var activeProgramId = 0L
         var pausedFrame: Bitmap? = null
         var frameListener: (() -> Unit)? = null
         const val EXTRA_GAME_PATH = "org.nxemu.EXTRA_GAME_PATH"
+        const val EXTRA_PROGRAM_ID = "org.nxemu.EXTRA_PROGRAM_ID"
         private const val TAG = "NxEmu-Emulation"
         private const val DRAWER_REPEAT_MS = 220L
         private const val DRAWER_STICK_DEADZONE = 0.5f
