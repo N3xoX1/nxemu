@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstring>
 #include <limits>
@@ -181,7 +182,12 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
 
     codeset.DataSegment().size += nso_header.segments[2].bss_size;
     u32 image_size{PageAlignSize(static_cast<u32>(program_image.size()) + nso_header.segments[2].bss_size)};
-    program_image.resize(image_size);
+    const bool relocating = patch_collection && patch_index >= 0 && load_into_process;
+    const bool patch_follows_image = relocating && module_start == 0;
+    if (patch_follows_image)
+    {
+        program_image.resize(image_size);
+    }
 
     for (std::size_t i = 0; i < nso_header.segments.size(); ++i)
     {
@@ -199,7 +205,12 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
 
         pi_header = pm->PatchNSO(pi_header, name);
 
-        std::copy(pi_header.begin() + sizeof(NSOHeader), pi_header.end(), patchable_section.data());
+        const size_t patched_size = std::min<size_t>(pi_header.size() - sizeof(NSOHeader), image_size - module_start);
+        if (module_start + patched_size > program_image.size())
+        {
+            program_image.resize(module_start + patched_size);
+        }
+        std::copy_n(pi_header.begin() + sizeof(NSOHeader), patched_size, program_image.begin() + module_start);
     }
 
     if (patch_collection && patch_index >= 0)
@@ -207,16 +218,20 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         const auto & code = codeset.CodeSegment();
         if (!load_into_process)
         {
-            patch_collection->PatchText(patch_index, program_image.data(), (uint32_t)program_image.size(), (uint32_t)code.offset, code.size);
+            patch_collection->PatchText(patch_index, program_image.data(), image_size, (uint32_t)code.offset, code.size);
         }
         else
         {
             uint64_t patch_segment_addr = 0;
             uint32_t patch_segment_size = 0;
             const uint32_t patch_bytes = patch_collection->GetTotalPatchSize();
-            program_image.resize(image_size + patch_bytes);
+            const size_t data_size = program_image.size();
+            if (patch_follows_image)
+            {
+                program_image.resize(image_size + patch_bytes);
+            }
             patch_collection->Relocate(patch_index, load_base, program_image.data(), &image_size, (uint32_t)code.offset, code.size, &patch_segment_addr, &patch_segment_size);
-            program_image.resize(image_size);
+            program_image.resize(patch_follows_image ? image_size : data_size);
             if (patch_segment_size != 0)
             {
                 Kernel::CodeSet::Segment & patch_segment = codeset.PatchSegment();
