@@ -169,10 +169,10 @@ Java_org_nxemu_NativeLibrary_queryRomMetadata(JNIEnv * env, jclass /*clazz*/, js
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_org_nxemu_NativeLibrary_queryRomInfo(JNIEnv * env, jclass /*clazz*/, jstring j_path)
+Java_org_nxemu_NativeLibrary_queryRomInfo(JNIEnv * env, jclass /*clazz*/, jstring j_path, jlong program_id)
 {
     const std::string path = JStringToUtf8(env, j_path);
-    const std::string json = EmulationSession::GetInstance().QueryRomInfo(path);
+    const std::string json = EmulationSession::GetInstance().QueryRomInfo(path, static_cast<uint64_t>(program_id));
     if (json.empty())
     {
         return env->NewStringUTF("{}");
@@ -182,7 +182,7 @@ Java_org_nxemu_NativeLibrary_queryRomInfo(JNIEnv * env, jclass /*clazz*/, jstrin
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_nxemu_NativeLibrary_emulationSurfaceReady(JNIEnv * env, jclass /*clazz*/, jobject jsurface,
-                                                   jfloat pixel_ratio, jstring jpath)
+                                                   jfloat pixel_ratio, jstring jpath, jlong program_id)
 {
     if (jsurface == nullptr || jpath == nullptr)
     {
@@ -205,7 +205,13 @@ Java_org_nxemu_NativeLibrary_emulationSurfaceReady(JNIEnv * env, jclass /*clazz*
         return JNI_FALSE;
     }
 
-    return EmulationSession::GetInstance().Run(nw, pixel_ratio, rom_path) ? JNI_TRUE : JNI_FALSE;
+    return EmulationSession::GetInstance().Run(nw, pixel_ratio, rom_path, static_cast<uint64_t>(program_id)) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_nxemu_NativeLibrary_processProgramEvents(JNIEnv * /*env*/, jclass /*clazz*/)
+{
+    return static_cast<jint>(EmulationSession::GetInstance().ProcessProgramEvents());
 }
 
 extern "C" JNIEXPORT void JNICALL

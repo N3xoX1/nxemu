@@ -459,7 +459,7 @@ bool UiActivity::RunAction(Rml::Element * element)
     {
         if (game < static_cast<int>(m_cards.size()))
         {
-            LaunchGame(m_cards[game].path);
+            LaunchGame(m_cards[game]);
         }
         return true;
     }
@@ -649,6 +649,7 @@ void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
         }
         std::vector<std::string> found = files;
         std::sort(shown.begin(), shown.end());
+        shown.erase(std::unique(shown.begin(), shown.end()), shown.end());
         std::sort(found.begin(), found.end());
         if (shown == found)
         {
@@ -671,6 +672,7 @@ void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
         m_cards.push_back(std::move(card));
     }
     m_loaded = 0;
+    m_libraryFiles = files.size();
     m_libraryLoading = true;
     RenderGameList();
     SetLibraryStatus("Loading 0 of " + std::to_string(files.size()));
@@ -713,7 +715,7 @@ void UiActivity::OnGameRead(const UiLibrary::Game & game)
     }
     Card & card = m_cards[game.index];
     card.loading = false;
-    SetLibraryStatus("Loading " + std::to_string(game.index + 1) + " of " + std::to_string(m_cards.size()));
+    SetLibraryStatus("Loading " + std::to_string(game.index + 1) + " of " + std::to_string(m_libraryFiles));
     Rml::Element * element = m_document->GetElementById("game-" + std::to_string(game.index));
     if (!game.readable)
     {
@@ -726,15 +728,32 @@ void UiActivity::OnGameRead(const UiLibrary::Game & game)
         return;
     }
     m_loaded++;
-    if (!game.title.empty())
-    {
-        card.title = game.title;
-    }
-    card.icon = game.icon.empty() ? "images/nxemu-logo.png" : m_renderer.AddMemoryImage(game.icon);
+    const auto fill = [this](Card & target, const UiLibrary::Program & program) {
+        target.programId = program.programId;
+        if (!program.title.empty())
+        {
+            target.title = program.title;
+        }
+        target.icon = program.icon.empty() ? "images/nxemu-logo.png" : m_renderer.AddMemoryImage(program.icon);
+    };
+    fill(card, game.programs.front());
     if (element != nullptr)
     {
         element->SetInnerRML(CardInner(card));
         element->SetAttribute("data-game", static_cast<int>(game.index));
+    }
+    if (game.programs.size() > 1)
+    {
+        const std::string path = card.path;
+        for (size_t i = 1; i < game.programs.size(); i++)
+        {
+            Card extra;
+            extra.path = path;
+            extra.loading = false;
+            fill(extra, game.programs[i]);
+            m_cards.push_back(std::move(extra));
+        }
+        RenderGameList();
     }
     m_layoutDirty = true;
 }
@@ -938,13 +957,13 @@ void UiActivity::LaunchSelectedGame()
     const std::vector<size_t> cards = SelectableGames();
     if (m_selectedGame >= 0 && m_selectedGame < static_cast<int>(cards.size()))
     {
-        LaunchGame(m_cards[cards[m_selectedGame]].path);
+        LaunchGame(m_cards[cards[m_selectedGame]]);
     }
 }
 
-void UiActivity::LaunchGame(const std::string & path)
+void UiActivity::LaunchGame(const Card & card)
 {
-    m_host.Request("launchGame", {path});
+    m_host.Request("launchGame", {card.path, std::to_string(card.programId)});
 }
 
 bool UiActivity::ControllerAttached() const

@@ -18,7 +18,12 @@ void UiLibrary::Read(std::vector<std::string> paths, Receiver receiver)
         {
             Game game;
             game.index = i;
-            game.readable = EmulationSession::GetInstance().QueryRomListing(paths[i], game.title, game.icon);
+            std::vector<EmulationSession::RomListing> listings;
+            game.readable = EmulationSession::GetInstance().QueryRomListing(paths[i], listings) && !listings.empty();
+            for (EmulationSession::RomListing & listing : listings)
+            {
+                game.programs.push_back({listing.programId, std::move(listing.title), std::move(listing.icon)});
+            }
             if (!*cancelled)
             {
                 receiver(&game);

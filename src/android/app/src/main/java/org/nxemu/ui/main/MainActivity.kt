@@ -233,6 +233,7 @@ open class MainActivity : ComponentActivity() {
         startActivity(
             Intent(this, EmulationActivity::class.java).apply {
                 putExtra(EmulationActivity.EXTRA_GAME_PATH, path)
+                putExtra(EmulationActivity.EXTRA_PROGRAM_ID, EmulationActivity.activeProgramId)
                 addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             }
         )
@@ -461,23 +462,24 @@ open class MainActivity : ComponentActivity() {
     fun firmwareVersion(): String =
         if (firmware.busy) "" else NativeLibrary.getFirmwareVersion().let { if (it == "N/A") "" else it }
 
-    fun launchGame(path: String) {
+    fun launchGame(path: String, programId: Long) {
         if (path.isEmpty() || emulationLaunchPending || firmware.busy) {
             return
         }
         emulationLaunchPending = true
         firmware.offerBeforeLaunch(
             path,
-            launch = { startEmulation(path) },
+            launch = { startEmulation(path, programId) },
             cancel = { emulationLaunchPending = false },
         )
     }
 
-    private fun startEmulation(path: String) {
+    private fun startEmulation(path: String, programId: Long) {
         emulationLaunchPending = true
         startActivity(
             Intent(this, EmulationActivity::class.java).apply {
                 putExtra(EmulationActivity.EXTRA_GAME_PATH, path)
+                putExtra(EmulationActivity.EXTRA_PROGRAM_ID, programId)
             }
         )
     }

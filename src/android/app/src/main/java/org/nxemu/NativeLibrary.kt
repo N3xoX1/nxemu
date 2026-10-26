@@ -14,6 +14,27 @@ object NativeLibrary {
     }
 
     private val settingChangedListeners = CopyOnWriteArrayList<(String) -> Unit>()
+    private val programEventListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    // EmulationSession::ProgramEventResult in jni/emulation_session.h
+    const val PROGRAM_EVENT_NONE = 0
+    const val PROGRAM_EVENT_RELOADED = 1
+    const val PROGRAM_EVENT_EXITED = 2
+    const val PROGRAM_EVENT_FAILED = 3
+
+    fun addProgramEventListener(listener: () -> Unit) {
+        programEventListeners.add(listener)
+    }
+
+    fun removeProgramEventListener(listener: () -> Unit) {
+        programEventListeners.remove(listener)
+    }
+
+    /** Called from an emulation thread when the game asks to run another program or exits. */
+    @JvmStatic
+    fun onProgramEvent() {
+        programEventListeners.forEach { listener -> listener() }
+    }
 
     fun addSettingChangedListener(listener: (String) -> Unit) {
         settingChangedListeners.add(listener)
@@ -41,7 +62,7 @@ object NativeLibrary {
     external fun saveSettings()
 
     external fun queryRomMetadata(path: String): String
-    external fun queryRomInfo(path: String): String
+    external fun queryRomInfo(path: String, programId: Long): String
     external fun getPerfStats(): DoubleArray
     external fun getShadersBuilding(): Int
     external fun getFirmwareVersion(): String
@@ -56,7 +77,8 @@ object NativeLibrary {
 
     external fun getAppVersion(): String
 
-    external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String): Boolean
+    external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String, programId: Long): Boolean
+    external fun processProgramEvents(): Int
     external fun emulationSurfaceDestroyed()
     external fun emulationStopped()
     external fun surfaceChanged(surface: android.view.Surface)
