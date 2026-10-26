@@ -1678,8 +1678,8 @@ msgid "This game carries firmware %1"
 msgstr "Dit spel bevat firmware %1"
 
 #: views/firmware_dialog.cpp
-msgid "No firmware is installed yet, and most games need one. NXEmu can install the game's before starting it."
-msgstr "Er is geen firmware geïnstalleerd en voor de meeste games is dit vereist. NXEmu kan de game één keer installeren voordat deze wordt gestart."
+msgid "No firmware is installed yet. NXEmu can install the game's before starting it."
+msgstr "Er is nog geen firmware geïnstalleerd. NXEmu kan de firmware van de game installeren voordat deze start."
 
 #: views/firmware_dialog.cpp
 msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."

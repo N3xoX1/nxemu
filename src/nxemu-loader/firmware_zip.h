@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/file_sys/vfs/vfs_types.h"
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -14,6 +15,6 @@ enum class FirmwareZipResult
     Failed,
 };
 
-FirmwareZipResult ExtractFirmwareZip(const std::filesystem::path & zip_path, const std::filesystem::path & destination_directory,
+FirmwareZipResult ExtractFirmwareZip(const FileSys::VirtualFile & zip_file, const std::filesystem::path & destination_directory,
                                      const std::function<std::string(std::string_view)> & nameOf,
                                      const std::function<bool(uint64_t, uint64_t)> & progress);

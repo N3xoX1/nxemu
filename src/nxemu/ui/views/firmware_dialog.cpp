@@ -94,7 +94,7 @@ void FirmwareDialog::OnOpen()
     const std::string installed = InstalledVersion(*m_loader);
     ShowStep("offer", false);
     SetText("offer-title", Tr("This game carries firmware %1", {m_gameVersion}));
-    SetText("offer-text", installed.empty() ? Tr("No firmware is installed yet, and most games need one. NXEmu can install the game's before starting it.")
+    SetText("offer-text", installed.empty() ? Tr("No firmware is installed yet. NXEmu can install the game's before starting it.")
                                             : Tr("Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it.", {installed}));
 }
 

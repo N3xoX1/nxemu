@@ -638,6 +638,81 @@ input.range sliderarrowinc
     position: relative;
 }
 
+/* About */
+
+.about
+{
+    margin: 0 16dp;
+    padding: 20dp 0 8dp;
+}
+
+.about-top
+{
+    display: flex;
+    align-items: center;
+    margin-bottom: 16dp;
+}
+
+.about-logo
+{
+    width: 64dp;
+    height: 64dp;
+    margin-right: 16dp;
+}
+
+.about-product
+{
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.about-name
+{
+    margin-bottom: 2dp;
+    font-size: 22dp;
+    font-weight: bold;
+}
+
+.about-muted
+{
+    color: var(--muted);
+}
+
+.about-small
+{
+    font-size: 13dp;
+}
+
+.about-text
+{
+    margin-bottom: 12dp;
+    font-size: 15dp;
+    line-height: 21dp;
+}
+
+.about-text.about-muted
+{
+    font-size: 14dp;
+    line-height: 20dp;
+}
+
+.about-credits
+{
+    margin-top: 8dp;
+    margin-bottom: 4dp;
+    font-size: 13dp;
+    color: var(--muted);
+}
+
+.about-trademark
+{
+    margin: 0 16dp;
+    padding: 20dp 0 40dp;
+    font-size: 12dp;
+    line-height: 17dp;
+    color: var(--muted);
+}
+
 /* First run */
 
 .setup-intro

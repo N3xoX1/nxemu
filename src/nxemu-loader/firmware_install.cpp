@@ -11,6 +11,7 @@
 #include <exception>
 #include <fstream>
 #include <vector>
+#include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/logging/log.h>
@@ -120,12 +121,11 @@ public:
 
     FirmwareInstallStatus Fill(const std::filesystem::path & source)
     {
-        std::error_code error;
-        if (std::filesystem::is_directory(source, error))
+        if (Common::FS::IsDir(source))
         {
             return FillFromDirectory(source);
         }
-        if (!std::filesystem::is_regular_file(source, error))
+        if (!Common::FS::IsFile(source))
         {
             return FirmwareInstallStatus::SourceUnreadable;
         }
@@ -139,7 +139,7 @@ public:
         {
             return FillFromGameCard(card);
         }
-        switch (ExtractFirmwareZip(source, m_directory, RegisteredName, [this](uint64_t done, uint64_t total) { return Report(FirmwareInstallStage::Copying, done, total); }))
+        switch (ExtractFirmwareZip(file, m_directory, RegisteredName, [this](uint64_t done, uint64_t total) { return Report(FirmwareInstallStage::Copying, done, total); }))
         {
         case FirmwareZipResult::Extracted: return FirmwareInstallStatus::Installed;
         case FirmwareZipResult::Cancelled: return FirmwareInstallStatus::Cancelled;
@@ -431,8 +431,7 @@ bool FirmwareInstall::ReadInstalledVersion(::FileSystemController & fs_controlle
 
 bool FirmwareInstall::ReadGameCardVersion(const FileSys::VirtualFilesystem & vfs, const std::filesystem::path & path, Version & version)
 {
-    std::error_code error;
-    if (!std::filesystem::is_regular_file(path, error))
+    if (!Common::FS::IsFile(path))
     {
         return false;
     }

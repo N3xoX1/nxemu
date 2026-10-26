@@ -26,6 +26,7 @@ public:
     {
         Library,
         Settings,
+        Hub,
     };
 
     UiActivity(Rml::Context & context, const UiHost & host, UiRenderer & renderer, Mode mode);
@@ -144,6 +145,9 @@ private:
     void BuildSelects();
     const Select & SelectFor(const char * key) const;
 
+    void RenderHub();
+    void RenderAbout();
+    void RenderInterfaceSettings();
     void RenderSettingsHome();
     void RenderOverlaySettings();
     void RenderSystemSettings();

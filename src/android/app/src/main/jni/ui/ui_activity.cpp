@@ -21,7 +21,7 @@ namespace
     constexpr float kCardGapY = 14.0f;
 
     const std::set<std::string> kSettingsPages = {
-        "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
+        "hubPage", "about", "interfaceSettings", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
         "gpuDrivers", "gpuDriverAdd", "gpuDriverDownload", "gpuDriverGroup", "gpuDriverRelease", "gameFolders",
         "controllerSettings", "controllerPlayer", "controllerChoices", "settingChoices",
     };
@@ -85,10 +85,11 @@ bool UiActivity::Load()
     m_document->AddEventListener(Rml::EventId::Change, new Listener([this](Rml::Event & event) { OnChange(event); }));
     m_document->Show();
 
-    if (m_mode == Mode::Settings)
+    if (m_mode != Mode::Library)
     {
-        m_navStack = {"settingsPage"};
-        ShowPage("settingsPage");
+        const char * home = m_mode == Mode::Hub ? "hubPage" : "settingsPage";
+        m_navStack = {home};
+        ShowPage(home);
     }
     else
     {
@@ -166,6 +167,13 @@ void UiActivity::Event(const std::string & name, const std::string & payload)
     {
         RenderGpuDriversPage();
     }
+    else if (name == "firmware")
+    {
+        if (Top() == "hubPage")
+        {
+            RenderCurrentSettings();
+        }
+    }
     else if (name == "controllers")
     {
         RenderControllersSummary();
@@ -236,7 +244,7 @@ void UiActivity::GoBack()
         ShowPage(Top());
         return;
     }
-    if (m_mode == Mode::Settings)
+    if (m_mode != Mode::Library)
     {
         m_host.Request("finish");
     }
@@ -277,10 +285,13 @@ void UiActivity::ShowPage(const std::string & page)
 
 std::string UiActivity::SettingsTitle(const std::string & id)
 {
+    if (id == "hubPage") return "NxEmu";
+    if (id == "about") return "About";
     if (id == "settingsPage") return "Settings";
     if (id == "overlaySettings") return "On screen controller";
     if (id == "systemSettings") return "Console";
     if (id == "graphicsSettings") return "Graphics";
+    if (id == "interfaceSettings") return "Interface";
     if (id == "themeSettings") return "Theme";
     if (id == "setup") return SetupTitle();
     if (id == "gpuDrivers") return "GPU driver";
@@ -318,7 +329,15 @@ void UiActivity::RenderCurrentSettings()
         back->SetClass("invisible", id == "setup" && m_setupStep == 0);
     }
 
-    if (id == "settingsPage")
+    if (id == "hubPage")
+    {
+        RenderHub();
+    }
+    else if (id == "about")
+    {
+        RenderAbout();
+    }
+    else if (id == "settingsPage")
     {
         RenderSettingsHome();
     }
@@ -333,6 +352,10 @@ void UiActivity::RenderCurrentSettings()
     else if (id == "graphicsSettings")
     {
         RenderGraphicsSettings();
+    }
+    else if (id == "interfaceSettings")
+    {
+        RenderInterfaceSettings();
     }
     else if (id == "themeSettings")
     {
@@ -523,7 +546,7 @@ void UiActivity::OnSettingChanged(const std::string & setting)
     else if (setting == NXUISetting::ThemeMode)
     {
         ApplyTheme();
-        if (Top() == "themeSettings" || Top() == "settingsPage")
+        if (Top() == "themeSettings" || Top() == "interfaceSettings")
         {
             RenderCurrentSettings();
         }

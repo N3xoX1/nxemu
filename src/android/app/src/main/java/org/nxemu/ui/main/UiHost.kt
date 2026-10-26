@@ -1,7 +1,9 @@
 package org.nxemu.ui.main
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.annotation.Keep
 import org.json.JSONArray
 import org.nxemu.GameLibraryScanner
@@ -18,7 +20,9 @@ class UiHost(private val activity: MainActivity) {
             "addGameDirectory" -> ui { activity.addGameDirectory() }
             "openSettings" -> ui {
                 if (activity !is SettingsActivity) {
-                    activity.startActivity(Intent(activity, SettingsActivity::class.java))
+                    activity.startActivity(
+                        Intent(activity, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_HUB, true)
+                    )
                 }
             }
             "finish" -> ui { activity.finish() }
@@ -26,6 +30,15 @@ class UiHost(private val activity: MainActivity) {
             "confirm" -> ui { activity.confirm(args[0].toInt(), args[1]) }
             "alert" -> ui { activity.alert(args[0]) }
             "editOverlayLayout" -> ui { activity.editOverlayLayout() }
+            "firmwareVersion" -> activity.firmwareVersion()
+            "installFirmware" -> ui { activity.installFirmware() }
+            "openUrl" -> ui {
+                try {
+                    activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(args[0])))
+                } catch (_: ActivityNotFoundException) {
+                    activity.alert("No app is available to open ${args[0]}")
+                }
+            }
             "isDarkTheme" -> ThemeHelper.isDark(activity).toString()
             "isSetupComplete" -> prefs().getBoolean(SETUP_COMPLETE, false).toString()
             "completeSetup" -> {

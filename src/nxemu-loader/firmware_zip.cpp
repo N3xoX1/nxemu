@@ -3,12 +3,9 @@
 #include <fstream>
 #include <vector>
 
+#include "core/file_sys/vfs/vfs.h"
 #include "ioapi.h"
 #include "unzip.h"
-
-#ifdef _WIN32
-#include "iowin32.h"
-#endif
 
 namespace
 {
@@ -16,15 +13,67 @@ namespace
 constexpr size_t kCopyBufferSize = 1024 * 1024;
 constexpr size_t kMaxEntryNameLength = 4096;
 
-unzFile OpenZipArchive(const std::filesystem::path & zip_path)
+struct ZipStream
 {
-#ifdef _WIN32
-    zlib_filefunc64_def file_functions{};
-    fill_win32_filefunc64W(&file_functions);
-    return unzOpen2_64(zip_path.c_str(), &file_functions);
-#else
-    return unzOpen64(zip_path.c_str());
-#endif
+    FileSys::VirtualFile file;
+    uint64_t offset = 0;
+};
+
+voidpf ZCALLBACK ZipOpen(voidpf opaque, const void *, int mode)
+{
+    if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER) != ZLIB_FILEFUNC_MODE_READ)
+    {
+        return nullptr;
+    }
+    return new ZipStream{*static_cast<const FileSys::VirtualFile *>(opaque)};
+}
+
+uLong ZCALLBACK ZipRead(voidpf, voidpf stream, void * buf, uLong size)
+{
+    ZipStream & zip = *static_cast<ZipStream *>(stream);
+    const size_t read = zip.file->Read(static_cast<uint8_t *>(buf), size, zip.offset);
+    zip.offset += read;
+    return static_cast<uLong>(read);
+}
+
+uLong ZCALLBACK ZipWrite(voidpf, voidpf, const void *, uLong)
+{
+    return 0;
+}
+
+ZPOS64_T ZCALLBACK ZipTell(voidpf, voidpf stream)
+{
+    return static_cast<ZipStream *>(stream)->offset;
+}
+
+long ZCALLBACK ZipSeek(voidpf, voidpf stream, ZPOS64_T offset, int origin)
+{
+    ZipStream & zip = *static_cast<ZipStream *>(stream);
+    switch (origin)
+    {
+    case ZLIB_FILEFUNC_SEEK_SET: zip.offset = offset; break;
+    case ZLIB_FILEFUNC_SEEK_CUR: zip.offset += offset; break;
+    case ZLIB_FILEFUNC_SEEK_END: zip.offset = zip.file->GetSize() + offset; break;
+    default: return -1;
+    }
+    return 0;
+}
+
+int ZCALLBACK ZipClose(voidpf, voidpf stream)
+{
+    delete static_cast<ZipStream *>(stream);
+    return 0;
+}
+
+int ZCALLBACK ZipError(voidpf, voidpf)
+{
+    return 0;
+}
+
+unzFile OpenZipArchive(const FileSys::VirtualFile & zip_file)
+{
+    zlib_filefunc64_def file_functions{ZipOpen, ZipRead, ZipWrite, ZipTell, ZipSeek, ZipClose, ZipError, const_cast<FileSys::VirtualFile *>(&zip_file)};
+    return unzOpen2_64(zip_file->GetName().c_str(), &file_functions);
 }
 
 struct ZipArchive
@@ -59,11 +108,11 @@ bool CurrentEntry(unzFile zip, const std::function<std::string(std::string_view)
 
 }
 
-FirmwareZipResult ExtractFirmwareZip(const std::filesystem::path & zip_path, const std::filesystem::path & destination_directory,
+FirmwareZipResult ExtractFirmwareZip(const FileSys::VirtualFile & zip_file, const std::filesystem::path & destination_directory,
                                      const std::function<std::string(std::string_view)> & nameOf,
                                      const std::function<bool(uint64_t, uint64_t)> & progress)
 {
-    ZipArchive zip{OpenZipArchive(zip_path)};
+    ZipArchive zip{OpenZipArchive(zip_file)};
     if (zip.handle == nullptr)
     {
         return FirmwareZipResult::NotAnArchive;

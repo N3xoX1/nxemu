@@ -422,6 +422,29 @@ std::string EmulationSession::GetFirmwareVersion()
     return std::string(buffer, length);
 }
 
+std::string EmulationSession::GetGameCardFirmwareUpdate(const std::string & path)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return {};
+    }
+    char version[64]{};
+    const uint32_t length = m_system_modules->Modules().Systemloader().GetGameCardFirmwareUpdate(path.c_str(), version, sizeof(version));
+    return std::string(version, length);
+}
+
+FirmwareInstallStatus EmulationSession::InstallFirmware(const std::string & path, IFirmwareInstallObserver & observer)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return FirmwareInstallStatus::StorageUnavailable;
+    }
+    char version[64]{};
+    return m_system_modules->Modules().Systemloader().InstallFirmwarePackage(path.c_str(), &observer, version, sizeof(version));
+}
+
 void EmulationSession::SetOverlayButton(int port, int button_id, bool pressed)
 {
     std::lock_guard lock(m_mutex);

@@ -1672,8 +1672,8 @@ msgid "This game carries firmware %1"
 msgstr "이 게임에는 펌웨어 %1가 포함되어 있습니다."
 
 #: views/firmware_dialog.cpp
-msgid "No firmware is installed yet, and most games need one. NXEmu can install the game's before starting it."
-msgstr "펌웨어가 설치되어 있지 않으며 대부분의 게임에는 펌웨어가 필요합니다. NXEmu는 게임을 시작하기 전에 게임을 설치할 수 있습니다."
+msgid "No firmware is installed yet. NXEmu can install the game's before starting it."
+msgstr "아직 펌웨어가 설치되어 있지 않습니다. NXEmu는 게임을 시작하기 전에 게임에 포함된 펌웨어를 설치할 수 있습니다."
 
 #: views/firmware_dialog.cpp
 msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
