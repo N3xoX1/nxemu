@@ -777,6 +777,9 @@
     <ClCompile Include="ir_opt\lower_int64_to_int32.cpp">
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
+    <ClCompile Include="ir_opt\pixel_local_read_pass.cpp">
+      <Filter>Source Files\ir_opt</Filter>
+    </ClCompile>
     <ClCompile Include="ir_opt\position_pass.cpp">
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
