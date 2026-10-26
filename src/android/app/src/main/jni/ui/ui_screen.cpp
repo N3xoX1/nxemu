@@ -102,6 +102,7 @@ void UiScreen::Touch(int action, float x, float y)
     case TouchDown:
         if (m_touching)
         {
+            m_context->ProcessMouseLeave();
             m_context->ProcessTouchCancel(touches);
         }
         m_touching = true;
@@ -125,8 +126,8 @@ void UiScreen::Touch(int action, float x, float y)
         if (m_touching)
         {
             m_touching = false;
-            m_context->ProcessTouchCancel(touches);
             m_context->ProcessMouseLeave();
+            m_context->ProcessTouchCancel(touches);
         }
         break;
     }

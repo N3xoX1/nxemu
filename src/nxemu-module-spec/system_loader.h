@@ -378,6 +378,13 @@ nxinterface IFirmwareInstallObserver
     virtual bool ConfirmFirmwareReplacement(const char * packageVersion, const char * installedVersion) = 0;
 };
 
+struct GameFileEntry
+{
+    const char * path;
+    uint64_t size;
+    int64_t modifiedTime;
+};
+
 nxinterface IGameListScanCallback
 {
     virtual bool ScanStopRequested() = 0;
@@ -394,6 +401,7 @@ nxinterface ISystemloader
     virtual IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * LoadedRomInfo() = 0;
     virtual bool ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback) = 0;
+    virtual bool ScanGameFiles(const GameFileEntry * files, uint32_t fileCount, IGameListScanCallback & callback) = 0;
 
     virtual IContentProvider & ContentProvider() = 0;
     virtual IFilesystem & Filesystem() = 0;

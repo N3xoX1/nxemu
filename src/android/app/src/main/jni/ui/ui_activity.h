@@ -62,6 +62,7 @@ private:
     {
         std::string path;
         uint64_t programId = 0;
+        uint64_t size = 0;
         std::string title;
         std::string icon;
         bool loading = true;
@@ -104,7 +105,8 @@ private:
     void RefreshGameList();
     void RescanGameList();
     void OnGameLibraryPaths(const JsonValue & paths);
-    void OnGameRead(const UiLibrary::Game & game);
+    void OnGameFound(const UiLibrary::Game & game);
+    void AppendCardElement(size_t index);
     void FinishGameList();
     void RenderGameList();
     void RenderEmptyGames(const char * kind);
@@ -117,6 +119,15 @@ private:
     void MoveGameSelection(const std::string & direction);
     void LaunchSelectedGame();
     void LaunchGame(const Card & card);
+    void OpenGameProperties(size_t card);
+    void OpenGamePropertiesAt(float x, float y);
+    void ReloadGameProperties();
+    void RenderGameProperties();
+    void RenderGameInfo();
+    void RenderGameAddOns();
+    void RenderGameSaveData();
+    void ToggleAddOn(size_t index);
+    void DeleteGameData(const std::string & directory, const std::string & question);
 
     bool ControllerAttached() const;
     void ApplyControllerBrowser();
@@ -135,6 +146,7 @@ private:
     void AppendHeader(const std::string & text);
     void AppendSub(const std::string & text);
     void AppendLink(const std::string & label, const std::string & detail, std::function<void()> action);
+    void AppendInfoRow(const std::string & label, const std::string & value);
     void AppendBool(const std::string & label, const std::string & detail, bool on, std::function<void()> action);
     void AppendSlider(const std::string & label, const std::string & valueText, float min, float max, float step, float value, std::function<std::string(float)> changed);
     void AppendCheck(const std::string & label, const std::string & detail, bool on, std::function<void()> action);
@@ -228,9 +240,15 @@ private:
     bool m_quietScan = false;
     bool m_layoutDirty = false;
     size_t m_loaded = 0;
-    size_t m_libraryFiles = 0;
+    std::vector<std::string> m_lastScan;
+    std::map<std::string, uint64_t> m_fileSizes;
     int m_columns = 1;
     int m_selectedGame = -1;
+
+    Card m_propertiesGame;
+    UiLibrary::Properties m_properties;
+    bool m_propertiesReady = false;
+    int m_propertiesGen = 0;
 
     int m_settingsSelection = -1;
     std::map<std::string, int> m_selectionByPage;

@@ -8,31 +8,79 @@ UiLibrary::~UiLibrary()
     Cancel();
 }
 
-void UiLibrary::Read(std::vector<std::string> paths, Receiver receiver)
+namespace
+{
+    class ScanCallback final : public IGameListScanCallback
+    {
+    public:
+        ScanCallback(const UiLibrary::Listener & listener, const std::atomic_bool & cancelled) :
+            m_listener(listener),
+            m_cancelled(cancelled)
+        {
+        }
+
+        bool ScanStopRequested() override { return m_cancelled; }
+
+        void GameFound(const char * path, IRomInfo * romInfo, bool /*changed*/) override
+        {
+            if (romInfo == nullptr)
+            {
+                return;
+            }
+            UiLibrary::Game game;
+            game.path = path;
+            if (romInfo->ReadProgramId(game.programId) != LoaderResultStatus::Success)
+            {
+                game.programId = 0;
+            }
+            game.title = EmulationSession::RomTitle(romInfo);
+            game.icon = EmulationSession::RomIcon(romInfo);
+            romInfo->Release();
+            if (!m_cancelled)
+            {
+                m_listener.found(std::move(game));
+            }
+        }
+
+        void ScanProgress(uint32_t filesStarted, uint32_t filesTotal) override
+        {
+            if (!m_cancelled)
+            {
+                m_listener.progress(filesStarted, filesTotal);
+            }
+        }
+
+    private:
+        const UiLibrary::Listener & m_listener;
+        const std::atomic_bool & m_cancelled;
+    };
+}
+
+void UiLibrary::Scan(std::vector<File> files, Listener listener)
 {
     Cancel();
     auto cancelled = std::make_shared<std::atomic_bool>(false);
     m_cancelled = cancelled;
-    std::thread([paths = std::move(paths), receiver = std::move(receiver), cancelled] {
-        for (size_t i = 0; i < paths.size() && !*cancelled; i++)
+    std::thread([files = std::move(files), listener = std::move(listener), cancelled] {
+        std::vector<GameFileEntry> entries;
+        entries.reserve(files.size());
+        for (const File & file : files)
         {
-            Game game;
-            game.index = i;
-            std::vector<EmulationSession::RomListing> listings;
-            game.readable = EmulationSession::GetInstance().QueryRomListing(paths[i], listings) && !listings.empty();
-            for (EmulationSession::RomListing & listing : listings)
-            {
-                game.programs.push_back({listing.programId, std::move(listing.title), std::move(listing.icon)});
-            }
-            if (!*cancelled)
-            {
-                receiver(&game);
-            }
+            entries.push_back({file.path.c_str(), file.size, file.modified});
         }
+        ScanCallback callback(listener, *cancelled);
+        const bool complete = EmulationSession::GetInstance().ScanGameFiles(entries, callback);
         if (!*cancelled)
         {
-            receiver(nullptr);
+            listener.done(complete);
         }
+    }).detach();
+}
+
+void UiLibrary::ReadProperties(std::string path, uint64_t programId, std::function<void(Properties)> receiver)
+{
+    std::thread([path = std::move(path), programId, receiver = std::move(receiver)] {
+        receiver(EmulationSession::GetInstance().QueryGameProperties(path, programId));
     }).detach();
 }
 

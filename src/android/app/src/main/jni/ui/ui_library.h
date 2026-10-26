@@ -1,5 +1,7 @@
 #pragma once
 
+#include "emulation_session.h"
+
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -10,24 +12,34 @@
 class UiLibrary
 {
 public:
-    struct Program
+    struct File
     {
+        std::string path;
+        uint64_t size = 0;
+        int64_t modified = 0;
+    };
+
+    struct Game
+    {
+        std::string path;
         uint64_t programId = 0;
         std::string title;
         std::vector<uint8_t> icon;
     };
 
-    struct Game
+    struct Listener
     {
-        size_t index = 0;
-        bool readable = false;
-        std::vector<Program> programs;
+        std::function<void(Game game)> found;
+        std::function<void(uint32_t started, uint32_t total)> progress;
+        std::function<void(bool complete)> done;
     };
-    using Receiver = std::function<void(const Game * game)>;
+    using Properties = EmulationSession::GameProperties;
+    using AddOn = EmulationSession::GameAddOn;
 
     ~UiLibrary();
 
-    void Read(std::vector<std::string> paths, Receiver receiver);
+    void Scan(std::vector<File> files, Listener listener);
+    static void ReadProperties(std::string path, uint64_t programId, std::function<void(Properties)> receiver);
     void Cancel();
 
 private:

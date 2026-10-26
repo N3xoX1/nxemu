@@ -35,7 +35,15 @@ public:
     explicit GameListCache(Systemloader & systemloader);
     ~GameListCache();
 
+    struct ScanFile
+    {
+        std::string path;
+        uint64_t size = 0;
+        int64_t modifiedTime = 0;
+    };
+
     bool Scan(const std::vector<GameDirectory> & gameDirs, IGameListScanCallback & callback);
+    bool ScanFiles(const std::vector<ScanFile> & files, IGameListScanCallback & callback);
     std::vector<GameDirectory> Directories();
     std::vector<std::string> GameDirectoryAddOnFiles(uint64_t baseProgramId);
 
@@ -106,8 +114,17 @@ private:
     using GameFiles = std::map<std::string, GameFileRecord>;
     using DisabledAddOns = std::map<uint64_t, std::vector<std::string>>;
 
+    struct DirFile
+    {
+        std::string path;
+        FileStamp stamp;
+    };
+
+    void BeginScan();
+    bool FinishScan(bool complete, IGameListScanCallback & callback);
     bool ScanAddOnDirectories(IGameListScanCallback & callback);
     bool ScanGameDirectory(const GameDirectory & gameDir, IGameListScanCallback & callback);
+    bool ScanGameFiles(const std::vector<DirFile> & files, IGameListScanCallback & callback);
     void ParseGameFile(const std::string & path, GameFileRecord & record) const;
     AddOnEntries ReadAddOnEntries(const std::string & path) const;
     bool RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & gameDirIndex) const;

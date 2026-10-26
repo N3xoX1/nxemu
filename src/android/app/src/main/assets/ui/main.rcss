@@ -638,6 +638,30 @@ input.range sliderarrowinc
     position: relative;
 }
 
+/* Game properties */
+
+.game-header
+{
+    display: flex;
+    align-items: center;
+    margin: 0 16dp;
+    padding: 20dp 0 8dp;
+}
+
+.game-header-icon
+{
+    width: 72dp;
+    height: 72dp;
+    margin-right: 16dp;
+    border-radius: 12dp;
+}
+
+.game-header-title
+{
+    font-size: 18dp;
+    font-weight: bold;
+}
+
 /* About */
 
 .about

@@ -24,14 +24,42 @@ public:
     void ShutdownSystem();
 
     std::string QueryRomMetadata(const std::string & path);
-    struct RomListing
+    bool ScanGameFiles(const std::vector<GameFileEntry> & files, IGameListScanCallback & callback);
+    static std::string RomTitle(IRomInfo * rom);
+    static std::vector<uint8_t> RomIcon(IRomInfo * rom);
+
+    struct GameAddOn
     {
-        uint64_t programId = 0;
-        std::string title;
-        std::vector<uint8_t> icon;
+        enum class Kind
+        {
+            Update,
+            AddOnContent,
+            Mod,
+        };
+        Kind kind = Kind::Mod;
+        std::string key;
+        std::string name;
+        std::string version;
+        bool enabled = false;
     };
 
-    bool QueryRomListing(const std::string & path, std::vector<RomListing> & games);
+    struct GameProperties
+    {
+        bool readable = false;
+        uint64_t programId = 0;
+        std::string version;
+        std::string developer;
+        std::string modDirectory;
+        std::vector<GameAddOn> addOns;
+        std::string saveDirectory;
+        std::string saveImportDirectory;
+        uint64_t saveSize = 0;
+        std::string shaderDirectory;
+        uint64_t shaderSize = 0;
+    };
+
+    GameProperties QueryGameProperties(const std::string & path, uint64_t program_id);
+    void SetDisabledAddOns(uint64_t program_id, const std::vector<std::string> & names);
     std::string QueryRomInfo(const std::string & path, uint64_t program_id);
 
     std::array<double, 4> GetPerfStats();

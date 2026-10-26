@@ -14,9 +14,9 @@
             <div id="game-list"></div>
         </div>
         <div class="browser-hint">
-            <div id="play-hint" class="hint hidden">Press <span class="hint-key">A</span> <span class="hint-action">to play</span></div>
+            <div id="play-hint" class="hint hidden">Press <span class="hint-key">A</span> <span class="hint-action">to play</span> <span class="hint-key hint-gap">X</span> <span class="hint-action">for options</span></div>
             <div id="settings-hint" class="hint hidden">Press <span class="hint-key">Y</span> <span class="hint-action">to open settings</span></div>
-            <div id="touch-hint" class="hint">Tap a game <span class="hint-action">to play</span></div>
+            <div id="touch-hint" class="hint">Tap a game <span class="hint-action">to play</span>, hold it <span class="hint-action">for options</span></div>
         </div>
     </div>
     <div id="settings-shell" class="page hidden">

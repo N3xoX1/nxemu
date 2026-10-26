@@ -483,25 +483,53 @@ GameListCache::~GameListCache()
 bool GameListCache::Scan(const std::vector<GameDirectory> & gameDirs, IGameListScanCallback & callback)
 {
     std::lock_guard<std::mutex> lock(m_scanMutex);
-    if (!m_loaded)
-    {
-        Load();
-        m_loaded = true;
-    }
     m_gameDirectories = gameDirs;
-
-    m_disabledAddOns = loaderSettings.disabled_addons;
-    for (GameFiles::value_type & game : m_gameFiles)
-    {
-        game.second.seen = false;
-    }
-
+    BeginScan();
     bool complete = ScanAddOnDirectories(callback);
     for (size_t i = 0; complete && i < gameDirs.size(); i++)
     {
         complete = ScanGameDirectory(gameDirs[i], callback);
     }
+    return FinishScan(complete, callback);
+}
 
+bool GameListCache::ScanFiles(const std::vector<ScanFile> & files, IGameListScanCallback & callback)
+{
+    std::lock_guard<std::mutex> lock(m_scanMutex);
+    BeginScan();
+    std::vector<DirFile> gameFiles;
+    for (const ScanFile & file : files)
+    {
+        const std::string ext = GetLowerExtension(file.path);
+        if (IsGameExtension(ext) || IsAddOnExtension(ext))
+        {
+            gameFiles.push_back({file.path, FileStamp{file.size, file.modifiedTime}});
+        }
+    }
+    bool complete = ScanAddOnDirectories(callback);
+    if (complete)
+    {
+        complete = ScanGameFiles(gameFiles, callback);
+    }
+    return FinishScan(complete, callback);
+}
+
+void GameListCache::BeginScan()
+{
+    if (!m_loaded)
+    {
+        Load();
+        m_loaded = true;
+    }
+    m_disabledAddOns = loaderSettings.disabled_addons;
+    for (GameFiles::value_type & game : m_gameFiles)
+    {
+        game.second.seen = false;
+    }
+}
+
+bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
+{
     if (complete)
     {
         UpdateIndex addOnIndex;
@@ -641,12 +669,6 @@ bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback)
 bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGameListScanCallback & callback)
 {
     const std::string & gameDir = gameDirectory.path;
-    struct DirFile
-    {
-        std::string path;
-        FileStamp stamp;
-        bool game;
-    };
     std::vector<DirFile> files;
 
     bool stopped = false;
@@ -667,7 +689,7 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
         FileStamp stamp;
         stamp.size = entry.file_size(ec);
         stamp.modifiedTime = (int64_t)entry.last_write_time(ec).time_since_epoch().count();
-        files.push_back({std::move(path), stamp, game});
+        files.push_back({std::move(path), stamp});
         return true;
     };
     if (gameDirectory.scanSubfolders)
@@ -682,7 +704,11 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
     {
         return false;
     }
+    return ScanGameFiles(files, callback);
+}
 
+bool GameListCache::ScanGameFiles(const std::vector<DirFile> & files, IGameListScanCallback & callback)
+{
     std::vector<bool> parse(files.size(), false);
     for (size_t i = 0; i < files.size(); i++)
     {

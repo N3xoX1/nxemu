@@ -32,6 +32,9 @@ class UiHost(private val activity: MainActivity) {
             "editOverlayLayout" -> ui { activity.editOverlayLayout() }
             "firmwareVersion" -> activity.firmwareVersion()
             "installFirmware" -> ui { activity.installFirmware() }
+            "installMod" -> ui { activity.gameData.installMod(args[0]) }
+            "exportSave" -> ui { activity.gameData.exportSave(args[0], args[1]) }
+            "importSave" -> ui { activity.gameData.importSave(args[0]) }
             "openUrl" -> ui {
                 try {
                     activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(args[0])))

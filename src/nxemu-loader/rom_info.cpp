@@ -10,6 +10,7 @@
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/nca_metadata.h"
 #include "core/loader/loader.h"
+#include <set>
 #include <algorithm>
 #include <common/path.h>
 #include <cstring>
@@ -172,18 +173,19 @@ void RegisterMatchingAddOnEntriesFromFile(FileSys::VirtualFile file,
     }
 }
 
-void RegisterSiblingAddOnEntries(uint64_t program_id, const FileSys::VirtualFile & game_file,
-                                 IManualContentProvider & provider)
+std::set<std::string> RegisterSiblingAddOnEntries(uint64_t program_id, const FileSys::VirtualFile & game_file,
+                                                  IManualContentProvider & provider)
 {
+    std::set<std::string> checked;
     if (program_id == 0 || !game_file)
     {
-        return;
+        return checked;
     }
 
     const FileSys::VirtualDir parent = game_file->GetContainingDirectory();
     if (!parent)
     {
-        return;
+        return checked;
     }
 
     const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
@@ -200,29 +202,25 @@ void RegisterSiblingAddOnEntries(uint64_t program_id, const FileSys::VirtualFile
             continue;
         }
 
+        checked.insert(sibling->GetFullPath());
         RegisterMatchingAddOnEntriesFromFile(sibling, base_program_id, provider);
     }
+    return checked;
 }
 
 void RegisterGameDirectoryAddOnEntries(Systemloader & systemloader, uint64_t program_id, const FileSys::VirtualFile & game_file,
-                                       FileSys::VirtualFilesystem & vfs, IManualContentProvider & provider)
+                                       FileSys::VirtualFilesystem & vfs, IManualContentProvider & provider,
+                                       const std::set<std::string> & siblings)
 {
     if (program_id == 0 || !game_file || !vfs)
     {
         return;
     }
     const uint64_t base_program_id = FileSys::GetBaseTitleID(program_id);
-    const FileSys::VirtualDir parent = game_file->GetContainingDirectory();
-    const std::string sibling_dir = parent ? parent->GetFullPath() : std::string();
     for (const std::string & path : systemloader.GameDirectoryAddOnFiles(base_program_id))
     {
         FileSys::VirtualFile file = vfs->OpenFile(path, VirtualFileOpenMode::Read);
-        if (!file || file->GetFullPath() == game_file->GetFullPath())
-        {
-            continue;
-        }
-        const FileSys::VirtualDir file_parent = file->GetContainingDirectory();
-        if (file_parent && file_parent->GetFullPath() == sibling_dir)
+        if (!file || file->GetFullPath() == game_file->GetFullPath() || siblings.contains(file->GetFullPath()))
         {
             continue;
         }
@@ -489,11 +487,11 @@ void RomInfo::PrepareManualContent()
     // Automatically discover matching update/DLC containers stored next to the game.
     // This makes a base DNSP/DXCI and a separate sibling update DNSP work without
     // requiring the user to configure the same directory again as an add-on directory.
-    RegisterSiblingAddOnEntries(program_id, m_file, provider);
+    const std::set<std::string> siblings = RegisterSiblingAddOnEntries(program_id, m_file, provider);
 
     // Keep the explicit add-on-directory mechanism for content stored elsewhere.
     FileSys::VirtualFilesystem vfs = m_systemloader.GetFilesystem();
-    RegisterGameDirectoryAddOnEntries(m_systemloader, program_id, m_file, vfs, provider);
+    RegisterGameDirectoryAddOnEntries(m_systemloader, program_id, m_file, vfs, provider, siblings);
     RegisterConfiguredAddOnDirectoryEntries(program_id, vfs, provider);
 }
 

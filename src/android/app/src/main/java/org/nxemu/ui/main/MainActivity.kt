@@ -11,11 +11,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.ViewConfiguration
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -39,6 +42,7 @@ import org.nxemu.ui.settings.OverlayLayoutActivity
 import org.nxemu.utils.GpuDriverHelper
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
+import kotlin.math.abs
 
 open class MainActivity : ComponentActivity() {
     private lateinit var surfaceView: SurfaceView
@@ -46,7 +50,17 @@ open class MainActivity : ComponentActivity() {
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
     private val firmware = FirmwareInstallFlow(this) { dispatchUiEvent("firmware", "") }
+    val gameData = GameDataActions(this) { dispatchUiEvent("gameDataChanged", "") }
     private var touchPointer = MotionEvent.INVALID_POINTER_ID
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private var longPressed = false
+    private val longPress = Runnable {
+        longPressed = true
+        NativeUi.touch(screen, NativeUi.TOUCH_CANCEL, touchDownX, touchDownY)
+        surfaceView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        dispatchUiEvent("longPress", "$touchDownX $touchDownY")
+    }
     private var stickX = 0
     private var stickY = 0
 
@@ -250,6 +264,7 @@ open class MainActivity : ComponentActivity() {
         firmware.dismiss()
         NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
         surfaceView.removeCallbacks(stickRepeat)
+        surfaceView.removeCallbacks(longPress)
         NativeUi.destroy(screen)
         super.onDestroy()
     }
@@ -258,22 +273,36 @@ open class MainActivity : ComponentActivity() {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 touchPointer = event.getPointerId(0)
+                touchDownX = event.x
+                touchDownY = event.y
+                longPressed = false
+                surfaceView.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
                 NativeUi.touch(screen, NativeUi.TOUCH_DOWN, event.x, event.y)
             }
             MotionEvent.ACTION_MOVE -> {
                 val index = event.findPointerIndex(touchPointer)
-                if (index >= 0) {
+                if (index >= 0 && !longPressed) {
+                    val slop = ViewConfiguration.get(this).scaledTouchSlop
+                    if (abs(event.getX(index) - touchDownX) > slop || abs(event.getY(index) - touchDownY) > slop) {
+                        surfaceView.removeCallbacks(longPress)
+                    }
                     NativeUi.touch(screen, NativeUi.TOUCH_MOVE, event.getX(index), event.getY(index))
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 if (event.getPointerId(event.actionIndex) == touchPointer) {
-                    NativeUi.touch(screen, NativeUi.TOUCH_UP, event.getX(event.actionIndex), event.getY(event.actionIndex))
+                    surfaceView.removeCallbacks(longPress)
+                    if (!longPressed) {
+                        NativeUi.touch(screen, NativeUi.TOUCH_UP, event.getX(event.actionIndex), event.getY(event.actionIndex))
+                    }
                     touchPointer = MotionEvent.INVALID_POINTER_ID
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
-                NativeUi.touch(screen, NativeUi.TOUCH_CANCEL, event.x, event.y)
+                surfaceView.removeCallbacks(longPress)
+                if (!longPressed) {
+                    NativeUi.touch(screen, NativeUi.TOUCH_CANCEL, event.x, event.y)
+                }
                 touchPointer = MotionEvent.INVALID_POINTER_ID
             }
         }
@@ -296,6 +325,7 @@ open class MainActivity : ComponentActivity() {
         val (button, repeats) = when (event.keyCode) {
             KeyEvent.KEYCODE_BUTTON_Y -> "y" to false
             KeyEvent.KEYCODE_BUTTON_B -> "b" to false
+            KeyEvent.KEYCODE_BUTTON_X -> "x" to false
             KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER -> "a" to false
             KeyEvent.KEYCODE_DPAD_LEFT -> "left" to true
             KeyEvent.KEYCODE_DPAD_RIGHT -> "right" to true
@@ -406,6 +436,7 @@ open class MainActivity : ComponentActivity() {
             .setNegativeButton(android.R.string.cancel) { _, _ -> answer(false) }
             .setOnCancelListener { answer(false) }
             .show()
+            .window?.setGravity(Gravity.CENTER)
     }
 
     fun alert(message: String) {
@@ -416,6 +447,7 @@ open class MainActivity : ComponentActivity() {
             .setMessage(message)
             .setPositiveButton(android.R.string.ok, null)
             .show()
+            .window?.setGravity(Gravity.CENTER)
     }
 
     fun editOverlayLayout() {

@@ -12,6 +12,7 @@
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Factory.h>
+#include <cstdio>
 #include <set>
 
 namespace
@@ -21,7 +22,7 @@ namespace
     constexpr float kCardGapY = 14.0f;
 
     const std::set<std::string> kSettingsPages = {
-        "hubPage", "about", "interfaceSettings", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
+        "hubPage", "about", "interfaceSettings", "gameProperties", "gameInfo", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
         "gpuDrivers", "gpuDriverAdd", "gpuDriverDownload", "gpuDriverGroup", "gpuDriverRelease", "gameFolders",
         "controllerSettings", "controllerPlayer", "controllerChoices", "settingChoices",
     };
@@ -206,6 +207,18 @@ void UiActivity::Event(const std::string & name, const std::string & payload)
     {
         OnPad(payload);
     }
+    else if (name == "gameDataChanged")
+    {
+        ReloadGameProperties();
+    }
+    else if (name == "longPress")
+    {
+        float x = 0.0f, y = 0.0f;
+        if (sscanf(payload.c_str(), "%f %f", &x, &y) == 2)
+        {
+            OpenGamePropertiesAt(x, y);
+        }
+    }
     else if (name == "back")
     {
         if (!HandleBack())
@@ -292,6 +305,10 @@ std::string UiActivity::SettingsTitle(const std::string & id)
     if (id == "systemSettings") return "Console";
     if (id == "graphicsSettings") return "Graphics";
     if (id == "interfaceSettings") return "Interface";
+    if (id == "gameProperties") return m_propertiesGame.title;
+    if (id == "gameInfo") return "Info";
+    if (id == "gameAddOns") return "Add-ons";
+    if (id == "gameSaveData") return "Save data";
     if (id == "themeSettings") return "Theme";
     if (id == "setup") return SetupTitle();
     if (id == "gpuDrivers") return "GPU driver";
@@ -356,6 +373,22 @@ void UiActivity::RenderCurrentSettings()
     else if (id == "interfaceSettings")
     {
         RenderInterfaceSettings();
+    }
+    else if (id == "gameProperties")
+    {
+        RenderGameProperties();
+    }
+    else if (id == "gameInfo")
+    {
+        RenderGameInfo();
+    }
+    else if (id == "gameAddOns")
+    {
+        RenderGameAddOns();
+    }
+    else if (id == "gameSaveData")
+    {
+        RenderGameSaveData();
     }
     else if (id == "themeSettings")
     {
@@ -523,6 +556,14 @@ void UiActivity::OnPad(const std::string & button)
     {
         LaunchSelectedGame();
     }
+    else if (button == "x")
+    {
+        const std::vector<size_t> cards = SelectableGames();
+        if (Top() == "gamesPage" && m_selectedGame >= 0 && m_selectedGame < static_cast<int>(cards.size()))
+        {
+            OpenGameProperties(cards[m_selectedGame]);
+        }
+    }
     else
     {
         MoveGameSelection(button);
@@ -637,21 +678,26 @@ void UiActivity::RescanGameList()
 
 void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
 {
-    const std::vector<std::string> files = UiUtil::StringArray(paths);
+    std::vector<UiLibrary::File> files;
+    std::vector<std::string> scan;
+    for (uint32_t i = 0; i < paths.size(); i++)
+    {
+        const JsonValue & entry = paths[i];
+        UiLibrary::File file{entry["path"].asString(), static_cast<uint64_t>(entry["size"].asInt64()), entry["modified"].asInt64()};
+        if (file.path.empty())
+        {
+            continue;
+        }
+        scan.push_back(file.path + "|" + std::to_string(file.size) + "|" + std::to_string(file.modified));
+        m_fileSizes[file.path] = file.size;
+        files.push_back(std::move(file));
+    }
+    std::sort(scan.begin(), scan.end());
     m_scanning = false;
     if (m_quietScan)
     {
         m_quietScan = false;
-        std::vector<std::string> shown;
-        for (const Card & card : m_cards)
-        {
-            shown.push_back(card.path);
-        }
-        std::vector<std::string> found = files;
-        std::sort(shown.begin(), shown.end());
-        shown.erase(std::unique(shown.begin(), shown.end()), shown.end());
-        std::sort(found.begin(), found.end());
-        if (shown == found)
+        if (scan == m_lastScan)
         {
             return;
         }
@@ -659,103 +705,82 @@ void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
     }
     if (files.empty())
     {
+        m_lastScan.clear();
         SetLibraryStatus("");
         RenderEmptyGames("no-roms");
         return;
     }
     ClearCards();
-    for (const std::string & path : files)
-    {
-        Card card;
-        card.path = path;
-        card.title = UiUtil::ShortPath(path);
-        m_cards.push_back(std::move(card));
-    }
     m_loaded = 0;
-    m_libraryFiles = files.size();
     m_libraryLoading = true;
     RenderGameList();
-    SetLibraryStatus("Loading 0 of " + std::to_string(files.size()));
+    SetLibraryStatus("Reading games...");
 
+    // Cards appear as the loader's game list cache reports games; update and DLC files never become cards.
     const int gen = m_gameListGen;
-    m_library.Read(files, [alive = std::weak_ptr<bool>(m_alive), this, gen](const UiLibrary::Game * game) {
-        std::function<void()> task;
-        if (game != nullptr)
-        {
-            task = [this, gen, read = *game] {
-                if (gen == m_gameListGen)
-                {
-                    OnGameRead(read);
-                }
-            };
-        }
-        else
-        {
-            task = [this, gen] {
-                if (gen == m_gameListGen)
-                {
-                    FinishGameList();
-                }
-            };
-        }
-        UiThread::Instance().Post([alive, task = std::move(task)] {
-            if (alive.lock())
+    const auto post = [alive = std::weak_ptr<bool>(m_alive), this, gen](std::function<void()> task) {
+        UiThread::Instance().Post([alive, this, gen, task = std::move(task)] {
+            if (alive.lock() && gen == m_gameListGen)
             {
                 task();
             }
         });
-    });
+    };
+    UiLibrary::Listener listener;
+    listener.found = [this, post](UiLibrary::Game game) { post([this, game = std::move(game)] { OnGameFound(game); }); };
+    listener.progress = [this, post](uint32_t started, uint32_t total) {
+        post([this, started, total] {
+            SetLibraryStatus(total != 0 ? "Reading games " + std::to_string(started) + " of " + std::to_string(total) : std::string("Reading games..."));
+        });
+    };
+    listener.done = [this, post, scan = std::move(scan)](bool complete) {
+        post([this, complete, scan] {
+            m_lastScan = complete ? scan : std::vector<std::string>();
+            FinishGameList();
+        });
+    };
+    m_library.Scan(std::move(files), std::move(listener));
 }
 
-void UiActivity::OnGameRead(const UiLibrary::Game & game)
+void UiActivity::OnGameFound(const UiLibrary::Game & game)
 {
-    if (game.index >= m_cards.size())
+    const auto existing = std::find_if(m_cards.begin(), m_cards.end(), [&game](const Card & card) { return card.path == game.path && card.programId == game.programId; });
+    const bool found = existing != m_cards.end();
+    Card & card = found ? *existing : m_cards.emplace_back();
+    if (card.icon.starts_with("nxmem:"))
     {
-        return;
+        m_renderer.RemoveMemoryImage(card.icon);
     }
-    Card & card = m_cards[game.index];
+    card.path = game.path;
+    card.programId = game.programId;
+    if (const auto size = m_fileSizes.find(game.path); size != m_fileSizes.end())
+    {
+        card.size = size->second;
+    }
+    card.title = game.title.empty() ? UiUtil::ShortPath(game.path) : game.title;
+    card.icon = game.icon.empty() ? "images/nxemu-logo.png" : m_renderer.AddMemoryImage(game.icon);
     card.loading = false;
-    SetLibraryStatus("Loading " + std::to_string(game.index + 1) + " of " + std::to_string(m_libraryFiles));
-    Rml::Element * element = m_document->GetElementById("game-" + std::to_string(game.index));
-    if (!game.readable)
+    const size_t index = static_cast<size_t>(&card - m_cards.data());
+    if (!found)
     {
-        card.failed = true;
-        if (element != nullptr)
-        {
-            element->SetClass("hidden", true);
-        }
-        m_layoutDirty = true;
-        return;
+        m_loaded++;
+        AppendCardElement(index);
     }
-    m_loaded++;
-    const auto fill = [this](Card & target, const UiLibrary::Program & program) {
-        target.programId = program.programId;
-        if (!program.title.empty())
-        {
-            target.title = program.title;
-        }
-        target.icon = program.icon.empty() ? "images/nxemu-logo.png" : m_renderer.AddMemoryImage(program.icon);
-    };
-    fill(card, game.programs.front());
-    if (element != nullptr)
+    else if (Rml::Element * element = m_document->GetElementById("game-" + std::to_string(index)))
     {
         element->SetInnerRML(CardInner(card));
-        element->SetAttribute("data-game", static_cast<int>(game.index));
-    }
-    if (game.programs.size() > 1)
-    {
-        const std::string path = card.path;
-        for (size_t i = 1; i < game.programs.size(); i++)
-        {
-            Card extra;
-            extra.path = path;
-            extra.loading = false;
-            fill(extra, game.programs[i]);
-            m_cards.push_back(std::move(extra));
-        }
-        RenderGameList();
     }
     m_layoutDirty = true;
+}
+
+void UiActivity::AppendCardElement(size_t index)
+{
+    Rml::ElementPtr element = m_document->CreateElement("div");
+    element->SetClass("game-card", true);
+    element->SetId("game-" + std::to_string(index));
+    element->SetAttribute("data-game", static_cast<int>(index));
+    element->SetInnerRML(CardInner(m_cards[index]));
+    m_gameList->AppendChild(std::move(element));
 }
 
 void UiActivity::FinishGameList()
@@ -961,8 +986,69 @@ void UiActivity::LaunchSelectedGame()
     }
 }
 
+void UiActivity::OpenGamePropertiesAt(float x, float y)
+{
+    if (Top() != "gamesPage")
+    {
+        return;
+    }
+    for (Rml::Element * element = m_context.GetElementAtPoint({x, y}); element != nullptr; element = element->GetParentNode())
+    {
+        if (const int game = element->GetAttribute<int>("data-game", -1); game >= 0)
+        {
+            OpenGameProperties(static_cast<size_t>(game));
+            return;
+        }
+    }
+}
+
+void UiActivity::OpenGameProperties(size_t card)
+{
+    if (card >= m_cards.size() || m_cards[card].loading || m_cards[card].failed)
+    {
+        return;
+    }
+    m_propertiesGame = m_cards[card];
+    m_properties = {};
+    m_propertiesReady = false;
+    ReloadGameProperties();
+    Navigate("gameProperties");
+}
+
+// Reads the game's add-ons, saves and caches again, keeping what is on screen until they arrive.
+void UiActivity::ReloadGameProperties()
+{
+    if (m_propertiesGame.path.empty())
+    {
+        return;
+    }
+    const int gen = ++m_propertiesGen;
+    UiLibrary::ReadProperties(m_propertiesGame.path, m_propertiesGame.programId, [alive = std::weak_ptr<bool>(m_alive), this, gen](UiLibrary::Properties properties) {
+        UiThread::Instance().Post([alive, this, gen, properties = std::move(properties)]() mutable {
+            if (!alive.lock() || gen != m_propertiesGen)
+            {
+                return;
+            }
+            m_properties = std::move(properties);
+            m_propertiesReady = true;
+            if (Top().starts_with("game") && Top() != "gameFolders")
+            {
+                RenderCurrentSettings();
+            }
+        });
+    });
+}
+
 void UiActivity::LaunchGame(const Card & card)
 {
+    // A scan holds the loader until it finishes; the game should not wait for it.
+    if (m_libraryLoading)
+    {
+        m_library.Cancel();
+        m_libraryLoading = false;
+        m_lastScan.clear();
+        SetLibraryStatus("");
+    }
     m_host.Request("launchGame", {card.path, std::to_string(card.programId)});
 }
 
