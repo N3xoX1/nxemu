@@ -9,5 +9,11 @@ constexpr const char * OverlayOpacity = "nxui:OverlayOpacity";
 constexpr const char * OverlayControlData = "nxui:OverlayControlData";
 constexpr const char * ThemeMode = "nxui:ThemeMode";
 constexpr const char * LockDrawer = "nxui:LockDrawer";
+constexpr const char * GameListSort = "nxui:GameListSort";
+constexpr const char * GameListView = "nxui:GameListView";
+constexpr const char * GameCardSize = "nxui:GameCardSize";
+constexpr const char * ShowCardTitle = "nxui:ShowCardTitle";
+constexpr const char * ShowCardDetails = "nxui:ShowCardDetails";
+constexpr const char * ShowCardPlayTime = "nxui:ShowCardPlayTime";
 
 } // namespace NXUISetting

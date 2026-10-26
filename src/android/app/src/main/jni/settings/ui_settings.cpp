@@ -60,6 +60,12 @@ namespace
         {NXUISetting::OverlayControlData, "OverlayControlData", &uiSettings.overlayControlData, ""},
         {NXUISetting::ThemeMode, "ThemeMode", &uiSettings.themeMode, ThemeMode::FollowSystem},
         {NXUISetting::LockDrawer, "LockDrawer", &uiSettings.lockDrawer, false},
+        {NXUISetting::GameListSort, "GameListSort", &uiSettings.gameListSort, 0},
+        {NXUISetting::GameListView, "GameListView", &uiSettings.gameListView, 0},
+        {NXUISetting::GameCardSize, "GameCardSize", &uiSettings.gameCardSize, 1},
+        {NXUISetting::ShowCardTitle, "ShowCardTitle", &uiSettings.showCardTitle, true},
+        {NXUISetting::ShowCardDetails, "ShowCardDetails", &uiSettings.showCardDetails, false},
+        {NXUISetting::ShowCardPlayTime, "ShowCardPlayTime", &uiSettings.showCardPlayTime, true},
     };
 
     void UISettingChanged(const char * setting, void * /*userData*/);

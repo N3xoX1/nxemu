@@ -24,6 +24,8 @@ public:
         std::string path;
         uint64_t programId = 0;
         std::string title;
+        std::string publisher;
+        std::string version;
         std::vector<uint8_t> icon;
     };
 

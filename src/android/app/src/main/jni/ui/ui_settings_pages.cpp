@@ -10,6 +10,7 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <algorithm>
 #include <cstdio>
+#include <ctime>
 #include <filesystem>
 
 namespace
@@ -433,6 +434,30 @@ void UiActivity::RenderInterfaceSettings()
 {
     BeginBody();
     AppendLink("Theme", ThemeModeLabel(ThemeMode()), [this] { Navigate("themeSettings"); });
+    const char * sizes[] = {"Small", "Medium", "Large"};
+    AppendLink("Game list", std::string(sizes[std::clamp(UiUtil::ReadInt(NXUISetting::GameCardSize), 0, 2)]) + " cards", [this] { Navigate("gameListSettings"); });
+    CommitBody();
+}
+
+void UiActivity::RenderGameListSettings()
+{
+    BeginBody();
+    AppendHeader("Card size");
+    const std::pair<int, const char *> sizes[] = {{0, "Small"}, {1, "Medium"}, {2, "Large"}};
+    const char * details[] = {"More games on screen", "", "Bigger covers, for a TV"};
+    const int size = std::clamp(UiUtil::ReadInt(NXUISetting::GameCardSize), 0, 2);
+    for (const auto & [value, label] : sizes)
+    {
+        AppendCheck(label, details[value], value == size, [this, value] {
+            UiUtil::SetInt(NXUISetting::GameCardSize, value);
+            UiUtil::SaveSettings();
+            RenderCurrentSettings();
+        });
+    }
+    AppendHeader("Cards show");
+    AppendBoolSetting("Title", NXUISetting::ShowCardTitle, "Under the cover");
+    AppendBoolSetting("Details", NXUISetting::ShowCardDetails, "Version and publisher");
+    AppendBoolSetting("Play time", NXUISetting::ShowCardPlayTime, "On the cover, once you have played");
     CommitBody();
 }
 
@@ -452,6 +477,28 @@ static std::string SizeText(uint64_t bytes)
         snprintf(text, sizeof(text), "%llu KB", static_cast<unsigned long long>((bytes + 1023) / 1024));
     }
     return text;
+}
+
+static std::string DurationText(uint64_t seconds)
+{
+    const uint64_t minutes = seconds / 60;
+    if (minutes == 0)
+    {
+        return "Less than a minute";
+    }
+    if (minutes < 60)
+    {
+        return std::to_string(minutes) + " min";
+    }
+    return std::to_string(minutes / 60) + " h " + std::to_string(minutes % 60) + " min";
+}
+
+static std::string DateText(int64_t time)
+{
+    const std::time_t value = static_cast<std::time_t>(time);
+    const std::tm * local = std::localtime(&value);
+    char text[64];
+    return local != nullptr && std::strftime(text, sizeof(text), "%b %d, %Y  %H:%M", local) != 0 ? text : std::string();
 }
 
 static std::string TitleIdText(uint64_t program_id)
@@ -530,6 +577,16 @@ void UiActivity::RenderGameProperties()
             DeleteGameData(m_properties.shaderDirectory, "Clear the shader cache of " + m_propertiesGame.title + "? The game rebuilds it as you play, with some stutter at first.");
         });
     }
+    const PlayTimeRecords::Record played = EmulationSession::GetInstance().PlayTime().Of(m_properties.programId);
+    if (played.seconds != 0 || played.lastPlayed != 0)
+    {
+        AppendLink("Clear play time", DurationText(played.seconds), [this] {
+            Confirm("Clear the play time of " + m_propertiesGame.title + "?", [this] {
+                EmulationSession::GetInstance().PlayTime().Clear(m_properties.programId);
+                RenderCurrentSettings();
+            });
+        });
+    }
     if (running)
     {
         AppendHeader("Close the game to delete its save data or clear its shader cache.");
@@ -546,6 +603,9 @@ void UiActivity::RenderGameInfo()
     AppendInfoRow("Title ID", m_properties.programId != 0 ? TitleIdText(m_properties.programId) : std::string());
     AppendInfoRow("File", UiUtil::ShortPath(m_propertiesGame.path));
     AppendInfoRow("Size", m_propertiesGame.size != 0 ? SizeText(m_propertiesGame.size) : std::string());
+    const PlayTimeRecords::Record played = EmulationSession::GetInstance().PlayTime().Of(m_properties.programId);
+    AppendInfoRow("Play time", played.seconds != 0 ? DurationText(played.seconds) : std::string());
+    AppendInfoRow("Last played", played.lastPlayed != 0 ? DateText(played.lastPlayed) : std::string());
     CommitBody();
 }
 

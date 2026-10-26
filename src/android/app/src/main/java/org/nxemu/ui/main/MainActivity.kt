@@ -11,7 +11,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.view.HapticFeedbackConstants
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -46,6 +53,8 @@ import kotlin.math.abs
 
 open class MainActivity : ComponentActivity() {
     private lateinit var surfaceView: SurfaceView
+    private lateinit var textInput: EditText
+    private var settingTextInput = false
     private var screen = 0L
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
@@ -188,7 +197,29 @@ open class MainActivity : ComponentActivity() {
             },
         )
         NativeLibrary.addSettingChangedListener(settingChangedForwarder)
-        setContentView(surfaceView)
+        textInput = EditText(this).apply {
+            alpha = 0f
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+            setOnEditorActionListener { _, _, _ ->
+                hideKeyboard()
+                true
+            }
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: Editable?) {
+                    if (!settingTextInput) {
+                        dispatchUiEvent("searchText", s?.toString() ?: "")
+                    }
+                }
+            })
+        }
+        setContentView(FrameLayout(this).apply {
+            addView(textInput, FrameLayout.LayoutParams(1, 1))
+            addView(surfaceView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        })
         applyWindowTheme()
         hideNavigationBar()
     }
@@ -479,6 +510,24 @@ open class MainActivity : ComponentActivity() {
             else -> "Couldn't read that driver."
         }
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    fun beginTextInput(text: String) {
+        settingTextInput = true
+        textInput.setText(text)
+        textInput.setSelection(text.length)
+        settingTextInput = false
+        textInput.requestFocus()
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(textInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    fun endTextInput() {
+        hideKeyboard()
+        textInput.clearFocus()
+    }
+
+    private fun hideKeyboard() {
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(textInput.windowToken, 0)
     }
 
     fun addGameDirectory() {

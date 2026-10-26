@@ -39,6 +39,7 @@
     <ClInclude Include="..\nxemu-module-spec\system_loader.h" />
     <ClInclude Include="..\nxemu-module-spec\video.h" />
     <ClInclude Include="app_init.h" />
+    <ClInclude Include="play_time.h" />
     <ClInclude Include="logging.h" />
     <ClInclude Include="modules\cpu_module.h" />
     <ClInclude Include="modules\loader_module.h" />
@@ -56,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="app_init.cpp" />
+    <ClCompile Include="play_time.cpp" />
     <ClCompile Include="logging.cpp" />
     <ClCompile Include="modules\cpu_module.cpp" />
     <ClCompile Include="modules\loader_module.cpp" />

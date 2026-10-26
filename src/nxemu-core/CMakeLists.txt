@@ -12,6 +12,7 @@ add_library(nxemu_core STATIC
     app_init.cpp
     logging.cpp
     notification.cpp
+    play_time.cpp
 )
 
 target_include_directories(nxemu_core PUBLIC

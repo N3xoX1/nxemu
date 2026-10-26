@@ -32,6 +32,8 @@ class UiHost(private val activity: MainActivity) {
             "editOverlayLayout" -> ui { activity.editOverlayLayout() }
             "firmwareVersion" -> activity.firmwareVersion()
             "installFirmware" -> ui { activity.installFirmware() }
+            "beginTextInput" -> ui { activity.beginTextInput(args.getOrNull(0) ?: "") }
+            "endTextInput" -> ui { activity.endTextInput() }
             "installMod" -> ui { activity.gameData.installMod(args[0]) }
             "exportSave" -> ui { activity.gameData.exportSave(args[0], args[1]) }
             "importSave" -> ui { activity.gameData.importSave(args[0]) }

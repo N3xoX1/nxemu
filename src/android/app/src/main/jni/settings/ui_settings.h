@@ -21,6 +21,12 @@ struct UISettings
     std::string overlayControlData;
     ThemeMode themeMode;
     bool lockDrawer;
+    int32_t gameListSort;
+    int32_t gameListView;
+    int32_t gameCardSize;
+    bool showCardTitle;
+    bool showCardDetails;
+    bool showCardPlayTime;
 };
 
 extern UISettings uiSettings;

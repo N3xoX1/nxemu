@@ -39,6 +39,11 @@ div, p
     display: none;
 }
 
+#games-page
+{
+    position: relative;
+}
+
 .page-scroll
 {
     flex: 1 1 0;
@@ -88,6 +93,101 @@ scrollbarvertical
     width: 24dp;
     height: 24dp;
     margin-right: 10dp;
+}
+
+.topbar-actions
+{
+    display: flex;
+    align-items: center;
+}
+
+.topbar-actions .title-button
+{
+    margin-left: 8dp;
+}
+
+/* Search takes the place of the title bar, so the list does not move down. */
+.search-bar
+{
+    padding: 0 4dp;
+}
+
+.search-field
+{
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    min-width: 0;
+    height: 40dp;
+    padding: 0 12dp;
+    border-radius: 20dp;
+    background-color: var(--card);
+    font-size: 16dp;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.search-placeholder
+{
+    color: var(--muted);
+}
+
+.search-caret
+{
+    color: var(--select);
+    animation: 0.5s cubic-in-out infinite alternate blink;
+}
+
+@keyframes blink
+{
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.menu-backdrop
+{
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+}
+
+.popup-menu
+{
+    position: absolute;
+    top: 52dp;
+    right: 12dp;
+    width: 210dp;
+    padding: 6dp 0;
+    border: 1dp var(--muted);
+    border-radius: 12dp;
+    background-color: var(--band);
+}
+
+.menu-title
+{
+    padding: 8dp 16dp 4dp;
+    font-size: 13dp;
+    color: var(--muted);
+}
+
+.menu-item
+{
+    display: flex;
+    align-items: center;
+    padding: 12dp 16dp;
+    font-size: 16dp;
+}
+
+.menu-item:active
+{
+    background-color: var(--card);
+}
+
+.menu-item .menu-label
+{
+    flex: 1 1 0;
 }
 
 /* The settings button of the desktop's title bar, sized for a finger. */
@@ -266,12 +366,14 @@ scrollbarvertical
     opacity: 0.7;
 }
 
+/* An image's own border-radius does not round its picture; clipping the art box does, as on the desktop. */
 .game-art
 {
     display: block;
     box-sizing: border-box;
     border: 3dp transparent;
     border-radius: 15dp;
+    overflow: hidden;
 }
 
 .game-card.is-selected .game-art
@@ -310,6 +412,88 @@ scrollbarvertical
     font-weight: bold;
     line-height: 17dp;
     word-break: break-word;
+}
+
+.game-details
+{
+    margin-top: 2dp;
+    font-size: 11dp;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.game-art
+{
+    position: relative;
+}
+
+.game-played
+{
+    display: flex;
+    align-items: center;
+    position: absolute;
+    right: 5dp;
+    bottom: 5dp;
+    padding: 2dp 6dp;
+    border-radius: 8dp;
+    background-color: #000000b0;
+    color: #ffffff;
+    font-size: 11dp;
+    font-weight: bold;
+}
+
+.game-played img
+{
+    width: 11dp;
+    height: 11dp;
+    margin-right: 3dp;
+    image-color: #ffffff;
+}
+
+/* The list view: one game a row, a small icon beside the title and its details. */
+#game-list.list
+{
+    padding-top: 0;
+}
+
+#game-list.list .game-card
+{
+    display: flex;
+    align-items: center;
+    padding: 8dp 0;
+    border-bottom: 1dp var(--line);
+}
+
+#game-list.list .game-art
+{
+    flex: 0 0 auto;
+    border-radius: 11dp;
+}
+
+#game-list.list .game-info
+{
+    flex: 1 1 0;
+    min-width: 0;
+    margin-left: 14dp;
+}
+
+#game-list.list .game-title
+{
+    margin-top: 0;
+    font-size: 15dp;
+}
+
+#game-list.list .game-details
+{
+    font-size: 12dp;
+}
+
+.menu-rule
+{
+    margin: 6dp 0;
+    border-bottom: 1dp var(--line);
 }
 
 /* Empty states */
@@ -785,4 +969,10 @@ input.range sliderarrowinc
     color: var(--muted);
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+/* Last, so it wins over any rule above that sets display on the same element. */
+.hidden
+{
+    display: none;
 }

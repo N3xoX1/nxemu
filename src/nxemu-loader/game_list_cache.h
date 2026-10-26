@@ -27,6 +27,7 @@ struct CachedGameMetadata
     std::vector<uint8_t> icon;
     LoaderResultStatus versionStatus = LoaderResultStatus::ErrorNotInitialized;
     std::string displayVersion;
+    std::string developer;
 };
 
 class GameListCache

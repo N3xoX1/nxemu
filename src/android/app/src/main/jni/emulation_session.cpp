@@ -139,8 +139,42 @@ EmulationSession & EmulationSession::GetInstance()
     return instance;
 }
 
+PlayTimeRecords & EmulationSession::PlayTime()
+{
+    std::lock_guard lock(m_play_time_mutex);
+    if (!m_play_time)
+    {
+        m_play_time = std::make_unique<PlayTimeRecords>(Common::FS::GetYuzuPath(Common::FS::YuzuPath::PlayTimeDir) / "play_time.json");
+    }
+    return *m_play_time;
+}
+
+void EmulationSession::CountPlayTime(uint64_t program_id)
+{
+    m_counting_program = program_id;
+    PlayTime().SetPlaying(program_id);
+}
+
+void EmulationSession::PlayTimeTicker()
+{
+    std::unique_lock lock(m_ticker_mutex);
+    while (!m_ticker_wake.wait_for(lock, std::chrono::minutes(1), [this] { return m_ticker_stop; }))
+    {
+        const uint64_t program_id = m_counting_program;
+        if (program_id != 0)
+        {
+            PlayTime().SetPlaying(program_id);
+        }
+    }
+}
+
 void EmulationSession::InitializeSystem()
 {
+    if (!m_play_time_ticker.joinable())
+    {
+        m_ticker_stop = false;
+        m_play_time_ticker = std::thread([this] { PlayTimeTicker(); });
+    }
     std::lock_guard lock(m_mutex);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     RestoreStubModulesLocked();
@@ -158,6 +192,16 @@ void EmulationSession::InitializeSystem()
 
 void EmulationSession::ShutdownSystem()
 {
+    CountPlayTime(0);
+    {
+        std::lock_guard ticker_lock(m_ticker_mutex);
+        m_ticker_stop = true;
+    }
+    m_ticker_wake.notify_all();
+    if (m_play_time_ticker.joinable())
+    {
+        m_play_time_ticker.join();
+    }
     std::lock_guard lock(m_mutex);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     m_system_modules.reset();
@@ -168,6 +212,8 @@ void EmulationSession::ShutdownSystem()
 
 void EmulationSession::RestoreStubModulesLocked()
 {
+    m_playing_program = 0;
+    CountPlayTime(0);
     m_system_modules.reset();
     {
         std::lock_guard events_lock(m_program_events_mutex);
@@ -220,6 +266,16 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
         RestoreStubModulesLocked();
         return false;
     }
+    if (IRomInfo * loaded = m_system_modules->Modules().Systemloader().LoadedRomInfo())
+    {
+        uint64_t loaded_id = 0;
+        if (loaded->ReadProgramId(loaded_id) == LoaderResultStatus::Success)
+        {
+            m_playing_program = loaded_id;
+        }
+        loaded->Release();
+    }
+    CountPlayTime(m_playing_program);
     return true;
 }
 
@@ -371,6 +427,7 @@ void EmulationSession::SetPaused(bool paused)
         return;
     }
     os.SetEmulationPaused(paused);
+    CountPlayTime(paused ? 0 : m_playing_program);
 }
 
 bool EmulationSession::IsPaused()
@@ -535,6 +592,11 @@ bool EmulationSession::ScanGameFiles(const std::vector<GameFileEntry> & files, I
 std::string EmulationSession::RomTitle(IRomInfo * rom)
 {
     return ReadRomTitle(rom);
+}
+
+std::string EmulationSession::RomVersion(IRomInfo * rom)
+{
+    return ReadRomText(rom, &IRomInfo::ReadDisplayVersion);
 }
 
 std::vector<uint8_t> EmulationSession::RomIcon(IRomInfo * rom)

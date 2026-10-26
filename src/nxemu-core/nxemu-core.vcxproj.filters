@@ -36,6 +36,9 @@
     <ClInclude Include="app_init.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="play_time.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="notification.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -99,6 +102,9 @@
       <Filter>Source Files\settings</Filter>
     </ClCompile>
     <ClCompile Include="app_init.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="play_time.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="modules\module_list.cpp">
