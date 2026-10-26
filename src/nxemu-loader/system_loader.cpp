@@ -339,6 +339,20 @@ bool Systemloader::ScanGameList(const char * const * gameDirs, const bool * scan
     return impl->m_gameListCache.Scan(dirs, callback);
 }
 
+bool Systemloader::ScanGameFiles(const GameFileEntry * files, uint32_t fileCount, IGameListScanCallback & callback)
+{
+    std::vector<GameListCache::ScanFile> list;
+    list.reserve(fileCount);
+    for (uint32_t i = 0; i < fileCount; i++)
+    {
+        if (files[i].path != nullptr && files[i].path[0] != '\0')
+        {
+            list.push_back({files[i].path, files[i].size, files[i].modifiedTime});
+        }
+    }
+    return impl->m_gameListCache.ScanFiles(list, callback);
+}
+
 std::vector<GameDirectory> Systemloader::GameDirectories()
 {
     return impl->m_gameListCache.Directories();

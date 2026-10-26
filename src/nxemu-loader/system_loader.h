@@ -39,6 +39,7 @@ public:
     IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * LoadedRomInfo() override;
     bool ScanGameList(const char * const * gameDirs, const bool * scanSubfolders, uint32_t gameDirCount, IGameListScanCallback & callback) override;
+    bool ScanGameFiles(const GameFileEntry * files, uint32_t fileCount, IGameListScanCallback & callback) override;
 
     IFileSystemController & FileSystemController() override;
     IContentProvider & ContentProvider() override;

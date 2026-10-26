@@ -8,6 +8,9 @@
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-video/video_settings_identifiers.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <algorithm>
+#include <cstdio>
+#include <filesystem>
 
 namespace
 {
@@ -431,6 +434,246 @@ void UiActivity::RenderInterfaceSettings()
     BeginBody();
     AppendLink("Theme", ThemeModeLabel(ThemeMode()), [this] { Navigate("themeSettings"); });
     CommitBody();
+}
+
+static std::string SizeText(uint64_t bytes)
+{
+    char text[32];
+    if (bytes >= 1024ull * 1024 * 1024)
+    {
+        snprintf(text, sizeof(text), "%.1f GB", static_cast<double>(bytes) / (1024.0 * 1024 * 1024));
+    }
+    else if (bytes >= 1024ull * 1024)
+    {
+        snprintf(text, sizeof(text), "%.1f MB", static_cast<double>(bytes) / (1024.0 * 1024));
+    }
+    else
+    {
+        snprintf(text, sizeof(text), "%llu KB", static_cast<unsigned long long>((bytes + 1023) / 1024));
+    }
+    return text;
+}
+
+static std::string TitleIdText(uint64_t program_id)
+{
+    char text[17];
+    snprintf(text, sizeof(text), "%016llX", static_cast<unsigned long long>(program_id));
+    return text;
+}
+
+void UiActivity::AppendInfoRow(const std::string & label, const std::string & value)
+{
+    if (!value.empty())
+    {
+        m_body += "<div class=\"settings-item static\">" + Info(label, value) + "</div>";
+    }
+}
+
+void UiActivity::RenderGameProperties()
+{
+    BeginBody();
+    const Card & game = m_propertiesGame;
+    std::string facts;
+    if (m_propertiesReady && !m_properties.version.empty())
+    {
+        facts += Sub("Version " + m_properties.version);
+    }
+    if (m_propertiesReady && m_properties.programId != 0)
+    {
+        facts += Sub("Title ID " + TitleIdText(m_properties.programId));
+    }
+    m_body += "<div class=\"game-header\"><img class=\"game-header-icon\" src=\"" + UiUtil::Escape(game.icon) + "\"/><div class=\"setting-info\">"
+              "<div class=\"game-header-title\">" + UiUtil::Escape(game.title) + "</div>" + facts + "</div></div>";
+    if (!m_propertiesReady)
+    {
+        AppendEmptyHint("Reading the game's details...");
+        CommitBody();
+        return;
+    }
+    if (!m_properties.readable)
+    {
+        AppendEmptyHint("This game's details could not be read.");
+        CommitBody();
+        return;
+    }
+
+    AppendLink("Info", m_properties.developer, [this] { Navigate("gameInfo"); });
+
+    using Kind = UiLibrary::AddOn::Kind;
+    size_t updates = 0, dlc = 0, mods = 0;
+    for (const UiLibrary::AddOn & addOn : m_properties.addOns)
+    {
+        (addOn.kind == Kind::Update ? updates : addOn.kind == Kind::AddOnContent ? dlc : mods)++;
+    }
+    std::vector<std::string> found;
+    if (updates != 0) found.push_back(std::to_string(updates) + (updates == 1 ? " update" : " updates"));
+    if (dlc != 0) found.push_back("DLC");
+    if (mods != 0) found.push_back(std::to_string(mods) + (mods == 1 ? " mod" : " mods"));
+    std::string addOns;
+    for (const std::string & part : found)
+    {
+        addOns += (addOns.empty() ? "" : ", ") + part;
+    }
+    AppendLink("Add-ons", addOns.empty() ? "Updates, DLC and mods" : addOns, [this] { Navigate("gameAddOns"); });
+
+    const bool running = GameIsRunning();
+    AppendLink("Save data", m_properties.saveDirectory.empty() ? "No save yet" : "Export or import", [this] { Navigate("gameSaveData"); });
+    if (!running && !m_properties.saveDirectory.empty())
+    {
+        AppendLink("Delete save data", SizeText(m_properties.saveSize), [this] {
+            DeleteGameData(m_properties.saveDirectory, "Delete the save data of " + m_propertiesGame.title + "? This cannot be undone.");
+        });
+    }
+    if (!running && !m_properties.shaderDirectory.empty())
+    {
+        AppendLink("Clear shader cache", SizeText(m_properties.shaderSize), [this] {
+            DeleteGameData(m_properties.shaderDirectory, "Clear the shader cache of " + m_propertiesGame.title + "? The game rebuilds it as you play, with some stutter at first.");
+        });
+    }
+    if (running)
+    {
+        AppendHeader("Close the game to delete its save data or clear its shader cache.");
+    }
+    CommitBody();
+}
+
+void UiActivity::RenderGameInfo()
+{
+    BeginBody();
+    AppendInfoRow("Title", m_propertiesGame.title);
+    AppendInfoRow("Developer", m_properties.developer);
+    AppendInfoRow("Version", m_properties.version);
+    AppendInfoRow("Title ID", m_properties.programId != 0 ? TitleIdText(m_properties.programId) : std::string());
+    AppendInfoRow("File", UiUtil::ShortPath(m_propertiesGame.path));
+    AppendInfoRow("Size", m_propertiesGame.size != 0 ? SizeText(m_propertiesGame.size) : std::string());
+    CommitBody();
+}
+
+void UiActivity::RenderGameAddOns()
+{
+    BeginBody();
+    const bool locked = GameIsRunning();
+    if (locked)
+    {
+        AppendHeader("Add-ons cannot change while a game is running.");
+    }
+    else if (!m_properties.modDirectory.empty())
+    {
+        AppendLink("Install a mod", "Choose the mod's folder, the one that holds romfs, exefs or cheats",
+                   [this] { m_host.Request("installMod", {m_properties.modDirectory}); });
+    }
+    bool any = false;
+    using Kind = UiLibrary::AddOn::Kind;
+    for (const Kind kind : {Kind::Update, Kind::AddOnContent, Kind::Mod})
+    {
+        size_t count = 0;
+        for (const UiLibrary::AddOn & addOn : m_properties.addOns)
+        {
+            if (addOn.kind == kind)
+            {
+                count += kind == Kind::AddOnContent ? static_cast<size_t>(std::count(addOn.version.begin(), addOn.version.end(), ',')) + 1 : 1;
+            }
+        }
+        if (count == 0)
+        {
+            continue;
+        }
+        any = true;
+        AppendHeader(std::string(kind == Kind::Update ? "Updates" : kind == Kind::AddOnContent ? "DLC" : "Mods") + " (" + std::to_string(count) + ")");
+        for (size_t i = 0; i < m_properties.addOns.size(); i++)
+        {
+            const UiLibrary::AddOn & addOn = m_properties.addOns[i];
+            if (addOn.kind != kind)
+            {
+                continue;
+            }
+            const size_t items = static_cast<size_t>(std::count(addOn.version.begin(), addOn.version.end(), ',')) + 1;
+            AppendBool(kind == Kind::AddOnContent ? "Add-on content" : addOn.name,
+                       kind == Kind::AddOnContent ? std::to_string(items) + (items == 1 ? " item" : " items") : addOn.version, addOn.enabled,
+                       [this, i, locked] {
+                           if (!locked)
+                           {
+                               ToggleAddOn(i);
+                           }
+                       });
+        }
+    }
+    if (!any)
+    {
+        AppendEmptyHint("No update, DLC or mod found for this game.");
+    }
+    CommitBody();
+}
+
+void UiActivity::RenderGameSaveData()
+{
+    BeginBody();
+    const bool running = GameIsRunning();
+    if (!m_properties.saveDirectory.empty())
+    {
+        AppendLink("Export save data", "Save a copy as a zip file", [this] {
+            m_host.Request("exportSave", {m_properties.saveDirectory, m_propertiesGame.title + " save data.zip"});
+        });
+    }
+    if (running)
+    {
+        AppendHeader("Close the game to import save data.");
+    }
+    else if (!m_properties.saveImportDirectory.empty())
+    {
+        AppendLink("Import save data", "Choose a zip file exported from NXEmu or another emulator", [this] {
+            const std::string target = m_properties.saveImportDirectory;
+            if (m_properties.saveDirectory.empty())
+            {
+                m_host.Request("importSave", {target});
+                return;
+            }
+            Confirm("Importing replaces the save data " + m_propertiesGame.title + " has now.", [this, target] { m_host.Request("importSave", {target}); });
+        });
+    }
+    else
+    {
+        AppendEmptyHint("Play the game once before importing save data, so NXEmu knows which user it belongs to.");
+    }
+    CommitBody();
+}
+
+void UiActivity::DeleteGameData(const std::string & directory, const std::string & question)
+{
+    Confirm(question, [this, directory] {
+        std::error_code error;
+        std::filesystem::remove_all(std::filesystem::path{std::u8string(directory.begin(), directory.end())}, error);
+        ReloadGameProperties();
+    });
+}
+
+void UiActivity::ToggleAddOn(size_t index)
+{
+    std::vector<UiLibrary::AddOn> & addOns = m_properties.addOns;
+    if (index >= addOns.size() || GameIsRunning())
+    {
+        return;
+    }
+    const bool enabling = !addOns[index].enabled;
+    const bool update = addOns[index].kind == UiLibrary::AddOn::Kind::Update;
+    std::vector<std::string> disabled;
+    for (size_t i = 0; i < addOns.size(); i++)
+    {
+        if (i == index)
+        {
+            addOns[i].enabled = enabling;
+        }
+        else if (enabling && update && addOns[i].kind == UiLibrary::AddOn::Kind::Update)
+        {
+            addOns[i].enabled = false;
+        }
+        if (!addOns[i].enabled)
+        {
+            disabled.push_back(addOns[i].key);
+        }
+    }
+    EmulationSession::GetInstance().SetDisabledAddOns(m_properties.programId, disabled);
+    RenderCurrentSettings();
 }
 
 void UiActivity::RenderOverlaySettings()

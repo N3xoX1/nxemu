@@ -8,6 +8,10 @@
 #include <common/base64.h>
 #include <common/json.h>
 #include <yuzu_common/android/java_bridge.h>
+#include <filesystem>
+#include <map>
+#include <yuzu_common/fs/fs.h>
+#include <yuzu_common/fs/path_util.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/base.h>
@@ -48,29 +52,84 @@ namespace
         return data.empty() ? std::string() : base64_encode(data.data(), data.size());
     }
 
-    std::string ReadRomTitle(IRomInfo * rom)
+    std::string ReadRomText(IRomInfo * rom, LoaderResultStatus (IRomInfo::*reader)(char *, uint32_t *))
     {
         if (rom == nullptr)
         {
             return {};
         }
-        std::string title;
-        uint32_t title_sz = 0;
-        LoaderResultStatus title_res = rom->ReadTitle(nullptr, &title_sz);
-        if (title_res == LoaderResultStatus::Success && title_sz > 0 && title_sz < 1024 * 1024)
+        std::string text;
+        uint32_t size = 0;
+        LoaderResultStatus status = (rom->*reader)(nullptr, &size);
+        if (status == LoaderResultStatus::Success && size > 0 && size < 1024 * 1024)
         {
-            title.resize(title_sz);
-            title_res = rom->ReadTitle(title.data(), &title_sz);
-            if (title_res != LoaderResultStatus::Success)
+            text.resize(size);
+            status = (rom->*reader)(text.data(), &size);
+            if (status != LoaderResultStatus::Success)
             {
-                title.clear();
+                text.clear();
             }
         }
-        if (const auto nul = title.find('\0'); nul != std::string::npos)
+        if (const auto nul = text.find('\0'); nul != std::string::npos)
         {
-            title.resize(nul);
+            text.resize(nul);
         }
-        return title;
+        return text;
+    }
+
+    uint64_t DirectorySize(const std::filesystem::path & directory)
+    {
+        uint64_t size = 0;
+        std::error_code error;
+        for (std::filesystem::recursive_directory_iterator entry(directory, error), end; !error && entry != end; entry.increment(error))
+        {
+            std::error_code entryError;
+            if (entry->is_regular_file(entryError))
+            {
+                size += entry->file_size(entryError);
+            }
+        }
+        return size;
+    }
+
+    void FindSaveDirectories(const std::string & title_id, std::string & existing, std::string & import)
+    {
+        const std::filesystem::path users = Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir) / "user/save/0000000000000000";
+        std::map<std::filesystem::path, size_t> saves;
+        std::error_code error;
+        for (std::filesystem::directory_iterator user(users, error), end; !error && user != end; user.increment(error))
+        {
+            std::error_code entryError;
+            if (!user->is_directory(entryError))
+            {
+                continue;
+            }
+            if (existing.empty() && std::filesystem::is_directory(user->path() / title_id, entryError))
+            {
+                existing = Common::FS::PathToUTF8String(user->path() / title_id);
+            }
+            size_t count = 0;
+            for (std::filesystem::directory_iterator game(user->path(), entryError), gamesEnd; !entryError && game != gamesEnd; game.increment(entryError))
+            {
+                count++;
+            }
+            saves[user->path()] = count;
+        }
+        if (!existing.empty())
+        {
+            import = existing;
+            return;
+        }
+        const auto most = std::max_element(saves.begin(), saves.end(), [](const auto & a, const auto & b) { return a.second < b.second; });
+        if (most != saves.end() && most->second != 0)
+        {
+            import = Common::FS::PathToUTF8String(most->first / title_id);
+        }
+    }
+
+    std::string ReadRomTitle(IRomInfo * rom)
+    {
+        return ReadRomText(rom, &IRomInfo::ReadTitle);
     }
 }
 
@@ -463,58 +522,101 @@ std::string EmulationSession::QueryRomMetadata(const std::string & path)
     return JsonStyledWriter().write(obj);
 }
 
-bool EmulationSession::QueryRomListing(const std::string & path, std::vector<RomListing> & games)
+bool EmulationSession::ScanGameFiles(const std::vector<GameFileEntry> & files, IGameListScanCallback & callback)
 {
     std::lock_guard lock(m_mutex);
-    games.clear();
     if (!m_system_modules || !m_system_modules->IsValid())
     {
         return false;
     }
+    return m_system_modules->Modules().Systemloader().ScanGameFiles(files.data(), static_cast<uint32_t>(files.size()), callback);
+}
 
+std::string EmulationSession::RomTitle(IRomInfo * rom)
+{
+    return ReadRomTitle(rom);
+}
+
+std::vector<uint8_t> EmulationSession::RomIcon(IRomInfo * rom)
+{
+    return ReadRomImage(rom, &IRomInfo::ReadIcon);
+}
+
+EmulationSession::GameProperties EmulationSession::QueryGameProperties(const std::string & path, uint64_t program_id)
+{
+    std::lock_guard lock(m_mutex);
+    GameProperties properties;
+    if (!m_system_modules || !m_system_modules->IsValid())
+    {
+        return properties;
+    }
     ISystemloader & loader = m_system_modules->Modules().Systemloader();
-    IRomInfo * const rom = loader.RomInfo(path.c_str(), 0, 0);
+    IRomInfo * const rom = loader.RomInfo(path.c_str(), program_id, 0);
     if (rom == nullptr)
     {
-        return false;
+        return properties;
     }
-    const auto listing = [](IRomInfo * info, uint64_t program_id) {
-        return RomListing{program_id, ReadRomTitle(info), ReadRomImage(info, &IRomInfo::ReadIcon)};
-    };
+    if (rom->ReadProgramId(properties.programId) != LoaderResultStatus::Success || properties.programId == 0)
+    {
+        rom->Release();
+        return properties;
+    }
+    properties.readable = true;
+    properties.version = ReadRomText(rom, &IRomInfo::ReadDisplayVersion);
 
-    const LoaderFileType file_type = rom->GetFileType();
-    uint32_t count = 0;
-    std::vector<uint64_t> program_ids;
-    if ((file_type == LoaderFileType::XCI || file_type == LoaderFileType::NSP) &&
-        rom->ReadProgramIds(nullptr, &count) == LoaderResultStatus::Success && count > 1)
+    loader.ManualContentProvider().ClearAllEntries();
+    rom->PrepareManualContent();
+    if (IFileSysNACP * control = rom->GetControlMetadata())
     {
-        program_ids.resize(count);
-        if (rom->ReadProgramIds(program_ids.data(), &count) != LoaderResultStatus::Success)
-        {
-            program_ids.clear();
-        }
-        program_ids.resize(std::min<size_t>(count, program_ids.size()));
+        properties.developer = control->GetDeveloperName() != nullptr ? control->GetDeveloperName() : "";
+        control->Release();
     }
-    for (uint64_t program_id : program_ids)
-    {
-        IRomInfo * const program = loader.RomInfo(path.c_str(), program_id, 0);
-        if (program == nullptr)
-        {
-            continue;
-        }
-        uint64_t read_id = 0;
-        if (program->GetFileType() == file_type && program->ReadProgramId(read_id) == LoaderResultStatus::Success && read_id == program_id)
-        {
-            games.push_back(listing(program, program_id));
-        }
-        program->Release();
-    }
-    if (games.empty())
-    {
-        games.push_back(listing(rom, 0));
-    }
+    std::vector<GamePatchInfo> patches(rom->GetGamePatches(nullptr, 0));
+    patches.resize(rom->GetGamePatches(patches.data(), static_cast<uint32_t>(patches.size())));
     rom->Release();
-    return true;
+    for (const GamePatchInfo & patch : patches)
+    {
+        const GameAddOn::Kind kind = patch.type == GamePatchType::Update         ? GameAddOn::Kind::Update
+                                     : patch.type == GamePatchType::AddOnContent ? GameAddOn::Kind::AddOnContent
+                                                                                 : GameAddOn::Kind::Mod;
+        properties.addOns.push_back({kind, patch.key[0] != '\0' ? patch.key : patch.name, patch.name, patch.version, patch.enabled});
+    }
+
+    char title_id[17];
+    snprintf(title_id, sizeof(title_id), "%016llX", static_cast<unsigned long long>(properties.programId));
+    properties.modDirectory = Common::FS::PathToUTF8String(Common::FS::GetYuzuPath(Common::FS::YuzuPath::LoadDir) / title_id);
+
+    FindSaveDirectories(title_id, properties.saveDirectory, properties.saveImportDirectory);
+    if (!properties.saveDirectory.empty())
+    {
+        properties.saveSize = DirectorySize(std::filesystem::path{Common::FS::ToU8String(properties.saveDirectory)});
+    }
+
+    char cache_id[17];
+    snprintf(cache_id, sizeof(cache_id), "%016llx", static_cast<unsigned long long>(properties.programId));
+    const std::filesystem::path shaders = Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir) / cache_id;
+    std::error_code error;
+    if (std::filesystem::is_directory(shaders, error))
+    {
+        properties.shaderDirectory = Common::FS::PathToUTF8String(shaders);
+        properties.shaderSize = DirectorySize(shaders);
+    }
+    return properties;
+}
+
+void EmulationSession::SetDisabledAddOns(uint64_t program_id, const std::vector<std::string> & names)
+{
+    std::lock_guard lock(m_mutex);
+    if (!m_system_modules || !m_system_modules->IsValid() || program_id == 0)
+    {
+        return;
+    }
+    std::vector<const char *> pointers;
+    for (const std::string & name : names)
+    {
+        pointers.push_back(name.c_str());
+    }
+    m_system_modules->Modules().Systemloader().SetDisabledAddons(program_id, pointers.data(), static_cast<uint32_t>(pointers.size()));
 }
 
 std::string EmulationSession::QueryRomInfo(const std::string & path, uint64_t program_id)
