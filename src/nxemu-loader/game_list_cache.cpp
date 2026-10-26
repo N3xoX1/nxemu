@@ -24,7 +24,7 @@ extern IModuleSettings * g_settings;
 namespace
 {
 constexpr uint32_t CacheMagic = 0x4C47584E; // "NXGL"
-constexpr uint32_t CacheVersion = 4; // Reparse metadata cached before NACP string validation.
+constexpr uint32_t CacheVersion = 5; // Reparse metadata cached before the developer was kept.
 constexpr const char * CacheFileName = "game_list.bin";
 
 std::string GetLowerExtension(const std::string & path)
@@ -221,6 +221,29 @@ LoaderResultStatus CopyOut(const void * data, size_t size, void * buffer, uint32
     return LoaderResultStatus::Success;
 }
 
+class CachedControlMetadata :
+    public IFileSysNACP
+{
+public:
+    explicit CachedControlMetadata(std::shared_ptr<const CachedGameMetadata> metadata) :
+        m_metadata(std::move(metadata))
+    {
+    }
+
+    uint32_t GetSupportedLanguages() const override { return 0; }
+    uint32_t GetParentalControlFlag() const override { return 0; }
+    uint16_t GetCacheStorageMaxIndex() const override { return 0; }
+    uint64_t GetCacheStorageDataAndJournalMaxSize() const override { return 0; }
+    bool GetUserAccountSwitchLock() const override { return false; }
+    bool GetRatingAge(uint8_t * /*buffer*/, uint32_t /*bufferSize*/) const override { return false; }
+    const char * GetVersionString() const override { return m_metadata->displayVersion.c_str(); }
+    const char * GetDeveloperName() const override { return m_metadata->developer.c_str(); }
+    void Release() override { delete this; }
+
+private:
+    std::shared_ptr<const CachedGameMetadata> m_metadata;
+};
+
 class CachedRomInfo :
     public IRomInfo
 {
@@ -350,6 +373,10 @@ public:
 
     IFileSysNACP * GetControlMetadata() override
     {
+        if (m_metadata->versionStatus == LoaderResultStatus::Success)
+        {
+            return new CachedControlMetadata(m_metadata);
+        }
         IRomInfo * romInfo = RealRomInfo();
         return romInfo != nullptr ? romInfo->GetControlMetadata() : nullptr;
     }
@@ -405,6 +432,7 @@ void WriteMetadata(CacheWriter & writer, const CachedGameMetadata & metadata)
     writer.Bytes(metadata.icon);
     writer.U32((uint32_t)metadata.versionStatus);
     writer.String(metadata.displayVersion);
+    writer.String(metadata.developer);
 }
 
 void ReadMetadata(CacheReader & reader, CachedGameMetadata & metadata)
@@ -424,6 +452,7 @@ void ReadMetadata(CacheReader & reader, CachedGameMetadata & metadata)
     metadata.icon = reader.Bytes();
     metadata.versionStatus = (LoaderResultStatus)reader.U32();
     metadata.displayVersion = reader.String();
+    metadata.developer = reader.String();
 }
 
 void ReadLoaderMetadata(Loader::AppLoader & loader, CachedGameMetadata & metadata)
@@ -460,6 +489,7 @@ void ReadLoaderMetadata(Loader::AppLoader & loader, CachedGameMetadata & metadat
     if (metadata.versionStatus == LoaderResultStatus::Success)
     {
         metadata.displayVersion = nacp.GetVersionString();
+        metadata.developer = nacp.GetDeveloperName();
     }
 }
 

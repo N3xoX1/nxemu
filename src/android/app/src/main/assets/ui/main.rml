@@ -5,14 +5,28 @@
 </head>
 <body>
     <div id="games-page" class="page hidden">
-        <div class="topbar">
+        <div id="games-topbar" class="topbar">
             <div class="logo"><img src="images/window-icon.png"/><div class="logo-name">NxEmu</div></div>
-            <div class="title-button" data-command="settings"><img src="images/gear.png"/></div>
+            <div class="topbar-actions">
+                <div class="title-button" data-command="search"><img src="images/search.png"/></div>
+                <div class="title-button" data-command="sort"><img src="images/sort.png"/></div>
+                <div class="title-button" data-command="settings"><img src="images/gear.png"/></div>
+            </div>
+        </div>
+        <div id="search-bar" class="topbar search-bar hidden">
+            <div class="icon-btn" data-command="closeSearch"><img src="images/arrow-left.png"/></div>
+            <div class="search-field" data-command="editSearch">
+                <span id="search-text"></span><span id="search-caret" class="search-caret">|</span><span id="search-placeholder" class="search-placeholder">Search games</span>
+            </div>
+            <div id="search-clear" class="icon-btn hidden" data-command="clearSearch"><img src="images/close.png"/></div>
         </div>
         <div id="library-status" class="library-status hidden"></div>
         <div id="game-scroll" class="page-scroll">
             <div id="game-list"></div>
+            <div id="search-empty" class="empty-hint hidden"></div>
         </div>
+        <div id="sort-backdrop" class="menu-backdrop hidden" data-command="closeSort"></div>
+        <div id="sort-menu" class="popup-menu hidden"></div>
         <div class="browser-hint">
             <div id="play-hint" class="hint hidden">Press <span class="hint-key">A</span> <span class="hint-action">to play</span> <span class="hint-key hint-gap">X</span> <span class="hint-action">for options</span></div>
             <div id="settings-hint" class="hint hidden">Press <span class="hint-key">Y</span> <span class="hint-action">to open settings</span></div>

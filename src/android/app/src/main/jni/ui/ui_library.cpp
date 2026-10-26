@@ -35,6 +35,12 @@ namespace
             }
             game.title = EmulationSession::RomTitle(romInfo);
             game.icon = EmulationSession::RomIcon(romInfo);
+            game.version = EmulationSession::RomVersion(romInfo);
+            if (IFileSysNACP * control = romInfo->GetControlMetadata())
+            {
+                game.publisher = control->GetDeveloperName() != nullptr ? control->GetDeveloperName() : "";
+                control->Release();
+            }
             romInfo->Release();
             if (!m_cancelled)
             {

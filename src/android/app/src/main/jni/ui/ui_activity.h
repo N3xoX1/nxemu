@@ -63,6 +63,10 @@ private:
         std::string path;
         uint64_t programId = 0;
         uint64_t size = 0;
+        int64_t modified = 0;
+        std::string publisher;
+        std::string version;
+        bool filtered = false;
         std::string title;
         std::string icon;
         bool loading = true;
@@ -107,6 +111,15 @@ private:
     void OnGameLibraryPaths(const JsonValue & paths);
     void OnGameFound(const UiLibrary::Game & game);
     void AppendCardElement(size_t index);
+    void SortCards();
+    void ApplyGameListOptions();
+    bool MatchesSearch(const Card & card) const;
+    void ApplySearch();
+    void OpenSearch();
+    void CloseSearch();
+    void ShowSearchText();
+    void ToggleSortMenu();
+    void CloseSortMenu();
     void FinishGameList();
     void RenderGameList();
     void RenderEmptyGames(const char * kind);
@@ -161,6 +174,7 @@ private:
     void RenderHub();
     void RenderAbout();
     void RenderInterfaceSettings();
+    void RenderGameListSettings();
     void RenderSettingsHome();
     void RenderOverlaySettings();
     void RenderSystemSettings();
@@ -242,6 +256,10 @@ private:
     size_t m_loaded = 0;
     std::vector<std::string> m_lastScan;
     std::map<std::string, uint64_t> m_fileSizes;
+    std::map<std::string, int64_t> m_fileTimes;
+    bool m_searching = false;
+    std::string m_search;
+    bool m_sortMenuOpen = false;
     int m_columns = 1;
     int m_selectedGame = -1;
 

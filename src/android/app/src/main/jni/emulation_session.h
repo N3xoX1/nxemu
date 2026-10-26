@@ -1,7 +1,10 @@
 #pragma once
 
 #include <array>
+#include <atomic>
+#include <condition_variable>
 #include <deque>
+#include <thread>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -9,6 +12,7 @@
 #include <vector>
 
 #include <nxemu-core/modules/system_modules.h>
+#include <nxemu-core/play_time.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/system_loader.h>
 #include "android_render_window.h"
@@ -20,12 +24,15 @@ class EmulationSession
 public:
     static EmulationSession & GetInstance();
 
+    PlayTimeRecords & PlayTime();
+
     void InitializeSystem();
     void ShutdownSystem();
 
     std::string QueryRomMetadata(const std::string & path);
     bool ScanGameFiles(const std::vector<GameFileEntry> & files, IGameListScanCallback & callback);
     static std::string RomTitle(IRomInfo * rom);
+    static std::string RomVersion(IRomInfo * rom);
     static std::vector<uint8_t> RomIcon(IRomInfo * rom);
 
     struct GameAddOn
@@ -147,4 +154,16 @@ private:
     uint64_t m_module_generation = 0;
     std::mutex m_program_events_mutex;
     std::deque<ProgramEvent> m_program_events;
+
+    void CountPlayTime(uint64_t program_id);
+    void PlayTimeTicker();
+
+    std::unique_ptr<PlayTimeRecords> m_play_time;
+    std::mutex m_play_time_mutex;
+    uint64_t m_playing_program = 0;
+    std::atomic<uint64_t> m_counting_program = 0;
+    std::thread m_play_time_ticker;
+    std::mutex m_ticker_mutex;
+    std::condition_variable m_ticker_wake;
+    bool m_ticker_stop = false;
 };

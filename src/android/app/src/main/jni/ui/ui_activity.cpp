@@ -13,16 +13,18 @@
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Factory.h>
 #include <cstdio>
+#include <cstdlib>
 #include <set>
 
 namespace
 {
-    constexpr float kCardMinWidth = 112.0f;
+    constexpr float kCardMinWidths[] = {84.0f, 112.0f, 160.0f};
+    constexpr float kListIconSize = 56.0f;
     constexpr float kCardGapX = 10.0f;
     constexpr float kCardGapY = 14.0f;
 
     const std::set<std::string> kSettingsPages = {
-        "hubPage", "about", "interfaceSettings", "gameProperties", "gameInfo", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
+        "hubPage", "about", "interfaceSettings", "gameListSettings", "gameProperties", "gameInfo", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
         "gpuDrivers", "gpuDriverAdd", "gpuDriverDownload", "gpuDriverGroup", "gpuDriverRelease", "gameFolders",
         "controllerSettings", "controllerPlayer", "controllerChoices", "settingChoices",
     };
@@ -82,6 +84,7 @@ bool UiActivity::Load()
     m_settingsBody = m_document->GetElementById("settings-body");
     m_settingsScroll = m_document->GetElementById("settings-scroll");
     m_fab = m_document->GetElementById("settings-fab");
+    m_gameList->SetClass("list", UiUtil::ReadInt(NXUISetting::GameListView) == 1);
     m_document->AddEventListener(Rml::EventId::Click, new Listener([this](Rml::Event & event) { OnClick(event); }));
     m_document->AddEventListener(Rml::EventId::Change, new Listener([this](Rml::Event & event) { OnChange(event); }));
     m_document->Show();
@@ -199,6 +202,12 @@ void UiActivity::Event(const std::string & name, const std::string & payload)
     }
     else if (name == "resume")
     {
+        const int sort = UiUtil::ReadInt(NXUISetting::GameListSort);
+        if ((sort == 2 || sort == 4) && !m_libraryLoading && !m_cards.empty())
+        {
+            SortCards();
+        }
+        ApplyGameListOptions();
         ApplyTheme();
         RenderControllersSummary();
         RescanGameList();
@@ -206,6 +215,15 @@ void UiActivity::Event(const std::string & name, const std::string & payload)
     else if (name == "pad")
     {
         OnPad(payload);
+    }
+    else if (name == "searchText")
+    {
+        if (m_searching)
+        {
+            m_search = payload;
+            ShowSearchText();
+            ApplySearch();
+        }
     }
     else if (name == "gameDataChanged")
     {
@@ -265,6 +283,16 @@ void UiActivity::GoBack()
 
 bool UiActivity::HandleBack()
 {
+    if (m_sortMenuOpen)
+    {
+        CloseSortMenu();
+        return true;
+    }
+    if (m_searching && Top() == "gamesPage")
+    {
+        CloseSearch();
+        return true;
+    }
     if (Top() == "setup" && m_setupStep == 0)
     {
         return false;
@@ -305,6 +333,7 @@ std::string UiActivity::SettingsTitle(const std::string & id)
     if (id == "systemSettings") return "Console";
     if (id == "graphicsSettings") return "Graphics";
     if (id == "interfaceSettings") return "Interface";
+    if (id == "gameListSettings") return "Game list";
     if (id == "gameProperties") return m_propertiesGame.title;
     if (id == "gameInfo") return "Info";
     if (id == "gameAddOns") return "Add-ons";
@@ -373,6 +402,10 @@ void UiActivity::RenderCurrentSettings()
     else if (id == "interfaceSettings")
     {
         RenderInterfaceSettings();
+    }
+    else if (id == "gameListSettings")
+    {
+        RenderGameListSettings();
     }
     else if (id == "gameProperties")
     {
@@ -512,7 +545,51 @@ void UiActivity::RunCommand(const std::string & command)
     }
     else if (command == "settings")
     {
+        CloseSortMenu();
         m_host.Request("openSettings");
+    }
+    else if (command == "search")
+    {
+        OpenSearch();
+    }
+    else if (command == "editSearch")
+    {
+        m_host.Request("beginTextInput", {m_search});
+    }
+    else if (command == "clearSearch")
+    {
+        m_search.clear();
+        ShowSearchText();
+        ApplySearch();
+        m_host.Request("beginTextInput", {m_search});
+    }
+    else if (command == "closeSearch")
+    {
+        CloseSearch();
+    }
+    else if (command == "sort")
+    {
+        ToggleSortMenu();
+    }
+    else if (command == "closeSort")
+    {
+        CloseSortMenu();
+    }
+    else if (command.starts_with("view-"))
+    {
+        UiUtil::SetInt(NXUISetting::GameListView, std::atoi(command.c_str() + 5));
+        UiUtil::SaveSettings();
+        CloseSortMenu();
+        ApplyGameListOptions();
+    }
+    else if (command.starts_with("sort-"))
+    {
+        UiUtil::SetInt(NXUISetting::GameListSort, std::atoi(command.c_str() + 5));
+        UiUtil::SaveSettings();
+        CloseSortMenu();
+        SortCards();
+        RenderGameList();
+        ApplySearch();
     }
     else if (command == "back")
     {
@@ -690,6 +767,7 @@ void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
         }
         scan.push_back(file.path + "|" + std::to_string(file.size) + "|" + std::to_string(file.modified));
         m_fileSizes[file.path] = file.size;
+        m_fileTimes[file.path] = file.modified;
         files.push_back(std::move(file));
     }
     std::sort(scan.begin(), scan.end());
@@ -757,6 +835,12 @@ void UiActivity::OnGameFound(const UiLibrary::Game & game)
     {
         card.size = size->second;
     }
+    if (const auto time = m_fileTimes.find(game.path); time != m_fileTimes.end())
+    {
+        card.modified = time->second;
+    }
+    card.publisher = game.publisher;
+    card.version = game.version;
     card.title = game.title.empty() ? UiUtil::ShortPath(game.path) : game.title;
     card.icon = game.icon.empty() ? "images/nxemu-logo.png" : m_renderer.AddMemoryImage(game.icon);
     card.loading = false;
@@ -780,7 +864,153 @@ void UiActivity::AppendCardElement(size_t index)
     element->SetId("game-" + std::to_string(index));
     element->SetAttribute("data-game", static_cast<int>(index));
     element->SetInnerRML(CardInner(m_cards[index]));
+    m_cards[index].filtered = !MatchesSearch(m_cards[index]);
+    element->SetClass("hidden", m_cards[index].filtered);
     m_gameList->AppendChild(std::move(element));
+}
+
+void UiActivity::SortCards()
+{
+    const int sort = UiUtil::ReadInt(NXUISetting::GameListSort);
+    const auto byTitle = [](const Card & a, const Card & b) { return UiUtil::Lowercase(a.title) < UiUtil::Lowercase(b.title); };
+    std::stable_sort(m_cards.begin(), m_cards.end(), byTitle);
+    if (sort == 1)
+    {
+        std::stable_sort(m_cards.begin(), m_cards.end(), [](const Card & a, const Card & b) {
+            // Games without a publisher go last.
+            if (a.publisher.empty() != b.publisher.empty())
+            {
+                return !a.publisher.empty();
+            }
+            return UiUtil::Lowercase(a.publisher) < UiUtil::Lowercase(b.publisher);
+        });
+    }
+    else if (sort == 2)
+    {
+        // As on the desktop: the most recently played first, then the games never played, by name.
+        PlayTimeRecords & playTime = EmulationSession::GetInstance().PlayTime();
+        std::stable_sort(m_cards.begin(), m_cards.end(), [&playTime](const Card & a, const Card & b) {
+            return playTime.Of(a.programId).lastPlayed > playTime.Of(b.programId).lastPlayed;
+        });
+    }
+    else if (sort == 3)
+    {
+        std::stable_sort(m_cards.begin(), m_cards.end(), [](const Card & a, const Card & b) { return a.size > b.size; });
+    }
+    else if (sort == 4)
+    {
+        PlayTimeRecords & playTime = EmulationSession::GetInstance().PlayTime();
+        std::stable_sort(m_cards.begin(), m_cards.end(), [&playTime](const Card & a, const Card & b) {
+            return playTime.Of(a.programId).seconds > playTime.Of(b.programId).seconds;
+        });
+    }
+}
+
+bool UiActivity::MatchesSearch(const Card & card) const
+{
+    if (m_search.empty())
+    {
+        return true;
+    }
+    const std::string search = UiUtil::Lowercase(m_search);
+    return UiUtil::Lowercase(card.title).find(search) != std::string::npos || UiUtil::Lowercase(card.publisher).find(search) != std::string::npos;
+}
+
+void UiActivity::ApplySearch()
+{
+    size_t shown = 0;
+    for (size_t i = 0; i < m_cards.size(); i++)
+    {
+        Card & card = m_cards[i];
+        card.filtered = !MatchesSearch(card);
+        if (Rml::Element * element = m_document->GetElementById("game-" + std::to_string(i)))
+        {
+            element->SetClass("hidden", card.filtered || card.failed);
+        }
+        shown += card.filtered || card.failed ? 0 : 1;
+    }
+    if (Rml::Element * empty = m_document->GetElementById("search-empty"))
+    {
+        const bool none = !m_search.empty() && shown == 0 && !m_cards.empty();
+        empty->SetClass("hidden", !none);
+        empty->SetInnerRML(none ? "No game matches \"" + UiUtil::Escape(m_search) + "\"" : std::string());
+    }
+    m_layoutDirty = true;
+    SyncGameSelection(shown != 0 ? 0 : -1);
+}
+
+void UiActivity::OpenSearch()
+{
+    CloseSortMenu();
+    m_searching = true;
+    m_document->GetElementById("games-topbar")->SetClass("hidden", true);
+    m_document->GetElementById("search-bar")->SetClass("hidden", false);
+    ShowSearchText();
+    m_host.Request("beginTextInput", {m_search});
+}
+
+void UiActivity::CloseSearch()
+{
+    if (!m_searching)
+    {
+        return;
+    }
+    m_searching = false;
+    m_host.Request("endTextInput");
+    m_document->GetElementById("games-topbar")->SetClass("hidden", false);
+    m_document->GetElementById("search-bar")->SetClass("hidden", true);
+    if (!m_search.empty())
+    {
+        m_search.clear();
+        ApplySearch();
+    }
+}
+
+void UiActivity::ShowSearchText()
+{
+    m_document->GetElementById("search-text")->SetInnerRML(UiUtil::Escape(m_search));
+    m_document->GetElementById("search-placeholder")->SetClass("hidden", !m_search.empty());
+    m_document->GetElementById("search-clear")->SetClass("hidden", m_search.empty());
+}
+
+void UiActivity::ToggleSortMenu()
+{
+    if (m_sortMenuOpen)
+    {
+        CloseSortMenu();
+        return;
+    }
+    const int sort = UiUtil::ReadInt(NXUISetting::GameListSort);
+    std::string rml = "<div class=\"menu-title\">Sort by</div>";
+    const std::pair<int, const char *> choices[] = {{0, "Name"}, {1, "Publisher"}, {2, "Recently played"}, {4, "Play time"}, {3, "Size"}};
+    for (const auto & [value, label] : choices)
+    {
+        rml += std::string("<div class=\"menu-item\" data-command=\"sort-") + std::to_string(value) + "\"><div class=\"menu-label\">" + label +
+               "</div><img class=\"setting-check" + (value == sort ? " on" : "") + "\" src=\"images/check.png\"/></div>";
+    }
+    const int view = UiUtil::ReadInt(NXUISetting::GameListView);
+    rml += "<div class=\"menu-rule\"/><div class=\"menu-title\">View</div>";
+    const char * views[] = {"Grid", "List"};
+    for (int i = 0; i < 2; i++)
+    {
+        rml += std::string("<div class=\"menu-item\" data-command=\"view-") + std::to_string(i) + "\"><div class=\"menu-label\">" + views[i] +
+               "</div><img class=\"setting-check" + (i == view ? " on" : "") + "\" src=\"images/check.png\"/></div>";
+    }
+    m_document->GetElementById("sort-menu")->SetInnerRML(rml);
+    m_document->GetElementById("sort-menu")->SetClass("hidden", false);
+    m_document->GetElementById("sort-backdrop")->SetClass("hidden", false);
+    m_sortMenuOpen = true;
+}
+
+void UiActivity::CloseSortMenu()
+{
+    if (!m_sortMenuOpen)
+    {
+        return;
+    }
+    m_sortMenuOpen = false;
+    m_document->GetElementById("sort-menu")->SetClass("hidden", true);
+    m_document->GetElementById("sort-backdrop")->SetClass("hidden", true);
 }
 
 void UiActivity::FinishGameList()
@@ -799,16 +1029,64 @@ void UiActivity::FinishGameList()
         }
         return card.failed;
     });
-    std::stable_sort(m_cards.begin(), m_cards.end(), [](const Card & a, const Card & b) { return UiUtil::Lowercase(a.title) < UiUtil::Lowercase(b.title); });
+    SortCards();
     RenderGameList();
+    ApplySearch();
     SetLibraryStatus("");
-    SyncGameSelection(0);
 }
 
 std::string UiActivity::CardInner(const Card & card) const
 {
+    const bool list = UiUtil::ReadInt(NXUISetting::GameListView) == 1;
     std::string art = card.loading ? "<div class=\"game-icon-ph\"/>" : "<img class=\"game-icon\" src=\"" + UiUtil::Escape(card.icon) + "\"/>";
-    return "<div class=\"game-art\">" + art + "</div><div class=\"game-title\">" + UiUtil::Escape(card.title) + "</div>";
+    const PlayTimeRecords::Record played = EmulationSession::GetInstance().PlayTime().Of(card.programId);
+    std::string playTime;
+    if (played.seconds >= 60)
+    {
+        const uint64_t minutes = played.seconds / 60;
+        playTime = minutes < 60 ? std::to_string(minutes) + "m" : std::to_string(minutes / 60) + "h " + std::to_string(minutes % 60) + "m";
+    }
+    if (!list && !playTime.empty() && UiUtil::ReadBool(NXUISetting::ShowCardPlayTime))
+    {
+        art += "<div class=\"game-played\"><img src=\"images/clock.png\"/><div>" + playTime + "</div></div>";
+    }
+    std::string details = card.version.empty() ? std::string() : "v" + card.version;
+    if (!card.publisher.empty())
+    {
+        details += (details.empty() ? "" : " \xC2\xB7 ") + card.publisher;
+    }
+    std::string info;
+    if (list || UiUtil::ReadBool(NXUISetting::ShowCardTitle))
+    {
+        info += "<div class=\"game-title\">" + UiUtil::Escape(card.title) + "</div>";
+    }
+    if (list)
+    {
+        std::string line = details;
+        if (!playTime.empty() && UiUtil::ReadBool(NXUISetting::ShowCardPlayTime))
+        {
+            line += (line.empty() ? "" : " \xC2\xB7 ") + playTime + " played";
+        }
+        if (!line.empty())
+        {
+            info += "<div class=\"game-details\">" + UiUtil::Escape(line) + "</div>";
+        }
+    }
+    else if (!details.empty() && UiUtil::ReadBool(NXUISetting::ShowCardDetails))
+    {
+        info += "<div class=\"game-details\">" + UiUtil::Escape(details) + "</div>";
+    }
+    return "<div class=\"game-art\">" + art + "</div>" + (info.empty() ? std::string() : "<div class=\"game-info\">" + info + "</div>");
+}
+
+void UiActivity::ApplyGameListOptions()
+{
+    m_gameList->SetClass("list", UiUtil::ReadInt(NXUISetting::GameListView) == 1);
+    if (!m_libraryLoading && !m_cards.empty())
+    {
+        RenderGameList();
+        ApplySearch();
+    }
 }
 
 void UiActivity::RenderGameList()
@@ -817,7 +1095,7 @@ void UiActivity::RenderGameList()
     for (size_t i = 0; i < m_cards.size(); i++)
     {
         const Card & card = m_cards[i];
-        rml += "<div class=\"game-card" + std::string(card.failed ? " hidden" : "") + "\" id=\"game-" + std::to_string(i) + "\"";
+        rml += "<div class=\"game-card" + std::string(card.failed || card.filtered ? " hidden" : "") + "\" id=\"game-" + std::to_string(i) + "\"";
         if (!card.loading && !card.failed)
         {
             rml += " data-game=\"" + std::to_string(i) + "\"";
@@ -872,13 +1150,16 @@ void UiActivity::LayoutGames()
         return;
     }
     m_layoutDirty = false;
-    const float gapX = kCardGapX * dp;
-    m_columns = std::max(1, static_cast<int>((width + gapX) / (kCardMinWidth * dp + gapX)));
+    const bool list = UiUtil::ReadInt(NXUISetting::GameListView) == 1;
+    const int size = std::clamp(UiUtil::ReadInt(NXUISetting::GameCardSize), 0, 2);
+    const float gapX = list ? 0.0f : kCardGapX * dp;
+    m_columns = list ? 1 : std::max(1, static_cast<int>((width + gapX) / (kCardMinWidths[size] * dp + gapX)));
     const float cardWidth = std::floor((width - gapX * static_cast<float>(m_columns - 1)) / static_cast<float>(m_columns));
+    const float artSize = list ? kListIconSize * dp : cardWidth;
     int position = 0;
     for (size_t i = 0; i < m_cards.size(); i++)
     {
-        if (m_cards[i].failed)
+        if (m_cards[i].failed || m_cards[i].filtered)
         {
             continue;
         }
@@ -890,11 +1171,11 @@ void UiActivity::LayoutGames()
         const bool lastColumn = position % m_columns == m_columns - 1;
         card->SetProperty(Rml::PropertyId::Width, Pixels(cardWidth));
         card->SetProperty(Rml::PropertyId::MarginRight, Pixels(lastColumn ? 0.0f : gapX));
-        card->SetProperty(Rml::PropertyId::MarginBottom, Pixels(kCardGapY * dp));
+        card->SetProperty(Rml::PropertyId::MarginBottom, Pixels(list ? 0.0f : kCardGapY * dp));
         if (Rml::Element * art = card->GetFirstChild())
         {
-            art->SetProperty(Rml::PropertyId::Width, Pixels(cardWidth));
-            art->SetProperty(Rml::PropertyId::Height, Pixels(cardWidth));
+            art->SetProperty(Rml::PropertyId::Width, Pixels(artSize));
+            art->SetProperty(Rml::PropertyId::Height, Pixels(artSize));
         }
         position++;
     }
@@ -905,7 +1186,7 @@ std::vector<size_t> UiActivity::SelectableGames() const
     std::vector<size_t> cards;
     for (size_t i = 0; i < m_cards.size(); i++)
     {
-        if (!m_cards[i].loading && !m_cards[i].failed)
+        if (!m_cards[i].loading && !m_cards[i].failed && !m_cards[i].filtered)
         {
             cards.push_back(i);
         }
@@ -1004,6 +1285,8 @@ void UiActivity::OpenGamePropertiesAt(float x, float y)
 
 void UiActivity::OpenGameProperties(size_t card)
 {
+    CloseSortMenu();
+    m_host.Request("endTextInput");
     if (card >= m_cards.size() || m_cards[card].loading || m_cards[card].failed)
     {
         return;
