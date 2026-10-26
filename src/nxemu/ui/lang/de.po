@@ -2531,3 +2531,19 @@ msgstr "Spiel konnte nicht geladen werden:\n%1\n\nLadefehler: %2. Prüfen Sie di
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "Die Oberfläche konnte nicht geladen werden. Prüfen Sie, ob der ui-Ordner von NXEmu vollständig ist."
+
+#: views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr "NXShader lesen und prüfen"
+
+#: views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr "NXShader importieren"
+
+#: views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr "NXShader kompilieren"
+
+#: views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr "NXShader-Ordner öffnen"

@@ -1,0 +1,42 @@
+<rml>
+ <head><title>Shader profile</title><link type="text/rcss" href="base.rcss" /><link type="text/rcss" href="shader_profile_dialog.rcss" /></head>
+ <body class="dialog-backdrop">
+  <div class="dialog" style="width: 560dp; max-width: 90vw;">
+   <div class="dialog-header"><div id="profile-title" class="dialog-title">Shader profile</div><div class="dialog-close" data-command="close">&#xD7;</div></div>
+   <div style="padding: 24dp;">
+    <div id="profile-game" style="font-size: 18dp; margin-bottom: 16dp;" />
+    <div id="profile-detail" class="profile-intro" style="margin-bottom: 12dp;" />
+    <div id="profile-mode" style="display: none; margin-bottom: 16dp;">
+     <button class="profile-choice" data-command="mode-share"><span id="profile-share-title" class="profile-choice-title" /><span id="profile-share-text" class="profile-choice-text" /></button>
+     <button class="profile-choice" data-command="mode-complete"><span id="profile-complete-title" class="profile-choice-title" /><span id="profile-complete-text" class="profile-choice-text" /></button>
+    </div>
+    <div id="profile-fields" style="display: none; margin-bottom: 16dp;">
+     <div id="profile-versions" style="display: none;">
+      <div id="profile-version-label" class="profile-section">Game versions</div>
+      <select id="profile-version" />
+      <div id="profile-grouping" class="profile-hint" />
+     </div>
+     <div id="profile-about" class="profile-section">About this profile</div>
+     <div class="profile-switch-row" data-command="toggle-full-game">
+      <div class="profile-switch-texts">
+       <div id="profile-full-label" class="profile-switch-label">Game completed</div>
+       <div id="profile-full-hint" class="profile-hint" />
+      </div>
+      <div id="profile-full-game" class="switch"><div class="switch-knob" /></div>
+     </div>
+     <div id="profile-revision-label" class="profile-field-label">Profile version</div>
+     <input id="profile-revision" class="text" type="text" maxlength="32" />
+     <div id="profile-revision-hint" class="profile-hint" />
+     <div id="profile-note-label" class="profile-field-label">Description</div>
+     <input id="profile-note" class="text" type="text" maxlength="1024" />
+     <div id="profile-note-hint" class="profile-hint" />
+    </div>
+    <div class="profile-progress">
+     <div id="profile-progress-fill" />
+    </div>
+    <div id="profile-status" />
+   </div>
+   <div class="dialog-footer"><button data-command="close">Cancel</button><button id="profile-start" class="primary" data-command="start">Choose file</button></div>
+  </div>
+ </body>
+</rml>

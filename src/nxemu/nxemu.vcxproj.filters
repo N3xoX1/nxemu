@@ -247,6 +247,9 @@
     <ClCompile Include="ui\views\directories_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\shader_profile_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\firmware_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -380,6 +383,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\directories_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\shader_profile_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\firmware_dialog.h">

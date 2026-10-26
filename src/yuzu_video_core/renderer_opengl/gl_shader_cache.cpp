@@ -291,7 +291,7 @@ void ShaderCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
             workers->QueueWork(std::move(work));
         }
     }};
-    const auto load_compute{[&](std::ifstream& file, FileEnvironment env) {
+    const auto load_compute{[&](std::istream& file, FileEnvironment env) {
         ComputePipelineKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
         queue_work([this, key, env_ = std::move(env), &state, &callback](Context* ctx) mutable {
@@ -309,7 +309,7 @@ void ShaderCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
         ++state.total;
         return true;
     }};
-    const auto load_graphics{[&](std::ifstream& file, std::vector<FileEnvironment> envs) {
+    const auto load_graphics{[&](std::istream& file, std::vector<FileEnvironment> envs) {
         GraphicsPipelineKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
         queue_work([this, key, envs_ = std::move(envs), &state, &callback](Context* ctx) mutable {

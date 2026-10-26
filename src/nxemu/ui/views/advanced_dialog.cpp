@@ -62,6 +62,7 @@ constexpr Toggle kToggles[] = {
     {"fast-gpu-time", NXVideoSetting::FastGPUTime, Store::Module, true},
     {"video-framerate", NXVideoSetting::SyncToFramerateOfVideoPlayback, Store::Module, false},
     {"disk-cache", NXVideoSetting::UseDiskPipelineCache, Store::Module, false},
+    {"record-recipes", NXVideoSetting::RecordShaderRecipes, Store::Module, false},
     {"driver-cache", NXVideoSetting::UseVulkanPipelineCache, Store::Module, false},
     {"async-shaders", NXVideoSetting::UseAsynchronousShaderBuilding, Store::Module, false},
     {"async-gpu", NXVideoSetting::UseAsynchronousGPUEmulation, Store::Module, false},
@@ -194,7 +195,32 @@ Choices Memories()
     };
 }
 
+Choices NXShaderModes()
+{
+    return {
+        Numbered(Tr("Full warmup (default)"),0,{}),
+        Numbered(Tr("Progressive (experimental)"),1,{}),
+    };
+}
+Choices NXShaderMinimums()
+{
+    Choices choices;
+    for (const int value : {0,64,128,256,512,1024,2048,4096,8192})
+        choices.push_back(Numbered(std::to_string(value),value,{}));
+    return choices;
+}
+Choices NXShaderDurations()
+{
+    Choices choices;
+    for (const int value : {0,5,15,30,60,90,120,180,300,600})
+        choices.push_back(Numbered(std::to_string(value),value,{}));
+    return choices;
+}
+
 constexpr List kLists[] = {
+    {"nxshader-mode", NXVideoSetting::NXShaderWarmupMode, false, NXShaderModes},
+    {"nxshader-minimum", NXVideoSetting::NXShaderInitialMinimum, false, NXShaderMinimums},
+    {"nxshader-seconds", NXVideoSetting::NXShaderInitialSeconds, false, NXShaderDurations},
     {"antialiasing", NXVideoSetting::AntiAliasing, true, AntiAliasings},
     {"anisotropy", NXVideoSetting::AnisotropicFiltering, false, Anisotropies},
     {"accuracy", NXVideoSetting::AccuracyLevel, true, Accuracies},

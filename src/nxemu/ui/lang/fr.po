@@ -2531,3 +2531,43 @@ msgstr "Impossible de charger le jeu :\n%1\n\nErreur du chargeur : %2. Vérifiez
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "Impossible de charger l'interface. Vérifiez que le dossier ui de NXEmu est complet."
+
+#: views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr "Lecture et vérification NXShader"
+
+#: views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr "Importation NXShader"
+
+#: views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr "Compilation NXShader"
+
+#: views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr "Ouvrir le dossier NXShader"
+
+msgid "Shader warmup mode"
+msgstr "Mode de préchauffage des shaders"
+
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "Prépare les premiers shaders avant le démarrage, puis le reste en arrière-plan. Au prochain lancement du jeu."
+
+msgid "Minimum initial pipelines"
+msgstr "Nombre minimum de pipelines au démarrage"
+
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "Par défaut : 512. Les deux minimums doivent être atteints, sauf si tous les pipelines sont prêts."
+
+msgid "Minimum initial time (seconds)"
+msgstr "Durée minimum au démarrage (secondes)"
+
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "Par défaut : 60. Prépare les shaders pendant cette durée, puis compile le reste en arrière-plan."
+
+msgid "Full warmup (default)"
+msgstr "Préchauffage complet (par défaut)"
+
+msgid "Progressive (experimental)"
+msgstr "Progressif (expérimental)"

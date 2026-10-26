@@ -33,3 +33,5 @@ target_include_directories(test_loader_metadata PRIVATE "${CMAKE_SOURCE_DIR}/src
     "${CMAKE_SOURCE_DIR}/src/nxemu-loader" "${CMAKE_SOURCE_DIR}/external/fmt/include")
 target_link_libraries(test_loader_metadata PRIVATE nxemu-loader)
 nxemu_unit_test(test_loader_metadata)
+
+add_subdirectory(shader_profile)

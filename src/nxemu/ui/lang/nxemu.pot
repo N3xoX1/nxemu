@@ -595,6 +595,7 @@ msgstr ""
 
 #: assets/controller_dialog.rml
 #: assets/firmware_dialog.rml
+#: assets/shader_profile_dialog.rml
 msgid "Cancel"
 msgstr ""
 
@@ -1039,6 +1040,24 @@ msgstr ""
 
 #: assets/profiles_dialog.rml
 msgid "Delete"
+msgstr ""
+
+#: assets/shader_profile_dialog.rml
+#: views/main_window.cpp
+#: views/shader_profile_dialog.cpp
+msgid "Shader profile"
+msgstr ""
+
+#: assets/shader_profile_dialog.rml
+msgid "Choose update"
+msgstr ""
+
+#: assets/shader_profile_dialog.rml
+msgid "No update"
+msgstr ""
+
+#: assets/shader_profile_dialog.rml
+msgid "Choose file"
 msgstr ""
 
 #: emulation/emulator_session.cpp
@@ -2082,6 +2101,18 @@ msgid "Opening the game..."
 msgstr ""
 
 #: views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr ""
+
+#: views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr ""
+
+#: views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr ""
+
+#: views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr ""
 
@@ -2272,6 +2303,18 @@ msgid "Start Game"
 msgstr ""
 
 #: views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Export shader profile"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Import shader profile"
+msgstr ""
+
+#: views/main_window.cpp
 msgid "Open saves"
 msgstr ""
 
@@ -2424,10 +2467,62 @@ msgstr ""
 msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
 msgstr ""
 
+#: views/shader_profile_dialog.cpp
+msgid "No update selected"
+msgstr ""
+
+#: views/shader_profile_dialog.cpp
+msgid "Play normally with this version, stop the game, then export. Recipes are recorded automatically with the local shader cache."
+msgstr ""
+
+#: views/shader_profile_dialog.cpp
+msgid "Profile selected. Local shaders will be verified when the game starts."
+msgstr ""
+
+#: views/shader_profile_dialog.cpp
+msgid "%1 graphics recipes, %2 compute recipes, %3 unresolved observations, %4 missing programs. %5 bytes."
+msgstr ""
+
+#: views/shader_profile_dialog.cpp
+msgid "Cancelling"
+msgstr ""
+
+#: views/shader_profile_dialog.cpp
+msgid "Game update"
+msgstr ""
+
+#: views/shader_profile_dialog.cpp
+msgid "This prototype needs the game and its update in the same folder."
+msgstr ""
+
 #: views/volume_control.cpp
 msgid "Muted: click to hear the games again"
 msgstr ""
 
 #: views/volume_control.cpp
 msgid "Mute"
+msgstr ""
+
+msgid "Shader warmup mode"
+msgstr ""
+
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr ""
+
+msgid "Minimum initial pipelines"
+msgstr ""
+
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr ""
+
+msgid "Minimum initial time (seconds)"
+msgstr ""
+
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr ""
+
+msgid "Full warmup (default)"
+msgstr ""
+
+msgid "Progressive (experimental)"
 msgstr ""

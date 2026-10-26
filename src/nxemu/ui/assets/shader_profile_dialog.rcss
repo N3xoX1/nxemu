@@ -1,0 +1,200 @@
+/* Theme colors only resolve in .rcss files, so this dialog keeps its styles here. */
+.profile-intro
+{
+    margin-bottom: 4dp;
+    color: var(--text-secondary);
+    font-size: 13dp;
+    line-height: 19dp;
+}
+
+.profile-section
+{
+    margin-top: 18dp;
+    color: var(--text);
+    font-size: 14dp;
+    font-weight: bold;
+}
+
+.profile-section span,
+.profile-field-label span
+{
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.profile-switch-row
+{
+    display: flex;
+    align-items: center;
+    margin-top: 12dp;
+    cursor: pointer;
+}
+
+.profile-switch-texts
+{
+    flex: 1;
+}
+
+.profile-switch-label
+{
+    color: var(--text-secondary);
+    font-size: 13dp;
+}
+
+.profile-switch-row .switch
+{
+    flex: none;
+    margin-left: 14dp;
+}
+
+.profile-field-label
+{
+    margin-top: 12dp;
+    color: var(--text-secondary);
+    font-size: 13dp;
+}
+
+.profile-hint
+{
+    margin-top: 4dp;
+    color: var(--text-muted);
+    font-size: 12dp;
+    line-height: 17dp;
+}
+
+#profile-fields input.text,
+#profile-fields select
+{
+    box-sizing: border-box;
+    width: 100%;
+    height: 34dp;
+    margin-top: 6dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+#profile-fields input.text
+{
+    padding: 7dp 10dp;
+    line-height: 18dp;
+}
+
+#profile-fields select selectvalue
+{
+    height: 32dp;
+    line-height: 32dp;
+}
+
+#profile-fields select selectarrow
+{
+    margin-top: 10dp;
+}
+
+#profile-fields input.text:focus
+{
+    border-color: var(--accent);
+}
+
+#profile-fields input.text:placeholder-shown
+{
+    color: var(--text-muted);
+}
+
+.profile-choice
+{
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: 10dp;
+    padding: 12dp 14dp;
+    text-align: left;
+}
+
+.profile-choice-title
+{
+    display: block;
+    font-size: 15dp;
+}
+
+.profile-choice-text
+{
+    display: block;
+    margin-top: 4dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.profile-progress
+{
+    height: 6dp;
+    margin-bottom: 12dp;
+    border-radius: 3dp;
+    background-color: var(--border);
+    overflow: hidden;
+}
+
+#profile-progress-fill
+{
+    height: 6dp;
+    width: 0%;
+    background-color: var(--accent);
+}
+
+.profile-status-head
+{
+    display: flex;
+    align-items: baseline;
+}
+
+.profile-status-title
+{
+    flex: 1;
+    color: var(--text);
+    font-size: 14dp;
+}
+
+.profile-status-time
+{
+    flex: none;
+    margin-left: 12dp;
+    color: var(--text-muted);
+    font-size: 13dp;
+}
+
+.profile-status-line
+{
+    margin-top: 4dp;
+    color: var(--text-secondary);
+    font-size: 13dp;
+}
+
+.profile-status-found
+{
+    margin-top: 2dp;
+    color: var(--accent);
+    font-size: 13dp;
+}
+
+.profile-error
+{
+    padding: 10dp 12dp;
+    border: 1dp var(--danger);
+    border-radius: 6dp;
+    background-color: var(--danger-surface);
+}
+
+.profile-error-title
+{
+    color: var(--danger);
+    font-size: 14dp;
+    font-weight: bold;
+}
+
+.profile-error-text
+{
+    margin-top: 4dp;
+    color: var(--text);
+    font-size: 13dp;
+}

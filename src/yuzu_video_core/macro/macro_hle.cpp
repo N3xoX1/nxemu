@@ -541,6 +541,8 @@ public:
 
         auto& regs = maxwell3d.regs;
         regs.transform_feedback_enabled = 1;
+        // This HLE write bypasses ProcessDirtyRegisters.
+        maxwell3d.dirty.InvalidateShaderProfile();
         regs.transform_feedback.buffers[0].start_offset = 0;
         regs.transform_feedback.buffers[1].start_offset = 0;
         regs.transform_feedback.buffers[2].start_offset = 0;

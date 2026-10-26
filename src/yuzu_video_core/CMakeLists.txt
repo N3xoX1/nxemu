@@ -10,6 +10,45 @@ if(LIBVA_FOUND)
 endif()
 
 add_library(video_core STATIC
+    pipeline_cache_store.cpp
+    pipeline_cache_store.h
+    shader_profile_audit.h
+    shader_profile_location.h
+    shader_profile_runtime.h
+    shader_profile_sph.h
+    shader_profile_import_status.h
+    shader_profile_identity.h
+    shader_profile_candidate_budget.h
+    shader_profile_reuse.h
+    shader_profile_context.h
+    shader_profile_layout.h
+    shader_profile_limits.h
+    shader_profile_versions.h
+    shader_profile_provenance.h
+    shader_profile_publication.h
+    shader_profile_file_stamp.h
+    shared_shader_bytes.h
+    shader_profile_text.h
+    shader_profile_validation.h
+    renderer_vulkan/startup_pipeline_variants.h
+    shader_profile.cpp
+    shader_profile.h
+    shader_profile_hash.h
+    shader_profile_metrics.h
+    shader_profile_resources.h
+    shader_profile_search.h
+    shader_profile_journal.h
+    shader_profile_export.cpp
+    shader_profile_export.h
+    shader_profile_discovery.cpp
+    shader_profile_discovery.h
+    shader_profile_compact.cpp
+    shader_profile_compact.h
+    shader_profile_codec.cpp
+    shader_profile_codec.h
+    renderer_vulkan/guest_pipeline_recipe_probe.h
+    renderer_vulkan/guest_pipeline_recorder.h
+    renderer_vulkan/guest_recipe_input_cache.h
     buffer_cache/buffer_base.h
     buffer_cache/buffer_cache_base.h
     buffer_cache/buffer_cache.cpp
@@ -340,6 +379,8 @@ add_library(video_core STATIC
 target_include_directories(video_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(video_core PRIVATE ${CMAKE_SOURCE_DIR}/src/nxemu-video)
 target_link_libraries(video_core PUBLIC common nxemu_core yuzu_common)
+target_link_libraries(video_core PRIVATE zstd::zstd)
+target_link_libraries(video_core PRIVATE ${CMAKE_DL_LIBS})
 target_link_libraries(video_core PUBLIC glad shader_recompiler stb::headers bc_decoder stb_dxt)
 
 if (YUZU_USE_BUNDLED_FFMPEG AND NOT (WIN32 OR ANDROID OR APPLE))

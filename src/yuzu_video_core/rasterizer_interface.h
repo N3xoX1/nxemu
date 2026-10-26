@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <string_view>
 #include <functional>
 #include <optional>
 #include <span>
@@ -30,6 +31,9 @@ enum class LoadCallbackStage {
     Prepare,
     Build,
     Complete,
+    ReadProfile,
+    ImportProfile,
+    BuildProfile,
 };
 using DiskResourceLoadCallback = std::function<void(LoadCallbackStage, std::size_t, std::size_t)>;
 
@@ -164,7 +168,7 @@ public:
     virtual void AccelerateInlineToMemory(GPUVAddr address, size_t copy_size, std::span<const u8> memory) = 0;
 
     /// Initialize disk cached resources for the game being emulated
-    virtual void LoadDiskResources(u64 title_id, std::stop_token stop_loading,  const DiskResourceLoadCallback& callback) {}
+    virtual void LoadDiskResources(u64 title_id, std::stop_token stop_loading,  const DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {}) {}
 
     virtual void InitializeChannel(Tegra::Control::ChannelState& channel) {}
 

@@ -4,7 +4,10 @@
 #pragma once
 
 #include <array>
+#include <optional>
+#include <span>
 #include <type_traits>
+#include <vector>
 
 #include "yuzu_common/bit_field.h"
 #include "yuzu_common/common_types.h"
@@ -238,8 +241,28 @@ struct FixedPipelineState {
 
     VideoCommon::TransformFeedbackState xfb_state;
 
+    // Values and dirty-bit transitions can be evaluated without mutating a GPU engine.
+    // The existing rendering path uses exactly the same implementation.
+    struct RefreshFlags {
+        bool vertex_input;
+        bool viewport_swizzles;
+        bool blending;
+        bool blend_enable;
+    };
+
+    void RefreshFromRegisters(const Maxwell& regs, Maxwell::PrimitiveTopology topology,
+                              Tegra::Engines::Maxwell3D::EngineHint hint, const DynamicFeatures& features,
+                              RefreshFlags& dirty);
 
     void Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFeatures& features);
+
+    // No depth attachment is created while depth is disabled. Its stale format must
+    // not distinguish otherwise identical local pipelines, including legacy records.
+    void NormalizeInactiveFields() noexcept {
+        if (depth_enabled == 0) {
+            depth_format.Assign(0);
+        }
+    }
 
     size_t Hash() const noexcept;
 
@@ -277,6 +300,25 @@ struct FixedPipelineState {
 static_assert(std::has_unique_object_representations_v<FixedPipelineState>);
 static_assert(std::is_trivially_copyable_v<FixedPipelineState>);
 static_assert(std::is_trivially_constructible_v<FixedPipelineState>);
+
+// Prototype of the guest state needed by every current fixed-state projection.
+// `complete` always uses the all-static guest representation, with no host flags.
+// This is an in-memory model, NOT a serialized C++ struct or a frozen public V2 ABI.
+struct GuestPipelineState {
+    static constexpr size_t WordCount = 278;
+    enum Change : u8 { Scalar = 1, VertexInput = 2, Viewport = 4, Blend = 8, Strides = 16, Xfb = 32, Dynamic = 64, All = 127 };
+    FixedPipelineState complete{};
+    u32 enabled_vertex_streams{};
+
+    static void Track(Tegra::Engines::Maxwell3D::DirtyState& dirty);
+    static GuestPipelineState Capture(const Maxwell& regs, Maxwell::PrimitiveTopology topology,
+                                      Tegra::Engines::Maxwell3D::EngineHint hint);
+    [[nodiscard]] FixedPipelineState Project(const DynamicFeatures& features) const;
+    // Field-wise words; no pointers, addresses, padding or shader instructions.
+    [[nodiscard]] std::vector<u32> Words() const;
+    void WriteWords(std::span<u32, WordCount> words) const;
+    [[nodiscard]] static std::optional<GuestPipelineState> FromWords(std::span<const u32> words);
+};
 
 } // namespace Vulkan
 

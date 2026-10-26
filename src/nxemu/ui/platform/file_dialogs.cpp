@@ -24,9 +24,14 @@
 #ifdef __APPLE__
 namespace MacOSFileDialogs
 {
+bool FileSave(const char * initialDir,const char * filter,const char * suggested,Path & selected);
 bool FileSelect(const char * initialDir, const char * fileFilter, Path & selected);
 Path BrowseForDirectory(const char * title);
 } // namespace MacOSFileDialogs
+
+#if defined(__linux__)
+namespace { std::string PickProfileFile(bool save,const char* directory,const char* suggested); }
+#endif
 #endif
 
 std::string FileFilter(std::initializer_list<std::pair<std::string, const char *>> kinds)
@@ -83,7 +88,26 @@ bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilt
     (void)fileMustExist;
     return MacOSFileDialogs::FileSelect(initialDir, fileFilter, selected);
 #else
-    return false;
+    const auto file=PickProfileFile(false,initialDir,"");
+    if(file.empty())return false;selected=Path(file.c_str());return true;
+#endif
+}
+
+bool FileSave(void * owner,const char * initialDir,const char * filter,const char * suggested,Path & selected)
+{
+#ifdef _WIN32
+    std::vector<wchar_t> name(32768);const auto suggestedW=stdstr(suggested).ToUTF16();
+    std::copy(suggestedW.begin(),suggestedW.end(),name.begin());
+    size_t length=0;while(filter[length] || filter[length+1])++length;length+=2;
+    std::vector<wchar_t> filters(length);MultiByteToWideChar(CP_UTF8,0,filter,static_cast<int>(length),filters.data(),static_cast<int>(length));
+    const auto directory=stdstr(initialDir).ToUTF16();OPENFILENAMEW dialog{};dialog.lStructSize=sizeof(dialog);
+    dialog.hwndOwner=static_cast<HWND>(owner);dialog.lpstrFilter=filters.data();dialog.lpstrFile=name.data();dialog.nMaxFile=static_cast<DWORD>(name.size());
+    dialog.lpstrInitialDir=directory.c_str();dialog.lpstrDefExt=L"nxshader";dialog.Flags=OFN_HIDEREADONLY|OFN_NOCHANGEDIR|OFN_PATHMUSTEXIST;
+    if(!GetSaveFileNameW(&dialog))return false;selected=Path(stdstr().FromUTF16(name.data()).c_str());return true;
+#elif defined(__APPLE__)
+    return MacOSFileDialogs::FileSave(initialDir,filter,suggested,selected);
+#else
+    const auto file=PickProfileFile(true,initialDir,suggested);if(file.empty())return false;selected=Path(file.c_str());return true;
 #endif
 }
 
@@ -383,6 +407,17 @@ std::string CaptureCommand(const std::vector<std::string> & args)
         output.pop_back();
     }
     return output;
+}
+
+std::string PickProfileFile(bool save,const char* directory,const char* suggested)
+{
+    const std::string initial=std::string(directory?directory:"")+"/"+(suggested?suggested:"");
+    if(access("/usr/bin/zenity",X_OK)==0){
+        std::vector<std::string> args{"/usr/bin/zenity","--file-selection","--filename="+initial};
+        if(save)args.push_back("--save");return CaptureCommand(args);
+    }
+    if(access("/usr/bin/kdialog",X_OK)==0)return CaptureCommand({"/usr/bin/kdialog",save?"--getsavefilename":"--getopenfilename",initial,"*"});
+    return {};
 }
 
 std::string KDialogPickDirectory(const char * title)

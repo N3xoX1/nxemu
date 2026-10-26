@@ -2531,3 +2531,19 @@ msgstr "Não foi possível carregar o jogo:\n%1\n\nErro do carregador: %2. Verif
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "Não foi possível carregar a interface. Verifique se a pasta ui do NXEmu está completa."
+
+#: views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr "Leitura e verificação do NXShader"
+
+#: views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr "Importando NXShader"
+
+#: views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr "Compilando NXShader"
+
+#: views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr "Abrir pasta NXShader"

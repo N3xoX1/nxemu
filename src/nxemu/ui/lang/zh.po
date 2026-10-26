@@ -2522,3 +2522,19 @@ msgstr "无法加载游戏：\n%1\n\n加载器错误：%2。请检查游戏文�
 
 msgid "Unable to load the interface. Check that NXEmu's ui folder is complete."
 msgstr "无法加载界面。请检查 NXEmu 的 ui 文件夹是否完整。"
+
+#: views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr "读取并验证 NXShader"
+
+#: views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr "导入 NXShader"
+
+#: views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr "编译 NXShader"
+
+#: views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr "打开 NXShader 文件夹"
