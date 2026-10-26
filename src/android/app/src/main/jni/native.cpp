@@ -39,6 +39,53 @@ namespace
         return result;
     }
 
+    class FirmwareInstallListener final : public IFirmwareInstallObserver
+    {
+    public:
+        FirmwareInstallListener(JNIEnv * env, jobject listener) :
+            m_env(env),
+            m_listener(listener)
+        {
+            jclass clazz = env->GetObjectClass(listener);
+            m_onProgress = env->GetMethodID(clazz, "onProgress", "(IJJ)Z");
+            m_confirmReplace = env->GetMethodID(clazz, "confirmReplace", "(Ljava/lang/String;Ljava/lang/String;)Z");
+            env->DeleteLocalRef(clazz);
+        }
+
+        bool FirmwareInstallProgress(FirmwareInstallStage stage, uint64_t done, uint64_t total) override
+        {
+            const jboolean result = m_env->CallBooleanMethod(m_listener, m_onProgress, static_cast<jint>(stage), static_cast<jlong>(done), static_cast<jlong>(total));
+            return !ClearException() && result == JNI_TRUE;
+        }
+
+        bool ConfirmFirmwareReplacement(const char * packageVersion, const char * installedVersion) override
+        {
+            jstring package = m_env->NewStringUTF(packageVersion);
+            jstring installed = m_env->NewStringUTF(installedVersion);
+            const jboolean result = m_env->CallBooleanMethod(m_listener, m_confirmReplace, package, installed);
+            m_env->DeleteLocalRef(package);
+            m_env->DeleteLocalRef(installed);
+            return !ClearException() && result == JNI_TRUE;
+        }
+
+    private:
+        bool ClearException()
+        {
+            if (!m_env->ExceptionCheck())
+            {
+                return false;
+            }
+            m_env->ExceptionDescribe();
+            m_env->ExceptionClear();
+            return true;
+        }
+
+        JNIEnv * const m_env;
+        const jobject m_listener;
+        jmethodID m_onProgress = nullptr;
+        jmethodID m_confirmReplace = nullptr;
+    };
+
     std::string FailJson(const std::string & path, const char * err)
     {
         JsonValue obj(JsonValueType::Object);
@@ -211,6 +258,25 @@ Java_org_nxemu_NativeLibrary_getFirmwareVersion(JNIEnv * env, jclass /*clazz*/)
 {
     const std::string version = EmulationSession::GetInstance().GetFirmwareVersion();
     return env->NewStringUTF(version.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_nxemu_NativeLibrary_getGameCardFirmwareUpdate(JNIEnv * env, jclass /*clazz*/, jstring j_path)
+{
+    const std::string version = EmulationSession::GetInstance().GetGameCardFirmwareUpdate(JStringToUtf8(env, j_path));
+    return env->NewStringUTF(version.c_str());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_nxemu_NativeLibrary_installFirmware(JNIEnv * env, jclass /*clazz*/, jstring j_path, jobject j_listener)
+{
+    const std::string path = JStringToUtf8(env, j_path);
+    if (path.empty() || j_listener == nullptr)
+    {
+        return static_cast<jint>(FirmwareInstallStatus::SourceUnreadable);
+    }
+    FirmwareInstallListener listener(env, j_listener);
+    return static_cast<jint>(EmulationSession::GetInstance().InstallFirmware(path, listener));
 }
 
 extern "C" JNIEXPORT jstring JNICALL

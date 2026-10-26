@@ -45,6 +45,7 @@ open class MainActivity : ComponentActivity() {
     private var screen = 0L
     private val inputMapping = InputMappingSession(this) { refreshControllerPages() }
     private var emulationLaunchPending = false
+    private val firmware = FirmwareInstallFlow(this) { dispatchUiEvent("firmware", "") }
     private var touchPointer = MotionEvent.INVALID_POINTER_ID
     private var stickX = 0
     private var stickY = 0
@@ -116,6 +117,12 @@ open class MainActivity : ComponentActivity() {
         }, "GpuDriverImport").start()
     }
 
+    private val installFirmwareFile = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { firmware.install(it.toString()) }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         if (this !is SettingsActivity) {
@@ -126,7 +133,12 @@ open class MainActivity : ComponentActivity() {
         bootstrapControllerOnFirstRun()
 
         NativeUi.start(applicationContext.assets)
-        screen = NativeUi.create(UiHost(this), this is SettingsActivity)
+        val mode = when {
+            this !is SettingsActivity -> NativeUi.MODE_LIBRARY
+            intent.getBooleanExtra(SettingsActivity.EXTRA_HUB, false) -> NativeUi.MODE_HUB
+            else -> NativeUi.MODE_SETTINGS
+        }
+        screen = NativeUi.create(UiHost(this), mode)
         surfaceView = SurfaceView(this)
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {}
@@ -234,6 +246,7 @@ open class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        firmware.dismiss()
         NativeLibrary.removeSettingChangedListener(settingChangedForwarder)
         surfaceView.removeCallbacks(stickRepeat)
         NativeUi.destroy(screen)
@@ -439,10 +452,28 @@ open class MainActivity : ComponentActivity() {
         addGameDirectory.launch(null)
     }
 
+    fun installFirmware() {
+        if (!firmware.busy) {
+            installFirmwareFile.launch(arrayOf("*/*"))
+        }
+    }
+
+    fun firmwareVersion(): String =
+        if (firmware.busy) "" else NativeLibrary.getFirmwareVersion().let { if (it == "N/A") "" else it }
+
     fun launchGame(path: String) {
-        if (path.isEmpty() || emulationLaunchPending) {
+        if (path.isEmpty() || emulationLaunchPending || firmware.busy) {
             return
         }
+        emulationLaunchPending = true
+        firmware.offerBeforeLaunch(
+            path,
+            launch = { startEmulation(path) },
+            cancel = { emulationLaunchPending = false },
+        )
+    }
+
+    private fun startEmulation(path: String) {
         emulationLaunchPending = true
         startActivity(
             Intent(this, EmulationActivity::class.java).apply {
@@ -471,4 +502,8 @@ open class MainActivity : ComponentActivity() {
     }
 }
 
-class SettingsActivity : MainActivity()
+class SettingsActivity : MainActivity() {
+    companion object {
+        const val EXTRA_HUB = "hub"
+    }
+}

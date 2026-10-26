@@ -37,11 +37,11 @@ extern "C" JNIEXPORT void JNICALL Java_org_nxemu_ui_main_NativeUi_start(JNIEnv *
     UiThread::Instance().Start(AAssetManager_fromJava(env, env->NewGlobalRef(assetManager)));
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_org_nxemu_ui_main_NativeUi_create(JNIEnv * env, jobject /*thiz*/, jobject host, jboolean settings)
+extern "C" JNIEXPORT jlong JNICALL Java_org_nxemu_ui_main_NativeUi_create(JNIEnv * env, jobject /*thiz*/, jobject host, jint mode)
 {
     const jlong handle = s_nextScreen++;
     auto screen = std::make_shared<std::unique_ptr<UiScreen>>(
-        std::make_unique<UiScreen>(std::make_unique<UiHost>(env, host), settings ? UiActivity::Mode::Settings : UiActivity::Mode::Library));
+        std::make_unique<UiScreen>(std::make_unique<UiHost>(env, host), static_cast<UiActivity::Mode>(mode)));
     UiThread::Instance().Post([handle, screen] {
         if ((*screen)->Create())
         {

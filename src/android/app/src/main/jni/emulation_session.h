@@ -9,6 +9,7 @@
 
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-module-spec/operating_system.h>
+#include <nxemu-module-spec/system_loader.h>
 #include "android_render_window.h"
 
 struct ANativeWindow;
@@ -28,6 +29,8 @@ public:
     std::array<double, 4> GetPerfStats();
     uint32_t GetShadersBuilding();
     std::string GetFirmwareVersion();
+    std::string GetGameCardFirmwareUpdate(const std::string & path);
+    FirmwareInstallStatus InstallFirmware(const std::string & path, IFirmwareInstallObserver & observer);
 
     void SetOverlayButton(int port, int button_id, bool pressed);
     void SetOverlayJoystick(int port, int stick_id, float x, float y);

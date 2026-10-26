@@ -4,6 +4,7 @@
 #include "ui_util.h"
 
 #include <nxemu-core/settings/identifiers.h>
+#include <nxemu-core/version.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-video/video_settings_identifiers.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -373,9 +374,6 @@ const UiActivity::Select & UiActivity::SelectFor(const char * key) const
 void UiActivity::RenderSettingsHome()
 {
     BeginBody();
-    const size_t folders = UiUtil::ConfiguredFolders().size();
-    AppendLink("Game folders", folders == 0 ? "None added" : folders == 1 ? "1 folder" : std::to_string(folders) + " folders",
-               [this] { Navigate("gameFolders"); });
     int connected = 0;
     for (int player = 0; player < 8; player++)
     {
@@ -391,6 +389,46 @@ void UiActivity::RenderSettingsHome()
         graphics = std::string("Resolution ") + SelectFor(NXVideoSetting::ResolutionSetup).options[value].label + " (" + ResolutionHeight(value, Docked()) + ")";
     }
     AppendLink("Graphics", graphics, [this] { Navigate("graphicsSettings"); });
+    CommitBody();
+}
+
+void UiActivity::RenderHub()
+{
+    BeginBody();
+    AppendLink("Settings", "Controllers, console, graphics", [this] { Navigate("settingsPage"); });
+    AppendLink("Interface", ThemeModeLabel(ThemeMode()) + " theme", [this] { Navigate("interfaceSettings"); });
+    const size_t folders = UiUtil::ConfiguredFolders().size();
+    AppendLink("Game folders", folders == 0 ? "None added" : folders == 1 ? "1 folder" : std::to_string(folders) + " folders",
+               [this] { Navigate("gameFolders"); });
+    if (!GameIsRunning())
+    {
+        const std::string firmware = m_host.Request("firmwareVersion");
+        AppendLink("Firmware", firmware.empty() ? "Not installed" : firmware, [this] { m_host.Request("installFirmware"); });
+    }
+    AppendLink("About", VER_FILE_VERSION_STR, [this] { Navigate("about"); });
+    CommitBody();
+}
+
+void UiActivity::RenderAbout()
+{
+    BeginBody();
+    m_body += "<div class=\"about\"><div class=\"about-top\"><img class=\"about-logo\" src=\"images/nxemu-logo.png\"/><div class=\"about-product\">"
+              "<div class=\"about-name\">NXEmu</div><div class=\"about-muted\">" VER_FILE_VERSION_STR "</div>"
+              "<div class=\"about-muted about-small\">" VER_COPYRIGHT_STR "</div></div></div>"
+              "<p class=\"about-text\">NXEmu is an experimental open-source Nintendo Switch emulator.</p>"
+              "<p class=\"about-text about-muted\">You are responsible for ensuring your use of this software complies with the laws in your jurisdiction.</p>"
+              "<p class=\"about-credits\">With thanks to</p>"
+              "<p class=\"about-text about-muted\">the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector</p></div>";
+    AppendLink("Website", "www.nxemu.com", [this] { m_host.Request("openUrl", {"https://www.nxemu.com/"}); });
+    AppendLink("Source code", "github.com/N3xoX1/nxemu", [this] { m_host.Request("openUrl", {"https://github.com/N3xoX1/nxemu"}); });
+    AppendLink("Discord", "discord.gg/hEa4hNyFWU", [this] { m_host.Request("openUrl", {"https://discord.gg/hEa4hNyFWU"}); });
+    m_body += "<p class=\"about-trademark\">\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way.</p>";
+    CommitBody();
+}
+
+void UiActivity::RenderInterfaceSettings()
+{
+    BeginBody();
     AppendLink("Theme", ThemeModeLabel(ThemeMode()), [this] { Navigate("themeSettings"); });
     CommitBody();
 }

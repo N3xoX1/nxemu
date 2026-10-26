@@ -45,6 +45,15 @@ object NativeLibrary {
     external fun getPerfStats(): DoubleArray
     external fun getShadersBuilding(): Int
     external fun getFirmwareVersion(): String
+    external fun getGameCardFirmwareUpdate(path: String): String
+
+    external fun installFirmware(path: String, listener: FirmwareInstallListener): Int
+
+    interface FirmwareInstallListener {
+        fun onProgress(stage: Int, done: Long, total: Long): Boolean
+        fun confirmReplace(packageVersion: String, installedVersion: String): Boolean
+    }
+
     external fun getAppVersion(): String
 
     external fun emulationSurfaceReady(surface: android.view.Surface, pixelRatio: Float, romPath: String): Boolean
