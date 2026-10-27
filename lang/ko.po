@@ -1114,6 +1114,10 @@ msgid "Required modules failed to load."
 msgstr "필수 모듈을 로드할 수 없습니다."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr "그래픽 렌더러를 초기화할 수 없습니다. GPU 드라이버가 최신 상태인지 확인하세요."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
 msgstr "이 게임에는 사용할 수 있는 실행 파일(ExeFS)이 없습니다.\n\n업데이트가 필요하면 설정 > 게임 폴더에서 업데이트 폴더를 추가하고 게임 상세 정보에서 활성화하세요. 이미 활성화했다면 파일이 완전하고 읽을 수 있는지 확인하세요.\n\n게임: %1"
 

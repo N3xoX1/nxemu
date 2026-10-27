@@ -171,7 +171,7 @@ struct VideoManager::Impl
     void EmulationStarting(void)
     {
         StopInitialization();
-        g_settings->SetBool(NXCoreSetting::GpuInitializationComplete, false);
+        g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Preparing);
         m_gpuCore.reset();
         FFmpeg::WarmHardwareDecoderDevices();
         m_memoryManagerRegistry.Clear();
@@ -188,6 +188,8 @@ struct VideoManager::Impl
         m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x, EnsureDisplay());
         if (!m_gpuCore)
         {
+            // Wake the CPU thread and let the frontend stop the launch with an error.
+            g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Failed);
             return;
         }
         m_initStop = std::stop_source{};
@@ -261,7 +263,7 @@ struct VideoManager::Impl
             m_gpuCore->Start();
             if (!stop_token.stop_requested())
             {
-                g_settings->SetBool(NXCoreSetting::GpuInitializationComplete, true);
+                g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Ready);
             }
         });
     }

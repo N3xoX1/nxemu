@@ -1203,6 +1203,10 @@ msgid "Required modules failed to load."
 msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid ""
 "This game has no usable executable (ExeFS).\n"
 "\n"

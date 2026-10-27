@@ -1114,6 +1114,10 @@ msgid "Required modules failed to load."
 msgstr "Les modules requis n'ont pas pu être chargés."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr "Le moteur de rendu graphique n'a pas pu être initialisé. Vérifiez que les pilotes de votre GPU sont à jour."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
 msgstr "Ce jeu ne contient aucun exécutable utilisable (ExeFS).\n\nSi cette copie nécessite une mise à jour, ajoutez son dossier dans Paramètres > Dossiers de jeux, puis activez-la dans les détails du jeu. Si une mise à jour est déjà activée, vérifiez que ses fichiers sont complets et lisibles.\n\nJeu : %1"
 

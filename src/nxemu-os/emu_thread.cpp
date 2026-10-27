@@ -44,9 +44,17 @@ public:
             }
         }
         m_system.GetCpuManager().OnGpuReady();
-        const bool gpu_ready = Common::WaitForStartup(stop_token, [] {
-            return g_settings->GetBool(NXCoreSetting::GpuInitializationComplete);
+        const auto gpu_state = [] {
+            return static_cast<GpuInitializationState>(g_settings->GetInt(NXCoreSetting::GpuInitializationState));
+        };
+        const bool gpu_settled = Common::WaitForStartup(stop_token, [&] {
+            return gpu_state() != GpuInitializationState::Preparing;
         });
+        const bool gpu_ready = gpu_settled && gpu_state() == GpuInitializationState::Ready;
+        if (gpu_settled && !gpu_ready)
+        {
+            LOG_ERROR(Core, "GPU initialization failed; guest execution will not start");
+        }
         if (gpu_ready)
         {
             LOG_INFO(Core, "GPU preparation finished; starting guest execution");
