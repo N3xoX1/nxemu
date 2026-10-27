@@ -42,8 +42,6 @@ add_library(nxemu_ui STATIC
     host/vulkan/vma.h
     host/vulkan/vulkan_api.cpp
     host/vulkan/vulkan_api.h
-    i18n/plural_rule.cpp
-    i18n/plural_rule.h
     i18n/translation.cpp
     i18n/translation.h
     input/input_params.cpp

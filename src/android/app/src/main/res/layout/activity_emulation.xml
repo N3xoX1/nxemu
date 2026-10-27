@@ -82,7 +82,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="@string/loading"
                         android:textColor="#B3FFFFFF"
                         android:textSize="14sp" />
 
@@ -159,7 +158,6 @@
             android:layout_gravity="center"
             android:background="@drawable/circle_white"
             android:clickable="true"
-            android:contentDescription="@string/emulation_unpause"
             android:focusable="false"
             android:padding="14dp"
             android:src="@drawable/ic_play"
@@ -188,7 +186,6 @@
             android:focusableInTouchMode="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="@string/emulation_pause"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
 
@@ -202,7 +199,6 @@
             android:focusableInTouchMode="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="@string/emulation_settings"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
 
@@ -216,7 +212,6 @@
             android:focusableInTouchMode="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="@string/lock_drawer"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
 
@@ -230,7 +225,6 @@
             android:focusableInTouchMode="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="@string/emulation_exit"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
     </LinearLayout>

@@ -29,12 +29,6 @@ namespace
 {
 constexpr const char * kRegions[] = {TrMark("Japan"), TrMark("Americas"), TrMark("Europe"), TrMark("Australia"), TrMark("China"), TrMark("Korea"), TrMark("Taiwan")};
 
-constexpr const char * kLanguages[] = {
-    "日本語", "English (US)", "Français", "Deutsch", "Italiano", "Español", "中文", "한국어", "Nederlands",
-    "Português", "Русский", "中文（台灣）", "English (UK)", "Français (Canada)", "Español (Latinoamérica)",
-    "中文（简体）", "中文（繁體）", "Português (Brasil)",
-};
-
 Choices Aspects()
 {
     const std::string modified = Tr("For games modified to draw this shape. The others are squeezed into it.");
@@ -219,7 +213,7 @@ void GeneralDialog::FillLists()
     m_profileCount = choices.size();
     Fill(Select(Document(), "profile"), choices, std::to_string(UserProfiles::Active(m_profileCount)));
 
-    Fill(Select(Document(), "language"), Sorted(kLanguages, false), std::to_string(settings.GetInt(NXOsSetting::LanguageIndex)));
+    Fill(Select(Document(), "language"), Sorted(Translation::ConsoleLanguages, false), std::to_string(settings.GetInt(NXOsSetting::LanguageIndex)));
     Fill(Select(Document(), "region"), Sorted(kRegions), {});
     choices.clear();
     for (const Translation::LanguageInfo & language : Translation::Languages)
@@ -394,7 +388,7 @@ bool GeneralDialog::RegionChosen() const
 
 int GeneralDialog::LanguageRegion() const
 {
-    const int language = std::clamp(m_settings.GetInt(NXOsSetting::LanguageIndex), 0, static_cast<int>(std::size(kLanguages)) - 1);
+    const int language = std::clamp(m_settings.GetInt(NXOsSetting::LanguageIndex), 0, static_cast<int>(std::size(Translation::ConsoleLanguages)) - 1);
     return static_cast<int>(RegionOfLanguage(static_cast<Language>(language)));
 }
 

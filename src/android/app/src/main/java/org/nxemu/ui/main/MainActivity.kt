@@ -49,6 +49,7 @@ import org.nxemu.ui.settings.OverlayLayoutActivity
 import org.nxemu.utils.GpuDriverHelper
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
+import org.nxemu.utils.Translation.tr
 import kotlin.math.abs
 
 open class MainActivity : ComponentActivity() {
@@ -463,8 +464,8 @@ open class MainActivity : ComponentActivity() {
         }
         AlertDialog.Builder(this)
             .setMessage(message)
-            .setPositiveButton(android.R.string.ok) { _, _ -> answer(true) }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> answer(false) }
+            .setPositiveButton(tr("OK")) { _, _ -> answer(true) }
+            .setNegativeButton(tr("Cancel")) { _, _ -> answer(false) }
             .setOnCancelListener { answer(false) }
             .show()
             .window?.setGravity(Gravity.CENTER)
@@ -476,7 +477,7 @@ open class MainActivity : ComponentActivity() {
         }
         AlertDialog.Builder(this)
             .setMessage(message)
-            .setPositiveButton(android.R.string.ok, null)
+            .setPositiveButton(tr("OK"), null)
             .show()
             .window?.setGravity(Gravity.CENTER)
     }
@@ -500,14 +501,14 @@ open class MainActivity : ComponentActivity() {
             return
         }
         val message = when (result) {
-            "ok" -> "GPU driver installed. It applies the next time a game starts."
-            "unsupported" -> "Custom GPU drivers need an Adreno GPU."
-            "api" -> "This driver needs a newer Android version."
-            "invalid" -> "That file is not a GPU driver."
-            "network" -> "Download failed. Check your connection and try again."
-            "busy" -> "A driver is already downloading."
-            "missing" -> "That driver is no longer listed. Refresh and try again."
-            else -> "Couldn't read that driver."
+            "ok" -> tr("GPU driver installed. It applies the next time a game starts.")
+            "unsupported" -> tr("Custom GPU drivers need an Adreno GPU.")
+            "api" -> tr("This driver needs a newer Android version.")
+            "invalid" -> tr("That file is not a GPU driver.")
+            "network" -> tr("Download failed. Check your connection and try again.")
+            "busy" -> tr("A driver is already downloading.")
+            "missing" -> tr("That driver is no longer listed. Refresh and try again.")
+            else -> tr("Couldn't read that driver.")
         }
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }

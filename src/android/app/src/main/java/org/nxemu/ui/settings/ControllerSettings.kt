@@ -2,12 +2,12 @@ package org.nxemu.ui.settings
 
 import android.content.Context
 import org.json.JSONArray
-import org.nxemu.R
 import org.nxemu.features.input.InputBindingDisplay
 import org.nxemu.features.input.NativeInput
 import org.nxemu.features.input.model.NativeAnalog
 import org.nxemu.features.input.model.NativeButton
 import org.nxemu.utils.InputHandler
+import org.nxemu.utils.Translation.tr
 
 object ControllerSettings {
     fun isConnected(playerIndex: Int): Boolean = NativeInput.getIsConnected(player(playerIndex))
@@ -79,7 +79,7 @@ object ControllerSettings {
     fun autoMap(context: Context, playerIndex: Int, index: Int) {
         InputHandler.updateControllerData()
         val controllers = InputHandler.registeredControllers.toList()
-        val unknownName = context.getString(R.string.unknown)
+        val unknownName = tr("Unknown")
         val filtered = controllers.filter {
             val port = it.get("port", -1)
             port != 100 && port != -1
@@ -99,7 +99,7 @@ object ControllerSettings {
     }
 
     private fun deviceNames(context: Context, includeAny: Boolean): List<String> {
-        val unknownName = context.getString(R.string.unknown)
+        val unknownName = tr("Unknown")
         return InputHandler.registeredControllers.mapNotNull { params ->
             val port = params.get("port", -1)
             if (port == 100 || (!includeAny && port == -1)) {

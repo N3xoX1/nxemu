@@ -59,7 +59,9 @@ nxemu_set_app_output(nxemu)
 add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
 
 set(_nxemu_ui_assets "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets")
-file(GLOB _nxemu_ui_catalogues CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang/*.po")
+# The catalogues at the root are shared with the Android build.
+set(_nxemu_lang_dir "${CMAKE_SOURCE_DIR}/lang")
+file(GLOB _nxemu_ui_catalogues CONFIGURE_DEPENDS "${_nxemu_lang_dir}/*.po")
 add_executable(ui_packer
     ../ui_packer/ui_packer.cpp
     ../ui_packer/pe_resource_dll.cpp)
@@ -67,7 +69,7 @@ set(_nxemu_ui_pack "${CMAKE_CURRENT_BINARY_DIR}/nxemu.lang")
 file(GLOB_RECURSE _nxemu_ui_pack_inputs CONFIGURE_DEPENDS "${_nxemu_ui_assets}/*")
 add_custom_command(OUTPUT "${_nxemu_ui_pack}"
     COMMAND $<TARGET_FILE:ui_packer> "${_nxemu_ui_assets}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/ui/lang" "${_nxemu_ui_pack}"
+        "${_nxemu_lang_dir}" "${_nxemu_ui_pack}"
     DEPENDS ui_packer ${_nxemu_ui_pack_inputs} ${_nxemu_ui_catalogues}
     VERBATIM)
 add_custom_target(nxemu_ui_pack DEPENDS "${_nxemu_ui_pack}")
@@ -110,6 +112,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
         "-DSDL=$<TARGET_FILE:SDL2>"
         "-DASSETS=${_nxemu_ui_assets}"
+        "-DLANG_DIR=${_nxemu_lang_dir}"
         "-DUI_PACK=${_nxemu_ui_pack}"
         "-DCODESIGN=${NXEMU_CODESIGN}"
         "-DINSTALL_NAME_TOOL=${NXEMU_INSTALL_NAME_TOOL}"

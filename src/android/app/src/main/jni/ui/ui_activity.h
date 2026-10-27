@@ -96,6 +96,7 @@ private:
     std::string SettingsTitle(const std::string & id);
     void RenderCurrentSettings();
     void ApplyTheme();
+    void ApplyDocumentTexts();
 
     void OnClick(Rml::Event & event);
     void OnChange(Rml::Event & event);
@@ -165,8 +166,8 @@ private:
     void AppendCheck(const std::string & label, const std::string & detail, bool on, std::function<void()> action);
     void AppendEmptyState(const std::string & title, const std::string & copy, const std::string & button, std::function<void()> action);
     void AppendEmptyHint(const std::string & text);
-    void AppendBoolSetting(const char * label, const char * key, const char * detail, bool intBool = false, bool save = true);
-    void AppendIntSetting(const char * label, const char * key, int min, int max, const char * suffix);
+    void AppendBoolSetting(const std::string & label, const char * key, const std::string & detail, bool intBool = false, bool save = true);
+    void AppendIntSetting(const std::string & label, const char * key, int min, int max, const char * suffix);
     void AppendSelectSetting(const Select & select);
     void BuildSelects();
     const Select & SelectFor(const char * key) const;
@@ -174,6 +175,7 @@ private:
     void RenderHub();
     void RenderAbout();
     void RenderInterfaceSettings();
+    void RenderInterfaceLanguage();
     void RenderGameListSettings();
     void RenderSettingsHome();
     void RenderOverlaySettings();
@@ -208,6 +210,7 @@ private:
     JsonValue GpuDriverList() const;
     JsonValue StoredGpuDriverFiles() const;
     bool GpuDriverSupported() const;
+    bool SystemGpuDriver() const;
     std::string GpuDriverLabel() const;
 
     void RenderControllerSettings();
@@ -234,6 +237,7 @@ private:
     Rml::Element * m_settingsScroll = nullptr;
     Rml::Element * m_fab = nullptr;
     int m_themeGeneration = -1;
+    int m_languageGeneration = -1;
     int m_insets[4] = {};
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
 
@@ -252,6 +256,7 @@ private:
     bool m_libraryLoading = false;
     bool m_scanning = false;
     bool m_quietScan = false;
+    const char * m_emptyGames = nullptr;
     bool m_layoutDirty = false;
     size_t m_loaded = 0;
     std::vector<std::string> m_lastScan;

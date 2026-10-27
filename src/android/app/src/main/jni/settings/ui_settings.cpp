@@ -66,6 +66,8 @@ namespace
         {NXUISetting::ShowCardTitle, "ShowCardTitle", &uiSettings.showCardTitle, true},
         {NXUISetting::ShowCardDetails, "ShowCardDetails", &uiSettings.showCardDetails, false},
         {NXUISetting::ShowCardPlayTime, "ShowCardPlayTime", &uiSettings.showCardPlayTime, true},
+        {NXUISetting::InterfaceLanguage, "InterfaceLanguage", &uiSettings.interfaceLanguage, ""},
+        {NXUISetting::ConsoleLanguageSet, "ConsoleLanguageSet", &uiSettings.consoleLanguageSet, false},
     };
 
     void UISettingChanged(const char * setting, void * /*userData*/);

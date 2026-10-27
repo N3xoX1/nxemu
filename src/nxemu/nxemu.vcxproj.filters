@@ -307,9 +307,6 @@
     <ClCompile Include="ui\i18n\translation.cpp">
       <Filter>Source Files\ui\i18n</Filter>
     </ClCompile>
-    <ClCompile Include="ui\i18n\plural_rule.cpp">
-      <Filter>Source Files\ui\i18n</Filter>
-    </ClCompile>
     <ClCompile Include="ui\host\system_fonts.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
@@ -449,9 +446,6 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\i18n\translation.h">
-      <Filter>Header Files\ui\i18n</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\i18n\plural_rule.h">
       <Filter>Header Files\ui\i18n</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\system_fonts.h">

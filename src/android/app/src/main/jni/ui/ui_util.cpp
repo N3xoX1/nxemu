@@ -2,6 +2,7 @@
 #include "settings/ui_identifiers.h"
 #include "settings/ui_settings.h"
 
+#include <nxemu-core/i18n/translation.h>
 #include <nxemu-core/settings/settings.h>
 
 namespace UiUtil
@@ -65,7 +66,7 @@ std::string FormatGameFolder(const std::string & uri)
     const std::string folder = colon == std::string::npos ? std::string() : path.substr(colon + 1);
     if (volume == "primary")
     {
-        return "Internal storage / " + folder;
+        return Tr("Internal storage") + " / " + folder;
     }
     return volume + " / " + folder;
 }

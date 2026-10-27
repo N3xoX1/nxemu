@@ -16,7 +16,7 @@
         <div id="search-bar" class="topbar search-bar hidden">
             <div class="icon-btn" data-command="closeSearch"><img src="images/arrow-left.png"/></div>
             <div class="search-field" data-command="editSearch">
-                <span id="search-text"></span><span id="search-caret" class="search-caret">|</span><span id="search-placeholder" class="search-placeholder">Search games</span>
+                <span id="search-text"></span><span id="search-caret" class="search-caret">|</span><span id="search-placeholder" class="search-placeholder"></span>
             </div>
             <div id="search-clear" class="icon-btn hidden" data-command="clearSearch"><img src="images/close.png"/></div>
         </div>
@@ -28,18 +28,18 @@
         <div id="sort-backdrop" class="menu-backdrop hidden" data-command="closeSort"></div>
         <div id="sort-menu" class="popup-menu hidden"></div>
         <div class="browser-hint">
-            <div id="play-hint" class="hint hidden">Press <span class="hint-key">A</span> <span class="hint-action">to play</span> <span class="hint-key hint-gap">X</span> <span class="hint-action">for options</span></div>
-            <div id="settings-hint" class="hint hidden">Press <span class="hint-key">Y</span> <span class="hint-action">to open settings</span></div>
-            <div id="touch-hint" class="hint">Tap a game <span class="hint-action">to play</span>, hold it <span class="hint-action">for options</span></div>
+            <div id="play-hint" class="hint hidden"><span class="hint-key">A</span> <span id="hint-play" class="hint-action"></span> <span class="hint-key hint-gap">X</span> <span id="hint-options" class="hint-action"></span></div>
+            <div id="settings-hint" class="hint hidden"><span class="hint-key">Y</span> <span id="hint-settings" class="hint-action"></span></div>
+            <div id="touch-hint" class="hint"></div>
         </div>
     </div>
     <div id="settings-shell" class="page hidden">
         <div class="topbar-back">
             <div id="back-button" class="icon-btn" data-command="back"><img src="images/arrow-left.png"/></div>
-            <div id="settings-title" class="page-title">Settings</div>
+            <div id="settings-title" class="page-title"></div>
             <div id="back-hint" class="back-hint hidden">
-                <span class="hint-key">A</span> <span class="hint-action">Select</span>
-                <span class="hint-key hint-gap">B</span> <span class="hint-action">Back</span>
+                <span class="hint-key">A</span> <span id="hint-select" class="hint-action"></span>
+                <span class="hint-key hint-gap">B</span> <span id="hint-back" class="hint-action"></span>
             </div>
         </div>
         <div id="settings-scroll" class="page-scroll">

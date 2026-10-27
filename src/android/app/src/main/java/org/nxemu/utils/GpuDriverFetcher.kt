@@ -6,6 +6,7 @@ import android.opengl.GLES20
 import org.json.JSONArray
 import org.json.JSONObject
 import org.nxemu.NxEmuApplication
+import org.nxemu.utils.Translation.tr
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -76,7 +77,7 @@ object GpuDriverFetcher {
     }
 
     fun recommendedLabel(): String {
-        return recommendationFor(adrenoModel(gpuModel()))?.let { "${it.name} (latest)" }.orEmpty()
+        return recommendationFor(adrenoModel(gpuModel()))?.let { tr("%1 (latest)", it.name) }.orEmpty()
     }
 
     fun catalogJson(force: Boolean): String {
@@ -210,7 +211,7 @@ object GpuDriverFetcher {
         return try {
             group.put("releases", parseReleases(repo, JSONArray(body)))
         } catch (e: Exception) {
-            group.put("releases", JSONArray()).put("error", "Unexpected response")
+            group.put("releases", JSONArray()).put("error", tr("Unexpected response"))
         }
     }
 
@@ -263,7 +264,7 @@ object GpuDriverFetcher {
         val rec = recommendationFor(model) ?: return null
         val group = groups[rec.repo]
         val releases = group.optJSONArray("releases") ?: return null
-        val result = JSONObject().put("label", "${rec.name} (latest)").put("group", group.optString("name"))
+        val result = JSONObject().put("label", tr("%1 (latest)", rec.name)).put("group", group.optString("name"))
         // Stable releases with a usable zip, newest first
         val candidates = ArrayList<Pair<JSONObject, JSONObject>>()
         for (i in 0 until releases.length()) {
@@ -323,9 +324,9 @@ object GpuDriverFetcher {
     private fun errorText(e: Exception): String {
         val message = e.message.orEmpty()
         return when {
-            message.contains("HTTP 403") || message.contains("HTTP 429") -> "GitHub rate limit reached. Try again later."
-            message.startsWith("HTTP ") -> "GitHub returned $message"
-            else -> "Couldn't reach GitHub"
+            message.contains("HTTP 403") || message.contains("HTTP 429") -> tr("GitHub rate limit reached. Try again later.")
+            message.startsWith("HTTP ") -> tr("GitHub returned %1", message)
+            else -> tr("Couldn't reach GitHub")
         }
     }
 
