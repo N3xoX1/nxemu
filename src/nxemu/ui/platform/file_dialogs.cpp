@@ -28,10 +28,10 @@ bool FileSave(const char * initialDir,const char * filter,const char * suggested
 bool FileSelect(const char * initialDir, const char * fileFilter, Path & selected);
 Path BrowseForDirectory(const char * title);
 } // namespace MacOSFileDialogs
+#endif
 
 #if defined(__linux__)
 namespace { std::string PickProfileFile(bool save,const char* directory,const char* suggested); }
-#endif
 #endif
 
 std::string FileFilter(std::initializer_list<std::pair<std::string, const char *>> kinds)
