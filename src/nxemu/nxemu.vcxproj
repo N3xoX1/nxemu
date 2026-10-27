@@ -112,6 +112,7 @@
     <ClInclude Include="ui\host\ui_theme.h" />
     <ClInclude Include="ui\ui_application.h" />
     <ClInclude Include="ui\views\main_window.h" />
+    <ClInclude Include="ui\views\startup_view.h" />
     <ClInclude Include="ui\views\menu_bar.h" />
     <ClInclude Include="ui\views\message_dialog.h" />
     <ClInclude Include="ui\views\performance_overlay.h" />

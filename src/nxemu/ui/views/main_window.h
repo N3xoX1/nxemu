@@ -42,7 +42,7 @@ public:
     MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary & library, std::filesystem::path assetDir);
     ~MainWindow();
 
-    bool Create();
+    bool Create(const std::function<bool()> & pump = {});
     void OpenGame(const std::string & path);
     void RequestQuit();
     void RevealMouseCursor();

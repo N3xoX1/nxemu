@@ -65,6 +65,7 @@ void stop_during_active_process(int count)
     th->ProcessLaunchCompleted(true);
     wait_until([&] { return sys.shutdowns.load() == 1; });
     assert(proc.closes == 1 && !proc.closed_while_launching && pointer == nullptr && sys.runs == 0);
+    assert(sys.cpu.ready == 1); // Cancelled guest workers can reach kernel teardown.
     th.reset();
 }
 void stop_before_launch(int count)
@@ -81,6 +82,7 @@ void stop_before_launch(int count)
     assert(!th->BeginProcessLaunch());
     wait_until([&] { return sys.shutdowns.load() == 1; });
     assert(!proc.closed_while_launching && proc.closes == 1 && sys.runs == 0);
+    assert(sys.cpu.ready == 1);
     th.reset();
 }
 void success(int count)
@@ -156,6 +158,25 @@ void concurrent_pause()
     th.reset();
     assert(sys.shutdowns == 1);
 }
+void cancel_during_gpu_load()
+{
+    Video video;
+    Core::System sys;
+    sys.mods.video = &video;
+    Kernel::KProcess proc;
+    Kernel::KProcess * pointer = &proc;
+    auto th = std::make_unique<EmuThread>(sys, pointer);
+    th->Start();
+    assert(th->BeginProcessLaunch());
+    th->ProcessLaunchCompleted(true);
+    wait_until([&] { return video.waits.load() == 1; });
+    th->Stop();
+    video.p.set_value(false);
+    wait_until([&] { return sys.shutdowns.load() == 1; });
+    th.reset();
+    assert(sys.cpu.ready == 1 && sys.runs == 0 && proc.closes == 1);
+}
+
 int main()
 {
     for (int i = 0; i < 120; i++)
@@ -166,6 +187,7 @@ int main()
         failure(i);
         pause_while_failed(i);
         concurrent_pause();
+        cancel_during_gpu_load();
     }
-    std::cout << "PASS 720 production EmuThread scenarios\n";
+    std::cout << "PASS 840 production EmuThread scenarios\n";
 }

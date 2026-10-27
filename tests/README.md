@@ -22,7 +22,7 @@ They run in the macOS CI job.
 | `test_settings_runtime` | Concurrent runtime status, coherent shader progress, reentrant callbacks |
 | `test_callback_drain` | In-flight subscriber lifetime, concurrent removal, exception cleanup |
 | `test_architecture_storage` | Offline controller edits and profile binary format |
-| `test_launch_gate` | 720 scenarios against the production EmuThread with controlled dependencies |
+| `test_launch_gate` | 840 scenarios against the production EmuThread, including cancellation during GPU startup |
 | `test_module_lifecycle` | Windows: real plugin setup, guest teardown, host persistence, partial setup recovery |
 | `test_loader_session_isolation` | Windows: reused process ID resolves to the current title/RomFS and releases old factories |
 
@@ -33,6 +33,10 @@ On Windows, `-DNXEMU_TEST_VULKAN_DISPLAY=ON` also enables
 window and a real Vulkan device, with isolated temporary user data. It creates and
 cancels guest GPU sessions without loading a game, submits interface images and
 checks device reuse. It requires a working Vulkan driver and does not measure game FPS.
+
+The same option enables `test_ui_startup`: a real RmlUI/Vulkan startup frame before
+loader/CPU/OS services, recovery with unavailable services, deferred-font cancellation,
+and the startup close button. See [startup validation](../docs/early-interface-validation-2026-10-27.md).
 
 The SettingsStore A/B benchmark and the review results are documented in
 [the architecture review](../docs/architecture-review-2026-10-27.md).

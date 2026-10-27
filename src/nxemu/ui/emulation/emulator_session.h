@@ -43,6 +43,7 @@ public:
     void SetListener(Listener * listener) { m_listener = listener; }
 
     bool Initialise();
+    bool InitialiseDisplay();
     // Host stays usable when no guest is running.
     bool FrontendReady() const { return m_modules.FrontendValid(); }
     bool HasGuest() const { return m_modules.IsValid(); }

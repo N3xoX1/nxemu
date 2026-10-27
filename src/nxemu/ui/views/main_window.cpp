@@ -191,7 +191,7 @@ MainWindow::~MainWindow()
     // detached after all RmlUI views have been destroyed.
 }
 
-bool MainWindow::Create()
+bool MainWindow::Create(const std::function<bool()> & pump)
 {
     m_interfaceLanguage = InterfaceLanguage::Code();
     m_document = Translation::LoadDocument(*m_window.Context(), m_assetDir / "main_window.rml");
@@ -199,6 +199,7 @@ bool MainWindow::Create()
     {
         return false;
     }
+    if (pump && !pump()) return false;
     m_menuBar = std::make_unique<MenuBar>(
         m_document->GetElementById("menu-bar"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
     m_gameMenu = std::make_unique<PopupMenu>(
@@ -223,6 +224,7 @@ bool MainWindow::Create()
                                                             },
                                                         });
     m_tooltip = std::make_unique<Tooltip>(m_window.Context(), m_assetDir);
+    if (pump && !pump()) return false;
     m_performance = std::make_unique<PerformanceOverlay>(m_document->GetElementById("performance"));
     m_detailsPanel = std::make_unique<GameDetailsPanel>(m_document->GetElementById("games-details"), [this](size_t index) {
         Post(static_cast<Action>(static_cast<int>(Action::AddOnFirst) + static_cast<int>(index)));
@@ -231,6 +233,7 @@ bool MainWindow::Create()
     m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage,
                                                             [this] { return EnsureUtilityGuest(); });
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
+    if (pump && !pump()) return false;
     m_directoriesDialog = std::make_unique<DirectoriesDialog>(m_window, m_library, m_assetDir,
                                                         DirectoriesDialog::Host{
                                                             [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
@@ -245,6 +248,7 @@ bool MainWindow::Create()
                                                             openPage,
                                                         });
     BindEvents();
+    if (pump && !pump()) return false;
 
     m_document->SetClass(m_window.DrawsWindowControls() ? "window-controls" : "system-controls", true);
     if (m_window.SystemTitleBarHeight() > 0)

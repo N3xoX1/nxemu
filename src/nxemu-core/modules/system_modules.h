@@ -17,6 +17,10 @@ public:
     void Setup(IRenderWindow & window);
     // The RmlUI host needs only loader and display before a game is launched.
     bool SetupFrontend(IRenderWindow & window);
+    // The UI can present before loader/catalogue and guest settings are loaded.
+    bool SetupDisplay(IRenderWindow & window);
+    bool CompleteFrontendSetup();
+    bool DisplayReady() const;
     bool StartSession();
     void StopSession();
     void ShutDown();

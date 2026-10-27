@@ -249,6 +249,16 @@ void SystemModules::Setup(IRenderWindow & window)
 
 bool SystemModules::SetupFrontend(IRenderWindow & window)
 {
+    if (!SetupDisplay(window))
+        return false;
+    if (CompleteFrontendSetup())
+        return true;
+    ShutDown();
+    return false;
+}
+
+bool SystemModules::SetupDisplay(IRenderWindow & window)
+{
     ShutDown();
     impl = std::make_unique<Impl>(window);
     impl->loaderFile = coreSettings.moduleLoader;
@@ -256,19 +266,8 @@ bool SystemModules::SetupFrontend(IRenderWindow & window)
     impl->cpuFile = coreSettings.moduleCpu;
     impl->operatingsystemFile = coreSettings.moduleOs;
 
-    LoadModule(impl->loaderFile, impl->loaderModule, &impl->moduleNotification, &impl->moduleSettings);
     LoadModule(impl->videoFile, impl->videoModule, &impl->moduleNotification, &impl->moduleSettings);
-    // Both plugins register settings required by the idle frontend. Keep the
-    // DLLs loaded, but construct neither the CPU/JIT nor the guest OS here.
-    LoadModule(impl->cpuFile, impl->cpuModule, &impl->moduleNotification, &impl->moduleSettings);
-    LoadModule(impl->operatingsystemFile, impl->operatingsystemModule, &impl->moduleNotification, &impl->moduleSettings);
-    if (!impl->loaderModule || !impl->videoModule || !impl->cpuModule || !impl->operatingsystemModule)
-    {
-        ShutDown();
-        return false;
-    }
-    impl->systemLoader = impl->loaderModule->CreateSystemLoader(*impl);
-    if (!impl->systemLoader || !impl->systemLoader->Initialize())
+    if (!impl->videoModule)
     {
         ShutDown();
         return false;
@@ -279,9 +278,39 @@ bool SystemModules::SetupFrontend(IRenderWindow & window)
         ShutDown();
         return false;
     }
+    return true;
+}
+
+bool SystemModules::CompleteFrontendSetup()
+{
+    if (!DisplayReady())
+        return false;
+    if (impl->frontendValid)
+        return true;
+    // On failure keep the display alive until the caller detaches its UI.
+    // SetupFrontend() supplies the eager all-or-nothing convenience contract.
+    LoadModule(impl->loaderFile, impl->loaderModule, &impl->moduleNotification, &impl->moduleSettings);
+    // Both plugins register settings required by the idle frontend. Keep the
+    // DLLs loaded, but construct neither the CPU/JIT nor the guest OS here.
+    LoadModule(impl->cpuFile, impl->cpuModule, &impl->moduleNotification, &impl->moduleSettings);
+    LoadModule(impl->operatingsystemFile, impl->operatingsystemModule, &impl->moduleNotification, &impl->moduleSettings);
+    if (!impl->loaderModule || !impl->videoModule || !impl->cpuModule || !impl->operatingsystemModule)
+    {
+        return false;
+    }
+    impl->systemLoader = impl->loaderModule->CreateSystemLoader(*impl);
+    if (!impl->systemLoader || !impl->systemLoader->Initialize())
+    {
+        return false;
+    }
     impl->baseModules = {impl->cpuModule.get(), impl->videoModule.get(), impl->operatingsystemModule.get(), impl->loaderModule.get()};
     impl->frontendValid = true;
     return true;
+}
+
+bool SystemModules::DisplayReady() const
+{
+    return impl && impl->video;
 }
 
 bool SystemModules::StartSession()

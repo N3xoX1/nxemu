@@ -4,6 +4,7 @@
 #include <SDL_metal.h>
 #include <filesystem>
 #include <future>
+#include <functional>
 #include <memory>
 #include <nxemu-module-spec/base.h>
 #include <string>
@@ -34,6 +35,8 @@ public:
     ~UiWindow();
 
     bool Create(const char * title, int width, int height, const std::filesystem::path & assetDir);
+    void Show();
+    bool LoadFallbackFonts(const std::function<bool()> & pump);
     const std::string & Error() const { return m_error; }
 
     bool AttachVideo(IVideo & video);
@@ -55,6 +58,7 @@ public:
 
     void SetTitle(const std::string & title);
     void SetTheme(const std::string & choice);
+    bool IsLightTheme() const { return m_lightTheme; }
     bool IsFullscreen() const;
     void SetFullscreen(bool fullscreen);
     bool IsMaximised() const;
@@ -108,6 +112,7 @@ private:
     int m_drawableHeight = 0;
     float m_pixelScale = 1.0f;
     bool m_frameless = false;
+    bool m_lightTheme = false;
     int m_systemTitleBar = 0;
     int m_hiddenFrame = 0;
     uint64_t m_barPressTime = 0;

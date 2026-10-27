@@ -102,7 +102,8 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
     }
 #endif
 
-    Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+    // Do not expose an unpainted native window while Vulkan is initialized.
+    Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN;
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
 #else
@@ -182,6 +183,12 @@ bool UiWindow::AttachVideo(IVideo & video)
     }
     m_video = &video;
     return true;
+}
+
+void UiWindow::Show()
+{
+    if (SDL_GetWindowFlags(m_window) & SDL_WINDOW_HIDDEN)
+        SDL_ShowWindow(m_window);
 }
 
 void UiWindow::DetachVideo()
@@ -402,6 +409,7 @@ void UiWindow::SetTheme(const std::string & choice)
 
 void UiWindow::ApplyTheme(bool light, bool modeChanged)
 {
+    m_lightTheme = light;
     const bool coloursChanged = m_themeFiles->SetLight(light);
     if (modeChanged || coloursChanged)
     {
@@ -554,8 +562,17 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
             return Fail(std::string("Unable to load font ") + font);
         }
     }
+    return true;
+}
+
+bool UiWindow::LoadFallbackFonts(const std::function<bool()> & pump)
+{
     for (const SystemFont & font : SystemFallbackFonts())
     {
+        // Font registration mutates RmlUi; keep it on the UI thread, with
+        // event processing/presentation between individual font loads.
+        if (pump && !pump())
+            return false;
         Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
     }
     return true;

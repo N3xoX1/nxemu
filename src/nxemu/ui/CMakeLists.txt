@@ -78,6 +78,7 @@ add_library(nxemu_ui STATIC
     platform/system_theme.h
     views/main_window.cpp
     views/main_window.h
+    views/startup_view.h
     views/menu_bar.cpp
     views/menu_bar.h
     views/message_dialog.cpp

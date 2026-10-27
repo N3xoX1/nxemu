@@ -44,6 +44,7 @@ static void RaiseOpenFileLimit()
 
 static int RunApplication(int argc, char ** argv)
 {
+    const auto started = std::chrono::steady_clock::now();
 #ifdef __APPLE__
     RaiseOpenFileLimit();
 #endif
@@ -66,7 +67,7 @@ static int RunApplication(int argc, char ** argv)
     {
         coreSettings.moduleDir = Path(modules.string(), "");
     }
-    const int result = RunUiApplication(argc, argv);
+    const int result = RunUiApplication(argc, argv, started);
     AppCleanup();
     return result;
 }

@@ -187,7 +187,18 @@ int main(int argc, char **argv)
     {
         SystemModules modules;
         const auto before = std::chrono::steady_clock::now();
-        assert(modules.SetupFrontend(window));
+        assert(modules.SetupDisplay(window));
+        assert(modules.DisplayReady() && !modules.FrontendValid() && !modules.IsValid());
+        auto * const earlyDisplay = &modules.DisplayVideo();
+        if (vulkan)
+        {
+            VideoInterfaceDevice earlyDevice{};
+            assert(earlyDisplay->AttachInterface(&earlyDevice));
+            DrawInterface(*earlyDisplay, earlyDevice);
+        }
+        assert(modules.CompleteFrontendSetup());
+        assert(modules.CompleteFrontendSetup());
+        assert(&modules.DisplayVideo() == earlyDisplay);
         const auto hostReady = std::chrono::steady_clock::now();
         const auto hostBytes = PrivateBytes();
         std::size_t guestBytes = 0;

@@ -4,11 +4,16 @@
 #include "ui/host/ui_notification.h"
 #include "ui/host/ui_pack.h"
 #include "ui/host/ui_window.h"
+#include "ui/host/ui_theme.h"
 #include "ui/library/game_library.h"
 #include "ui/library/interface_language.h"
 #include "ui/views/main_window.h"
+#include "ui/views/startup_view.h"
 #include "ui/views/message_dialog.h"
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/EventListener.h>
+#include <yuzu_common/logging/log.h>
 #include <iostream>
 #include <nxemu-core/app_init.h>
 #include <nxemu-core/settings/settings.h>
@@ -95,7 +100,7 @@ int SDLCALL DrawWhileResizing(void * userdata, SDL_Event * event)
     return 0;
 }
 
-int Run(UiNotification & notification, const std::string & gamePath)
+int Run(UiNotification & notification, const std::string & gamePath, std::chrono::steady_clock::time_point started)
 {
     const std::filesystem::path assetDir = FindAssetDirectory();
     if (assetDir.empty())
@@ -114,13 +119,11 @@ int Run(UiNotification & notification, const std::string & gamePath)
     window.SetTheme(uiSettings.interfaceTheme);
 
     EmulatorSession session(window, notification, window.Handle());
-    if (!session.Initialise())
+    if (!session.InitialiseDisplay())
     {
         notification.DisplayError("Required modules failed to load.", "NXEmu");
         return 1;
     }
-    InterfaceLanguage::AdoptSystemLanguage(session);
-    InterfaceLanguage::Use(InterfaceLanguage::Code(), assetDir);
     // RmlUI renders through Vulkan only. An older Sciter configuration may
     // still select OpenGL/Null; override it for this frontend before the
     // shared display is created, without changing other frontends.
@@ -136,13 +139,35 @@ int Run(UiNotification & notification, const std::string & gamePath)
     // RmlUI resources have been destroyed, but before EmulatorSession
     // destroys the host video module, including on early returns.
     SCOPE_EXIT { window.DetachVideo(); };
+    StartupView startup(window);
+    if (!startup.Create() || !startup.Pump())
+        return startup.Cancelled() ? 0 : 1;
+    LOG_INFO(Frontend, "Frontend startup: first frame submitted in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started).count());
+    if (!startup.Pump("Preparing your library...")) return startup.Cancelled() ? 0 : 1;
+    if (!session.Initialise())
+    {
+        notification.DisplayError("Required modules failed to load.", "NXEmu");
+        return 1;
+    }
+    if (!startup.Pump("Preparing the interface...")) return startup.Cancelled() ? 0 : 1;
+    if (!window.LoadFallbackFonts([&] { return startup.Pump(); })) return startup.Cancelled() ? 0 : 1;
+    InterfaceLanguage::AdoptSystemLanguage(session);
+    InterfaceLanguage::Use(InterfaceLanguage::Code(), assetDir);
+    if (!startup.Pump("Preparing your library...")) return startup.Cancelled() ? 0 : 1;
     GameLibrary library;
     MainWindow mainWindow(window, session, library, assetDir);
-    if (!mainWindow.Create())
+    if (!mainWindow.Create([&] { return startup.Pump(); }))
     {
+        if (startup.Cancelled()) return 0;
         std::cerr << "NXEmu: unable to load the main window document\n";
         return 1;
     }
+    startup.Close();
+    window.Context()->Update();
+    if (!window.Render(mainWindow.GameArea())) return 1;
+    LOG_INFO(Frontend, "Frontend startup: library ready in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started).count());
 
     if (!gamePath.empty())
     {
@@ -249,7 +274,7 @@ bool probeGraphics(const char * executable)
     return !brokenVulkan;
 }
 
-int RunUiApplication(int argc, char ** argv)
+int RunUiApplication(int argc, char ** argv, std::chrono::steady_clock::time_point started)
 {
     UiNotification notification;
     SetNotification(&notification);
@@ -261,7 +286,7 @@ int RunUiApplication(int argc, char ** argv)
     }
     else
     {
-        result = Run(notification, argc > 1 ? argv[1] : "");
+        result = Run(notification, argc > 1 ? argv[1] : "", started);
     }
     SetNotification(nullptr);
     return result;

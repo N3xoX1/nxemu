@@ -47,10 +47,17 @@ bool EmulatorSession::Initialise()
     // The authoritative OS snapshot replaces this view when Setup succeeds.
     m_profileService.RefreshOffline();
     const auto setup_start = std::chrono::steady_clock::now();
-    const bool ready = m_modules.SetupFrontend(m_renderWindow);
+    const bool ready = m_modules.DisplayReady() ? m_modules.CompleteFrontendSetup() : m_modules.SetupFrontend(m_renderWindow);
     LOG_DEBUG(Frontend, "Frontend module setup: {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - setup_start).count());
     return ready;
+}
+
+bool EmulatorSession::InitialiseDisplay()
+{
+    m_notification.BindWindow(m_window);
+    SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+    return m_modules.SetupDisplay(m_renderWindow);
 }
 
 void EmulatorSession::FlushSettings()

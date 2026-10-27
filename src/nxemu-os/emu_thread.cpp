@@ -42,10 +42,18 @@ public:
 
         // Shader-cache loading remains asynchronous to the frontend. Guest
         // execution begins only after process launch AND GPU startup succeed.
-        if (launched && !stop_token.stop_requested() &&
-            m_system.GetSystemModules().Video().WaitForGuestGpu() && !stop_token.stop_requested())
+        const bool gpu_ready = launched && !stop_token.stop_requested() &&
+            m_system.GetSystemModules().Video().WaitForGuestGpu() && !stop_token.stop_requested();
+        if (gpu_ready || m_process != nullptr)
         {
+            // SetupCurrentProcess already created CPU workers waiting at this
+            // rendezvous. They must enter the kernel even on cancelled startup
+            // so ShutdownMainProcess can schedule its termination threads.
+            // Otherwise it waits for workers still blocked behind the GPU gate.
             m_system.GetCpuManager().OnGpuReady();
+        }
+        if (gpu_ready && !stop_token.stop_requested())
+        {
             g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Running);
 
             while (!stop_token.stop_requested())

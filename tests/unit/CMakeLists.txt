@@ -105,6 +105,16 @@ if(WIN32)
         ENVIRONMENT "PATH=$<TARGET_FILE_DIR:nxemu>\;$ENV{PATH}")
     option(NXEMU_TEST_VULKAN_DISPLAY "Run real-device Vulkan display/session integration tests" OFF)
     if(NXEMU_TEST_VULKAN_DISPLAY)
+        add_executable(test_ui_startup architecture/ui_startup.cpp)
+        target_link_libraries(test_ui_startup PRIVATE nxemu_ui nxemu_core
+            Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
+        add_dependencies(test_ui_startup nxemu-video)
+        if(MSVC)
+            target_compile_options(test_ui_startup PRIVATE /UNDEBUG)
+        endif()
+        add_test(NAME test_ui_startup COMMAND test_ui_startup "${CMAKE_SOURCE_DIR}" $<TARGET_FILE:nxemu-video>)
+        set_tests_properties(test_ui_startup PROPERTIES LABELS "gpu;integration" TIMEOUT 120
+            ENVIRONMENT "PATH=$<TARGET_FILE_DIR:nxemu>\;$ENV{PATH}")
         add_test(NAME test_vulkan_display_lifecycle COMMAND test_module_lifecycle "${CMAKE_SOURCE_DIR}"
             $<TARGET_FILE:nxemu-loader> $<TARGET_FILE:nxemu-cpu>
             $<TARGET_FILE:nxemu-video> $<TARGET_FILE:nxemu-os> --vulkan)
