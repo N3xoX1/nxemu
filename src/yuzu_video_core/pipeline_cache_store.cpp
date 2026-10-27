@@ -162,7 +162,7 @@ void PutFrame(std::string& out, unsigned char type, std::string_view id, std::st
 struct Frame
 {
     unsigned char type;
-    std::string id, data;
+    size_t offset;
 };
 struct Layout
 {
@@ -195,7 +195,7 @@ Index Parse(const std::filesystem::path & path, u32 abi, bool records, const Rea
     index.valid_bytes = cursor;
     size_t table_bytes{}, record_bytes{};
     // Adds one verified frame; false when it does not fit what precedes it.
-    // `collect` keeps the new objects of frames outside blocks for Compact.
+    // `collect` keeps only file offsets for Compact, never the loose payloads.
     const auto accept = [&](unsigned char type, std::string_view id, std::string data, bool collect) {
         if (type == 1)
         {
@@ -204,7 +204,7 @@ Index Parse(const std::filesystem::path & path, u32 abi, bool records, const Rea
             {
                 Check(data.size() <= limits.index_bytes - table_bytes);
                 table_bytes += data.size();
-                if (collect && layout) layout->loose.push_back({type, std::string(id), data});
+                if (collect && layout) layout->loose.push_back({type, cursor});
                 index.code_sizes.emplace(id, data.size());
                 index.code.emplace(id, records ? std::make_shared<const std::string>(std::move(data)) : nullptr);
             }
@@ -219,7 +219,7 @@ Index Parse(const std::filesystem::path & path, u32 abi, bool records, const Rea
                 const auto expanded = data.size() - 32;
                 Check(expanded <= limits.index_bytes - table_bytes);
                 table_bytes += expanded;
-                if (collect && layout) layout->loose.push_back({type, std::string(id), data});
+                if (collect && layout) layout->loose.push_back({type, cursor});
                 auto env = records ? SharedShaderBytes::FromStore(data,found->second) : SharedShaderBytes{};
                 index.environments.emplace(id, std::move(env));
             }
@@ -234,7 +234,7 @@ Index Parse(const std::filesystem::path & path, u32 abi, bool records, const Rea
             for (size_t i = 0; i < count; ++i)
                 if (!index.environments.contains(data.substr(4 + 32 * i, 32))) return false;
             const bool fresh = index.pipelines.emplace(id).second;
-            if (collect && layout && fresh) layout->loose.push_back({type, std::string(id), data});
+            if (collect && layout && fresh) layout->loose.push_back({type, cursor});
             if (records && fresh)
             {
                 Record record;
@@ -477,47 +477,86 @@ bool Compact(const std::filesystem::path& path, u32 shader_abi, size_t min_loose
     if (!worth()) return false;
     Layout layout;
     bool foreign{};
-    const auto index = Parse(path, shader_abi, false, {}, &foreign, &layout);
-    if (foreign || !index.valid_bytes || layout.loose_bytes < min_loose_bytes) return false;
+    {
+        const auto index = Parse(path, shader_abi, false, {}, &foreign, &layout);
+        if (foreign || !index.valid_bytes || layout.loose_bytes < min_loose_bytes) return false;
+    } // Release the validation index before rewriting the cache.
     // Blocks are copied as they are. The other frames become new blocks, each
     // kind together (code, then environments, then pipelines: every frame still
     // follows what it names), which compresses about twice as well.
-    std::string out = Header(shader_abi);
-    {
-        std::ifstream in(path, std::ios::binary);
-        for (const auto & [offset, size] : layout.blocks)
-        {
-            std::string bytes(size, '\0');
-            in.seekg(static_cast<std::streamoff>(offset));
-            in.read(bytes.data(), static_cast<std::streamsize>(size));
-            Check(bool(in));
-            out += bytes;
-        }
-    }
-    std::stable_sort(layout.loose.begin(), layout.loose.end(), [](const Frame & a, const Frame & b) { return a.type < b.type; });
-    std::string block;
-    const auto flush = [&] {
-        if (block.empty()) return;
-        PutFrame(out, BlockType, Digest(std::string(1, static_cast<char>(BlockType)) + block), block);
-        block.clear();
-    };
-    for (const auto & frame : layout.loose)
-    {
-        PutFrameHeader(block, frame.type, frame.data.size(), frame.id);
-        block += frame.data;
-        if (block.size() >= BlockTarget) flush();
-    }
-    flush();
-    // Written aside and renamed over the store: a crash keeps the old file.
     auto staging = path;
     staging += ".tmp";
+    try
     {
+        std::ifstream in(path, std::ios::binary);
         std::ofstream file(staging, std::ios::binary | std::ios::trunc);
-        file.write(out.data(), static_cast<std::streamsize>(out.size()));
+        const auto write = [&](std::string_view bytes) {
+            file.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+            Check(bool(file));
+        };
+        write(Header(shader_abi));
+        // Copy existing blocks in bounded chunks instead of retaining the output.
+        std::string bytes(64 * 1024, '\0');
+        for (const auto & [offset, size] : layout.blocks)
+        {
+            in.seekg(static_cast<std::streamoff>(offset));
+            for (size_t remaining = size; remaining;)
+            {
+                const auto count = std::min(remaining, bytes.size());
+                in.read(bytes.data(), static_cast<std::streamsize>(count));
+                Check(bool(in));
+                write(std::string_view(bytes).substr(0, count));
+                remaining -= count;
+            }
+        }
+        std::stable_sort(layout.loose.begin(), layout.loose.end(), [](const Frame & a, const Frame & b) { return a.type < b.type; });
+        std::string block;
+        const auto flush = [&] {
+            if (block.empty()) return;
+            std::string packed;
+            PutFrame(packed, BlockType, Digest(std::string(1, static_cast<char>(BlockType)) + block), block);
+            write(packed);
+            block.clear();
+        };
+        std::string header(37, '\0'), stored, data;
+        for (const auto & frame : layout.loose)
+        {
+            // The first pass verified references and removed duplicates. Reread
+            // only the selected frame and verify it again before writing it.
+            in.seekg(static_cast<std::streamoff>(frame.offset));
+            in.read(header.data(), header.size());
+            Check(bool(in));
+            const auto type = static_cast<unsigned char>(header[0]);
+            const auto length = static_cast<size_t>(Get(header, 1, 4));
+            Check((type & ~Packed) == frame.type && length <= MaxFrame);
+            stored.resize(length);
+            in.read(stored.data(), static_cast<std::streamsize>(length));
+            Check(bool(in));
+            if (type & Packed)
+                Check(ShaderProfile::UnpackFrame(stored, MaxFrame, data));
+            else
+                data = stored;
+            const auto id = std::string_view(header).substr(5, 32);
+            Check(Digest(std::string(1, static_cast<char>(frame.type)) + data) == id);
+            PutFrameHeader(block, frame.type, data.size(), id);
+            block += data;
+            if (block.size() >= BlockTarget) flush();
+        }
+        flush();
         file.flush();
         Check(bool(file));
+        file.close();
+        Check(bool(file));
+        in.close();
+        // Written aside and renamed over the store: a crash keeps the old file.
+        std::filesystem::rename(staging, path);
     }
-    std::filesystem::rename(staging, path);
+    catch (...)
+    {
+        std::error_code error;
+        std::filesystem::remove(staging, error);
+        throw;
+    }
     writer = Writer{};
     writer_path.clear();
     return true;

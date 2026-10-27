@@ -225,6 +225,54 @@ int main(int argc,char** argv) try {
         CacheStore::Append(blocked,20,first);require(CacheStore::Read(blocked,20).size()==1);
         std::filesystem::remove(blocked);
     }
+    {
+        // Multiple output blocks and chunked copying of existing blocks must
+        // preserve payloads, including when a temporary-file write fails.
+        auto large=path;large+=".streaming";
+        auto staging=large;staging+=".tmp";
+        const auto bytes_of=[](const std::filesystem::path& name) {
+            std::ifstream file(name,std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(file),{});
+        };
+        u32 random=12345;
+        auto sample=first;
+        std::string metadata(512*1024,'\0');
+        for(unsigned i=0;i<12;++i) {
+            for(auto& byte:metadata) {
+                random^=random<<13;random^=random>>17;random^=random<<5;
+                byte=static_cast<char>(random);
+            }
+            sample.environments[0]=environment+metadata;
+            sample.key[0]=static_cast<char>(i);
+            CacheStore::Append(large,20,sample);
+        }
+        const auto original=CacheStore::Read(large,20);
+        require(original.size()==12);
+        const auto before=bytes_of(large);
+        std::filesystem::create_directory(staging);
+        {std::ofstream sentinel(staging/"keep");sentinel<<"keep";}
+        bool failed=false;
+        try { CacheStore::Compact(large,20,0); }
+        catch(const std::exception&) { failed=true; }
+        require(failed && bytes_of(large)==before);
+        std::filesystem::remove_all(staging);
+        require(CacheStore::Compact(large,20,0));
+        const auto prefix=bytes_of(large);
+        require(prefix.size()>4*1024*1024);
+        sample.key[0]='Z';
+        CacheStore::Append(large,20,sample);
+        {std::ofstream tail(large,std::ios::binary|std::ios::app);tail<<"torn";}
+        require(CacheStore::Compact(large,20,0));
+        const auto after=bytes_of(large);
+        require(after.starts_with(prefix) && !std::filesystem::exists(staging));
+        const auto records=CacheStore::Read(large,20);
+        require(records.size()==13);
+        for(size_t i=0;i<original.size();++i)
+            require(records[i].id==original[i].id && records[i].key==original[i].key &&
+                    records[i].environments[0].String()==original[i].environments[0].String());
+        require(records.back().key==sample.key && records.back().environments[0].String()==sample.environments[0].String());
+        std::filesystem::remove(large);
+    }
     std::filesystem::remove(dense);
     std::filesystem::remove(context_path);
     context_path=CacheStore::ContextIndexPath(path,context_b);std::filesystem::remove(context_path);
