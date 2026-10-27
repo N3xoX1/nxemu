@@ -202,6 +202,23 @@ Tegra::MemoryManager* TextureCache<P>::ImageGpuMemory(const ImageBase& image) co
 }
 
 template <class P>
+void TextureCache<P>::CancelPendingDownloads(ImageId id) {
+    // The slot is erased (and may be reused) before queued downloads are processed.
+    // Uncommitted copies were not recorded yet, so drop them; committed copies already
+    // target the sentenced image and only need their publication skipped.
+    std::erase_if(uncommitted_downloads, [id](const PendingDownload& download) {
+        return download.is_swizzle && download.object_id == id;
+    });
+    for (auto& downloads : committed_downloads) {
+        for (PendingDownload& download : downloads) {
+            if (download.is_swizzle && download.object_id == id) {
+                download.discarded = true;
+            }
+        }
+    }
+}
+
+template <class P>
 void TextureCache<P>::CancelGCReadback(ImageId id) {
     if constexpr (SUPPORTS_ASYNC_GC) {
         if (gc_readback_ids.erase(id) == 0) {
@@ -1341,8 +1358,9 @@ void TextureCache<P>::CommitAsyncFlushes() {
         bool any_none_dma = false;
         for (PendingDownload& download_info : download_ids) {
             if (download_info.is_swizzle) {
-                total_size_bytes +=
+                download_info.staging_bytes =
                     Common::AlignUp(slot_images[download_info.object_id].unswizzled_size_bytes, 64);
+                total_size_bytes += download_info.staging_bytes;
                 any_none_dma = true;
                 download_info.async_buffer_id = last_async_buffer_id;
             }
@@ -1357,7 +1375,7 @@ void TextureCache<P>::CommitAsyncFlushes() {
                         const auto copies = FullDownloadCopies(image.info);
                         image.DownloadMemory(download_map, copies);
                     }
-                    download_map.offset += Common::AlignUp(image.unswizzled_size_bytes, 64);
+                    download_map.offset += download_info.staging_bytes;
                 }
             }
             uncommitted_async_buffers.emplace_back(download_map);
@@ -1457,9 +1475,12 @@ void TextureCache<P>::PopAsyncFlushes() {
             auto& download_info = download_ids[i - 1];
             auto& download_buffer = download_map[download_info.async_buffer_id];
             if (download_info.is_swizzle) {
+                download_buffer.offset -= download_info.staging_bytes;
+                if (download_info.discarded) {
+                    continue;
+                }
                 const ImageBase& image = slot_images[download_info.object_id];
                 const auto copies = FullDownloadCopies(image.info);
-                download_buffer.offset -= Common::AlignUp(image.unswizzled_size_bytes, 64);
                 std::span<u8> download_span =
                     download_buffer.mapped_span.subspan(download_buffer.offset);
                 if (False(image.flags & ImageFlagBits::Remapped)) {
@@ -1506,14 +1527,14 @@ void TextureCache<P>::PopAsyncFlushes() {
         }
         size_t total_size_bytes = 0;
         for (const PendingDownload& download_info : download_ids) {
-            if (download_info.is_swizzle) {
+            if (download_info.is_swizzle && !download_info.discarded) {
                 total_size_bytes += slot_images[download_info.object_id].unswizzled_size_bytes;
             }
         }
         auto download_map = runtime.DownloadStagingBuffer(total_size_bytes);
         const size_t original_offset = download_map.offset;
         for (const PendingDownload& download_info : download_ids) {
-            if (!download_info.is_swizzle) {
+            if (!download_info.is_swizzle || download_info.discarded) {
                 continue;
             }
             Image& image = slot_images[download_info.object_id];
@@ -1526,7 +1547,7 @@ void TextureCache<P>::PopAsyncFlushes() {
         download_map.offset = original_offset;
         std::span<u8> download_span = download_map.mapped_span;
         for (const PendingDownload& download_info : download_ids) {
-            if (!download_info.is_swizzle) {
+            if (!download_info.is_swizzle || download_info.discarded) {
                 continue;
             }
             const ImageBase& image = slot_images[download_info.object_id];
@@ -2986,6 +3007,7 @@ template <class P>
 void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete,
                                   std::vector<ImageViewId>* deferred_views) {
     CancelGCReadback(image_id);
+    CancelPendingDownloads(image_id);
     ImageBase& image = slot_images[image_id];
     if (image.HasScaled()) {
         total_used_memory -= GetScaledImageSizeBytes(image);
