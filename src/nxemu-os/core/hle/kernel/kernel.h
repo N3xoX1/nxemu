@@ -37,6 +37,9 @@ class ServiceManager;
 
 namespace Kernel {
 
+/// Thrown to unwind a service whose startup was cancelled by an emulation shutdown.
+struct ServiceStartupCancelled {};
+
 class KClientPort;
 class GlobalSchedulerContext;
 class KAutoObjectWithListContainer;
@@ -109,6 +112,18 @@ public:
 
     /// Close all active services in use by the kernel instance.
     void CloseServices();
+
+    /// Wraps a service process entry point so a shutdown can cancel its startup.
+    std::function<void()> TrackServiceStartup(std::function<void()>&& func);
+
+    /// Called by a service thread once its startup is complete.
+    void FinishServiceStartup();
+
+    /// True once a shutdown cancelled the service startups still in progress.
+    bool IsServiceStartupCancelled() const;
+
+    /// Cancels service startups and waits for the ones in progress to unwind.
+    void CancelServiceStartups();
 
     /// Retrieves a shared pointer to the system resource limit instance.
     const KResourceLimit* GetSystemResourceLimit() const;

@@ -53,6 +53,11 @@ public:
 
     static void RunServer(std::unique_ptr<ServerManager>&& server);
 
+    /// Called by the kernel once LoopProcess is guaranteed to run.
+    void MarkRunning() {
+        m_running = true;
+    }
+
 private:
     void LinkToDeferredList(MultiWaitHolder* holder);
     void LinkDeferred();
@@ -95,6 +100,8 @@ private:
 
     // Host state tracking
     Common::Event m_stopped{};
+    // A server whose startup was cancelled never runs LoopProcess, so nothing would signal m_stopped.
+    bool m_running{};
     std::vector<std::jthread> m_threads{};
     std::stop_source m_stop_source{};
 };

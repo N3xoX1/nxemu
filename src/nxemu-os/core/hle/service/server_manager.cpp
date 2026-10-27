@@ -96,7 +96,9 @@ ServerManager::~ServerManager() {
     m_wakeup_event->Signal();
 
     // Wait for processing to stop.
-    m_stopped.Wait();
+    if (m_running) {
+        m_stopped.Wait();
+    }
     m_threads.clear();
 
     // Clean up ports.

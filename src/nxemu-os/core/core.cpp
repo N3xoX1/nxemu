@@ -226,6 +226,9 @@ struct System::Impl {
         stop_event.request_stop();
         core_timing.SyncPause(false);
         Network::CancelPendingSocketOperations();
+        // A launch cancelled before Run() can still have services starting. They must
+        // finish or unwind before services are closed and torn down.
+        kernel.CancelServiceStartups();
         kernel.SuspendEmulation(true);
         kernel.CloseServices();
         applet_manager.StopEventObserver();

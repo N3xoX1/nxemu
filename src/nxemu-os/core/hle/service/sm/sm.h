@@ -11,6 +11,7 @@
 
 #include "yuzu_common/concepts.h"
 #include "core/hle/kernel/k_port.h"
+#include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/svc.h"
 #include "core/hle/result.h"
 #include "core/hle/service/service.h"
@@ -77,6 +78,10 @@ public:
             } else if (block) {
                 using namespace std::literals::chrono_literals;
                 while (service == registered_services.end()) {
+                    // The provider of this service will not start during a shutdown.
+                    if (kernel.IsServiceStartupCancelled()) {
+                        throw Kernel::ServiceStartupCancelled{};
+                    }
                     // Release the registry mutex so service registration can proceed.
                     lk.unlock();
                     Kernel::Svc::SleepThread(

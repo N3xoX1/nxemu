@@ -4,8 +4,11 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <unordered_set>
 #include <utility>
@@ -109,6 +112,9 @@ struct KernelCore::Impl {
         is_shutting_down.store(true, std::memory_order_relaxed);
         SCOPE_EXIT {
             is_shutting_down.store(false, std::memory_order_relaxed);
+            std::scoped_lock lk{service_startup_lock};
+            starting_service_threads.clear();
+            service_startup_cancelled.store(false, std::memory_order_relaxed);
         };
 
         CloseServices();
@@ -799,6 +805,13 @@ struct KernelCore::Impl {
     std::mutex server_lock;
     std::vector<std::unique_ptr<Service::ServerManager>> server_managers;
 
+    // Service threads still starting. A shutdown during a cancelled launch can
+    // release them only now, so it must wait for them before closing services.
+    std::mutex service_startup_lock;
+    std::condition_variable service_startup_cv;
+    std::unordered_set<KThread*> starting_service_threads;
+    std::atomic<bool> service_startup_cancelled{};
+
     std::array<std::unique_ptr<Kernel::PhysicalCore>, Hardware::NUM_CPU_CORES> cores;
 
     // Next host thead ID to use, 0-3 IDs represent core threads, >3 represent others
@@ -997,13 +1010,15 @@ void KernelCore::UnregisterInUseObject(KAutoObject* object) {
 
 void KernelCore::RunServer(std::unique_ptr<Service::ServerManager>&& server_manager) {
     auto* manager = server_manager.get();
+    FinishServiceStartup();
 
     {
         std::scoped_lock lk{impl->server_lock};
-        if (impl->is_shutting_down) {
+        if (impl->is_shutting_down || IsServiceStartupCancelled()) {
             return;
         }
 
+        manager->MarkRunning();
         impl->server_managers.emplace_back(std::move(server_manager));
     }
 
@@ -1087,7 +1102,8 @@ std::jthread KernelCore::RunOnHostCoreProcess(std::string&& process_name,
     KProcess::Register(*this, process);
 
     // Run the host thread.
-    return RunHostThreadFunc(*this, process, std::move(process_name), std::move(func));
+    return RunHostThreadFunc(*this, process, std::move(process_name),
+                             TrackServiceStartup(std::move(func)));
 }
 
 std::jthread KernelCore::RunOnHostCoreThread(std::string&& thread_name,
@@ -1122,8 +1138,10 @@ void KernelCore::RunOnGuestCoreProcess(std::string&& process_name, std::function
 
     // Initialize the thread.
     KThread* thread = KThread::Create(*this);
-    ASSERT(R_SUCCEEDED(KThread::InitializeServiceThread(
-        System(), thread, std::move(func), ServiceThreadPriority, ServiceThreadCore, process)));
+    ASSERT(R_SUCCEEDED(KThread::InitializeServiceThread(System(), thread,
+                                                        TrackServiceStartup(std::move(func)),
+                                                        ServiceThreadPriority, ServiceThreadCore,
+                                                        process)));
 
     // Commit the thread reservation.
     thread_reservation.Commit();
@@ -1133,6 +1151,50 @@ void KernelCore::RunOnGuestCoreProcess(std::string&& process_name, std::function
 
     // Begin running the thread.
     ASSERT(R_SUCCEEDED(thread->Run()));
+}
+
+std::function<void()> KernelCore::TrackServiceStartup(std::function<void()>&& func) {
+    return [this, func_ = std::move(func)] {
+        KThread* const thread = GetCurrentEmuThread();
+        {
+            std::scoped_lock lk{impl->service_startup_lock};
+            if (impl->service_startup_cancelled.load(std::memory_order_relaxed)) {
+                return;
+            }
+            impl->starting_service_threads.insert(thread);
+        }
+        SCOPE_EXIT {
+            FinishServiceStartup();
+        };
+        try {
+            func_();
+        } catch (const ServiceStartupCancelled&) {
+            LOG_INFO(Kernel, "Service startup cancelled by shutdown");
+        }
+    };
+}
+
+void KernelCore::FinishServiceStartup() {
+    std::scoped_lock lk{impl->service_startup_lock};
+    if (impl->starting_service_threads.erase(GetCurrentEmuThread()) != 0) {
+        impl->service_startup_cv.notify_all();
+    }
+}
+
+bool KernelCore::IsServiceStartupCancelled() const {
+    return impl->service_startup_cancelled.load(std::memory_order_relaxed);
+}
+
+void KernelCore::CancelServiceStartups() {
+    std::unique_lock lk{impl->service_startup_lock};
+    impl->service_startup_cancelled.store(true, std::memory_order_relaxed);
+    // Blocked startups poll for their dependencies and notice the cancellation.
+    if (!impl->service_startup_cv.wait_for(lk, std::chrono::seconds(5), [this] {
+            return impl->starting_service_threads.empty();
+        })) {
+        LOG_WARNING(Kernel, "{} service startups did not unwind before shutdown",
+                    impl->starting_service_threads.size());
+    }
 }
 
 u32 KernelCore::GetCurrentHostThreadID() const {
