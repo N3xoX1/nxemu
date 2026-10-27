@@ -191,6 +191,10 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     for (size_t i = 0; i < static_modules.size(); i++)
     {
         const auto& module = static_modules[i];
+        if (loader.PrepareRomCancelled())
+        {
+            return {LoaderResultStatus::ErrorCancelled, {}};
+        }
         const FileSys::VirtualFile module_file{dir->GetFile(module)};
         if (!module_file)
         {
@@ -214,6 +218,12 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
 
     // Add patch size to the total module size
     code_size += patch_ctx ? patch_ctx->GetTotalPatchSize() : 0;
+
+    // Last point where a cancelled load can be dropped without tearing down a guest process.
+    if (loader.PrepareRomCancelled())
+    {
+        return {LoaderResultStatus::ErrorCancelled, {}};
+    }
 
     // Setup the process code layout
     uint64_t base_address = 0;

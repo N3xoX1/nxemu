@@ -26,6 +26,7 @@
 #include "loader_settings_identifiers.h"
 #include "rom_info.h"
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <optional>
 #include <string>
@@ -153,6 +154,7 @@ struct Systemloader::Impl
         Loader::AppLoader::LoadParameters parameters{};
     };
     std::optional<PreparedRom> m_preparedRom;
+    std::atomic<bool> m_prepareCancelled{false};
 };
 
 Systemloader::Systemloader(ISystemModules & modules) :
@@ -219,6 +221,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
 bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
     impl->m_preparedRom.reset();
+    impl->m_prepareCancelled.store(false, std::memory_order_relaxed);
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
     if (fileName == nullptr || fileName[0] == '\0')
     {
@@ -276,6 +279,13 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     operatingSystem.SetApplicationLaunchParameters(program_index, previous_program_index, launch_type);
 
     const auto [load_result, load_parameters] = app_loader->Load(*this, impl->m_modules);
+    if (load_result == LoaderResultStatus::ErrorCancelled)
+    {
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)load_result);
+        LOG_INFO(Core, "ROM load cancelled before the guest process was created");
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        return false;
+    }
     if (load_result != LoaderResultStatus::Success)
     {
         g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)load_result);
@@ -297,6 +307,16 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     FileSys::PatchManager pm(impl->m_titleID, impl->m_fsController, *impl->m_contentProvider);
     impl->m_preparedRom = Impl::PreparedRom{fileName, std::move(title), std::move(nacp_data), pm.GetGameVersion().value_or(0), *load_parameters};
     return true;
+}
+
+void Systemloader::CancelPrepareRom()
+{
+    impl->m_prepareCancelled.store(true, std::memory_order_relaxed);
+}
+
+bool Systemloader::PrepareRomCancelled() const
+{
+    return impl->m_prepareCancelled.load(std::memory_order_relaxed);
 }
 
 bool Systemloader::StartPreparedRom()

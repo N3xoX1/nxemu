@@ -28,6 +28,7 @@ EmulatorSession::~EmulatorSession()
     if (m_loading)
     {
         // Services started by the load are only torn down safely by the regular emulation stop.
+        Loader().CancelPrepareRom();
         m_loadThread.join();
         m_loading = false;
         if (m_loadResult)
@@ -89,8 +90,9 @@ void EmulatorSession::Stop()
 {
     if (m_loading)
     {
-        // The load thread cannot be interrupted; FinishLoad releases the session instead of starting it.
+        // The load stops at its next safe point; FinishLoad then releases the session instead of starting it.
         m_pendingLaunch.cancelled = true;
+        Loader().CancelPrepareRom();
         return;
     }
     if (!IsRunning())
@@ -250,8 +252,8 @@ void EmulatorSession::FinishLoad()
     if (launch.cancelled)
     {
         LOG_INFO(Frontend, "Game launch cancelled while loading");
-        // The load already started guest services, which only the regular emulation stop
-        // tears down safely: start the game, then stop it like a user stop.
+        // A load that got past its last cancel point already started guest services, which only
+        // the regular emulation stop tears down safely: start the game, then stop it like a user stop.
         if (m_loadResult && Loader().StartPreparedRom())
         {
             SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
