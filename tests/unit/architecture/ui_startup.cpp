@@ -22,7 +22,7 @@ public:
 
 int main(int argc, char ** argv)
 {
-    assert(argc == 6);
+    assert(argc == 6 || (argc == 7 && std::string(argv[6]) == "--preview"));
     const std::filesystem::path source(argv[1]);
     const auto data = std::filesystem::temp_directory_path() /
         ("nxemu-ui-startup-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -46,8 +46,20 @@ int main(int argc, char ** argv)
         assert(window.AttachVideo(modules.DisplayVideo()));
         {
             StartupView startup(window);
-            assert(startup.Create());
+            assert(startup.Create(source / "src/nxemu/ui/assets"));
             assert(startup.Pump()); // Real RmlUI render before any other module can load.
+            auto * logo = window.Context()->GetDocument(window.Context()->GetNumDocuments() - 1)->GetElementById("logo");
+            Rml::Vector2f logoSize;
+            float logoRatio = 0;
+            assert(logo && logo->GetIntrinsicDimensions(logoSize, logoRatio));
+            assert(logoSize.x > 0 && logoSize.y > 0 && logoRatio == 1.0f);
+            // Optional visual inspection, without delaying the product or CTest.
+            if (argc == 7)
+                for (unsigned frame = 0; frame < 480 && !startup.Cancelled(); ++frame)
+                {
+                    window.PaceFrame();
+                    startup.Pump();
+                }
             assert(!(SDL_GetWindowFlags(window.Handle()) & SDL_WINDOW_HIDDEN));
             auto * splash = window.Context()->GetDocument(window.Context()->GetNumDocuments() - 1);
             // A newly shown document must not expose partially constructed UI.
@@ -74,7 +86,7 @@ int main(int argc, char ** argv)
         }
         {
             StartupView startup(window);
-            assert(startup.Create());
+            assert(startup.Create(source / "src/nxemu/ui/assets"));
             assert(startup.Pump());
             auto * document = window.Context()->GetDocument(window.Context()->GetNumDocuments() - 1);
             document->GetElementById("close")->DispatchEvent("click", {});
@@ -94,7 +106,7 @@ int main(int argc, char ** argv)
             assert(window.AttachVideo(session.DisplayVideo()));
             {
                 StartupView startup(window);
-                assert(startup.Create() && startup.Pump());
+                assert(startup.Create(source / "src/nxemu/ui/assets") && startup.Pump());
                 assert(session.Initialise());
                 GameLibrary library;
                 MainWindow mainWindow(window, session, library, source / "src/nxemu/ui/assets");

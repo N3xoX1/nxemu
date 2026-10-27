@@ -67,6 +67,16 @@ de la fenêtre et la transition vers le vrai MainWindow avec catalogue vide, en
 complément des chemins d'erreur et d'annulation. Les thèmes clair et sombre sont
 exercés. Vérification graphique de la bibliothèque réelle avec jaquettes chargées.
 
+Le splash utilise désormais le PNG existant `images/nxemu-logo.png`, centré sur un
+fond bleu nuit fixe pour conserver le contraste du mot-symbole blanc, avec statut
+discret et barre cyan animée. Aucun nouvel asset ni délai produit n'est ajouté.
+Son URL de base suit l'échappement des chemins RmlUi, y compris les lecteurs
+Windows, et fonctionne avec les ressources empaquetées. Le test vérifie les
+dimensions intrinsèques positives du logo pour détecter une image manquante.
+Test d'intégration UI réussi après recompilation et aperçu graphique vérifié.
+L'option `--preview` du programme de test garde temporairement ce splash visible
+pour inspection ; elle n'est utilisée ni par CTest ni par le produit.
+
 ## Tests
 
 Compilation Release et **11/11 tests CTest réussis**. Assertions actives en Release.

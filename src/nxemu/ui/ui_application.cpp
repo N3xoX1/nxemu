@@ -140,7 +140,7 @@ int Run(UiNotification & notification, const std::string & gamePath, std::chrono
     // destroys the host video module, including on early returns.
     SCOPE_EXIT { window.DetachVideo(); };
     StartupView startup(window);
-    if (!startup.Create() || !startup.Pump())
+    if (!startup.Create(assetDir) || !startup.Pump())
         return startup.Cancelled() ? 0 : 1;
     LOG_INFO(Frontend, "Frontend startup: first frame submitted in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started).count());
