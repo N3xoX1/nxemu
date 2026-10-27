@@ -1312,7 +1312,7 @@ bool TextureCache<P>::TryDownloadObservedImage(Image& image, AsyncBuffer& map,
             std::fprintf(stderr, "[NCE-GPU-COPY-PLAN] interval=%.6f images=%llu rectangles=%llu full_MiB=%.3f copied_MiB=%.3f end_s=%.6f\n",
                 std::chrono::duration<double>(now - reported).count(),
                 (unsigned long long)images, (unsigned long long)rectangles,
-                full / 1048576.0, partial / 1048576.0,
+                static_cast<double>(full) / 1048576.0, static_cast<double>(partial) / 1048576.0,
                 std::chrono::duration<double>(now.time_since_epoch()).count());
             images = full = partial = rectangles = 0;reported = now;
         }
@@ -1430,7 +1430,8 @@ bool TextureCache<P>::PublishObservedReadback(const ImageBase& image,
         if (now - reported >= std::chrono::seconds(5)) {
             std::fprintf(stderr, "[NCE-OBSERVED] interval=%.3f images=%llu published_KiB=%.3f full_MiB=%.3f conversion_ms=%.3f\n",
                 std::chrono::duration<double>(now - reported).count(),
-                (unsigned long long)images, bytes / 1024.0, full_bytes / 1048576.0, conversion_ms);
+                (unsigned long long)images, static_cast<double>(bytes) / 1024.0,
+                static_cast<double>(full_bytes) / 1048576.0, conversion_ms);
             images = bytes = full_bytes = 0;
             conversion_ms = 0;
             reported = now;

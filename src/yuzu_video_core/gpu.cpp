@@ -475,7 +475,7 @@ struct GPU::Impl :
             if (now - reported >= std::chrono::seconds(5)) {
                 std::fprintf(stderr, "[NCE-DEMAND] interval=%.3f calls=%llu requested_KiB=%.3f wait_ms=%.3f\n",
                     std::chrono::duration<double>(now - reported).count(),
-                    (unsigned long long)calls, bytes / 1024.0, wait_ms);
+                    (unsigned long long)calls, static_cast<double>(bytes) / 1024.0, wait_ms);
                 calls = bytes = 0;
                 wait_ms = 0;
                 reported = now;

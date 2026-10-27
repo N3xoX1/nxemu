@@ -75,7 +75,7 @@ private:
             std::fprintf(stderr,
                 "[NCE-STALL-SUMMARY] thread=%llu kind=%s interval=%.6f calls=%llu total_ms=%.3f mean_ms=%.6f p95_upper_ms=%.3f max_ms=%.3f end_s=%.6f\n",
                 (unsigned long long)summary.thread, bucket.name, interval,
-                (unsigned long long)bucket.calls, bucket.total_ms, bucket.total_ms / bucket.calls,
+                (unsigned long long)bucket.calls, bucket.total_ms, bucket.total_ms / static_cast<double>(bucket.calls),
                 double(std::uint64_t{1} << percentile) / 1000.0, bucket.max_ms,
                 std::chrono::duration<double>(end.time_since_epoch()).count());
             bucket = {};

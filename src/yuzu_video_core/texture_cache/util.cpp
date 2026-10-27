@@ -1124,7 +1124,7 @@ void SwizzleImage(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, const Ima
                     (unsigned long long)k[2], (unsigned long long)k[3],
                     (unsigned long long)k[4], (unsigned long long)k[5],
                     (unsigned long long)k[6], (unsigned long long)k[7],
-                    (unsigned long long)v.calls, v.bytes / 1048576.0, v.ms);
+                    (unsigned long long)v.calls, static_cast<double>(v.bytes) / 1048576.0, v.ms);
             }
             stats.clear();
             reported = now;
