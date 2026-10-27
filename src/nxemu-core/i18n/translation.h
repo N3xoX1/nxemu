@@ -23,7 +23,7 @@ struct LanguageInfo
 };
 inline constexpr LanguageInfo Languages[] = {
     {"de", "Deutsch"}, {"en", "English"}, {"es", "Español"}, {"fr", "Français"}, {"it", "Italiano"},
-    {"nl", "Nederlands"}, {"pt", "Português"}, {"ru", "Русский"}, {"ja", "日本語"}, {"ko", "한국어"}, {"zh", "中文"},
+    {"nl", "Nederlands"}, {"pt", "Português"}, {"ru", "Русский"}, {"sv", "Svenska"}, {"ja", "日本語"}, {"ko", "한국어"}, {"zh", "中文"},
 };
 // Indexed by Language.
 inline constexpr const char * ConsoleLanguages[] = {
