@@ -31,7 +31,6 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
-#include <exception>
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
@@ -293,20 +292,8 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     StorageId baseGameStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(impl->m_titleID, LoaderContentRecordType::Program));
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
 
-    try
+    if (!operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size()))
     {
-        operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size());
-    }
-    catch (const std::exception & error)
-    {
-        LOG_ERROR(Core, "Failed to start application process: {}", error.what());
-        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
-        g_settings->SetBool(NXCoreSetting::EmulationRunning, false);
-        return false;
-    }
-    catch (...)
-    {
-        LOG_ERROR(Core, "Failed to start application process: unknown error");
         g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
         g_settings->SetBool(NXCoreSetting::EmulationRunning, false);
         return false;

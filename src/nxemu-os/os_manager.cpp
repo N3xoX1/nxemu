@@ -12,6 +12,7 @@
 #include "os_settings_identifiers.h"
 #include "yuzu_audio_core/sink/sink_details.h"
 #include "yuzu_common/fs/path_util.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/string_util.h"
 #include "yuzu_hid_core/frontend/emulated_controller.h"
@@ -24,8 +25,8 @@
 #include <jni.h>
 #endif
 #include <nxemu-core/settings/identifiers.h>
+#include <exception>
 #include <filesystem>
-#include <stdexcept>
 
 namespace
 {
@@ -301,37 +302,44 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
     return true;
 }
 
-void OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uint32_t version, StorageId baseGameStorageId, StorageId updateStorageId, uint8_t * nacpData, uint32_t nacpDataLen)
+bool OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uint32_t version, StorageId baseGameStorageId, StorageId updateStorageId, uint8_t * nacpData, uint32_t nacpDataLen)
 {
     // EmuThread may already be waiting for a failed GPU startup. Publish
     // completion only after the process has finished its launch operations:
     // otherwise the control thread could close the process while Run() or
-    // NotifyAppletStarted() is still using it.
+    // NotifyAppletStarted() is still using it. Failures are reported through
+    // the return value: exceptions must not cross the module boundary.
     if (!m_emuThread || !m_emuThread->BeginProcessLaunch())
     {
-        throw std::runtime_error("Guest process launch was cancelled");
+        LOG_WARNING(Core, "Guest process launch was cancelled");
+        return false;
     }
+    bool started = false;
     try
     {
         m_coreSystem.AddGlueRegistrationForProcess(*m_applicationProcess, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
-        if (m_applicationProcess->Run(priority, stackSize).IsError())
+        started = m_applicationProcess->Run(priority, stackSize).IsSuccess();
+        if (started)
         {
-            throw std::runtime_error("Failed to start guest application process");
+            m_coreSystem.GetAppletManager().NotifyAppletStarted(m_applicationProcess->GetProcessId());
         }
-        m_coreSystem.GetAppletManager().NotifyAppletStarted(m_applicationProcess->GetProcessId());
+        else
+        {
+            LOG_ERROR(Core, "Failed to start guest application process");
+        }
+    }
+    catch (const std::exception & error)
+    {
+        LOG_ERROR(Core, "Failed to start guest application process: {}", error.what());
+        started = false;
     }
     catch (...)
     {
-        if (m_emuThread)
-        {
-            m_emuThread->ProcessLaunchCompleted(false);
-        }
-        throw;
+        LOG_ERROR(Core, "Failed to start guest application process: unknown error");
+        started = false;
     }
-    if (m_emuThread)
-    {
-        m_emuThread->ProcessLaunchCompleted(true);
-    }
+    m_emuThread->ProcessLaunchCompleted(started);
+    return started;
 }
 
 bool OSManager::LoadModule(const IModuleInfo & module, uint64_t baseAddress)
