@@ -6,12 +6,14 @@ import android.content.Intent
 import android.net.Uri
 import androidx.annotation.Keep
 import org.json.JSONArray
+import org.json.JSONObject
 import org.nxemu.GameLibraryScanner
 import org.nxemu.ui.settings.ControllerSettings
 import org.nxemu.utils.GpuDriverFetcher
 import org.nxemu.utils.GpuDriverHelper
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.ThemeHelper
+import org.nxemu.utils.Translation.tr
 
 class UiHost(private val activity: MainActivity) {
     @Keep
@@ -41,7 +43,7 @@ class UiHost(private val activity: MainActivity) {
                 try {
                     activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(args[0])))
                 } catch (_: ActivityNotFoundException) {
-                    activity.alert("No app is available to open ${args[0]}")
+                    activity.alert(tr("No app is available to open %1", args[0]))
                 }
             }
             "isDarkTheme" -> ThemeHelper.isDark(activity).toString()
@@ -112,7 +114,7 @@ class UiHost(private val activity: MainActivity) {
                 val json = try {
                     GpuDriverFetcher.catalogJson(args[0].toBoolean())
                 } catch (_: Exception) {
-                    "{\"error\":\"Couldn't load the driver list\"}"
+                    JSONObject().put("error", tr("Couldn't load the driver list")).toString()
                 }
                 activity.dispatchUiEvent("gpuCatalog", json)
             }

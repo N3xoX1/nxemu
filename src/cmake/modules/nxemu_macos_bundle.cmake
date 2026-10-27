@@ -1,5 +1,5 @@
 # Packages the RmlUi frontend as a self-contained application bundle.
-foreach(required BUNDLE EXECUTABLE LOADER CPU VIDEO OS MOLTENVK SDL ASSETS UI_PACK CODESIGN INSTALL_NAME_TOOL OTOOL INFO_PLIST ICON SHORT_VERSION BUILD_VERSION MINIMUM_MACOS)
+foreach(required BUNDLE EXECUTABLE LOADER CPU VIDEO OS MOLTENVK SDL ASSETS LANG_DIR UI_PACK CODESIGN INSTALL_NAME_TOOL OTOOL INFO_PLIST ICON SHORT_VERSION BUILD_VERSION MINIMUM_MACOS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "Missing bundle input: ${required}")
     endif()
@@ -20,7 +20,7 @@ file(COPY_FILE "${UI_PACK}" "${resources}/nxemu.lang" ONLY_IF_DIFFERENT)
 
 file(REMOVE_RECURSE "${resources}/ui")
 file(COPY "${ASSETS}/" DESTINATION "${resources}/ui")
-file(GLOB catalogues "${ASSETS}/../lang/*.po")
+file(GLOB catalogues "${LANG_DIR}/*.po")
 file(COPY ${catalogues} DESTINATION "${resources}/ui/lang")
 
 foreach(pair "LOADER|loader" "CPU|cpu" "VIDEO|video" "OS|operating_system")

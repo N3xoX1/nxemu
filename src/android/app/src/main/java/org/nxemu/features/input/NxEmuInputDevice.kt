@@ -6,6 +6,7 @@ package org.nxemu.features.input
 import android.view.InputDevice
 import androidx.annotation.Keep
 import org.nxemu.utils.InputHandler.getGUID
+import org.nxemu.utils.Translation.tr
 
 @Keep
 interface NxEmuInputDevice {
@@ -58,7 +59,7 @@ class NxEmuInputOverlayDevice(
 ) : NxEmuInputDevice {
     private val vibrator = NxEmuVibrator.getSystemVibrator()
 
-    override fun getName(): String = "Touch controls"
+    override fun getName(): String = tr("Touch controls")
 
     override fun getGUID(): String = "00000000000000000000000000000000"
 

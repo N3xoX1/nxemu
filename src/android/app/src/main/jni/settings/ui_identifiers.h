@@ -15,5 +15,7 @@ constexpr const char * GameCardSize = "nxui:GameCardSize";
 constexpr const char * ShowCardTitle = "nxui:ShowCardTitle";
 constexpr const char * ShowCardDetails = "nxui:ShowCardDetails";
 constexpr const char * ShowCardPlayTime = "nxui:ShowCardPlayTime";
+constexpr const char * InterfaceLanguage = "nxui:InterfaceLanguage";
+constexpr const char * ConsoleLanguageSet = "nxui:ConsoleLanguageSet";
 
 } // namespace NXUISetting

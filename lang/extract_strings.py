@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Lists the texts of the interface in nxemu.pot, the template of its translations.
 
-The texts are those the sources give to Tr(), TrCount() and TrMark(), and
-those of the documents: their text, and the explanations and hints their
+The catalogues are shared by every frontend, so the texts of all of them go
+in the one template.
+
+The texts are those the sources give to Tr(), TrCount() and TrMark(), those
+Android's Kotlin gives to tr() and trCount(), and those of the documents: their text, and the explanations and hints their
 elements have as attributes. An element with translate="no" is left out,
 with what it holds.
 
@@ -18,11 +21,20 @@ import xml.parsers.expat
 from pathlib import Path
 
 LANG_DIR = Path(__file__).resolve().parent
-UI_DIR = LANG_DIR.parent
+ROOT = LANG_DIR.parent
+DOCUMENT_DIRS = [ROOT / "src" / "nxemu" / "ui" / "assets"]
+SOURCE_DIRS = [
+    ROOT / "src" / "nxemu" / "ui",
+    ROOT / "src" / "android" / "app" / "src" / "main" / "jni",
+    ROOT / "src" / "android" / "app" / "src" / "main" / "java",
+]
 TEMPLATE = LANG_DIR / "nxemu.pot"
 SHOWN_ATTRIBUTES = ("title", "placeholder")
-CALL = re.compile(r"\b(TrCount|TrMark|Tr)\s*\(")
-ESCAPES = {"n": "\n", "t": "\t", "\\": "\\", '"': '"', "'": "'", "0": "\0"}
+CALLS = {
+    ".kt": re.compile(r"\b(trCount|tr)\s*\("),
+    ".cpp": re.compile(r"\b(TrCount|TrMark|Tr)\s*\("),
+}
+ESCAPES = {"n": "\n", "t": "\t", "\\": "\\", '"': '"', "'": "'", "0": "\0", "$": "$"}
 
 
 class Catalogue:
@@ -47,7 +59,7 @@ def has_letters(text):
 
 def read_document(path, catalogue):
     """The texts of an RML document, as RmlUi gives them to be translated."""
-    name = path.relative_to(UI_DIR).as_posix()
+    name = path.relative_to(ROOT).as_posix()
     parser = xml.parsers.expat.ParserCreate()
     skipped = []  # the elements being read that are left out, the innermost last
     depth = 0
@@ -94,16 +106,23 @@ def read_literals(source, at):
         if at >= len(source) or source[at] != '"':
             return text, at
         at += 1
-        piece = []
+        piece = bytearray()  # a \x escape is a byte of the UTF-8 text, as the compiler reads it
         while source[at] != '"':
+            if source[at] == "\\" and source[at + 1] == "x":
+                digits = 0
+                while digits < 2 and source[at + 2 + digits] in "0123456789abcdefABCDEF":
+                    digits += 1
+                piece.append(int(source[at + 2:at + 2 + digits], 16))
+                at += 2 + digits
+                continue
             if source[at] == "\\":
                 at += 1
-                piece.append(ESCAPES.get(source[at], source[at]))
+                piece += ESCAPES.get(source[at], source[at]).encode("utf-8")
             else:
-                piece.append(source[at])
+                piece += source[at].encode("utf-8")
             at += 1
         at += 1
-        text = (text or "") + "".join(piece)
+        text = (text or "") + piece.decode("utf-8")
 
 
 def translator_comment(lines, line):
@@ -119,22 +138,25 @@ def translator_comment(lines, line):
 
 
 def read_source(path, catalogue):
-    """The texts a C++ source gives to the functions that translate."""
-    name = path.relative_to(UI_DIR).as_posix()
+    """The texts a source gives to the functions that translate."""
+    name = path.relative_to(ROOT).as_posix()
     source = path.read_text(encoding="utf-8")
     lines = source.split("\n")
-    for match in CALL.finditer(source):
+    kotlin = path.suffix == ".kt"
+    for match in CALLS[".kt" if kotlin else ".cpp"].finditer(source):
         line = source.count("\n", 0, match.start()) + 1
         text, at = read_literals(source, match.end())
+        if kotlin and re.search(r'(?<!\\)\$[{A-Za-z_]', source[match.end():at]):
+            sys.exit(f"{name}:{line}: a string template cannot be translated: write %1, %2 and give the values to tr()")
         if text is None:
             continue  # a text kept in a table, marked there
         plural = None
-        if match.group(1) == "TrCount":
+        if match.group(1) in ("TrCount", "trCount"):
             while at < len(source) and source[at] in " \t\r\n,":
                 at += 1
             plural, at = read_literals(source, at)
             if plural is None:
-                sys.exit(f"{name}:{line}: TrCount() needs its two texts written out")
+                sys.exit(f"{name}:{line}: {match.group(1)}() needs its two texts written out")
         catalogue.add(text, name, plural, translator_comment(lines, line))
 
 
@@ -185,18 +207,20 @@ def template(catalogue):
 
 def main():
     catalogue = Catalogue()
-    for path in sorted((UI_DIR / "assets").glob("*.rml")):
-        read_document(path, catalogue)
-    for path in sorted(UI_DIR.rglob("*")):
-        if path.suffix in (".cpp", ".h", ".mm") and "i18n" not in path.parts:
-            read_source(path, catalogue)
+    for directory in DOCUMENT_DIRS:
+        for path in sorted(directory.glob("*.rml")):
+            read_document(path, catalogue)
+    for directory in SOURCE_DIRS:
+        for path in sorted(directory.rglob("*")):
+            if path.suffix in (".cpp", ".h", ".mm", ".kt") and "i18n" not in path.parts and path.name != "Translation.kt":
+                read_source(path, catalogue)
     text = template(catalogue)
     if "--check" in sys.argv:
         if not TEMPLATE.exists() or TEMPLATE.read_text(encoding="utf-8") != text:
             sys.exit("nxemu.pot is not up to date: run extract_strings.py")
         return
     TEMPLATE.write_text(text, encoding="utf-8")
-    print(f"{len(catalogue.entries)} texts in {TEMPLATE.relative_to(UI_DIR)}")
+    print(f"{len(catalogue.entries)} texts in {TEMPLATE.relative_to(ROOT).as_posix()}")
 
 
 if __name__ == "__main__":

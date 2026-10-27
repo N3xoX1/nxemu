@@ -83,7 +83,6 @@
     <ClCompile Include="ui\views\user_profiles.cpp" />
     <ClCompile Include="ui\views\volume_control.cpp" />
     <ClCompile Include="ui\i18n\translation.cpp" />
-    <ClCompile Include="ui\i18n\plural_rule.cpp" />
     <ClCompile Include="ui\host\system_fonts.cpp" />
     <ClCompile Include="ui\host\shell.cpp" />
     <ClCompile Include="ui\library\game_library.cpp" />
@@ -144,7 +143,6 @@
     <ClInclude Include="ui\views\resolution_scales.h" />
     <ClInclude Include="ui\views\scaling_filters.h" />
     <ClInclude Include="ui\i18n\translation.h" />
-    <ClInclude Include="ui\i18n\plural_rule.h" />
     <ClInclude Include="ui\host\system_fonts.h" />
     <ClInclude Include="ui\host\shell.h" />
     <ClInclude Include="ui\platform\native_window.h" />

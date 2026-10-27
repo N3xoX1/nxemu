@@ -5,7 +5,6 @@ import android.app.AlertDialog
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import org.nxemu.R
 import org.nxemu.features.input.NativeInput
 import org.nxemu.features.input.NxEmuPhysicalDevice
 import org.nxemu.features.input.model.AnalogDirection
@@ -15,6 +14,7 @@ import org.nxemu.features.input.model.NativeButton
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.InputHandler.getGUID
 import org.nxemu.utils.ParamPackage
+import org.nxemu.utils.Translation.tr
 
 class InputMappingSession(
     private val activity: Activity,
@@ -69,14 +69,14 @@ class InputMappingSession(
             },
         )
         val message = if (kind is Kind.Analog) {
-            activity.getString(R.string.stick_map_description)
+            tr("Move a stick left and then up or press a button")
         } else {
-            activity.getString(R.string.button_map_description)
+            tr("Press a button or move a trigger/stick")
         }
         val prompt = AlertDialog.Builder(activity)
-            .setTitle(activity.getString(R.string.map_control, title))
+            .setTitle(tr("Map to %1", title))
             .setMessage(message)
-            .setNegativeButton(android.R.string.cancel) { _, _ -> NativeInput.stopMapping() }
+            .setNegativeButton(tr("Cancel")) { _, _ -> NativeInput.stopMapping() }
             .setOnDismissListener {
                 NativeInput.stopMapping()
                 if (dialog != null) {

@@ -15,6 +15,8 @@ add_library(nxemu-android SHARED
     ui/ui_host.cpp
     ui/ui_host.h
     ui/ui_jni.cpp
+    ui/ui_language.cpp
+    ui/ui_language.h
     ui/ui_library.cpp
     ui/ui_library.h
     ui/ui_renderer.cpp

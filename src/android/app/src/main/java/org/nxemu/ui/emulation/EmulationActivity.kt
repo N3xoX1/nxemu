@@ -42,6 +42,8 @@ import org.nxemu.overlay.model.OverlayLayout
 import org.nxemu.ui.main.SettingsActivity
 import org.nxemu.utils.InputHandler
 import org.nxemu.utils.NativeConfig
+import org.nxemu.utils.Translation.tr
+import org.nxemu.utils.Translation.trCount
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.util.Locale
@@ -95,7 +97,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
                     NativeLibrary.PROGRAM_EVENT_RELOADED -> runOnUiThread { showLoading() }
                     NativeLibrary.PROGRAM_EVENT_EXITED -> runOnUiThread { exitGame() }
                     NativeLibrary.PROGRAM_EVENT_FAILED -> runOnUiThread {
-                        Toast.makeText(this, "Could not start the next part of this game.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, tr("Could not start the next part of this game."), Toast.LENGTH_LONG).show()
                         exitGame()
                     }
                 }
@@ -125,6 +127,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         loadingImage = findViewById(R.id.loading_image)
         loadingTitle = findViewById(R.id.loading_title)
         loadingTitle.text = getString(R.string.app_name)
+        findViewById<TextView>(R.id.loading_text).text = tr("Loading...")
         showFpsText = findViewById(R.id.show_fps_text)
         showDeviceText = findViewById(R.id.show_device_text)
         surfaceInputOverlay = findViewById(R.id.surface_input_overlay)
@@ -276,6 +279,9 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         })
         pauseItem.setOnClickListener { togglePause() }
+        pausedIcon.contentDescription = tr("Unpause emulation")
+        findViewById<TextView>(R.id.menu_settings).text = tr("Settings")
+        findViewById<TextView>(R.id.menu_exit).text = tr("Exit emulation")
         findViewById<View>(R.id.menu_settings).setOnClickListener {
             drawerLayout.closeDrawers()
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -319,9 +325,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun updatePauseLabel() {
         val paused = NativeLibrary.isPaused()
-        pauseItem.text = getString(
-            if (paused) R.string.emulation_unpause else R.string.emulation_pause,
-        )
+        pauseItem.text = if (paused) tr("Unpause emulation") else tr("Pause emulation")
         if (::pausedIcon.isInitialized) {
             pausedIcon.visibility = if (paused) View.VISIBLE else View.GONE
         }
@@ -413,13 +417,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun updateLockDrawerLabel() {
-        lockDrawerItem.text = getString(
-            if (savedDrawerLockMode() == DrawerLayout.LOCK_MODE_LOCKED_CLOSED) {
-                R.string.unlock_drawer
-            } else {
-                R.string.lock_drawer
-            },
-        )
+        lockDrawerItem.text = if (savedDrawerLockMode() == DrawerLayout.LOCK_MODE_LOCKED_CLOSED) tr("Unlock drawer") else tr("Lock drawer")
     }
 
     private fun drawerMenuItems(): List<View> {
@@ -521,8 +519,7 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val shaders = NativeLibrary.getShadersBuilding()
                 var fpsLine = String.format(Locale.US, "FPS: %.1f", fps)
                 if (shaders > 0) {
-                    val shaderLabel = if (shaders == 1) "shader" else "shaders"
-                    fpsLine += String.format(Locale.US, " | Building: %d %s", shaders, shaderLabel)
+                    fpsLine += " | " + trCount("Building %n shader", "Building %n shaders", shaders.toLong())
                 }
                 showFpsText.text = fpsLine
                 showDeviceText.text = deviceOverlayLine()

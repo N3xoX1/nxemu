@@ -12,7 +12,7 @@ import re
 import sys
 import unicodedata
 
-from extract_strings import LANG_DIR
+from extract_strings import LANG_DIR, ROOT
 
 
 @dataclass
@@ -117,7 +117,7 @@ def check(path, template):
                 errors.append(f"invisible formatting character in form {form}: {text!r}")
             if substitutions(value) != substitutions(text):
                 errors.append(f"changed substitutions in form {form}: {text!r}")
-            if any(place.startswith("assets/") for place in source.places) and ("<" in value or "{{" in value):
+            if any(place.endswith(".rml") for place in source.places) and ("<" in value or "{{" in value):
                 errors.append(f"unsafe document text: {text!r}")
             if "&" in text and value.count("&") != text.count("&"):
                 errors.append(f"missing or extra menu mnemonic: {text!r}")
@@ -129,7 +129,7 @@ def check(path, template):
 def main():
     template = read_catalogue(LANG_DIR / "nxemu.pot")
     files = sorted(LANG_DIR.glob("*.po"))
-    registry = (LANG_DIR.parent / "i18n" / "translation.h").read_text(encoding="utf-8")
+    registry = (ROOT / "src" / "nxemu-core" / "i18n" / "translation.h").read_text(encoding="utf-8")
     registered = set(re.findall(r'\{"([a-z]{2})", "', registry)) - {"en"}
     present = {path.stem for path in files}
     failed = False

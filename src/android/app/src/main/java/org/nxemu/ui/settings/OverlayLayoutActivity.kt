@@ -18,6 +18,7 @@ import org.nxemu.R
 import org.nxemu.overlay.InputOverlay
 import org.nxemu.overlay.model.OverlayLayout
 import org.nxemu.utils.NativeConfig
+import org.nxemu.utils.Translation.tr
 
 class OverlayLayoutActivity : ComponentActivity() {
     private lateinit var surfaceInputOverlay: InputOverlay
@@ -58,10 +59,10 @@ class OverlayLayoutActivity : ComponentActivity() {
         surfaceInputOverlay.setIsInEditMode(true)
 
         findViewById<View>(R.id.overlay_edit_actions).bringToFront()
-        findViewById<Button>(R.id.reset_control_config).setOnClickListener {
+        findViewById<Button>(R.id.reset_control_config).apply { text = tr("Reset overlay") }.setOnClickListener {
             surfaceInputOverlay.resetLayoutVisibilityAndPlacement()
         }
-        findViewById<Button>(R.id.done_control_config).setOnClickListener { finishEditing() }
+        findViewById<Button>(R.id.done_control_config).apply { text = tr("Done") }.setOnClickListener { finishEditing() }
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {

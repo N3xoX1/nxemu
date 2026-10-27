@@ -2,10 +2,12 @@
 #include "settings/ui_identifiers.h"
 #include "ui_files.h"
 #include "ui_host.h"
+#include "ui_language.h"
 #include "ui_renderer.h"
 #include "ui_thread.h"
 #include "ui_util.h"
 
+#include <nxemu-core/i18n/translation.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -24,7 +26,7 @@ namespace
     constexpr float kCardGapY = 14.0f;
 
     const std::set<std::string> kSettingsPages = {
-        "hubPage", "about", "interfaceSettings", "gameListSettings", "gameProperties", "gameInfo", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
+        "hubPage", "about", "interfaceSettings", "interfaceLanguage", "gameListSettings", "gameProperties", "gameInfo", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
         "gpuDrivers", "gpuDriverAdd", "gpuDriverDownload", "gpuDriverGroup", "gpuDriverRelease", "gameFolders",
         "controllerSettings", "controllerPlayer", "controllerChoices", "settingChoices",
     };
@@ -73,6 +75,8 @@ bool UiActivity::Load()
 {
     ApplyTheme();
     m_themeGeneration = UiThread::Instance().Files().Generation();
+    UiLanguage::Apply();
+    m_languageGeneration = UiLanguage::Generation();
     m_document = m_context.LoadDocument("ui/main.rml");
     if (m_document == nullptr)
     {
@@ -85,6 +89,7 @@ bool UiActivity::Load()
     m_settingsScroll = m_document->GetElementById("settings-scroll");
     m_fab = m_document->GetElementById("settings-fab");
     m_gameList->SetClass("list", UiUtil::ReadInt(NXUISetting::GameListView) == 1);
+    ApplyDocumentTexts();
     m_document->AddEventListener(Rml::EventId::Click, new Listener([this](Rml::Event & event) { OnClick(event); }));
     m_document->AddEventListener(Rml::EventId::Change, new Listener([this](Rml::Event & event) { OnChange(event); }));
     m_document->Show();
@@ -112,6 +117,24 @@ void UiActivity::Update()
         Rml::Factory::ClearStyleSheetCache();
         m_document->ReloadStyleSheet();
         m_layoutDirty = true;
+    }
+    if (m_languageGeneration != UiLanguage::Generation())
+    {
+        m_languageGeneration = UiLanguage::Generation();
+        ApplyDocumentTexts();
+        CloseSortMenu();
+        if (m_emptyGames != nullptr)
+        {
+            RenderEmptyGames(m_emptyGames);
+        }
+        else
+        {
+            ApplyGameListOptions();
+        }
+        if (!m_navStack.empty())
+        {
+            RenderCurrentSettings();
+        }
     }
     if (m_layoutDirty)
     {
@@ -327,36 +350,37 @@ void UiActivity::ShowPage(const std::string & page)
 std::string UiActivity::SettingsTitle(const std::string & id)
 {
     if (id == "hubPage") return "NxEmu";
-    if (id == "about") return "About";
-    if (id == "settingsPage") return "Settings";
-    if (id == "overlaySettings") return "On screen controller";
-    if (id == "systemSettings") return "Console";
-    if (id == "graphicsSettings") return "Graphics";
-    if (id == "interfaceSettings") return "Interface";
-    if (id == "gameListSettings") return "Game list";
+    if (id == "about") return Tr("About");
+    if (id == "settingsPage") return Tr("Settings");
+    if (id == "overlaySettings") return Tr("On screen controller");
+    if (id == "systemSettings") return Tr("Console");
+    if (id == "graphicsSettings") return Tr("Graphics");
+    if (id == "interfaceSettings") return Tr("Interface");
+    if (id == "interfaceLanguage") return Tr("Interface language");
+    if (id == "gameListSettings") return Tr("Game list");
     if (id == "gameProperties") return m_propertiesGame.title;
-    if (id == "gameInfo") return "Info";
-    if (id == "gameAddOns") return "Add-ons";
-    if (id == "gameSaveData") return "Save data";
-    if (id == "themeSettings") return "Theme";
+    if (id == "gameInfo") return Tr("Info");
+    if (id == "gameAddOns") return Tr("Add-ons");
+    if (id == "gameSaveData") return Tr("Save data");
+    if (id == "themeSettings") return Tr("Theme");
     if (id == "setup") return SetupTitle();
-    if (id == "gpuDrivers") return "GPU driver";
-    if (id == "gpuDriverAdd") return "Add a driver";
-    if (id == "gpuDriverDownload") return "Download drivers";
+    if (id == "gpuDrivers") return Tr("GPU driver");
+    if (id == "gpuDriverAdd") return Tr("Add a driver");
+    if (id == "gpuDriverDownload") return Tr("Download drivers");
     if (id == "gpuDriverGroup")
     {
-        return m_gpuCatalogReady ? m_gpuCatalog["groups"][m_gpuGroup]["name"].asString() : "Drivers";
+        return m_gpuCatalogReady ? m_gpuCatalog["groups"][m_gpuGroup]["name"].asString() : Tr("Drivers");
     }
     if (id == "gpuDriverRelease")
     {
-        return m_gpuCatalogReady ? m_gpuCatalog["groups"][m_gpuGroup]["releases"][m_gpuRelease]["title"].asString() : "Driver";
+        return m_gpuCatalogReady ? m_gpuCatalog["groups"][m_gpuGroup]["releases"][m_gpuRelease]["title"].asString() : Tr("Driver");
     }
-    if (id == "gameFolders") return "Game folders";
-    if (id == "controllerSettings") return "Controllers";
-    if (id == "controllerPlayer") return "Controller " + std::to_string(m_controllerPlayer + 1);
+    if (id == "gameFolders") return Tr("Game folders");
+    if (id == "controllerSettings") return Tr("Controllers");
+    if (id == "controllerPlayer") return Tr("Controller %1", {std::to_string(m_controllerPlayer + 1)});
     if (id == "controllerChoices") return m_choices.title;
-    if (id == "settingChoices") return m_settingChoice != nullptr ? m_settingChoice->label : "Settings";
-    return "Settings";
+    if (id == "settingChoices") return m_settingChoice != nullptr ? Tr(m_settingChoice->label) : Tr("Settings");
+    return Tr("Settings");
 }
 
 void UiActivity::RenderCurrentSettings()
@@ -402,6 +426,10 @@ void UiActivity::RenderCurrentSettings()
     else if (id == "interfaceSettings")
     {
         RenderInterfaceSettings();
+    }
+    else if (id == "interfaceLanguage")
+    {
+        RenderInterfaceLanguage();
     }
     else if (id == "gameListSettings")
     {
@@ -477,6 +505,27 @@ void UiActivity::RenderCurrentSettings()
 void UiActivity::ApplyTheme()
 {
     UiThread::Instance().Files().SetDark(m_host.RequestBool("isDarkTheme"));
+}
+
+void UiActivity::ApplyDocumentTexts()
+{
+    const std::pair<const char *, std::string> texts[] = {
+        {"search-placeholder", Tr("Search games")},
+        // Translators: shown beside the controller's buttons, as in "(A) Play (X) Options".
+        {"hint-play", Tr("Play")},
+        {"hint-options", Tr("Options")},
+        {"hint-settings", Tr("Settings")},
+        {"hint-select", Tr("Select")},
+        {"hint-back", Tr("Back")},
+        {"touch-hint", Tr("Tap a game to play it, hold it for its options")},
+    };
+    for (const auto & [id, text] : texts)
+    {
+        if (Rml::Element * element = m_document->GetElementById(id))
+        {
+            element->SetInnerRML(UiUtil::Escape(text));
+        }
+    }
 }
 
 void UiActivity::OnClick(Rml::Event & event)
@@ -693,7 +742,7 @@ void UiActivity::StartApp()
     }
     m_setupSteps = {"folders", "controls"};
     const std::string recommendation = m_host.Request("gpuDriverRecommendation");
-    if (GpuDriverSupported() && GpuDriverLabel() == "System" && !recommendation.empty())
+    if (GpuDriverSupported() && SystemGpuDriver() && !recommendation.empty())
     {
         m_setupSteps.push_back("driver");
     }
@@ -729,8 +778,8 @@ void UiActivity::RefreshGameList()
         RenderEmptyGames("no-folders");
         return;
     }
-    m_gameList->SetInnerRML("<div class=\"empty-hint\">Scanning folders...</div>");
-    SetLibraryStatus("Scanning...");
+    m_gameList->SetInnerRML("<div class=\"empty-hint\">" + UiUtil::Escape(Tr("Scanning folders...")) + "</div>");
+    SetLibraryStatus(Tr("Scanning..."));
     m_scanning = true;
     m_quietScan = false;
     m_host.Request("requestGameLibraryScan", {std::to_string(gen)});
@@ -792,7 +841,7 @@ void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
     m_loaded = 0;
     m_libraryLoading = true;
     RenderGameList();
-    SetLibraryStatus("Reading games...");
+    SetLibraryStatus(Tr("Reading games..."));
 
     // Cards appear as the loader's game list cache reports games; update and DLC files never become cards.
     const int gen = m_gameListGen;
@@ -808,7 +857,7 @@ void UiActivity::OnGameLibraryPaths(const JsonValue & paths)
     listener.found = [this, post](UiLibrary::Game game) { post([this, game = std::move(game)] { OnGameFound(game); }); };
     listener.progress = [this, post](uint32_t started, uint32_t total) {
         post([this, started, total] {
-            SetLibraryStatus(total != 0 ? "Reading games " + std::to_string(started) + " of " + std::to_string(total) : std::string("Reading games..."));
+            SetLibraryStatus(total != 0 ? Tr("Reading games %1 of %2", {std::to_string(started), std::to_string(total)}) : Tr("Reading games..."));
         });
     };
     listener.done = [this, post, scan = std::move(scan)](bool complete) {
@@ -933,7 +982,7 @@ void UiActivity::ApplySearch()
     {
         const bool none = !m_search.empty() && shown == 0 && !m_cards.empty();
         empty->SetClass("hidden", !none);
-        empty->SetInnerRML(none ? "No game matches \"" + UiUtil::Escape(m_search) + "\"" : std::string());
+        empty->SetInnerRML(none ? UiUtil::Escape(Tr("No game matches \"%1\"", {m_search})) : std::string());
     }
     m_layoutDirty = true;
     SyncGameSelection(shown != 0 ? 0 : -1);
@@ -981,19 +1030,20 @@ void UiActivity::ToggleSortMenu()
         return;
     }
     const int sort = UiUtil::ReadInt(NXUISetting::GameListSort);
-    std::string rml = "<div class=\"menu-title\">Sort by</div>";
-    const std::pair<int, const char *> choices[] = {{0, "Name"}, {1, "Publisher"}, {2, "Recently played"}, {4, "Play time"}, {3, "Size"}};
+    std::string rml = "<div class=\"menu-title\">" + UiUtil::Escape(Tr("Sort by")) + "</div>";
+    const std::pair<int, const char *> choices[] = {
+        {0, TrMark("Name")}, {1, TrMark("Publisher")}, {2, TrMark("Recently played")}, {4, TrMark("Play time")}, {3, TrMark("Size")}};
     for (const auto & [value, label] : choices)
     {
-        rml += std::string("<div class=\"menu-item\" data-command=\"sort-") + std::to_string(value) + "\"><div class=\"menu-label\">" + label +
+        rml += std::string("<div class=\"menu-item\" data-command=\"sort-") + std::to_string(value) + "\"><div class=\"menu-label\">" + UiUtil::Escape(Tr(label)) +
                "</div><img class=\"setting-check" + (value == sort ? " on" : "") + "\" src=\"images/check.png\"/></div>";
     }
     const int view = UiUtil::ReadInt(NXUISetting::GameListView);
-    rml += "<div class=\"menu-rule\"/><div class=\"menu-title\">View</div>";
-    const char * views[] = {"Grid", "List"};
+    rml += "<div class=\"menu-rule\"/><div class=\"menu-title\">" + UiUtil::Escape(Tr("View")) + "</div>";
+    const char * views[] = {TrMark("Grid"), TrMark("List")};
     for (int i = 0; i < 2; i++)
     {
-        rml += std::string("<div class=\"menu-item\" data-command=\"view-") + std::to_string(i) + "\"><div class=\"menu-label\">" + views[i] +
+        rml += std::string("<div class=\"menu-item\" data-command=\"view-") + std::to_string(i) + "\"><div class=\"menu-label\">" + UiUtil::Escape(Tr(views[i])) +
                "</div><img class=\"setting-check" + (i == view ? " on" : "") + "\" src=\"images/check.png\"/></div>";
     }
     m_document->GetElementById("sort-menu")->SetInnerRML(rml);
@@ -1044,13 +1094,14 @@ std::string UiActivity::CardInner(const Card & card) const
     if (played.seconds >= 60)
     {
         const uint64_t minutes = played.seconds / 60;
-        playTime = minutes < 60 ? std::to_string(minutes) + "m" : std::to_string(minutes / 60) + "h " + std::to_string(minutes % 60) + "m";
+        // Translators: a short play time, on a game's cover.
+        playTime = minutes < 60 ? Tr("%1m", {std::to_string(minutes)}) : Tr("%1h %2m", {std::to_string(minutes / 60), std::to_string(minutes % 60)});
     }
     if (!list && !playTime.empty() && UiUtil::ReadBool(NXUISetting::ShowCardPlayTime))
     {
         art += "<div class=\"game-played\"><img src=\"images/clock.png\"/><div>" + playTime + "</div></div>";
     }
-    std::string details = card.version.empty() ? std::string() : "v" + card.version;
+    std::string details = card.version.empty() ? std::string() : Tr("v%1", {card.version});
     if (!card.publisher.empty())
     {
         details += (details.empty() ? "" : " \xC2\xB7 ") + card.publisher;
@@ -1065,7 +1116,7 @@ std::string UiActivity::CardInner(const Card & card) const
         std::string line = details;
         if (!playTime.empty() && UiUtil::ReadBool(NXUISetting::ShowCardPlayTime))
         {
-            line += (line.empty() ? "" : " \xC2\xB7 ") + playTime + " played";
+            line += (line.empty() ? "" : " \xC2\xB7 ") + Tr("%1 played", {playTime});
         }
         if (!line.empty())
         {
@@ -1091,6 +1142,7 @@ void UiActivity::ApplyGameListOptions()
 
 void UiActivity::RenderGameList()
 {
+    m_emptyGames = nullptr;
     std::string rml;
     for (size_t i = 0; i < m_cards.size(); i++)
     {
@@ -1109,27 +1161,28 @@ void UiActivity::RenderGameList()
 void UiActivity::RenderEmptyGames(const char * kind)
 {
     SyncGameSelection(-1);
+    m_emptyGames = kind;
     const std::string_view which = kind;
-    std::string rml;
+    const auto state = [](const std::string & title, const std::string & copy, const char * button, const std::string & label, const char * command) {
+        return "<div class=\"empty-state\"><p class=\"empty-title\">" + UiUtil::Escape(title) + "</p><p class=\"empty-copy\">" + UiUtil::Escape(copy) +
+               "</p><div class=\"" + button + "\" data-command=\"" + command + "\">" + UiUtil::Escape(label) + "</div></div>";
+    };
     if (which == "no-folders")
     {
-        rml = "<div class=\"empty-state\"><p class=\"empty-title\">Add a game folder</p>"
-              "<p class=\"empty-copy\">NxEmu lists games from folders you choose. Your files stay where they are.</p>"
-              "<div class=\"primary-btn\" data-command=\"addFolder\">Add game folder</div></div>";
+        m_gameList->SetInnerRML(state(Tr("Add a game folder"), Tr("NxEmu lists games from folders you choose. Your files stay where they are."), "primary-btn",
+                                      Tr("Add game folder"), "addFolder"));
     }
     else if (which == "no-roms")
     {
-        rml = "<div class=\"empty-state\"><p class=\"empty-title\">No games found</p>"
-              "<p class=\"empty-copy\">No .nro, .dxci, or .dnsp files were found in your folders.</p>"
-              "<div class=\"primary-btn\" data-command=\"manageFolders\">Manage folders</div></div>";
+        m_gameList->SetInnerRML(state(Tr("No games found"), Tr("No .nro, .dxci, or .dnsp files were found in your folders."), "primary-btn",
+                                      Tr("Manage folders"), "manageFolders"));
     }
     else
     {
-        rml = "<div class=\"empty-state\"><p class=\"empty-title\">Couldn't read these files</p>"
-              "<p class=\"empty-copy\">Files were found, but none could be opened as games. Check that they are valid dumps.</p>"
-              "<div class=\"link-btn\" data-command=\"refresh\">Try again</div></div>";
+        m_gameList->SetInnerRML(state(Tr("Couldn't read these files"),
+                                      Tr("Files were found, but none could be opened as games. Check that they are valid dumps."), "link-btn",
+                                      Tr("Try again"), "refresh"));
     }
-    m_gameList->SetInnerRML(rml);
 }
 
 void UiActivity::SetLibraryStatus(const std::string & text)

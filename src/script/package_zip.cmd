@@ -45,7 +45,7 @@ copy "%base_dir%\modules\%VSPlatform%\operating_system\nxemu-os.dll" "%base_dir%
 copy "%base_dir%\modules\%VSPlatform%\video\nxemu-video.dll" "%base_dir%\bin\package\modules\video"
 
 echo packaging interface
-"%base_dir%\bin\%VSPlatform%\Release\ui_packer.exe" "%base_dir%\src\nxemu\ui\assets" "%base_dir%\src\nxemu\ui\lang" "%base_dir%\bin\package\nxemu.lang"
+"%base_dir%\bin\%VSPlatform%\Release\ui_packer.exe" "%base_dir%\src\nxemu\ui\assets" "%base_dir%\lang" "%base_dir%\bin\package\nxemu.lang"
 IF %ERRORLEVEL% NEQ 0 GOTO EndErr
 
 cd %base_dir%\bin\package

@@ -10,6 +10,26 @@ if (nxemuBuildDirectory != null) {
     layout.buildDirectory.set(nxemuBuildDirectory.resolve("app"))
 }
 
+abstract class CopyCatalogues : DefaultTask() {
+    @get:InputFiles
+    abstract val catalogues: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val target = outputDir.get().dir("ui/lang").asFile
+        target.deleteRecursively()
+        target.mkdirs()
+        catalogues.forEach { it.copyTo(target.resolve(it.name)) }
+    }
+}
+
+val copyCatalogues = tasks.register<CopyCatalogues>("copyCatalogues") {
+    catalogues.from(fileTree(file("../../../lang")) { include("*.po") })
+}
+
 android {
     namespace = "org.nxemu"
     compileSdk = 36
@@ -79,6 +99,12 @@ android {
                 buildStagingDirectory = nxemuBuildDirectory.resolve("native")
             }
         }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyCatalogues, CopyCatalogues::outputDir)
     }
 }
 
