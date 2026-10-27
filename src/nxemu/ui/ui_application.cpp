@@ -163,6 +163,20 @@ int Run(UiNotification & notification, const std::string & gamePath, std::chrono
         std::cerr << "NXEmu: unable to load the main window document\n";
         return 1;
     }
+    // Keep presenting the opaque loading document while the catalogue, layout
+    // and first viewport's icons are prepared underneath it. Two ready passes
+    // allow layout changes from Context::Update to feed back into virtualization.
+    unsigned readyFrames = 0;
+    while (readyFrames < 2)
+    {
+        window.PaceFrame();
+        // Sample before Update drains the worker queue, including scan failure.
+        const bool scanFinished = !library.Scanning();
+        mainWindow.Update();
+        if (mainWindow.QuitRequested()) return 1;
+        if (!startup.Pump("Preparing your library...")) return startup.Cancelled() ? 0 : 1;
+        readyFrames = scanFinished && mainWindow.StartupReady() ? readyFrames + 1 : 0;
+    }
     startup.Close();
     window.Context()->Update();
     if (!window.Render(mainWindow.GameArea())) return 1;

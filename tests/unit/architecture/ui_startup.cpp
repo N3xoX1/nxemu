@@ -5,6 +5,8 @@
 #include <nxemu-core/notification.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/views/startup_view.h>
+#include <nxemu/ui/views/main_window.h>
+#include <nxemu/ui/host/ui_notification.h>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -20,7 +22,7 @@ public:
 
 int main(int argc, char ** argv)
 {
-    assert(argc == 3);
+    assert(argc == 6);
     const std::filesystem::path source(argv[1]);
     const auto data = std::filesystem::temp_directory_path() /
         ("nxemu-ui-startup-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -47,6 +49,19 @@ int main(int argc, char ** argv)
             assert(startup.Create());
             assert(startup.Pump()); // Real RmlUI render before any other module can load.
             assert(!(SDL_GetWindowFlags(window.Handle()) & SDL_WINDOW_HIDDEN));
+            auto * splash = window.Context()->GetDocument(window.Context()->GetNumDocuments() - 1);
+            // A newly shown document must not expose partially constructed UI.
+            auto * building = window.Context()->LoadDocumentFromMemory(
+                "<rml><head><style>body { width:100%; height:100%; background-color:#ff00ff; }</style></head><body>Building</body></rml>");
+            assert(building);
+            building->Show();
+            assert(startup.Pump());
+            for (Rml::Vector2f point : {Rml::Vector2f{10, 100}, Rml::Vector2f{320, 240}, Rml::Vector2f{630, 470}})
+            {
+                auto * hit = window.Context()->GetElementAtPoint(point);
+                assert(hit && hit->GetOwnerDocument() == splash);
+            }
+            building->Close();
             assert(!modules.CompleteFrontendSetup());
             assert(modules.DisplayReady());
             assert(startup.Pump("Services unavailable")); // Failure does not invalidate the binding.
@@ -67,9 +82,42 @@ int main(int argc, char ** argv)
         }
         window.DetachVideo();
         modules.ShutDown();
+        // Also exercise the actual main document and empty-catalogue handover.
+        coreSettings.moduleLoader = std::filesystem::relative(argv[3], source).string();
+        coreSettings.moduleCpu = std::filesystem::relative(argv[4], source).string();
+        coreSettings.moduleOs = std::filesystem::relative(argv[5], source).string();
+        window.SetTheme("dark");
+        UiNotification uiNotification;
+        {
+            EmulatorSession session(window, uiNotification, window.Handle());
+            assert(session.InitialiseDisplay());
+            assert(window.AttachVideo(session.DisplayVideo()));
+            {
+                StartupView startup(window);
+                assert(startup.Create() && startup.Pump());
+                assert(session.Initialise());
+                GameLibrary library;
+                MainWindow mainWindow(window, session, library, source / "src/nxemu/ui/assets");
+                assert(mainWindow.Create([&] { return startup.Pump(); }));
+                unsigned ready = 0;
+                for (unsigned frame = 0; frame < 240 && ready < 2; ++frame)
+                {
+                    window.PaceFrame();
+                    const bool scanFinished = !library.Scanning();
+                    mainWindow.Update();
+                    assert(!mainWindow.QuitRequested() && startup.Pump());
+                    ready = scanFinished && mainWindow.StartupReady() ? ready + 1 : 0;
+                }
+                assert(ready == 2);
+                startup.Close();
+                window.Context()->Update();
+                assert(window.Render(mainWindow.GameArea()));
+            }
+            window.DetachVideo();
+        }
     }
     AppCleanup();
     SetNotification(nullptr);
     std::filesystem::remove_all(data);
-    std::puts("PASS early UI: render before services, setup failure, deferred font cancellation, close button");
+    std::puts("PASS early UI: first frame, opaque overlay, failure, cancellation, close, empty library handover");
 }

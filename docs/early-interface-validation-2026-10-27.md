@@ -41,6 +41,32 @@ La première mesure précède l'extraction de la vue dans son en-tête ; les deu
 suivantes utilisent l'implémentation finale. Sources et données dans
 `build/early-interface-20261027/` (journaux locaux ignorés par Git).
 
+## Raffinement : transition sans bibliothèque en construction
+
+La vue provisoire de bibliothèque a été remplacée par un écran dédié : nom NXEmu,
+état et barre animée, sans fausses cartes. Son fond opaque et son ordre au premier
+plan couvrent les documents créés pendant la préparation. La première image est
+soumise avant de révéler la fenêtre native.
+
+La transition attend maintenant la fin du scan initial (réussi ou échoué), la
+consommation de ses résultats et le chargement des icônes de la zone virtualisée.
+Deux mises à jour prêtes consécutives laissent le layout se stabiliser, puis
+l'écran est retiré et la bibliothèque présentée dans la même frame. Aucun délai
+minimum n'est ajouté. Un scan lent reste derrière l'écran de chargement, avec
+traitement des événements et fermeture possibles entre mises à jour.
+
+Avec les 81 jeux de la bibliothèque réelle : première soumission **356 ms**,
+bibliothèque prête **885 ms**. La seconde mesure inclut désormais la préparation
+du catalogue et des premières jaquettes ; les mesures précédentes correspondaient
+à un document initialisé avant cette préparation. Journal local :
+`build/early-interface-20261027/startup-splash-real.log`.
+
+Nouvelle compilation Release et **11/11 tests réussis** (21,52 s). Le test UI
+vérifie aussi l'occlusion d'un document montré après le splash à plusieurs points
+de la fenêtre et la transition vers le vrai MainWindow avec catalogue vide, en
+complément des chemins d'erreur et d'annulation. Les thèmes clair et sombre sont
+exercés. Vérification graphique de la bibliothèque réelle avec jaquettes chargées.
+
 ## Tests
 
 Compilation Release et **11/11 tests CTest réussis**. Assertions actives en Release.

@@ -273,9 +273,10 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     RmlSDL::InputEventHandler(m_context, m_window, translated);
 }
 
-bool UiWindow::Render(const PixelRect * gameArea)
+bool UiWindow::Render(const PixelRect * gameArea, bool reveal)
 {
-    const bool hidden = (SDL_GetWindowFlags(m_window) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) != 0;
+    const bool hidden = (SDL_GetWindowFlags(m_window) &
+        (SDL_WINDOW_MINIMIZED | (reveal ? 0 : SDL_WINDOW_HIDDEN))) != 0;
     VideoInterfaceFrame frame{};
     if (m_video == nullptr || hidden || m_drawableWidth <= 0 || m_drawableHeight <= 0 ||
         !m_video->BeginInterfaceFrame(static_cast<uint32_t>(m_drawableWidth), static_cast<uint32_t>(m_drawableHeight), &frame))
@@ -295,6 +296,8 @@ bool UiWindow::Render(const PixelRect * gameArea)
     {
         m_video->EndInterfaceFrame(nullptr);
     }
+    // Submit a complete image before exposing the initially hidden native window.
+    if (reveal) Show();
     return true;
 }
 

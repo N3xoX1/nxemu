@@ -44,7 +44,7 @@ public:
 
     void HandleEvent(const SDL_Event & event);
     // Returns false when nothing could be drawn.
-    bool Render(const PixelRect * gameArea);
+    bool Render(const PixelRect * gameArea, bool reveal = false);
     void PaceFrame();
     void SyncNativeState();
 

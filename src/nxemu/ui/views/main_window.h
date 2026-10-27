@@ -50,6 +50,7 @@ public:
 
     void HandleEvent(const SDL_Event & event);
     void Update();
+    bool StartupReady() const { return !m_gamesDirty && (m_shownGames.empty() || !m_shownDirty) && !m_iconsPending; }
     bool Still() const;
     const PixelRect * GameArea() const;
 
