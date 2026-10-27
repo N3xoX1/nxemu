@@ -268,9 +268,10 @@ void GeneralDialog::ShowDevice()
         {
             note = Tr("This is the graphics built into the processor. Games run better on %1.", {Rml::StringUtilities::EncodeRml(faster->name)});
         }
-        else if (!m_devices[chosen].inUse)
+        if (!m_devices[chosen].inUse)
         {
-            note = Tr("Used from the next game on.");
+            if (!note.empty()) note += " ";
+            note += Tr("Restart NXEmu to use this graphics device.");
         }
     }
     SetText("device-text", m_devices.size() > 1 ? Tr("What draws the games: this computer has %1.", {std::to_string(m_devices.size())}) : Tr("What draws the games."));

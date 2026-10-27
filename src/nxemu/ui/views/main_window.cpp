@@ -396,7 +396,7 @@ void MainWindow::Update()
     m_advancedDialog->Update();
     m_directoriesDialog->Update();
     m_profilesDialog->Update();
-    if (m_utilityGuest && !m_profilesDialog->IsVisible() && !m_advancedDialog->IsVisible())
+    if (m_utilityGuest && !m_profilesDialog->IsVisible() && !m_advancedDialog->IsVisible() && !m_controllerDialog->IsVisible())
     {
         m_utilityGuest = false;
         m_session.ReleaseIdleGuest();
@@ -826,7 +826,12 @@ void MainWindow::Run(Action action)
     case Action::OpenProfiles: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Profiles); break;
     case Action::OpenGameDirectories: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Directories); break;
     case Action::ConfigureControllers:
-        m_controllerDialog->Show();
+        // Physical mappings need the HID backend. Construct it only for this
+        // explicit action, before OnOpen chooses the dialog's input backend.
+        if (EnsureUtilityGuest())
+            m_controllerDialog->Show();
+        else
+            g_notify->DisplayError(Tr("Required modules failed to load.").c_str(), "NXEmu");
         break;
     case Action::CopyVersion:
         SDL_SetClipboardText(VER_FILE_VERSION_STR);

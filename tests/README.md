@@ -37,7 +37,9 @@ checks device reuse. It requires a working Vulkan driver and does not measure ga
 The same option enables `test_ui_startup`: a real RmlUI/Vulkan startup frame before
 loader/CPU/OS services, recovery with unavailable services, deferred-font cancellation,
 the startup close button, opaque overlay ordering and empty-library handover to
-the real MainWindow. See [startup validation](../docs/early-interface-validation-2026-10-27.md).
+the real MainWindow. It also exercises controller utility-session retention,
+release on close, save/cancel persistence across sessions and cancellation while
+mapping input. See [startup validation](../docs/early-interface-validation-2026-10-27.md).
 
 The SettingsStore A/B benchmark and the review results are documented in
 [the architecture review](../docs/architecture-review-2026-10-27.md).

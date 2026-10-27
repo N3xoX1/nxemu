@@ -124,6 +124,63 @@ int main(int argc, char ** argv)
                 startup.Close();
                 window.Context()->Update();
                 assert(window.Render(mainWindow.GameArea()));
+                // Open Controllers through the real MainWindow action: its
+                // utility guest must survive updates and be released on close.
+                const auto documentWith = [&](const char * id) -> Rml::ElementDocument * {
+                    for (int i = 0; i < window.Context()->GetNumDocuments(); ++i)
+                        if (auto * doc = window.Context()->GetDocument(i); doc->GetElementById(id)) return doc;
+                    return nullptr;
+                };
+                const auto click = [](Rml::Element * element) {
+                    assert(element);
+                    element->DispatchEvent("click", {});
+                };
+                const auto openControllers = [&] {
+                    assert(!session.HasGuest() && !session.Inputs().Available());
+                    auto * main = documentWith("title-controllers");
+                    assert(main);
+                    click(main->GetElementById("title-controllers"));
+                    mainWindow.Update();
+                    auto * controllers = documentWith("players");
+                    assert(controllers && !controllers->IsClassSet("offline"));
+                    for (unsigned i = 0; i < 3; ++i) mainWindow.Update();
+                    assert(session.HasGuest() && session.Inputs().Available());
+                    assert(!session.Inputs().Devices().empty());
+                    return controllers;
+                };
+                const auto closeControllers = [&](Rml::ElementDocument * controllers, bool save) {
+                    click(controllers->QuerySelector(save ? "button[data-command='save']" : "button[data-command='cancel']"));
+                    mainWindow.Update();
+                    assert(!session.HasGuest() && !session.Inputs().Available());
+                    window.Context()->Update(); // Drain closed documents before reopening.
+                };
+                const auto pad = [&]() -> IEmulatedController & {
+                    auto & os = session.Modules().OperatingSystem();
+                    auto & handheld = os.GetEmulatedController(NpadIdType::Handheld);
+                    auto & player = os.GetEmulatedController(NpadIdType::Player1);
+                    return handheld.IsConnected() || player.GetNpadStyleIndex() == NpadStyleIndex::Handheld ? handheld : player;
+                };
+                constexpr auto button = static_cast<uint32_t>(NativeButtonValues::A);
+                auto * controllers = openControllers();
+                const auto seed = InputParams::Key(SDLK_F10);
+                pad().SetButtonParam(button, seed);
+                pad().SaveCurrentConfig();
+                session.FlushSettings();
+                click(controllers->QuerySelector("[data-command='clear:12']"));
+                mainWindow.Update();
+                assert(InputParams::Take(pad().GetButtonParamPtr(button)).Unset());
+                closeControllers(controllers, false);
+                controllers = openControllers();
+                assert(InputParams::Take(pad().GetButtonParamPtr(button)).Text() == seed.Text());
+                click(controllers->QuerySelector("[data-command='clear:12']"));
+                mainWindow.Update();
+                closeControllers(controllers, true);
+                controllers = openControllers();
+                assert(InputParams::Take(pad().GetButtonParamPtr(button)).Unset());
+                click(controllers->QuerySelector("[data-command='bind:12']"));
+                mainWindow.Update();
+                assert(controllers->GetElementById("bind-12")->IsClassSet("listening"));
+                closeControllers(controllers, false); // Cancel while input polling is active.
             }
             window.DetachVideo();
         }
