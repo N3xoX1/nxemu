@@ -202,14 +202,13 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         program_image.resize(image_size);
     }
 
+    // The padding to the host page stays unmapped for the guest, as nothing follows .bss on
+    // Horizon: the SDK reads program arguments from the end of rtld when that memory is
+    // read-write, and an empty padding there gives every application argc = 0.
     for (std::size_t i = 0; i < nso_header.segments.size(); ++i)
     {
         codeset.segments[i].size = PageAlignSize(codeset.segments[i].size);
     }
-#if defined(__APPLE__)
-    // The padding to the host page belongs to .bss, so it is not taken for code.
-    codeset.DataSegment().size = image_size - static_cast<u32>(codeset.DataSegment().addr.GetValue());
-#endif
 
     // Apply patches if necessary
     const auto name = nso_file.GetName();

@@ -504,7 +504,7 @@ void BufferCache<P>::BindGraphicsStorageBuffer(size_t stage, size_t ssbo_index, 
     const auto& cbufs = maxwell3d->state.shader_stages[stage];
     const GPUVAddr ssbo_addr = cbufs.const_buffers[cbuf_index].address + cbuf_offset;
     channel_state->storage_buffers[stage][ssbo_index] =
-        StorageBufferBinding(ssbo_addr, cbuf_index, is_written);
+        StorageBufferBinding(ssbo_addr, cbuf_index, cbuf_offset, is_written);
 }
 
 template <class P>
@@ -551,7 +551,7 @@ void BufferCache<P>::BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index,
     const auto& cbufs = launch_desc.const_buffer_config;
     const GPUVAddr ssbo_addr = cbufs[cbuf_index].Address() + cbuf_offset;
     channel_state->compute_storage_buffers[ssbo_index] =
-        StorageBufferBinding(ssbo_addr, cbuf_index, is_written);
+        StorageBufferBinding(ssbo_addr, cbuf_index, cbuf_offset, is_written);
 }
 
 template <class P>
@@ -2048,10 +2048,17 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
 
 template <class P>
 Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
-                                             bool is_written) const {
+                                             u32 cbuf_offset, bool is_written) const {
     const GPUVAddr gpu_addr = gpu_memory->Read<u64>(ssbo_addr);
-    // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size.
-    const u32 declared_size = cbuf_index == 0 ? gpu_memory->Read<u32>(ssbo_addr + 8) : 0;
+    // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size,
+    // in the range the shader recompiler biases towards. Elsewhere in that buffer the next word
+    // is unrelated data: a game kept a 1 there, and its compute shader then wrote past the bound
+    // range, over the buffers placed after it.
+    static constexpr u32 NVN_SSBO_BEGIN = 0x110;
+    static constexpr u32 NVN_SSBO_END = 0x610;
+    const bool is_nvn_descriptor =
+        cbuf_index == 0 && cbuf_offset >= NVN_SSBO_BEGIN && cbuf_offset < NVN_SSBO_END;
+    const u32 declared_size = is_nvn_descriptor ? gpu_memory->Read<u32>(ssbo_addr + 8) : 0;
     const auto requested_size = [&]() {
         if (declared_size != 0) {
             return declared_size;
