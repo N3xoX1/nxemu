@@ -478,6 +478,7 @@ private:
     void TickAsyncDecode();
     bool QueueGCReadback(ImageId id);
     void PollGCReadbacks();
+    void CancelPendingDownloads(ImageId id);
     void CancelGCReadback(ImageId id);
 
     /// Id of the address space an image was created in, or nullopt if it is gone
@@ -531,6 +532,10 @@ private:
         u64 observation_serial{};
         bool observed_partial{};
         size_t observed_address_space{};
+        // Staging bytes reserved at commit; the image slot may be reused before the pop.
+        size_t staging_bytes{};
+        // The image was deleted after its copy was recorded; skip publication.
+        bool discarded{};
     };
     bool TryDownloadObservedImage(Image& image, AsyncBuffer& map, PendingDownload& download);
 
