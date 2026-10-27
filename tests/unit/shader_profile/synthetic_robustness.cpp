@@ -6,6 +6,7 @@
 #include "yuzu_video_core/shader_profile_compact.h"
 #include "yuzu_video_core/shader_profile_export.h"
 #include "yuzu_video_core/shader_profile_hash.h"
+#include "yuzu_video_core/shader_profile_metrics.h"
 #include "yuzu_video_core/shader_profile_validation.h"
 #include "video_settings.h"
 #include "yuzu_common/logging/log.h"
@@ -125,6 +126,127 @@ int main() try {
         Reject([&] { Profile::ReadCompact(version_payload, scratch.root, title,
             nullptr, nullptr, {}, nullptr, contexts[1 - source]); });
     }
+    {
+        // Nearby programs share one read, retain recipe order, and still fail
+        // independently when one program's fingerprint or range is invalid.
+        auto grouped = profile;
+        grouped["shaders"] = JsonValue(JsonValueType::Object);
+        grouped["environments"] = JsonValue(JsonValueType::Object);
+        grouped["recipes"] = JsonValue(JsonValueType::Array);
+        std::string nca(8192, '\0');
+        std::vector<std::string> expected;
+        for (unsigned i = 0; i < 4; ++i) {
+            const std::string bytes(16, static_cast<char>('a' + i));
+            const auto offset = 5000 + (3 - i) * 32;
+            nca.replace(offset, bytes.size(), bytes);
+            const auto key = Profile::ResourceSha256(bytes), name = "batch-" + std::to_string(i);
+            auto sh = shader; sh["references"][0u]["offset"] = offset;
+            grouped["shaders"][key] = sh;
+            auto e = env; e["shader"] = key; grouped["environments"][name] = e;
+            auto r = recipe; r["shader_hash"] = std::to_string(Common::CityHash64(bytes.data(), bytes.size()));
+            r["environments"][0u] = name; grouped["recipes"].Append(r);
+            expected.push_back(bytes);
+        }
+        grouped["source_files"][0u]["size"] = static_cast<unsigned>(nca.size());
+        grouped["source_files"][0u]["header"] = Profile::ResourceSha256(nca.substr(0,4096));
+        Write(scratch.root/"game.dnsp", Game(nca));
+        const auto grouped_payload = Profile::Unpack(Profile::PackCompact(grouped));
+        Profile::Timing::Metrics metrics;
+        const auto loaded = Profile::ReadCompact(grouped_payload,scratch.root,title,nullptr,&metrics);
+        Require(loaded.size()==4,"Coalesced programs lost");
+        for(size_t i=0;i<loaded.size();++i)
+            Require(loaded[i].environments[0].ProgramBytes()==expected[i],"IO sorting changed recipe order or bytes");
+        const auto io = static_cast<size_t>(Profile::Timing::Phase::ResourceIO);
+        Require(metrics.calls[io]==2,"Nearby shaders were not coalesced into one resource read");
+        nca[5000]^=1; Write(scratch.root/"game.dnsp", Game(nca));
+        Profile::ImportReport corrupt;
+        Require(Profile::ReadCompact(grouped_payload,scratch.root,title,nullptr,nullptr,{},&corrupt).size()==3 &&
+                corrupt.incompatible_resources==1,"One bad shader discarded its valid batch neighbors");
+        Write(scratch.root/"game.dnsp", Game(std::string(8192,'\0')));
+        Reject([&]{Profile::ReadCompact(grouped_payload,scratch.root,title,nullptr,nullptr);});
+    }
+    {
+        // Physical patch order differs from logical resource order. Reassembly
+        // and the resource digest must survive sorting/coalescing the reads.
+        auto spanned = profile;
+        std::string nca(8192,'\0');
+        nca.replace(5080,8,code.substr(0,8)); nca.replace(5000,8,code.substr(8));
+        spanned["source_files"][0u]["size"] = static_cast<unsigned>(nca.size());
+        spanned["source_files"][0u]["header"] = Profile::ResourceSha256(nca.substr(0,4096));
+        auto ref = Profile::ParseMetadata(R"({"encoding":"bktr-raw","offset":0,"size":16,"resource_size":16,"physical_spans":[{"file":"game.nca","offset":5080,"size":8},{"file":"game.nca","offset":5000,"size":8}]})");
+        ref["resource_sha256"] = digest;
+        spanned["shaders"][digest]["references"][0u] = ref;
+        Write(scratch.root/"game.dnsp",Game(nca));
+        const auto span_payload = Profile::Unpack(Profile::PackCompact(spanned));
+        Profile::Timing::Metrics metrics;
+        const auto loaded = Profile::ReadCompact(span_payload,scratch.root,title,nullptr,&metrics);
+        Require(loaded.size()==1 && loaded[0].environments[0].ProgramBytes()==code,"Physical span order corrupted logical resource");
+        Require(metrics.calls[static_cast<size_t>(Profile::Timing::Phase::ResourceIO)]==2,"Nearby spans were not coalesced");
+        nca[5080]^=1; Write(scratch.root/"game.dnsp",Game(nca));
+        Reject([&]{Profile::ReadCompact(span_payload,scratch.root,title,nullptr,nullptr);});
+        Write(scratch.root/"game.dnsp",Game(nca));
+        auto missing = Profile::ParseMetadata(R"({"name":"missing.nca","size":17})");
+        missing["header"] = Profile::ResourceSha256(std::string(17,'x'));
+        spanned["source_files"].Append(missing);
+        spanned["shaders"][digest]["references"][0u]["physical_spans"][1u]["file"]="missing.nca";
+        Profile::Timing::Metrics absent;
+        Reject([&]{Profile::ReadCompact(Profile::Unpack(Profile::PackCompact(spanned)),scratch.root,title,nullptr,&absent);});
+        Require(absent.counts[static_cast<size_t>(Profile::Timing::Counter::ResourceReadBytes)]==0,
+                "Missing patch dependency caused partial resource reads");
+    }
+    {
+        // Shaders precede large unrelated archive data. Grow the input window
+        // when needed, verify every program, and do not read the unused tail.
+        auto compressed = profile;
+        std::string plain(512 * 1024, 'z'); plain.replace(100000,code.size(),code);
+        std::string archive(16,'\0'); archive.replace(0,4,"Yaz0");
+        for (size_t i=0;i<4;++i) archive[4+i]=static_cast<char>(plain.size()>>(8*(3-i)));
+        for (size_t i=0;i<plain.size();i+=8) { archive+='\xff'; archive+=plain.substr(i,8); }
+        std::string nca(5000,'\0'); nca+=archive;
+        compressed["source_files"][0u]["size"]=static_cast<unsigned>(nca.size());
+        compressed["source_files"][0u]["header"]=Profile::ResourceSha256(nca.substr(0,4096));
+        auto ref=Profile::ParseMetadata(R"({"encoding":"bktr-yaz0","offset":100000,"size":16,"physical_spans":[]})");
+        ref["resource_size"]=static_cast<unsigned>(archive.size());
+        ref["resource_sha256"]=Profile::ResourceSha256(archive);
+        auto span=Profile::ParseMetadata(R"({"file":"game.nca","offset":5000})");
+        span["size"]=static_cast<unsigned>(archive.size()); ref["physical_spans"].Append(span);
+        compressed["shaders"][digest]["references"][0u]=ref;
+        const auto payload=Profile::Unpack(Profile::PackCompact(compressed));
+        Write(scratch.root/"game.dnsp",Game(nca));
+        Profile::Timing::Metrics metrics;
+        const auto loaded=Profile::ReadCompact(payload,scratch.root,title,nullptr,&metrics);
+        Require(loaded.size()==1 && loaded[0].environments[0].ProgramBytes()==code,"Growing Yaz0 window lost shader bytes");
+        const auto bytes=metrics.counts[static_cast<size_t>(Profile::Timing::Counter::ResourceReadBytes)].load();
+        Require(bytes>65536 && bytes<archive.size()/2,"Yaz0 prefix read the unrelated tail or did not retry");
+        // If the requested prefix needs all stored bytes, retain the complete
+        // resource SHA check, including bytes outside the program itself.
+        auto full = compressed;
+        const auto short_archive = archive.substr(0,130000);
+        auto& full_ref = full["shaders"][digest]["references"][0u];
+        full_ref["resource_size"] = static_cast<unsigned>(short_archive.size());
+        full_ref["resource_sha256"] = Profile::ResourceSha256(short_archive);
+        full_ref["physical_spans"][0u]["size"] = static_cast<unsigned>(short_archive.size());
+        std::string short_nca(5000,'\0'); short_nca += short_archive;
+        full["source_files"][0u]["size"] = static_cast<unsigned>(short_nca.size());
+        const auto full_payload = Profile::Unpack(Profile::PackCompact(full));
+        Write(scratch.root/"game.dnsp",Game(short_nca));
+        Require(Profile::ReadCompact(full_payload,scratch.root,title,nullptr,nullptr).size()==1,
+                "Full stored window rejected a valid shader");
+        short_nca.back()^=1; Write(scratch.root/"game.dnsp",Game(short_nca));
+        Reject([&]{Profile::ReadCompact(full_payload,scratch.root,title,nullptr,nullptr);});
+        // Changing unrelated bytes after the prefix cannot change the shader.
+        nca.back()^=1; Write(scratch.root/"game.dnsp",Game(nca));
+        Require(Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr).size()==1,"Unrelated archive tail prevented verified shader reuse");
+        // A changed program is still rejected even though no full archive SHA
+        // is available for a partial read.
+        const auto stored=5000+16+(100000/8)*9+1;
+        nca[stored]^=1; Write(scratch.root/"game.dnsp",Game(nca));
+        Reject([&]{Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr);});
+        nca[5016]=0; nca[5017]=0x10; nca[5018]=static_cast<char>(0xff);
+        Write(scratch.root/"game.dnsp",Game(nca));
+        Reject([&]{Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr);});
+    }
+    Write(scratch.root/"game.dnsp",Game(code));
     for(size_t cut=0;cut<payload.size();++cut)
         Reject([&]{Profile::InspectCompact(std::string_view(payload).substr(0,cut),title);});
     // Envelope mutations must be rejected even when an altered magic no longer

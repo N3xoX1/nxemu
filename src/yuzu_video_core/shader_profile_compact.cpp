@@ -226,6 +226,123 @@ std::string Bytes(const ContentMap & contents, const std::string & name, u64 off
     if (timings) timings->Add(Timing::Counter::ResourceReadBytes, size);
     return bytes;
 }
+// Limit read amplification and temporary memory while avoiding a seek/read for
+// every small shader or patch span. These limits do not affect recipe ordering.
+constexpr u64 ReadBatchBytes = 4 * 1024 * 1024;
+constexpr u64 ReadBatchGap = 64 * 1024;
+void ReadInto(std::ifstream& input, u64 offset, std::span<char> bytes, Timing::Metrics* timings)
+{
+    Timing::Timer io(timings, Timing::Phase::ResourceIO);
+    input.clear();
+    input.seekg(static_cast<std::streamoff>(offset));
+    input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    Check(bool(input), "Cannot read compact resource");
+    if (timings) timings->Add(Timing::Counter::ResourceReadBytes, bytes.size());
+}
+std::string SpanBytes(const ContentMap& contents, const Resource& resource, Timing::Metrics* timings)
+{
+    struct Read { const ContentLocation* content; u64 offset, size, destination; };
+    std::vector<Read> reads;
+    u64 destination{};
+    // Resolve every dependency before allocating or reading a partial resource.
+    // In particular, an absent older update must not cause large base reads.
+    for (const auto& span : resource.spans) {
+        const auto& content = Locate(contents, span.file);
+        Check(span.offset <= content.size && span.size <= content.size - span.offset,
+              "Compact resource range");
+        reads.push_back({&content, content.offset + span.offset, span.size, destination});
+        destination += span.size;
+    }
+    std::sort(reads.begin(), reads.end(), [](const Read& a, const Read& b) {
+        return std::tie(a.content->path, a.offset) < std::tie(b.content->path, b.offset);
+    });
+    std::string raw(static_cast<size_t>(resource.size), '\0');
+    std::ifstream input;
+    std::filesystem::path opened;
+    for (size_t first = 0; first < reads.size();) {
+        const auto& read = reads[first];
+        if (!input.is_open() || opened != read.content->path) {
+            input.close(); input.clear();
+            input.open(read.content->path, std::ios::binary);
+            Check(bool(input), "Cannot open compact resource");
+            opened = read.content->path;
+        }
+        size_t last = first + 1;
+        u64 end = read.offset + read.size;
+        while (last < reads.size()) {
+            const auto& next = reads[last];
+            const auto next_end = std::max(end, next.offset + next.size);
+            if (next.content->path != opened || (next.offset > end && next.offset - end > ReadBatchGap) ||
+                next_end - read.offset > ReadBatchBytes) break;
+            end = next_end; ++last;
+        }
+        if (last == first + 1) {
+            ReadInto(input, read.offset, std::span(raw).subspan(read.destination, read.size), timings);
+        } else {
+            std::string batch(static_cast<size_t>(end - read.offset), '\0');
+            ReadInto(input, read.offset, std::span(batch), timings);
+            for (size_t i = first; i < last; ++i) {
+                const auto& part = reads[i];
+                std::copy_n(batch.data() + part.offset - read.offset, part.size,
+                            raw.data() + part.destination);
+            }
+        }
+        first = last;
+    }
+    return raw;
+}
+// A Yaz0 archive can include large textures after its last requested shader.
+// Decode only enough local bytes to reconstruct every requested program. The
+// caller still verifies each program hash; the full archive SHA is checked
+// whenever decoding required the entire stored resource.
+std::string Yaz0Programs(const ContentMap& contents, const Resource& resource, size_t prefix,
+                         Timing::Metrics* timings)
+{
+    struct InputSpan { const ContentLocation* content; u64 offset, size, logical; };
+    std::vector<InputSpan> spans;
+    // Validate the complete locator/dependency set before trying a prefix.
+    const auto add = [&](const std::string& file, u64 offset, u64 size, u64 logical) {
+        const auto& content = Locate(contents, file);
+        Check(offset <= content.size && size <= content.size - offset, "Compact resource range");
+        spans.push_back({&content, content.offset + offset, size, logical});
+    };
+    if (resource.kind >= 3) {
+        u64 logical{};
+        for (const auto& span : resource.spans) {
+            add(span.file, span.offset, span.size, logical); logical += span.size;
+        }
+    } else add(resource.file, resource.offset, resource.size, 0);
+    std::map<std::filesystem::path, std::ifstream> inputs;
+    std::string raw;
+    raw.reserve(static_cast<size_t>(resource.size));
+    u64 count = std::min<u64>(resource.size, 64 * 1024);
+    for (;;) {
+        const auto loaded = raw.size();
+        raw.resize(static_cast<size_t>(count));
+        for (const auto& span : spans) {
+            const auto begin = std::max<u64>(loaded, span.logical);
+            const auto end = std::min(count, span.logical + span.size);
+            if (begin >= end) continue;
+            auto [it, fresh] = inputs.try_emplace(span.content->path, span.content->path, std::ios::binary);
+            Check(bool(it->second), "Cannot open compact resource");
+            ReadInto(it->second, span.offset + begin - span.logical,
+                     std::span(raw).subspan(begin, end - begin), timings);
+        }
+        if (count == resource.size && resource.kind >= 3)
+            Check(Hash(raw, timings) == resource.hash, "Compact resource fingerprint mismatch");
+        try {
+            return Timing::Measure(timings, Timing::Phase::ResourceDecompression, [&] {
+                return DecodeYaz0(raw, prefix);
+            });
+        } catch (const std::runtime_error& error) {
+            const std::string_view reason = error.what();
+            // Retry only an incomplete input window. Malformed headers and
+            // invalid backreferences are errors, not reasons to read more data.
+            if (count == resource.size || (reason != "Truncated Yaz0" && reason != "Truncated Yaz0 literals")) throw;
+            count = std::min(resource.size, count * 2);
+        }
+    }
+}
 SharedShaderBytes Environment(const Env & env, std::shared_ptr<const std::string> program, Timing::Metrics * timings)
 {
     const std::string_view code=*program;
@@ -1276,23 +1393,50 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
                     const auto length=content.size;
                     std::ifstream input(content.path,std::ios::binary);
                     Check(bool(input),"Cannot open compact resource");
-                    for (const auto& [id, offset] : job.requests) {
+                    std::vector<Request> ordered;
+                    for (const auto& request : job.requests) {
+                        const auto [id, offset] = request;
+                        if (offset > length || programs[id].size > length - offset)
+                            unavailable(false, id);
+                        else ordered.push_back(request);
+                    }
+                    std::stable_sort(ordered.begin(), ordered.end(), [](const Request& a, const Request& b) {
+                        return a.second < b.second;
+                    });
+                    const auto accept = [&](size_t id, std::string_view bytes) {
+                        if (!Verify(bytes, programs[id].hash, timings)) { unavailable(false, id); return; }
+                        codes[id] = std::make_shared<const std::string>(bytes);
+                    };
+                    for (size_t first = 0; first < ordered.size();) {
+                        const auto begin = ordered[first].second;
+                        auto end = begin + programs[ordered[first].first].size;
+                        size_t last = first + 1;
+                        while (last < ordered.size()) {
+                            const auto [id, offset] = ordered[last];
+                            const auto next_end = std::max(end, offset + programs[id].size);
+                            if ((offset > end && offset - end > ReadBatchGap) ||
+                                next_end - begin > ReadBatchBytes) break;
+                            end = next_end; ++last;
+                        }
+                        bool loaded{};
+                        std::string batch(static_cast<size_t>(end - begin), '\0');
                         try {
-                            const auto& p=programs[id];
-                            Check(offset<=length && p.size<=length-offset,"Compact resource range");
-                            std::string code(static_cast<size_t>(p.size),'\0');
-                            {
-                                Timing::Timer io(timings,Timing::Phase::ResourceIO);
-                                input.clear(); input.seekg(static_cast<std::streamoff>(content.offset+offset));
-                                input.read(code.data(),code.size());
-                                Check(bool(input),"Cannot read compact resource");
-                                if(timings)timings->Add(Timing::Counter::ResourceReadBytes,p.size);
-                            }
-                            Check(Verify(code,p.hash,timings),"Compact program fingerprint mismatch");
-                            codes[id]=std::make_shared<const std::string>(std::move(code));
-                        } catch (const std::filesystem::filesystem_error& error) {
-                            unavailable(error.code()==std::errc::no_such_file_or_directory,id);
-                        } catch (const std::runtime_error&) { unavailable(false, id); }
+                            ReadInto(input, content.offset + begin, std::span(batch), timings);
+                            loaded = true;
+                        } catch (const std::runtime_error&) {
+                            // A short or failed combined read must not discard
+                            // independently readable shaders from that batch.
+                        }
+                        for (size_t i = first; i < last; ++i) {
+                            const auto [id, offset] = ordered[i];
+                            if (loaded) accept(id, std::string_view(batch).substr(offset - begin, programs[id].size));
+                            else try {
+                                std::string code(static_cast<size_t>(programs[id].size), '\0');
+                                ReadInto(input, content.offset + offset, std::span(code), timings);
+                                accept(id, code);
+                            } catch (const std::runtime_error&) { unavailable(false, id); }
+                        }
+                        first = last;
                     }
                 } catch (const std::filesystem::filesystem_error& error) {
                     all_unavailable(error.code()==std::errc::no_such_file_or_directory);
@@ -1301,16 +1445,17 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
                 try {
                     size_t prefix{};
                     for (const auto& [id, offset] : job.requests) prefix = std::max(prefix, static_cast<size_t>(offset + programs[id].size));
-                    std::string raw;
-                    if (resource.kind >= 3) {
-                        raw.reserve(resource.size);
-                        for (const auto& span : resource.spans) raw += Bytes(contents, span.file, span.offset, span.size, timings);
-                    } else raw = Bytes(contents, resource.file, resource.offset, resource.size, timings);
-                    if (resource.kind >= 2) Check(Hash(raw, timings) == resource.hash, "Compact resource fingerprint mismatch");
-                    auto decoded = Timing::Measure(timings, Timing::Phase::ResourceDecompression, [&] {
-                        return resource.kind == 1 || resource.kind == 4 ? DecodeYaz0(raw, prefix) :
-                            resource.kind == 2 ? DecodeLz4(raw, resource.decoded_size) : std::move(raw);
-                    });
+                    std::string decoded;
+                    if (resource.kind == 1 || resource.kind == 4) {
+                        decoded = Yaz0Programs(contents, resource, prefix, timings);
+                    } else {
+                        auto raw = resource.kind >= 3 ? SpanBytes(contents, resource, timings) :
+                            Bytes(contents, resource.file, resource.offset, resource.size, timings);
+                        if (resource.kind >= 2) Check(Hash(raw, timings) == resource.hash, "Compact resource fingerprint mismatch");
+                        decoded = Timing::Measure(timings, Timing::Phase::ResourceDecompression, [&] {
+                            return resource.kind == 2 ? DecodeLz4(raw, resource.decoded_size) : std::move(raw);
+                        });
+                    }
                     if (timings) timings->Add(Timing::Counter::ResourceDecodedBytes, decoded.size());
                     if (resource.kind == 2) Check(Hash(decoded, timings) == resource.segment_hash, "Compact NSO fingerprint mismatch");
                     for (const auto& [id, offset] : job.requests) {

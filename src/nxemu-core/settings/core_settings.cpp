@@ -99,6 +99,7 @@ namespace
         { NXCoreSetting::GameLoadResult, 0 },
         { NXCoreSetting::Has39BitAddressSpace, false },
         { NXCoreSetting::DisplayedFrames, false },
+        { NXCoreSetting::GpuInitializationComplete, false },
         { NXCoreSetting::ShuttingDown, false},
         { NXCoreSetting::DiskCacheLoadStage, -1 },
         { NXCoreSetting::DiskCacheLoadCurrent, 0 },

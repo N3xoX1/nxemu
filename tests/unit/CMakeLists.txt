@@ -15,6 +15,12 @@ if(NOT MSVC)
 endif()
 nxemu_unit_test(test_session_lifecycle)
 
+add_executable(test_startup_wait session_lifecycle/startup_wait.cpp)
+target_include_directories(test_startup_wait PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_startup_wait PRIVATE cxx_std_20)
+target_link_libraries(test_startup_wait PRIVATE Threads::Threads)
+nxemu_unit_test(test_startup_wait)
+
 # SPIR-V layout of constant buffers. Link the archives themselves: their dependencies would
 # bring a second definition of the logging functions.
 add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp)

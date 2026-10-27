@@ -31,6 +31,8 @@ constexpr const char * EmulationState = "nxcore:EmulationState";
 constexpr const char * GameLoadResult = "nxcore:GameLoadResult";
 constexpr const char * Has39BitAddressSpace = "nxcore:Has39BitAddressSpace";
 constexpr const char * DisplayedFrames = "nxcore:DisplayedFrames";
+// Runtime-only readiness state; never a configurable user preference.
+constexpr const char * GpuInitializationComplete = "nxcore:GpuInitializationComplete";
 constexpr const char * ShuttingDown = "nxcore:ShuttingDown";
 constexpr const char * DiskCacheLoadStage = "nxcore:DiskCacheLoadStage";
 constexpr const char * DiskCacheLoadCurrent = "nxcore:DiskCacheLoadCurrent";

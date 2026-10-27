@@ -171,6 +171,7 @@ struct VideoManager::Impl
     void EmulationStarting(void)
     {
         StopInitialization();
+        g_settings->SetBool(NXCoreSetting::GpuInitializationComplete, false);
         m_gpuCore.reset();
         FFmpeg::WarmHardwareDecoderDevices();
         m_memoryManagerRegistry.Clear();
@@ -258,6 +259,10 @@ struct VideoManager::Impl
 
             // Even after cancellation, drain GPU calls before OS shutdown joins their callers.
             m_gpuCore->Start();
+            if (!stop_token.stop_requested())
+            {
+                g_settings->SetBool(NXCoreSetting::GpuInitializationComplete, true);
+            }
         });
     }
     std::unique_ptr<Tegra::Host1x::Host1x> m_host1x;
