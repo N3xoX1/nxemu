@@ -529,7 +529,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
       render_pass_cache{render_pass_cache_}, buffer_cache{buffer_cache_},
       texture_cache{texture_cache_}, shader_notify{shader_notify_},
       use_asynchronous_shaders{videoSettings.use_asynchronous_shaders},
-      use_vulkan_pipeline_cache{videoSettings.use_vulkan_driver_pipeline_cache},
+      // MoltenVK compiles every library of the driver blob serially and uncancellably while
+      // creating the cache, which stalls game boot and shutdown when Metal's cache is cold.
+      use_vulkan_pipeline_cache{videoSettings.use_vulkan_driver_pipeline_cache &&
+                                device_.GetDriverID() != VK_DRIVER_ID_MOLTENVK},
       workers(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers(),
               "VkPipelineBuilder"),
       serialization_thread(1, "VkPipelineSerialization"),
