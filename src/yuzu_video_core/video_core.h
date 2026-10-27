@@ -17,6 +17,9 @@ class EmuWindow;
 
 namespace Tegra {
 class GPU;
+namespace Host1x {
+class Host1x;
+}
 }
 
 namespace Vulkan {

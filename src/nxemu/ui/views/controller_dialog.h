@@ -5,6 +5,7 @@
 #include <functional>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu/ui/input/input_params.h>
+#include <nxemu/ui/host/input_service.h>
 #include <vector>
 
 namespace Rml
@@ -34,6 +35,10 @@ private:
     void OnCloseRequested() override;
 
     IOperatingSystem & Os() const;
+    void LoadOfflinePlayers();
+    bool StageOfflineBindings(int player);
+    void OfflineKey(const SDL_KeyboardEvent & event);
+    bool Connected(int player) const;
     IEmulatedController & Pad(int player) const;
     NpadStyleIndex Type(int player) const;
     void SetType(int player, NpadStyleIndex type);
@@ -42,6 +47,7 @@ private:
 
     void BuildRows();
     void ReadDevices();
+    void ShowPhysicalDevices(bool available);
     void FillDevices();
     void FillTypes();
     int MappedDevice(int player) const;
@@ -74,6 +80,13 @@ private:
     EmulatorSession & m_session;
     int m_player = 0;
     bool m_handheld = false;
+    bool m_offline = false;
+    std::array<HostDeviceMappings, kPlayers> m_offlineMappings{};
+    std::array<JsonValue, kPlayers> m_offlineSettings{};
+    std::array<NpadStyleIndex, kPlayers> m_offlineTypes{};
+    std::array<bool, kPlayers> m_offlineConnected{};
+    std::array<bool, kPlayers> m_offlineChanged{};
+    std::array<bool, kPlayers> m_offlineTypeChanged{};
     bool m_changed = false;
     std::vector<InputParams> m_devices;
     std::array<int, kPlayers> m_device{};

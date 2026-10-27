@@ -1,5 +1,6 @@
 #include "input_params.h"
 #include <cstdlib>
+#include <memory>
 
 namespace
 {
@@ -69,9 +70,13 @@ InputParams InputParams::Take(IParamPackage * package)
     {
         return InputParams();
     }
-    InputParams params = Copy(*package);
-    package->Release();
-    return params;
+    // A module can throw while serializing; the package must still be released.
+    struct PackageRelease
+    {
+        void operator()(IParamPackage * value) const noexcept { value->Release(); }
+    };
+    const std::unique_ptr<IParamPackage, PackageRelease> owned(package);
+    return Copy(*owned);
 }
 
 InputParams InputParams::Copy(const IParamPackage & package)

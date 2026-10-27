@@ -50,13 +50,16 @@ void LoadingScreen::Reset()
     m_images.clear();
     m_title.clear();
     m_hasGame = false;
+    m_progress = {};
 }
 
 void LoadingScreen::Announce(const std::string & title, const std::string & iconSource)
 {
     Reset();
     m_title = title;
-    m_announcedTick = SettingsStore::GetInstance().GetInt(NXCoreSetting::DiskCacheLoadTick);
+    SettingsStore::DiskCacheProgress progress;
+    if (SettingsStore::GetInstance().TryGetDiskCacheProgress(progress))
+        m_announcedTick = progress.tick;
     if (Rml::Element * image = m_panel->GetElementById("loading-icon"); image != nullptr && !iconSource.empty())
     {
         image->SetAttribute("src", iconSource);
@@ -87,10 +90,13 @@ void LoadingScreen::Update()
 {
     SetText("loading-title", m_title.empty() ? Tr(kUnnamed) : m_title);
     SettingsStore & settings = SettingsStore::GetInstance();
-    const bool reported = settings.GetInt(NXCoreSetting::DiskCacheLoadTick) != m_announcedTick;
-    const LoadStage stage = reported ? static_cast<LoadStage>(settings.GetInt(NXCoreSetting::DiskCacheLoadStage)) : LoadStage::Game;
-    const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);
-    const int total = settings.GetInt(NXCoreSetting::DiskCacheLoadTotal);
+    SettingsStore::DiskCacheProgress latest;
+    if (settings.TryGetDiskCacheProgress(latest))
+        m_progress = latest;
+    const bool reported = m_progress.tick != m_announcedTick;
+    const LoadStage stage = reported ? static_cast<LoadStage>(m_progress.stage) : LoadStage::Game;
+    const int current = m_progress.current;
+    const int total = m_progress.total;
     if (stage == LoadStage::Shaders && total > 0)
     {
         SetStatus(Tr("Preparing shaders"), std::to_string(current) + " / " + std::to_string(total));

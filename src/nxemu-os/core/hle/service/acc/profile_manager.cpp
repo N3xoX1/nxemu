@@ -13,6 +13,7 @@
 #include "yuzu_common/string_util.h"
 #include <nxemu-module-spec/base.h>
 #include "os_settings_identifiers.h"
+#include <nxemu-module-spec/profile_storage.h>
 #include "profile_image_writer.h"
 #include "core/hle/service/acc/profile_manager.h"
 
@@ -23,20 +24,11 @@ namespace Service::Account {
 namespace FS = Common::FS;
 using Common::UUID;
 
-struct UserRaw {
-    UUID uuid{};
-    UUID uuid2{};
-    u64 timestamp{};
-    ProfileUsername username{};
-    UserData extra_data{};
-};
-static_assert(sizeof(UserRaw) == 0xC8, "UserRaw has incorrect size.");
-
-struct ProfileDataRaw {
-    INSERT_PADDING_BYTES(0x10);
-    std::array<UserRaw, MAX_USERS> users{};
-};
-static_assert(sizeof(ProfileDataRaw) == 0x650, "ProfileDataRaw has incorrect size.");
+// The on-disk layout is shared with the frontend. Never maintain a second
+// definition of profiles.dat here; the guest-specific ProfileInfo is converted
+// at this boundary instead.
+static_assert(sizeof(UserData) == HostProfileStorage::ExtraBytes);
+static_assert(MAX_USERS == HostProfileStorage::MaxUsers);
 
 // TODO(ogniK): Get actual error codes
 constexpr Result ERROR_TOO_MANY_USERS(ErrorModule::Account, u32(-1));
@@ -390,33 +382,25 @@ bool ProfileManager::SetProfileBaseAndData(Common::UUID uuid, const ProfileBase&
 }
 
 void ProfileManager::ParseUserSaveFile() {
-    const auto save_path(FS::GetYuzuPath(FS::YuzuPath::NANDDir) / ACC_SAVE_AVATORS_BASE_PATH /
-                         "profiles.dat");
-    const FS::IOFile save(save_path, FS::FileAccessMode::Read, FS::FileType::BinaryFile);
-
-    if (!save.IsOpen()) {
-        LOG_WARNING(Service_ACC, "Failed to load profile data from save data... Generating new "
-                                 "user 'yuzu' with random UUID.");
+    const auto save_path = HostProfileStorage::FilePath(FS::GetYuzuPath(FS::YuzuPath::NANDDir));
+    const auto raw = HostProfileStorage::Read(save_path);
+    if (!raw) {
+        LOG_WARNING(Service_ACC, "Unable to read profiles.dat; no saved users loaded");
         return;
     }
 
-    ProfileDataRaw data;
-    if (!save.ReadObject(data)) {
-        LOG_WARNING(Service_ACC, "profiles.dat is smaller than expected... Generating new user "
-                                 "'yuzu' with random UUID.");
-        return;
-    }
-
-    for (const auto& user : data.users) {
-        if (user.uuid.IsInvalid()) {
+    for (const auto& user : raw->users) {
+        const UUID uuid{user.uuid};
+        if (uuid.IsInvalid()) {
             continue;
         }
-
+        UserData extra{};
+        std::memcpy(&extra, user.extra_data.data(), sizeof(extra));
         AddUser({
-            .user_uuid = user.uuid,
+            .user_uuid = uuid,
             .username = user.username,
             .creation_time = user.timestamp,
-            .data = user.extra_data,
+            .data = extra,
             .is_open = false,
         });
     }
@@ -430,41 +414,27 @@ void ProfileManager::WriteUserSaveFile() {
         return;
     }
 
-    ProfileDataRaw raw{};
-
+    HostProfileStorage::FileRaw raw{};
     for (std::size_t i = 0; i < MAX_USERS; ++i) {
-        raw.users[i] = {
-            .uuid = profiles[i].user_uuid,
-            .uuid2 = profiles[i].user_uuid,
-            .timestamp = profiles[i].creation_time,
-            .username = profiles[i].username,
-            .extra_data = profiles[i].data,
-        };
+        const auto& profile = profiles[i];
+        auto& user = raw.users[i];
+        user.uuid = profile.user_uuid.uuid;
+        user.uuid2 = profile.user_uuid.uuid;
+        user.timestamp = profile.creation_time;
+        user.username = profile.username;
+        std::memcpy(user.extra_data.data(), &profile.data, sizeof(profile.data));
     }
 
-    const auto raw_path(FS::GetYuzuPath(FS::YuzuPath::NANDDir) / "system/save/8000000000000010");
+    const auto nand_dir = FS::GetYuzuPath(FS::YuzuPath::NANDDir);
+    const auto raw_path = nand_dir / "system/save/8000000000000010";
     if (FS::IsFile(raw_path) && !FS::RemoveFile(raw_path)) {
         return;
     }
 
-    const auto save_path(FS::GetYuzuPath(FS::YuzuPath::NANDDir) / ACC_SAVE_AVATORS_BASE_PATH /
-                         "profiles.dat");
-
-    if (!FS::CreateParentDirs(save_path)) {
-        LOG_WARNING(Service_ACC, "Failed to create full path of profiles.dat. Create the directory "
-                                 "nand/system/save/8000000000000010/su/avators to mitigate this "
-                                 "issue.");
+    if (!HostProfileStorage::Write(HostProfileStorage::FilePath(nand_dir), raw)) {
+        LOG_WARNING(Service_ACC, "Failed to write profiles.dat; profile changes remain unsaved");
         return;
     }
-
-    FS::IOFile save(save_path, FS::FileAccessMode::Write, FS::FileType::BinaryFile);
-
-    if (!save.IsOpen() || !save.SetSize(sizeof(ProfileDataRaw)) || !save.WriteObject(raw)) {
-        LOG_WARNING(Service_ACC, "Failed to write save data to file... No changes to user data "
-                                 "made in current session will be saved.");
-        return;
-    }
-
     is_save_needed = false;
 }
 

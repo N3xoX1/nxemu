@@ -195,10 +195,10 @@ private:
     void LayoutGameArea();
     void StopGame();
     bool ShowSettingsPage(SettingsPage page);
+    bool EnsureUtilityGuest(bool preserveProfiles = false);
     void SetTitle(const std::string & game);
     void ShowVersion();
     void SyncWindowState();
-    bool AttachVideo();
     void ResetWindowSize(int width, int height);
     void MeasureGame();
     void UpdateStatusText();
@@ -271,6 +271,8 @@ private:
     bool m_launchReady = false;
     bool m_gameShown = false;
     bool m_rescanGames = false;
+    bool m_utilityGuest = false;
+    bool m_keepProfileDialogDuringSetup = false;
     PixelRect m_gameArea{};
     PlayTime m_playTime;
     DiscordPresence m_discord;

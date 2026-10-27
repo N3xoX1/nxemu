@@ -14,6 +14,13 @@ add_library(nxemu_ui STATIC
     ui_application.h
     emulation/emulator_session.cpp
     emulation/emulator_session.h
+    host/profile_service.cpp
+    host/profile_service.h
+    host/input_service.cpp
+    host/input_service.h
+    host/input_storage.cpp
+    host/physical_devices.cpp
+    host/physical_devices.h
     host/discord_presence.cpp
     host/discord_presence.h
     host/process_usage.cpp

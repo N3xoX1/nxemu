@@ -8,7 +8,7 @@
 #include <thread>
 #include <vector>
 
-nxinterface ISystemModules;
+nxinterface ISystemloader;
 
 struct GameEntry
 {
@@ -42,7 +42,7 @@ public:
     const std::vector<std::string> & RecentFiles() const;
     void AddRecentFile(const std::string & path);
 
-    void StartScan(ISystemModules & modules);
+    void StartScan(ISystemloader & loader);
     void StopScan();
     bool Scanning() const { return m_scanning; }
     bool ScanCompleted() const { return m_scanCompleted; }
@@ -51,8 +51,8 @@ public:
     uint32_t FilesTotal() const { return m_filesTotal; }
     bool TakeFound(std::vector<FoundGame> & games);
 
-    void RequestDetails(ISystemModules & modules, const std::string & path);
-    void RequestDetails(ISystemModules & modules, const std::string & path, uint64_t programId, std::vector<std::string> disabledAddOns);
+    void RequestDetails(ISystemloader & loader, const std::string & path);
+    void RequestDetails(ISystemloader & loader, const std::string & path, uint64_t programId, std::vector<std::string> disabledAddOns);
     bool TakeDetails(GameDetails & details);
     void StopDetails();
 
@@ -60,7 +60,7 @@ private:
     GameLibrary(const GameLibrary &) = delete;
     GameLibrary & operator=(const GameLibrary &) = delete;
 
-    void Scan(ISystemModules & modules, std::vector<std::string> directories, std::vector<std::string> recursive);
+    void Scan(ISystemloader & loader, std::vector<std::string> directories, std::vector<std::string> recursive);
 
     // IGameListScanCallback
     bool ScanStopRequested() override;
@@ -74,8 +74,8 @@ private:
         uint64_t programId = 0;
         std::vector<std::string> disabledAddOns;
     };
-    void QueueDetails(ISystemModules & modules, DetailsRequest request);
-    void ReadDetails(ISystemModules & modules);
+    void QueueDetails(ISystemloader & loader, DetailsRequest request);
+    void ReadDetails(ISystemloader & loader);
 
     std::vector<std::string> m_directories;
     std::vector<std::string> m_recursive;

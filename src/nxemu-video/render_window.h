@@ -12,6 +12,7 @@ public:
     RenderWindow(IRenderWindow & renderWindow);
 
     void RefreshRenderSurface();
+    void ResetFirstFrame();
 
     // EmuWindow
     void OnFrameDisplayed();

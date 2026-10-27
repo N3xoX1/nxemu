@@ -244,9 +244,15 @@ void ProfilesDialog::OnCloseRequested()
     Close();
 }
 
+bool ProfilesDialog::EnsureWritable()
+{
+    return m_session.HasGuest() || (m_host.ensureGuest && m_host.ensureGuest());
+}
+
 void ProfilesDialog::ReadProfiles()
 {
-    m_profiles = m_session.IsValid() ? UserProfiles::List(m_session.Modules().OperatingSystem()) : std::vector<UserProfile>();
+    m_session.Profiles().Refresh();
+    m_profiles = m_session.Profiles().List();
     m_selected = m_profiles.empty() ? 0 : std::min(std::max(m_selected, 0), static_cast<int>(m_profiles.size()) - 1);
 }
 
@@ -324,7 +330,7 @@ void ProfilesDialog::Select(int index)
 
 void ProfilesDialog::AddProfile()
 {
-    if (!m_session.IsValid() || m_profiles.size() >= HOST_PROFILE_MAX_USERS)
+    if (m_profiles.size() >= HOST_PROFILE_MAX_USERS)
     {
         return;
     }
@@ -343,7 +349,7 @@ void ProfilesDialog::AddProfile()
         }
     }
     const Common::UUID id = Common::UUID::MakeRandom();
-    if (!m_session.Modules().OperatingSystem().CreateProfile(id.uuid.data(), name.c_str(), nullptr))
+    if (!EnsureWritable() || !m_session.Profiles().Create(id.uuid, name.c_str()))
     {
         return;
     }
@@ -358,12 +364,13 @@ void ProfilesDialog::AddProfile()
 
 void ProfilesDialog::RemoveProfile()
 {
-    if (!m_session.IsValid() || m_profiles.size() < 2)
+    if (m_profiles.size() < 2)
     {
         return;
     }
     const int active = UserProfiles::Active(m_profiles.size());
-    if (!m_session.Modules().OperatingSystem().RemoveProfile(m_profiles[m_selected].info.uuid))
+    const HostProfileId id = m_profiles[m_selected].uuid;
+    if (!EnsureWritable() || !m_session.Profiles().Remove(id))
     {
         return;
     }
@@ -386,7 +393,7 @@ void ProfilesDialog::RemoveProfile()
 
 void ProfilesDialog::ChoosePicture()
 {
-    if (!m_session.IsValid() || m_profiles.empty())
+    if (m_profiles.empty())
     {
         return;
     }
@@ -401,7 +408,8 @@ void ProfilesDialog::ChoosePicture()
 
 void ProfilesDialog::SetPicture(const std::vector<uint8_t> & picture)
 {
-    if (picture.empty() || !m_session.Modules().OperatingSystem().SetProfileImage(m_profiles[m_selected].info.uuid, picture.data(), static_cast<uint32_t>(picture.size())))
+    if (picture.empty() || m_profiles.empty() || !EnsureWritable() ||
+        !m_session.Profiles().SetImage(m_profiles[m_selected].uuid, picture.data(), static_cast<uint32_t>(picture.size())))
     {
         Document()->SetClass("picture-refused", true);
         return;
@@ -420,12 +428,12 @@ void ProfilesDialog::SetPicture(const std::vector<uint8_t> & picture)
 
 void ProfilesDialog::OpenAvatars()
 {
-    if (!m_session.IsValid() || m_profiles.empty())
+    if (m_profiles.empty())
     {
         return;
     }
     CommitName();
-    m_avatars.Load(m_session.Modules().Systemloader());
+    m_avatars.Load(m_session.Loader());
     m_avatarsOpen = true;
     m_avatarsPending = true;
     m_avatarFiles.clear();
@@ -489,7 +497,7 @@ void ProfilesDialog::ShowAvatars()
 
 void ProfilesDialog::UseAvatar()
 {
-    if (!m_session.IsValid() || m_profiles.empty() || m_avatar < 0 || m_avatar >= static_cast<int>(m_avatarFiles.size()))
+    if (m_profiles.empty() || m_avatar < 0 || m_avatar >= static_cast<int>(m_avatarFiles.size()))
     {
         return;
     }
@@ -515,13 +523,14 @@ void ProfilesDialog::SetActive(int index)
 void ProfilesDialog::CommitName()
 {
     auto * field = IsVisible() ? rmlui_dynamic_cast<Rml::ElementFormControlInput *>(Document()->GetElementById("name")) : nullptr;
-    if (field == nullptr || m_locked || !m_session.IsValid() || m_profiles.empty())
+    if (field == nullptr || m_locked || m_profiles.empty())
     {
         return;
     }
     UserProfile & profile = m_profiles[m_selected];
     const std::string name = CleanName(field->GetValue());
-    if (name.empty() || name == profile.name || !m_session.Modules().OperatingSystem().RenameProfile(profile.info.uuid, name.c_str()))
+    if (name.empty() || name == profile.name || !EnsureWritable() ||
+        !m_session.Profiles().Rename(profile.uuid, name.c_str()))
     {
         if (field->GetValue() != profile.name)
         {

@@ -16,6 +16,8 @@ public:
     struct Host
     {
         std::function<bool()> canChange;
+        // Construct the guest only when a profile mutation requires its owner.
+        std::function<bool()> ensureGuest;
         std::function<void()> changed;
         OpenSettingsPage openPage;
     };
@@ -24,6 +26,7 @@ public:
 
     bool Busy() const { return m_avatarsOpen && (m_avatars.Loading() || m_avatarsPending); }
     void Abandon();
+    void DrainLoaderWork() { m_avatars.Wait(); }
 
 private:
     void OnOpen() override;
@@ -32,6 +35,7 @@ private:
     void OnCloseRequested() override;
 
     void ReadProfiles();
+    bool EnsureWritable();
     void ShowProfiles();
     void ShowEditor();
     void Select(int index);

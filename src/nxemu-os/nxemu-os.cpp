@@ -58,6 +58,8 @@ int CALL ModuleInitialize(ModuleInterfaces & interfaces)
     Common::FS::SetAppDirectory(std::string(g_settings->GetString(NXCoreSetting::AppDirectory)));
     Common::Log::Initialize(interfaces.logger, g_settings->GetString(NXCoreSetting::LogFilter));
     g_settings->RegisterCallback(NXCoreSetting::LogFilter, LoggingSettingChanged, nullptr);
+    // Settings remain registered while the frontend is open, even without an OS instance.
+    SetupOsSetting();
 #ifdef ANDROID
     SetJavaVM((JavaVM *)interfaces.java_vm);
     Common::FS::Android::RegisterModuleFsCallbacks((JavaVM *)interfaces.java_vm, interfaces.native_library_class);
@@ -137,7 +139,7 @@ void CALL DestroyOperatingSystem(IOperatingSystem * operatingSystem)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return;
     }
-    CleanupOsSetting();
+    // OS settings remain registered for the frontend until ModuleCleanup().
     g_osManager = nullptr;
 }
 

@@ -79,6 +79,10 @@
     <ClCompile Include="ui\views\general_dialog.cpp" />
     <ClCompile Include="ui\views\settings_context.cpp" />
     <ClCompile Include="ui\views\settings_controls.cpp" />
+    <ClCompile Include="ui\host\profile_service.cpp" />
+    <ClCompile Include="ui\host\input_service.cpp" />
+    <ClCompile Include="ui\host\physical_devices.cpp" />
+    <ClCompile Include="ui\host\input_storage.cpp" />
     <ClCompile Include="ui\views\user_profiles.cpp" />
     <ClCompile Include="ui\views\volume_control.cpp" />
     <ClCompile Include="ui\i18n\translation.cpp" />
@@ -135,6 +139,9 @@
     <ClInclude Include="ui\views\general_dialog.h" />
     <ClInclude Include="ui\views\settings_context.h" />
     <ClInclude Include="ui\views\settings_controls.h" />
+    <ClInclude Include="ui\host\profile_service.h" />
+    <ClInclude Include="ui\host\input_service.h" />
+    <ClInclude Include="ui\host\physical_devices.h" />
     <ClInclude Include="ui\views\user_profiles.h" />
     <ClInclude Include="ui\views\volume_control.h" />
     <ClInclude Include="ui\views\settings_page.h" />

@@ -92,6 +92,12 @@ bool Printed(int virtualKey)
 }
 } // namespace
 
+int KeyboardVirtualKey(const SDL_KeyboardEvent & event)
+{
+    if (event.type != SDL_KEYDOWN || event.repeat) { return 0; }
+    return VirtualKey(UsKeycode(event.keysym.scancode));
+}
+
 void ForwardKeyboardEvent(const SDL_KeyboardEvent& event, IOperatingSystem& os)
 {
     if (event.repeat)

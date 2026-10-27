@@ -611,3 +611,9 @@ body.stacked .bind-columns
 {
     flex: 1;
 }
+
+/* Read-only discovery in offline mode. No SDL identity is offered as a
+   serialized guest HID binding: that translation belongs to InputSubsystem. */
+.physical-devices { display: none; align-items: center; width: 100%; padding-top: 4dp; color: var(--text-muted); font-size: 12dp; }
+body.offline .physical-devices { display: flex; }
+.physical-devices button { margin-left: 8dp; }

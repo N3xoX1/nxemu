@@ -59,9 +59,21 @@ FirmwareDialog::FirmwareDialog(UiWindow & window, ISystemloader & loader, const 
 {
 }
 
+void FirmwareDialog::UnbindLoader()
+{
+    // Cancel may wake a firmware replacement prompt. Joining is necessary:
+    // the worker holds a borrowed ISystemloader reference.
+    m_installer.StopAndWait();
+    m_loader = nullptr;
+    if (IsVisible())
+    {
+        Close();
+    }
+}
+
 bool FirmwareDialog::OfferSource(const std::string & utf8Path)
 {
-    if (!IsVisible() || m_installer.Current().phase != FirmwareInstaller::Phase::Idle)
+    if (m_loader == nullptr || !IsVisible() || m_installer.Current().phase != FirmwareInstaller::Phase::Idle)
     {
         return false;
     }
@@ -71,13 +83,20 @@ bool FirmwareDialog::OfferSource(const std::string & utf8Path)
 
 void FirmwareDialog::OfferFromGame(const std::string & utf8Path, const std::string & version)
 {
-    m_nextGame = utf8Path;
-    m_nextGameVersion = version;
-    Show();
+    if (m_loader != nullptr)
+    {
+        m_nextGame = utf8Path;
+        m_nextGameVersion = version;
+        Show();
+    }
 }
 
 void FirmwareDialog::OnOpen()
 {
+    if (m_loader == nullptr)
+    {
+        return;
+    }
     m_installer.Reset();
     m_shownPhase = FirmwareInstaller::Phase::Idle;
     m_game.clear();
@@ -100,6 +119,10 @@ void FirmwareDialog::OnOpen()
 
 void FirmwareDialog::OnUpdate()
 {
+    if (m_loader == nullptr)
+    {
+        return;
+    }
     const FirmwareInstaller::State state = m_installer.Current();
     const bool changed = state.phase != m_shownPhase;
     m_shownPhase = state.phase;
@@ -138,6 +161,10 @@ void FirmwareDialog::OnUpdate()
 
 void FirmwareDialog::OnCommand(const std::string & command)
 {
+    if (m_loader == nullptr)
+    {
+        return;
+    }
     if (SDL_GetTicks64() - m_stepShown < kStepSettleMs)
     {
         return;
@@ -192,6 +219,10 @@ void FirmwareDialog::OnCloseRequested()
 
 void FirmwareDialog::Install(const std::string & utf8Path)
 {
+    if (m_loader == nullptr)
+    {
+        return;
+    }
     m_host.installStarting();
     m_installer.Start(*m_loader, utf8Path);
 }
@@ -227,6 +258,10 @@ void FirmwareDialog::ShowStep(const char * step, bool failed)
 
 void FirmwareDialog::ShowInstalledVersion()
 {
+    if (m_loader == nullptr)
+    {
+        return;
+    }
     const std::string version = InstalledVersion(*m_loader);
     SetText("firmware-installed", version.empty() ? Tr("No firmware is installed yet.") : Tr("Firmware %1 is installed.", {version}));
 }

@@ -189,6 +189,14 @@ nxinterface IVideo
 {
     virtual bool Initialize() = 0;
     virtual void Shutdown() = 0;
+    // The interface display survives a guest; Host1x is scoped to guest memory.
+    virtual bool PrepareGuest() = 0;
+    virtual void ReleaseGuest() = 0;
+    // Nonblocking: has the per-session GPU renderer been constructed?
+    virtual bool GuestGpuCreated() const = 0;
+    // Called by the guest OS control thread before executing guest CPU code.
+    // Waits for asynchronous shader loading and GPU thread startup.
+    virtual bool WaitForGuestGpu() = 0;
     virtual uint32_t AllocAsEx(uint64_t addressSpaceBits, uint64_t splitAddress, uint64_t bigPageBits, uint64_t pageBits) = 0;
     virtual uint64_t MapBufferEx(uint32_t gmmu, uint64_t gpuAddr, uint64_t deviceAddr, uint64_t size, uint16_t kind, bool isBigPages) = 0;
     virtual uint64_t MapSparse(uint32_t gmmu, uint64_t gpuAddr, uint64_t size, bool isBigPages) = 0;

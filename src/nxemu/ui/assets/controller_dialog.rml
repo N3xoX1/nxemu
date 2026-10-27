@@ -31,6 +31,10 @@
                 <select id="device" />
               </div>
               <div id="hint" class="controller-hint" />
+              <div class="physical-devices" id="physical-devices">
+                <span id="physical-device-names" />
+                <button data-command="refresh-physical" title="Scan connected controllers">Refresh</button>
+              </div>
             </div>
             <div class="bind-columns">
               <div class="bind-column side">

@@ -298,6 +298,18 @@
     <ClCompile Include="ui\views\settings_controls.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\host\profile_service.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\input_service.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\physical_devices.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\host\input_storage.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\user_profiles.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -429,6 +441,15 @@
     </ClInclude>
     <ClInclude Include="ui\views\settings_controls.h">
       <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\profile_service.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\input_service.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\physical_devices.h">
+      <Filter>Header Files\ui\host</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\user_profiles.h">
       <Filter>Header Files\ui\views</Filter>

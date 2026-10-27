@@ -12,6 +12,8 @@ include(generate_version_header)
 set(NXEMU_VIDEO_SOURCES
     nxemu-video.cpp
     render_window.cpp
+    display_service.cpp
+    display_service.h
     video_manager.cpp
     video_manager.h
     video_enum_strings.cpp

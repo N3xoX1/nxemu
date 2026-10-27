@@ -17,6 +17,8 @@ public:
     FirmwareDialog(UiWindow & window, ISystemloader & loader, const std::filesystem::path & assetDir, Host host);
 
     void SetLoader(ISystemloader & loader) { m_loader = &loader; }
+    // Synchronous lifetime boundary before SystemModules::ShutDown().
+    void UnbindLoader();
 
     bool Installing() const { return m_installer.Busy(); }
     void CancelInstall() { m_installer.Cancel(); }

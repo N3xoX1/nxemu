@@ -255,24 +255,32 @@ void CollectDevice(const char * device, void * userData)
 }
 } // namespace
 
-AdvancedDialog::AdvancedDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, OpenSettingsPage openPage) :
+AdvancedDialog::AdvancedDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, OpenSettingsPage openPage, std::function<bool()> ensureAudioGuest) :
     Dialog(window.Context(), assetDir / "advanced_dialog.rml", kSettingsNarrowBelow),
     m_session(session),
     m_settings(settings),
-    m_openPage(std::move(openPage))
+    m_openPage(std::move(openPage)),
+    m_ensureAudioGuest(std::move(ensureAudioGuest))
 {
 }
 
 void AdvancedDialog::ShowPage(SettingsPage page)
 {
     m_debug = page == SettingsPage::Debug;
+    // The system tab is the only page needing the OS audio enumeration API.
+    if (!m_debug && !m_settings.IsGame() && m_tab == "system" && !m_session.HasGuest() && m_ensureAudioGuest)
+    {
+        m_ensureAudioGuest();
+    }
     if (IsVisible())
     {
         m_hotkeyAsked = -1;
         m_hotkeyNote.clear();
         Document()->SetClass("confirm-defaults", false);
+        FillLists();
+        m_changes.clear();
         ShowTab();
-        ShowHotkeys();
+        ShowValues();
     }
     else
     {
@@ -377,6 +385,13 @@ void AdvancedDialog::OnCommand(const std::string & command)
     {
         if (m_settings.IsGame() && (command == "tab:application" || command == "tab:shortcuts")) return;
         m_tab = command.substr(std::string(kTabPrefix).size());
+        if (m_tab == "system" && !m_settings.IsGame() && !m_session.HasGuest() && m_ensureAudioGuest)
+        {
+            m_ensureAudioGuest();
+            FillLists(); // Refresh the audio device lists after the OS appears.
+            m_changes.clear();
+            ShowValues();
+        }
         ShowTab();
     }
     else if (command.rfind("clear-keyboard:", 0) == 0 || command.rfind("clear-gamepad:", 0) == 0)
@@ -471,7 +486,7 @@ void AdvancedDialog::FillLists()
     std::vector<uint32_t> engines(std::size(kAudioEngines));
     uint32_t engineCount = 0;
     std::vector<std::string> inputs;
-    if (m_session.IsValid())
+    if (m_session.HasGuest())
     {
         IOperatingSystem & os = m_session.Modules().OperatingSystem();
         os.AudioGetSyncIDs(engines.data(), static_cast<uint32_t>(engines.size()), &engineCount);
@@ -486,6 +501,10 @@ void AdvancedDialog::FillLists()
         {
             choices.push_back(Numbered(Tr(kAudioEngines[id]), static_cast<int>(id), {}));
         }
+    }
+    if (engine != 0 && std::none_of(choices.begin(), choices.end(), [engine](const Choice & choice) { return choice.value == std::to_string(engine); }))
+    {
+        choices.push_back(Numbered(engine >= 0 && engine < static_cast<int>(std::size(kAudioEngines)) ? Tr(kAudioEngines[engine]) : Tr("Unknown audio backend"), engine, {}));
     }
     Fill(Select(Document(), "audio-engine"), choices, std::to_string(engine));
 
@@ -509,7 +528,7 @@ void AdvancedDialog::FillLists()
 
     const std::string output = settings.GetString(NXOsSetting::AudioOutputDeviceId);
     std::vector<std::string> outputs;
-    if (m_session.IsValid())
+    if (m_session.HasGuest())
     {
         m_session.Modules().OperatingSystem().AudioGetDeviceListForSink(static_cast<uint32_t>(engine), false, CollectDevice, &outputs);
     }
@@ -703,9 +722,12 @@ void AdvancedDialog::ShowValues()
     SetClass(Document(), "speed", "off", !settings.GetBool(NXOsSetting::UseSpeedLimit));
     SetRange(Document(), "speed-range", speed);
     SetText("speed-text", std::to_string(speed) + "%");
-    SetDisabled(Document(), "audio-engine", m_running);
-    SetDisabled(Document(), "audio-device", m_running);
-    SetDisabled(Document(), "audio-input", m_running);
+    // When enumeration fails, leave saved device IDs intact and prevent
+    // replacement by an incomplete placeholder list.
+    const bool audioUnavailable = !m_session.HasGuest();
+    SetDisabled(Document(), "audio-engine", m_running || audioUnavailable);
+    SetDisabled(Document(), "audio-device", m_running || audioUnavailable);
+    SetDisabled(Document(), "audio-input", m_running || audioUnavailable);
 
     ShowHotkeys();
     m_settings.Decorate(Document());

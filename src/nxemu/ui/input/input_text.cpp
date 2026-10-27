@@ -1,5 +1,6 @@
 #include "input_text.h"
 #include "input_params.h"
+#include <nxemu/ui/host/input_service.h>
 #include <nxemu/ui/host/sdl_input.h>
 #include <nxemu/ui/i18n/translation.h>
 
@@ -60,7 +61,7 @@ bool Is(const IParamPackage & params, const char * key, const char * value)
 }
 } // namespace
 
-std::string InputText::Binding(const IOperatingSystem & os, const IParamPackage & params)
+std::string InputText::Binding(const HostInputService & inputs, const IParamPackage & params)
 {
     if (!params.Has("engine"))
     {
@@ -75,9 +76,16 @@ std::string InputText::Binding(const IOperatingSystem & os, const IParamPackage 
         const std::string key = VirtualKeyName(params.GetInt("code", 0));
         return key.empty() ? std::string() : text + key;
     }
-    const ButtonNames name = os.GetButtonName(params);
+    const ButtonNames name = inputs.ButtonName(params);
     if (name == ButtonNames::Invalid)
     {
+        // Saved controller bindings remain valid while the guest input
+        // backend is not loaded. Show a meaningful fallback, not "Invalid".
+        if (!inputs.Available())
+        {
+            return text + std::string(params.GetString("engine", "")) +
+                   (params.Has("button") ? " #" + std::string(params.GetString("button", "")) : "");
+        }
         return Tr("Invalid");
     }
     if (name == ButtonNames::Engine)
@@ -109,7 +117,7 @@ std::string InputText::Binding(const IOperatingSystem & os, const IParamPackage 
     return Tr("Unknown");
 }
 
-std::string InputText::StickDirection(const IOperatingSystem & os, const IParamPackage & stick, const char * direction)
+std::string InputText::StickDirection(const HostInputService & inputs, const IParamPackage & stick, const char * direction)
 {
     if (!stick.Has("engine"))
     {
@@ -117,7 +125,7 @@ std::string InputText::StickDirection(const IOperatingSystem & os, const IParamP
     }
     if (Is(stick, "engine", "analog_from_button"))
     {
-        return Binding(os, InputParams(stick.GetString(direction, "")));
+        return Binding(inputs, InputParams(stick.GetString(direction, "")));
     }
     if (!stick.Has("axis_x") || !stick.Has("axis_y"))
     {

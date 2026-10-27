@@ -1,12 +1,69 @@
 #include "settings.h"
+#include "identifiers.h"
+#include <cstring>
+#include <algorithm>
 #include <common/file.h>
 #include <common/json.h>
 #include <common/path.h>
 
 std::unique_ptr<SettingsStore> SettingsStore::s_instance;
 
+namespace {
+// Track the actual registration, not just whether this thread is in any
+// callback: removing a different subscriber must still drain its invocations.
+struct CallbackInvocation
+{
+    const void * entry;
+    CallbackInvocation * previous;
+};
+thread_local CallbackInvocation * g_callbackInvocation = nullptr;
+}
+
+
 SettingsStore::SettingsStore()
 {
+}
+
+std::atomic<bool> * SettingsStore::RuntimeBool(const char * setting) const
+{
+    if (setting == nullptr || std::strncmp(setting, "nxcore:", 7) != 0) return nullptr;
+    if (std::strcmp(setting, NXCoreSetting::EmulationRunning) == 0) return &m_emulationRunning;
+    if (std::strcmp(setting, NXCoreSetting::DisplayedFrames) == 0) return &m_displayedFrames;
+    return nullptr;
+}
+
+std::atomic<int32_t> * SettingsStore::RuntimeInt(const char * setting) const
+{
+    if (setting == nullptr || std::strncmp(setting, "nxcore:", 7) != 0) return nullptr;
+    if (std::strcmp(setting, NXCoreSetting::EmulationState) == 0) return &m_emulationState;
+    if (std::strcmp(setting, NXCoreSetting::DiskCacheLoadStage) == 0) return &m_diskCacheStage;
+    if (std::strcmp(setting, NXCoreSetting::DiskCacheLoadCurrent) == 0) return &m_diskCacheCurrent;
+    if (std::strcmp(setting, NXCoreSetting::DiskCacheLoadTotal) == 0) return &m_diskCacheTotal;
+    if (std::strcmp(setting, NXCoreSetting::DiskCacheLoadTick) == 0) return &m_diskCacheTick;
+    return nullptr;
+}
+
+bool SettingsStore::TryGetDiskCacheProgress(DiskCacheProgress & out) const
+{
+    // Writer marks the tick odd before changing fields, then even to publish.
+    // seq_cst prevents a mixed-stage snapshot even on weakly ordered ARM CPUs.
+    for (unsigned attempt = 0; attempt < 4; ++attempt)
+    {
+        const int32_t before = m_diskCacheTick.load(std::memory_order_seq_cst);
+        if (static_cast<uint32_t>(before) & 1u) continue;
+        DiskCacheProgress candidate;
+        candidate.stage = m_diskCacheStage.load(std::memory_order_seq_cst);
+        candidate.current = m_diskCacheCurrent.load(std::memory_order_seq_cst);
+        candidate.total = m_diskCacheTotal.load(std::memory_order_seq_cst);
+        const int32_t after = m_diskCacheTick.load(std::memory_order_seq_cst);
+        if (before == after && !(static_cast<uint32_t>(after) & 1u))
+        {
+            candidate.tick = after;
+            out = candidate;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool SettingsStore::Initialize(const char * configPath, const char * baseDirectory)
@@ -150,6 +207,7 @@ const char * SettingsStore::GetString(const char * setting) const
 
 bool SettingsStore::GetBool(const char * setting) const
 {
+    if (auto * runtime = RuntimeBool(setting)) return runtime->load(std::memory_order_seq_cst);
     SettingsMapBool::const_iterator itr = m_settingsBool.find(setting);
     if (itr == m_settingsBool.end())
     {
@@ -170,6 +228,7 @@ bool SettingsStore::GetChanged(const char * setting) const
 
 int32_t SettingsStore::GetInt(const char* setting) const
 {
+    if (auto * runtime = RuntimeInt(setting)) return runtime->load(std::memory_order_seq_cst);
     SettingsMapInt::const_iterator itr = m_settingsInt.find(setting);
     if (itr == m_settingsInt.end())
     {
@@ -234,6 +293,12 @@ void SettingsStore::SetBool(const char * setting, bool value)
     {
         return;
     }
+    if (auto * runtime = RuntimeBool(setting))
+    {
+        if (runtime->exchange(value, std::memory_order_seq_cst) != value)
+            NotifyChange(setting);
+        return;
+    }
 
     SettingsMapBool::const_iterator it = m_settingsBool.find(setting);
     if (it != m_settingsBool.end() && it->second == value)
@@ -248,6 +313,16 @@ void SettingsStore::SetInt(const char * setting, int32_t value)
 {
     if (setting == nullptr)
     {
+        return;
+    }
+    if (auto * runtime = RuntimeInt(setting))
+    {
+        if (runtime->exchange(value, std::memory_order_seq_cst) != value)
+        {
+            // An odd tick is a write-in-progress marker, not a new frame.
+            if (runtime != &m_diskCacheTick || !(static_cast<uint32_t>(value) & 1u))
+                NotifyChange(setting);
+        }
         return;
     }
 
@@ -291,33 +366,56 @@ void SettingsStore::Save(void)
 void SettingsStore::RegisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData)
 {
     if (callback == nullptr)
-    {
         return;
-    }
 
-    CallbackInfo info = { callback, userData };
-    m_notification[setting].emplace_back(info);
+    auto info = std::make_shared<CallbackInfo>(CallbackInfo{callback, userData});
+    std::lock_guard<std::mutex> lock(m_notificationMutex);
+    m_notification[setting].emplace_back(std::move(info));
+    m_hasCallbacks.store(true, std::memory_order_release);
 }
 
 void SettingsStore::UnregisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData)
 {
-    NotificationMap::iterator itr = m_notification.find(setting);
+    std::unique_lock<std::mutex> lock(m_notificationMutex);
+    auto itr = m_notification.find(setting);
     if (itr == m_notification.end())
-    {
         return;
-    }
-    NotificationCallbacks & callbacks = itr->second;
-    for (NotificationCallbacks::iterator callItr = callbacks.begin(); callItr != callbacks.end();)
+
+    NotificationCallbacks retired;
+    for (const auto & entry : itr->second)
     {
-        if (callItr->callback == callback && callItr->userData == userData)
+        if (entry->callback == callback && entry->userData == userData)
         {
-            callItr = callbacks.erase(callItr);
-        }
-        else
-        {
-            ++callItr;
+            entry->removed = true;
+            retired.push_back(entry);
         }
     }
+    // Keep retired records discoverable while draining. A concurrent second
+    // unregistration must not return early and destroy the same userData.
+    for (const auto & entry : retired)
+    {
+        unsigned localInvocations = 0;
+        for (auto * frame = g_callbackInvocation; frame; frame = frame->previous)
+        {
+            localInvocations += frame->entry == entry.get();
+        }
+        // Concurrent invocations may both unregister themselves. Neither can
+        // join the other in that case; subscriber ownership must outlive all
+        // self-removing callbacks. External unregistration always drains.
+        if (localInvocations == 0)
+            m_notificationIdle.wait(lock, [&] { return entry->inFlight == 0; });
+    }
+    // Waiting releases the lock, so look up the container again afterwards.
+    itr = m_notification.find(setting);
+    if (itr != m_notification.end())
+    {
+        std::erase_if(itr->second, [](const auto & entry) {
+            return entry->removed && entry->inFlight == 0;
+        });
+        if (itr->second.empty())
+            m_notification.erase(itr);
+    }
+    m_hasCallbacks.store(!m_notification.empty(), std::memory_order_release);
 }
 
 SettingsStore & SettingsStore::GetInstance()
@@ -336,17 +434,61 @@ void SettingsStore::CleanUp()
 
 void SettingsStore::NotifyChange(const char * setting)
 {
-    if (setting == nullptr)
-    {
+    if (setting == nullptr || !m_hasCallbacks.load(std::memory_order_acquire))
         return;
-    }
-    NotificationMap::const_iterator itr = m_notification.find(setting);
-    if (itr != m_notification.end())
+    NotificationCallbacks callbacks;
     {
-        const NotificationCallbacks & callbacks = itr->second;
-        for (NotificationCallbacks::const_iterator callItr = callbacks.begin(); callItr != callbacks.end(); callItr++)
+        std::lock_guard<std::mutex> lock(m_notificationMutex);
+        const auto itr = m_notification.find(setting);
+        if (itr == m_notification.end())
+            return;
+        callbacks = itr->second;
+    }
+
+    // The snapshot owns registration records, not subscriber objects. Check
+    // removal before each call and count active invocations while under the
+    // registry lock. No user callback executes under that lock.
+    for (const auto & entry : callbacks)
+    {
         {
-            callItr->callback(setting, callItr->userData);
+            std::lock_guard<std::mutex> lock(m_notificationMutex);
+            if (entry->removed)
+                continue;
+            ++entry->inFlight;
         }
+        CallbackInvocation invocation{entry.get(), g_callbackInvocation};
+        g_callbackInvocation = &invocation;
+        const auto finish = [&] {
+            g_callbackInvocation = invocation.previous;
+            bool removed;
+            {
+                std::lock_guard<std::mutex> lock(m_notificationMutex);
+                --entry->inFlight;
+                removed = entry->removed;
+                if (removed && entry->inFlight == 0)
+                {
+                    const auto itr = m_notification.find(setting);
+                    if (itr != m_notification.end())
+                    {
+                        std::erase(itr->second, entry);
+                        if (itr->second.empty())
+                            m_notification.erase(itr);
+                    }
+                    m_hasCallbacks.store(!m_notification.empty(), std::memory_order_release);
+                }
+            }
+            if (removed)
+                m_notificationIdle.notify_all();
+        };
+        try
+        {
+            entry->callback(setting, entry->userData);
+        }
+        catch (...)
+        {
+            finish();
+            throw;
+        }
+        finish();
     }
 }

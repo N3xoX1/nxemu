@@ -4,6 +4,7 @@
 #include "settings_page.h"
 #include "settings_context.h"
 #include <SDL.h>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -13,7 +14,7 @@ class UiWindow;
 class AdvancedDialog final : public Dialog
 {
 public:
-    AdvancedDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, OpenSettingsPage openPage);
+    AdvancedDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, OpenSettingsPage openPage, std::function<bool()> ensureAudioGuest);
 
     void ShowPage(SettingsPage page);
     void RefreshLanguage();
@@ -37,6 +38,7 @@ private:
     EmulatorSession & m_session;
     SettingsContext & m_settings;
     const OpenSettingsPage m_openPage;
+    const std::function<bool()> m_ensureAudioGuest;
     std::string m_tab = "graphics";
     bool m_debug = false;
     std::vector<std::string> m_changes;

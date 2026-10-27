@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <exception>
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/filesystem_interfaces.h>
@@ -170,6 +171,15 @@ bool Systemloader::Initialize()
     return true;
 }
 
+void Systemloader::ResetSession()
+{
+    impl->m_appLoader.reset();
+    impl->m_file.reset();
+    impl->m_processID = 0;
+    impl->m_titleID = 0;
+    impl->m_manualContentProvider->ClearAllEntries();
+}
+
 uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const
 {
     if (extensions != nullptr && maxCount > 0)
@@ -197,7 +207,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     if (!impl->m_appLoader)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
 
@@ -207,7 +217,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     if (file_type == LoaderFileType::Unknown || file_type == LoaderFileType::Error)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
     uint64_t loaded_program_id = 0;
@@ -266,14 +276,38 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     g_settings->SetString(NXCoreSetting::GameName, title.c_str());
     g_settings->SetString(NXCoreSetting::GameFile, fileName);
     g_settings->SetBool(NXCoreSetting::EmulationRunning, true);
+    // StartEmulation is invoked synchronously by this setting. A failed GPU
+    // construction cancels the start before the application process is launched.
+    if (!g_settings->GetBool(NXCoreSetting::EmulationRunning))
+    {
+        LOG_ERROR(Core, "Game launch aborted: guest GPU initialization failed");
+        return false;
+    }
 
     // TODO(DarkLordZach): When FSController/Game Card Support is added, if
     // current_process_game_card use correct StorageId
     StorageId baseGameStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(impl->m_titleID, LoaderContentRecordType::Program));
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
 
+    try
+    {
+        operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size());
+    }
+    catch (const std::exception & error)
+    {
+        LOG_ERROR(Core, "Failed to start application process: {}", error.what());
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
+        g_settings->SetBool(NXCoreSetting::EmulationRunning, false);
+        return false;
+    }
+    catch (...)
+    {
+        LOG_ERROR(Core, "Failed to start application process: unknown error");
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
+        g_settings->SetBool(NXCoreSetting::EmulationRunning, false);
+        return false;
+    }
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::Success);
-    operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size());
     return true;
 }
 

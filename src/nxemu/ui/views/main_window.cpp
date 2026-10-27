@@ -179,8 +179,16 @@ MainWindow::~MainWindow()
 {
     SettingsStore::GetInstance().UnregisterCallback(NXUISetting::EnableDiscordPresence, DiscordSettingChanged, this);
     m_session.SetListener(nullptr);
+    // Join every worker borrowing the loader before session destruction.
+    m_library.StopScan();
+    m_library.StopDetails();
+    if (m_firmwareDialog)
+    {
+        m_firmwareDialog->UnbindLoader();
+    }
     SaveIconSize();
-    m_window.DetachVideo();
+    // UiWindow's binding is owned by Run(), not by this view.  It is
+    // detached after all RmlUI views have been destroyed.
 }
 
 bool MainWindow::Create()
@@ -198,12 +206,14 @@ bool MainWindow::Create()
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_aboutDialog = std::make_unique<AboutDialog>(m_window.Context(), m_assetDir);
-    m_firmwareDialog = std::make_unique<FirmwareDialog>(m_window, m_session.Modules().Systemloader(), m_assetDir,
+    m_firmwareDialog = std::make_unique<FirmwareDialog>(m_window, m_session.Loader(), m_assetDir,
                                                         FirmwareDialog::Host{
                                                             [this] {
-                                                                if (m_library.Scanning())
+                                                                const bool scanning = m_library.Scanning();
+                                                                m_library.StopScan();
+                                                                m_library.StopDetails();
+                                                                if (scanning)
                                                                 {
-                                                                    m_library.StopScan();
                                                                     m_rescanGames = true;
                                                                 }
                                                             },
@@ -218,7 +228,8 @@ bool MainWindow::Create()
         Post(static_cast<Action>(static_cast<int>(Action::AddOnFirst) + static_cast<int>(index)));
     });
     m_generalDialog = std::make_unique<GeneralDialog>(m_window, m_session, m_settingsContext, m_assetDir, GeneralDialog::Host{[this] { UpdateStatusWidgets(); }, openPage});
-    m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage);
+    m_advancedDialog = std::make_unique<AdvancedDialog>(m_window, m_session, m_settingsContext, m_assetDir, openPage,
+                                                            [this] { return EnsureUtilityGuest(); });
     m_controllerDialog = std::make_unique<ControllerDialog>(m_window, m_session, m_assetDir);
     m_directoriesDialog = std::make_unique<DirectoriesDialog>(m_window, m_library, m_assetDir,
                                                         DirectoriesDialog::Host{
@@ -229,6 +240,7 @@ bool MainWindow::Create()
     m_profilesDialog = std::make_unique<ProfilesDialog>(m_window, m_session, m_assetDir,
                                                         ProfilesDialog::Host{
                                                             [this] { return !m_session.IsRunning() && m_pendingGame.empty(); },
+                                                            [this] { return EnsureUtilityGuest(true); },
                                                             [this] { RefreshProfiles(); },
                                                             openPage,
                                                         });
@@ -252,7 +264,7 @@ bool MainWindow::Create()
     UpdateDiscord();
     ApplyLibraryOptions();
     ApplyIconSize();
-    m_library.StartScan(m_session.Modules());
+    m_library.StartScan(m_session.Loader());
     RenderGames();
     m_document->Show(Rml::ModalFlag::None, Rml::FocusFlag::Document);
     return true;
@@ -363,7 +375,7 @@ void MainWindow::Update()
 {
     RunPendingWork();
     m_session.Update(!m_firmwareDialog->Installing());
-    if (!m_session.IsValid())
+    if (!m_session.FrontendReady())
     {
         m_quit = true;
         return;
@@ -380,6 +392,11 @@ void MainWindow::Update()
     m_advancedDialog->Update();
     m_directoriesDialog->Update();
     m_profilesDialog->Update();
+    if (m_utilityGuest && !m_profilesDialog->IsVisible() && !m_advancedDialog->IsVisible())
+    {
+        m_utilityGuest = false;
+        m_session.ReleaseIdleGuest();
+    }
     SyncInterfaceLanguage();
     std::vector<FoundGame> found;
     if (m_library.TakeFound(found))
@@ -490,9 +507,15 @@ bool MainWindow::DialogOpen() const
 
 void MainWindow::OnModulesReleasing()
 {
-    if (m_library.Scanning())
+    if (m_firmwareDialog)
     {
-        m_library.StopScan();
+        m_firmwareDialog->UnbindLoader();
+    }
+    const bool scanning = m_library.Scanning();
+    // A finished-but-joinable scan still borrows the loader DLL.
+    m_library.StopScan();
+    if (scanning)
+    {
         m_rescanGames = true;
     }
     m_library.StopDetails();
@@ -500,14 +523,21 @@ void MainWindow::OnModulesReleasing()
     m_detailsDirty = true;
     m_detailsReload = true;
     m_controllerDialog->Abandon();
-    m_profilesDialog->Abandon();
-    m_window.DetachVideo();
+    if (m_keepProfileDialogDuringSetup)
+    {
+        // Lazy profile edits must retain the dialog, but drain its loader worker.
+        m_profilesDialog->DrainLoaderWork();
+    }
+    else
+    {
+        m_profilesDialog->Abandon();
+    }
+    // The interface Vulkan device persists across guest sessions (A2k).
 }
 
 void MainWindow::OnModulesReady()
 {
-    m_firmwareDialog->SetLoader(m_session.Modules().Systemloader());
-    AttachVideo();
+    m_firmwareDialog->SetLoader(m_session.Loader());
 }
 
 void MainWindow::OnGameStarted(const std::string & path)
@@ -568,13 +598,13 @@ void MainWindow::RunPendingWork()
         m_pendingSelectMenu = nullptr;
         ShowSelectMenu(origin);
     }
-    if (!m_pendingGame.empty() && !m_firmwareDialog->IsVisible())
+    if (!m_pendingGame.empty() && !m_firmwareDialog->IsVisible() && !m_firmwareDialog->Installing())
     {
         if (!m_launchReady && m_firmwareOfferedFor != m_pendingGame && !m_session.IsRunning())
         {
             m_firmwareOfferedFor = m_pendingGame;
             char version[64]{};
-            if (m_session.Modules().Systemloader().GetGameCardFirmwareUpdate(m_pendingGame.c_str(), version, sizeof(version)) != 0)
+            if (m_session.Loader().GetGameCardFirmwareUpdate(m_pendingGame.c_str(), version, sizeof(version)) != 0)
             {
                 m_firmwareDialog->OfferFromGame(m_pendingGame, version);
                 return;
@@ -604,7 +634,7 @@ void MainWindow::Run(Action action)
     case Action::LoadFile: LoadFile(); break;
     case Action::OpenAbout: m_aboutDialog->Show(); break;
     case Action::InstallFirmware:
-        if (!m_session.IsRunning() && m_pendingGame.empty())
+        if (m_session.FrontendReady() && !m_session.IsRunning() && m_pendingGame.empty())
         {
             m_firmwareDialog->Show();
         }
@@ -792,10 +822,7 @@ void MainWindow::Run(Action action)
     case Action::OpenProfiles: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Profiles); break;
     case Action::OpenGameDirectories: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Directories); break;
     case Action::ConfigureControllers:
-        if (m_session.IsValid())
-        {
-            m_controllerDialog->Show();
-        }
+        m_controllerDialog->Show();
         break;
     case Action::CopyVersion:
         SDL_SetClipboardText(VER_FILE_VERSION_STR);
@@ -1020,7 +1047,7 @@ void MainWindow::RebuildMenu()
                                                             }));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::OpenSettings, Tr("&Settings")));
-    file.push_back(action(Action::ConfigureControllers, Tr("Controllers"), m_session.IsValid()));
+    file.push_back(action(Action::ConfigureControllers, Tr("Controllers"), m_session.FrontendReady()));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::InstallFirmware, Tr("Install &Firmware"), !running));
     file.push_back(MenuItem::Separator());
@@ -1123,7 +1150,7 @@ void MainWindow::RescanGames()
     ReleaseIcons(m_nextGames);
     m_nextGames.clear();
     m_rescanning = !m_games.empty();
-    m_library.StartScan(m_session.Modules());
+    m_library.StartScan(m_session.Loader());
     m_gamesDirty = true;
 }
 
@@ -1615,7 +1642,8 @@ void MainWindow::SetDockedMode(bool docked)
 
 void MainWindow::RefreshProfiles()
 {
-    m_profiles = m_session.IsValid() ? UserProfiles::List(m_session.Modules().OperatingSystem()) : std::vector<UserProfile>();
+    m_session.Profiles().Refresh();
+    m_profiles = m_session.Profiles().List();
     UpdateStatusWidgets();
 }
 
@@ -1813,7 +1841,7 @@ void MainWindow::RequestSelectedDetails()
 {
     if (SelectedGame() != nullptr && m_details.path != m_selectedPath && !m_session.IsRunning() && uiSettings.showGameDetails)
     {
-        m_library.RequestDetails(m_session.Modules(), m_selectedPath);
+        m_library.RequestDetails(m_session.Loader(), m_selectedPath);
     }
 }
 
@@ -1852,7 +1880,7 @@ void MainWindow::ToggleAddOn(size_t index)
         addOn.enabled = std::find(disabled.begin(), disabled.end(), addOn.key) == disabled.end();
     }
     m_detailsDirty = true;
-    m_library.RequestDetails(m_session.Modules(), m_selectedPath, m_details.programId, disabled);
+    m_library.RequestDetails(m_session.Loader(), m_selectedPath, m_details.programId, disabled);
 }
 
 void MainWindow::SelectGame(Rml::Element * card)
@@ -1882,6 +1910,32 @@ void MainWindow::SelectGame(Rml::Element * card)
     RequestSelectedDetails();
 }
 
+bool MainWindow::EnsureUtilityGuest(bool preserveProfiles)
+{
+    if (m_session.HasGuest())
+    {
+        return true;
+    }
+    const bool previous = m_keepProfileDialogDuringSetup;
+    m_keepProfileDialogDuringSetup = preserveProfiles;
+    bool ready = false;
+    try
+    {
+        ready = m_session.EnsureGuest();
+    }
+    catch (...)
+    {
+        m_keepProfileDialogDuringSetup = previous;
+        throw;
+    }
+    m_keepProfileDialogDuringSetup = previous;
+    if (ready)
+    {
+        m_utilityGuest = true;
+    }
+    return ready;
+}
+
 bool MainWindow::ShowSettingsPage(SettingsPage page)
 {
     if (m_settingsContext.IsGame() && page != SettingsPage::General && page != SettingsPage::Advanced && page != SettingsPage::Debug) return false;
@@ -1891,7 +1945,9 @@ bool MainWindow::ShowSettingsPage(SettingsPage page)
         m_generalDialog->Show();
         return m_generalDialog->IsVisible();
     case SettingsPage::Profiles:
-        if (m_session.IsValid())
+        // A2d supplies an offline snapshot: viewing/selecting profiles does
+        // not require an OS. Profile mutations attach the OS only on demand.
+        if (m_session.FrontendReady())
         {
             m_profilesDialog->Show();
         }
@@ -1901,6 +1957,8 @@ bool MainWindow::ShowSettingsPage(SettingsPage page)
         return m_directoriesDialog->IsVisible();
     case SettingsPage::Advanced:
     case SettingsPage::Debug:
+        // Audio enumeration is requested lazily by AdvancedDialog on its
+        // system tab. Graphics, debug and shortcuts use SettingsStore only.
         m_advancedDialog->ShowPage(page);
         return m_advancedDialog->IsVisible();
     }
@@ -2022,7 +2080,7 @@ void MainWindow::SyncPhase()
         else if (phase == EmulatorSession::Phase::Running && m_applyStartOptions)
         {
             m_applyStartOptions = false;
-            if (IRomInfoPtr info(m_session.Modules().Systemloader().LoadedRomInfo()); info)
+            if (IRomInfoPtr info(m_session.Loader().LoadedRomInfo()); info)
             {
                 info->ReadProgramId(m_playingProgram);
             }
@@ -2079,7 +2137,7 @@ void MainWindow::SetUiHidden(bool hidden)
 void MainWindow::RefreshFirmwareVersion()
 {
     char firmware[32]{};
-    const uint32_t length = m_session.Modules().Systemloader().GetInstalledFirmwareDisplayVersion(firmware, sizeof(firmware));
+    const uint32_t length = m_session.Loader().GetInstalledFirmwareDisplayVersion(firmware, sizeof(firmware));
     m_firmwareVersion.assign(firmware, length);
     UpdateStatusText();
 }
@@ -2116,7 +2174,7 @@ void MainWindow::UpdateLoadingScreen()
 {
     if (!m_loadingScreen->HasGame())
     {
-        IRomInfoPtr info(m_session.Modules().Systemloader().LoadedRomInfo());
+        IRomInfoPtr info(m_session.Loader().LoadedRomInfo());
         if (info)
         {
             m_loadingScreen->SetGame(*info);
@@ -2260,17 +2318,6 @@ const PixelRect * MainWindow::GameArea() const
 {
     const bool playing = m_phase == EmulatorSession::Phase::Running || m_phase == EmulatorSession::Phase::Paused;
     return playing && m_gameArea.width > 0 ? &m_gameArea : nullptr;
-}
-
-bool MainWindow::AttachVideo()
-{
-    if (m_session.IsValid() && m_window.AttachVideo(m_session.Modules().Video()))
-    {
-        return true;
-    }
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "NXEmu", m_window.Error().c_str(), m_window.Handle());
-    m_quit = true;
-    return false;
 }
 
 void MainWindow::ResetWindowSize(int width, int height)

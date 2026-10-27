@@ -5,6 +5,8 @@
 #include <memory>
 #include <mutex>
 #include <nxemu-core/modules/system_modules.h>
+#include <nxemu/ui/host/profile_service.h>
+#include <nxemu/ui/host/input_service.h>
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <string>
@@ -41,9 +43,19 @@ public:
     void SetListener(Listener * listener) { m_listener = listener; }
 
     bool Initialise();
-    bool IsValid() const { return m_modules.IsValid(); }
+    // Host stays usable when no guest is running.
+    bool FrontendReady() const { return m_modules.FrontendValid(); }
+    bool HasGuest() const { return m_modules.IsValid(); }
+    ISystemloader & Loader() { return m_modules.Loader(); }
+    IVideo & DisplayVideo() { return m_modules.DisplayVideo(); }
     ISystemModules & Modules() { return m_modules.Modules(); }
     void FlushSettings();
+    HostProfileService & Profiles();
+    HostInputService & Inputs() noexcept { return m_inputService; }
+
+    // Temporary OS for host-only operations that still require guest services.
+    bool EnsureGuest() { return HasGuest() || PrepareSession(); }
+    void ReleaseIdleGuest() { if (!IsRunning() && !m_releasePending && HasGuest()) ReleaseSession(); }
 
     bool LoadGame(const std::string & path);
     void Stop();
@@ -84,7 +96,8 @@ private:
 
     bool LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                      ApplicationLaunchType launchType, const UserChannel & userChannel);
-    bool ResetModules();
+    bool PrepareSession();
+    void ReleaseSession();
     void RegisterSystemCallbacks();
     void ProcessProgramEvents();
     void ReportError(const std::string & message);
@@ -98,6 +111,8 @@ private:
     SDL_Window * m_window;
     Listener * m_listener = nullptr;
     SystemModules m_modules;
+    HostProfileService m_profileService;
+    HostInputService m_inputService;
     std::mutex m_programEventsMutex;
     std::deque<ProgramEvent> m_programEvents;
     std::unique_ptr<CallbackContext> m_callbackContext;

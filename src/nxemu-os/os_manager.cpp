@@ -25,6 +25,7 @@
 #endif
 #include <nxemu-core/settings/identifiers.h>
 #include <filesystem>
+#include <stdexcept>
 
 namespace
 {
@@ -146,6 +147,9 @@ OSManager::OSManager(ISystemModules & modules) :
 
 OSManager::~OSManager()
 {
+    // Destruction must also be safe after a partially completed launch.
+    // The control thread borrows m_applicationProcess and m_coreSystem.
+    EmulationStopping(true);
     if (m_applicationProcess != nullptr)
     {
         m_applicationProcess->Close();
@@ -186,7 +190,6 @@ void OSManager::EmulationStopping(bool wait)
 
 bool OSManager::Initialize(void)
 {
-    SetupOsSetting();
     m_coreSystem.Initialize();
     m_coreSystem.HIDCore().ReloadInputDevices();
     return true;
@@ -200,7 +203,12 @@ void OSManager::ShutDown()
         m_coreSystem.SetExitRequested(true);
         m_coreSystem.GetAppletManager().RequestExit();
     }
-    m_emuThread->SetRunning(true);
+    // Host-only sessions can be destroyed before EmulationStarting creates a
+    // control thread. Do not dereference a thread that never existed.
+    if (m_emuThread)
+    {
+        m_emuThread->SetRunning(true);
+    }
 }
 
 bool OSManager::IsShuttingDown() const
@@ -295,9 +303,35 @@ bool OSManager::CreateApplicationProcess(uint64_t codeSize, const IProgramMetada
 
 void OSManager::StartApplicationProcess(int32_t priority, int64_t stackSize, uint32_t version, StorageId baseGameStorageId, StorageId updateStorageId, uint8_t * nacpData, uint32_t nacpDataLen)
 {
-    m_coreSystem.AddGlueRegistrationForProcess(*m_applicationProcess, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
-    m_applicationProcess->Run(priority, stackSize);
-    m_coreSystem.GetAppletManager().NotifyAppletStarted(m_applicationProcess->GetProcessId());
+    // EmuThread may already be waiting for a failed GPU startup. Publish
+    // completion only after the process has finished its launch operations:
+    // otherwise the control thread could close the process while Run() or
+    // NotifyAppletStarted() is still using it.
+    if (!m_emuThread || !m_emuThread->BeginProcessLaunch())
+    {
+        throw std::runtime_error("Guest process launch was cancelled");
+    }
+    try
+    {
+        m_coreSystem.AddGlueRegistrationForProcess(*m_applicationProcess, version, baseGameStorageId, updateStorageId, nacpData, nacpDataLen);
+        if (m_applicationProcess->Run(priority, stackSize).IsError())
+        {
+            throw std::runtime_error("Failed to start guest application process");
+        }
+        m_coreSystem.GetAppletManager().NotifyAppletStarted(m_applicationProcess->GetProcessId());
+    }
+    catch (...)
+    {
+        if (m_emuThread)
+        {
+            m_emuThread->ProcessLaunchCompleted(false);
+        }
+        throw;
+    }
+    if (m_emuThread)
+    {
+        m_emuThread->ProcessLaunchCompleted(true);
+    }
 }
 
 bool OSManager::LoadModule(const IModuleInfo & module, uint64_t baseAddress)

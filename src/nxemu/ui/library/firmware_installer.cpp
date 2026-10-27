@@ -1,12 +1,10 @@
 #include "firmware_installer.h"
+#include <exception>
+#include <yuzu_common/logging/log.h>
 
 FirmwareInstaller::~FirmwareInstaller()
 {
-    Cancel();
-    if (m_thread.joinable())
-    {
-        m_thread.join();
-    }
+    StopAndWait();
 }
 
 void FirmwareInstaller::Start(ISystemloader & loader, std::string utf8Path)
@@ -20,14 +18,36 @@ void FirmwareInstaller::Start(ISystemloader & loader, std::string utf8Path)
         std::lock_guard lock(m_mutex);
         m_state.phase = Phase::Working;
     }
-    m_thread = std::thread([this, &loader, path = std::move(utf8Path)] {
-        char version[64]{};
-        const FirmwareInstallStatus status = loader.InstallFirmwarePackage(path.c_str(), this, version, sizeof(version));
+    try
+    {
+        m_thread = std::thread([this, &loader, path = std::move(utf8Path)] {
+            char version[64]{};
+            FirmwareInstallStatus status = FirmwareInstallStatus::CopyFailed;
+            try
+            {
+                status = loader.InstallFirmwarePackage(path.c_str(), this, version, sizeof(version));
+            }
+            catch (const std::exception & error)
+            {
+                LOG_ERROR(Frontend, "Firmware installation failed: {}", error.what());
+            }
+            catch (...)
+            {
+                LOG_ERROR(Frontend, "Firmware installation failed with an unknown exception");
+            }
+            std::lock_guard lock(m_mutex);
+            m_state.phase = Phase::Done;
+            m_state.status = status;
+            m_state.packageVersion = version;
+        });
+    }
+    catch (const std::exception & error)
+    {
+        LOG_ERROR(Frontend, "Could not start firmware installer: {}", error.what());
         std::lock_guard lock(m_mutex);
         m_state.phase = Phase::Done;
-        m_state.status = status;
-        m_state.packageVersion = version;
-    });
+        m_state.status = FirmwareInstallStatus::CopyFailed;
+    }
 }
 
 FirmwareInstaller::State FirmwareInstaller::Current() const
@@ -64,6 +84,19 @@ void FirmwareInstaller::Cancel()
         m_cancel = true;
     }
     m_answered.notify_all();
+}
+
+void FirmwareInstaller::StopAndWait()
+{
+    Cancel();
+    if (m_thread.joinable())
+    {
+        m_thread.join();
+    }
+    // No loader callbacks can run past this point.
+    std::lock_guard lock(m_mutex);
+    m_state = {};
+    m_cancel = m_hasAnswer = m_answer = false;
 }
 
 void FirmwareInstaller::Reset()

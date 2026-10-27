@@ -20,6 +20,10 @@ public:
     // IVideo
     bool Initialize() override;
     void Shutdown() override;
+    bool PrepareGuest() override;
+    void ReleaseGuest() override;
+    bool GuestGpuCreated() const override;
+    bool WaitForGuestGpu() override;
     uint32_t AllocAsEx(uint64_t addressSpaceBits, uint64_t splitAddress, uint64_t bigPageBits, uint64_t pageBits) override;
     uint64_t MapBufferEx(uint32_t gmmu, uint64_t gpuAddr, uint64_t deviceAddr, uint64_t size, uint16_t kind, bool isBigPages) override;
     uint64_t MapSparse(uint32_t gmmu, uint64_t gpuAddr, uint64_t size, bool isBigPages) override;

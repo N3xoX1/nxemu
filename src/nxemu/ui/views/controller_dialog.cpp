@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu/ui/emulation/emulator_session.h>
@@ -128,6 +129,32 @@ constexpr TypeChoice kTypes[] = {
     {NpadStyleIndex::Handheld, NpadStyleSet::Handheld, kHandheld, TrMark("Handheld")},
     {NpadStyleIndex::GameCube, NpadStyleSet::Gc, kGameCube, TrMark("GameCube Controller")},
 };
+
+// Names in nxemu-os/os_enum_strings.cpp. Settings must preserve the existing
+// serialized strings; never persist numeric NpadStyleIndex values.
+constexpr const char * kStoredTypes[] = {
+    "ProController", "DualJoyconDetached", "LeftJoycon", "RightJoycon", "Handheld", "GameCube"};
+
+const char * SavedType(NpadStyleIndex type)
+{
+    for (size_t i = 0; i < std::size(kTypes); ++i)
+    {
+        if (kTypes[i].type == type) { return kStoredTypes[i]; }
+    }
+    return kStoredTypes[0];
+}
+
+NpadStyleIndex LoadedType(const JsonValue & value)
+{
+    if (value.isString())
+    {
+        for (size_t i = 0; i < std::size(kTypes); ++i)
+        {
+            if (value.asString() == kStoredTypes[i]) { return kTypes[i].type; }
+        }
+    }
+    return kTypes[0].type;
+}
 
 const TypeChoice & ChoiceOf(NpadStyleIndex type)
 {
@@ -276,7 +303,12 @@ ControllerDialog::~ControllerDialog()
 
 void ControllerDialog::HandleKey(const SDL_KeyboardEvent & event)
 {
-    if (IsVisible() && event.keysym.sym != SDLK_ESCAPE)
+    if (!IsVisible()) { return; }
+    if (m_offline)
+    {
+        OfflineKey(event);
+    }
+    else if (m_session.Inputs().Available() && event.keysym.sym != SDLK_ESCAPE)
     {
         ForwardKeyboardEvent(event, Os());
     }
@@ -297,6 +329,11 @@ IOperatingSystem & ControllerDialog::Os() const
     return m_session.Modules().OperatingSystem();
 }
 
+bool ControllerDialog::Connected(int player) const
+{
+    return m_offline ? m_offlineConnected[player] : Pad(player).IsConnected();
+}
+
 IEmulatedController & ControllerDialog::Pad(int player) const
 {
     return Os().GetEmulatedController(player == 0 && m_handheld ? NpadIdType::Handheld : kPlayerIds[player]);
@@ -304,11 +341,21 @@ IEmulatedController & ControllerDialog::Pad(int player) const
 
 NpadStyleIndex ControllerDialog::Type(int player) const
 {
-    return player == 0 && m_handheld ? NpadStyleIndex::Handheld : Pad(player).GetNpadStyleIndex();
+    return m_offline ? m_offlineTypes[player] :
+           player == 0 && m_handheld ? NpadStyleIndex::Handheld : Pad(player).GetNpadStyleIndex();
 }
 
 void ControllerDialog::SetType(int player, NpadStyleIndex type)
 {
+    if (m_offline)
+    {
+        m_offlineTypes[player] = type;
+        m_offlineTypeChanged[player] = true;
+        if (player == 0) { m_handheld = type == NpadStyleIndex::Handheld; }
+        m_offlineChanged[player] = true;
+        m_changed = true;
+        return;
+    }
     IEmulatedController & from = Pad(player);
     const bool connected = from.IsConnected();
     from.Disconnect();
@@ -350,6 +397,13 @@ void ControllerDialog::SetType(int player, NpadStyleIndex type)
 
 void ControllerDialog::SetConnected(int player, bool connected)
 {
+    if (m_offline)
+    {
+        m_offlineConnected[player] = connected;
+        m_offlineChanged[player] = true;
+        m_changed = true;
+        return;
+    }
     if (connected)
     {
         Pad(player).Connect();
@@ -364,6 +418,28 @@ void ControllerDialog::SetConnected(int player, bool connected)
 void ControllerDialog::Finish(bool save)
 {
     StopListening();
+    if (m_offline)
+    {
+        if (save)
+        {
+            for (int player = 0; player < kPlayers; ++player)
+            {
+                if (m_offlineChanged[player] && !StageOfflineBindings(player))
+                {
+                    SetText("hint", Tr("Invalid controller settings."));
+                    return;
+                }
+            }
+            if (!m_session.Inputs().SaveOfflinePlayers(m_offlineSettings, m_offlineChanged))
+            {
+                SetText("hint", Tr("Could not save controller settings."));
+                return;
+            }
+        }
+        m_rows.clear();
+        Close();
+        return;
+    }
     IOperatingSystem & os = Os();
     std::vector<IEmulatedController *> pads = {&os.GetEmulatedController(NpadIdType::Handheld)};
     for (const NpadIdType id : kPlayerIds)
@@ -396,16 +472,23 @@ void ControllerDialog::Finish(bool save)
 
 void ControllerDialog::OnOpen()
 {
-    IOperatingSystem & os = Os();
+    m_offline = !m_session.Inputs().Available();
+    if (m_offline) { LoadOfflinePlayers(); }
+    Document()->SetClass("offline", m_offline);
+    IOperatingSystem * os = m_offline ? nullptr : &Os();
     m_player = 0;
     m_changed = false;
     m_listenSlot = -1;
-    m_handheld = os.GetEmulatedController(NpadIdType::Handheld).IsConnected() ||
-                 os.GetEmulatedController(NpadIdType::Player1).GetNpadStyleIndex() == NpadStyleIndex::Handheld;
+    m_handheld = m_offline ? m_offlineTypes[0] == NpadStyleIndex::Handheld :
+                 os->GetEmulatedController(NpadIdType::Handheld).IsConnected() ||
+                 os->GetEmulatedController(NpadIdType::Player1).GetNpadStyleIndex() == NpadStyleIndex::Handheld;
     for (int player = 0; player < kPlayers; ++player)
     {
-        m_vibration[player] = SettingsStore::GetInstance().GetBool(VibrationEnabledSetting(player));
-        m_strength[player] = SettingsStore::GetInstance().GetInt(VibrationStrengthSetting(player));
+        if (!m_offline)
+        {
+            m_vibration[player] = SettingsStore::GetInstance().GetBool(VibrationEnabledSetting(player));
+            m_strength[player] = SettingsStore::GetInstance().GetInt(VibrationStrengthSetting(player));
+        }
     }
 
     m_marks.clear();
@@ -413,6 +496,7 @@ void ControllerDialog::OnOpen()
     Document()->SetClass("stacked", WindowWidth() < kStackedBelow);
     BuildRows();
     ReadDevices();
+    if (m_offline) { ShowPhysicalDevices(m_session.Inputs().RefreshPhysicalDevices()); }
     for (int player = 0; player < kPlayers; ++player)
     {
         m_device[player] = MappedDevice(player);
@@ -439,7 +523,7 @@ void ControllerDialog::OnUpdate()
     {
         ApplyChange(id);
     }
-    if (SDL_GetTicks64() - m_devicesRead >= kDevicesEveryMs && !Listening())
+    if (!m_offline && SDL_GetTicks64() - m_devicesRead >= kDevicesEveryMs && !Listening())
     {
         const std::vector<InputParams> before = std::move(m_devices);
         ReadDevices();
@@ -466,6 +550,11 @@ void ControllerDialog::OnCommand(const std::string & command)
     const size_t colon = command.find(':');
     const std::string name = command.substr(0, colon);
     const int number = colon != std::string::npos ? std::atoi(command.c_str() + colon + 1) : 0;
+    if (name == "refresh-physical" && m_offline)
+    {
+        ShowPhysicalDevices(m_session.Inputs().RefreshPhysicalDevices());
+        return;
+    }
     if (name == "save" || name == "cancel")
     {
         Finish(name == "save");
@@ -489,13 +578,14 @@ void ControllerDialog::OnCommand(const std::string & command)
     }
     else if (name == "toggle-connected")
     {
-        SetConnected(m_player, !Pad(m_player).IsConnected());
+        SetConnected(m_player, !Connected(m_player));
         ShowPlayers();
         ShowPlayer();
     }
     else if (name == "toggle-vibration")
     {
         m_vibration[m_player] = !m_vibration[m_player];
+        if (m_offline) { m_offlineChanged[m_player] = true; }
         m_changed = true;
         ShowPlayer();
     }
@@ -515,6 +605,7 @@ void ControllerDialog::OnCommand(const std::string & command)
         ApplyDevice(m_player, m_device[m_player]);
         m_vibration[m_player] = true;
         m_strength[m_player] = 100;
+        if (m_offline) { m_offlineChanged[m_player] = true; }
         m_changed = true;
         ShowPlayer();
     }
@@ -563,20 +654,45 @@ void ControllerDialog::ReadDevices()
 {
     m_devices.clear();
     m_devicesRead = SDL_GetTicks64();
-    IParamPackageList * devices = Os().GetInputDevices();
-    if (devices == nullptr)
+    if (m_offline)
     {
+        InputParams any;
+        any.Set("engine", "any");
+        m_devices.push_back(std::move(any));
+        InputParams keyboard;
+        keyboard.Set("engine", "keyboard");
+        m_devices.push_back(std::move(keyboard));
         return;
     }
-    for (uint32_t i = 0, count = devices->GetCount(); i < count; ++i)
+    // This snapshot is owned by the frontend; it survives a guest-module reset.
+    HostInputService & inputs = m_session.Inputs();
+    inputs.RefreshDevices();
+    m_devices = inputs.Devices();
+}
+
+void ControllerDialog::ShowPhysicalDevices(bool available)
+{
+    if (!m_offline) { return; }
+    if (!available)
     {
-        InputParams device = InputParams::Copy(devices->GetParamPackage(i));
-        if (device.Get("engine") != "mouse")
-        {
-            m_devices.push_back(std::move(device));
-        }
+        SetText("physical-device-names", Tr("Controller detection unavailable"));
+        return;
     }
-    devices->Release();
+    const auto & devices = m_session.Inputs().PhysicalDevices();
+    if (devices.empty())
+    {
+        SetText("physical-device-names", Tr("No physical gamepad detected"));
+        return;
+    }
+    std::string names = Tr("Detected (read-only): ");
+    for (size_t i = 0; i < devices.size() && i < 8; ++i)
+    {
+        if (i > 0) { names += ", "; }
+        names += Escaped(devices[i].name);
+    }
+    if (devices.size() > 8) { names += " (+" + std::to_string(devices.size() - 8) + ")"; }
+    // SetText takes RML, so external hardware names must be escaped.
+    SetText("physical-device-names", names);
 }
 
 void ControllerDialog::FillDevices()
@@ -603,13 +719,17 @@ void ControllerDialog::FillTypes()
     {
         return;
     }
-    const uint32_t supported = static_cast<uint32_t>(Os().GetSupportedStyleTag());
+    const uint32_t supported = m_offline ? ~0u : static_cast<uint32_t>(Os().GetSupportedStyleTag());
     const NpadStyleIndex current = Type(m_player);
     select->RemoveAll();
     int index = 0;
     for (const TypeChoice & choice : kTypes)
     {
-        const bool offered = (supported & static_cast<uint32_t>(choice.style)) != 0 && (choice.type != NpadStyleIndex::Handheld || m_player == 0);
+        // Handheld has a second persisted controller (player_8). Until its
+        // independent configuration is supported offline, do not offer a
+        // new handheld conversion that would drop those bindings.
+        const bool offered = (supported & static_cast<uint32_t>(choice.style)) != 0 &&
+                             (choice.type != NpadStyleIndex::Handheld || (m_player == 0 && !m_offline));
         if (offered || choice.type == current)
         {
             select->Add(Tr(choice.name), std::to_string(static_cast<int>(choice.type)));
@@ -624,18 +744,23 @@ void ControllerDialog::FillTypes()
 
 int ControllerDialog::MappedDevice(int player) const
 {
-    IParamPackageList * mapped = Pad(player).GetMappedDevicesPtr();
-    if (mapped == nullptr)
+    const NpadIdType id = player == 0 && m_handheld ? NpadIdType::Handheld : kPlayerIds[player];
+    if (m_offline)
     {
+        for (const InputParams & binding : m_offlineMappings[player].buttons)
+        {
+            if (binding.Get("engine") == "keyboard") { return 1; }
+        }
         return 0;
     }
+    const std::vector<InputParams> mapped = m_session.Inputs().MappedDevices(id);
     int found = 0;
-    const uint32_t count = mapped->GetCount();
+    const size_t count = mapped.size();
     if (count == 1)
     {
         for (size_t i = 1; i < m_devices.size(); ++i)
         {
-            if (SameDevice(m_devices[i], mapped->GetParamPackage(0)))
+            if (SameDevice(m_devices[i], mapped[0]))
             {
                 found = static_cast<int>(i);
                 break;
@@ -644,14 +769,14 @@ int ControllerDialog::MappedDevice(int player) const
     }
     else if (count == 2)
     {
-        const IParamPackage & first = mapped->GetParamPackage(0);
-        const IParamPackage & second = mapped->GetParamPackage(1);
-        const std::string guid1 = first.GetString("guid", ""), guid2 = second.GetString("guid", "");
+        const InputParams & first = mapped[0];
+        const InputParams & second = mapped[1];
+        const std::string guid1 = first.Get("guid"), guid2 = second.Get("guid");
         for (size_t i = 1; i < m_devices.size(); ++i)
         {
             const InputParams & device = m_devices[i];
             const bool pair = (device.Get("guid") == guid1 && device.Get("guid2") == guid2) || (device.Get("guid") == guid2 && device.Get("guid2") == guid1);
-            if (pair && device.Get("engine") == first.GetString("engine", "") && device.Get("engine") == second.GetString("engine", "") &&
+            if (pair && device.Get("engine") == first.Get("engine") && device.Get("engine") == second.Get("engine") &&
                 device.GetInt("port", 0) == first.GetInt("port", 0) && first.GetInt("port", 0) == second.GetInt("port", 0))
             {
                 found = static_cast<int>(i);
@@ -659,7 +784,6 @@ int ControllerDialog::MappedDevice(int player) const
             }
         }
     }
-    mapped->Release();
     return found;
 }
 
@@ -696,40 +820,23 @@ void ControllerDialog::ApplyDevice(int player, int device)
     }
     else
     {
-        IOperatingSystem & os = Os();
-        if (IButtonMappingList * list = os.GetButtonMappingForDevice(source))
-        {
-            for (uint32_t i = 0, count = list->GetCount(); i < count; ++i)
-            {
-                if (list->GetIndex(i) < kButtonCount)
-                {
-                    buttons[list->GetIndex(i)] = InputParams::Copy(list->GetParamPackage(i));
-                }
-            }
-            list->Release();
-        }
-        if (IButtonMappingList * list = os.GetAnalogMappingForDevice(source))
-        {
-            for (uint32_t i = 0, count = list->GetCount(); i < count; ++i)
-            {
-                if (list->GetIndex(i) < kStickCount)
-                {
-                    sticks[list->GetIndex(i)] = InputParams::Copy(list->GetParamPackage(i));
-                }
-            }
-            list->Release();
-        }
-        if (IButtonMappingList * list = os.GetMotionMappingForDevice(source))
-        {
-            for (uint32_t i = 0, count = list->GetCount(); i < count; ++i)
-            {
-                if (list->GetIndex(i) < kMotionCount)
-                {
-                    motions[list->GetIndex(i)] = InputParams::Copy(list->GetParamPackage(i));
-                }
-            }
-            list->Release();
-        }
+        // The host service copies and releases every OS-owned mapping list.
+        // Nothing is applied until all three lists were read successfully.
+        auto mappings = m_session.Inputs().ReadDeviceMappings(source);
+        if (!mappings) { return; }
+        buttons = std::move(mappings->buttons);
+        sticks = std::move(mappings->sticks);
+        motions = std::move(mappings->motions);
+    }
+    if (m_offline)
+    {
+        auto & mappings = m_offlineMappings[player];
+        mappings.buttons = std::move(buttons);
+        mappings.sticks = std::move(sticks);
+        mappings.motions = std::move(motions);
+        m_offlineChanged[player] = true;
+        m_changed = true;
+        return;
     }
     IEmulatedController & pad = Pad(player);
     for (uint32_t i = 0; i < kButtonCount; ++i)
@@ -752,7 +859,7 @@ void ControllerDialog::ShowPlayers()
     std::string rml;
     for (int player = 0; player < kPlayers; ++player)
     {
-        const bool connected = Pad(player).IsConnected();
+        const bool connected = Connected(player);
         rml += std::string("<div class=\"player-tab") + (player == m_player ? " selected" : "") + (connected ? " connected" : "") + "\" data-command=\"player:" +
                std::to_string(player) + "\" title=\"" + (connected ? Tr(ChoiceOf(Type(player)).name) : Tr("Not connected")) +
                "\"><div class=\"player-dot\" /><div>" + Tr("Player %1", {std::to_string(player + 1)}) + "</div></div>";
@@ -764,7 +871,7 @@ void ControllerDialog::ShowPlayer()
 {
     if (Rml::Element * connected = Document()->GetElementById("connected"))
     {
-        connected->SetClass("on", Pad(m_player).IsConnected());
+        connected->SetClass("on", Connected(m_player));
     }
     FillTypes();
     if (auto * select = rmlui_dynamic_cast<Rml::ElementFormControlSelect *>(Document()->GetElementById("device")))
@@ -835,8 +942,9 @@ void ControllerDialog::ShowSticks()
 {
     for (uint32_t stick = 0; stick < kStickCount; ++stick)
     {
-        const InputParams params = InputParams::Take(Pad(m_player).GetStickParamPtr(stick));
-        const bool analog = !params.Unset() && Os().IsController(params);
+        const InputParams params = m_offline ? m_offlineMappings[m_player].sticks[stick] :
+                                   InputParams::Take(Pad(m_player).GetStickParamPtr(stick));
+        const bool analog = !params.Unset() && (m_offline ? params.Has("axis_x") : Os().IsController(params));
         const bool keys = params.Get("engine") == "analog_from_button";
         const std::string prefix = "stick-" + std::to_string(stick) + "-";
         for (const StickOption & option : kStickOptions)
@@ -941,6 +1049,7 @@ void ControllerDialog::ShowPicture()
 
 void ControllerDialog::ShowState()
 {
+    if (m_offline) { return; } // No emulated HID state until a game session exists.
     IEmulatedController & pad = Pad(m_player);
     button_status_t buttons[kButtonCount]{};
     pad.GetButtonsStatus(buttons, kButtonCount);
@@ -1062,6 +1171,7 @@ void ControllerDialog::ApplyChange(const std::string & id)
         if (strength != m_strength[m_player])
         {
             m_strength[m_player] = strength;
+            if (m_offline) { m_offlineChanged[m_player] = true; }
             m_changed = true;
             SetText("strength-text", std::to_string(strength) + "%");
         }
@@ -1076,12 +1186,18 @@ void ControllerDialog::ApplyChange(const std::string & id)
                 {
                     continue;
                 }
-                InputParams params = InputParams::Take(Pad(m_player).GetStickParamPtr(stick));
+                InputParams params = m_offline ? m_offlineMappings[m_player].sticks[stick] :
+                                     InputParams::Take(Pad(m_player).GetStickParamPtr(stick));
                 const int percent = RangeValue(element, 0);
                 if (!params.Unset() && percent != Percent(params.GetFloat(option.param, option.fallback)))
                 {
                     params.SetFloat(option.param, static_cast<float>(percent) / 100.0f);
-                    Pad(m_player).SetStickParam(stick, params);
+                    if (m_offline)
+                    {
+                        m_offlineMappings[m_player].sticks[stick] = params;
+                        m_offlineChanged[m_player] = true;
+                    }
+                    else { Pad(m_player).SetStickParam(stick, params); }
                     m_changed = true;
                     ShowSticks();
                 }
@@ -1093,6 +1209,12 @@ void ControllerDialog::ApplyChange(const std::string & id)
 InputParams ControllerDialog::SlotParams(int slot) const
 {
     const Slot & info = kSlots[slot];
+    if (m_offline)
+    {
+        const auto & mappings = m_offlineMappings[m_player];
+        return info.kind == SlotKind::Button ? mappings.buttons[info.index] :
+               info.kind == SlotKind::Motion ? mappings.motions[info.index] : mappings.sticks[info.index];
+    }
     switch (info.kind)
     {
     case SlotKind::Button: return InputParams::Take(Pad(m_player).GetButtonParamPtr(info.index));
@@ -1107,23 +1229,25 @@ std::string ControllerDialog::SlotText(int slot) const
     const InputParams params = SlotParams(slot);
     switch (info.kind)
     {
-    case SlotKind::StickDirection: return InputText::StickDirection(Os(), params, info.direction);
-    case SlotKind::StickModifier: return InputText::Binding(Os(), InputParams(params.Get("modifier")));
-    default: return InputText::Binding(Os(), params);
+    case SlotKind::StickDirection: return InputText::StickDirection(m_session.Inputs(), params, info.direction);
+    case SlotKind::StickModifier: return InputText::Binding(m_session.Inputs(), InputParams(params.Get("modifier")));
+    default: return InputText::Binding(m_session.Inputs(), params);
     }
 }
 
 void ControllerDialog::Bind(int slot, const InputParams & input)
 {
     const Slot & info = kSlots[slot];
-    IEmulatedController & pad = Pad(m_player);
+    IEmulatedController * pad = m_offline ? nullptr : &Pad(m_player);
     if (info.kind == SlotKind::Button)
     {
-        pad.SetButtonParam(info.index, input);
+        if (pad) { pad->SetButtonParam(info.index, input); }
+        else { m_offlineMappings[m_player].buttons[info.index] = input; }
     }
     else if (info.kind == SlotKind::Motion)
     {
-        pad.SetMotionParam(info.index, input);
+        if (pad) { pad->SetMotionParam(info.index, input); }
+        else { m_offlineMappings[m_player].motions[info.index] = input; }
     }
     else
     {
@@ -1154,9 +1278,11 @@ void ControllerDialog::Bind(int slot, const InputParams & input)
             }
             stick.Set(key, input.Text());
         }
-        pad.SetStickParam(info.index, stick);
+        if (pad) { pad->SetStickParam(info.index, stick); }
+        else { m_offlineMappings[m_player].sticks[info.index] = std::move(stick); }
     }
     m_changed = true;
+    if (m_offline) { m_offlineChanged[m_player] = true; }
     ShowBindings();
 }
 
@@ -1177,6 +1303,7 @@ void ControllerDialog::Listen(int slot, bool sequence)
     m_listenSequence = sequence;
     m_listenBegun = false;
     m_listenFrom = SDL_GetTicks64() + (m_listenIgnore.empty() ? 0 : kSequenceGapMs);
+    if (m_offline) { m_listenUntil = m_listenFrom + kListenMs; }
     m_shownSeconds = -1;
     ShowBindings();
 }
@@ -1187,9 +1314,9 @@ void ControllerDialog::StopListening()
     {
         return;
     }
-    if (m_listenBegun)
+    if (m_listenBegun && !m_offline)
     {
-        Os().StopMapping();
+        m_session.Inputs().StopMapping();
     }
     m_listenSlot = -1;
     m_listenBegun = false;
@@ -1206,7 +1333,17 @@ void ControllerDialog::PollListening()
     {
         return;
     }
-    IOperatingSystem & os = Os();
+    if (m_offline)
+    {
+        if (SDL_GetTicks64() >= m_listenUntil) { StopListening(); }
+        return;
+    }
+    HostInputService & inputs = m_session.Inputs();
+    if (!inputs.Available())
+    {
+        StopListening();
+        return;
+    }
     const uint64_t now = SDL_GetTicks64();
     const Slot & info = kSlots[m_listenSlot];
     if (!m_listenBegun)
@@ -1215,13 +1352,17 @@ void ControllerDialog::PollListening()
         {
             return;
         }
-        os.BeginMapping(info.kind == SlotKind::StickDirection ? PollingInputType::Stick : info.kind == SlotKind::Motion ? PollingInputType::Motion : PollingInputType::Button);
+        if (!inputs.BeginMapping(info.kind == SlotKind::StickDirection ? PollingInputType::Stick : info.kind == SlotKind::Motion ? PollingInputType::Motion : PollingInputType::Button))
+        {
+            StopListening();
+            return;
+        }
         m_listenBegun = true;
         m_listenUntil = now + kListenMs;
     }
     for (int i = 0; i < kMaxInputsPerFrame; ++i)
     {
-        const InputParams input = InputParams::Take(os.GetNextInput());
+        const InputParams input = inputs.NextInput();
         if (input.Unset())
         {
             break;
@@ -1232,7 +1373,7 @@ void ControllerDialog::PollListening()
         }
         const int slot = m_listenSlot;
         const bool sequence = m_listenSequence;
-        os.StopMapping();
+        inputs.StopMapping();
         m_listenSlot = -1;
         m_listenBegun = false;
         Bind(slot, input);
@@ -1279,4 +1420,115 @@ bool ControllerDialog::Accepts(const InputParams & input) const
     }
     return engine == "keyboard" ||
            ((input.Get("guid") == device.Get("guid") || input.Get("guid") == device.Get("guid2")) && input.GetInt("port", 0) == device.GetInt("port", 0));
+}
+
+
+void ControllerDialog::LoadOfflinePlayers()
+{
+    m_offlineChanged.fill(false);
+    m_offlineTypeChanged.fill(false);
+    for (int player = 0; player < kPlayers; ++player)
+    {
+        JsonValue stored = m_session.Inputs().StoredPlayerOverrides(player);
+        m_offlineSettings[player] = stored.isObject() ? stored : JsonValue{};
+        // Read through a const view: an absent or malformed field must not
+        // accidentally create/mutate the in-memory stored JSON.
+        const JsonValue & view = stored;
+        m_offlineConnected[player] = view["Connected"].isBool() ? view["Connected"].asBool() : player == 0;
+        m_offlineTypes[player] = LoadedType(view["ControllerType"]);
+        const JsonValue & vibration = view["Vibration"];
+        m_vibration[player] = vibration["Enabled"].isBool() ? vibration["Enabled"].asBool() : true;
+        m_strength[player] = vibration["Strength"].isInt() ?
+                             static_cast<int>(std::clamp(vibration["Strength"].asInt64(), int64_t{0}, int64_t{100})) : 100;
+        auto & mappings = m_offlineMappings[player];
+        mappings = HostDeviceMappings{};
+        if (player == 0)
+        {
+            for (uint32_t i = 0; i < kButtonCount; ++i) { mappings.buttons[i] = InputParams::Key(kKeyButtons[i]); }
+            for (uint32_t stick = 0; stick < kStickCount; ++stick)
+            {
+                mappings.sticks[stick].Set("engine", "analog_from_button");
+                for (uint32_t direction = 0; direction < 4; ++direction)
+                {
+                    mappings.sticks[stick].Set(kDirections[direction], InputParams::Key(kKeySticks[stick][direction]).Text());
+                }
+                mappings.sticks[stick].Set("modifier", InputParams::Key(kKeyStickModifiers[stick]).Text());
+            }
+            for (uint32_t i = 0; i < kMotionCount; ++i) { mappings.motions[i] = InputParams::Key(kKeyMotions[i]); }
+        }
+        for (const auto & group : {HostBindingGroup::Button, HostBindingGroup::Analog, HostBindingGroup::Motion})
+        {
+            const char * groupName = group == HostBindingGroup::Button ? "Button" :
+                                     group == HostBindingGroup::Analog ? "Analog" : "Motion";
+            const uint32_t count = group == HostBindingGroup::Button ? kButtonCount :
+                                   group == HostBindingGroup::Analog ? kStickCount : kMotionCount;
+            for (uint32_t index = 0; index < count; ++index)
+            {
+                const char * key = HostInputService::BindingKey(group, index);
+                const JsonValue & value = view[groupName][key];
+                if (!value.isString()) { continue; }
+                InputParams params(value.asString());
+                if (group == HostBindingGroup::Button) { mappings.buttons[index] = std::move(params); }
+                else if (group == HostBindingGroup::Analog) { mappings.sticks[index] = std::move(params); }
+                else { mappings.motions[index] = std::move(params); }
+            }
+        }
+    }
+}
+
+bool ControllerDialog::StageOfflineBindings(int player)
+{
+    JsonValue & stored = m_offlineSettings[player];
+    // Never replace an unknown/malformed subtree of the user's config.
+    for (const char * key : {"Button", "Analog", "Motion", "Vibration"})
+    {
+        if (stored.isObject() && stored.isMember(key) && !stored[key].isObject()) { return false; }
+    }
+    stored["Connected"] = m_offlineConnected[player];
+    if (m_offlineTypeChanged[player] || !stored["ControllerType"].isString())
+    {
+        stored["ControllerType"] = SavedType(m_offlineTypes[player]);
+    }
+    stored["Vibration"]["Enabled"] = m_vibration[player];
+    stored["Vibration"]["Strength"] = m_strength[player];
+    const auto & mappings = m_offlineMappings[player];
+    for (uint32_t index = 0; index < kButtonCount; ++index)
+    {
+        stored["Button"][HostInputService::BindingKey(HostBindingGroup::Button, index)] = mappings.buttons[index].Text();
+    }
+    for (uint32_t index = 0; index < kStickCount; ++index)
+    {
+        stored["Analog"][HostInputService::BindingKey(HostBindingGroup::Analog, index)] = mappings.sticks[index].Text();
+    }
+    for (uint32_t index = 0; index < kMotionCount; ++index)
+    {
+        stored["Motion"][HostInputService::BindingKey(HostBindingGroup::Motion, index)] = mappings.motions[index].Text();
+    }
+    return true;
+}
+
+void ControllerDialog::OfflineKey(const SDL_KeyboardEvent & event)
+{
+    if (!Listening() || event.type != SDL_KEYDOWN || event.repeat) { return; }
+    if (event.keysym.sym == SDLK_ESCAPE) { StopListening(); return; }
+    const int key = KeyboardVirtualKey(event);
+    if (key <= 0 || SDL_GetTicks64() < m_listenFrom) { return; }
+    const int slot = m_listenSlot;
+    const bool sequence = m_listenSequence;
+    Bind(slot, InputParams::Key(key));
+    m_listenSlot = -1;
+    m_listenBegun = false;
+    if (sequence)
+    {
+        for (int next = slot + 1; next < kSlotCount; ++next)
+        {
+            if (SlotShown(next) && kSlots[next].kind != SlotKind::Motion &&
+                kSlots[next].kind != SlotKind::StickModifier)
+            {
+                Listen(next, true);
+                return;
+            }
+        }
+    }
+    ShowBindings();
 }

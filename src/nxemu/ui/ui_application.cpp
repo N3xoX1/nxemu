@@ -14,8 +14,11 @@
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
 #include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu-video/video_settings_identifiers.h>
+#include <nxemu-module-spec/video.h>
 #include <string>
 #include <yuzu_common/fs/path_util.h>
+#include <yuzu_common/scope_exit.h>
 
 namespace
 {
@@ -118,11 +121,21 @@ int Run(UiNotification & notification, const std::string & gamePath)
     }
     InterfaceLanguage::AdoptSystemLanguage(session);
     InterfaceLanguage::Use(InterfaceLanguage::Code(), assetDir);
-    if (!window.AttachVideo(session.Modules().Video()))
+    // RmlUI renders through Vulkan only. An older Sciter configuration may
+    // still select OpenGL/Null; override it for this frontend before the
+    // shared display is created, without changing other frontends.
+    auto & settings = SettingsStore::GetInstance();
+    if (settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int32_t>(RendererBackend::Vulkan))
+        settings.SetInt(NXVideoSetting::GraphicsAPI, static_cast<int32_t>(RendererBackend::Vulkan));
+    if (!window.AttachVideo(session.DisplayVideo()))
     {
         notification.DisplayError(window.Error().c_str(), "NXEmu");
         return 1;
     }
+    // Run owns the interface binding.  Detach after MainWindow and all its
+    // RmlUI resources have been destroyed, but before EmulatorSession
+    // destroys the host video module, including on early returns.
+    SCOPE_EXIT { window.DetachVideo(); };
     GameLibrary library;
     MainWindow mainWindow(window, session, library, assetDir);
     if (!mainWindow.Create())
@@ -178,7 +191,11 @@ int Run(UiNotification & notification, const std::string & gamePath)
         }
         return dialog.Response();
     });
+    // These callbacks borrow stack-owned MainWindow/LiveResize state.
+    // Unregister them on every exit path, including exceptions.
+    SCOPE_EXIT { notification.SetPresenter({}); };
     SDL_AddEventWatch(&DrawWhileResizing, &liveResize);
+    SCOPE_EXIT { SDL_DelEventWatch(&DrawWhileResizing, &liveResize); };
 
     uint64_t lastChange = SDL_GetTicks64();
     uint64_t lastRender = 0;
@@ -219,8 +236,6 @@ int Run(UiNotification & notification, const std::string & gamePath)
         }
         liveResize.busy = false;
     }
-    SDL_DelEventWatch(&DrawWhileResizing, &liveResize);
-    notification.SetPresenter({});
     return 0;
 }
 } // namespace

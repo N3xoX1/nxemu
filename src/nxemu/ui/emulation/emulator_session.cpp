@@ -29,27 +29,33 @@ EmulatorSession::~EmulatorSession()
     {
         SettingsStore::GetInstance().SetBool(NXCoreSetting::ShuttingDown, true);
     }
+    m_inputService.Detach();
+    m_profileService.Detach();
     m_modules.ShutDown();
+}
+
+HostProfileService & EmulatorSession::Profiles()
+{
+    return m_profileService;
 }
 
 bool EmulatorSession::Initialise()
 {
     m_notification.BindWindow(m_window);
-    m_modules.Setup(m_renderWindow);
-    if (!m_modules.IsValid())
-    {
-        return false;
-    }
-    RegisterSystemCallbacks();
-    return true;
+    SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+    // The frontend can show existing profiles before loading guest OS modules.
+    // The authoritative OS snapshot replaces this view when Setup succeeds.
+    m_profileService.RefreshOffline();
+    const auto setup_start = std::chrono::steady_clock::now();
+    const bool ready = m_modules.SetupFrontend(m_renderWindow);
+    LOG_DEBUG(Frontend, "Frontend module setup: {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - setup_start).count());
+    return ready;
 }
 
 void EmulatorSession::FlushSettings()
 {
-    if (m_modules.IsValid())
-    {
-        m_modules.FlushSettings();
-    }
+    m_modules.FlushSettings();
 }
 
 bool EmulatorSession::LoadGame(const std::string & path)
@@ -118,15 +124,7 @@ void EmulatorSession::Update(bool releaseStoppedResources)
     if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
     {
-        if (!ResetModules())
-        {
-            ReportError(Tr("Required modules failed to reload after stopping the game."));
-            return;
-        }
-        SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::Stopped));
-#ifdef __APPLE__
-        m_idleTrimAt = SDL_GetTicks64() + 1000;
-#endif
+        ReleaseSession();
     }
 #ifdef __APPLE__
     if (m_idleTrimAt != 0 && releaseStoppedResources && !IsRunning() && SDL_GetTicks64() >= m_idleTrimAt)
@@ -173,31 +171,28 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
         ReportError(Tr("The game file does not exist:\n%1", {path}));
         return false;
     }
-    uint64_t programId = 0;
-    if (m_modules.IsValid())
-    {
-        IRomInfoPtr info(m_modules.Modules().Systemloader().RomInfo(path.c_str(), 0, programIndex));
-        if (info)
-        {
-            info->ReadProgramId(programId);
-        }
-    }
-    if (!ResetModules())
+    if (!PrepareSession())
     {
         ReportError(Tr("Required modules failed to load."));
         return false;
     }
     const auto resetDone = std::chrono::steady_clock::now();
-    LOG_INFO(Frontend, "Game launch: reset modules in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(resetDone - started).count());
-
+    LOG_INFO(Frontend, "Game launch: prepare guest session in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(resetDone - started).count());
+    // All catalogue workers have been joined by OnModulesReleasing.
+    uint64_t programId = 0;
+    if (IRomInfoPtr info(Loader().RomInfo(path.c_str(), 0, programIndex)); info)
+    {
+        info->ReadProgramId(programId);
+    }
     IOperatingSystem & os = m_modules.Modules().OperatingSystem();
     m_releasePending = true;
     for (const std::vector<uint8_t> & entry : userChannel)
     {
         os.PushUserChannelEntry(entry.data(), static_cast<uint32_t>(entry.size()));
     }
-    if (!m_modules.Modules().Systemloader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
+    if (!Loader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
     {
+        ReleaseSession();
         const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
         if (result == LoaderResultStatus::ErrorNoExeFS)
         {
@@ -211,6 +206,7 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
         {
             ReportError(Tr("Could not load the game:\n%1", {path}));
         }
+
         return false;
     }
     const auto loaded = std::chrono::steady_clock::now();
@@ -225,35 +221,70 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     return true;
 }
 
-bool EmulatorSession::ResetModules()
+bool EmulatorSession::PrepareSession()
 {
+    const auto start = std::chrono::steady_clock::now();
     m_releasePending = false;
 #ifdef __APPLE__
     m_idleTrimAt = 0;
 #endif
-    if (m_listener != nullptr)
+    if (m_listener)
     {
-        m_listener->OnModulesReleasing();
+        m_listener->OnModulesReleasing(); // Drain catalogue/firmware workers before loading.
     }
     m_notification.Close();
+    m_inputService.Detach();
+    m_profileService.Detach();
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
-    m_modules.ShutDown();
-    m_modules.Setup(m_renderWindow);
-    m_notification.BindWindow(m_window);
-    if (!m_modules.IsValid())
+    m_modules.StopSession();
+    m_callbackContext.reset();
     {
+        std::lock_guard<std::mutex> lock(m_programEventsMutex);
+        m_programEvents.clear();
+    }
+    if (!m_modules.StartSession())
+    {
+        m_profileService.RefreshOffline();
+        SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::Stopped));
+        m_notification.BindWindow(m_window);
+        if (m_listener) { m_listener->OnModulesReady(); }
         return false;
     }
     RegisterSystemCallbacks();
-    if (m_viewportWidth != 0 && m_viewportHeight != 0)
+    m_profileService.Attach(m_modules.Modules().OperatingSystem());
+    m_inputService.Attach(m_modules.Modules().OperatingSystem());
+    if (m_viewportWidth && m_viewportHeight)
     {
         m_modules.Modules().Video().UpdateFramebufferLayout(m_viewportWidth, m_viewportHeight);
     }
-    if (m_listener != nullptr)
-    {
-        m_listener->OnModulesReady();
-    }
+    m_notification.BindWindow(m_window);
+    if (m_listener) { m_listener->OnModulesReady(); }
+    LOG_DEBUG(Frontend, "Guest session setup: {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count());
     return true;
+}
+
+void EmulatorSession::ReleaseSession()
+{
+    if (m_listener) { m_listener->OnModulesReleasing(); }
+    m_notification.Close();
+    m_inputService.Detach();
+    m_profileService.Detach();
+    SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+    m_modules.StopSession();
+    m_callbackContext.reset();
+    {
+        std::lock_guard<std::mutex> lock(m_programEventsMutex);
+        m_programEvents.clear();
+    }
+    m_releasePending = false;
+#ifdef __APPLE__
+    m_idleTrimAt = SDL_GetTicks64() + 1000;
+#endif
+    m_profileService.RefreshOffline();
+    SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::Stopped));
+    m_notification.BindWindow(m_window);
+    if (m_listener) { m_listener->OnModulesReady(); }
 }
 
 void EmulatorSession::RegisterSystemCallbacks()

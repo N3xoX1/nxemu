@@ -36,6 +36,9 @@ public:
     bool Busy() const;
     void Answer(bool replace);
     void Cancel();
+    // The loader owner must call this before unloading the module.
+    // Cancel() alone does not end the worker use of the loader.
+    void StopAndWait();
     void Reset();
 
 private:

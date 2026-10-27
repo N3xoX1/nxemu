@@ -1,4 +1,5 @@
 #pragma once
+#include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/base.h>
 #include <string>
 #include <vector>
@@ -36,5 +37,6 @@ private:
     std::vector<std::string> m_images;
     std::string m_title;
     int m_announcedTick = 0;
+    SettingsStore::DiskCacheProgress m_progress;
     bool m_hasGame = false;
 };

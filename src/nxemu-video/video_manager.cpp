@@ -1,5 +1,5 @@
+#include "display_service.h"
 #include "yuzu_video_core/host1x/ffmpeg/device_cache.h"
-#include "render_window.h"
 #include "video_manager.h"
 #include "video_settings.h"
 #include "yuzu_video_core/capture.h"
@@ -20,6 +20,8 @@
 #include <chrono>
 #include <cstring>
 #include <algorithm>
+#include <limits>
+#include <mutex>
 #include <future>
 #include <thread>
 #include <vector>
@@ -29,7 +31,7 @@ extern IModuleSettings * g_settings;
 struct VideoManager::Impl 
 {
     Impl(IRenderWindow & window, ISystemModules & modules) :
-        m_window(window),
+        m_displayService(window),
         m_modules(modules)
     {
     }
@@ -50,10 +52,25 @@ struct VideoManager::Impl
         {
             return;
         }
-        // The loader captures this and may still access the GPU, window and Host1x.
+        // shared_future allows the OS startup thread to wait at the same time
+        // as guest teardown. The result must never be silently discarded.
         if (m_init.valid())
         {
-            m_init.wait();
+            try
+            {
+                if (!m_init.get() && !m_initStop.stop_requested())
+                {
+                    LOG_ERROR(Render, "GPU initialization did not complete");
+                }
+            }
+            catch (const std::exception & error)
+            {
+                LOG_ERROR(Render, "GPU initialization worker failed: {}", error.what());
+            }
+            catch (...)
+            {
+                LOG_ERROR(Render, "GPU initialization worker failed with an unknown exception");
+            }
         }
         if (m_gpuCore)
         {
@@ -61,32 +78,71 @@ struct VideoManager::Impl
         }
     }
 
-    void Shutdown()
+    bool GuestGpuCreated() const
     {
+        return m_gpuCore != nullptr && m_init.valid();
+    }
+
+    bool WaitForGuestGpu()
+    {
+        // Called only by the OS control thread, never by the UI thread.
+        if (!GuestGpuCreated())
+        {
+            return false;
+        }
+        try
+        {
+            return m_init.get() && !m_initStop.stop_requested();
+        }
+        catch (const std::exception & error)
+        {
+            LOG_ERROR(Render, "GPU startup failed: {}", error.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR(Render, "GPU startup failed with an unknown exception");
+        }
+        return false;
+    }
+
+    void ReleaseGuest()
+    {
+        const bool had_guest = m_host1x != nullptr || m_gpuCore != nullptr;
         StopInitialization();
-        m_gpuCore.reset();
+        // Release the completed startup result at the session boundary.
+        // Otherwise repeated StopSession()/Shutdown() calls re-read an old
+        // shared_future and retain its state until the next game.
+        m_init = {};
+        m_initStop = std::stop_source{};
+        m_gpuCore.reset(); // PresentManager releases any Display::game_frame first.
         m_memoryManagerRegistry.Clear();
-        m_display.reset();
-        m_emuWindow.reset();
+        // The display and RmlUI allocations must survive; Host1x refers to
+        // memory owned by the guest OS and therefore must not survive it.
+        if (had_guest)
+        {
+            m_displayService.WaitInterfaceIdle();
+        }
         m_host1x.reset();
         FFmpeg::ReleaseHardwareDecoderDevices();
     }
 
-    Vulkan::Display * EnsureDisplay()
+    void Shutdown()
     {
-        if (m_display || m_emuWindow == nullptr || videoSettings.renderer_backend != RendererBackend::Vulkan)
-        {
-            return m_display.get();
-        }
-        m_display = VideoCore::CreateDisplay(*m_emuWindow);
-        return m_display.get();
+        ReleaseGuest();
+        m_displayService.Shutdown();
+    }
+
+    bool PrepareGuest()
+    {
+        ReleaseGuest();
+        m_host1x = std::make_unique<Tegra::Host1x::Host1x>(m_modules.OperatingSystem().DeviceMemory());
+        return m_host1x != nullptr;
     }
 
     bool Initialize()
     {
-        m_host1x = std::make_unique<Tegra::Host1x::Host1x>(m_modules.OperatingSystem().DeviceMemory());
-        m_emuWindow = std::make_unique<RenderWindow>(m_window);
-        return true;
+        // The application-level display service lives across guest sessions.
+        return m_displayService.Initialize();
     }
 
     void EmulationStarting(void)
@@ -97,76 +153,125 @@ struct VideoManager::Impl
         m_memoryManagerRegistry.Clear();
         g_settings->SetBool(NXCoreSetting::DisplayedFrames, false);
 
-        Layout::FramebufferLayout layout;
-        if (m_emuWindow)
+        // Keep the same EmuWindow throughout this VideoManager's lifetime.
+        // The Display may already be attached to RmlUI; recreating the window
+        // here needlessly changes the object the GPU renders to.
+        m_displayService.StartingGuest();
+        try
         {
-            layout = m_emuWindow->GetFramebufferLayout();
+            m_gpuCore = VideoCore::CreateGPU(m_modules, m_displayService.Window(), *m_host1x,
+                                              m_displayService.EnsureDisplay());
         }
-        m_emuWindow = nullptr;
-        m_emuWindow = std::make_unique<RenderWindow>(m_window);
-        m_emuWindow->UpdateCurrentFramebufferLayout(layout.width, layout.height);
-        m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x, EnsureDisplay());
+        catch (const std::exception & error)
+        {
+            LOG_ERROR(Render, "Failed to construct guest GPU: {}", error.what());
+            return;
+        }
+        catch (...)
+        {
+            LOG_ERROR(Render, "Failed to construct guest GPU: unknown error");
+            return;
+        }
         if (!m_gpuCore)
         {
+            LOG_ERROR(Render, "Guest GPU renderer construction failed");
             return;
         }
         m_initStop = std::stop_source{};
-        m_init = std::async(std::launch::async, [this, stop_token = m_initStop.get_token()]() {
-            const auto notify_disk_cache_progress = [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
-                if (g_settings == nullptr)
+        try
+        {
+            m_init = std::async(std::launch::async, [this, stop_token = m_initStop.get_token()]() -> bool {
+                try
                 {
-                    return;
-                }
-                int stage_int = -1;
-                switch (stage)
-                {
-                case VideoCore::LoadCallbackStage::Prepare:
-                    stage_int = 0;
-                    break;
-                case VideoCore::LoadCallbackStage::Build:
-                    stage_int = 1;
-                    break;
-                case VideoCore::LoadCallbackStage::Complete:
-                    stage_int = 2;
-                    break;
-                }
-                g_settings->SetInt(NXCoreSetting::DiskCacheLoadStage, stage_int);
-                g_settings->SetInt(NXCoreSetting::DiskCacheLoadCurrent, static_cast<int32_t>(value));
-                g_settings->SetInt(NXCoreSetting::DiskCacheLoadTotal, static_cast<int32_t>(total));
-                g_settings->SetInt(NXCoreSetting::DiskCacheLoadTick, g_settings->GetInt(NXCoreSetting::DiskCacheLoadTick) + 1);
-            };
+                    std::mutex progress_mutex;
+                    const auto notify_disk_cache_progress = [&progress_mutex](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
+                        if (g_settings == nullptr)
+                        {
+                            return;
+                        }
+                        // A seqlock publication requires a single writer, including
+                        // when a backend reports progress from several workers.
+                        std::lock_guard progress_lock(progress_mutex);
+                        int stage_int = -1;
+                        switch (stage)
+                        {
+                        case VideoCore::LoadCallbackStage::Prepare:
+                            stage_int = 0;
+                            break;
+                        case VideoCore::LoadCallbackStage::Build:
+                            stage_int = 1;
+                            break;
+                        case VideoCore::LoadCallbackStage::Complete:
+                            stage_int = 2;
+                            break;
+                        }
+                        // Two-phase publication through the existing module-settings ABI.
+                        // The UI accepts only an unchanged even tick, so the stage,
+                        // current and total can never be read from different updates.
+                        const uint32_t previous = static_cast<uint32_t>(g_settings->GetInt(NXCoreSetting::DiskCacheLoadTick));
+                        const uint32_t writing = (previous & ~uint32_t{1}) + 1u;
+                        g_settings->SetInt(NXCoreSetting::DiskCacheLoadTick, static_cast<int32_t>(writing));
+                        g_settings->SetInt(NXCoreSetting::DiskCacheLoadStage, stage_int);
+                        g_settings->SetInt(NXCoreSetting::DiskCacheLoadCurrent, static_cast<int32_t>(std::min(value, static_cast<std::size_t>(std::numeric_limits<int32_t>::max()))));
+                        g_settings->SetInt(NXCoreSetting::DiskCacheLoadTotal, static_cast<int32_t>(std::min(total, static_cast<std::size_t>(std::numeric_limits<int32_t>::max()))));
+                        g_settings->SetInt(NXCoreSetting::DiskCacheLoadTick, static_cast<int32_t>(writing + 1u));
+                    };
 
-            notify_disk_cache_progress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
-            {
-                m_gpuCore->ObtainContext();
-                SCOPE_EXIT { m_gpuCore->ReleaseContext(); };
-                if (videoSettings.use_disk_shader_cache && !stop_token.stop_requested())
-                {
-                    const u64 program_id = m_modules.OperatingSystem().GetProgramId();
-                    try {
-                        m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(
-                            program_id, stop_token, notify_disk_cache_progress);
-                    } catch (const std::exception& exception) {
-                        // std::async stores exceptions in its future. If one escapes here,
-                        // Start is never called and guest GPU requests wait indefinitely.
-                        LOG_ERROR(Render, "Shader cache loading failed: {}", exception.what());
+                    notify_disk_cache_progress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
+                    {
+                        m_gpuCore->ObtainContext();
+                        SCOPE_EXIT { m_gpuCore->ReleaseContext(); };
+                        if (videoSettings.use_disk_shader_cache && !stop_token.stop_requested())
+                        {
+                            const u64 program_id = m_modules.OperatingSystem().GetProgramId();
+                            try {
+                                m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(
+                                    program_id, stop_token, notify_disk_cache_progress);
+                            } catch (const std::exception& exception) {
+                                // std::async stores exceptions in its future. If one escapes here,
+                                // Start is never called and guest GPU requests wait indefinitely.
+                                LOG_ERROR(Render, "Shader cache loading failed: {}", exception.what());
+                            }
+                        }
                     }
-                }
-            }
-            notify_disk_cache_progress(VideoCore::LoadCallbackStage::Complete, 0, 0);
+                    notify_disk_cache_progress(VideoCore::LoadCallbackStage::Complete, 0, 0);
 
-            // Even after cancellation, drain GPU calls before OS shutdown joins their callers.
-            m_gpuCore->Start();
-        });
+                    // Even after cancellation, start the GPU worker to drain queued
+                    // requests before OS shutdown joins their callers.
+                    m_gpuCore->Start();
+                    return true;
+                }
+                catch (const std::exception & error)
+                {
+                    LOG_ERROR(Render, "Critical guest GPU startup failure: {}", error.what());
+                }
+                catch (...)
+                {
+                    LOG_ERROR(Render, "Critical guest GPU startup failure: unknown error");
+                }
+                m_gpuCore->NotifyShutdown();
+                return false;
+            }).share();
+        }
+        catch (const std::exception & error)
+        {
+            LOG_ERROR(Render, "Could not launch GPU startup worker: {}", error.what());
+            m_gpuCore->NotifyShutdown();
+            m_gpuCore.reset();
+        }
+        catch (...)
+        {
+            LOG_ERROR(Render, "Could not launch GPU startup worker: unknown error");
+            m_gpuCore->NotifyShutdown();
+            m_gpuCore.reset();
+        }
     }
     std::unique_ptr<Tegra::Host1x::Host1x> m_host1x;
-    std::unique_ptr<RenderWindow> m_emuWindow;
-    VideoCore::DisplayPtr m_display;
+    DisplayService m_displayService;
     std::unique_ptr<Tegra::GPU> m_gpuCore;
-    IRenderWindow & m_window;
     ISystemModules & m_modules;
     Tegra::MemoryManagerRegistry m_memoryManagerRegistry;
-    std::future<void> m_init;
+    std::shared_future<bool> m_init;
     std::stop_source m_initStop;
 };
 
@@ -180,6 +285,16 @@ VideoManager::~VideoManager() = default;
 void VideoManager::EmulationStarting()
 {
     impl->EmulationStarting();
+}
+
+bool VideoManager::GuestGpuCreated() const
+{
+    return impl->GuestGpuCreated();
+}
+
+bool VideoManager::WaitForGuestGpu()
+{
+    return impl->WaitForGuestGpu();
 }
 
 void VideoManager::EmulationStopping(bool wait)
@@ -196,7 +311,17 @@ bool VideoManager::Initialize()
 void VideoManager::Shutdown()
 {
     impl->Shutdown();
-};
+}
+
+bool VideoManager::PrepareGuest()
+{
+    return impl->PrepareGuest();
+}
+
+void VideoManager::ReleaseGuest()
+{
+    impl->ReleaseGuest();
+}
 
 uint32_t VideoManager::AllocAsEx(uint64_t addressSpaceBits, uint64_t splitAddress, uint64_t bigPageBits, uint64_t pageBits)
 {
@@ -368,8 +493,7 @@ void VideoManager::CancelPendingComposite()
 
 void VideoManager::UpdateFramebufferLayout(uint32_t width, uint32_t height)
 {
-    impl->m_emuWindow->RefreshRenderSurface();
-    impl->m_emuWindow->UpdateCurrentFramebufferLayout(width, height);
+    impl->m_displayService.Resize(width, height);
 }
 
 uint32_t VideoManager::GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height)
@@ -399,38 +523,27 @@ uint32_t VideoManager::GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_
 
 bool VideoManager::AttachInterface(VideoInterfaceDevice * device)
 {
-    Vulkan::Display * display = impl->EnsureDisplay();
-    return display != nullptr && device != nullptr && VideoCore::AttachInterface(*display, *device);
+    return impl->m_displayService.AttachInterface(device);
 }
 
 bool VideoManager::BeginInterfaceFrame(uint32_t width, uint32_t height, VideoInterfaceFrame * frame)
 {
-    if (!impl->m_display || frame == nullptr || width == 0 || height == 0)
-    {
-        return false;
-    }
-    return VideoCore::BeginInterfaceFrame(*impl->m_display, width, height, *frame);
+    return impl->m_displayService.BeginInterfaceFrame(width, height, frame);
 }
 
 void VideoManager::EndInterfaceFrame(const VideoInterfaceArea * gameArea)
 {
-    VideoCore::EndInterfaceFrame(*impl->m_display, gameArea);
+    impl->m_displayService.EndInterfaceFrame(gameArea);
 }
 
 void VideoManager::WaitInterfaceIdle()
 {
-    if (impl->m_display)
-    {
-        VideoCore::WaitInterfaceIdle(*impl->m_display);
-    }
+    impl->m_displayService.WaitInterfaceIdle();
 }
 
 void VideoManager::NotifyWindowChanged()
 {
-    if (impl->m_emuWindow)
-    {
-        impl->m_emuWindow->RefreshRenderSurface();
-    }
+    impl->m_displayService.RefreshWindow();
 }
 
 IChannelState * VideoManager::AllocateChannel()

@@ -203,9 +203,10 @@ void GeneralDialog::FillLists()
     Fill(Select(Document(), "vsync"), VSyncs(), std::to_string(settings.GetInt(NXVideoSetting::VSyncMode)));
 
     choices.clear();
-    if (m_session.IsValid())
+    if (m_session.Profiles().Available())
     {
-        for (const UserProfile & profile : UserProfiles::List(m_session.Modules().OperatingSystem()))
+        m_session.Profiles().Refresh();
+        for (const UserProfile & profile : m_session.Profiles().List())
         {
             choices.push_back({profile.name, std::to_string(choices.size()), {}});
         }

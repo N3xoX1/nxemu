@@ -133,9 +133,15 @@ Frame* Display::Present(Frame* frame, const WindowSystemInfo& window) {
 void Display::ReleaseFrame() {
     std::scoped_lock lock{present_mutex};
     if (game_frame != nullptr) {
+        // Standalone interface presents may still sample this guest-owned
+        // image.  Only release it after the display's own submissions finish.
         WaitOwnPresents();
         game_frame = nullptr;
     }
+    // A new guest must never inherit visibility or pacing state from the
+    // previous guest, even if no frame was retained at shutdown.
+    game_visible = false;
+    last_game_present = {};
 }
 
 void Display::AttachInterface() {

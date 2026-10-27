@@ -143,9 +143,10 @@ void CALL DestroyVideo(IVideo * video)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return;
     }
-    g_videoManager->Shutdown();
+    // VideoManager::Impl already calls Shutdown() in its destructor.
+    // Destroy exactly once, while the module's settings are still available.
+    g_videoManager.reset();
     CleanupVideoSetting();
-    g_videoManager = nullptr;
 }
 
 #ifdef _WIN32

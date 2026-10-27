@@ -335,7 +335,15 @@ RenderWindow::RenderWindow(IRenderWindow & renderWindow) :
 
 void RenderWindow::RefreshRenderSurface()
 {
+    window_info.display_connection = m_renderWindow.DisplayConnection();
     window_info.render_surface = m_renderWindow.RenderSurface();
+    window_info.render_surface_scale = m_renderWindow.WindowSystem() == RenderWindowSystem::Cocoa
+                                           ? m_renderWindow.PixelRatio() : 1.0f;
+}
+
+void RenderWindow::ResetFirstFrame()
+{
+    m_firstFrame = false;
 }
 
 void RenderWindow::OnFrameDisplayed()

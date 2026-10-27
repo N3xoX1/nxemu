@@ -26,6 +26,9 @@
     <ClCompile Include="video_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="display_service.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="render_window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -38,6 +41,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="video_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="display_service.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="render_window.h">
