@@ -25,6 +25,16 @@ EmulatorSession::EmulatorSession(IRenderWindow & renderWindow, UiNotification & 
 EmulatorSession::~EmulatorSession()
 {
     m_notification.Close();
+    if (m_loading)
+    {
+        // Services started by the load are only torn down safely by the regular emulation stop.
+        m_loadThread.join();
+        m_loading = false;
+        if (m_loadResult)
+        {
+            Loader().StartPreparedRom();
+        }
+    }
     if (m_modules.IsValid())
     {
         SettingsStore::GetInstance().SetBool(NXCoreSetting::ShuttingDown, true);
@@ -77,6 +87,12 @@ bool EmulatorSession::LoadGame(const std::string & path)
 
 void EmulatorSession::Stop()
 {
+    if (m_loading)
+    {
+        // The load thread cannot be interrupted; FinishLoad releases the session instead of starting it.
+        m_pendingLaunch.cancelled = true;
+        return;
+    }
     if (!IsRunning())
     {
         return;
@@ -88,7 +104,7 @@ void EmulatorSession::Stop()
 
 void EmulatorSession::TogglePause()
 {
-    if (!IsRunning())
+    if (m_loading || !IsRunning())
     {
         return;
     }
@@ -98,16 +114,25 @@ void EmulatorSession::TogglePause()
 
 bool EmulatorSession::IsRunning() const
 {
-    return m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);
+    return m_loading || IsEmulating();
+}
+
+bool EmulatorSession::IsEmulating() const
+{
+    return !m_loading && m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);
 }
 
 bool EmulatorSession::IsPaused()
 {
-    return IsRunning() && m_modules.Modules().OperatingSystem().IsEmulationPaused();
+    return IsEmulating() && m_modules.Modules().OperatingSystem().IsEmulationPaused();
 }
 
 EmulatorSession::Phase EmulatorSession::CurrentPhase() const
 {
+    if (m_loading)
+    {
+        return Phase::Loading;
+    }
     SettingsStore & settings = SettingsStore::GetInstance();
     switch (static_cast<EmulationState>(settings.GetInt(NXCoreSetting::EmulationState)))
     {
@@ -127,6 +152,14 @@ EmulatorSession::Phase EmulatorSession::CurrentPhase() const
 void EmulatorSession::Update(bool releaseStoppedResources)
 {
     m_notification.Pump();
+    if (m_loading)
+    {
+        if (m_loadDone.load(std::memory_order_acquire))
+        {
+            FinishLoad();
+        }
+        return;
+    }
     ProcessProgramEvents();
     if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
@@ -197,35 +230,70 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     {
         os.PushUserChannelEntry(entry.data(), static_cast<uint32_t>(entry.size()));
     }
-    if (!Loader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
+    // Reading the game can take seconds on a cold disk; keep the UI responsive meanwhile.
+    m_pendingLaunch = PendingLaunch{path, programIndex, previousProgramIndex, started, resetDone};
+    m_loadDone.store(false, std::memory_order_relaxed);
+    m_loading = true;
+    SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::LoadingRom));
+    m_loadThread = std::thread([this, path, programId, programIndex, previousProgramIndex, launchType] {
+        m_loadResult = Loader().PrepareRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType);
+        m_loadDone.store(true, std::memory_order_release);
+    });
+    return true;
+}
+
+void EmulatorSession::FinishLoad()
+{
+    m_loadThread.join();
+    m_loading = false;
+    const PendingLaunch launch = std::move(m_pendingLaunch);
+    if (launch.cancelled)
     {
-        ReleaseSession();
-        const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
-        if (result == LoaderResultStatus::ErrorNoExeFS)
+        LOG_INFO(Frontend, "Game launch cancelled while loading");
+        // The load already started guest services, which only the regular emulation stop
+        // tears down safely: start the game, then stop it like a user stop.
+        if (m_loadResult && Loader().StartPreparedRom())
         {
-            ReportError(Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path}));
-        }
-        else if (result != LoaderResultStatus::ErrorNotInitialized)
-        {
-            ReportError(Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))}));
+            SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
         }
         else
         {
-            ReportError(Tr("Could not load the game:\n%1", {path}));
+            ReleaseSession();
         }
-
-        return false;
+        return;
+    }
+    if (!m_loadResult || !Loader().StartPreparedRom())
+    {
+        ReportLoadFailure(launch.path);
+        return;
     }
     const auto loaded = std::chrono::steady_clock::now();
-    LOG_INFO(Frontend, "Game launch: load ROM in {} ms, total {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(loaded - resetDone).count(),
-             std::chrono::duration_cast<std::chrono::milliseconds>(loaded - started).count());
-    m_currentProgramIndex = programIndex;
-    m_previousProgramIndex = previousProgramIndex;
+    LOG_INFO(Frontend, "Game launch: load ROM in {} ms, total {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(loaded - launch.resetDone).count(),
+             std::chrono::duration_cast<std::chrono::milliseconds>(loaded - launch.started).count());
+    m_currentProgramIndex = launch.programIndex;
+    m_previousProgramIndex = launch.previousProgramIndex;
     if (m_listener != nullptr)
     {
-        m_listener->OnGameStarted(path);
+        m_listener->OnGameStarted(launch.path);
     }
-    return true;
+}
+
+void EmulatorSession::ReportLoadFailure(const std::string & path)
+{
+    ReleaseSession();
+    const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
+    if (result == LoaderResultStatus::ErrorNoExeFS)
+    {
+        ReportError(Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path}));
+    }
+    else if (result != LoaderResultStatus::ErrorNotInitialized)
+    {
+        ReportError(Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))}));
+    }
+    else
+    {
+        ReportError(Tr("Could not load the game:\n%1", {path}));
+    }
 }
 
 bool EmulatorSession::PrepareSession()

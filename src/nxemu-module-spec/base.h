@@ -25,7 +25,7 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x0138,
+    MODULE_LOADER_SPECS_VERSION = 0x0139,
     MODULE_VIDEO_SPECS_VERSION = 0x0128,
     MODULE_CPU_SPECS_VERSION = 0x0120,
     // The OS consumes the changed video/loader interfaces and startup gate.

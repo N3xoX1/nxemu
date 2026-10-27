@@ -1,5 +1,7 @@
 #pragma once
 #include <SDL.h>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -10,6 +12,7 @@
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <string>
+#include <thread>
 #include <vector>
 
 class UiNotification;
@@ -61,7 +64,10 @@ public:
     bool LoadGame(const std::string & path);
     void Stop();
     void TogglePause();
+    // True from the launch request on, including while the game is still loading.
     bool IsRunning() const;
+    // True once emulation has started, so the guest OS can be queried.
+    bool IsEmulating() const;
     bool ReleasePending() const { return m_releasePending; }
     bool IsPaused();
     Phase CurrentPhase() const;
@@ -95,8 +101,21 @@ private:
         uint64_t generation;
     };
 
+    // A game launched from the UI, read on m_loadThread then started by FinishLoad.
+    struct PendingLaunch
+    {
+        std::string path;
+        int32_t programIndex = 0;
+        int32_t previousProgramIndex = -1;
+        std::chrono::steady_clock::time_point started;
+        std::chrono::steady_clock::time_point resetDone;
+        bool cancelled = false;
+    };
+
     bool LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                      ApplicationLaunchType launchType, const UserChannel & userChannel);
+    void FinishLoad();
+    void ReportLoadFailure(const std::string & path);
     bool PrepareSession();
     void ReleaseSession();
     void RegisterSystemCallbacks();
@@ -123,6 +142,11 @@ private:
     uint32_t m_viewportWidth = 0;
     uint32_t m_viewportHeight = 0;
     bool m_releasePending = false;
+    PendingLaunch m_pendingLaunch;
+    std::thread m_loadThread;
+    std::atomic<bool> m_loadDone{false};
+    bool m_loading = false;
+    bool m_loadResult = false;
 #ifdef __APPLE__
     uint64_t m_idleTrimAt = 0;
 #endif

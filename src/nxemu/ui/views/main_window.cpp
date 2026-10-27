@@ -2340,7 +2340,7 @@ void MainWindow::MeasureGame()
     m_speedText.clear();
     const bool measured = m_longestMeasured;
     m_longestMeasured = false;
-    if (m_session.IsRunning())
+    if (m_session.IsEmulating())
     {
         IOperatingSystem & os = m_session.Modules().OperatingSystem();
         m_longestMeasured = m_performance->Shown();
@@ -2362,7 +2362,7 @@ void MainWindow::MeasureGame()
 void MainWindow::UpdateStatusText()
 {
     std::string cpu_backend;
-    if (uiSettings.showCpuBackend && m_session.IsRunning())
+    if (uiSettings.showCpuBackend && m_session.IsEmulating())
     {
         if (IKernelProcess* process = m_session.Modules().OperatingSystem().CurrentProcess())
         {
@@ -2379,7 +2379,7 @@ void MainWindow::UpdateStatusText()
     m_document->SetClass("show-cpu-backend", !cpu_backend.empty());
 
     std::vector<std::string> parts;
-    if (m_session.IsRunning())
+    if (m_session.IsEmulating())
     {
         if (m_session.Modules().OperatingSystem().IsEmulationPaused())
         {
@@ -2395,7 +2395,7 @@ void MainWindow::UpdateStatusText()
             parts.push_back(m_speedText);
         }
     }
-    else if (!m_firmwareVersion.empty())
+    else if (!m_session.IsRunning() && !m_firmwareVersion.empty())
     {
         parts.push_back(Tr("Firmware: %1", {m_firmwareVersion}));
     }
