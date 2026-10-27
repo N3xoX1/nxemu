@@ -1,5 +1,6 @@
 #pragma once
 #include <nxemu/ui/host/ui_window.h>
+#include <nxemu/ui/host/ui_theme.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/EventListener.h>
@@ -18,20 +19,20 @@ public:
     ~StartupView() { Close(); }
     bool Create(const std::filesystem::path & assetDir)
     {
-        constexpr const char * source = R"(
+        const auto source = UiThemeFileInterface::Resolve(R"(
 <rml><head><style>
 body { position:absolute; left:0; top:0; width:100%; height:100%; margin:0;
- font-family:LatoLatin; font-size:14dp; color:#e6ebf2; background-color:#0a101b; }
+ font-family:LatoLatin; font-size:14dp; color:var(--text); background-color:var(--canvas); }
 #bar { height:40dp; }
 #close { position:absolute; right:14dp; top:5dp; width:34dp; height:28dp;
- color:#8493a8; background-color:transparent; border:0; font-size:20dp; }
-#close:hover { color:#ffffff; background-color:#263246; border-radius:5dp; }
+ color:var(--text-muted); background-color:transparent; border:0; font-size:20dp; }
+#close:hover { color:var(--text); background-color:var(--hover); border-radius:5dp; }
 #content { position:absolute; left:0; top:0; width:100%; height:100%;
  display:flex; flex-direction:column; justify-content:center; align-items:center; }
 #logo { width:220dp; height:220dp; margin-bottom:36dp; }
-#status { color:#9aa9bc; margin:0 0 20dp; }
-#track { width:200dp; height:3dp; overflow:hidden; border-radius:2dp; background-color:#1d2c40; }
-#pulse { width:42%; height:100%; background-color:#00d4ee; border-radius:2dp;
+#status { color:var(--text-muted); margin:0 0 20dp; }
+#track { width:200dp; height:3dp; overflow:hidden; border-radius:2dp; background-color:var(--border); }
+#pulse { width:42%; height:100%; background-color:var(--accent); border-radius:2dp;
  animation:0.85s cubic-in-out infinite alternate startup-pulse; }
 @keyframes startup-pulse {
  from { opacity:0.45; transform:translateX(0%); }
@@ -42,7 +43,7 @@ body { position:absolute; left:0; top:0; width:100%; height:100%; margin:0;
 <div id="bar" data-window="drag"/><button id="close">&#215;</button>
 <div id="content"><img id="logo" src="images/nxemu-logo.png"/>
 <p id="status">Starting NXEmu...</p>
-<div id="track"><div id="pulse"/></div></div></body></rml>)";
+<div id="track"><div id="pulse"/></div></div></body></rml>)", m_window.IsLightTheme());
         // Match RmlUi's file stream URL escaping (notably Windows drive letters).
         // The source URL also resolves the logo through nxemu.lang in packaged builds.
         m_document = m_window.Context()->LoadDocumentFromMemory(source,
