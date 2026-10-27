@@ -1320,7 +1320,7 @@ void BlitImageHelper::CopyToMSAA(RenderPassCache& render_pass_cache, VkImage dst
     const auto [samples_x, samples_y] = VideoCommon::SamplesLog2(static_cast<int>(num_samples));
     const s32 scale_x = 1 << samples_x;
     const s32 scale_y = 1 << samples_y;
-    const VkSampleCountFlagBits samples = SampleCountFlag(num_samples);
+    const VkSampleCountFlagBits samples = device.SupportedSampleCount(SampleCountFlag(num_samples));
     RenderPassKey renderpass_key{};
     renderpass_key.color_formats.fill(VideoCore::Surface::PixelFormat::Invalid);
     renderpass_key.color_formats[0] = format;
@@ -1370,7 +1370,7 @@ void BlitImageHelper::CopyToMSAADepth(RenderPassCache& render_pass_cache, VkImag
     const auto [samples_x, samples_y] = VideoCommon::SamplesLog2(static_cast<int>(num_samples));
     const s32 scale_x = 1 << samples_x;
     const s32 scale_y = 1 << samples_y;
-    const VkSampleCountFlagBits samples = SampleCountFlag(num_samples);
+    const VkSampleCountFlagBits samples = device.SupportedSampleCount(SampleCountFlag(num_samples));
     RenderPassKey renderpass_key{};
     renderpass_key.color_formats.fill(VideoCore::Surface::PixelFormat::Invalid);
     renderpass_key.depth_format = format;
@@ -1432,7 +1432,7 @@ void BlitImageHelper::CopyPackedDepthStencilToMSAA(
     const auto [samples_x, samples_y] = VideoCommon::SamplesLog2(static_cast<int>(num_samples));
     const s32 scale_x = 1 << samples_x;
     const s32 scale_y = 1 << samples_y;
-    const VkSampleCountFlagBits samples = SampleCountFlag(num_samples);
+    const VkSampleCountFlagBits samples = device.SupportedSampleCount(SampleCountFlag(num_samples));
     RenderPassKey renderpass_key{};
     renderpass_key.color_formats.fill(VideoCore::Surface::PixelFormat::Invalid);
     renderpass_key.depth_format = format;
