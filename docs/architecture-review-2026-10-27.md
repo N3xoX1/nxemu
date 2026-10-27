@@ -141,6 +141,9 @@ ctest --test-dir build/windows-x64 -C Release -L unit --output-on-failure
 
 ## Limites et suite de la présentation asynchrone
 
+Suivi après test réel : [régression 20XX → Mario Odyssey et correction du registre de fichiers](odyssey-startup-regression-2026-10-27.md).
+Les limites ci-dessous décrivent la validation initiale, avant ce suivi.
+
 Pas de benchmark FPS en jeu, de test visuel de jeux, de chargement réel de cache
 shader, de validation Vulkan par couche, ni de build macOS/Linux/Android exécuté
 pendant cette revue. Les tests Windows ne constituent pas un passage ASan/TSan/UBSan.

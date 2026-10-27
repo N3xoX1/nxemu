@@ -96,6 +96,13 @@ if(WIN32)
         $<TARGET_FILE:nxemu-video> $<TARGET_FILE:nxemu-os>)
     set_tests_properties(test_module_lifecycle PROPERTIES LABELS "unit;integration" TIMEOUT 120
         ENVIRONMENT "PATH=$<TARGET_FILE_DIR:nxemu>\;$ENV{PATH}")
+    # Link the production loader objects directly: its DLL exports the module
+    # ABI, while this regression needs the internal process registration API.
+    add_executable(test_loader_session_isolation architecture/loader_session_isolation.cpp)
+    target_link_libraries(test_loader_session_isolation PRIVATE nxemu_loader_objects nxemu_core)
+    nxemu_unit_test(test_loader_session_isolation)
+    set_tests_properties(test_loader_session_isolation PROPERTIES
+        ENVIRONMENT "PATH=$<TARGET_FILE_DIR:nxemu>\;$ENV{PATH}")
     option(NXEMU_TEST_VULKAN_DISPLAY "Run real-device Vulkan display/session integration tests" OFF)
     if(NXEMU_TEST_VULKAN_DISPLAY)
         add_test(NAME test_vulkan_display_lifecycle COMMAND test_module_lifecycle "${CMAKE_SOURCE_DIR}"

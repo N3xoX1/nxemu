@@ -24,6 +24,7 @@ They run in the macOS CI job.
 | `test_architecture_storage` | Offline controller edits and profile binary format |
 | `test_launch_gate` | 720 scenarios against the production EmuThread with controlled dependencies |
 | `test_module_lifecycle` | Windows: real plugin setup, guest teardown, host persistence, partial setup recovery |
+| `test_loader_session_isolation` | Windows: reused process ID resolves to the current title/RomFS and releases old factories |
 
 The test targets keep assertions enabled in Release builds.
 

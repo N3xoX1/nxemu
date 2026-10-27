@@ -84,6 +84,12 @@ FileSystemController::FileSystemController(Systemloader & loader_) :
 
 FileSystemController::~FileSystemController() = default;
 
+void FileSystemController::ResetSession()
+{
+    std::scoped_lock lk{registration_lock};
+    registrations.clear();
+}
+
 bool FileSystemController::RegisterProcess(FileSys::ProcessId process_id, FileSys::ProgramId program_id, std::shared_ptr<FileSys::RomFSFactory>&& romfs_factory)
 {
     std::scoped_lock lk{registration_lock};

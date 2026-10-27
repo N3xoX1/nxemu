@@ -33,6 +33,9 @@ public:
     ~FileSystemController();
 
     bool RegisterProcess(FileSys::ProcessId process_id, FileSys::ProgramId program_id, std::shared_ptr<FileSys::RomFSFactory>&& romfs_factory);
+    // Guest process IDs are reused when the OS is recreated. Keep NAND/SD
+    // factories, but release every process-owned RomFS/save-data association.
+    void ResetSession();
     void SetPackedUpdate(FileSys::ProcessId process_id, FileSys::VirtualFile update_raw);
 
     FileSys::RegisteredCache * SystemNANDContents() const;

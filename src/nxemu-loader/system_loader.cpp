@@ -173,6 +173,10 @@ bool Systemloader::Initialize()
 
 void Systemloader::ResetSession()
 {
+    // Called after the guest OS and its borrowed filesystem controllers die.
+    // Resetting only the loader's process ID leaves the old PID -> title/RomFS
+    // entries alive and causes the next guest to read the previous game's data.
+    impl->m_fsController.ResetSession();
     impl->m_appLoader.reset();
     impl->m_file.reset();
     impl->m_processID = 0;
