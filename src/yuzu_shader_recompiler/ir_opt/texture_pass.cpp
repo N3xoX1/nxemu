@@ -276,6 +276,11 @@ public:
         cache.clear();
     }
 
+    bool HasContradictoryUniformConditions()
+    {
+        return conditions.HasContradictoryUniformConditions();
+    }
+
     std::optional<ConstBufferAddr> Track(IR::Value value)
     {
         value = value.Resolve();
@@ -1078,6 +1083,16 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         tracker.BeginBlock(block);
         for (IR::Inst& inst : block->Instructions()) {
             if (!IsTextureInstruction(inst)) {
+                continue;
+            }
+            // An impossible uniform branch can contain a stale loop-carried
+            // register as a texture handle. It never fetches at runtime, so do
+            // not allocate an entire TIC table just to compile that dead fetch.
+            if (inst.GetOpcode() == IR::Opcode::BindlessImageFetch &&
+                tracker.HasContradictoryUniformConditions()) {
+                IR::IREmitter ir{*block, IR::Block::InstructionList::s_iterator_to(inst)};
+                const auto zero = ir.Imm32(0.0f);
+                inst.ReplaceUsesWith(ir.CompositeConstruct(zero, zero, zero, zero));
                 continue;
             }
             to_replace.push_back(MakeInst(env, block, inst, host_info, tracker));

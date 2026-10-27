@@ -1031,9 +1031,8 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         AddLabel();
         const size_t num_buffers{info.storage_buffers_descriptors.size()};
         for (size_t index = 0; index < num_buffers; ++index) {
-            if (!IsUsedNvnStorageBufferDescriptor(info, info.storage_buffers_descriptors[index])) {
-                continue;
-            }
+            // Indirect pointers can also reference explicitly tracked buffers outside
+            // the NVN descriptor table. Test every bound guest range at runtime.
             const auto& ssbo{info.storage_buffers_descriptors[index]};
             Id unaligned_addr{};
             Id ssbo_size_pointer{};

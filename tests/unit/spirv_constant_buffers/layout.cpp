@@ -49,7 +49,51 @@ static std::map<std::string, u32> Layout(bool molten, u32 used_size, bool global
     return result;
 }
 
+// Ace Combat's indirect parameter reads target a tracked descriptor at c0[0x290],
+// outside the compute NVN table (0x310). These helpers used to return only zero.
+static void GlobalMemoryLoads(bool aliasing, bool molten) {
+    Shader::Profile profile{};
+    profile.support_int64 = true;
+    profile.support_descriptor_aliasing = aliasing;
+    profile.disable_uniform_buffer_descriptor_aliasing = molten;
+    profile.min_ssbo_alignment = 16;
+    Shader::RuntimeInfo runtime{};
+    Shader::IR::Program program{};
+    program.stage = Shader::Stage::Compute;
+    auto& info = program.info;
+    info.uses_global_memory = true;
+    info.nvn_buffer_base = 0x310;
+    info.used_constant_buffer_types = Shader::IR::Type::U32 | Shader::IR::Type::U32x2;
+    info.used_storage_buffer_types = Shader::IR::Type::U32 | Shader::IR::Type::U32x2 |
+                                     Shader::IR::Type::U32x4;
+    info.constant_buffer_descriptors.push_back({.index = 0, .count = 1});
+    info.storage_buffers_descriptors.push_back(
+        {.cbuf_index = 0, .cbuf_offset = 0x290, .count = 1, .is_written = false});
+    assert(!info.nvn_buffer_used.any());
+    Shader::Backend::Bindings bindings{};
+    Shader::Backend::SPIRV::EmitContext context(profile, runtime, program, bindings);
+    const auto words = context.Assemble();
+    std::map<u32, unsigned> loads;
+    u32 function = 0;
+    for (size_t i = 5; i < words.size();) {
+        const auto count = words[i] >> 16;
+        assert(count != 0 && i + count <= words.size());
+        const auto op = static_cast<spv::Op>(words[i] & 0xffff);
+        if (op == spv::Op::OpFunction) function = words[i + 2];
+        if (op == spv::Op::OpLoad) ++loads[function];
+        if (op == spv::Op::OpFunctionEnd) function = 0;
+        i += count;
+    }
+    // Each helper must read both its descriptor and the selected storage buffer.
+    assert(loads[context.load_global_func_u32.value] >= 3);
+    assert(loads[context.load_global_func_u32x2.value] >= 3);
+    assert(loads[context.load_global_func_u32x4.value] >= 3);
+}
+
+void TestRuntimeTextureFetch();
+
 int main() {
+    TestRuntimeTextureFetch();
     auto sizes = Layout(true, 14080);
     assert(sizes.at("c0") == 16 && sizes.at("c3") == 14080);
     // Regression: offset 116992 within a 131072-byte allocation.
@@ -59,5 +103,8 @@ int main() {
     assert(Layout(true, 65536).at("c3") == 65536); // indirect accesses
     assert(Layout(true, 16, true).at("c3") == 65536); // global-memory helpers
     assert(Layout(false, 16).at("c3") == 65536); // other driver profiles
-    std::puts("PASS: production SPIR-V constant-buffer declarations and Metal tail regression");
+    GlobalMemoryLoads(true, false);
+    GlobalMemoryLoads(false, false);
+    GlobalMemoryLoads(true, true);
+    std::puts("PASS: SPIR-V constant-buffer layouts and non-NVN global-memory loads");
 }

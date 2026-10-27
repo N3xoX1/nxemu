@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <optional>
 #include <tuple>
 #include <unordered_map>
@@ -100,6 +101,18 @@ public:
             if (it->second < 2) return (it->second != 0) != negated;
         }
         return std::nullopt;
+    }
+
+    // Only repeated uniform words/immediates are invariant across loop iterations.
+    // Do not infer unreachability from a loop-carried SSA predicate's identity.
+    bool HasContradictoryUniformConditions()
+    {
+        PrepareFacts();
+        return std::ranges::any_of(facts, [](const auto& fact) {
+            const auto& [key, truth] = fact;
+            return truth == 2 && key.opcode != IR::Opcode::Void &&
+                   key.lhs.kind != 0 && key.rhs.kind != 0;
+        });
     }
 
     bool IncomingPossible(const IR::Inst * phi, size_t index)

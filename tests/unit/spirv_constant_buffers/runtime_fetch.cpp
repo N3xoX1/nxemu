@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include <cassert>
+#include "yuzu_shader_recompiler/environment.h"
+#include "yuzu_shader_recompiler/exception.h"
+#include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
+#include "yuzu_shader_recompiler/frontend/ir/program.h"
+#include "yuzu_shader_recompiler/host_translate_info.h"
+#include "yuzu_shader_recompiler/ir_opt/passes.h"
+#include "yuzu_shader_recompiler/ir_opt/conditional_value.h"
+
+namespace {
+class FetchEnvironment final : public Shader::Environment {
+public:
+    FetchEnvironment() { stage = Shader::Stage::Fragment; }
+    bool has_pool = true;
+    u64 ReadInstruction(u32) override { return 0; }
+    u32 ReadCbufValue(u32, u32) override { return 0; }
+    std::optional<Shader::TexturePoolInfo> ReadTexturePoolInfo() override {
+        if (!has_pool) return std::nullopt;
+        return Shader::TexturePoolInfo{16, 4, false};
+    }
+    Shader::TextureType ReadTextureType(u32) override { return Shader::TextureType::Color2D; }
+    Shader::TexturePixelFormat ReadTexturePixelFormat(u32) override { return {}; }
+    bool IsTexturePixelFormatInteger(u32) override { return false; }
+    u32 ReadViewportTransformState() override { return 0; }
+    u32 TextureBoundBuffer() const override { return 2; }
+    u32 LocalMemorySize() const override { return 0; }
+    u32 SharedMemorySize() const override { return 0; }
+    std::array<u32, 3> WorkgroupSize() const override { return {1, 1, 1}; }
+    bool HasHLEMacroState() const override { return false; }
+    std::optional<Shader::ReplaceConstant> GetReplaceConstBuffer(u32, u32) override {
+        return std::nullopt;
+    }
+    void Dump(u64, u64) override {}
+};
+
+void RuntimeFetch(bool has_pool, u32 budget, bool succeeds) {
+    Shader::ObjectPool<Shader::IR::Inst> pool;
+    Shader::IR::Block block{pool};
+    Shader::IR::IREmitter ir{block};
+    // A runtime input has no constant-buffer address. Preserve its original handle.
+    const auto handle = ir.GetAttributeU32(Shader::IR::Attribute::Generic0X);
+    Shader::IR::TextureInstInfo flags{};
+    flags.type.Assign(Shader::TextureType::Color2D);
+    const auto fetch = ir.ImageFetch(handle, ir.CompositeConstruct(ir.Imm32(0), ir.Imm32(0)),
+                                    {}, ir.Imm32(0), {}, flags);
+    Shader::IR::Program program{};
+    program.stage = Shader::Stage::Fragment;
+    program.blocks.push_back(&block);
+    program.post_order_blocks.push_back(&block);
+    FetchEnvironment env;
+    env.has_pool = has_pool;
+    Shader::HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = budget;
+    try {
+        Shader::Optimization::TexturePass(env, program, host);
+        assert(succeeds);
+        assert(fetch.Inst()->GetOpcode() == Shader::IR::Opcode::ImageFetch);
+        assert(program.info.texture_descriptors.size() == 1);
+        const auto& desc = program.info.texture_descriptors.front();
+        assert(desc.is_direct && desc.count == 16);
+        assert(program.info.runtime_sampler_count == 4);
+        assert(!fetch.Inst()->Arg(0).IsImmediate());
+    } catch (const Shader::NotImplementedException&) {
+        assert(!succeeds);
+    }
+}
+
+void ImpossibleUniformFetch(bool same_word, bool uniform = true) {
+    using namespace Shader;
+    ObjectPool<IR::Inst> pool;
+    IR::Block entry{pool}, inner{pool}, dead{pool}, merge{pool}, end{pool};
+    IR::IREmitter outer_ir{entry}, inner_ir{inner}, ir{dead};
+    const auto first = uniform ? outer_ir.GetCbuf(outer_ir.Imm32(3), outer_ir.Imm32(4))
+                               : outer_ir.GetAttributeU32(IR::Attribute::Generic0X);
+    const auto outer = outer_ir.ILessThan(first,
+        outer_ir.GetCbuf(outer_ir.Imm32(3), outer_ir.Imm32(12)), false);
+    const auto second = uniform
+        ? inner_ir.GetCbuf(inner_ir.Imm32(3), inner_ir.Imm32(same_word ? 4 : 8)) : first;
+    const auto opposite = inner_ir.IGreaterThanEqual(
+        second,
+        inner_ir.GetCbuf(inner_ir.Imm32(3), inner_ir.Imm32(12)), false);
+    const auto handle = ir.GetAttributeU32(IR::Attribute::Generic0X);
+    IR::TextureInstInfo flags{};
+    flags.type.Assign(TextureType::Color2D);
+    const auto fetch = ir.ImageFetch(handle, ir.CompositeConstruct(ir.Imm32(0), ir.Imm32(0)),
+                                    {}, ir.Imm32(0), {}, flags);
+    IR::Program program{};
+    program.stage = Stage::Fragment;
+    program.blocks = {&entry, &inner, &dead, &merge, &end};
+    program.post_order_blocks = {&end, &merge, &dead, &inner, &entry};
+    using Node = IR::AbstractSyntaxNode;
+    program.syntax_list = {
+        {.data = {.block = &entry}, .type = Node::Type::Block},
+        {.data = {.if_node = {outer, &inner, &end}}, .type = Node::Type::If},
+        {.data = {.block = &inner}, .type = Node::Type::Block},
+        {.data = {.if_node = {opposite, &dead, &merge}}, .type = Node::Type::If},
+        {.data = {.block = &dead}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge}, .type = Node::Type::Block},
+        {.data = {.end_if = {&end}}, .type = Node::Type::EndIf},
+        {.data = {.block = &end}, .type = Node::Type::Block},
+    };
+    Optimization::ConditionalValueResolver conditions{program};
+    conditions.BeginBlock(&dead);
+    const bool impossible = same_word && uniform;
+    assert(conditions.HasContradictoryUniformConditions() == impossible);
+    FetchEnvironment env;
+    env.has_pool = false;
+    HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = 8;
+    bool translated = false;
+    try {
+        Optimization::TexturePass(env, program, host);
+        translated = true;
+    } catch (const NotImplementedException&) {}
+    assert(translated == impossible);
+    if (translated) {
+        assert(fetch.Inst()->GetOpcode() == IR::Opcode::Identity);
+        assert(program.info.texture_descriptors.empty());
+        assert(program.info.runtime_sampler_count == 0);
+    }
+}
+} // namespace
+
+void TestRuntimeTextureFetch() {
+    RuntimeFetch(true, 32, false); // Reachable unknown handles must not allocate the full TIC table.
+    RuntimeFetch(false, 32, false);
+    RuntimeFetch(true, 8, false);
+    ImpossibleUniformFetch(true);
+    ImpossibleUniformFetch(false);
+    ImpossibleUniformFetch(true, false); // SSA/loop-varying predicates stay conservative.
+}
