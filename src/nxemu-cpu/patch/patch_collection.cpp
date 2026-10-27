@@ -1,8 +1,13 @@
 #include "patch/patch_collection.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <algorithm>
+#include <cstdlib>
+#include <cstdio>
+#include <charconv>
+#include <string_view>
 #include <iterator>
 
 extern IModuleSettings * g_settings;
@@ -25,8 +30,38 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
         return;
     }
 
+    std::vector<u32> read_filter;
+    const char* requested_filter = std::getenv("NXEMU_NCE_READ_INSTRUCTIONS");
+    if (requested_filter) {
+        std::string_view remaining{requested_filter};
+        while (!remaining.empty()) {
+            const size_t comma = remaining.find(',');
+            const auto word = remaining.substr(0, comma);
+            u32 instruction{};
+            const auto result = std::from_chars(word.data(), word.data() + word.size(), instruction, 16);
+            if (result.ec == std::errc{} && result.ptr == word.data() + word.size())
+                read_filter.push_back(instruction);
+            if (comma == std::string_view::npos) break;
+            remaining.remove_prefix(comma + 1);
+        }
+        std::fprintf(stderr, "[NCE-READ-THUNKS] filter_words=%zu\n", read_filter.size());
+    }
     Core::NCE::Patcher * patch = &m_patchers[patch_index];
-    while (!patch->PatchText(program_image, image_size, code_offset, code_size))
+    while (!patch->PatchText(program_image, image_size, code_offset, code_size
+#if defined(__APPLE__)
+                             , 1, g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace) &&
+                                  m_module_patcher_indices[0] < 0,
+                                  g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace),
+                                  std::getenv("NXEMU_NCE_READ_THUNKS") != nullptr,
+                                  std::getenv("NXEMU_NCE_ALL_READ_BASES") != nullptr &&
+                                      (!requested_filter || !read_filter.empty()), read_filter,
+                                  std::getenv("NXEMU_NCE_FLOAT_READ_THUNKS") != nullptr &&
+                                      (!requested_filter || !read_filter.empty()),
+                                  std::getenv("NXEMU_NCE_STORE_THUNKS") != nullptr &&
+                                      (!requested_filter || !read_filter.empty())
+                             // The table address is known after process creation, at relocation.
+#endif
+                             ))
     {
         patch = &m_patchers.emplace_back();
     }
@@ -59,9 +94,19 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
     Core::NCE::Patcher & patch = m_patchers[patch_index];
     const uint32_t image_size_before_relocate = *image_size;
     uint64_t image_size64 = *image_size;
-    Core::NCE::EntryTrampolines trampolines;
+    Core::NCE::EntryTrampolines trampolines, atomics, reads;
+#if defined(__APPLE__)
+    if (auto* process = m_modules.OperatingSystem().CurrentProcess()) {
+        patch.SetAtomicTable(process->GetPageTable().GetNceAtomicTable());
+        u64 starts[2]{}, ends[2]{};
+        if (g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace) &&
+            process->GetPageTable().GetNceWindows(starts, ends, 2) == 2)
+            patch.SetLegacy36BitRegion(starts[0] + 0x8000000ULL, ends[0]);
+    }
+#endif
+    Core::NCE::RestartPcs restart_pcs;
 
-    const bool copied = patch.RelocateAndCopy(load_base, code_offset, code_size, program_image, &image_size64, &trampolines);
+    const bool copied = patch.RelocateAndCopy(load_base, code_offset, code_size, program_image, &image_size64, &trampolines, &restart_pcs, &atomics, &reads);
     *image_size = (uint32_t)image_size64;
 
     if (IKernelProcess * process = m_modules.OperatingSystem().CurrentProcess())
@@ -69,6 +114,15 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
         for (Core::NCE::EntryTrampolines::const_iterator it = trampolines.begin(); it != trampolines.end(); ++it)
         {
             process->RegisterPostHandler(it->first, it->second);
+        }
+        for (const auto& [pc, target] : atomics) process->RegisterNceAtomicHandler(pc, target);
+        for (const auto& [pc, target] : reads) process->RegisterNceReadHandler(pc, target);
+        if (!reads.empty())
+            std::fprintf(stderr, "[NCE-READ-THUNKS] registered=%zu patch_KiB=%.3f\n",
+                         reads.size(), patch.GetSectionSize() / 1024.0);
+        for (const auto & [interrupted_pc, restart_pc] : restart_pcs)
+        {
+            process->RegisterNceRestartPc(interrupted_pc, restart_pc);
         }
     }
 

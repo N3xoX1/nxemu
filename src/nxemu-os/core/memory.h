@@ -146,6 +146,16 @@ public:
     u8* GetPointer(Common::ProcessAddress vaddr);
     u8* GetPointerSilent(uint64_t vaddr) override;
     bool InvalidateNCE(uint64_t vaddr, uint64_t size) override;
+    bool NceAccessAllowed(uint64_t vaddr, bool write) override;
+    bool NceTrackWrites(uint64_t vaddr) override;
+    bool NcePrepareCanonicalWrite(uint64_t vaddr) override;
+    bool NceTrackReads(uint64_t vaddr) override;
+    void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) override;
+
+    /// Reports to the GPU the native code writes to the pages NceTrackWrites opened, and
+    /// write-protects them again.
+    void FlushNceWrites(bool rearm_native_reads = true);
+    void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
 
     template <typename T>
     T* GetPointer(Common::ProcessAddress vaddr) {

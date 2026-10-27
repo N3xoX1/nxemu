@@ -438,6 +438,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Show CPU backend in the title bar</div>
+                      <div class="row-text">The active backend, instruction set and address-space width.</div>
+                    </div>
+                    <div id="cpu-backend-info" class="switch" data-command="toggle:cpu-backend-info">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Show the log console</div>
                       <div class="row-text">The log is also written as it comes.</div>
                     </div>

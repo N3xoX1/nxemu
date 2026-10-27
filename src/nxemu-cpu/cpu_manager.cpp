@@ -8,6 +8,7 @@
 #if defined(NXEMU_HAS_NCE)
 #include "cpu_settings_identifiers.h"
 #include "nce/arm_nce.h"
+#include "patch/runtime_code_patch.h"
 #include <nxemu-module-spec/base.h>
 
 extern IModuleSettings * g_settings;
@@ -46,7 +47,8 @@ IPatchCollection * CpuInterface::CreatePatchCollection(bool is_application)
 ICpuCore * CpuInterface::CreateCpuCore(ICoreSystem & system, bool is64Bit, bool usesWallClock, IKernelProcess & process, uint32_t coreIndex)
 {
 #if defined(NXEMU_HAS_NCE)
-    if (is64Bit && g_settings && g_settings->GetBool(NXCpuSetting::NceEnabled))
+    // Only the application is patched and mapped for native execution, applets are emulated.
+    if (is64Bit && process.IsApplication() && g_settings && g_settings->GetBool(NXCpuSetting::NceEnabled))
     {
         return new Core::ArmNce(system, usesWallClock, process, coreIndex);
     }
@@ -56,4 +58,17 @@ ICpuCore * CpuInterface::CreateCpuCore(ICoreSystem & system, bool is64Bit, bool 
         return new ArmDynarmic64(system, usesWallClock, process, m_monitor, coreIndex);
     }
     return new ArmDynarmic32(system, usesWallClock, process, m_monitor, coreIndex);
+}
+
+IRuntimeCodePatch* CpuInterface::CreateRuntimeCodePatch(const uint8_t* text, uint32_t size, uint64_t atomic_table)
+{
+#if defined(NXEMU_HAS_NCE)
+    if (g_settings && g_settings->GetBool(NXCpuSetting::NceEnabled) && text && size && !(size & 3))
+        return new RuntimeCodePatch(text, size, atomic_table);
+#else
+    (void)text;
+    (void)size;
+    (void)atomic_table;
+#endif
+    return nullptr;
 }

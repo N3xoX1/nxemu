@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
 #include <common/sha256.h>
 
 #include "yuzu_common/scope_exit.h"
@@ -10,6 +12,8 @@
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/ro/ro.h"
+#include "core/hle/service/ro/nce_runtime_module.h"
+#include "core/core.h"
 #include "core/hle/service/ro/ro_nro_utils.h"
 #include "core/hle/service/ro/ro_results.h"
 #include "core/hle/service/ro/ro_types.h"
@@ -39,6 +43,7 @@ struct NroInfo {
     u64 code_size;
     u64 rw_size;
     ModuleId module_id;
+    std::unique_ptr<NceRuntimeModule> native_module;
 };
 
 struct NrrInfo {
@@ -74,6 +79,8 @@ struct ProcessContext {
     void Finalize() {
         ASSERT(m_in_use);
 
+        // Runtime module cleanup needs the process mappings to still exist.
+        m_nro_infos = {};
         if (m_process) {
             m_process->Close();
         }
@@ -328,7 +335,7 @@ Result ValidateAddressAndSize(u64 address, u64 size) {
 
 class RoContext {
 public:
-    explicit RoContext() = default;
+    explicit RoContext(Core::System& system) : system(system) {}
 
     Result RegisterProcess(size_t* out_context_id, Kernel::KProcess* process, u64 process_id) {
         // Validate process id.
@@ -411,6 +418,29 @@ public:
 
     Result MapManualLoadModuleMemory(u64* out_address, size_t context_id, u64 nro_address,
                                      u64 nro_size, u64 bss_address, u64 bss_size) {
+        // NXEMU_NCE_NRO_RELOAD=N unloads and reloads each NRO N times before the game sees it.
+        // Each reload checks the NRR hash again, so unloading must give back the exact image.
+        static const int reloads = [] {
+            const char* value = std::getenv("NXEMU_NCE_NRO_RELOAD");
+            return value ? std::atoi(value) : 0;
+        }();
+        R_TRY(MapModule(out_address, context_id, nro_address, nro_size, bss_address, bss_size));
+        if (reloads <= 0) R_SUCCEED();
+        // Unload with the atomic branches written into the text, as after the first atomic fault.
+        GetContextById(context_id)->GetProcess()->EnableNceAtomicHandlers();
+        const auto start = std::chrono::steady_clock::now();
+        for (int i = 0; i < reloads; ++i) {
+            R_TRY(UnmapManualLoadModuleMemory(context_id, *out_address));
+            R_TRY(MapModule(out_address, context_id, nro_address, nro_size, bss_address, bss_size));
+        }
+        const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start);
+        LOG_INFO(Service_LDR, "NCE: NRO {:#x} ({:#x} bytes) unloaded and reloaded {} times, now at {:#x}, {:.1f} ms each",
+                 nro_address, nro_size, reloads, *out_address, elapsed.count() / reloads);
+        R_SUCCEED();
+    }
+
+    Result MapModule(u64* out_address, size_t context_id, u64 nro_address,
+                     u64 nro_size, u64 bss_address, u64 bss_size) {
         // Get context.
         ProcessContext* context = this->GetContextById(context_id);
         ASSERT(context != nullptr);
@@ -445,10 +475,17 @@ public:
                                    std::addressof(ro_size), std::addressof(rw_size),
                                    nro_info->base_address, nro_size, bss_size));
 
-        // Set NRO perms.
+        std::unique_ptr<NceRuntimeModule> native_module;
+        R_TRY(NceRuntimeModule::Prepare(native_module, system, *context->GetProcess(),
+                                       nro_info->base_address, rx_size, nro_size + bss_size));
+
+        // Set NRO perms only after patch preparation. On failure, native_module restores text
+        // and reservations before the mapping rollback returns source heap pages to the guest.
         R_TRY(SetNroPerms(context->GetProcess(), nro_info->base_address, rx_size, ro_size,
                           rw_size + bss_size));
 
+        if (native_module) R_TRY(native_module->Publish());
+        nro_info->native_module = std::move(native_module);
         context->SetNroInfoInUse(nro_info, true);
         nro_info->code_size = rx_size + ro_size;
         nro_info->rw_size = rw_size;
@@ -470,18 +507,21 @@ public:
         R_TRY(context->GetNroInfoByAddress(std::addressof(nro_info), nro_address));
 
         // Unmap.
-        const NroInfo nro_backup = *nro_info;
+        NroInfo nro_backup = std::move(*nro_info);
         {
             // Nintendo does this unconditionally, whether or not the actual unmap succeeds.
             context->SetNroInfoInUse(nro_info, false);
-            std::memset(nro_info, 0, sizeof(*nro_info));
+            *nro_info = {};
         }
+        // Restore canonical text while the source heap remains locked by MapCodeMemory.
+        nro_backup.native_module.reset();
         R_RETURN(UnmapNro(context->GetProcess(), nro_backup.base_address,
                           nro_backup.nro_heap_address, nro_backup.code_size + nro_backup.rw_size,
                           nro_backup.bss_heap_address, nro_backup.bss_heap_size));
     }
 
 private:
+    Core::System& system;
     std::array<ProcessContext, MaxSessions> process_contexts;
     std::mt19937_64 generate_random;
 
@@ -601,7 +641,7 @@ private:
 void LoopProcess(Core::System& system) {
     auto server_manager = std::make_unique<ServerManager>(system);
 
-    auto ro = std::make_shared<RoContext>();
+    auto ro = std::make_shared<RoContext>(system);
 
     const auto RoInterfaceFactoryForUser = [&, ro] {
         return std::make_shared<RoInterface>(system, "ldr:ro", ro, NrrKind::User);

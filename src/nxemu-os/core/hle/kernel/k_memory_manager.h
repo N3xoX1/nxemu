@@ -56,6 +56,10 @@ public:
     void FinalizeOptimizedMemory(u64 process_id, Pool pool);
 
     KPhysicalAddress AllocateAndOpenContinuous(size_t num_pages, size_t align_pages, u32 option);
+
+    // Guest pages per host page: 4 on 16 KiB hosts, 1 where host and guest pages match. Memory
+    // aligned to this many pages can be mapped directly with host pages.
+    static size_t GuestPagesPerHostPage();
     Result AllocateAndOpen(KPageGroup* out, size_t num_pages, u32 option);
     Result AllocateForProcess(KPageGroup* out, size_t num_pages, u32 option, u64 process_id,
                               u8 fill_pattern);

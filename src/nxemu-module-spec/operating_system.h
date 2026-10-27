@@ -516,6 +516,7 @@ struct PerfStatsResults
 nxinterface IDeviceMemory
 {
     virtual const uint8_t * BackingBasePointer() const = 0;
+    virtual uint64_t BackingSize() const = 0;
     virtual uint8_t * VirtualBasePointer() = 0;
     virtual void EnableDirectMappedAddress() = 0;
 };
@@ -724,6 +725,11 @@ nxinterface IOperatingSystem
     virtual void RegisterExitCallback(ExitCallback callback, void * userData) = 0;
     virtual void ExportUserChannel(UserChannelEntryCallback callback, void * userData) = 0;
     virtual void PushUserChannelEntry(const uint8_t * data, uint32_t size) = 0;
+    // Publish CPU writes without announcing a new GPU submission.
+    virtual void GatherGPUDirtyMemoryForReadback(ICacheInvalidator * invalidator)
+    {
+        GatherGPUDirtyMemory(invalidator);
+    }
 };
 
 EXPORT IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules);

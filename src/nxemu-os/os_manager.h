@@ -27,6 +27,7 @@ public:
     void KeyboardKeyPress(int modifier, int keyIndex, int keyCode) override;
     void KeyboardKeyRelease(int modifier, int keyIndex, int keyCode) override;
     void GatherGPUDirtyMemory(ICacheInvalidator * invalidator) override;
+    void GatherGPUDirtyMemoryForReadback(ICacheInvalidator * invalidator) override;
     uint64_t GetGPUTicks() override;
     uint64_t GetProgramId() override;
     bool GetExitLocked() const override;

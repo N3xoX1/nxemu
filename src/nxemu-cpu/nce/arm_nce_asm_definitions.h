@@ -3,6 +3,13 @@
 
 #pragma once
 
+#if defined(__APPLE__)
+/* Darwin signal numbers; <signal.h> cannot be included from assembly. */
+#define ReturnToRunCodeByExceptionLevelChangeSignal 31 /* SIGUSR2 */
+#define BreakFromRunCodeSignal 16 /* SIGURG */
+#define GuestAccessFaultSignal 11 /* SIGSEGV */
+#define GuestAlignmentFaultSignal 10 /* SIGBUS */
+#else
 #define __ASSEMBLY__
 
 #include <asm-generic/signal.h>
@@ -12,6 +19,7 @@
 #define BreakFromRunCodeSignal SIGURG
 #define GuestAccessFaultSignal SIGSEGV
 #define GuestAlignmentFaultSignal SIGBUS
+#endif
 
 #define GuestContextSp 0xF8
 #define GuestContextHostContext 0x320

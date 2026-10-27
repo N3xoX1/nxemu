@@ -104,6 +104,7 @@ private:
     KProcessAddress m_virt_addr{};
     KProcess* m_owner{};
     KernelCore* m_kernel{};
+    size_t m_host_block_pages{}; // pages of the host-aligned block backing us, 0 for a page buffer
     std::array<bool, RegionsPerPage> m_is_region_free{};
 };
 

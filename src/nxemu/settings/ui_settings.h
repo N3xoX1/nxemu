@@ -28,6 +28,7 @@ struct UISettings
     bool showPlayTime;
     bool showGameDetails;
     bool showEmulationControls;
+    bool showCpuBackend;
     StringMap shortcuts;
     bool showPerformance;
     bool performanceHistory;

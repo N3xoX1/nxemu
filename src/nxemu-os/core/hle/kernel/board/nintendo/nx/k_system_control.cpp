@@ -68,17 +68,25 @@ size_t KSystemControl::Init::GetRealMemorySize() {
     return GetIntendedMemorySize();
 }
 
+
 // Initialization.
 size_t KSystemControl::Init::GetIntendedMemorySize() {
+    const size_t margin = GetHostPageMemoryMargin();
     switch (GetMemorySizeForInit()) {
     case Smc::MemorySize_4GB:
     default: // All invalid modes should go to 4GB.
-        return 4_GiB;
+        return 4_GiB + margin;
     case Smc::MemorySize_6GB:
-        return 6_GiB;
+        return 6_GiB + margin;
     case Smc::MemorySize_8GB:
-        return 8_GiB;
+        return 8_GiB + margin;
     }
+}
+
+size_t KSystemControl::Init::GetHostPageMemoryMargin() {
+    // Hosts with larger pages back each host page of physical memory mappings with its own
+    // block. The extra pages come from this margin, which is not part of any process limit.
+    return KMemoryManager::GuestPagesPerHostPage() > 1 ? 256_MiB : 0;
 }
 
 KPhysicalAddress KSystemControl::Init::GetKernelPhysicalBaseAddress(KPhysicalAddress base_address) {
@@ -117,7 +125,7 @@ std::size_t KSystemControl::Init::GetApplicationPoolSize() {
     }();
 
     // Return (possibly) adjusted size.
-    return base_pool_size;
+    return base_pool_size + GetHostPageMemoryMargin();
 }
 
 size_t KSystemControl::Init::GetAppletPoolSize() {

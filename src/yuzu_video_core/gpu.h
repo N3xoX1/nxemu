@@ -256,6 +256,7 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     [[nodiscard]] RasterizerDownloadArea OnCPURead(DAddr addr, u64 size);
+    void OnNativeCPURead(DAddr addr, u64 size);
 
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, u64 size);

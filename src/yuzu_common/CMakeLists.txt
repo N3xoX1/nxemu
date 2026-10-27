@@ -45,6 +45,8 @@ add_library(yuzu_common STATIC
     hex_util.h
     host_memory.cpp
     host_memory.h
+    nce_direct_map.cpp
+    nce_direct_map.h
     input.h
     intrusive_red_black_tree.h
     literals.h

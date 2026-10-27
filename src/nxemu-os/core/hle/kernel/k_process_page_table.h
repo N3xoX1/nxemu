@@ -459,6 +459,12 @@ public:
         return m_page_table.GetAllocateOption();
     }
 
+    uint64_t GetNceAtomicTable() const override { return m_page_table.GetNceAtomicTable(); }
+
+    uint32_t GetNceWindows(uint64_t* starts, uint64_t* ends, uint32_t max) const override {
+        return m_page_table.GetNceWindows(starts, ends, max);
+    }
+
     u32 GetAddressSpaceWidth() const override {
         return m_page_table.GetAddressSpaceWidth();
     }

@@ -13,6 +13,8 @@ enum SystemRegister : u32 {
     TpidrroEl0 = 0x5E83,
     CntfrqEl0 = 0x5F00,
     CntpctEl0 = 0x5F01,
+    CntvctEl0 = 0x5F02,
+    CtrEl0 = 0x5801,
 };
 
 // https://developer.arm.com/documentation/ddi0596/2021-12/Base-Instructions/SVC--Supervisor-Call-
@@ -121,9 +123,19 @@ union Exclusive {
         if (this->GetSig() != 0x10) {
             return false;
         }
+        // Reject the unallocated encodings too: data kept in .text matches them (the low word
+        // of a double in a .NET NativeAOT constant table did), and patching it corrupts the data.
         const bool pair = (decltype(l)::ExtractValue(raw) & 1) != 0;
-        const bool fixed_rt2 = decltype(rt2)::ExtractValue(raw) == 0b11111;
-        return pair || fixed_rt2;
+        const bool load = (decltype(l)::ExtractValue(raw) & 2) != 0;
+        if (pair && (decltype(size)::ExtractValue(raw) & 2) == 0) {
+            // Pairs only exist for 32 and 64 bit registers.
+            return false;
+        }
+        if (!pair && decltype(rt2)::ExtractValue(raw) != 0b11111) {
+            return false;
+        }
+        // Loads have no status register.
+        return !load || decltype(rs)::ExtractValue(raw) == 0b11111;
     }
 
     constexpr u32 GetSig() {
@@ -146,7 +158,13 @@ private:
     BitField<23, 7, u32> sig;  // 0x10
     BitField<30, 2, u32> size; // size
 };
-static_assert(Exclusive(0xC85FFC00).Verify());
+static_assert(Exclusive(0xC85FFC00).Verify());  // ldaxr x0, [x0]
+static_assert(Exclusive(0x885FFD00).Verify());  // ldaxr w0, [x8]
+static_assert(Exclusive(0x8809FD01).Verify());  // stlxr w9, w1, [x8]
+static_assert(Exclusive(0xC87F0440).Verify());  // ldxp x0, x1, [x2]
+static_assert(Exclusive(0xC8200440).Verify());  // stxp w0, x0, x1, [x2]
+static_assert(!Exclusive(0x083126E9).Verify()); // byte pair: low word of the double 151.77
+static_assert(!Exclusive(0x885EFD00).Verify()); // load with a status register
 static_assert(Exclusive(0xC85FFC00).AsOrdered() == 0xC85FFC00);
 static_assert(Exclusive(0xC85F7C00).AsOrdered() == 0xC85FFC00);
 static_assert(Exclusive(0xC8200440).AsOrdered() == 0xC8208440);

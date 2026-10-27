@@ -147,6 +147,7 @@ struct RasterizerDownloadArea
     uint64_t startAddress;
     uint64_t endAddress;
     bool preemtive;
+    bool native_read = false;
 };
 
 nxinterface IChannelState

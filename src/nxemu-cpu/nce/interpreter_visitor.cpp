@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "interpreter_visitor.h"
+#include <array>
+#include <cstring>
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/logging/log.h"
 
@@ -142,7 +144,8 @@ u128 InterpreterVisitor::GetVec(Vec v) {
 }
 
 u64 InterpreterVisitor::GetReg(Reg r) {
-    return m_regs[static_cast<u32>(r)];
+    // Register 31 is the zero register here: the stack pointer is only read through GetSp.
+    return r == Reg::R31 ? 0 : m_regs[static_cast<u32>(r)];
 }
 
 u64 InterpreterVisitor::GetSp() {
@@ -158,11 +161,276 @@ void InterpreterVisitor::SetVec(Vec v, u128 value) {
 }
 
 void InterpreterVisitor::SetReg(Reg r, u64 value) {
-    m_regs[static_cast<u32>(r)] = value;
+    if (r != Reg::R31) {
+        m_regs[static_cast<u32>(r)] = value;
+    }
 }
 
 void InterpreterVisitor::SetSp(u64 value) {
     m_sp = value;
+}
+
+bool InterpreterVisitor::StructureMultiple(bool load, bool Q, bool wback, Reg Rm, Imm<4> opcode,
+                                           Imm<2> size, Reg Rn, Vec Vt) {
+    unsigned repeats{}, count{};
+    switch (opcode.ZeroExtend()) {
+    case 0:
+        repeats = 1;
+        count = 4;
+        break;
+    case 2:
+        repeats = 4;
+        count = 1;
+        break;
+    case 4:
+        repeats = 1;
+        count = 3;
+        break;
+    case 6:
+        repeats = 3;
+        count = 1;
+        break;
+    case 7:
+        repeats = 1;
+        count = 1;
+        break;
+    case 8:
+        repeats = 1;
+        count = 2;
+        break;
+    case 10:
+        repeats = 2;
+        count = 1;
+        break;
+    default:
+        return false;
+    }
+    if (!Q && size == 3 && count != 1) {
+        return false;
+    }
+    const unsigned bytes = Q ? 16 : 8;
+    const unsigned element = 1U << size.ZeroExtend();
+    const u64 address = Rn == Reg::SP ? GetSp() : GetReg(Rn);
+    std::array<u128, 4> values{};
+    const unsigned registers = repeats * count;
+    for (unsigned r = 0; r < registers; ++r) {
+        if (!load) {
+            values[r] = GetVec(static_cast<Vec>((static_cast<unsigned>(Vt) + r) % 32));
+        }
+    }
+    u64 offset{};
+    for (unsigned r = 0; r < repeats; ++r) {
+        for (unsigned e = 0; e < bytes / element; ++e) {
+            for (unsigned n = 0; n < count; ++n) {
+                auto* lane = reinterpret_cast<u8*>(&values[r + n]) + e * element;
+                const bool ok = load ? m_memory.ReadBlock(address + offset, lane, element)
+                                     : m_memory.WriteBlock(address + offset, lane, element);
+                if (!ok) {
+                    return false;
+                }
+                offset += element;
+            }
+        }
+    }
+    if (load) {
+        for (unsigned r = 0; r < registers; ++r) {
+            SetVec(static_cast<Vec>((static_cast<unsigned>(Vt) + r) % 32), values[r]);
+        }
+    }
+    if (wback) {
+        const u64 next = address + (Rm == Reg::R31 ? offset : GetReg(Rm));
+        if (Rn == Reg::SP) {
+            SetSp(next);
+        } else {
+            SetReg(Rn, next);
+        }
+    }
+    return true;
+}
+
+bool InterpreterVisitor::StructureSingle(bool load, bool Q, bool wback, Reg Rm, unsigned count,
+                                         Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn,
+                                         Vec Vt, bool replicate) {
+    unsigned scale = upper_opcode.ZeroExtend();
+    unsigned index{};
+    if (replicate) {
+        if (!load || S || scale != 3) {
+            return false;
+        }
+        scale = size.ZeroExtend();
+    } else {
+        switch (scale) {
+        case 0:
+            index = (unsigned(Q) << 3) | (unsigned(S) << 2) | size.ZeroExtend();
+            break;
+        case 1:
+            if (size.Bit<0>()) {
+                return false;
+            }
+            index = (unsigned(Q) << 2) | (unsigned(S) << 1) | unsigned(size.Bit<1>());
+            break;
+        case 2:
+            if (size.Bit<1>()) {
+                return false;
+            }
+            if (size.Bit<0>()) {
+                if (S) {
+                    return false;
+                }
+                scale = 3;
+                index = unsigned(Q);
+            } else {
+                index = (unsigned(Q) << 1) | unsigned(S);
+            }
+            break;
+        default:
+            return false;
+        }
+    }
+    const unsigned element = 1U << scale;
+    const u64 address = Rn == Reg::SP ? GetSp() : GetReg(Rn);
+    std::array<u128, 4> values{};
+    for (unsigned n = 0; n < count; ++n) {
+        const auto reg = static_cast<Vec>((static_cast<unsigned>(Vt) + n) % 32);
+        values[n] = replicate ? u128{} : GetVec(reg);
+        auto* lane = reinterpret_cast<u8*>(&values[n]) + index * element;
+        const bool ok = load ? m_memory.ReadBlock(address + n * element, lane, element)
+                             : m_memory.WriteBlock(address + n * element, lane, element);
+        if (!ok) {
+            return false;
+        }
+        if (replicate) {
+            for (unsigned byte = element; byte < (Q ? 16U : 8U); byte += element) {
+                std::memcpy(reinterpret_cast<u8*>(&values[n]) + byte, lane, element);
+            }
+        }
+    }
+    if (load) {
+        for (unsigned n = 0; n < count; ++n) {
+            SetVec(static_cast<Vec>((static_cast<unsigned>(Vt) + n) % 32), values[n]);
+        }
+    }
+    if (wback) {
+        const u64 next = address + (Rm == Reg::R31 ? count * element : GetReg(Rm));
+        if (Rn == Reg::SP) {
+            SetSp(next);
+        } else {
+            SetReg(Rn, next);
+        }
+    }
+    return true;
+}
+
+bool InterpreterVisitor::STx_mult_1(bool Q, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureMultiple(false, Q, false, Reg::R31, opcode, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::STx_mult_2(bool Q, Reg Rm, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureMultiple(false, Q, true, Rm, opcode, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST1_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, false, Reg::R31, 1, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST1_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, true, Rm, 1, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST2_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, false, Reg::R31, 2, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST2_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, true, Rm, 2, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST3_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, false, Reg::R31, 3, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST3_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, true, Rm, 3, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST4_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, false, Reg::R31, 4, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::ST4_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(false, Q, true, Rm, 4, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LDx_mult_1(bool Q, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureMultiple(true, Q, false, Reg::R31, opcode, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LDx_mult_2(bool Q, Reg Rm, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureMultiple(true, Q, true, Rm, opcode, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD1_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 1, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD1_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 1, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD1R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 1, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD1R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 1, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD2_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 2, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD2_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 2, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD2R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 2, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD2R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 2, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD3_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 3, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD3_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 3, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD3R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 3, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD3R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 3, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD4_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 4, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD4_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 4, upper_opcode, S, size, Rn, Vt);
+}
+
+bool InterpreterVisitor::LD4R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, false, Reg::R31, 4, Imm<2>{3}, false, size, Rn, Vt, true);
+}
+
+bool InterpreterVisitor::LD4R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) {
+    return StructureSingle(true, Q, true, Rm, 4, Imm<2>{3}, false, size, Rn, Vt, true);
 }
 
 bool InterpreterVisitor::Ordered(size_t size, bool L, bool o0, Reg Rn, Reg Rt) {
@@ -794,6 +1062,18 @@ bool InterpreterVisitor::LDR_reg_fpsimd(Imm<2> size, Imm<1> opc_1, Reg Rm, Imm<3
     return this->SIMDOffset(scale, shift, opc_0, Rm, option, Rn, Vt);
 }
 
+#if defined(__APPLE__)
+std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, __darwin_mcontext64* context) {
+    // Construct the interpreter. x0-x28, fp and lr are contiguous in the Darwin thread state.
+    static_assert(offsetof(__darwin_arm_thread_state64, __fp) ==
+                  offsetof(__darwin_arm_thread_state64, __x) + 29 * sizeof(u64));
+    static_assert(offsetof(__darwin_arm_thread_state64, __lr) ==
+                  offsetof(__darwin_arm_thread_state64, __x) + 30 * sizeof(u64));
+    std::span<u64, 31> regs(reinterpret_cast<u64*>(context->__ss.__x), 31);
+    std::span<u128, 32> vregs(reinterpret_cast<u128*>(context->__ns.__v), 32);
+    u64& sp = *reinterpret_cast<u64*>(&context->__ss.__sp);
+    const u64& pc = *reinterpret_cast<u64*>(&context->__ss.__pc);
+#else
 std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, mcontext_t* context,
                                                  fpsimd_context* fpsimd_context) {
     // Construct the interpreter.
@@ -801,6 +1081,7 @@ std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, mcontext_t* co
     std::span<u128, 32> vregs(reinterpret_cast<u128*>(fpsimd_context->vregs), 32);
     u64& sp = *reinterpret_cast<u64*>(&context->sp);
     const u64& pc = *reinterpret_cast<u64*>(&context->pc);
+#endif
 
     InterpreterVisitor visitor(memory, regs, vregs, sp, pc);
 

@@ -8,6 +8,10 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <map>
 #include <numeric>
 #include <optional>
 #include <span>
@@ -1087,12 +1091,43 @@ boost::container::small_vector<SwizzleParameters, 16> FullUploadSwizzles(const I
 void SwizzleImage(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, const ImageInfo& info,
                   std::span<const BufferImageCopy> copies, std::span<const u8> memory,
                   Common::ScratchBuffer<u8>& tmp_buffer) {
+    // Temporary opt-in profiling; remove after the NCE readback investigation.
+    static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
+    using Clock = std::chrono::steady_clock;
+    const auto started = profile ? Clock::now() : Clock::time_point{};
     const bool is_pitch_linear = info.type == ImageType::Linear;
     for (const BufferImageCopy& copy : copies) {
         if (is_pitch_linear) {
             SwizzlePitchLinearImage(gpu_memory, gpu_addr, info, copy, memory);
         } else {
             SwizzleBlockLinearImage(gpu_memory, gpu_addr, info, copy, memory, tmp_buffer);
+        }
+    }
+    if (profile) {
+        struct Stats { u64 calls{}; u64 bytes{}; double ms{}; };
+        using Key = std::array<u64, 8>;
+        static thread_local std::map<Key, Stats> stats;
+        static thread_local auto reported = Clock::now();
+        const auto now = Clock::now();
+        const Key key{gpu_addr, info.size.width, info.size.height, info.size.depth,
+                      BytesPerBlock(info.format), static_cast<u64>(info.resources.layers),
+                      static_cast<u64>(info.resources.levels), static_cast<u64>(info.format)};
+        auto& item = stats[key];
+        ++item.calls;
+        for (const auto& copy : copies) item.bytes += copy.buffer_size;
+        item.ms += std::chrono::duration<double, std::milli>(now - started).count();
+        if (now - reported >= std::chrono::seconds(5)) {
+            const double seconds = std::chrono::duration<double>(now - reported).count();
+            for (const auto& [k, v] : stats) {
+                std::fprintf(stderr, "[NCE-READBACK] interval=%.3f addr=%llx size=%llux%llux%llu bpb=%llu layers=%llu levels=%llu format=%llu calls=%llu MiB=%.3f ms=%.3f\n",
+                    seconds, (unsigned long long)k[0], (unsigned long long)k[1],
+                    (unsigned long long)k[2], (unsigned long long)k[3],
+                    (unsigned long long)k[4], (unsigned long long)k[5],
+                    (unsigned long long)k[6], (unsigned long long)k[7],
+                    (unsigned long long)v.calls, static_cast<double>(v.bytes) / 1048576.0, v.ms);
+            }
+            stats.clear();
+            reported = now;
         }
     }
 }

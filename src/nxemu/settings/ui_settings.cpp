@@ -88,6 +88,7 @@ namespace
         {nullptr, "GameBrowser\\ShowPlayTime", &uiSettings.showPlayTime, true},
         {nullptr, "GameBrowser\\ShowDetails", &uiSettings.showGameDetails, false},
         {nullptr, "ShowEmulationControls", &uiSettings.showEmulationControls, kShowEmulationControlsDefault},
+        {NXUISetting::ShowCpuBackend, "Debug\\ShowCpuBackend", &uiSettings.showCpuBackend, false},
         {nullptr, "Shortcuts", &uiSettings.shortcuts},
         {nullptr, "Performance\\Show", &uiSettings.showPerformance, false},
         {nullptr, "Performance\\History", &uiSettings.performanceHistory, true},

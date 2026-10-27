@@ -501,6 +501,14 @@ msgid "Log"
 msgstr "Protokoll"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show CPU backend in the title bar"
+msgstr "CPU-Backend in der Titelleiste anzeigen"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The active backend, instruction set and address-space width."
+msgstr "Aktives Backend, Befehlssatz und Adressraumbreite."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Show the log console"
 msgstr "Protokollkonsole anzeigen"
 

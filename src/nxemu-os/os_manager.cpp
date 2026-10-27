@@ -164,6 +164,8 @@ void OSManager::EmulationStarting()
 void OSManager::EmulationStopping(bool wait)
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
+    g_settings->SetBool(NXCoreSetting::Is64BitProgram, false);
+    g_settings->SetBool(NXCoreSetting::Has36BitAddressSpace, false);
     g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, false);
 
     if (m_emuThread)
@@ -335,6 +337,11 @@ void OSManager::KeyboardKeyRelease(int modifier, int keyIndex, int keyCode)
 void OSManager::GatherGPUDirtyMemory(ICacheInvalidator * invalidator)
 {
     m_coreSystem.GatherGPUDirtyMemory(invalidator);
+}
+
+void OSManager::GatherGPUDirtyMemoryForReadback(ICacheInvalidator * invalidator)
+{
+    m_coreSystem.GatherGPUDirtyMemory(invalidator, false);
 }
 
 uint64_t OSManager::GetGPUTicks()

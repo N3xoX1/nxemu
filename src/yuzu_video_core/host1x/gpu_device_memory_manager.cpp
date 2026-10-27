@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <type_traits>
@@ -17,13 +18,10 @@
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/scope_exit.h"
 #include <nxemu-module-spec/operating_system.h>
-#include "nxemu-os/os_settings_identifiers.h"
 
 #include "host1x/gpu_device_memory_manager.h"
 #include "rasterizer_interface.h"
 #include "device_memory_manager.h"
-
-extern IModuleSettings * g_settings;
 
 namespace Core
 {
@@ -196,7 +194,7 @@ template <typename Traits>
 DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_memory_) :
     physical_base{reinterpret_cast<const uintptr_t>(device_memory_.BackingBasePointer())},
     device_inter{nullptr}, compressed_physical_ptr(device_as_size >> DEVICE_PAGEBITS),
-    compressed_device_addr(1ULL << ((g_settings->GetInt(NXOsSetting::MemoryLayout) == (int32_t)MemoryLayout::Memory_4Gb ? physical_min_bits : physical_max_bits) - DEVICE_PAGEBITS)),
+    compressed_device_addr(Common::AlignUp(device_memory_.BackingSize(), DEVICE_PAGESIZE) >> DEVICE_PAGEBITS),
     continuity_tracker(device_as_size >> DEVICE_PAGEBITS),
     cpu_backing_address(device_as_size >> DEVICE_PAGEBITS)
 {
@@ -609,6 +607,90 @@ IMemory* DeviceMemoryManager<Traits>::GetRegisteredProcess(Asid asid)
     // Protect the registry and recycled IDs against concurrent registration.
     std::scoped_lock lk(process_guard);
     return asid.id < registered_processes.size() ? registered_processes[asid.id] : nullptr;
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::RegisterNativeRead(DAddr addr, size_t size)
+{
+#if defined(__APPLE__)
+    static const bool enabled = std::getenv("NXEMU_NCE_PRECISE_READ_TRACKING") != nullptr;
+    if (!enabled || size == 0) return;
+    Common::ScopedRangeLock lk(counter_guard, addr, size);
+    const size_t end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    for (size_t page = addr >> DEVICE_PAGEBITS; page < end; ++page)
+    {
+        const auto [asid, address] = ExtractCPUBacking(page);
+        if (address == 0) continue;
+        if (auto* memory = GetRegisteredProcess(asid))
+        {
+            native_read_pages.insert(page);
+            memory->RasterizerSetNativeReadAccess(Common::AlignDown(address, DEVICE_PAGESIZE),
+                                                  DEVICE_PAGESIZE, true);
+        }
+    }
+#endif
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t size)
+{
+#if defined(__APPLE__)
+    // The common case performs no range walk, mapping lookup or protection change.
+    if (size == 0 || native_read_pages.empty()) return;
+    const size_t end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    auto it = native_read_pages.lower_bound(addr >> DEVICE_PAGEBITS);
+    if (it == native_read_pages.end() || *it >= end) return;
+    Common::ScopedRangeLock lk(counter_guard, addr, size);
+    while (it != native_read_pages.end() && *it < end)
+    {
+        const size_t page = *it;
+        it = native_read_pages.erase(it);
+        const auto [asid, address] = ExtractCPUBacking(page);
+        if (address == 0) continue;
+        if (auto* memory = GetRegisteredProcess(asid))
+            memory->RasterizerSetNativeReadAccess(Common::AlignDown(address, DEVICE_PAGESIZE),
+                                                  DEVICE_PAGESIZE, false);
+    }
+#endif
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
+{
+#if defined(__APPLE__)
+    if (size == 0) return;
+    Common::ScopedRangeLock lk(counter_guard, addr, size);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    const size_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    size_t page = addr >> DEVICE_PAGEBITS;
+    IMemory* memory = nullptr;
+    Asid current_asid{};
+    VAddr begin{};
+    size_t bytes{};
+    const auto flush = [&] {
+        if (bytes && memory) memory->RasterizerMarkRegionReadCached(begin, bytes, delta);
+        bytes = 0;
+    };
+    for (; page < page_end; ++page)
+    {
+        const auto [asid, address] = ExtractCPUBacking(page);
+        if (address == 0)
+        {
+            flush();
+            continue;
+        }
+        const VAddr base = Common::AlignDown(address, DEVICE_PAGESIZE);
+        if (!bytes || asid.id != current_asid.id || base != begin + bytes)
+        {
+            flush();
+            current_asid = asid;
+            memory = GetRegisteredProcess(asid);
+            begin = base;
+        }
+        bytes += DEVICE_PAGESIZE;
+    }
+    flush();
+#endif
 }
 
 template <typename Traits>

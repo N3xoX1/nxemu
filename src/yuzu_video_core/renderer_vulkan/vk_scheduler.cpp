@@ -13,6 +13,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_command_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
+#include "yuzu_video_core/renderer_vulkan/vk_stall_profile.h"
 #include "yuzu_video_core/renderer_vulkan/vk_state_tracker.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
@@ -54,6 +55,7 @@ u64 Scheduler::Flush(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
 }
 
 void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
+    const StallProfile profile{"finish", CurrentTick()};
     // When finishing, we need to wait for the submission to have executed on the device.
     const u64 presubmit_tick = CurrentTick();
     SubmitExecution(signal_semaphore, wait_semaphore);
@@ -62,6 +64,7 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore)
 }
 
 void Scheduler::WaitWorker() {
+    const StallProfile profile{"worker_wait", CurrentTick()};
     DispatchWork();
 
     // Ensure the queue is drained.
@@ -185,7 +188,10 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
             // Perform the work, tracking whether the chunk was a submission
             // before executing.
             const bool has_submit = work->HasSubmit();
-            work->ExecuteAll(current_cmdbuf, current_upload_cmdbuf);
+            {
+                const StallProfile profile{"worker_commands", CurrentTick()};
+                work->ExecuteAll(current_cmdbuf, current_upload_cmdbuf);
+            }
 
             // If the chunk was a submission, reallocate the command buffer.
             if (has_submit) {
