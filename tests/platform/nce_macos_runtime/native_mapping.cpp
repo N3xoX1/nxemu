@@ -1,4 +1,4 @@
-// Diagnostic experiment: production NceDirectMap, real Mach mappings, no game code.
+// Production NceDirectMap against real Mach mappings, with no game code.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

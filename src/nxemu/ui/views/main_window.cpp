@@ -2316,7 +2316,7 @@ void MainWindow::UpdateStatusText()
                                 SettingsStore::GetInstance().GetBool(NXCpuSetting::NceEnabled);
             cpu_backend = std::string(native ? "NCE" : "Dynarmic") +
                           (process->Is64Bit() ? " · AArch64 · " : " · AArch32 · ") +
-                          Tr("%1 bits", {std::to_string(process->GetPageTable().GetAddressSpaceWidth())});
+                          std::to_string(process->GetPageTable().GetAddressSpaceWidth()) + "-bit";
         }
     }
     SetText("title-cpu-backend", cpu_backend);

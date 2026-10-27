@@ -501,6 +501,14 @@ msgid "Log"
 msgstr "Journal"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show CPU backend in the title bar"
+msgstr "Afficher le backend CPU dans la barre de titre"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The active backend, instruction set and address-space width."
+msgstr "Le backend actif, le jeu d'instructions et la largeur de l'espace d'adressage."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Show the log console"
 msgstr "Afficher la console du journal"
 
@@ -3764,12 +3772,3 @@ msgstr "GitHub a renvoyé %1"
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
 msgstr "Impossible de joindre GitHub"
-
-msgid "Show CPU backend in the title bar"
-msgstr "Afficher le backend CPU dans la barre de titre"
-
-msgid "The active backend, instruction set and address-space width."
-msgstr "Le backend actif, le jeu d’instructions et la largeur d’adressage."
-
-msgid "%1 bits"
-msgstr "%1 bits"
