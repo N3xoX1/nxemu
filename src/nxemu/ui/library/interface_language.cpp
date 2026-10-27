@@ -24,7 +24,8 @@ void InterfaceLanguage::SetChoice(const std::string & code)
 
 void InterfaceLanguage::Use(const std::string & code, const std::filesystem::path & assetDir)
 {
-    Translation::UseLanguage(code, assetDir / "lang", assetDir.parent_path() / "lang");
+    // From the source tree: src/nxemu/ui/assets -> lang
+    Translation::UseLanguage(code, assetDir / "lang", assetDir.parent_path().parent_path().parent_path().parent_path() / "lang");
 }
 
 void InterfaceLanguage::AdoptSystemLanguage(EmulatorSession & session)

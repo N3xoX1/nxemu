@@ -39,6 +39,8 @@
     <ClInclude Include="..\nxemu-module-spec\system_loader.h" />
     <ClInclude Include="..\nxemu-module-spec\video.h" />
     <ClInclude Include="app_init.h" />
+    <ClInclude Include="i18n\plural_rule.h" />
+    <ClInclude Include="i18n\translation.h" />
     <ClInclude Include="play_time.h" />
     <ClInclude Include="logging.h" />
     <ClInclude Include="modules\cpu_module.h" />
@@ -57,6 +59,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="app_init.cpp" />
+    <ClCompile Include="i18n\plural_rule.cpp" />
+    <ClCompile Include="i18n\translation.cpp" />
     <ClCompile Include="play_time.cpp" />
     <ClCompile Include="logging.cpp" />
     <ClCompile Include="modules\cpu_module.cpp" />

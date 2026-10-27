@@ -1,0 +1,3812 @@
+# The texts of the interface of NXEmu.
+# Made from the sources by extract_strings.py: not to be edited by hand.
+#
+# A translation is a copy of this file named after its language, fr.po
+# for French, with each text of the language as its msgstr. %1, %2 and %n
+# stand for values and stay as they are; & comes before the letter that
+# opens a menu from the keyboard.
+msgid ""
+msgstr ""
+"Project-Id-Version: NXEmu\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+msgid "About NXEmu"
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "NXEmu is an experimental open-source Nintendo Switch emulator."
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "You are responsible for ensuring your use of this software complies with the laws in your jurisdiction."
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "With thanks to"
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector"
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Website"
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Source Code"
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way."
+msgstr ""
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "OK"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Settings"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "General"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Profiles"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Game directories"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Advanced"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Debug"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Graphics"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "System"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Application"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shortcuts"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Picture"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Anti-aliasing"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Smooths jagged edges."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Anisotropic filtering"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keeps textures sharp seen at a slant."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Accuracy"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Accuracy level"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How closely the graphics chip is imitated."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Videos at their own speed"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Even when the speed is not limited."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Textures and video"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "ASTC recompression"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Less graphics memory, for a lesser picture."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Graphics memory"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How much of it games may take."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shaders"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keep shaders on the disk"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Games stutter less from their second start."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off only to look for a fault."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Build shaders in the background"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Less stutter; things can show late. A hack."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Performance"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keep the graphics device busy"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "So that it does not slow its clock. Uses more power."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor and memory"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Console memory"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "More than the console has: for heavy mods."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Emulation"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Limit speed"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off: as fast as the computer can."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, games run at the speed chosen: 100% is the speed of the console."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Audio"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output device"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Where the sound of games is played."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output engine"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What plays the sound on this computer."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Input device"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The microphone games listen to."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controllers"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Vibration"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "For every player. Each has a switch of their own."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Behaviour"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Start games in fullscreen"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Start games with UI hidden"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Confirm before stopping"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Asks before a running game is stopped."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Discord presence"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shows what you play in Discord when it runs."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Emulation diagnostics"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor engine"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How the game's code is run."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor accuracy"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "For the engine that translates the code."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Driver pipeline cache"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shaders load faster with some drivers."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Memory reads"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How carefully the chip reads what games write."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Command synchronization"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keeps the order games give their commands in."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Slower, and steadier. Off, some games show faults, hang or crash."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast readback"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Lets games read what the chip drew without waiting for it."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reactive flushing"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Brings memory up to date when it is read."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "More exact than guessing ahead when it will be read."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Barrier feedback loops"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Draws transparent things right in some games."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Video decoding"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What decodes the videos of games."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Threads and input"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Graphics on their own thread"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Should stay on."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Presentation on its own thread"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "A little faster on some computers."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Multicore"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The cores of the console on as many threads."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, games run on one thread: much slower, to look for a fault."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "CPU and system in step"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keeps the processor and the system's answers in order."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs multicore."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Log"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show the log console"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The log is also written as it comes."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Log filter"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What is written, as class:level."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "In game"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Restore defaults"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Inherit all settings"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Restore the defaults of all the tabs?"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Remove your overrides and re-enable NXEmu settings for this game?"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Keep"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Restore"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Close"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "On, games see this player's controller as plugged into the console."
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Connected"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Controller"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left stick"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Deadzone"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Range"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Modifier range"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "D-pad"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "On, the controller shakes when games ask it to."
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Face buttons"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right stick"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Asks for each control in turn"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Bind all controls"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Binds this player's controls as the input device suggests"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Cancel"
+msgstr ""
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Save"
+msgstr ""
+
+#: src/nxemu/ui/assets/directories_dialog.rml
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr ""
+
+#: src/nxemu/ui/assets/directories_dialog.rml
+msgid "Add a directory"
+msgstr ""
+
+#: src/nxemu/ui/assets/directories_dialog.rml
+msgid "The game directories cannot change while a game is running."
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Install firmware"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Source"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Install"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Finish"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Where is the firmware?"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Most games need the console's firmware. Choose the package to install it from, or drop it on this window."
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Firmware file"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "A .zip archive, or a .dxci game card image that carries an update"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Browse"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Firmware folder"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "A folder that holds the firmware's .nca files"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "The game starts afterwards, and without it if you would rather not."
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "The installed firmware stays in place until the new one is complete."
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Replace the installed firmware?"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Start without it"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Keep the installed one"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Replace"
+msgstr ""
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Choose another source"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Display"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Interface theme"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Graphics device"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Console mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "As on the television: games draw up to 1080p."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Docked"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Handheld"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Resolution"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Window filter"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "How the picture is fitted to the window."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Sharpness of the FSR filter"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Aspect ratio"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "The shape of the picture in the window."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Vertical sync"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Whole pictures only: no tearing."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Profile"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Who plays, with saves of their own."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Add players, and change their names and pictures"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Manage"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Language"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console language"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "The language games are shown in."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Region"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "On, the region is the one chosen here. Off, it follows the console language."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Interface language"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "On, the interface language is chosen here. Off, it follows the console language."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Restart"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Pause emulation (F2)"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Stop emulation (F5)"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Minimise"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Maximise or restore"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Library"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Search games..."
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Sort games"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Icon size"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Title"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Card information"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Play time"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "List view"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Shows or hides the details of the selected game"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Details"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Cover"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Game"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Publisher"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Last played"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Format"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Size"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Actions"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Select a game to see its details."
+msgstr ""
+
+#. shown beside the controller's buttons, as in "(A) Play (X) Options".
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Play"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Saves"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Cache"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Mods"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Scanning games..."
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Loading"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Paused"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "The resolution games are drawn at"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Window filter: only applies when the game's resolution is lower than the window size"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr ""
+
+#: src/nxemu/ui/assets/message_dialog.rml
+msgid "No"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Profiles cannot change while a game is running."
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Pictures of the console"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Reading the pictures of the console..."
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "The console has no picture to offer: they come with its firmware. Install it from the File menu."
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Background"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Back"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Use this picture"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "One of the pictures the console offers its players"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Choose a picture"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "A picture of yours: it is resized to what the console uses"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Picture from a file"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "This file is not a picture NXEmu can read."
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Name"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Games start as this player, with these saves"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Play as this profile"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Games start as this profile"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Delete profile"
+msgstr ""
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Delete"
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Stop the current game before opening another one."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Required modules failed to reload after stopping the game."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid ""
+"The game file does not exist:\n"
+"%1"
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Required modules failed to load."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid ""
+"This game has no usable executable (ExeFS).\n"
+"\n"
+"If this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n"
+"\n"
+"Game: %1"
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid ""
+"Could not load the game:\n"
+"%1\n"
+"\n"
+"Loader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid ""
+"Could not load the game:\n"
+"%1"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Left"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Right"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Down"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Up"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Plus"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Minus"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Home"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Capture"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Stick L"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Stick R"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Start"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Circle"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Cross"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Square"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Triangle"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Share"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Options"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Touch"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Wheel"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Backward"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Forward"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Task"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Extra"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Turbo"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Toggle"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Not"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Invalid"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Hat %1"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Axis %1"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Axes %1, %2, %3"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Motion %1"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/hotkeys.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Button %1"
+msgstr ""
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+#: src/android/app/src/main/java/org/nxemu/ui/settings/ControllerSettings.kt
+msgid "Unknown"
+msgstr ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "< 1m"
+msgstr ""
+
+#. a short play time, on a game's cover.
+#: src/nxemu/ui/library/play_time.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "%1m"
+msgstr ""
+
+#. a short play time, on a game's cover.
+#: src/nxemu/ui/library/play_time.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "%1h %2m"
+msgstr ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%b %d, %Y  %H:%M"
+msgstr ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "Just now"
+msgstr ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n minute ago"
+msgid_plural "%n minutes ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n hour ago"
+msgid_plural "%n hours ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n day ago"
+msgid_plural "%n days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n week ago"
+msgid_plural "%n weeks ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n month ago"
+msgid_plural "%n months ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n year ago"
+msgid_plural "%n years ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "None"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The picture as the game draws it."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Light work, a little blur. The steadier picture at low resolutions."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The best picture, for more work."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Automatic"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Follows the resolution chosen."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "As the game asks"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "What the console would do."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The sharpest. Light work for most graphics devices."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Normal"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The fastest. Most games look right; particles often do not."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "High"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "What some games need to look right. Some need it from their start."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Extreme"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Slow: to look for a fault."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "As the accuracy level"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Safe when the accuracy level is High or Extreme."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Unsafe"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Faster."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Safe"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Steadier: it fixes some games."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Processor"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The slowest, and the safest."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The usual choice."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Processor, in the background"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "No stutter, but textures show wrong until they are decoded."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The best picture, and the most memory."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "BC1 (low quality)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The least memory."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "BC3 (medium quality)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Less memory."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Conservative"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Leaves memory to the other applications."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Aggressive"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Takes what there is: other applications can slow down. No effect on graphics built into the processor."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The fastest in most cases."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "When the graphics device shows videos wrong."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Videos stay black."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Translated (Dynarmic)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The code is translated for this computer's processor. Runs every game."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Native (NCE)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The code runs as it is on this computer's processor. The fastest; the games it cannot run are translated."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Accurate"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Slower: for a game that misbehaves."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Faster, and some games break."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Paranoid"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Very slow: to look for a fault."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "4 GB"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "What the console has."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "6 GB"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "For mods that need more console memory."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "8 GB"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "None (no sound)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The one that suits this computer."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "System default"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The one the computer records from."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "%1 (not connected)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Games listen to the default of the computer until it is back."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The one the computer plays its sounds on."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Games play on the default of the computer until it is back."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Stereo"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "A shortcut is a function key, or a key with %1 or Alt."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "%1 is already the shortcut of \"%2\"."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Press the buttons..."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Press the keys..."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/hotkeys.cpp
+msgid "Not assigned"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Clear shortcut"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Keyboard"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Gamepad"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Pressed"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Modifier"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left SL"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left SR"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right SL"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right SR"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Motion 1"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Motion 2"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Pro Controller"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Dual Joy-Cons"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Left Joy-Con"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Right Joy-Con"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "GameCube Controller"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "The controller's gyroscope, for games played by tilting or shaking it"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Unbind"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Any device"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Not connected"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Player %1"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Press..."
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Not set"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Control stick"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "C-stick"
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Click a control or a button of the picture to bind it."
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Press a key, or move the stick sideways and then up and down."
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Shake a controller that has a gyroscope, or press a key that will stand for a shake."
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Press a key or a button."
+msgstr ""
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "%1 Esc cancels. (%2)"
+msgstr ""
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Not found: the games in it are not shown."
+msgstr ""
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Scan subfolders"
+msgstr ""
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Remove"
+msgstr ""
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "No game directory yet. Add the folders your games are in."
+msgstr ""
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Choose a game directory"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/performance_overlay.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "%1 MB"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Firmware installed"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Games can use it from now on."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Installation cancelled"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The installed firmware was left as it was."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The source could not be read"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Check that the file or the folder is still there and that NXEmu may read it."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "No firmware found there"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The console's storage cannot be written"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Check that NXEmu may write to its data folder, then try again."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The firmware could not be replaced"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The installed firmware was put back. The log tells what went wrong."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Copying the firmware failed"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was. Check the free disk space; the log tells what went wrong."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Start the game"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "This game carries firmware %1"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "No firmware is installed yet. NXEmu can install the game's before starting it."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Firmware"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+msgid "All files"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Choose the folder that holds the firmware"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "No firmware is installed yet."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Firmware %1 is installed."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Copying the firmware..."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "%1 of %2"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Checking the firmware..."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "File %1 of %2"
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Putting the firmware in place..."
+msgstr ""
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Firmware %1 installed"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Updates"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "DLC"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "This game has not saved anything yet"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Opens the folder this game saves in"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "This game has no shader cache yet"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Opens the folder of this game's shader cache"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Opens the folder this game's mods go in"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Add-ons cannot change while a game is running"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add-on content"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n item"
+msgid_plural "%n items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No update, DLC or mod found for this game."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Japan"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Americas"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Europe"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Australia"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "China"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Korea"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Taiwan"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "For games modified to draw this shape. The others are squeezed into it."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "The shape of the console's picture. The right choice for nearly every game."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Stretch to the window"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Fills the window whatever its shape. The picture is deformed."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "On"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Each picture waits for the screen. No tearing: the usual choice."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "On, late pictures tear"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "As On, but a picture that comes late is shown at once. It tears instead of stuttering."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "On, lowest delay"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "The screen always gets the newest picture. No tearing and less delay, for more work. Not every computer can do it."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Off"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Pictures are shown as soon as they are drawn. The least delay, but the picture can tear."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Light"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Dark"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Built into the processor."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "A graphics card."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Not available"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "What the console draws."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Less than the console draws: blurrier, for a computer that struggles."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "More than the console draws: sharper, and more work for the graphics device."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "%1 (native)"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Gaussian"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Games are drawn in %1p."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Chosen here, whatever the language."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Follows the console language."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "This is the graphics built into the processor. Games run better on %1."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Used from the next game on."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "What draws the games: this computer has %1."
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "What draws the games."
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Load a file"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Exit"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Fullscreen"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Leave fullscreen"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Hide or show the interface"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show performance"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Pause or continue"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Stop the game"
+msgstr ""
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Docked or handheld"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Opening the game..."
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Preparing shaders"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Starting..."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Recent"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/performance_overlay.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 GB"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "NXEmu - Exit"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid ""
+"Clear the shader cache for %1?\n"
+"\n"
+"Shaders will be rebuilt the next time you play."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Clear cache"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Could not clear the cache: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Load File"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Recent File"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open &NXEmu Folders"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&App Directory"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Log Folder"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Settings"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Install &Firmware"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "E&xit"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&File"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Continue"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Pause"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Stop"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show emulation controls"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Limit &Speed"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Fullscreen"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show &UI"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Hide &UI"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Window size"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Measures per second"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "History length"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "How many measures the history shows"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Performance overlay"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Emulation"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Help"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Discord"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Report Issues"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&About NXEmu"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "%n game"
+msgid_plural "%n games"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "No game matches your search."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "No game directory yet."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "No games found in your game directories."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Never"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "More actions"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The resolution scale cannot change while a game is running"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The profile cannot change while a game is running"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The profile games start as: its saves are the ones used"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Start Game"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open saves"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open cache"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open Containing Folder"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Copy File Path"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Manage profiles"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Sharpness: once FSR is the filter"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Title ID"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Resume emulation (F2)"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Switch games"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Press %1 or %2 to leave fullscreen"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Press %1 to show the interface"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Building: %n shader"
+msgid_plural "Building: %n shaders"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Firmware: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "NXEmu - Stop Emulation"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid ""
+"The currently running application has requested NXEmu to not exit.\n"
+"\n"
+"Would you like to bypass this and stop emulation anyway?"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid ""
+"Are you sure you want to stop the emulation?\n"
+"\n"
+"Any unsaved progress will be lost."
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "History"
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Lowest, average and highest"
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Frame time"
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Longest frame"
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Emulation speed"
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Processor use"
+msgstr ""
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Memory use"
+msgstr ""
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Active"
+msgstr ""
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "A new player, with saves of their own"
+msgstr ""
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "New profile"
+msgstr ""
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Delete %1? Its saves stay on the disk."
+msgstr ""
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Pictures"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Nearest neighbour"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Sharp squares, for pixel art. The lightest."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bilinear"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Smooth. The usual choice, and light."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bicubic"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A little sharper than bilinear, for slightly more work."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Sharp edges, best for 2D games and drawings. Heavier."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr ""
+
+#: src/nxemu/ui/views/volume_control.cpp
+msgid "Muted: click to hear the games again"
+msgstr ""
+
+#: src/nxemu/ui/views/volume_control.cpp
+msgid "Mute"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "About"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "On screen controller"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Interface"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game list"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Info"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add-ons"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Save data"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Theme"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "GPU driver"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Add a driver"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Download drivers"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Drivers"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Driver"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game folders"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Search games"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Select"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Tap a game to play it, hold it for its options"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Scanning folders..."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Scanning..."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Reading games..."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Reading games %1 of %2"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "No game matches \"%1\""
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Sort by"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Recently played"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "View"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Grid"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "List"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "v%1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "%1 played"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Add a game folder"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "NxEmu lists games from folders you choose. Your files stay where they are."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add game folder"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "No games found"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "No .nro, .dxci, or .dnsp files were found in your folders."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Manage folders"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Couldn't read these files"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Files were found, but none could be opened as games. Check that they are valid dumps."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Try again"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Dual Joycons"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left Joycon"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right Joycon"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Follow system"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Unlimited speed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Speed limit %1%"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 KB"
+msgstr ""
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Jan"
+msgstr ""
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Feb"
+msgstr ""
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Mar"
+msgstr ""
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Apr"
+msgstr ""
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "May"
+msgstr ""
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Jun"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Jul"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Aug"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sep"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Oct"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Nov"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Dec"
+msgstr ""
+
+#. a date: %1 is the month's short name, %2 the day and %3 the year.
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 %2, %3"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Speed limit"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Half speed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Normal speed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Double speed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fastest. Works well for most games"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fixes some graphical glitches. Slower"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Most accurate. Much slower, for troubleshooting"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 docked"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 handheld"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Immediate"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Lowest latency. The picture may tear"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Mailbox"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Low latency without tearing. Uses more power"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No tearing. Recommended"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "FIFO Relaxed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Like FIFO, but tears briefly instead of stuttering when a frame is late"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Window adapting filter"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Nearest neighbor"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Crisp pixels. Can look blocky"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smooth and slightly soft"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smooth and a little sharper than bilinear"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Very smooth and soft"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharp upscaling, good for low resolutions"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "AMD FidelityFX upscaling. Sharpest, costs a little performance"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fastest"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smooths jagged edges cheaply. Slightly blurry"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smoother edges than FXAA. Costs a little more"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Picks a level to match the resolution"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Default"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "What the game asks for. Fastest"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Slightly sharper textures on floors and walls"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharper textures on floors and walls"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharper still. Costs more on slower phones"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharpest. Costs the most"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Same as the Switch. Recommended"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretches the picture to 4:3"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretches the picture to ultrawide"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretches the picture to 16:10"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretch"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fills the whole screen"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "None connected"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n connected"
+msgid_plural "%n connected"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Shown"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Hidden"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Resolution %1 (%2)"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controllers, console, graphics"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 theme"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "None added"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n folder"
+msgid_plural "%n folders"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Not installed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Small cards"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Medium cards"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Large cards"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Card size"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Small"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Medium"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Large"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "More games on screen"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bigger covers, for a TV"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Cards show"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Under the cover"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version and publisher"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "On the cover, once you have played"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Less than a minute"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 min"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 h %2 min"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Title ID %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reading the game's details..."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "This game's details could not be read."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n update"
+msgid_plural "%n updates"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n mod"
+msgid_plural "%n mods"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Updates, DLC and mods"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No save yet"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Export or import"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Delete save data"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Delete the save data of %1? This cannot be undone."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear shader cache"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear the shader cache of %1? The game rebuilds it as you play, with some stutter at first."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear play time"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear the play time of %1?"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Close the game to delete its save data or clear its shader cache."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Developer"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "File"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add-ons cannot change while a game is running."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Install a mod"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose the mod's folder, the one that holds romfs, exefs or cheats"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 (%2)"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Export save data"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Save a copy as a zip file"
+msgstr ""
+
+#. the name of the file a game's save data is exported to.
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 save data.zip"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Close the game to import save data."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Import save data"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose a zip file exported from NXEmu or another emulator"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Importing replaces the save data %1 has now."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Play the game once before importing save data, so NXEmu knows which user it belongs to."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Show overlay"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Scale"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Opacity"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Edit overlay layout"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Drag buttons to reposition"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Off runs as fast as possible. This session only"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Docked mode"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Higher resolution, lower performance"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Close the game to change resolution, the GPU driver and other options that apply when a game starts."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "FSR sharpness"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Force maximum clocks"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Adreno GPUs. Can overheat the device"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Asynchronous shaders"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reduces stutter, but can glitch"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "More accurate, costs performance"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Disk shader cache"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Games load faster after the first run"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No folders yet"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this folder from the library? The files will not be deleted."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Welcome to NxEmu"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controls"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Step %1 of %2"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose the folders that hold your games. NxEmu reads them where they are and never moves or copies your files."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add another folder"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Games in .nro, .dxci or .dnsp format"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Skip"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/settings/OverlayLayoutActivity.kt
+msgid "Done"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Next"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No controller needed. Touch controls appear on screen while you play. You can connect a Bluetooth or USB controller at any time."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller connected: %1. It's ready to play. Use A to select and B to go back."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Show on-screen controls"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Turn off if you only play with a controller"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Usually off when using a controller"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller settings"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Change button mapping"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Your phone has %1. Many games run faster and with fewer glitches on a community driver. You can switch back to the system driver at any time in Settings, Graphics."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "an Adreno GPU"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Finding the best driver for your phone…"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Install %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "The recommended driver isn't available right now. You can install one later from Settings, Graphics, GPU driver."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Downloading %1%"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Released %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Installed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "in use"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "tap to use"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Loading drivers from GitHub…"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Couldn't load drivers"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Recommended"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Recommended for %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 isn't listed right now. Pick a driver below."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No specific driver is recommended for this GPU. A recent Turnip build is a good start."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "All drivers"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Latest: %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n release"
+msgid_plural "%n releases"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No downloads"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "offline copy"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Refreshing…"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Refresh list"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Check GitHub for new releases"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Latest"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Pre-release"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Downloads"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "pick one"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Download"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Release notes"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Adreno only"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Custom GPU drivers need an Adreno GPU. This device keeps using the system driver."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Applies the next time a game starts."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Device driver"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove %1?"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Browse Turnip and other drivers on GitHub"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Install from file"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose a driver .zip already on this device"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Connected - %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Disconnected"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller type"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Auto-map a controller"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Select a device to attempt auto-mapping"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No controllers found"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Ran auto-mapping against %1"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Input mapping filter"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reset to default"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reset this player to defaults?"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Buttons"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Start/Pause"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "D-Pad"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "C-Stick"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Triggers"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_util.cpp
+msgid "Internal storage"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Unused"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/features/input/NxEmuInputDevice.kt
+msgid "Touch controls"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Could not start the next part of this game."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Loading..."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Unpause emulation"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Exit emulation"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Pause emulation"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Unlock drawer"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Lock drawer"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Building %n shader"
+msgid_plural "Building %n shaders"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Start without"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Installing firmware"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Cancelling..."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Start anyway"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Check that the file is still there and that NXEmu may read it."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Choose a firmware .zip archive or a .dxci game card image that carries an update."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Check the free space on this device, then try again."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The installed firmware was left as it was. Check the free space; the log tells what went wrong."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Not a mod folder"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Choose the mod's own folder: the one that holds a romfs, exefs or cheats folder."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Installing the mod..."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "%1 is installed."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The mod is installed."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not create %1"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not read %1"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Exporting the save data..."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The save data is exported."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not write the zip file"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Importing the save data..."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The save data is imported."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The zip file has a path outside its folder"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not read the zip file"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The zip file holds no save data"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not put the save data in place"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "That did not work"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "GPU driver installed. It applies the next time a game starts."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "Custom GPU drivers need an Adreno GPU."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "This driver needs a newer Android version."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "That file is not a GPU driver."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "Download failed. Check your connection and try again."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "A driver is already downloading."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "That driver is no longer listed. Refresh and try again."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "Couldn't read that driver."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/UiHost.kt
+msgid "No app is available to open %1"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/UiHost.kt
+msgid "Couldn't load the driver list"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Move a stick left and then up or press a button"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Press a button or move a trigger/stick"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Map to %1"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/OverlayLayoutActivity.kt
+msgid "Reset overlay"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "%1 (latest)"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "Unexpected response"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "GitHub rate limit reached. Try again later."
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "GitHub returned %1"
+msgstr ""
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "Couldn't reach GitHub"
+msgstr ""

@@ -1,74 +1,6 @@
 #include "system_language.h"
 #include <SDL.h>
-#include <string>
-
-namespace
-{
-bool IsOneOf(const std::string & country, std::initializer_list<const char *> countries)
-{
-    for (const char * candidate : countries)
-    {
-        if (country == candidate)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool ConsoleLanguageOf(const std::string & code, const std::string & country, Language & language)
-{
-    if (code == "ja")
-    {
-        language = Language::Japanese;
-    }
-    else if (code == "en")
-    {
-        language = IsOneOf(country, {"GB", "IE", "AU", "NZ"}) ? Language::EnglishBritish : Language::EnglishAmerican;
-    }
-    else if (code == "fr")
-    {
-        language = country == "CA" ? Language::FrenchCanadian : Language::French;
-    }
-    else if (code == "de")
-    {
-        language = Language::German;
-    }
-    else if (code == "it")
-    {
-        language = Language::Italian;
-    }
-    else if (code == "es")
-    {
-        language = country.empty() || country == "ES" ? Language::Spanish : Language::SpanishLatin;
-    }
-    else if (code == "zh")
-    {
-        language = IsOneOf(country, {"TW", "HK", "MO"}) ? Language::ChineseTraditional : Language::ChineseSimplified;
-    }
-    else if (code == "ko")
-    {
-        language = Language::Korean;
-    }
-    else if (code == "nl")
-    {
-        language = Language::Dutch;
-    }
-    else if (code == "pt")
-    {
-        language = country == "BR" ? Language::PortugueseBrazilian : Language::Portuguese;
-    }
-    else if (code == "ru")
-    {
-        language = Language::Russian;
-    }
-    else
-    {
-        return false;
-    }
-    return true;
-}
-} // namespace
+#include <nxemu-core/i18n/translation.h>
 
 bool SystemConsoleLanguage(Language & language)
 {
@@ -78,10 +10,15 @@ bool SystemConsoleLanguage(Language & language)
         return false;
     }
     bool found = false;
+    int32_t console = 0;
     for (const SDL_Locale * locale = locales; !found && locale->language != nullptr; ++locale)
     {
-        found = ConsoleLanguageOf(locale->language, locale->country != nullptr ? locale->country : "", language);
+        found = Translation::ConsoleLanguageOfLocale(locale->language, locale->country != nullptr ? locale->country : "", console);
     }
     SDL_free(locales);
+    if (found)
+    {
+        language = static_cast<Language>(console);
+    }
     return found;
 }

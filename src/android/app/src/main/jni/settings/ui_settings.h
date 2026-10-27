@@ -27,6 +27,8 @@ struct UISettings
     bool showCardTitle;
     bool showCardDetails;
     bool showCardPlayTime;
+    std::string interfaceLanguage;
+    bool consoleLanguageSet;
 };
 
 extern UISettings uiSettings;

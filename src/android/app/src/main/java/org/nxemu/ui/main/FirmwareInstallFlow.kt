@@ -9,6 +9,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import org.nxemu.NativeLibrary
+import org.nxemu.utils.Translation.tr
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -48,17 +49,17 @@ class FirmwareInstallFlow(
                     return@runOnUiThread
                 }
                 val text = if (installed.isEmpty()) {
-                    "No firmware is installed yet. NXEmu can install the game's before starting it."
+                    tr("No firmware is installed yet. NXEmu can install the game's before starting it.")
                 } else {
-                    "Firmware $installed is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
+                    tr("Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it.", installed)
                 }
                 show(
                     AlertDialog.Builder(activity)
-                        .setTitle("This game carries firmware $version")
+                        .setTitle(tr("This game carries firmware %1", version))
                         .setMessage(text)
-                        .setPositiveButton("Install") { _, _ -> install(path, launch, cancel) }
-                        .setNeutralButton("Start without") { _, _ -> launch() }
-                        .setNegativeButton(android.R.string.cancel) { _, _ -> cancel() }
+                        .setPositiveButton(tr("Install")) { _, _ -> install(path, launch, cancel) }
+                        .setNeutralButton(tr("Start without")) { _, _ -> launch() }
+                        .setNegativeButton(tr("Cancel")) { _, _ -> cancel() }
                         .setOnCancelListener { cancel() }
                 )
             }
@@ -92,7 +93,7 @@ class FirmwareInstallFlow(
 
     private fun showProgress() {
         val padding = dp(24)
-        val stage = TextView(activity).apply { text = "Copying the firmware..." }
+        val stage = TextView(activity).apply { text = tr("Copying the firmware...") }
         val bar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
             isIndeterminate = true
             max = 1000
@@ -113,16 +114,16 @@ class FirmwareInstallFlow(
         detailText = detail
         show(
             AlertDialog.Builder(activity)
-                .setTitle("Installing firmware")
+                .setTitle(tr("Installing firmware"))
                 .setView(content)
                 .setCancelable(false)
-                .setNegativeButton(android.R.string.cancel) { _, _ -> cancelled = true }
+                .setNegativeButton(tr("Cancel")) { _, _ -> cancelled = true }
         )
         // Keep the dialog up after Cancel until the install thread notices and ends.
         dialog?.getButton(AlertDialog.BUTTON_NEGATIVE)?.setOnClickListener { view ->
             cancelled = true
             view.isEnabled = false
-            stageText?.text = "Cancelling..."
+            stageText?.text = tr("Cancelling...")
         }
     }
 
@@ -130,14 +131,14 @@ class FirmwareInstallFlow(
         val (title, text) = outcome(status, installed)
         val builder = AlertDialog.Builder(activity).setTitle(title).setMessage(text)
         if (launch == null) {
-            builder.setPositiveButton(android.R.string.ok, null)
+            builder.setPositiveButton(tr("OK"), null)
         } else if (status == STATUS_INSTALLED) {
             // The user already chose to start the game; this only confirms the install.
-            builder.setPositiveButton(android.R.string.ok) { _, _ -> launch() }
+            builder.setPositiveButton(tr("OK")) { _, _ -> launch() }
                 .setCancelable(false)
         } else {
-            builder.setPositiveButton("Start anyway") { _, _ -> launch() }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> cancel?.invoke() }
+            builder.setPositiveButton(tr("Start anyway")) { _, _ -> launch() }
+                .setNegativeButton(tr("Cancel")) { _, _ -> cancel?.invoke() }
                 .setOnCancelListener { cancel?.invoke() }
         }
         show(builder)
@@ -145,29 +146,29 @@ class FirmwareInstallFlow(
 
     private fun outcome(status: Int, installed: String): Pair<String, String> = when (status) {
         STATUS_INSTALLED -> Pair(
-            if (installed.isEmpty()) "Firmware installed" else "Firmware $installed installed",
-            "Games can use it from now on.",
+            if (installed.isEmpty()) tr("Firmware installed") else tr("Firmware %1 installed", installed),
+            tr("Games can use it from now on."),
         )
-        STATUS_CANCELLED -> Pair("Installation cancelled", "The installed firmware was left as it was.")
+        STATUS_CANCELLED -> Pair(tr("Installation cancelled"), tr("The installed firmware was left as it was."))
         STATUS_SOURCE_UNREADABLE -> Pair(
-            "The source could not be read",
-            "Check that the file is still there and that NXEmu may read it.",
+            tr("The source could not be read"),
+            tr("Check that the file is still there and that NXEmu may read it."),
         )
         STATUS_NOT_FIRMWARE -> Pair(
-            "No firmware found there",
-            "Choose a firmware .zip archive or a .dxci game card image that carries an update.",
+            tr("No firmware found there"),
+            tr("Choose a firmware .zip archive or a .dxci game card image that carries an update."),
         )
         STATUS_STORAGE_UNAVAILABLE -> Pair(
-            "The console's storage cannot be written",
-            "Check the free space on this device, then try again.",
+            tr("The console's storage cannot be written"),
+            tr("Check the free space on this device, then try again."),
         )
         STATUS_REPLACE_FAILED -> Pair(
-            "The firmware could not be replaced",
-            "The installed firmware was put back. The log tells what went wrong.",
+            tr("The firmware could not be replaced"),
+            tr("The installed firmware was put back. The log tells what went wrong."),
         )
         else -> Pair(
-            "Copying the firmware failed",
-            "The installed firmware was left as it was. Check the free space; the log tells what went wrong.",
+            tr("Copying the firmware failed"),
+            tr("The installed firmware was left as it was. Check the free space; the log tells what went wrong."),
         )
     }
 
@@ -212,10 +213,10 @@ class FirmwareInstallFlow(
                     return@runOnUiThread
                 }
                 AlertDialog.Builder(activity)
-                    .setTitle("Replace the installed firmware?")
-                    .setMessage("The package holds firmware $packageVersion, and firmware $installedVersion is installed. Installing the package replaces it.")
-                    .setPositiveButton("Replace") { _, _ -> replace = true }
-                    .setNegativeButton("Keep") { _, _ -> }
+                    .setTitle(tr("Replace the installed firmware?"))
+                    .setMessage(tr("The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it.", packageVersion, installedVersion))
+                    .setPositiveButton(tr("Replace")) { _, _ -> replace = true }
+                    .setNegativeButton(tr("Keep")) { _, _ -> }
                     .setOnDismissListener { answered.countDown() }
                     .show()
                     .let { centered(it) }
@@ -236,14 +237,14 @@ class FirmwareInstallFlow(
             return
         }
         stageText?.text = when (stage) {
-            STAGE_COPYING -> "Copying the firmware..."
-            STAGE_CHECKING -> "Checking the firmware..."
-            else -> "Putting the firmware in place..."
+            STAGE_COPYING -> tr("Copying the firmware...")
+            STAGE_CHECKING -> tr("Checking the firmware...")
+            else -> tr("Putting the firmware in place...")
         }
         val detail = when {
             total <= 0 -> ""
-            stage == STAGE_COPYING -> "${megabytes(done)} of ${megabytes(total)}"
-            stage == STAGE_CHECKING -> "File ${done + 1} of $total"
+            stage == STAGE_COPYING -> tr("%1 of %2", megabytes(done), megabytes(total))
+            stage == STAGE_CHECKING -> tr("File %1 of %2", (done + 1).toString(), total.toString())
             else -> ""
         }
         detailText?.text = detail
@@ -254,7 +255,7 @@ class FirmwareInstallFlow(
         }
     }
 
-    private fun megabytes(bytes: Long): String = "%.0f MB".format(bytes / (1024.0 * 1024.0))
+    private fun megabytes(bytes: Long): String = tr("%1 MB", "%.0f".format(bytes / (1024.0 * 1024.0)))
 
     companion object {
         // FirmwareInstallStage and FirmwareInstallStatus in nxemu-module-spec/system_loader.h

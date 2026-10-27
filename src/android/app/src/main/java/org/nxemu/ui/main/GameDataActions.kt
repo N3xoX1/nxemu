@@ -9,6 +9,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.documentfile.provider.DocumentFile
+import org.nxemu.utils.Translation.tr
 import java.io.File
 import java.io.IOException
 import java.util.zip.ZipEntry
@@ -53,11 +54,11 @@ class GameDataActions(
         val folder = DocumentFile.fromTreeUri(activity, uri)
         val parts = setOf("romfs", "exefs", "cheats")
         if (folder == null || folder.listFiles().none { it.isDirectory && it.name?.lowercase() in parts }) {
-            message("Not a mod folder", "Choose the mod's own folder: the one that holds a romfs, exefs or cheats folder.")
+            message(tr("Not a mod folder"), tr("Choose the mod's own folder: the one that holds a romfs, exefs or cheats folder."))
             return
         }
         val target = File(modDirectory, folder.name ?: "Mod")
-        work("Installing the mod...", done = "${folder.name ?: "The mod"} is installed.") {
+        work(tr("Installing the mod..."), done = folder.name?.let { tr("%1 is installed.", it) } ?: tr("The mod is installed.")) {
             target.deleteRecursively()
             copyTree(folder, target)
         }
@@ -65,7 +66,7 @@ class GameDataActions(
 
     private fun copyTree(source: DocumentFile, target: File) {
         if (!target.mkdirs() && !target.isDirectory) {
-            throw IOException("Could not create $target")
+            throw IOException(tr("Could not create %1", target.path))
         }
         for (child in source.listFiles()) {
             val name = child.name ?: continue
@@ -74,14 +75,14 @@ class GameDataActions(
             } else {
                 activity.contentResolver.openInputStream(child.uri)?.use { input ->
                     File(target, name).outputStream().use { input.copyTo(it) }
-                } ?: throw IOException("Could not read $name")
+                } ?: throw IOException(tr("Could not read %1", name))
             }
         }
     }
 
     private fun writeSaveZip(uri: Uri) {
         val source = File(saveDirectory)
-        work("Exporting the save data...", done = "The save data is exported.") {
+        work(tr("Exporting the save data..."), done = tr("The save data is exported.")) {
             activity.contentResolver.openOutputStream(uri)?.use { output ->
                 ZipOutputStream(output).use { zip ->
                     source.walkTopDown().filter { it.isFile }.forEach { file ->
@@ -90,7 +91,7 @@ class GameDataActions(
                         zip.closeEntry()
                     }
                 }
-            } ?: throw IOException("Could not write the zip file")
+            } ?: throw IOException(tr("Could not write the zip file"))
         }
     }
 
@@ -98,7 +99,7 @@ class GameDataActions(
     private fun readSaveZip(uri: Uri) {
         val target = File(saveDirectory)
         val staging = File(target.parentFile, ".${target.name}.import")
-        work("Importing the save data...", done = "The save data is imported.") {
+        work(tr("Importing the save data..."), done = tr("The save data is imported.")) {
             staging.deleteRecursively()
             staging.mkdirs()
             var files = 0
@@ -108,7 +109,7 @@ class GameDataActions(
                         val entry = zip.nextEntry ?: break
                         val file = File(staging, entry.name)
                         if (!file.canonicalPath.startsWith(staging.canonicalPath + File.separator)) {
-                            throw IOException("The zip file has a path outside its folder")
+                            throw IOException(tr("The zip file has a path outside its folder"))
                         }
                         if (entry.isDirectory) {
                             file.mkdirs()
@@ -119,10 +120,10 @@ class GameDataActions(
                         }
                     }
                 }
-            } ?: throw IOException("Could not read the zip file")
+            } ?: throw IOException(tr("Could not read the zip file"))
             if (files == 0) {
                 staging.deleteRecursively()
-                throw IOException("The zip file holds no save data")
+                throw IOException(tr("The zip file holds no save data"))
             }
             // Some tools wrap the save in a folder named after the title ID.
             val inner = staging.listFiles()?.singleOrNull()
@@ -130,7 +131,7 @@ class GameDataActions(
             target.deleteRecursively()
             target.parentFile?.mkdirs()
             if (!contents.renameTo(target)) {
-                throw IOException("Could not put the save data in place")
+                throw IOException(tr("Could not put the save data in place"))
             }
             staging.deleteRecursively()
         }
@@ -165,7 +166,7 @@ class GameDataActions(
                 if (error == null) {
                     Toast.makeText(activity, done, Toast.LENGTH_LONG).show()
                 } else {
-                    message("That did not work", error)
+                    message(tr("That did not work"), error)
                 }
                 onChanged()
             }
@@ -176,7 +177,7 @@ class GameDataActions(
         AlertDialog.Builder(activity)
             .setTitle(title)
             .setMessage(text)
-            .setPositiveButton(android.R.string.ok, null)
+            .setPositiveButton(tr("OK"), null)
             .show()
             .window?.setGravity(Gravity.CENTER)
     }

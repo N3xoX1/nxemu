@@ -1,0 +1,3751 @@
+# NXEmu interface translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: NXEmu\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+msgid "About NXEmu"
+msgstr "NXEmu 정보"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "NXEmu is an experimental open-source Nintendo Switch emulator."
+msgstr "NXEmu는 실험적인 오픈 소스 Nintendo Switch 에뮬레이터입니다."
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "You are responsible for ensuring your use of this software complies with the laws in your jurisdiction."
+msgstr "이 소프트웨어의 사용이 해당 국가의 법률을 준수하는지 확인하는 것은 귀하의 책임입니다."
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "With thanks to"
+msgstr "감사의 말"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "the yuzu project, Fabrice, Alexwpi, Stardust, and NullVector"
+msgstr "프로젝트 팀 yuzu, Fabrice, Alexwpi, Stardust 및 NullVector"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Website"
+msgstr "웹사이트"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Source Code"
+msgstr "소스 코드"
+
+#: src/nxemu/ui/assets/about_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated with Nintendo in any way."
+msgstr "“Nintendo Switch”는 Nintendo의 상표입니다. NXEmu는 Nintendo와 아무런 관련이 없습니다."
+
+#: src/nxemu/ui/assets/about_dialog.rml
+msgid "OK"
+msgstr "확인"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Settings"
+msgstr "설정"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "General"
+msgstr "일반"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Profiles"
+msgstr "프로필"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Game directories"
+msgstr "게임 폴더"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Advanced"
+msgstr "고급"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Debug"
+msgstr "디버그"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Graphics"
+msgstr "그래픽"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "System"
+msgstr "시스템"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Application"
+msgstr "애플리케이션"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shortcuts"
+msgstr "단축키"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops."
+msgstr "게임 실행 중에는 회색으로 표시된 옵션을 변경할 수 없습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Picture"
+msgstr "이미지"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Anti-aliasing"
+msgstr "앤티앨리어싱"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Smooths jagged edges."
+msgstr "울퉁불퉁한 가장자리를 부드럽게 합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Anisotropic filtering"
+msgstr "이방성 필터링"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keeps textures sharp seen at a slant."
+msgstr "특정 각도에서 본 텍스처의 선명도를 유지합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Accuracy"
+msgstr "정확도"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Accuracy level"
+msgstr "정밀도 수준"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How closely the graphics chip is imitated."
+msgstr "그래픽 칩이 에뮬레이션되는 충실도입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Videos at their own speed"
+msgstr "동영상을 정상 속도로 재생"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Even when the speed is not limited."
+msgstr "속도가 제한되지 않는 경우에도 마찬가지입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Textures and video"
+msgstr "텍스처 및 비디오"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "ASTC recompression"
+msgstr "재압축 ASTC"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Less graphics memory, for a lesser picture."
+msgstr "그래픽 메모리가 적고 이미지 충실도가 떨어집니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Graphics memory"
+msgstr "그래픽 메모리"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How much of it games may take."
+msgstr "게임에서 사용할 수 있는 양입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shaders"
+msgstr "셰이더"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keep shaders on the disk"
+msgstr "셰이더를 디스크에 저장"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Games stutter less from their second start."
+msgstr "두 번째 실행부터 게임의 끊김이 줄어듭니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off only to look for a fault."
+msgstr "문제 해결을 위해서만 비활성화합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Build shaders in the background"
+msgstr "백그라운드에서 셰이더 컴파일"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Less stutter; things can show late. A hack."
+msgstr "흔들림이 줄어듭니다. 일부 항목은 늦게 나타날 수 있습니다. 근사치."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Performance"
+msgstr "성능"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keep the graphics device busy"
+msgstr "그래픽 장치를 계속 사용 중으로 유지"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "So that it does not slow its clock. Uses more power."
+msgstr "빈도 감소를 방지합니다. 더 많은 에너지를 소비합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor and memory"
+msgstr "프로세서 및 메모리"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Console memory"
+msgstr "콘솔 메모리"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "More than the console has: for heavy mods."
+msgstr "콘솔 그 이상: 까다로운 모드에 적합합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Emulation"
+msgstr "에뮬레이션"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Limit speed"
+msgstr "제한 속도"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off: as fast as the computer can."
+msgstr "비활성화됨: 컴퓨터가 허용하는 속도만큼 빠릅니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, games run at the speed chosen: 100% is the speed of the console."
+msgstr "활성화하면 게임이 선택한 속도로 실행됩니다. 100%는 콘솔 속도에 해당합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Audio"
+msgstr "오디오"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output device"
+msgstr "출력 장치"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Where the sound of games is played."
+msgstr "게임 오디오가 재생되는 곳입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr "출력 모드"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "서라운드 사운드에는 호환되는 스피커가 필요합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output engine"
+msgstr "오디오 출력 엔진"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What plays the sound on this computer."
+msgstr "이 컴퓨터에서 사운드를 재생하는 것은 무엇입니까?"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Input device"
+msgstr "입력 장치"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The microphone games listen to."
+msgstr "게임에 사용되는 마이크입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controllers"
+msgstr "컨트롤러"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Vibration"
+msgstr "진동"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "For every player. Each has a switch of their own."
+msgstr "모든 플레이어에게 해당됩니다. 각각 고유한 설정도 있습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Behaviour"
+msgstr "동작"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Start games in fullscreen"
+msgstr "전체 화면에서 게임 시작(N)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Start games with UI hidden"
+msgstr "UI를 숨긴 상태로 게임 시작(U)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Confirm before stopping"
+msgstr "게임 중지 전 확인"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Asks before a running game is stopped."
+msgstr "진행 중인 게임을 중지하기 전에 확인을 요청합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Discord presence"
+msgstr "존재 Discord"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shows what you play in Discord when it runs."
+msgstr "Discord가 실행 중일 때 플레이 중인 게임을 표시합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Emulation diagnostics"
+msgstr "에뮬레이션 진단"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor engine"
+msgstr "프로세서 엔진"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How the game's code is run."
+msgstr "게임 코드가 실행되는 방식입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor accuracy"
+msgstr "프로세서 정확도"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "For the engine that translates the code."
+msgstr "코드를 번역하는 엔진용입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Driver pipeline cache"
+msgstr "드라이버 파이프라인 캐시"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shaders load faster with some drivers."
+msgstr "일부 드라이버에서 셰이더 로딩이 빨라집니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Memory reads"
+msgstr "메모리 읽기"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How carefully the chip reads what games write."
+msgstr "칩이 게임에서 작성된 데이터를 얼마나 엄격하게 읽는지."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Command synchronization"
+msgstr "명령 동기화"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keeps the order games give their commands in."
+msgstr "게임에서 보낸 명령의 순서를 존중합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Slower, and steadier. Off, some games show faults, hang or crash."
+msgstr "느리지만 더 안정적입니다. 끄면 일부 게임에서 표시 오류, 멈춤 또는 충돌이 발생합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast readback"
+msgstr "빠른 리드백"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Lets games read what the chip drew without waiting for it."
+msgstr "칩이 그린 내용을 기다리지 않고 게임이 읽을 수 있게 합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr "정확도가 높음 또는 최고일 때 사용할 수 있습니다. 높음의 그리기를 유지하면서 일부 게임에서 훨씬 빨라집니다. 게임이 읽는 내용이 한 프레임 늦을 수 있습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reactive flushing"
+msgstr "반응형 플러시"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Brings memory up to date when it is read."
+msgstr "메모리를 읽으면서 업데이트합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "More exact than guessing ahead when it will be read."
+msgstr "메모리를 읽을 시점을 예측하는 방법보다 정확합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Barrier feedback loops"
+msgstr "배리어 피드백 루프"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Draws transparent things right in some games."
+msgstr "일부 게임에서 투명 요소를 올바르게 표시합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr "빠른 GPU 시간"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr "대부분의 게임은 최대 해상도를 사용합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgstr "GPU가 느리면 해상도를 낮추는 게임에 GPU가 빠르다고 알립니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr "ASTC 디코딩"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr "이 유형의 텍스처를 디코딩합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Video decoding"
+msgstr "비디오 디코딩"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What decodes the videos of games."
+msgstr "게임 비디오를 디코딩합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Threads and input"
+msgstr "스레드 및 입력"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Graphics on their own thread"
+msgstr "전용 스레드에서 그래픽 처리"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Should stay on."
+msgstr "활성화된 상태로 둡니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Presentation on its own thread"
+msgstr "전용 스레드에서 화면 출력"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "A little faster on some computers."
+msgstr "일부 컴퓨터에서는 조금 더 빠릅니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Multicore"
+msgstr "멀티코어"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The cores of the console on as many threads."
+msgstr "콘솔의 각 CPU 코어를 별도의 스레드에서 처리합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, games run on one thread: much slower, to look for a fault."
+msgstr "끄면 게임을 하나의 스레드에서 처리합니다. 매우 느려지며 문제 진단용입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "CPU and system in step"
+msgstr "CPU와 시스템 동기화"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Keeps the processor and the system's answers in order."
+msgstr "프로세서와 시스템 응답 간의 순서를 존중합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs multicore."
+msgstr "멀티 코어 모드가 필요합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr "정확한 진동"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr "각 변형이 전송됩니다. 일부 컨트롤러는 늦게 반응합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Log"
+msgstr "로그"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show the log console"
+msgstr "로그 콘솔 표시"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The log is also written as it comes."
+msgstr "이동하는 동안에도 로그가 표시됩니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Log filter"
+msgstr "로그 필터"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What is written, as class:level."
+msgstr "로그에 기록할 내용입니다. 형식은 클래스:수준입니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Click a shortcut, then press the keys or hold and release the gamepad buttons. To clear it, use the cross beside it, or click it and press Delete."
+msgstr "단축키를 클릭한 뒤 키를 누르거나 게임패드 버튼을 누른 후 놓으세요. 지우려면 옆의 ×를 클릭하거나 단축키를 클릭한 후 Delete를 누르세요."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "In game"
+msgstr "게임 중"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Restore defaults"
+msgstr "기본값 복원"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Inherit all settings"
+msgstr "모든 설정 상속"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Restore the defaults of all the tabs?"
+msgstr "모든 탭을 기본값으로 복원할까요?"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Remove your overrides and re-enable NXEmu settings for this game?"
+msgstr "이 게임에 대한 사용자 정의를 제거하고 NXEmu 설정을 다시 활성화하시겠습니까?"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Keep"
+msgstr "유지"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Restore"
+msgstr "다시 실행"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/directories_dialog.rml
+#: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Close"
+msgstr "닫기"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "On, games see this player's controller as plugged into the console."
+msgstr "활성화하면 게임에서 이 플레이어의 컨트롤러가 콘솔에 연결된 것으로 인식합니다."
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Connected"
+msgstr "연결됨"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Controller"
+msgstr "컨트롤러"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left stick"
+msgstr "왼쪽 스틱"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Deadzone"
+msgstr "데드존"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Range"
+msgstr "입력 범위"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Modifier range"
+msgstr "보조 키 사용 시 범위"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "D-pad"
+msgstr "방향 패드"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "On, the controller shakes when games ask it to."
+msgstr "활성화하면 게임에서 요청할 때 컨트롤러가 진동합니다."
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Face buttons"
+msgstr "액션 버튼"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right stick"
+msgstr "오른쪽 스틱"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Asks for each control in turn"
+msgstr "각 명령을 차례로 요청합니다."
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Bind all controls"
+msgstr "모든 조작 할당"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Binds this player's controls as the input device suggests"
+msgstr "입력 장치의 권장 설정에 따라 이 플레이어의 조작을 할당합니다"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Cancel"
+msgstr "취소"
+
+#: src/nxemu/ui/assets/controller_dialog.rml
+msgid "Save"
+msgstr "저장"
+
+#: src/nxemu/ui/assets/directories_dialog.rml
+msgid "Add the directories your games are in. Updates, DLC and mods in the same directories are matched to their games automatically. Turn on Scan subfolders to also look in the folders inside a directory."
+msgstr "게임이 있는 폴더를 추가하세요. 같은 폴더에 있는 업데이트, DLC, 모드는 자동으로 해당 게임과 연결됩니다. 하위 폴더 검색을 켜면 폴더 안의 폴더도 찾습니다."
+
+#: src/nxemu/ui/assets/directories_dialog.rml
+msgid "Add a directory"
+msgstr "폴더 추가"
+
+#: src/nxemu/ui/assets/directories_dialog.rml
+msgid "The game directories cannot change while a game is running."
+msgstr "게임이 진행되는 동안에는 게임 폴더를 편집할 수 없습니다."
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Install firmware"
+msgstr "펌웨어 설치"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Source"
+msgstr "소스"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Install"
+msgstr "설치"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Finish"
+msgstr "마침"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Where is the firmware?"
+msgstr "펌웨어는 어디에 있나요?"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Most games need the console's firmware. Choose the package to install it from, or drop it on this window."
+msgstr "대부분의 게임에는 콘솔 펌웨어가 필요합니다. 설치할 파일을 선택하거나 이 창에 놓습니다."
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Firmware file"
+msgstr "펌웨어 파일"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "A .zip archive, or a .dxci game card image that carries an update"
+msgstr "업데이트가 포함된 .zip 아카이브 또는 .dxci 게임 카드 이미지"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Browse"
+msgstr "찾아보기"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Firmware folder"
+msgstr "펌웨어 폴더"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "A folder that holds the firmware's .nca files"
+msgstr ".nca 펌웨어 파일이 포함된 폴더"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "The game starts afterwards, and without it if you would rather not."
+msgstr "그러면 게임이 시작되거나 원하는 경우 펌웨어 없이 시작됩니다."
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "The installed firmware stays in place until the new one is complete."
+msgstr "설치된 펌웨어는 새 펌웨어가 준비될 때까지 그대로 유지됩니다."
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Replace the installed firmware?"
+msgstr "설치된 펌웨어를 교체하시겠습니까?"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Start without it"
+msgstr "펌웨어 없이 부팅"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Keep the installed one"
+msgstr "설치된 버전 유지"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Replace"
+msgstr "바꾸기"
+
+#: src/nxemu/ui/assets/firmware_dialog.rml
+msgid "Choose another source"
+msgstr "다른 소스 선택"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Display"
+msgstr "디스플레이"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Interface theme"
+msgstr "인터페이스 테마"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Use the system appearance, or choose a light or dark theme."
+msgstr "시스템 모양을 따르거나 밝은 테마 또는 어두운 테마를 선택합니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Graphics device"
+msgstr "그래픽 장치"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Console mode"
+msgstr "콘솔 모드"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "As on the television: games draw up to 1080p."
+msgstr "TV에서와 마찬가지로 게임은 최대 1080p까지 표시됩니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Docked"
+msgstr "Docked"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "As on the console's own screen: games draw 720p, which asks less of the computer."
+msgstr "콘솔 화면과 마찬가지로 게임이 720p로 표시되어 컴퓨터에 부담을 덜 줍니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Handheld"
+msgstr "휴대"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Resolution"
+msgstr "해상도"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Window filter"
+msgstr "크기 조절 필터"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "How the picture is fitted to the window."
+msgstr "이미지가 창에 어떻게 맞는지."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Sharpness of the FSR filter"
+msgstr "FSR 필터의 선명도"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Aspect ratio"
+msgstr "화면 비율"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "The shape of the picture in the window."
+msgstr "창에 표시되는 이미지의 비율입니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Vertical sync"
+msgstr "수직 동기화"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Whole pictures only: no tearing."
+msgstr "찢어지지 않은 전체 이미지."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Profile"
+msgstr "프로필"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Who plays, with saves of their own."
+msgstr "플레이어와 해당 플레이어의 저장 데이터입니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Add players, and change their names and pictures"
+msgstr "플레이어 추가 및 이름과 이미지 변경"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Manage"
+msgstr "관리"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Language"
+msgstr "언어"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console language"
+msgstr "콘솔 언어"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "The language games are shown in."
+msgstr "게임이 표시되는 언어입니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Region"
+msgstr "지역"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "On, the region is the one chosen here. Off, it follows the console language."
+msgstr "활성화되면 해당 지역이 여기에서 선택됩니다. 비활성화되면 콘솔 언어를 따릅니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Interface language"
+msgstr "인터페이스 언어"
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "On, the interface language is chosen here. Off, it follows the console language."
+msgstr "켜면 여기서 인터페이스 언어를 선택합니다. 끄면 콘솔 언어를 따릅니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "A game is running: what is greyed out cannot change until it stops, and languages are read when a game starts."
+msgstr "게임 실행 중에는 회색으로 표시된 설정을 변경할 수 없습니다. 언어는 게임 시작 시 적용됩니다."
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Restart"
+msgstr "다시 시작"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Pause emulation (F2)"
+msgstr "에뮬레이션 일시 중지(F2)"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Stop emulation (F5)"
+msgstr "에뮬레이션 중지(F5)"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Minimise"
+msgstr "줄이기"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Maximise or restore"
+msgstr "확대 또는 복원"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Library"
+msgstr "라이브러리"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Search games..."
+msgstr "게임 검색..."
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Sort games"
+msgstr "게임 정렬"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Icon size"
+msgstr "아이콘 크기"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Title"
+msgstr "제목"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Card information"
+msgstr "카드 정보"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Play time"
+msgstr "플레이 시간"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "List view"
+msgstr "목록 보기"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Shows or hides the details of the selected game"
+msgstr "선택한 게임의 세부정보를 표시하거나 숨깁니다."
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Details"
+msgstr "세부정보"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Cover"
+msgstr "표지"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Game"
+msgstr "게임"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Publisher"
+msgstr "배급사"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version"
+msgstr "버전"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Last played"
+msgstr "마지막 플레이"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Format"
+msgstr "파일 형식"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Size"
+msgstr "크기"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Actions"
+msgstr "작업"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Select a game to see its details."
+msgstr "게임을 선택하면 해당 게임의 세부정보를 볼 수 있습니다."
+
+#. shown beside the controller's buttons, as in "(A) Play (X) Options".
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Play"
+msgstr "플레이"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Saves"
+msgstr "저장 데이터"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Cache"
+msgstr "캐시"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Mods"
+msgstr "모드"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Scanning games..."
+msgstr "게임 검색 중..."
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Loading"
+msgstr "로드 중"
+
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Paused"
+msgstr "일시중지됨"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Console mode: on the television (1080p), or handheld (720p)"
+msgstr "콘솔 모드: TV(1080p) 또는 휴대 모드(720p)"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "The resolution games are drawn at"
+msgstr "게임이 표시되는 해상도"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Window filter: only applies when the game's resolution is lower than the window size"
+msgstr "창 필터: 게임 해상도가 창 크기보다 작을 때만 적용됩니다"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Version copied to clipboard"
+msgstr "버전을 클립보드에 복사했습니다"
+
+#: src/nxemu/ui/assets/message_dialog.rml
+msgid "No"
+msgstr "아니요"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
+msgstr "콘솔의 플레이어입니다. 각 플레이어는 별도의 저장 데이터를 가지며 게임에 이름과 이미지가 표시됩니다. 게임은 활성 프로필로 시작됩니다."
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Profiles cannot change while a game is running."
+msgstr "게임이 진행되는 동안에는 프로필을 편집할 수 없습니다."
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Pictures of the console"
+msgstr "콘솔 이미지"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Reading the pictures of the console..."
+msgstr "콘솔 프로필 이미지 읽는 중..."
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "The console has no picture to offer: they come with its firmware. Install it from the File menu."
+msgstr "콘솔의 프로필 이미지가 없습니다. 이미지는 펌웨어에 포함되어 있습니다. 파일 메뉴에서 펌웨어를 설치하세요."
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Background"
+msgstr "배경"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Back"
+msgstr "뒤로"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Use this picture"
+msgstr "이 이미지 사용"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "One of the pictures the console offers its players"
+msgstr "콘솔이 플레이어에게 제공하는 이미지 중 하나"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Choose a picture"
+msgstr "이미지를 선택하세요"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "A picture of yours: it is resized to what the console uses"
+msgstr "콘솔 형식으로 크기가 조정된 개인 이미지"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Picture from a file"
+msgstr "파일의 이미지"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "This file is not a picture NXEmu can read."
+msgstr "이 파일은 NXEmu가 읽을 수 있는 이미지가 아닙니다."
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Name"
+msgstr "이름"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Games start as this player, with these saves"
+msgstr "이 플레이어와 해당 저장 데이터로 게임 시작"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Play as this profile"
+msgstr "이 프로필로 플레이"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Games start as this profile"
+msgstr "이 프로필로 게임이 시작됩니다."
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Delete profile"
+msgstr "프로필 삭제"
+
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Delete"
+msgstr "삭제"
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Stop the current game before opening another one."
+msgstr "다른 게임을 열기 전에 현재 게임을 중지하세요."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Required modules failed to reload after stopping the game."
+msgstr "게임을 중지한 후 필수 모듈을 다시 로드할 수 없습니다."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid ""
+"The game file does not exist:\n"
+"%1"
+msgstr ""
+"게임 파일이 존재하지 않습니다:\n"
+"%1"
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Required modules failed to load."
+msgstr "필수 모듈을 로드할 수 없습니다."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
+msgstr "이 게임에는 사용할 수 있는 실행 파일(ExeFS)이 없습니다.\n\n업데이트가 필요하면 설정 > 게임 폴더에서 업데이트 폴더를 추가하고 게임 상세 정보에서 활성화하세요. 이미 활성화했다면 파일이 완전하고 읽을 수 있는지 확인하세요.\n\n게임: %1"
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available."
+msgstr "게임을 불러올 수 없습니다:\n%1\n\n로더 오류: %2. 게임 파일이 완전하고 필요한 키와 펌웨어가 있는지 확인하세요."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid ""
+"Could not load the game:\n"
+"%1"
+msgstr ""
+"게임을 불러올 수 없습니다:\n"
+"%1"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left"
+msgstr "왼쪽"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right"
+msgstr "오른쪽"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Down"
+msgstr "아래"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Up"
+msgstr "위"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Plus"
+msgstr "+"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Minus"
+msgstr "-"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Home"
+msgstr "HOME"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Capture"
+msgstr "캡쳐"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Stick L"
+msgstr "L 스틱"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Stick R"
+msgstr "R 스틱"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Start"
+msgstr "Start"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Circle"
+msgstr "동그라미"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Cross"
+msgstr "가위표"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Square"
+msgstr "네모"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Triangle"
+msgstr "세모"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Share"
+msgstr "공유"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Options"
+msgstr "옵션"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Touch"
+msgstr "터치"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Wheel"
+msgstr "휠"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Backward"
+msgstr "뒤로가기"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Forward"
+msgstr "앞으로가기"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Task"
+msgstr "태스크"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Extra"
+msgstr "별도"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Turbo"
+msgstr "터보"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Toggle"
+msgstr "전환"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Not"
+msgstr "아니요"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Invalid"
+msgstr "무효"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Hat %1"
+msgstr "방향 패드 %1"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Axis %1"
+msgstr "축 %1"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Axes %1, %2, %3"
+msgstr "축 %1, %2, %3"
+
+#: src/nxemu/ui/input/input_text.cpp
+msgid "Motion %1"
+msgstr "이동 %1"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/hotkeys.cpp
+msgid "Button %1"
+msgstr "%1 버튼"
+
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "< 1m"
+msgstr "< 1분"
+
+#. a short play time, on a game's cover.
+#: src/nxemu/ui/library/play_time.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "%1m"
+msgstr "%1분"
+
+#. a short play time, on a game's cover.
+#: src/nxemu/ui/library/play_time.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "%1h %2m"
+msgstr "%1시간 %2분"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%b %d, %Y  %H:%M"
+msgstr "%Y-%m-%d  %H:%M"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "Just now"
+msgstr "지금 막"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n minute ago"
+msgid_plural "%n minutes ago"
+msgstr[0] "%n분 전"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n hour ago"
+msgid_plural "%n hours ago"
+msgstr[0] "%n시간 전"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n day ago"
+msgid_plural "%n days ago"
+msgstr[0] "%n일 전"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n week ago"
+msgid_plural "%n weeks ago"
+msgstr[0] "%n주 전"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n month ago"
+msgid_plural "%n months ago"
+msgstr[0] "%n개월 전"
+
+#: src/nxemu/ui/library/play_time.cpp
+msgid "%n year ago"
+msgid_plural "%n years ago"
+msgstr[0] "%n년 전"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "None"
+msgstr "없음"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The picture as the game draws it."
+msgstr "게임이 만들어내는 이미지."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Light work, a little blur. The steadier picture at low resolutions."
+msgstr "까다롭지 않고 약간 흐릿합니다. 낮은 해상도에서도 더욱 안정적인 이미지를 얻을 수 있습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The best picture, for more work."
+msgstr "최고의 이미지이지만 더 까다롭습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Automatic"
+msgstr "자동"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Follows the resolution chosen."
+msgstr "선택한 해상도를 따릅니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "As the game asks"
+msgstr "게임에 따라 다름"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "What the console would do."
+msgstr "콘솔과 같습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The sharpest. Light work for most graphics devices."
+msgstr "가장 선명합니다. 대부분의 그래픽 장치에서 부하가 적습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Normal"
+msgstr "보통"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The fastest. Most games look right; particles often do not."
+msgstr "가장 빠릅니다. 대부분의 게임은 올바르게 표시되지만 파티클은 그렇지 않은 경우가 많습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "High"
+msgstr "높음"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "What some games need to look right. Some need it from their start."
+msgstr "일부 게임을 올바르게 표시하는 데 필요합니다. 시작할 때부터 필요한 게임도 있습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Extreme"
+msgstr "극한"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Slow: to look for a fault."
+msgstr "느림: 문제를 확인합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "As the accuracy level"
+msgstr "정밀도 수준에 따라 다름"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Safe when the accuracy level is High or Extreme."
+msgstr "정밀도 수준이 높음 또는 극한일 때 안전합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Unsafe"
+msgstr "안전성 우선 안 함"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Faster."
+msgstr "더 빨라졌습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Safe"
+msgstr "그렇죠"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Steadier: it fixes some games."
+msgstr "더 안정적임: 일부 게임을 수정합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Processor"
+msgstr "프로세서"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The slowest, and the safest."
+msgstr "가장 느리고 가장 안전합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The usual choice."
+msgstr "일반적인 선택입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Processor, in the background"
+msgstr "CPU, 배경"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "No stutter, but textures show wrong until they are decoded."
+msgstr "끊김 현상은 없지만 디코딩될 때까지 텍스처가 올바르지 않습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The best picture, and the most memory."
+msgstr "최고의 이미지와 가장 높은 메모리 소비량."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "BC1 (low quality)"
+msgstr "BC1(낮은 품질)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The least memory."
+msgstr "메모리 소비량이 가장 낮습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "BC3 (medium quality)"
+msgstr "BC3(중간 품질)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Less memory."
+msgstr "메모리가 적습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Conservative"
+msgstr "소극적"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Leaves memory to the other applications."
+msgstr "다른 응용 프로그램을 위해 메모리를 남겨둡니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Aggressive"
+msgstr "적극적"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Takes what there is: other applications can slow down. No effect on graphics built into the processor."
+msgstr "사용 가능한 모든 메모리를 사용합니다. 다른 응용 프로그램의 속도가 느려질 수 있습니다. 프로세서에 통합된 그래픽 칩에는 영향을 미치지 않습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The fastest in most cases."
+msgstr "대부분의 경우 가장 빠릅니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "When the graphics device shows videos wrong."
+msgstr "그래픽 장치가 비디오를 잘못 표시하는 경우."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Videos stay black."
+msgstr "영상이 검은색으로 유지됩니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Translated (Dynarmic)"
+msgstr "코드 변환 (Dynarmic)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The code is translated for this computer's processor. Runs every game."
+msgstr "코드는 이 컴퓨터의 프로세서에 맞게 번역되었습니다. 모든 게임과 호환됩니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Native (NCE)"
+msgstr "네이티브 (NCE)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The code runs as it is on this computer's processor. The fastest; the games it cannot run are translated."
+msgstr "코드는 이 컴퓨터의 프로세서에서 직접 실행됩니다. 가장 빠른; 호환되지 않는 게임은 코드 변환을 사용합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Accurate"
+msgstr "정확"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Slower: for a game that misbehaves."
+msgstr "느립니다. 올바르게 동작하지 않는 게임용입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Faster, and some games break."
+msgstr "속도가 빨라지지만 일부 게임이 더 이상 작동하지 않습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Paranoid"
+msgstr "편집증"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Very slow: to look for a fault."
+msgstr "매우 느림: 문제를 확인하는 데 사용됩니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "4 GB"
+msgstr "4GB"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "What the console has."
+msgstr "콘솔 메모리."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "6 GB"
+msgstr "6GB"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "For mods that need more console memory."
+msgstr "더 많은 콘솔 메모리가 필요한 모드용입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "8 GB"
+msgstr "8GB"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr "콘솔보다 더 많은 메모리가 필요한 모드용입니다. 그 외에는 이점이 없습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "None (no sound)"
+msgstr "없음(소리 없음)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The one that suits this computer."
+msgstr "이 컴퓨터에 맞는 것입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "System default"
+msgstr "시스템 기본값"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The one the computer records from."
+msgstr "컴퓨터가 녹음에 사용하는 것입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "%1 (not connected)"
+msgstr "%1(연결되지 않음)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Games listen to the default of the computer until it is back."
+msgstr "다시 연결될 때까지 컴퓨터의 기본 오디오 입력 장치를 사용합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The one the computer plays its sounds on."
+msgstr "컴퓨터가 사운드를 방송하는 데 사용하는 것입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Games play on the default of the computer until it is back."
+msgstr "게임은 다시 연결될 때까지 컴퓨터의 기본 출력을 사용합니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Stereo"
+msgstr "스테레오"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "2개 채널: 헤드폰과 대부분의 스피커."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr "서라운드"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "방 주위에 배치된 스피커용 6개 채널."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr "모노"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
+msgstr "채널 1개."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "A shortcut is a function key, or a key with %1 or Alt."
+msgstr "단축키는 기능 키이거나 %1 또는 Alt와 함께 누르는 키입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "%1 is already the shortcut of \"%2\"."
+msgstr "%1은(는) 이미 \"%2\"의 단축키입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Press the buttons..."
+msgstr "버튼을 누르세요..."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Press the keys..."
+msgstr "키를 누르세요..."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/hotkeys.cpp
+msgid "Not assigned"
+msgstr "할당되지 않음"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Clear shortcut"
+msgstr "단축키 지우기"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Keyboard"
+msgstr "키보드"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Gamepad"
+msgstr "게임패드"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Pressed"
+msgstr "누르기"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Modifier"
+msgstr "수정자"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left SL"
+msgstr "SL 왼쪽"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left SR"
+msgstr "SR 왼쪽"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right SL"
+msgstr "오른쪽 SL"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right SR"
+msgstr "오른쪽 SR"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Motion 1"
+msgstr "모션 1"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Motion 2"
+msgstr "모션 2"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Pro Controller"
+msgstr "Pro 컨트롤러"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Dual Joy-Cons"
+msgstr "Joy-Con 한 쌍"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Left Joy-Con"
+msgstr "Joy-Con 왼쪽"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Right Joy-Con"
+msgstr "Joy-Con 오른쪽"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "GameCube Controller"
+msgstr "컨트롤러 GameCube"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "The controller's gyroscope, for games played by tilting or shaking it"
+msgstr "컨트롤러를 기울이거나 흔들어 조작하는 게임에 사용하는 자이로 센서"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Unbind"
+msgstr "할당 지우기"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Any device"
+msgstr "모든 장치"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Not connected"
+msgstr "연결되지 않음"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Player %1"
+msgstr "플레이어 %1"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Press..."
+msgstr "누르세요..."
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Not set"
+msgstr "정의되지 않음"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Control stick"
+msgstr "조종 스틱"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "C-stick"
+msgstr "스틱 C"
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Click a control or a button of the picture to bind it."
+msgstr "이미지에 있는 컨트롤이나 버튼을 클릭하여 할당하세요."
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Press a key, or move the stick sideways and then up and down."
+msgstr "버튼을 누르거나 스틱을 수평으로 이동한 다음 수직으로 이동합니다."
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Shake a controller that has a gyroscope, or press a key that will stand for a shake."
+msgstr "자이로스코프가 장착된 컨트롤러를 흔들거나 흔들기를 시뮬레이션하는 버튼을 누르세요."
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "Press a key or a button."
+msgstr "키나 버튼을 누릅니다."
+
+#: src/nxemu/ui/views/controller_dialog.cpp
+msgid "%1 Esc cancels. (%2)"
+msgstr "%1 Esc 키로 취소. (%2)"
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Not found: the games in it are not shown."
+msgstr "찾을 수 없음: 이 폴더에 있는 게임은 표시되지 않습니다."
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Scan subfolders"
+msgstr "하위 폴더 검색"
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Remove"
+msgstr "제거"
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "No game directory yet. Add the folders your games are in."
+msgstr "게임 폴더가 없습니다. 게임이 포함된 폴더를 추가합니다."
+
+#: src/nxemu/ui/views/directories_dialog.cpp
+msgid "Choose a game directory"
+msgstr "게임 폴더 선택"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/performance_overlay.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 MB"
+msgstr "%1MB"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Firmware installed"
+msgstr "펌웨어가 설치됨"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Games can use it from now on."
+msgstr "이제 게임에서 이를 사용할 수 있습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Installation cancelled"
+msgstr "설치가 취소되었습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was."
+msgstr "설치된 펌웨어가 유지되었습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The source could not be read"
+msgstr "소스를 읽을 수 없습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Check that the file or the folder is still there and that NXEmu may read it."
+msgstr "파일이나 폴더가 아직 존재하는지, NXEmu가 이를 읽을 수 있는지 확인하세요."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "No firmware found there"
+msgstr "이 위치에는 펌웨어가 없습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr ".zip 펌웨어 아카이브, 업데이트가 포함된 .dxci 게임 카드 이미지 또는 .nca 펌웨어 파일이 포함된 폴더를 선택합니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The console's storage cannot be written"
+msgstr "콘솔 스토리지에 쓸 수 없습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Check that NXEmu may write to its data folder, then try again."
+msgstr "NXEmu가 데이터 폴더에 쓸 수 있는지 확인한 후 다시 시도하십시오."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The firmware could not be replaced"
+msgstr "펌웨어를 교체할 수 없습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The installed firmware was put back. The log tells what went wrong."
+msgstr "설치된 펌웨어가 복원되었습니다. 로그는 문제의 원인을 나타냅니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Copying the firmware failed"
+msgstr "펌웨어를 복사하지 못했습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The installed firmware was left as it was. Check the free disk space; the log tells what went wrong."
+msgstr "설치된 펌웨어가 유지되었습니다. 사용 가능한 디스크 공간을 확인하세요. 로그는 문제의 원인을 나타냅니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Start the game"
+msgstr "게임을 시작하세요"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "This game carries firmware %1"
+msgstr "이 게임에는 펌웨어 %1가 포함되어 있습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "No firmware is installed yet. NXEmu can install the game's before starting it."
+msgstr "아직 펌웨어가 설치되어 있지 않습니다. NXEmu는 게임을 시작하기 전에 게임에 포함된 펌웨어를 설치할 수 있습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
+msgstr "%1 펌웨어가 설치되어 있지만 이 게임은 최신 버전에 맞게 설계되었습니다. NXEmu는 게임을 시작하기 전에 게임을 설치할 수 있습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
+msgstr "파일에는 펌웨어 %1가 포함되어 있으며 펌웨어 %2가 설치되어 있습니다. 설치가 이를 대체합니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Firmware"
+msgstr "펌웨어"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+msgid "All files"
+msgstr "모든 파일"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Choose the folder that holds the firmware"
+msgstr "펌웨어가 포함된 폴더를 선택하세요."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "No firmware is installed yet."
+msgstr "설치된 펌웨어가 없습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Firmware %1 is installed."
+msgstr "펌웨어 %1가 설치되었습니다."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Copying the firmware..."
+msgstr "펌웨어 복사..."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+msgid "%1 of %2"
+msgstr "%2의 %1"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Checking the firmware..."
+msgstr "펌웨어 확인 중..."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "File %1 of %2"
+msgstr "%2의 파일 %1"
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Putting the firmware in place..."
+msgstr "펌웨어 설치 중..."
+
+#: src/nxemu/ui/views/firmware_dialog.cpp
+msgid "Firmware %1 installed"
+msgstr "펌웨어 %1 설치됨"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Updates"
+msgstr "업데이트"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "DLC"
+msgstr "DLC"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "This game has not saved anything yet"
+msgstr "이 게임에는 아직 저장 데이터가 없습니다"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Opens the folder this game saves in"
+msgstr "이 게임의 저장 데이터 폴더 열기"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "This game has no shader cache yet"
+msgstr "이 게임에는 아직 셰이더 캐시가 없습니다."
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Opens the folder of this game's shader cache"
+msgstr "이 게임의 셰이더 캐시 폴더를 엽니다."
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Opens the folder this game's mods go in"
+msgstr "이 게임의 mods 폴더를 엽니다."
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Add-ons cannot change while a game is running"
+msgstr "게임 실행 중에는 추가 콘텐츠를 변경할 수 없습니다"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add-on content"
+msgstr "추가 콘텐츠"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n item"
+msgid_plural "%n items"
+msgstr[0] "%n개 항목"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No update, DLC or mod found for this game."
+msgstr "이 게임에 대한 업데이트, DLC 또는 모드가 없습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Japan"
+msgstr "일본"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Americas"
+msgstr "아메리카"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Europe"
+msgstr "유럽"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Australia"
+msgstr "호주"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "China"
+msgstr "중국"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Korea"
+msgstr "대한민국"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Taiwan"
+msgstr "대만"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "For games modified to draw this shape. The others are squeezed into it."
+msgstr "이 화면 비율에 맞게 수정된 게임용입니다. 다른 게임의 화면은 비율에 맞춰 왜곡됩니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "The shape of the console's picture. The right choice for nearly every game."
+msgstr "콘솔 이미지의 비율입니다. 거의 모든 게임에 적합한 선택입니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Stretch to the window"
+msgstr "창 크기에 맞춰 늘이기"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Fills the window whatever its shape. The picture is deformed."
+msgstr "비율에 관계없이 창을 채웁니다. 이미지가 왜곡되었습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "On"
+msgstr "켬"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Each picture waits for the screen. No tearing: the usual choice."
+msgstr "각 프레임은 화면 갱신을 기다립니다. 화면 찢어짐이 없는 일반적인 선택입니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "On, late pictures tear"
+msgstr "켬, 지연 시 화면 찢어짐 허용"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "As On, but a picture that comes late is shown at once. It tears instead of stuttering."
+msgstr "켬과 같지만 늦은 프레임을 즉시 표시합니다. 끊김 대신 화면 찢어짐이 발생합니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "On, lowest delay"
+msgstr "켬, 최소 지연"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "The screen always gets the newest picture. No tearing and less delay, for more work. Not every computer can do it."
+msgstr "화면에 항상 최신 프레임을 표시합니다. 찢어짐이 없고 지연이 적지만 부하가 높습니다. 일부 컴퓨터에서는 지원하지 않습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Off"
+msgstr "끔"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Pictures are shown as soon as they are drawn. The least delay, but the picture can tear."
+msgstr "렌더링한 프레임을 즉시 표시합니다. 지연은 최소지만 화면 찢어짐이 발생할 수 있습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Light"
+msgstr "밝게"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Dark"
+msgstr "어둡게"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Built into the processor."
+msgstr "프로세서에 통합되었습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "A graphics card."
+msgstr "그래픽 카드입니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Not available"
+msgstr "사용할 수 없음"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "What the console draws."
+msgstr "콘솔 해상도입니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Less than the console draws: blurrier, for a computer that struggles."
+msgstr "콘솔 해상도 이하: 컴퓨터의 어려움에 따라 더 흐려집니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "More than the console draws: sharper, and more work for the graphics device."
+msgstr "콘솔 해상도 이상: 더 선명하지만 그래픽 장치에 대한 요구 사항이 더 높습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "%1 (native)"
+msgstr "%1 (네이티브)"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Gaussian"
+msgstr "가우시안"
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Docked: games run at 1080p and expect a TV."
+msgstr "TV 모드: 게임이 1080p로 실행되며 TV 출력을 전제로 합니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Handheld: games run at 720p, as on the console's own screen."
+msgstr "휴대 모드: 콘솔 자체 화면처럼 게임이 720p로 실행됩니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Games are drawn in %1p."
+msgstr "게임은 %1p에 표시됩니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Chosen here, whatever the language."
+msgstr "언어에 관계없이 여기에서 선택됩니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Follows the console language."
+msgstr "콘솔 언어를 따릅니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "This is the graphics built into the processor. Games run better on %1."
+msgstr "프로세서에 통합된 그래픽 칩입니다. 게임은 %1에서 가장 잘 실행됩니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "Used from the next game on."
+msgstr "다음 게임부터 사용됩니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "What draws the games: this computer has %1."
+msgstr "게임을 렌더링하는 그래픽 장치입니다. 이 컴퓨터에는 %1개가 있습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+msgid "What draws the games."
+msgstr "게임을 렌더링하는 그래픽 장치입니다."
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Load a file"
+msgstr "파일 불러오기"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Exit"
+msgstr "종료"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Fullscreen"
+msgstr "전체 화면"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Leave fullscreen"
+msgstr "전체 화면 종료"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Hide or show the interface"
+msgstr "인터페이스 숨기기/표시"
+
+#: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show performance"
+msgstr "성능 표시"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Pause or continue"
+msgstr "일시 정지/계속"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Stop the game"
+msgstr "게임 중지"
+
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Docked or handheld"
+msgstr "Docked 또는 휴대 모드"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Opening the game..."
+msgstr "게임을 여는 중..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Preparing shaders"
+msgstr "셰이더 준비 중"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Starting..."
+msgstr "시작 중..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Recent"
+msgstr "최근"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/performance_overlay.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 GB"
+msgstr "%1 이동"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "NXEmu - Exit"
+msgstr "NXEmu - 종료"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid ""
+"Clear the shader cache for %1?\n"
+"\n"
+"Shaders will be rebuilt the next time you play."
+msgstr ""
+"%1의 셰이더 캐시를 비울까요?\n"
+"\n"
+"다음에 플레이할 때 셰이더가 다시 생성됩니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Clear cache"
+msgstr "캐시 비우기"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Could not clear the cache: %1"
+msgstr "캐시를 비울 수 없습니다: %1"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Load File"
+msgstr "파일 로드(&R)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Recent File"
+msgstr "최근 파일(&R)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open &NXEmu Folders"
+msgstr "폴더 열기 &NXEmu"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&App Directory"
+msgstr "앱 폴더(&A)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Log Folder"
+msgstr "로그 폴더(&L)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Settings"
+msgstr "매개변수(&P)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Install &Firmware"
+msgstr "펌웨어 설치(&F)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "E&xit"
+msgstr "종료(&x)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&File"
+msgstr "파일(&F)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Continue"
+msgstr "계속"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Pause"
+msgstr "일시정지"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Stop"
+msgstr "정지(&S)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show emulation controls"
+msgstr "에뮬레이션 컨트롤 표시"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Limit &Speed"
+msgstr "속도 제한(&S)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Fullscreen"
+msgstr "전체 화면(&F)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show &UI"
+msgstr "인터페이스 표시(&S)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Hide &UI"
+msgstr "인터페이스 숨기기(&H)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Window size"
+msgstr "창 크기"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Measures per second"
+msgstr "초당 측정 수"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "History length"
+msgstr "기록 길이"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "How many measures the history shows"
+msgstr "기록에 표시되는 측정 수"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Performance overlay"
+msgstr "성능 오버레이"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Emulation"
+msgstr "에뮬레이션(&E)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Help"
+msgstr "도움말(&H)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Discord"
+msgstr "&Discord"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&Report Issues"
+msgstr "문제 신고(&R)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "&About NXEmu"
+msgstr "NXEmu 정보(&A)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "%n game"
+msgid_plural "%n games"
+msgstr[0] "게임 %n개"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "No game matches your search."
+msgstr "검색어와 일치하는 게임이 없습니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "No game directory yet."
+msgstr "게임 폴더가 없습니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "No games found in your game directories."
+msgstr "게임 폴더에 게임이 없습니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Never"
+msgstr "안 함"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "More actions"
+msgstr "기타 작업"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
+msgstr "해상도 배율: 값을 높이면 화면이 더 선명해지지만 더 높은 그래픽 성능이 필요합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The resolution scale cannot change while a game is running"
+msgstr "게임이 진행되는 동안에는 해상도 스케일을 변경할 수 없습니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The profile cannot change while a game is running"
+msgstr "게임이 진행되는 동안에는 프로필을 변경할 수 없습니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The profile games start as: its saves are the ones used"
+msgstr "게임 시작에 사용할 프로필과 저장 데이터"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Start Game"
+msgstr "게임 시작"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open saves"
+msgstr "저장 데이터 열기"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open cache"
+msgstr "캐시 열기"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open Containing Folder"
+msgstr "게임 폴더 열기"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Copy File Path"
+msgstr "파일 경로 복사"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Manage profiles"
+msgstr "프로필 관리"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Sharpness: once FSR is the filter"
+msgstr "선명도: FSR 필터를 선택한 경우"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Title ID"
+msgstr "타이틀 ID"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Resume emulation (F2)"
+msgstr "에뮬레이션 재개(F2)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Switch games"
+msgstr "스위치 게임"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Press %1 or %2 to leave fullscreen"
+msgstr "%1 또는 %2 키를 눌러 전체 화면을 종료합니다"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Press %1 to show the interface"
+msgstr "%1 키를 눌러 인터페이스를 표시합니다"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Building: %n shader"
+msgid_plural "Building: %n shaders"
+msgstr[0] "컴파일 중: 셰이더 %n개"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Firmware: %1"
+msgstr "펌웨어: %1"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "NXEmu - Stop Emulation"
+msgstr "NXEmu - 에뮬레이션 중지"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid ""
+"The currently running application has requested NXEmu to not exit.\n"
+"\n"
+"Would you like to bypass this and stop emulation anyway?"
+msgstr ""
+"현재 응용 프로그램이 NXEmu를 닫지 않도록 요청했습니다.\n"
+"\n"
+"이 요청을 무시하고 에뮬레이션을 중지하시겠습니까?"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid ""
+"Are you sure you want to stop the emulation?\n"
+"\n"
+"Any unsaved progress will be lost."
+msgstr ""
+"에뮬레이션을 중지하시겠습니까?\n"
+"\n"
+"저장하지 않은 진행 상황은 손실됩니다."
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "History"
+msgstr "기록"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Lowest, average and highest"
+msgstr "최저, 평균, 최고"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Frame time"
+msgstr "프레임 시간"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Longest frame"
+msgstr "가장 긴 프레임"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Emulation speed"
+msgstr "에뮬레이션 속도"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Processor use"
+msgstr "프로세서 사용률"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Memory use"
+msgstr "메모리 사용량"
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Active"
+msgstr "활성"
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "A new player, with saves of their own"
+msgstr "별도의 저장 데이터를 사용하는 새 플레이어"
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "New profile"
+msgstr "새 프로필"
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Delete %1? Its saves stay on the disk."
+msgstr "%1 프로필을 삭제하시겠습니까? 저장 데이터는 디스크에 남습니다."
+
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Pictures"
+msgstr "이미지"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Nearest neighbour"
+msgstr "가장 가까운 이웃"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Sharp squares, for pixel art. The lightest."
+msgstr "선명한 사각형. 픽셀 아트용. 가장 가볍습니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bilinear"
+msgstr "쌍선형"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Smooth. The usual choice, and light."
+msgstr "부드럽습니다. 일반적인 선택이며 가볍습니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bicubic"
+msgstr "쌍입방"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A little sharper than bilinear, for slightly more work."
+msgstr "쌍선형보다 조금 더 선명하며 부하가 약간 더 큽니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Sharp edges, best for 2D games and drawings. Heavier."
+msgstr "선명한 윤곽. 2D 게임과 그림에 가장 적합합니다. 더 무겁습니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr "AMD FidelityFX Super Resolution: 창보다 작게 그려진 화면을 선명하게 합니다. 3D 게임에 가장 적합합니다. 부하는 보통입니다."
+
+#: src/nxemu/ui/views/volume_control.cpp
+msgid "Muted: click to hear the games again"
+msgstr "소리 음소거: 게임 음소거를 해제하려면 클릭하세요."
+
+#: src/nxemu/ui/views/volume_control.cpp
+msgid "Mute"
+msgstr "음소거"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "About"
+msgstr "정보"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "On screen controller"
+msgstr "화면 컨트롤러"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console"
+msgstr "본체"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Interface"
+msgstr "인터페이스"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game list"
+msgstr "게임 목록"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Info"
+msgstr "정보"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add-ons"
+msgstr "추가 콘텐츠"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Save data"
+msgstr "저장 데이터"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Theme"
+msgstr "테마"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "GPU driver"
+msgstr "GPU 드라이버"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Add a driver"
+msgstr "드라이버 추가"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Download drivers"
+msgstr "드라이버 다운로드"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Drivers"
+msgstr "드라이버"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Driver"
+msgstr "드라이버"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game folders"
+msgstr "게임 폴더"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller %1"
+msgstr "컨트롤러 %1"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Search games"
+msgstr "게임 검색"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Select"
+msgstr "선택"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Tap a game to play it, hold it for its options"
+msgstr "게임을 탭하면 플레이, 길게 누르면 옵션"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Scanning folders..."
+msgstr "폴더를 검색하는 중..."
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Scanning..."
+msgstr "검색 중..."
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Reading games..."
+msgstr "게임을 읽는 중..."
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Reading games %1 of %2"
+msgstr "게임을 읽는 중: %1/%2"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "No game matches \"%1\""
+msgstr "\"%1\"와(과) 일치하는 게임이 없습니다"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Sort by"
+msgstr "정렬"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Recently played"
+msgstr "최근 플레이"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "View"
+msgstr "보기"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Grid"
+msgstr "격자"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "List"
+msgstr "목록"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "v%1"
+msgstr "v%1"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "%1 played"
+msgstr "%1 플레이"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Add a game folder"
+msgstr "게임 폴더를 추가하세요"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "NxEmu lists games from folders you choose. Your files stay where they are."
+msgstr "NxEmu는 선택한 폴더의 게임을 표시합니다. 파일은 원래 위치에 그대로 있습니다."
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add game folder"
+msgstr "게임 폴더 추가"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "No games found"
+msgstr "게임을 찾을 수 없습니다"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "No .nro, .dxci, or .dnsp files were found in your folders."
+msgstr "폴더에서 .nro, .dxci, .dnsp 파일을 찾지 못했습니다."
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Manage folders"
+msgstr "폴더 관리"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Couldn't read these files"
+msgstr "이 파일들을 읽을 수 없습니다"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+msgid "Files were found, but none could be opened as games. Check that they are valid dumps."
+msgstr "파일을 찾았지만 게임으로 열 수 있는 파일이 없습니다. 올바른 덤프인지 확인하세요."
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Try again"
+msgstr "다시 시도"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Dual Joycons"
+msgstr "Joy-Con 2개"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Left Joycon"
+msgstr "Joy-Con (L)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Right Joycon"
+msgstr "Joy-Con (R)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Follow system"
+msgstr "시스템 설정 따르기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Unlimited speed"
+msgstr "속도 제한 없음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Speed limit %1%"
+msgstr "속도 제한 %1%"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 KB"
+msgstr "%1KB"
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Jan"
+msgstr "1월"
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Feb"
+msgstr "2월"
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Mar"
+msgstr "3월"
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Apr"
+msgstr "4월"
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "May"
+msgstr "5월"
+
+#. a month's short name, in a date such as "Mar 14, 2026".
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Jun"
+msgstr "6월"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Jul"
+msgstr "7월"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Aug"
+msgstr "8월"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sep"
+msgstr "9월"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Oct"
+msgstr "10월"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Nov"
+msgstr "11월"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Dec"
+msgstr "12월"
+
+#. a date: %1 is the month's short name, %2 the day and %3 the year.
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 %2, %3"
+msgstr "%3년 %1 %2일"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Speed limit"
+msgstr "속도 제한"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Half speed"
+msgstr "절반 속도"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Normal speed"
+msgstr "보통 속도"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Double speed"
+msgstr "2배 속도"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fastest. Works well for most games"
+msgstr "가장 빠름. 대부분의 게임에서 잘 동작합니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fixes some graphical glitches. Slower"
+msgstr "일부 그래픽 결함을 고칩니다. 더 느림"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Most accurate. Much slower, for troubleshooting"
+msgstr "가장 정확함. 훨씬 느리며 문제 해결용입니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 docked"
+msgstr "TV 모드 %1"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 handheld"
+msgstr "휴대 모드 %1"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Immediate"
+msgstr "즉시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Lowest latency. The picture may tear"
+msgstr "지연 시간 최소. 화면이 찢어질 수 있습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Mailbox"
+msgstr "Mailbox"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Low latency without tearing. Uses more power"
+msgstr "찢어짐 없이 낮은 지연. 전력을 더 사용합니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No tearing. Recommended"
+msgstr "찢어짐 없음. 권장"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "FIFO Relaxed"
+msgstr "FIFO (완화)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Like FIFO, but tears briefly instead of stuttering when a frame is late"
+msgstr "FIFO와 같지만, 프레임이 늦으면 끊기는 대신 잠깐 찢어집니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Window adapting filter"
+msgstr "창 맞춤 필터"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Nearest neighbor"
+msgstr "최근접 이웃"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Crisp pixels. Can look blocky"
+msgstr "선명한 픽셀. 각져 보일 수 있습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smooth and slightly soft"
+msgstr "부드럽고 약간 흐릿함"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smooth and a little sharper than bilinear"
+msgstr "부드럽고 바이리니어보다 조금 선명함"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Very smooth and soft"
+msgstr "매우 부드럽고 흐릿함"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharp upscaling, good for low resolutions"
+msgstr "선명한 업스케일링, 낮은 해상도에 적합"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "AMD FidelityFX upscaling. Sharpest, costs a little performance"
+msgstr "AMD FidelityFX 업스케일링. 가장 선명하며 성능을 조금 사용합니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fastest"
+msgstr "가장 빠름"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smooths jagged edges cheaply. Slightly blurry"
+msgstr "계단 현상을 적은 부담으로 줄입니다. 약간 흐릿함"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Smoother edges than FXAA. Costs a little more"
+msgstr "FXAA보다 부드러운 가장자리. 부담이 조금 더 큼"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Picks a level to match the resolution"
+msgstr "해상도에 맞는 단계를 고릅니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Default"
+msgstr "기본값"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "What the game asks for. Fastest"
+msgstr "게임이 요청하는 값. 가장 빠름"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Slightly sharper textures on floors and walls"
+msgstr "바닥과 벽의 텍스처가 조금 더 선명"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharper textures on floors and walls"
+msgstr "바닥과 벽의 텍스처가 더 선명"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharper still. Costs more on slower phones"
+msgstr "더욱 선명. 느린 휴대폰에서는 부담이 큼"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Sharpest. Costs the most"
+msgstr "가장 선명. 부담이 가장 큼"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Same as the Switch. Recommended"
+msgstr "Switch와 같음. 권장"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretches the picture to 4:3"
+msgstr "화면을 4:3으로 늘립니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretches the picture to ultrawide"
+msgstr "화면을 울트라와이드로 늘립니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretches the picture to 16:10"
+msgstr "화면을 16:10으로 늘립니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stretch"
+msgstr "늘리기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Fills the whole screen"
+msgstr "화면 전체를 채웁니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "None connected"
+msgstr "연결 없음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n connected"
+msgid_plural "%n connected"
+msgstr[0] "%n개 연결됨"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Shown"
+msgstr "표시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Hidden"
+msgstr "숨김"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Resolution %1 (%2)"
+msgstr "해상도 %1 (%2)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controllers, console, graphics"
+msgstr "컨트롤러, 본체, 그래픽"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 theme"
+msgstr "%1 테마"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "None added"
+msgstr "추가된 폴더 없음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n folder"
+msgid_plural "%n folders"
+msgstr[0] "폴더 %n개"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Not installed"
+msgstr "설치되지 않음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Small cards"
+msgstr "작은 카드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Medium cards"
+msgstr "중간 카드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Large cards"
+msgstr "큰 카드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Card size"
+msgstr "카드 크기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Small"
+msgstr "작게"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Medium"
+msgstr "중간"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Large"
+msgstr "크게"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "More games on screen"
+msgstr "화면에 더 많은 게임 표시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bigger covers, for a TV"
+msgstr "큰 표지, TV용"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Cards show"
+msgstr "카드 표시 항목"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Under the cover"
+msgstr "표지 아래"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version and publisher"
+msgstr "버전과 배급사"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "On the cover, once you have played"
+msgstr "표지 위, 플레이한 후"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Less than a minute"
+msgstr "1분 미만"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 min"
+msgstr "%1분"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 h %2 min"
+msgstr "%1시간 %2분"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version %1"
+msgstr "버전 %1"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Title ID %1"
+msgstr "타이틀 ID %1"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reading the game's details..."
+msgstr "게임 정보를 읽는 중..."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "This game's details could not be read."
+msgstr "이 게임의 정보를 읽을 수 없습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n update"
+msgid_plural "%n updates"
+msgstr[0] "업데이트 %n개"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n mod"
+msgid_plural "%n mods"
+msgstr[0] "모드 %n개"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Updates, DLC and mods"
+msgstr "업데이트, DLC, 모드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No save yet"
+msgstr "저장 데이터 없음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Export or import"
+msgstr "내보내기 또는 가져오기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Delete save data"
+msgstr "저장 데이터 삭제"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Delete the save data of %1? This cannot be undone."
+msgstr "%1의 저장 데이터를 삭제할까요? 되돌릴 수 없습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear shader cache"
+msgstr "셰이더 캐시 지우기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear the shader cache of %1? The game rebuilds it as you play, with some stutter at first."
+msgstr "%1의 셰이더 캐시를 지울까요? 플레이하는 동안 다시 만들어지며, 처음에는 조금 끊길 수 있습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear play time"
+msgstr "플레이 시간 지우기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Clear the play time of %1?"
+msgstr "%1의 플레이 시간을 지울까요?"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Close the game to delete its save data or clear its shader cache."
+msgstr "저장 데이터를 삭제하거나 셰이더 캐시를 지우려면 게임을 종료하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Developer"
+msgstr "개발사"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "File"
+msgstr "파일"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add-ons cannot change while a game is running."
+msgstr "게임 실행 중에는 추가 콘텐츠를 변경할 수 없습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Install a mod"
+msgstr "모드 설치"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose the mod's folder, the one that holds romfs, exefs or cheats"
+msgstr "romfs, exefs 또는 cheats가 들어 있는 모드 폴더를 선택하세요"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 (%2)"
+msgstr "%1 (%2)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Export save data"
+msgstr "저장 데이터 내보내기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Save a copy as a zip file"
+msgstr "복사본을 zip 파일로 저장합니다"
+
+#. the name of the file a game's save data is exported to.
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 save data.zip"
+msgstr "%1 저장 데이터.zip"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Close the game to import save data."
+msgstr "저장 데이터를 가져오려면 게임을 종료하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Import save data"
+msgstr "저장 데이터 가져오기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose a zip file exported from NXEmu or another emulator"
+msgstr "NXEmu나 다른 에뮬레이터에서 내보낸 zip 파일을 선택하세요"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Importing replaces the save data %1 has now."
+msgstr "가져오면 %1의 현재 저장 데이터가 바뀝니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Play the game once before importing save data, so NXEmu knows which user it belongs to."
+msgstr "저장 데이터를 가져오기 전에 게임을 한 번 실행해서 NXEmu가 어떤 사용자의 데이터인지 알 수 있게 하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Show overlay"
+msgstr "오버레이 표시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Scale"
+msgstr "크기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Opacity"
+msgstr "불투명도"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Edit overlay layout"
+msgstr "오버레이 배치 편집"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Drag buttons to reposition"
+msgstr "버튼을 끌어서 옮기세요"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Off runs as fast as possible. This session only"
+msgstr "끄면 최대한 빠르게 실행됩니다. 이번 세션에만 적용"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Docked mode"
+msgstr "TV 모드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Higher resolution, lower performance"
+msgstr "해상도는 높아지고 성능은 낮아집니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Close the game to change resolution, the GPU driver and other options that apply when a game starts."
+msgstr "해상도, GPU 드라이버 등 게임 시작 시 적용되는 설정을 바꾸려면 게임을 종료하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "FSR sharpness"
+msgstr "FSR 선명도"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Force maximum clocks"
+msgstr "최대 클럭 강제"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Adreno GPUs. Can overheat the device"
+msgstr "Adreno GPU용. 기기가 과열될 수 있습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Asynchronous shaders"
+msgstr "비동기 셰이더"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reduces stutter, but can glitch"
+msgstr "끊김을 줄이지만 결함이 생길 수 있습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "More accurate, costs performance"
+msgstr "더 정확하지만 성능을 사용합니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Disk shader cache"
+msgstr "디스크 셰이더 캐시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Games load faster after the first run"
+msgstr "처음 실행한 후에는 게임이 더 빨리 불러와집니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No folders yet"
+msgstr "폴더가 없습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
+msgstr ".nro, .dxci, .dnsp 파일이 있는 폴더를 선택하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this folder from the library? The files will not be deleted."
+msgstr "이 폴더를 라이브러리에서 제거할까요? 파일은 삭제되지 않습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Welcome to NxEmu"
+msgstr "NxEmu에 오신 것을 환영합니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controls"
+msgstr "조작"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Step %1 of %2"
+msgstr "%2단계 중 %1단계"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose the folders that hold your games. NxEmu reads them where they are and never moves or copies your files."
+msgstr "게임이 있는 폴더를 선택하세요. NxEmu는 원래 위치에서 읽으며 파일을 옮기거나 복사하지 않습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Add another folder"
+msgstr "다른 폴더 추가"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Games in .nro, .dxci or .dnsp format"
+msgstr ".nro, .dxci 또는 .dnsp 형식의 게임"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Skip"
+msgstr "건너뛰기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Done"
+msgstr "완료"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Next"
+msgstr "다음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No controller needed. Touch controls appear on screen while you play. You can connect a Bluetooth or USB controller at any time."
+msgstr "컨트롤러가 없어도 됩니다. 플레이 중에는 화면에 터치 조작이 표시됩니다. 블루투스나 USB 컨트롤러는 언제든지 연결할 수 있습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller connected: %1. It's ready to play. Use A to select and B to go back."
+msgstr "컨트롤러 연결됨: %1. 플레이할 준비가 되었습니다. A로 선택하고 B로 돌아갑니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Show on-screen controls"
+msgstr "화면 조작 표시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Turn off if you only play with a controller"
+msgstr "컨트롤러로만 플레이한다면 끄세요"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Usually off when using a controller"
+msgstr "컨트롤러를 사용할 때는 보통 끕니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller settings"
+msgstr "컨트롤러 설정"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Change button mapping"
+msgstr "버튼 배정 변경"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Your phone has %1. Many games run faster and with fewer glitches on a community driver. You can switch back to the system driver at any time in Settings, Graphics."
+msgstr "휴대폰에 %1이(가) 있습니다. 많은 게임이 커뮤니티 드라이버에서 더 빠르고 결함도 적게 실행됩니다. 설정의 그래픽에서 언제든지 시스템 드라이버로 돌아갈 수 있습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "an Adreno GPU"
+msgstr "Adreno GPU"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Finding the best driver for your phone…"
+msgstr "휴대폰에 가장 알맞은 드라이버를 찾는 중…"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Install %1"
+msgstr "%1 설치"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "The recommended driver isn't available right now. You can install one later from Settings, Graphics, GPU driver."
+msgstr "권장 드라이버를 지금은 사용할 수 없습니다. 나중에 설정의 그래픽, GPU 드라이버에서 설치할 수 있습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Downloading %1%"
+msgstr "다운로드 중 %1%"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Released %1"
+msgstr "%1 출시"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Installed"
+msgstr "설치됨"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "in use"
+msgstr "사용 중"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "tap to use"
+msgstr "탭하여 사용"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Loading drivers from GitHub…"
+msgstr "GitHub에서 드라이버를 불러오는 중…"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Couldn't load drivers"
+msgstr "드라이버를 불러올 수 없습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Recommended"
+msgstr "권장"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Recommended for %1"
+msgstr "%1에 권장"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%1 isn't listed right now. Pick a driver below."
+msgstr "%1은(는) 지금 목록에 없습니다. 아래에서 드라이버를 선택하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No specific driver is recommended for this GPU. A recent Turnip build is a good start."
+msgstr "이 GPU에 특별히 권장되는 드라이버는 없습니다. 최신 Turnip 빌드로 시작해 보세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "All drivers"
+msgstr "모든 드라이버"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Latest: %1"
+msgstr "최신: %1"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n release"
+msgid_plural "%n releases"
+msgstr[0] "릴리스 %n개"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No downloads"
+msgstr "다운로드 없음"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "offline copy"
+msgstr "오프라인 사본"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Refreshing…"
+msgstr "새로 고치는 중…"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Refresh list"
+msgstr "목록 새로 고침"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Check GitHub for new releases"
+msgstr "GitHub에서 새 릴리스 확인"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Latest"
+msgstr "최신"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Pre-release"
+msgstr "사전 릴리스"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Downloads"
+msgstr "다운로드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "pick one"
+msgstr "하나 선택"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Download"
+msgstr "다운로드"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Release notes"
+msgstr "릴리스 노트"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Adreno only"
+msgstr "Adreno 전용"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Custom GPU drivers need an Adreno GPU. This device keeps using the system driver."
+msgstr "사용자 지정 GPU 드라이버는 Adreno GPU가 필요합니다. 이 기기는 시스템 드라이버를 계속 사용합니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Applies the next time a game starts."
+msgstr "다음에 게임을 시작할 때 적용됩니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Device driver"
+msgstr "기기 드라이버"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove %1?"
+msgstr "%1을(를) 제거할까요?"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Browse Turnip and other drivers on GitHub"
+msgstr "GitHub에서 Turnip 및 기타 드라이버 찾아보기"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Install from file"
+msgstr "파일에서 설치"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Choose a driver .zip already on this device"
+msgstr "이 기기에 있는 드라이버 .zip을 선택하세요"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Connected - %1"
+msgstr "연결됨 - %1"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Disconnected"
+msgstr "연결 안 됨"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Controller type"
+msgstr "컨트롤러 종류"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Auto-map a controller"
+msgstr "컨트롤러 자동 배정"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Select a device to attempt auto-mapping"
+msgstr "자동 배정을 시도할 기기를 선택하세요"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "No controllers found"
+msgstr "컨트롤러를 찾을 수 없습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Ran auto-mapping against %1"
+msgstr "%1에 자동 배정을 실행했습니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Input mapping filter"
+msgstr "배정 필터"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reset to default"
+msgstr "기본값으로 재설정"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Reset this player to defaults?"
+msgstr "이 플레이어를 기본값으로 재설정할까요?"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Buttons"
+msgstr "버튼"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Start/Pause"
+msgstr "시작/일시 정지"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "D-Pad"
+msgstr "방향 버튼"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "C-Stick"
+msgstr "C 스틱"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Triggers"
+msgstr "트리거"
+
+#: src/android/app/src/main/jni/ui/ui_util.cpp
+msgid "Internal storage"
+msgstr "내부 저장소"
+
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+msgid "Unused"
+msgstr "사용 안 함"
+
+#: src/android/app/src/main/java/org/nxemu/features/input/NxEmuInputDevice.kt
+msgid "Touch controls"
+msgstr "터치 컨트롤"
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Could not start the next part of this game."
+msgstr "이 게임의 다음 부분을 시작할 수 없습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Loading..."
+msgstr "로드 중..."
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Unpause emulation"
+msgstr "에뮬레이션 재개"
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Exit emulation"
+msgstr "에뮬레이션 종료"
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Pause emulation"
+msgstr "에뮬레이션 일시 중지"
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Unlock drawer"
+msgstr "사이드 메뉴 잠금 해제"
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Lock drawer"
+msgstr "사이드 메뉴 잠금"
+
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
+msgid "Building %n shader"
+msgid_plural "Building %n shaders"
+msgstr[0] "셰이더 %n개 빌드 중"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Start without"
+msgstr "설치하지 않고 시작"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Installing firmware"
+msgstr "펌웨어 설치 중"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Cancelling..."
+msgstr "취소하는 중..."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Start anyway"
+msgstr "그래도 시작"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Check that the file is still there and that NXEmu may read it."
+msgstr "파일이 아직 있는지, NXEmu가 읽을 수 있는지 확인하세요."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Choose a firmware .zip archive or a .dxci game card image that carries an update."
+msgstr "펌웨어 .zip 압축 파일이나 업데이트가 포함된 .dxci 게임 카드 이미지를 선택하세요."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "Check the free space on this device, then try again."
+msgstr "이 기기의 여유 공간을 확인한 후 다시 시도하세요."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+msgid "The installed firmware was left as it was. Check the free space; the log tells what went wrong."
+msgstr "설치된 펌웨어는 그대로 유지되었습니다. 여유 공간을 확인하세요. 무엇이 잘못되었는지는 로그에 나와 있습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Not a mod folder"
+msgstr "모드 폴더가 아닙니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Choose the mod's own folder: the one that holds a romfs, exefs or cheats folder."
+msgstr "모드 자체 폴더를 선택하세요: romfs, exefs 또는 cheats 폴더가 들어 있는 폴더입니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Installing the mod..."
+msgstr "모드 설치 중..."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "%1 is installed."
+msgstr "%1이(가) 설치되었습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The mod is installed."
+msgstr "모드가 설치되었습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not create %1"
+msgstr "%1을(를) 만들 수 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not read %1"
+msgstr "%1을(를) 읽을 수 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Exporting the save data..."
+msgstr "저장 데이터를 내보내는 중..."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The save data is exported."
+msgstr "저장 데이터를 내보냈습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not write the zip file"
+msgstr "zip 파일을 쓸 수 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Importing the save data..."
+msgstr "저장 데이터를 가져오는 중..."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The save data is imported."
+msgstr "저장 데이터를 가져왔습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The zip file has a path outside its folder"
+msgstr "zip 파일에 폴더 밖을 가리키는 경로가 있습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not read the zip file"
+msgstr "zip 파일을 읽을 수 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "The zip file holds no save data"
+msgstr "zip 파일에 저장 데이터가 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "Could not put the save data in place"
+msgstr "저장 데이터를 제자리에 놓을 수 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+msgid "That did not work"
+msgstr "작업이 실패했습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "GPU driver installed. It applies the next time a game starts."
+msgstr "GPU 드라이버가 설치되었습니다. 다음에 게임을 시작할 때 적용됩니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "Custom GPU drivers need an Adreno GPU."
+msgstr "사용자 지정 GPU 드라이버에는 Adreno GPU가 필요합니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "This driver needs a newer Android version."
+msgstr "이 드라이버에는 최신 Android 버전이 필요합니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "That file is not a GPU driver."
+msgstr "해당 파일은 GPU 드라이버가 아닙니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "Download failed. Check your connection and try again."
+msgstr "다운로드에 실패했습니다. 연결을 확인하고 다시 시도하세요."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "A driver is already downloading."
+msgstr "이미 드라이버를 다운로드하는 중입니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "That driver is no longer listed. Refresh and try again."
+msgstr "해당 드라이버는 더 이상 목록에 없습니다. 새로 고친 후 다시 시도하세요."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+msgid "Couldn't read that driver."
+msgstr "해당 드라이버를 읽을 수 없습니다."
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/UiHost.kt
+msgid "No app is available to open %1"
+msgstr "%1을(를) 열 수 있는 앱이 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/main/UiHost.kt
+msgid "Couldn't load the driver list"
+msgstr "드라이버 목록을 불러올 수 없습니다"
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Move a stick left and then up or press a button"
+msgstr "스틱을 왼쪽으로, 그다음 위로 움직이거나 버튼을 누르세요"
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Press a button or move a trigger/stick"
+msgstr "버튼을 누르거나 트리거/스틱을 움직이세요"
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
+msgid "Map to %1"
+msgstr "%1에 할당"
+
+#: src/android/app/src/main/java/org/nxemu/ui/settings/OverlayLayoutActivity.kt
+msgid "Reset overlay"
+msgstr "오버레이 초기화"
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "%1 (latest)"
+msgstr "%1 (최신)"
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "Unexpected response"
+msgstr "예기치 않은 응답"
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "GitHub rate limit reached. Try again later."
+msgstr "GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요."
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "GitHub returned %1"
+msgstr "GitHub 응답: %1"
+
+#: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
+msgid "Couldn't reach GitHub"
+msgstr "GitHub에 연결할 수 없습니다"
