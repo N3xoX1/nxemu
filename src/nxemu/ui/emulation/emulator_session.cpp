@@ -181,7 +181,8 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     uint64_t programId = 0;
     if (m_modules.IsValid())
     {
-        IRomInfoPtr info(m_modules.Modules().Systemloader().RomInfo(path.c_str(), 0, programIndex));
+        // LoadRom applies programIndex to the ID, so resolve the base program here.
+        IRomInfoPtr info(m_modules.Modules().Systemloader().RomInfo(path.c_str(), 0, 0));
         if (info)
         {
             info->ReadProgramId(programId);
