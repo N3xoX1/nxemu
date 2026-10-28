@@ -775,6 +775,8 @@ Id EmitImageQueryDimensions(EmitContext& ctx, IR::Inst* inst, const IR::Value& i
     case TextureType::Buffer: {
         Id size{query(ctx.U32[1])};
         if (ctx.profile.texel_buffer_pad_in_size) {
+            // The count was rounded up to keep the padding bits free: this is the size of the
+            // view, which can exceed the size the guest bound by up to TEXEL_BUFFER_PAD_MASK
             const Id pad{ctx.OpBitwiseAnd(ctx.U32[1], size, ctx.Const(TEXEL_BUFFER_PAD_MASK))};
             size = ctx.OpISub(ctx.U32[1], size, pad);
         }

@@ -115,7 +115,10 @@ struct Profile {
 
     /// The host cannot start a texel buffer view at an arbitrary offset: it rounds it down to
     /// its alignment. Views are then created at the aligned offset and their element count
-    /// carries the number of leading elements to skip in its low TEXEL_BUFFER_PAD_BITS bits.
+    /// carries the number of leading elements to skip in its low TEXEL_BUFFER_PAD_BITS bits. The
+    /// rest of the count is rounded up to a multiple of 1 << TEXEL_BUFFER_PAD_BITS, and the
+    /// requested size cannot be told apart from that, so size queries report up to
+    /// TEXEL_BUFFER_PAD_MASK elements more than the guest bound.
     bool texel_buffer_pad_in_size{};
 
     bool SupportsUniformBufferDescriptorAliasing() const {
