@@ -556,6 +556,12 @@ public:
                GetTexelBufferOffsetAlignment() <= (1U << Shader::TEXEL_BUFFER_PAD_BITS);
     }
 
+    /// Bytes a host buffer needs past its data so that its texel buffer views can be rounded up
+    /// when NeedsTexelBufferPad returns true.
+    VkDeviceSize GetTexelBufferTailBytes() const {
+        return NeedsTexelBufferPad() ? Shader::TEXEL_BUFFER_TAIL_BYTES : 0;
+    }
+
     /// Returns true if VK_KHR_pipeline_executable_properties is enabled.
     bool IsKhrPipelineExecutablePropertiesEnabled() const {
         return extensions.pipeline_executable_properties;

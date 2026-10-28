@@ -109,7 +109,9 @@ Buffer::Buffer(BufferCacheRuntime& runtime, VideoCommon::NullBufferParams null_p
 
 Buffer::Buffer(BufferCacheRuntime& runtime, DAddr cpu_addr_, u64 size_bytes_)
     : VideoCommon::BufferBase(cpu_addr_, size_bytes_), device{&runtime.device},
-      buffer{CreateBuffer(*device, runtime.memory_allocator, SizeBytes())}, tracker{SizeBytes()} {
+      buffer{CreateBuffer(*device, runtime.memory_allocator,
+                          SizeBytes() + device->GetTexelBufferTailBytes())},
+      tracker{SizeBytes()} {
     if (runtime.device.HasDebuggingToolAttached()) {
         buffer.SetObjectNameEXT(fmt::format("Buffer 0x{:x}", CpuAddr()).c_str());
     }
@@ -133,7 +135,8 @@ VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat 
     MoltenVK::TexelBufferRange range{offset, size, 0, false};
     if (device->NeedsTexelBufferPad() && !is_null) {
         range = MoltenVK::AlignedTexelBufferRange(
-            static_cast<u32>(device->GetTexelBufferOffsetAlignment()), SizeBytes(), offset, size,
+            static_cast<u32>(device->GetTexelBufferOffsetAlignment()),
+            SizeBytes() + device->GetTexelBufferTailBytes(), offset, size,
             VideoCore::Surface::BytesPerBlock(format));
         if (!range.aligned) {
             LOG_WARNING(Render_Vulkan, "Texel buffer view at {} cannot be aligned for format {}",

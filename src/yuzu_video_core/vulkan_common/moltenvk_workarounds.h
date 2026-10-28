@@ -53,42 +53,51 @@ struct TexelBufferRange {
     uint32_t size;
     // Elements at the end of the requested range that the view cannot hold
     uint32_t lost_elements;
-    // False when the requested range is returned unchanged because it cannot be aligned
+    // False when the view cannot start at the requested offset: it is created there and the host
+    // reads from the offset rounded down, as it does without this workaround
     bool aligned;
 };
 
 // Metal rounds the offset of a buffer-backed texture down to its alignment instead of rejecting
 // it. A texel buffer view that must start elsewhere is created at the aligned offset instead, and
 // the elements between the two are counted in the low Shader::TEXEL_BUFFER_PAD_BITS bits of its
-// element count, where shaders read them (Shader::Profile::texel_buffer_pad_in_size). The element
-// count is rounded up to keep those bits free.
+// element count, where shaders read them (Shader::Profile::texel_buffer_pad_in_size).
+//
+// Shaders decode every view this way, so the element count is always rounded up to keep those
+// bits equal to the padding, which is zero when the view is not shifted. buffer_size is the size of
+// the host buffer including the Shader::TEXEL_BUFFER_TAIL_BYTES past its data, which is what makes
+// the rounding possible for any view inside the data. Without that room the view cannot be made
+// decodable: it is returned as requested, or cut short with the missing elements counted in
+// lost_elements.
 constexpr TexelBufferRange AlignedTexelBufferRange(uint32_t alignment, uint64_t buffer_size,
                                                    uint32_t offset, uint32_t size,
                                                    uint32_t texel_size) {
     constexpr uint32_t GRANULE = 1U << Shader::TEXEL_BUFFER_PAD_BITS;
-    const TexelBufferRange unaligned{offset, size, 0, false};
-    if (alignment == 0 || size == 0 || texel_size == 0) {
-        return unaligned;
+    const TexelBufferRange unchanged{offset, size, 0, false};
+    if (size == 0 || texel_size == 0) {
+        return unchanged;
     }
-    const uint32_t pad_bytes = offset % alignment;
-    const uint64_t start = offset - pad_bytes;
-    if (pad_bytes % texel_size != 0 || start >= buffer_size) {
-        return unaligned;
+    const uint32_t pad_bytes = alignment > 1 ? offset % alignment : 0;
+    // A shift that is not a whole number of elements cannot be skipped by the shader
+    const bool shiftable = pad_bytes % texel_size == 0;
+    const uint64_t start = shiftable ? offset - pad_bytes : offset;
+    const uint64_t pad = shiftable ? pad_bytes / texel_size : 0;
+    if (start >= buffer_size) {
+        return unchanged;
     }
-    const uint64_t pad = pad_bytes / texel_size;
     const uint64_t buffer_elements = (buffer_size - start) / texel_size;
     if (buffer_elements <= pad) {
-        return unaligned;
+        return unchanged;
     }
     const uint64_t needed = size / texel_size;
     const uint64_t wanted = (needed + GRANULE - 1) / GRANULE * GRANULE;
     const uint64_t fitting = (buffer_elements - pad) / GRANULE * GRANULE;
     const uint64_t elements = std::min(wanted, fitting);
     if (elements == 0) {
-        return unaligned;
+        return unchanged;
     }
     return {static_cast<uint32_t>(start), static_cast<uint32_t>((pad + elements) * texel_size),
-            static_cast<uint32_t>(needed > elements ? needed - elements : 0), true};
+            static_cast<uint32_t>(needed > elements ? needed - elements : 0), shiftable};
 }
 
 constexpr bool SubresourceRangesOverlap(const VkImageSubresourceRange& lhs,

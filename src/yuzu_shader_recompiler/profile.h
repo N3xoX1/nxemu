@@ -11,6 +11,9 @@ namespace Shader {
 /// Profile::texel_buffer_pad_in_size.
 constexpr u32 TEXEL_BUFFER_PAD_BITS = 4;
 constexpr u32 TEXEL_BUFFER_PAD_MASK = (1U << TEXEL_BUFFER_PAD_BITS) - 1;
+/// Bytes a host buffer keeps readable past its data so that any texel buffer view inside the data
+/// can be rounded up to a whole number of 1 << TEXEL_BUFFER_PAD_BITS elements of up to 16 bytes.
+constexpr u32 TEXEL_BUFFER_TAIL_BYTES = TEXEL_BUFFER_PAD_MASK * 16;
 
 struct Profile {
     u32 supported_spirv{0x00010000};
