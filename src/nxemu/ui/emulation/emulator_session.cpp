@@ -115,6 +115,11 @@ void EmulatorSession::Update(bool releaseStoppedResources)
 {
     m_notification.Pump();
     ProcessProgramEvents();
+    if (IsRunning() && SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed))
+    {
+        Stop();
+        ReportError(Tr("The graphics renderer could not be initialized. Check that your GPU drivers are up to date."));
+    }
     if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
     {

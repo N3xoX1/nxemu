@@ -832,6 +832,7 @@ void UiActivity::RenderGraphicsSettings()
         AppendBoolSetting(Tr("Asynchronous shaders"), NXVideoSetting::UseAsynchronousShaderBuilding, Tr("Reduces stutter, but can glitch"));
         AppendBoolSetting(Tr("Reactive flushing"), NXVideoSetting::EnableReactiveFlushing, Tr("More accurate, costs performance"));
         AppendBoolSetting(Tr("Disk shader cache"), NXVideoSetting::UseDiskPipelineCache, Tr("Games load faster after the first run"));
+        AppendBoolSetting(Tr("Record shader recipes"), NXVideoSetting::RecordShaderRecipes, Tr("Needed to export a shader profile of what you played"));
     }
     CommitBody();
 }

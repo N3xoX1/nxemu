@@ -62,6 +62,7 @@ public:
                                        uint32_t buffer_size, uint32_t & actual_size) override;
 
     void GetBackingReadTraffic(StorageReadTraffic* out) const override;
+    bool GetActiveProgramContent(uint64_t program_id, ActiveProgramContent & out) override;
 
 private:
     Systemloader() = delete;

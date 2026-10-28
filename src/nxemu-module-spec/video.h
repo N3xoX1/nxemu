@@ -185,6 +185,49 @@ struct VideoInterfaceArea
 typedef void (*HostActionCallback)(uint32_t slot, void * userData);
 typedef void (*RasterizerDirtyCollect)(uint64_t device_address, uint64_t size, void * user_data);
 
+struct ShaderProfileTask
+{
+    bool importing{}, compact{true};
+    uint64_t title_id{};
+    const char *cache{}, *recording{}, *game_root{}, *base{}, *update{}, *profile{}, *index{}, *label{};
+    // Export only: the installed profile kept first (optional), and the author's
+    // revision and note.
+    const char *previous{}, *revision{}, *note{};
+    // Export only: the author recorded the whole game.
+    bool full_game{};
+    // Import inspection only (optional): a recorded game version to compare with the profile.
+    const char *context{};
+};
+enum class ShaderProfilePrevious : uint32_t
+{
+    None,
+    Merged,
+    Unreadable,
+};
+struct ShaderProfileResult
+{
+    uint64_t programs{}, environments{}, graphics{}, compute{}, unresolved{}, missing{}, reused{}, bytes{};
+    double seconds{};
+    // Recipes kept from the installed profile, and game versions the profile covers.
+    uint64_t inherited{}, versions{};
+    // Recipes and game versions dropped, oldest first, to stay within the limits.
+    uint64_t dropped_recipes{}, dropped_versions{};
+    ShaderProfilePrevious previous{};
+    // The profile's own description, NUL-terminated UTF-8.
+    char label[4097]{}, revision[33]{}, note[1025]{};
+    // Import inspection: the author recorded the whole game, and the game
+    // versions the recipes were recorded with, one per line ("1.0.0 + update 4.0.1").
+    bool full_game{};
+    char targets[1025]{};
+    // Import inspection with a context: 2 when the profile was exported from that
+    // version, 1 when it also covers it, 0 otherwise. Startup prefers them in this order.
+    uint32_t context_match{};
+};
+nxinterface IShaderProfileProgress
+{
+    virtual bool ProfileProgress(const char * phase, uint64_t completed, uint64_t total) = 0;
+};
+
 nxinterface IVideo
 {
     virtual bool Initialize() = 0;
@@ -231,8 +274,11 @@ nxinterface IVideo
     virtual void WaitInterfaceIdle() = 0;
     // Owns resources on every path; release exactly once after completion or cancellation,
     // before ClearCdmaInstance returns. The callback must not throw.
-    virtual void PushCommandBufferWithResources(int32_t bindId, const uint32_t* commandList,
-        uint32_t commandListSize, void* resources, void (*release)(void*)) = 0;
+    virtual void PushCommandBufferWithResources(int32_t bindId, const uint32_t * commandList,
+                                                uint32_t commandListSize, void * resources, void (*release)(void *)) = 0;
+    // Synchronous offline task. The caller keeps this module alive until return.
+    virtual bool ProcessShaderProfile(const ShaderProfileTask & task, IShaderProfileProgress & progress,
+                                      ShaderProfileResult & result, char * error, uint32_t error_size) = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

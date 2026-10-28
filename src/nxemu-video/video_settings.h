@@ -55,6 +55,8 @@ struct VideoSettings
     int32_t vulkan_device;
 
     bool use_disk_shader_cache;
+    // Records which pipelines a game uses, so they can be exported as a .nxshader profile.
+    bool record_shader_recipes;
     bool use_asynchronous_gpu_emulation;
     VSyncMode vsync_mode;
     NvdecEmulation nvdec_emulation;
@@ -85,6 +87,9 @@ struct VideoSettings
     bool fast_gpu_readback;
 
     bool use_asynchronous_shaders;
+    int32_t nxshader_warmup_mode;
+    int32_t nxshader_initial_minimum;
+    int32_t nxshader_initial_seconds;
     bool use_fast_gpu_time;
     bool use_vulkan_driver_pipeline_cache;
     bool enable_compute_pipelines;

@@ -12,6 +12,13 @@ enum class EmulationState : int32_t
     Stopping,
 };
 
+enum class GpuInitializationState : int32_t
+{
+    Preparing,
+    Ready,
+    Failed,
+};
+
 namespace NXCoreSetting
 {
 constexpr const char * AppBaseDirectory = "nxcore:AppBaseDirectory";
@@ -33,6 +40,8 @@ constexpr const char * Has39BitAddressSpace = "nxcore:Has39BitAddressSpace";
 constexpr const char * Has36BitAddressSpace = "nxcore:Has36BitAddressSpace";
 constexpr const char * Is64BitProgram = "nxcore:Is64BitProgram";
 constexpr const char * DisplayedFrames = "nxcore:DisplayedFrames";
+// Runtime-only readiness state; never a configurable user preference.
+constexpr const char * GpuInitializationState = "nxcore:GpuInitializationState";
 constexpr const char * ShuttingDown = "nxcore:ShuttingDown";
 constexpr const char * DiskCacheLoadStage = "nxcore:DiskCacheLoadStage";
 constexpr const char * DiskCacheLoadCurrent = "nxcore:DiskCacheLoadCurrent";

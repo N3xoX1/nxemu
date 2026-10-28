@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "yuzu_video_core/shader_profile_runtime.h"
 #pragma once
 
 #include <array>
@@ -32,6 +33,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/shader_cache.h"
+#include "yuzu_video_core/pipeline_cache_store.h"
 
 namespace Core {
 class System;
@@ -85,6 +87,8 @@ struct hash<Vulkan::ComputePipelineCacheKey> {
 namespace Vulkan {
 
 class ComputePipeline;
+class GuestPipelineRecipeProbe;
+class GuestPipelineRecorder;
 class DescriptorPool;
 class Device;
 class PipelineStatistics;
@@ -117,6 +121,7 @@ public:
     ~PipelineCache();
 
     void WaitForBuilds();
+    void RecordDiagnosticFrame();
 
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipeline();
 
@@ -132,7 +137,7 @@ public:
     [[nodiscard]] ComputePipeline* CurrentComputePipeline();
 
     void LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                           const VideoCore::DiskResourceLoadCallback& callback);
+                           const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {});
 
 private:
     struct PendingGraphicsPipeline {
@@ -141,6 +146,23 @@ private:
         AsyncPipelineBuild<GraphicsPipeline> build;
         NativePipelineBuildQueue::Handle request;
     };
+
+    struct ForeignGraphics {
+        GraphicsPipelineCacheKey key;
+        std::vector<VideoCommon::FileEnvironment> environments;
+        std::string record_id;
+        std::shared_ptr<GraphicsPipeline> pipeline;
+    };
+    struct ForeignCompute {
+        ComputePipelineCacheKey key;
+        VideoCommon::FileEnvironment environment;
+        std::string record_id;
+        std::unique_ptr<ComputePipeline> pipeline;
+    };
+    bool TryReuseGraphics();
+    ComputePipeline* TryReuseCompute(ComputePipelineCacheKey& key,const ShaderInfo* shader);
+    void AssociateForeignRecord(std::string record_id);
+    static ComputePipelineCacheKey WithoutSizes(ComputePipelineCacheKey key);
 
     bool ShouldWaitForAsyncPipeline() const noexcept;
     bool QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key);
@@ -215,11 +237,21 @@ private:
     /// generated code through those replacements, so these match their non-HLE twin.
     std::unordered_set<GraphicsPipelineCacheKey> hle_unreplaced_keys;
 
+    std::unique_ptr<VideoCommon::ShaderProfile::Runtime::Report> runtime_report;
+    VideoCommon::ShaderProfile::Runtime::QuarantinedKeys<GraphicsPipelineCacheKey> quarantined_graphics;
+    VideoCommon::ShaderProfile::Runtime::QuarantinedKeys<ComputePipelineCacheKey> quarantined_compute;
+    std::unordered_map<GraphicsPipelineCacheKey,std::vector<std::shared_ptr<ForeignGraphics>>> foreign_graphics;
+    std::unordered_map<ComputePipelineCacheKey,std::vector<std::shared_ptr<ForeignCompute>>> foreign_compute;
+    VideoCommon::ShaderProfile::ProgramEquivalence program_equivalence;
+    u64 cross_version_accepted{},cross_version_rejected{};
+
     ShaderPools main_pools;
 
     Shader::Profile profile;
     Shader::HostTranslateInfo host_info;
 
+    std::string capture_context;
+    std::string cache_context;
     std::filesystem::path pipeline_cache_filename;
 
     std::filesystem::path vulkan_pipeline_cache_filename;
@@ -229,6 +261,8 @@ private:
     Common::ThreadWorker workers;
     Common::ThreadWorker serialization_thread;
     DynamicFeatures dynamic_features;
+    std::unique_ptr<GuestPipelineRecipeProbe> guest_recipe_probe;
+    std::unique_ptr<GuestPipelineRecorder> guest_recipe_recorder;
     VideoCommon::GraphicsEnvironment::SnapshotCache snapshot_cache;
     std::unordered_map<GraphicsPipelineCacheKey, std::shared_ptr<PendingGraphicsPipeline>> pending_graphics;
     // First pending build of each set of shaders whose constant buffer dependencies are unknown,
@@ -238,8 +272,10 @@ private:
     std::mutex completed_mutex;
     std::vector<GraphicsPipelineCacheKey> completed_graphics;
     std::atomic_bool has_completed_graphics{};
-    // Declared last: every compiler stops before its inputs and Vulkan objects are released.
+    // Drained explicitly before the progressive inputs and Vulkan objects are released.
     NativePipelineBuildQueue runtime_builds;
+    struct ProgressiveWarmup;
+    std::unique_ptr<ProgressiveWarmup> progressive_warmup;
 };
 
 } // namespace Vulkan

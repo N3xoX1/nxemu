@@ -1,6 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClInclude Include="shader_profile_export.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="shader_profile_export.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="shader_profile_discovery.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="shader_profile_discovery.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="shader_profile_compact.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="shader_profile_compact.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="shader_profile_journal.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="renderer_vulkan\guest_pipeline_recorder.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
+    <ClInclude Include="renderer_vulkan\guest_recipe_input_cache.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
+    <ClInclude Include="pipeline_cache_store.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_audit.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_location.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_runtime.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_sph.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_import_status.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_identity.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_file_stamp.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_context.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_provenance.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_publication.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_candidate_budget.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_reuse.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shared_shader_bytes.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_text.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_validation.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="renderer_vulkan\startup_pipeline_variants.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
+    <ClInclude Include="shader_profile.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_codec.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="renderer_vulkan\guest_pipeline_recipe_probe.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
+    <ClCompile Include="pipeline_cache_store.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="shader_profile.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="shader_profile_codec.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -241,6 +275,9 @@
       <Filter>Header Files\macro</Filter>
     </ClInclude>
     <ClInclude Include="query_cache\bank_base.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
+    <ClInclude Include="query_cache\query_bank_operations.h">
       <Filter>Header Files\query_cache</Filter>
     </ClInclude>
     <ClInclude Include="query_cache\query_base.h">

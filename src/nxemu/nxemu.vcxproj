@@ -63,6 +63,7 @@
     <ClCompile Include="ui\views\controller_picture.cpp" />
     <ClCompile Include="ui\views\directories_dialog.cpp" />
     <ClCompile Include="ui\views\firmware_dialog.cpp" />
+    <ClCompile Include="ui\views\shader_profile_dialog.cpp" />
     <ClCompile Include="ui\views\hotkeys.cpp" />
     <ClCompile Include="ui\views\loading_screen.cpp" />
     <ClCompile Include="ui\views\profiles_dialog.cpp" />
@@ -119,6 +120,7 @@
     <ClInclude Include="ui\views\controller_picture.h" />
     <ClInclude Include="ui\views\directories_dialog.h" />
     <ClInclude Include="ui\views\firmware_dialog.h" />
+    <ClInclude Include="ui\views\shader_profile_dialog.h" />
     <ClInclude Include="ui\views\hotkeys.h" />
     <ClInclude Include="ui\views\loading_screen.h" />
     <ClInclude Include="ui\views\profiles_dialog.h" />

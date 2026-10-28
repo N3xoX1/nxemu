@@ -153,17 +153,29 @@ public:
     void SetSharedKey(const GraphicsPipelineCacheKey& shared_key_) noexcept {
         shared_key = shared_key_;
         has_shared_key = true;
+        shared_recipe_prefix = 0;
     }
 
     void Configure(bool is_indexed);
 
-    [[nodiscard]] GraphicsPipeline* Next(const GraphicsPipelineCacheKey& current_key) noexcept {
-        if (key == current_key || (has_shared_key && shared_key == current_key)) {
+    /// recipe_prefix: the recipe recorder's memo for the matched key, valid until the next call.
+    [[nodiscard]] GraphicsPipeline* Next(const GraphicsPipelineCacheKey& current_key,
+                                         u64*& recipe_prefix) noexcept {
+        if (key == current_key) {
+            recipe_prefix = &key_recipe_prefix;
+            return this;
+        }
+        if (has_shared_key && shared_key == current_key) {
+            recipe_prefix = &shared_recipe_prefix;
             return this;
         }
         const auto it{std::find(transition_keys.begin(), transition_keys.end(), current_key)};
-        return it != transition_keys.end() ? transitions[std::distance(transition_keys.begin(), it)]
-                                           : nullptr;
+        if (it == transition_keys.end()) {
+            return nullptr;
+        }
+        const auto index{std::distance(transition_keys.begin(), it)};
+        recipe_prefix = &transition_recipe_prefixes[index];
+        return transitions[index];
     }
 
     /// Helps build a queued pipeline if the shared compiler limit has a free slot
@@ -237,6 +249,10 @@ private:
     const GraphicsPipelineCacheKey key;
     GraphicsPipelineCacheKey shared_key;
     bool has_shared_key{};
+    // One memo per key this pipeline matches, each tied to that key's words.
+    u64 key_recipe_prefix{};
+    u64 shared_recipe_prefix{};
+    std::vector<u64> transition_recipe_prefixes;
     Tegra::Engines::Maxwell3D* maxwell3d;
     Tegra::MemoryManager* gpu_memory;
     const Device& device;

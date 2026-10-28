@@ -101,6 +101,7 @@ namespace
         { NXCoreSetting::Has36BitAddressSpace, false },
         { NXCoreSetting::Is64BitProgram, false },
         { NXCoreSetting::DisplayedFrames, false },
+        { NXCoreSetting::GpuInitializationState, (int)GpuInitializationState::Preparing },
         { NXCoreSetting::ShuttingDown, false},
         { NXCoreSetting::DiskCacheLoadStage, -1 },
         { NXCoreSetting::DiskCacheLoadCurrent, 0 },

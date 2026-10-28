@@ -388,6 +388,7 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
         return;
     }
     regs.reg_array[method] = argument;
+    dirty.MarkShaderProfileRegister(method);
 
     static_assert(std::tuple_size_v<DirtyState::Tables> == 2);
     const auto first = dirty.tables[0][method];

@@ -1122,6 +1122,10 @@ msgid "Required modules failed to load."
 msgstr "De vereiste modules konden niet worden geladen."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr "De grafische renderer kon niet worden geïnitialiseerd. Controleer of je GPU-stuurprogramma's up-to-date zijn."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
 msgstr "Dit spel bevat geen bruikbaar uitvoerbaar bestand (ExeFS).\n\nAls deze kopie een update vereist, voeg de map toe via Instellingen > Spelmappen en activeer de update in de speldetails. Controleer bij een actieve update of de bestanden volledig en leesbaar zijn.\n\nSpel: %1"
 
@@ -3772,3 +3776,15 @@ msgstr "GitHub gaf %1 terug"
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
 msgstr "Kan GitHub niet bereiken"
+
+msgid "Reading and verifying NXShader"
+msgstr "NXShader lezen en controleren"
+
+msgid "Importing NXShader"
+msgstr "NXShader importeren"
+
+msgid "Compiling NXShader"
+msgstr "NXShader compileren"
+
+msgid "Open NXShader folder"
+msgstr "NXShader-map openen"

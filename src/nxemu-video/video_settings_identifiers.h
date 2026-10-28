@@ -6,6 +6,7 @@ namespace NXVideoSetting
     constexpr const char * ShaderBackend = "nxvideo:ShaderBackend";
     constexpr const char * VulkanDevice = "nxvideo:VulkanDevice";
     constexpr const char * UseDiskPipelineCache = "nxvideo:UseDiskPipelineCache";
+    constexpr const char * RecordShaderRecipes = "nxvideo:RecordShaderRecipes";
     constexpr const char * UseAsynchronousGPUEmulation = "nxvideo:UseAsynchronousGPUEmulation";
     constexpr const char * AstcDecodeMode = "nxvideo:AstcDecodeMode";
     constexpr const char * VSyncMode = "nxvideo:VSyncMode";
@@ -22,6 +23,9 @@ namespace NXVideoSetting
     constexpr const char * GpuCommandSynchronization = "nxvideo:GpuCommandSynchronization";
     constexpr const char * FastGpuReadback = "nxvideo:FastGpuReadback";
     constexpr const char * UseAsynchronousShaderBuilding = "nxvideo:UseAsynchronousShaderBuilding";
+    constexpr const char * NXShaderWarmupMode = "nxvideo:NXShaderWarmupMode";
+    constexpr const char * NXShaderInitialMinimum = "nxvideo:NXShaderInitialMinimum";
+    constexpr const char * NXShaderInitialSeconds = "nxvideo:NXShaderInitialSeconds";
     constexpr const char * FastGPUTime = "nxvideo:FastGPUTime";
     constexpr const char * UseVulkanPipelineCache = "nxvideo:UseVulkanPipelineCache";
     constexpr const char * SyncToFramerateOfVideoPlayback = "nxvideo:SyncToFramerateOfVideoPlayback";

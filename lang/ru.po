@@ -3787,3 +3787,15 @@ msgstr "GitHub вернул %1"
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
 msgstr "Не удалось связаться с GitHub"
+
+msgid "Reading and verifying NXShader"
+msgstr "Чтение и проверка NXShader"
+
+msgid "Importing NXShader"
+msgstr "Импорт NXShader"
+
+msgid "Compiling NXShader"
+msgstr "Компиляция NXShader"
+
+msgid "Open NXShader folder"
+msgstr "Открыть папку NXShader"

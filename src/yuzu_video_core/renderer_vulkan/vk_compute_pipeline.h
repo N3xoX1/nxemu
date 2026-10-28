@@ -50,6 +50,9 @@ public:
                    Scheduler& scheduler, BufferCache& buffer_cache, TextureCache& texture_cache);
     void FinishRuntimeImageWrites(Scheduler& scheduler, TextureCache& texture_cache);
 
+    /// Set once the recipe recorder has seen this pipeline's key in this session.
+    bool recipe_recorded{};
+
     /// Returns true when the host rejected the pipeline. Only valid once the build has finished.
     [[nodiscard]] bool HasBuildFailed() const noexcept {
         return build_failed.load(std::memory_order::relaxed);
