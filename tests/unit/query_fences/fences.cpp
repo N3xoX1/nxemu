@@ -6,7 +6,8 @@
 #include "yuzu_video_core/fence_manager.h"
 
 namespace Settings {
-bool IsGpuReadbackExact() { return false; }
+std::atomic<bool> exact_readback{};
+bool IsGpuReadbackExact() { return exact_readback.load(std::memory_order_relaxed); }
 }
 namespace Common {
 void SetCurrentThreadName(const char*) {}
@@ -83,7 +84,8 @@ protected:
 };
 
 template <bool async>
-void CheckOrdering() {
+void CheckOrdering(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
     VideoCore::RasterizerInterface rasterizer;
     Tegra::GPU gpu;
     Cache textures, buffers, queries;
@@ -103,8 +105,11 @@ void CheckOrdering() {
     manager.SignalQueryFence([&] { assert(completed.fetch_add(1) == 2); });
     assert(completed == 1); // A later stub cannot overtake an in-flight fence.
     assert(manager.host_fences == 1 && rasterizer.flushes == 1);
+    // Changing the live setting must not alter retirement of already queued queries.
+    Settings::exact_readback.store(!exact_readback);
     manager.SignalGpu();
     manager.WaitForFence();
+    Settings::exact_readback.store(exact_readback);
     assert(completed == 3);
     assert(textures.retired == buffers.retired && buffers.retired == queries.retired);
 
@@ -123,6 +128,7 @@ void CheckOrdering() {
 }
 
 void BenchmarkEmpty() {
+    Settings::exact_readback.store(false);
     VideoCore::RasterizerInterface rasterizer;
     Tegra::GPU gpu;
     Cache textures, buffers, queries;
@@ -139,8 +145,10 @@ void BenchmarkEmpty() {
 }
 
 int main() {
-    CheckOrdering<true>();
-    CheckOrdering<false>();
+    for (bool exact_readback : {false, true}) {
+        CheckOrdering<true>(exact_readback);
+        CheckOrdering<false>(exact_readback);
+    }
     BenchmarkEmpty();
     std::puts("PASS: GPU readback query fence ordering and empty fast path");
 }
