@@ -16,6 +16,7 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_shader_recompiler/profile.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 VK_DEFINE_HANDLE(VmaAllocator)
@@ -539,6 +540,20 @@ public:
     bool NeedsVertexAttributeStrideWorkaround() const {
         return !SupportsVertexAttributeAccessBeyondStride() ||
                GetDriverID() == VK_DRIVER_ID_MOLTENVK;
+    }
+
+    /// Alignment the host requires for the offset of a texel buffer view.
+    VkDeviceSize GetTexelBufferOffsetAlignment() const {
+        return properties.properties.limits.minTexelBufferOffsetAlignment;
+    }
+
+    /// Returns true if a texel buffer view at an unaligned offset reads from the wrong place.
+    /// MoltenVK passes the offset to Metal, which rounds it down to its alignment instead of
+    /// rejecting it, so such views are created at the aligned offset and the shader skips the
+    /// leading elements.
+    bool NeedsTexelBufferPad() const {
+        return GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+               GetTexelBufferOffsetAlignment() <= (1U << Shader::TEXEL_BUFFER_PAD_BITS);
     }
 
     /// Returns true if VK_KHR_pipeline_executable_properties is enabled.

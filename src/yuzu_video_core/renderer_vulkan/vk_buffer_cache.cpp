@@ -130,6 +130,19 @@ VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat 
     if (it != views.end()) {
         return *it->handle;
     }
+    MoltenVK::TexelBufferRange range{offset, size, 0, false};
+    if (device->NeedsTexelBufferPad() && !is_null) {
+        range = MoltenVK::AlignedTexelBufferRange(
+            static_cast<u32>(device->GetTexelBufferOffsetAlignment()), SizeBytes(), offset, size,
+            VideoCore::Surface::BytesPerBlock(format));
+        if (!range.aligned) {
+            LOG_WARNING(Render_Vulkan, "Texel buffer view at {} cannot be aligned for format {}",
+                        offset, static_cast<u32>(format));
+        } else if (range.lost_elements != 0) {
+            LOG_WARNING(Render_Vulkan, "Texel buffer view at {} loses {} trailing elements",
+                        offset, range.lost_elements);
+        }
+    }
     views.push_back({
         .offset = offset,
         .size = size,
@@ -140,8 +153,8 @@ VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat 
             .flags = 0,
             .buffer = *buffer,
             .format = MaxwellToVK::SurfaceFormat(*device, FormatType::Buffer, false, format).format,
-            .offset = offset,
-            .range = size,
+            .offset = range.offset,
+            .range = range.size,
         }),
     });
     return *views.back().handle;

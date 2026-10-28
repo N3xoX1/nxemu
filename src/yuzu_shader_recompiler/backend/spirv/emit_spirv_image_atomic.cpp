@@ -31,6 +31,12 @@ Id ImageAtomicU32(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     }
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const Id image{Image(ctx, info)};
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_pad_in_size) {
+        const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
+        const Id size{ctx.OpImageQuerySize(ctx.U32[1], ctx.OpLoad(def.image_type, def.id))};
+        const Id pad{ctx.OpBitwiseAnd(ctx.U32[1], size, ctx.Const(TEXEL_BUFFER_PAD_MASK))};
+        coords = ctx.OpIAdd(ctx.U32[1], coords, pad);
+    }
     const Id pointer{ctx.OpImageTexelPointer(ctx.image_u32, image, coords, ctx.Const(0U))};
     const auto [scope, semantics]{AtomicArgs(ctx)};
     return (ctx.*atomic_func)(ctx.U32[1], pointer, scope, semantics, value);

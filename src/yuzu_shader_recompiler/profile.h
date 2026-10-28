@@ -7,6 +7,11 @@
 
 namespace Shader {
 
+/// Bits of a texel buffer view's element count that hold its leading padding, see
+/// Profile::texel_buffer_pad_in_size.
+constexpr u32 TEXEL_BUFFER_PAD_BITS = 4;
+constexpr u32 TEXEL_BUFFER_PAD_MASK = (1U << TEXEL_BUFFER_PAD_BITS) - 1;
+
 struct Profile {
     u32 supported_spirv{0x00010000};
     bool unified_descriptor_binding{};
@@ -104,6 +109,11 @@ struct Profile {
 
     /// Largest compute shared memory the host accepts, in bytes. Zero means no limit.
     u32 max_compute_shared_memory_size{};
+
+    /// The host cannot start a texel buffer view at an arbitrary offset: it rounds it down to
+    /// its alignment. Views are then created at the aligned offset and their element count
+    /// carries the number of leading elements to skip in its low TEXEL_BUFFER_PAD_BITS bits.
+    bool texel_buffer_pad_in_size{};
 
     bool SupportsUniformBufferDescriptorAliasing() const {
         return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;

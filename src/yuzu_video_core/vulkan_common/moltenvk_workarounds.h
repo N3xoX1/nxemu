@@ -34,6 +34,8 @@ SOFTWARE.
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
 
+#include "yuzu_shader_recompiler/profile.h"
+
 namespace Vulkan::MoltenVK {
 
 // MoltenVK must not enable unsupported depth-bounds dynamic states.
@@ -44,6 +46,49 @@ constexpr bool UseDepthBoundsDynamicState(VkDriverId driver, bool supported) {
 // Metal bindings. Use ordinary descriptor sets beyond this conservative limit.
 constexpr uint32_t PushDescriptorLimit(VkDriverId driver, uint32_t advertised_limit) {
     return driver == VK_DRIVER_ID_MOLTENVK ? std::min(advertised_limit, 16U) : advertised_limit;
+}
+
+struct TexelBufferRange {
+    uint32_t offset;
+    uint32_t size;
+    // Elements at the end of the requested range that the view cannot hold
+    uint32_t lost_elements;
+    // False when the requested range is returned unchanged because it cannot be aligned
+    bool aligned;
+};
+
+// Metal rounds the offset of a buffer-backed texture down to its alignment instead of rejecting
+// it. A texel buffer view that must start elsewhere is created at the aligned offset instead, and
+// the elements between the two are counted in the low Shader::TEXEL_BUFFER_PAD_BITS bits of its
+// element count, where shaders read them (Shader::Profile::texel_buffer_pad_in_size). The element
+// count is rounded up to keep those bits free.
+constexpr TexelBufferRange AlignedTexelBufferRange(uint32_t alignment, uint64_t buffer_size,
+                                                   uint32_t offset, uint32_t size,
+                                                   uint32_t texel_size) {
+    constexpr uint32_t GRANULE = 1U << Shader::TEXEL_BUFFER_PAD_BITS;
+    const TexelBufferRange unaligned{offset, size, 0, false};
+    if (alignment == 0 || size == 0 || texel_size == 0) {
+        return unaligned;
+    }
+    const uint32_t pad_bytes = offset % alignment;
+    const uint64_t start = offset - pad_bytes;
+    if (pad_bytes % texel_size != 0 || start >= buffer_size) {
+        return unaligned;
+    }
+    const uint64_t pad = pad_bytes / texel_size;
+    const uint64_t buffer_elements = (buffer_size - start) / texel_size;
+    if (buffer_elements <= pad) {
+        return unaligned;
+    }
+    const uint64_t needed = size / texel_size;
+    const uint64_t wanted = (needed + GRANULE - 1) / GRANULE * GRANULE;
+    const uint64_t fitting = (buffer_elements - pad) / GRANULE * GRANULE;
+    const uint64_t elements = std::min(wanted, fitting);
+    if (elements == 0) {
+        return unaligned;
+    }
+    return {static_cast<uint32_t>(start), static_cast<uint32_t>((pad + elements) * texel_size),
+            static_cast<uint32_t>(needed > elements ? needed - elements : 0), true};
 }
 
 constexpr bool SubresourceRangesOverlap(const VkImageSubresourceRange& lhs,

@@ -492,6 +492,13 @@ Id ImageGatherSubpixelOffset(EmitContext& ctx, const IR::TextureInstInfo& info, 
     }
 }
 
+/// Skips the leading elements that a texel buffer view carries to start on an aligned offset.
+Id AddTexelBufferPad(EmitContext& ctx, Id coords, Id image) {
+    const Id size{ctx.OpImageQuerySize(ctx.U32[1], image)};
+    const Id pad{ctx.OpBitwiseAnd(ctx.U32[1], size, ctx.Const(TEXEL_BUFFER_PAD_MASK))};
+    return ctx.OpIAdd(ctx.U32[1], coords, pad);
+}
+
 void AddOffsetToCoordinates(EmitContext& ctx, const IR::TextureInstInfo& info, Id& coords,
                             Id offset) {
     if (!Sirit::ValidId(offset)) {
@@ -719,6 +726,9 @@ Id EmitImageFetch(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     AddOffsetToCoordinates(ctx, info, coords, offset);
     if (info.type == TextureType::Buffer) {
         lod = Id{};
+        if (ctx.profile.texel_buffer_pad_in_size) {
+            coords = AddTexelBufferPad(ctx, coords, TextureImage(ctx, info, index));
+        }
     }
     if (Sirit::ValidId(ms)) {
         // This image is multisampled, lod must be implicit
@@ -762,8 +772,14 @@ Id EmitImageQueryDimensions(EmitContext& ctx, IR::Inst* inst, const IR::Value& i
     case TextureType::Color3D:
     case TextureType::ColorArrayCube:
         return ctx.OpCompositeConstruct(ctx.U32[4], query(ctx.U32[3]), mips());
-    case TextureType::Buffer:
-        return ctx.OpCompositeConstruct(ctx.U32[4], query(ctx.U32[1]), zero, zero, mips());
+    case TextureType::Buffer: {
+        Id size{query(ctx.U32[1])};
+        if (ctx.profile.texel_buffer_pad_in_size) {
+            const Id pad{ctx.OpBitwiseAnd(ctx.U32[1], size, ctx.Const(TEXEL_BUFFER_PAD_MASK))};
+            size = ctx.OpISub(ctx.U32[1], size, pad);
+        }
+        return ctx.OpCompositeConstruct(ctx.U32[4], size, zero, zero, mips());
+    }
     }
     throw LogicError("Unspecified image type {}", info.type.Value());
 }
@@ -797,6 +813,9 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
         return ctx.ConstantNull(ctx.U32[4]);
     }
     const auto [image, is_integer] = Image(ctx, index, info);
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_pad_in_size) {
+        coords = AddTexelBufferPad(ctx, coords, image);
+    }
     const Id result_type{is_integer ? ctx.U32[4] : ctx.F32[4]};
     Id color{Emit(&EmitContext::OpImageSparseRead, &EmitContext::OpImageRead, ctx, inst,
                   result_type, image, coords, std::nullopt, std::span<const Id>{})};
@@ -809,6 +828,9 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
 void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords, Id color) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const auto [image, is_integer] = Image(ctx, index, info);
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_pad_in_size) {
+        coords = AddTexelBufferPad(ctx, coords, image);
+    }
     if (!is_integer) {
         color = ctx.OpBitcast(ctx.F32[4], color);
     } else if (info.type != TextureType::Buffer && ctx.images[info.descriptor_index].is_signed) {
