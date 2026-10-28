@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "yuzu_video_core/shader_profile_runtime.h"
 #include <algorithm>
+#include "yuzu_video_core/shader_profile_metrics.h"
 #include <bit>
 #include <cstring>
 #include <span>
@@ -35,6 +37,7 @@
 #endif
 
 namespace Vulkan {
+namespace Timing = VideoCommon::ShaderProfile::Timing;
 namespace {
 using boost::container::static_vector;
 using Shader::ImageBufferDescriptor;
@@ -415,7 +418,7 @@ GraphicsPipeline::GraphicsPipeline(
         num_textures += NumCombinedSamplers(*info);
         uses_texture_table |= info->runtime_sampler_count != 0 ||
                               NumTableSetCombinedSamplers(*info) != 0;
-        num_descriptor_entries += NumDescriptorUpdateEntries(*info);
+        num_descriptor_entries += NumDescriptorUpdateEntries(device, *info);
         num_image_elements += Shader::NumDescriptors(info->texture_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->texture_descriptors);
@@ -443,7 +446,7 @@ GraphicsPipeline::GraphicsPipeline(
             info.constant_buffer_mask == vertex.constant_buffer_mask) {
             xfb = std::make_unique<XfbState>();
             xfb->stage.info = info;
-            xfb->stage.num_descriptor_entries = NumDescriptorUpdateEntries(info);
+            xfb->stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, info);
             xfb->stage.guest_info = info;
             xfb->stage.guest_info.storage_buffers_descriptors.resize(vtg_info->vertex_bindings.base);
             xfb->stage.module = std::move(vtg_info->modules[VtgPipelineInfo::VERTEX]);
@@ -466,7 +469,7 @@ GraphicsPipeline::GraphicsPipeline(
         for (size_t index = 0; index < vtg->stages.size(); ++index) {
             VtgState::Stage& stage{vtg->stages[index]};
             stage.info = vtg_info->infos[index];
-            stage.num_descriptor_entries = NumDescriptorUpdateEntries(stage.info);
+            stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, stage.info);
             stage.guest_info = stage.info;
             stage.guest_info.storage_buffers_descriptors.resize(guest_storage_buffers[index]);
             // The compute stages retain guest images absent from the generated vertex shader.
@@ -513,7 +516,8 @@ GraphicsPipeline::GraphicsPipeline(
             }
         }
     }
-    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics] {
+    auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
+        VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         bool success{};
         try {
             DescriptorLayoutBuilder builder{MakeBuilder(
@@ -571,7 +575,7 @@ GraphicsPipeline::GraphicsPipeline(
                     *stage.descriptor_set_layout, *stage.pipeline_layout, false);
                 stage.descriptor_allocator =
                     descriptor_pool.Allocator(*stage.descriptor_set_layout, stage.info);
-                stage.pipeline = device.GetLogical().CreateComputePipeline(
+                stage.pipeline = Timing::Measure(Timing::current, Timing::Phase::NativeCompute, [&] { return device.GetLogical().CreateComputePipeline(
                     {
                         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
                         .pNext = nullptr,
@@ -589,7 +593,7 @@ GraphicsPipeline::GraphicsPipeline(
                         .basePipelineHandle = 0,
                         .basePipelineIndex = 0,
                     },
-                    *pipeline_cache);
+                    *pipeline_cache); });
             }};
             if (xfb) {
                 build_compute_stage(xfb->stage);
@@ -611,6 +615,7 @@ GraphicsPipeline::GraphicsPipeline(
             LOG_ERROR(Render_Vulkan, "Graphics pipeline {:016x} build failed: {}", key.Hash(),
                       exception.what());
         }
+        VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,success);
         {
             std::scoped_lock lock{build_mutex};
             is_built.store(success, std::memory_order_release);
@@ -659,6 +664,7 @@ void GraphicsPipeline::AddTransition(GraphicsPipeline* transition,
                                      const GraphicsPipelineCacheKey& transition_key) {
     transition_keys.push_back(transition_key);
     transitions.push_back(transition);
+    transition_recipe_prefixes.push_back(0);
 }
 
 template <typename Spec>
@@ -2223,7 +2229,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
     if (device.IsKhrPipelineExecutablePropertiesEnabled()) {
         flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
-    pipeline = device.GetLogical().CreateGraphicsPipeline(
+    pipeline = Timing::Measure(Timing::current, Timing::Phase::NativeGraphics, [&] { return device.GetLogical().CreateGraphicsPipeline(
         {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .pNext = nullptr,
@@ -2245,7 +2251,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             .basePipelineHandle = nullptr,
             .basePipelineIndex = 0,
         },
-        *pipeline_cache);
+        *pipeline_cache); });
 }
 
 void GraphicsPipeline::Validate() {

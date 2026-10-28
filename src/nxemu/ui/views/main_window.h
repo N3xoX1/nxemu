@@ -4,6 +4,7 @@
 #include "controller_dialog.h"
 #include "directories_dialog.h"
 #include "firmware_dialog.h"
+#include "shader_profile_dialog.h"
 #include "general_dialog.h"
 #include "game_details_panel.h"
 #include "hotkeys.h"
@@ -96,6 +97,9 @@ private:
         InstallFirmware,
         ConfigureControllers,
         StartMenuGame,
+        ExportMenuGameShaders,
+        ImportMenuGameShaders,
+        OpenShaderProfileDirectory,
         OpenMenuGameDirectory,
         CopyMenuGamePath,
         ConfigureMenuGame,
@@ -229,6 +233,7 @@ private:
     SettingsContext m_settingsContext;
     std::unique_ptr<AboutDialog> m_aboutDialog;
     std::unique_ptr<FirmwareDialog> m_firmwareDialog;
+    std::unique_ptr<ShaderProfileDialog> m_shaderProfileDialog;
     std::string m_firmwareVersion;
     std::string m_firmwareOfferedFor;
     std::unique_ptr<GeneralDialog> m_generalDialog;

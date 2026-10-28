@@ -126,7 +126,7 @@ public:
     void AccelerateInlineToMemory(GPUVAddr address, size_t copy_size,
                                   std::span<const u8> memory) override;
     void LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                           const VideoCore::DiskResourceLoadCallback& callback) override;
+                           const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {}) override;
 
     /// Returns true when there are commands queued to the OpenGL server.
     bool AnyCommandQueued() const {

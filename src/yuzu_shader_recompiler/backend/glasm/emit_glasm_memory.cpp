@@ -34,9 +34,7 @@ void GlobalStorageOp(EmitContext& ctx, Register address, bool pointer_based, std
     size_t num_used_buffers{};
     for (size_t index = 0; index < num_buffers; ++index) {
         const auto& ssbo{ctx.info.storage_buffers_descriptors[index]};
-        if (!IsUsedNvnStorageBufferDescriptor(ctx.info, ssbo)) {
-            continue;
-        }
+        // Indirect pointers can reference tracked buffers outside the NVN table too.
         ++num_used_buffers;
         const u64 ssbo_align_mask{~(ctx.profile.min_ssbo_alignment - 1U)};
         ctx.Add("LDC.U64 DC.x,c{}[{}];"    // unaligned_ssbo_addr

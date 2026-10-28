@@ -1,6 +1,12 @@
 #include "yuzu_video_core/host1x/ffmpeg/device_cache.h"
 #include "render_window.h"
 #include "video_manager.h"
+#include "yuzu_video_core/shader_profile_export.h"
+#include "yuzu_video_core/shader_profile_layout.h"
+#include "yuzu_video_core/shader_profile.h"
+#include "yuzu_video_core/shader_profile_identity.h"
+#include "yuzu_common/fs/path_util.h"
+#include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "video_settings.h"
 #include "yuzu_video_core/capture.h"
 #include "yuzu_video_core/control/channel_state.h"
@@ -18,6 +24,8 @@
 #include "yuzu_common/scope_exit.h"
 #include "nxemu-video/video_settings.h"
 #include <chrono>
+#include <cstdio>
+#include <stdexcept>
 #include <cstring>
 #include <algorithm>
 #include <future>
@@ -26,7 +34,78 @@
 
 extern IModuleSettings * g_settings;
 
-struct VideoManager::Impl 
+bool VideoManager::ProcessShaderProfile(const ShaderProfileTask & task, IShaderProfileProgress & progress,
+                                        ShaderProfileResult & result, char * error, uint32_t error_size)
+{
+    try
+    {
+        const auto text = [](const char * value) { return value ? std::string(value) : std::string(); };
+        const auto path = [&](const char * value) { return std::filesystem::u8path(text(value)); };
+        if (!task.title_id || !task.profile || !task.game_root) throw std::runtime_error("Missing shader profile task inputs");
+        if (task.importing)
+        {
+            if(!progress.ProfileProgress("profile",0,1))throw std::runtime_error("Shader profile operation cancelled");
+            const auto metadata=VideoCommon::ShaderProfile::Inspect(path(task.profile),task.title_id);
+            if(!progress.ProfileProgress("profile",1,1))throw std::runtime_error("Shader profile operation cancelled");
+            result.graphics=metadata.graphics;result.compute=metadata.compute;
+            result.unresolved=metadata.unresolved;result.bytes=metadata.bytes;
+            result.programs=metadata.programs;result.environments=metadata.environments;
+            result.versions=metadata.versions;
+            if(const auto context=text(task.context);!context.empty())
+                result.context_match=metadata.primary_context==context?2U:
+                    std::find(metadata.contexts.begin(),metadata.contexts.end(),context)!=metadata.contexts.end()?1U:0U;
+            // The reader limits each text to its buffer; the copies always fit.
+            std::snprintf(result.label,sizeof(result.label),"%s",metadata.label.c_str());
+            std::snprintf(result.revision,sizeof(result.revision),"%s",metadata.revision.c_str());
+            std::snprintf(result.note,sizeof(result.note),"%s",metadata.note.c_str());
+            result.full_game=metadata.full_game;
+            std::string targets;
+            for(const auto& version:metadata.targets)
+                if(const auto text=VideoCommon::ShaderProfile::GameVersionText(version);!text.empty()&&targets.size()+text.size()+1<sizeof(result.targets))
+                    targets+=(targets.empty()?"":"\n")+text;
+            std::snprintf(result.targets,sizeof(result.targets),"%s",targets.c_str());
+            return true;
+        }
+        VideoCommon::ShaderProfile::ExportOptions options;
+        options.cache = path(task.cache);
+        options.recording = path(task.recording);
+        options.context = VideoCommon::ShaderProfile::RecordingContext(options.recording);
+        if (!VideoCommon::ShaderProfile::ValidContext(options.context))
+            throw std::runtime_error("Play and stop this base/update with identified game content before exporting a profile");
+        options.game_root = path(task.game_root);
+        options.output = path(task.profile);
+        options.index = path(task.index);
+        options.title_id = task.title_id;
+        options.base = text(task.base);
+        options.update = text(task.update);
+        options.automatic_sources = true;
+        options.label = text(task.label);
+        options.previous = path(task.previous);
+        options.revision = text(task.revision);
+        options.note = text(task.note);
+        options.full_game = task.full_game;
+        options.compact = task.compact;
+        options.allow_partial = true;
+        options.progress = [&](const char * phase, u64 done, u64 total) { return progress.ProfileProgress(phase, done, total); };
+        const auto r = VideoCommon::ShaderProfile::Export(options);
+        result = {r.programs, r.environments, r.graphics, r.compute, r.unresolved, r.missing, r.reused, r.bytes, r.seconds};
+        result.inherited = r.inherited;
+        result.dropped_recipes = r.dropped_recipes;
+        result.dropped_versions = r.dropped_versions;
+        result.versions = r.versions;
+        result.previous = r.previous == VideoCommon::ShaderProfile::ExportReport::Previous::Merged ? ShaderProfilePrevious::Merged
+            : r.previous == VideoCommon::ShaderProfile::ExportReport::Previous::Unreadable ? ShaderProfilePrevious::Unreadable
+                                                                                         : ShaderProfilePrevious::None;
+        return true;
+    }
+    catch (const std::exception & exception)
+    {
+        if (error && error_size) std::snprintf(error, error_size, "%s", exception.what());
+        return false;
+    }
+}
+
+struct VideoManager::Impl
 {
     Impl(IRenderWindow & window, ISystemModules & modules) :
         m_window(window),
@@ -92,6 +171,7 @@ struct VideoManager::Impl
     void EmulationStarting(void)
     {
         StopInitialization();
+        g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Preparing);
         m_gpuCore.reset();
         FFmpeg::WarmHardwareDecoderDevices();
         m_memoryManagerRegistry.Clear();
@@ -108,6 +188,8 @@ struct VideoManager::Impl
         m_gpuCore = VideoCore::CreateGPU(m_modules, *(m_emuWindow.get()), *m_host1x, EnsureDisplay());
         if (!m_gpuCore)
         {
+            // Wake the CPU thread and let the frontend stop the launch with an error.
+            g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Failed);
             return;
         }
         m_initStop = std::stop_source{};
@@ -129,6 +211,15 @@ struct VideoManager::Impl
                 case VideoCore::LoadCallbackStage::Complete:
                     stage_int = 2;
                     break;
+                case VideoCore::LoadCallbackStage::ReadProfile:
+                    stage_int = 3;
+                    break;
+                case VideoCore::LoadCallbackStage::ImportProfile:
+                    stage_int = 4;
+                    break;
+                case VideoCore::LoadCallbackStage::BuildProfile:
+                    stage_int = 5;
+                    break;
                 }
                 g_settings->SetInt(NXCoreSetting::DiskCacheLoadStage, stage_int);
                 g_settings->SetInt(NXCoreSetting::DiskCacheLoadCurrent, static_cast<int32_t>(value));
@@ -144,8 +235,21 @@ struct VideoManager::Impl
                 {
                     const u64 program_id = m_modules.OperatingSystem().GetProgramId();
                     try {
+                        const auto content = VideoCommon::ShaderProfile::DescribeLoadedContent(m_modules.Systemloader(), program_id);
+                        if (!content.context.empty()) {
+                            const auto cache = Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir) / fmt::format("{:016x}", program_id);
+                            try {
+                                VideoCommon::ShaderProfile::SaveProvenance(cache, content.provenance);
+                            } catch (const std::exception & error) {
+                                LOG_WARNING(Render, "Cannot save captured game version: {}", error.what());
+                            }
+                            LOG_INFO(Render, "Shader capture version: {} (context {})",
+                                VideoCommon::ShaderProfile::RecordedVersionLabel(content.provenance), content.context);
+                        }
                         m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(
-                            program_id, stop_token, notify_disk_cache_progress);
+                            program_id, stop_token, notify_disk_cache_progress,
+                            content.context,
+                            g_settings->GetString(NXCoreSetting::GameFile));
                     } catch (const std::exception& exception) {
                         // std::async stores exceptions in its future. If one escapes here,
                         // Start is never called and guest GPU requests wait indefinitely.
@@ -157,6 +261,10 @@ struct VideoManager::Impl
 
             // Even after cancellation, drain GPU calls before OS shutdown joins their callers.
             m_gpuCore->Start();
+            if (!stop_token.stop_requested())
+            {
+                g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Ready);
+            }
         });
     }
     std::unique_ptr<Tegra::Host1x::Host1x> m_host1x;

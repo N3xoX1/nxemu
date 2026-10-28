@@ -236,6 +236,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::ShaderBackend, "video", "shader_backend", &videoSettings.shader_backend, ShaderBackend::Glsl},
     {NXVideoSetting::VulkanDevice, "video", "vulkan_device", &videoSettings.vulkan_device, 0},
     {NXVideoSetting::UseDiskPipelineCache, "video", "use_disk_shader_cache", &videoSettings.use_disk_shader_cache, true},
+    {NXVideoSetting::RecordShaderRecipes, "video", "record_shader_recipes", &videoSettings.record_shader_recipes, true},
     {NXVideoSetting::UseAsynchronousGPUEmulation, "video", "use_asynchronous_gpu_emulation", &videoSettings.use_asynchronous_gpu_emulation, true},
 #ifdef ANDROID
     {NXVideoSetting::AstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, AstcDecodeMode::Cpu},
@@ -267,6 +268,9 @@ static VideoSetting settings[] = {
     {NXVideoSetting::FSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, 25, 0, 200},
     {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
     {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, false},
+    {NXVideoSetting::NXShaderWarmupMode, "video", "nxshader_warmup_mode", &videoSettings.nxshader_warmup_mode, 0, 0, 1},
+    {NXVideoSetting::NXShaderInitialMinimum, "video", "nxshader_initial_minimum", &videoSettings.nxshader_initial_minimum, 512, 0, 8192},
+    {NXVideoSetting::NXShaderInitialSeconds, "video", "nxshader_initial_seconds", &videoSettings.nxshader_initial_seconds, 60, 0, 600},
     {NXVideoSetting::FastGPUTime, "video", "use_fast_gpu_time", &videoSettings.use_fast_gpu_time, true},
     {NXVideoSetting::UseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, true},
     {NXVideoSetting::SyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, false},

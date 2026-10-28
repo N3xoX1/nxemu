@@ -281,6 +281,7 @@ struct ImageDescriptor {
 using ImageDescriptors = boost::container::small_vector<ImageDescriptor, 4>;
 
 struct Info {
+    bool operator==(const Info&) const = default;
     u32 runtime_image_write_mask_words{};
     /// Size of the sampler array combined with direct texture descriptors. Zero when unused.
     u32 runtime_sampler_count{};

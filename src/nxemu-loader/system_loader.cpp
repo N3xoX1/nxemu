@@ -30,6 +30,7 @@
 #include <common/path.h>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
 #include <filesystem>
 #include <nxemu-core/settings/identifiers.h>
 #include <yuzu_common/fs/fs.h>
@@ -468,6 +469,56 @@ uint32_t Systemloader::GetContentProviderEntries(bool useTitleType, LoaderTitleT
 IFileSysNCA * Systemloader::GetContentProviderEntry(uint64_t title_id, LoaderContentRecordType type)
 {
     return GetContentProvider().GetEntryNCA(title_id, type).release();
+}
+
+bool Systemloader::GetActiveProgramContent(uint64_t program_id, ActiveProgramContent & out)
+{
+    out = {};
+    if (!impl->m_appLoader) return false;
+    u64 loaded_id{};
+    if (impl->m_appLoader->ReadProgramId(loaded_id) != LoaderResultStatus::Success || loaded_id != program_id) return false;
+    auto & provider = GetContentProvider();
+    const FileSys::PatchManager pm(program_id, GetFileSystemController(), provider);
+    const auto patches = pm.GetPatches();
+    const FileSys::Patch * active_update = nullptr;
+    for (const auto & patch : patches)
+    {
+        if (patch.type == FileSys::PatchType::Mod && patch.enabled) return false;
+        if (patch.type != FileSys::PatchType::Update) continue;
+        out.update_available = true;
+        if (!patch.enabled) continue;
+        if (active_update) return false;
+        active_update = &patch;
+    }
+    auto base = provider.GetEntryNCA(program_id, LoaderContentRecordType::Program);
+    if (!base || base->GetStatus() != LoaderResultStatus::Success) return false;
+    if (auto control = provider.GetEntryNCA(program_id, LoaderContentRecordType::Control))
+    {
+        const auto metadata = FileSys::ParseControlRomFS(control->RomFS());
+        if (metadata.first) std::snprintf(out.base_version, sizeof(out.base_version), "%s", metadata.first->GetVersionString());
+    }
+    std::unique_ptr<FileSys::NCA> update;
+    if (active_update)
+    {
+        const auto update_id = program_id | 0x800;
+        const auto * manual = provider.GetManualContentProvider();
+        FileSys::VirtualFile file;
+        if (manual && !manual->ListUpdateVersions(update_id).empty())
+        {
+            // GetEntryNCA(update_id) alone can return the newest installed
+            // update, even when the player selected an older one.
+            file = manual->GetEntryForVersion(update_id, LoaderContentRecordType::Program, active_update->numeric_version);
+        }
+        else file = provider.GetEntryRaw(update_id, LoaderContentRecordType::Program);
+        if (!file) return false;
+        update = std::make_unique<FileSys::NCA>(file, base.get());
+        if (update->GetStatus() != LoaderResultStatus::Success || (!update->GetExeFS() && !update->RomFS())) return false;
+        out.update_enabled = true;
+        std::snprintf(out.update_version, sizeof(out.update_version), "%s", active_update->version.c_str());
+    }
+    out.base_program = base.release();
+    out.update_program = update.release();
+    return true;
 }
 
 IFileSysNACP * Systemloader::ReadControlData()

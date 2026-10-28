@@ -115,6 +115,11 @@ void EmulatorSession::Update(bool releaseStoppedResources)
 {
     m_notification.Pump();
     ProcessProgramEvents();
+    if (IsRunning() && SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed))
+    {
+        Stop();
+        ReportError(Tr("The graphics renderer could not be initialized. Check that your GPU drivers are up to date."));
+    }
     if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
     {
@@ -176,7 +181,8 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     uint64_t programId = 0;
     if (m_modules.IsValid())
     {
-        IRomInfoPtr info(m_modules.Modules().Systemloader().RomInfo(path.c_str(), 0, programIndex));
+        // LoadRom applies programIndex to the ID, so resolve the base program here.
+        IRomInfoPtr info(m_modules.Modules().Systemloader().RomInfo(path.c_str(), 0, 0));
         if (info)
         {
             info->ReadProgramId(programId);

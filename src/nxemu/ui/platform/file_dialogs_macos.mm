@@ -107,6 +107,20 @@ NSModalResponse RunPanel(NSOpenPanel * panel)
 namespace MacOSFileDialogs
 {
 
+bool FileSave(const char * initialDir,const char * filter,const char * suggested,Path & selected)
+{
+    @autoreleasepool {
+        NSSavePanel * panel=[NSSavePanel savePanel];
+        panel.canCreateDirectories=YES;
+        if(initialDir && *initialDir)panel.directoryURL=[NSURL fileURLWithPath:[NSString stringWithUTF8String:initialDir] isDirectory:YES];
+        panel.nameFieldStringValue=[NSString stringWithUTF8String:suggested?suggested:"profile.nxshader"];
+        NSArray<UTType *> * types=ContentTypesFromFilter(filter);
+        if(types!=nil)panel.allowedContentTypes=types;
+        if([panel runModal]!=NSModalResponseOK || !panel.URL.fileURL)return false;
+        selected=Path(panel.URL.path.UTF8String);return true;
+    }
+}
+
 bool FileSelect(const char * initialDir, const char * fileFilter, Path & selected)
 {
     @autoreleasepool

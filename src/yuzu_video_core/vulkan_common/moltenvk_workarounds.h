@@ -46,6 +46,39 @@ constexpr uint32_t PushDescriptorLimit(VkDriverId driver, uint32_t advertised_li
     return driver == VK_DRIVER_ID_MOLTENVK ? std::min(advertised_limit, 16U) : advertised_limit;
 }
 
+struct TexelBufferRange {
+    // The view shaders read: it starts at an offset the host accepts, possibly before the range
+    // the guest bound
+    uint32_t offset;
+    uint32_t size;
+    // Size of the second view, which starts at the same offset: its element count is the size the
+    // guest bound
+    uint32_t size_view_size;
+    // False when the range starts at an offset the host rounds down and that cannot be skipped
+    bool aligned;
+};
+
+// Metal rounds the offset of a buffer-backed texture down to its alignment instead of rejecting
+// it. A texel buffer view that must start elsewhere is created at the aligned offset instead, and
+// the shader skips the elements before the range the guest bound
+// (Shader::Profile::texel_buffer_size_view). The element count of the second view is the size the
+// guest bound, and the difference with the element count of the first one is how many elements
+// to skip.
+constexpr TexelBufferRange AlignedTexelBufferRange(uint32_t alignment, uint32_t offset,
+                                                   uint32_t size, uint32_t texel_size) {
+    const uint32_t pad_bytes = alignment > 1 ? offset % alignment : 0;
+    if (pad_bytes == 0) {
+        return {offset, size, size, true};
+    }
+    // A shift that is not a whole number of elements cannot be skipped by the shader. The texel
+    // buffer formats Metal supports have power-of-two sizes no larger than its alignment, so this
+    // only happens when the guest offset is not a multiple of the texel size
+    if (texel_size == 0 || pad_bytes % texel_size != 0 || size > UINT32_MAX - pad_bytes) {
+        return {offset, size, size, false};
+    }
+    return {offset - pad_bytes, size + pad_bytes, size, true};
+}
+
 constexpr bool SubresourceRangesOverlap(const VkImageSubresourceRange& lhs,
                                         const VkImageSubresourceRange& rhs) {
     if ((lhs.aspectMask & rhs.aspectMask) == 0 || lhs.levelCount == 0 || rhs.levelCount == 0 ||

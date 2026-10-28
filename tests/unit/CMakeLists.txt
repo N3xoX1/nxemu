@@ -24,9 +24,16 @@ target_compile_options(test_query_fences PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 nxemu_unit_test(test_query_fences)
 
+add_executable(test_startup_wait session_lifecycle/startup_wait.cpp)
+target_include_directories(test_startup_wait PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_startup_wait PRIVATE cxx_std_20)
+target_link_libraries(test_startup_wait PRIVATE Threads::Threads)
+nxemu_unit_test(test_startup_wait)
+
 # SPIR-V layout of constant buffers. Link the archives themselves: their dependencies would
 # bring a second definition of the logging functions.
-add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp)
+add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp
+    spirv_constant_buffers/runtime_fetch.cpp)
 target_include_directories(test_spirv_constant_buffers PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
     "${CMAKE_SOURCE_DIR}/external/sirit/include"
@@ -42,3 +49,5 @@ target_include_directories(test_loader_metadata PRIVATE "${CMAKE_SOURCE_DIR}/src
     "${CMAKE_SOURCE_DIR}/src/nxemu-loader" "${CMAKE_SOURCE_DIR}/external/fmt/include")
 target_link_libraries(test_loader_metadata PRIVATE nxemu-loader)
 nxemu_unit_test(test_loader_metadata)
+
+add_subdirectory(shader_profile)

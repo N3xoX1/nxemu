@@ -392,6 +392,16 @@ nxinterface IGameListScanCallback
     virtual void ScanProgress(uint32_t filesStarted, uint32_t filesTotal) = 0;
 };
 
+// Startup snapshot. Returned NCA interfaces belong to the caller (Release).
+struct ActiveProgramContent
+{
+    IFileSysNCA * base_program{};
+    IFileSysNCA * update_program{};
+    bool update_available{}, update_enabled{};
+    char base_version[128]{};
+    char update_version[128]{};
+};
+
 nxinterface ISystemloader
 {
     virtual bool Initialize() = 0;
@@ -422,6 +432,7 @@ nxinterface ISystemloader
     virtual LoaderResultStatus GetPMControlData(uint64_t program_id, uint8_t * buffer, uint32_t buffer_size, uint32_t & actual_size) = 0;
     // Backing-file traffic on this thread; internal cache hits perform no backing I/O.
     virtual void GetBackingReadTraffic(StorageReadTraffic* out) const = 0;
+    virtual bool GetActiveProgramContent(uint64_t program_id, ActiveProgramContent & out) = 0;
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);

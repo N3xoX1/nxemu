@@ -33,6 +33,32 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="buffer_cache\buffer_base.h" />
+    <ClInclude Include="shader_profile_export.h" />
+    <ClInclude Include="shader_profile_discovery.h" />
+    <ClInclude Include="shader_profile_compact.h" />
+    <ClInclude Include="shader_profile_journal.h" />
+    <ClInclude Include="renderer_vulkan\guest_pipeline_recorder.h" />
+    <ClInclude Include="renderer_vulkan\guest_recipe_input_cache.h" />
+    <ClInclude Include="pipeline_cache_store.h" />
+    <ClInclude Include="shader_profile_audit.h" />
+    <ClInclude Include="shader_profile_location.h" />
+    <ClInclude Include="shader_profile_runtime.h" />
+    <ClInclude Include="shader_profile_sph.h" />
+    <ClInclude Include="shader_profile_import_status.h" />
+    <ClInclude Include="shader_profile_identity.h" />
+    <ClInclude Include="shader_profile_file_stamp.h" />
+    <ClInclude Include="shader_profile_context.h" />
+    <ClInclude Include="shader_profile_provenance.h" />
+    <ClInclude Include="shader_profile_publication.h" />
+    <ClInclude Include="shader_profile_candidate_budget.h" />
+    <ClInclude Include="shader_profile_reuse.h" />
+    <ClInclude Include="shared_shader_bytes.h" />
+    <ClInclude Include="shader_profile_text.h" />
+    <ClInclude Include="shader_profile_validation.h" />
+    <ClInclude Include="renderer_vulkan\startup_pipeline_variants.h" />
+    <ClInclude Include="shader_profile.h" />
+    <ClInclude Include="shader_profile_codec.h" />
+    <ClInclude Include="renderer_vulkan\guest_pipeline_recipe_probe.h" />
     <ClInclude Include="buffer_cache\buffer_cache.h" />
     <ClInclude Include="buffer_cache\buffer_cache_base.h" />
     <ClInclude Include="buffer_cache\memory_tracker_base.h" />
@@ -360,6 +386,14 @@
     <ClCompile Include="renderer_vulkan\vk_update_descriptor.cpp" />
     <ClCompile Include="shader_cache.cpp" />
     <ClCompile Include="shader_environment.cpp" />
+    <ClCompile Include="pipeline_cache_store.cpp" />
+    <ClCompile Include="shader_profile.cpp" />
+    <ClCompile Include="shader_profile_export.cpp" />
+    <ClCompile Include="shader_profile_discovery.cpp" />
+    <ClCompile Include="shader_profile_compact.cpp" />
+    <ClCompile Include="shader_profile_codec.cpp">
+      <AdditionalIncludeDirectories>$(SolutionDir)external\zstd\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="shader_notify.cpp" />
     <ClCompile Include="surface.cpp" />
     <ClCompile Include="textures\astc.cpp" />
@@ -399,6 +433,9 @@
     </ProjectReference>
     <ProjectReference Include="..\3rd_party\stb\stb.vcxproj">
       <Project>{3a62c094-dbdf-414a-a65e-ebdb939a81e5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\external\zstd.vcxproj">
+      <Project>{808d773c-086c-4e17-a195-b4af30eee86e}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

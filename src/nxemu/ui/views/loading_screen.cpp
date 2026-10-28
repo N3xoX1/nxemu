@@ -15,6 +15,9 @@ enum class LoadStage
     Game = 0,
     Shaders = 1,
     Launch = 2,
+    ReadProfile = 3,
+    ImportProfile = 4,
+    BuildProfile = 5,
 };
 
 constexpr int kIndeterminate = -1;
@@ -91,10 +94,14 @@ void LoadingScreen::Update()
     const LoadStage stage = reported ? static_cast<LoadStage>(settings.GetInt(NXCoreSetting::DiskCacheLoadStage)) : LoadStage::Game;
     const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);
     const int total = settings.GetInt(NXCoreSetting::DiskCacheLoadTotal);
-    if (stage == LoadStage::Shaders && total > 0)
+    if (stage == LoadStage::Shaders || stage == LoadStage::ReadProfile ||
+        stage == LoadStage::ImportProfile || stage == LoadStage::BuildProfile)
     {
-        SetStatus(Tr("Preparing shaders"), std::to_string(current) + " / " + std::to_string(total));
-        SetProgress(static_cast<int>(100.0 * current / total));
+        const char* label = stage == LoadStage::ReadProfile ? TrMark("Reading and verifying NXShader") :
+                            stage == LoadStage::ImportProfile ? TrMark("Importing NXShader") :
+                            stage == LoadStage::BuildProfile ? TrMark("Compiling NXShader") : TrMark("Preparing shaders");
+        SetStatus(Tr(label), total > 0 ? std::to_string(std::clamp(current, 0, total)) + " / " + std::to_string(total) : "");
+        SetProgress(total > 0 ? static_cast<int>(100.0 * std::clamp(current, 0, total) / total) : kIndeterminate);
     }
     else if (stage == LoadStage::Launch)
     {

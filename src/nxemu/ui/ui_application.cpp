@@ -10,6 +10,7 @@
 #include "ui/views/message_dialog.h"
 #include <RmlUi/Core/Context.h>
 #include <iostream>
+#include <cstdlib>
 #include <nxemu-core/app_init.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
@@ -180,6 +181,11 @@ int Run(UiNotification & notification, const std::string & gamePath)
     });
     SDL_AddEventWatch(&DrawWhileResizing, &liveResize);
 
+    if (!gamePath.empty())
+    {
+        mainWindow.OpenGame(gamePath);
+    }
+
     uint64_t lastChange = SDL_GetTicks64();
     uint64_t lastRender = 0;
     while (!mainWindow.QuitRequested())
@@ -239,6 +245,37 @@ int RunUiApplication(int argc, char ** argv)
     UiNotification notification;
     SetNotification(&notification);
 
+    std::string gamePath;
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string argument = argv[i];
+        const char * environment = nullptr;
+        if (argument == "--nxshader-import") environment = "NXEMU_IMPORT_NXSHADER";
+        else if (argument == "--nxshader-game-root") environment = "NXEMU_SHADER_GAME_ROOT";
+        else if (argument == "--nxshader-record") environment = "NXEMU_NXSHADER_RECORD";
+        if (environment)
+        {
+            if (++i >= argc)
+            {
+                notification.DisplayError("Missing value for NXShader argument.", "NXEmu");
+                SetNotification(nullptr);
+                return 1;
+            }
+#ifdef _WIN32
+            _putenv_s(environment, argv[i]);
+#else
+            setenv(environment, argv[i], 1);
+#endif
+        }
+        else if (!argument.empty() && argument[0] != '-' && gamePath.empty()) gamePath = argument;
+        else
+        {
+            notification.DisplayError("Unknown command-line argument.", "NXEmu");
+            SetNotification(nullptr);
+            return 1;
+        }
+    }
+
     int result = 1;
     if (argc > 0 && uiSettings.performVulkanCheck && !probeGraphics(argv[0]))
     {
@@ -246,7 +283,7 @@ int RunUiApplication(int argc, char ** argv)
     }
     else
     {
-        result = Run(notification, argc > 1 ? argv[1] : "");
+        result = Run(notification, gamePath);
     }
     SetNotification(nullptr);
     return result;

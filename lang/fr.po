@@ -1122,6 +1122,10 @@ msgid "Required modules failed to load."
 msgstr "Les modules requis n'ont pas pu être chargés."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr "Le moteur de rendu graphique n'a pas pu être initialisé. Vérifiez que les pilotes de votre GPU sont à jour."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1"
 msgstr "Ce jeu ne contient aucun exécutable utilisable (ExeFS).\n\nSi cette copie nécessite une mise à jour, ajoutez son dossier dans Paramètres > Dossiers de jeux, puis activez-la dans les détails du jeu. Si une mise à jour est déjà activée, vérifiez que ses fichiers sont complets et lisibles.\n\nJeu : %1"
 
@@ -3772,3 +3776,39 @@ msgstr "GitHub a renvoyé %1"
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
 msgstr "Impossible de joindre GitHub"
+
+msgid "Reading and verifying NXShader"
+msgstr "Lecture et vérification NXShader"
+
+msgid "Importing NXShader"
+msgstr "Importation NXShader"
+
+msgid "Compiling NXShader"
+msgstr "Compilation NXShader"
+
+msgid "Open NXShader folder"
+msgstr "Ouvrir le dossier NXShader"
+
+msgid "Shader warmup mode"
+msgstr "Mode de préchauffage des shaders"
+
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "Prépare les premiers shaders avant le démarrage, puis le reste en arrière-plan. Au prochain lancement du jeu."
+
+msgid "Minimum initial pipelines"
+msgstr "Nombre minimum de pipelines au démarrage"
+
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "Par défaut : 512. Les deux minimums doivent être atteints, sauf si tous les pipelines sont prêts."
+
+msgid "Minimum initial time (seconds)"
+msgstr "Durée minimum au démarrage (secondes)"
+
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "Par défaut : 60. Prépare les shaders pendant cette durée, puis compile le reste en arrière-plan."
+
+msgid "Full warmup (default)"
+msgstr "Préchauffage complet (par défaut)"
+
+msgid "Progressive (experimental)"
+msgstr "Progressif (expérimental)"

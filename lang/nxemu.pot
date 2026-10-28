@@ -210,6 +210,15 @@ msgid "Off only to look for a fault."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Record shader recipes"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needed to export a shader profile of what you played. Off saves a little work."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Build shaders in the background"
 msgstr ""
 
@@ -343,6 +352,34 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shows what you play in Discord when it runs."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -576,6 +613,7 @@ msgstr ""
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Close"
 msgstr ""
 
@@ -645,6 +683,7 @@ msgstr ""
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
@@ -1118,6 +1157,41 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Shader profile"
+msgstr ""
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game versions"
+msgstr ""
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "About this profile"
+msgstr ""
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed"
+msgstr ""
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile version"
+msgstr ""
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Description"
+msgstr ""
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+msgid "Choose file"
+msgstr ""
+
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr ""
@@ -1134,6 +1208,10 @@ msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to load."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
 msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
@@ -1600,6 +1678,14 @@ msgid "For mods that need more than the console has. Nothing gained otherwise."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr ""
 
@@ -1956,6 +2042,7 @@ msgstr ""
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
 msgstr ""
@@ -2230,6 +2317,18 @@ msgid "Opening the game..."
 msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr ""
 
@@ -2421,6 +2520,18 @@ msgid "Start Game"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export shader profile"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import shader profile"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr ""
 
@@ -2574,6 +2685,198 @@ msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded with %1 game versions."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Made for: %1."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 — %2 recipes."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Share my recordings"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "You played the game yourself. Export what you recorded."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Complete the installed profile"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Add what you recorded to the profile you imported, then share the result."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Turn on if you played the whole game while recording, not just a part of it."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your own number, to tell updates of this profile apart. It is not the game version."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "(optional)"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Players see it when they import the profile."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: 1.0"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: all tracks, 200cc included"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "All recorded versions"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "What do you want to share?"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose profile"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded version: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Export"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile selected. Local shaders will be verified when the game starts."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed: recorded over the whole game."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics recipes, %2 compute recipes."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Start game"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "One shader profile is ready."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 shader profiles are ready."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "installed profile"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics, %2 compute recipes, %3"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saved in %1"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 and %2 share %3 % of their shaders."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "They are saved in one file. A version only gets its own file if the file would become too large."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Only this version is exported."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings are added to the installed profile."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying recorded game version"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile cannot be read and was not included."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose the folder for the %1 shader profiles"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace these existing shader profiles?"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace shader profiles"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 MiB read"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 resources examined"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "This can take a few minutes."
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 shaders found (%3 %)"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Cancelling"
 msgstr ""
 
 #: src/nxemu/ui/views/volume_control.cpp
@@ -3304,6 +3607,10 @@ msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Games load faster after the first run"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Needed to export a shader profile of what you played"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp

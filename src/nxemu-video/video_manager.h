@@ -62,6 +62,8 @@ public:
     void InvalidateMemory(const uint8_t * pointer, uint64_t size) override;
     void NotifyWindowChanged() override;
     uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) override;
+    bool ProcessShaderProfile(const ShaderProfileTask& task,IShaderProfileProgress& progress,
+        ShaderProfileResult& result,char* error,uint32_t error_size) override;
 
 private:
     VideoManager() = delete;

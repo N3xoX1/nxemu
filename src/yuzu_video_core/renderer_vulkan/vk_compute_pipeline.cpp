@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "yuzu_video_core/shader_profile_runtime.h"
 #include <algorithm>
+#include "yuzu_video_core/shader_profile_metrics.h"
 #include <cstring>
 #include <vector>
 
@@ -18,6 +20,7 @@
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 namespace Vulkan {
+namespace Timing = VideoCommon::ShaderProfile::Timing;
 using Shader::ImageBufferDescriptor;
 using Shader::Backend::SPIRV::RESCALING_LAYOUT_WORDS_OFFSET;
 using Tegra::Texture::TexturePair;
@@ -33,7 +36,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
       pipeline_cache(pipeline_cache_), guest_descriptor_queue{guest_descriptor_queue_}, info{info_},
       staging_pool{staging_pool_},
       spv_module(std::move(spv_module_)) {
-    num_descriptor_entries = NumDescriptorUpdateEntries(info);
+    num_descriptor_entries = NumDescriptorUpdateEntries(device, info);
     num_textures = Shader::NumDescriptors(info.texture_descriptors);
     descriptor_views.resize(num_textures + Shader::NumDescriptors(info.texture_buffer_descriptors) +
                             Shader::NumDescriptors(info.image_buffer_descriptors) +
@@ -48,7 +51,8 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
     writes_images = std::ranges::any_of(info.image_descriptors, is_written) ||
                     std::ranges::any_of(info.image_buffer_descriptors, is_written);
 
-    auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics] {
+    auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
+        VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         try {
             DescriptorLayoutBuilder builder{device};
             builder.Add(info, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -67,7 +71,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
             if (device.IsKhrPipelineExecutablePropertiesEnabled()) {
                 flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
             }
-            pipeline = device.GetLogical().CreateComputePipeline(
+            pipeline = Timing::Measure(Timing::current, Timing::Phase::NativeCompute, [&] { return device.GetLogical().CreateComputePipeline(
                 {
                     .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
                     .pNext = nullptr,
@@ -86,7 +90,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
                     .basePipelineHandle = 0,
                     .basePipelineIndex = 0,
                 },
-                *pipeline_cache);
+                *pipeline_cache); });
 
             if (pipeline_statistics) {
                 pipeline_statistics->Collect(*pipeline);
@@ -95,6 +99,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
             LOG_ERROR(Render_Vulkan, "Compute pipeline build failed: {}", exception.what());
             build_failed = true;
         }
+        VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,!build_failed);
         std::scoped_lock lock{build_mutex};
         is_built = true;
         build_condvar.notify_one();

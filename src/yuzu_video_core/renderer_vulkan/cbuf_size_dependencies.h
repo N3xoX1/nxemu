@@ -11,6 +11,28 @@
 
 namespace Vulkan {
 
+template <typename Key, typename Cache, typename Unreplaced>
+auto FindUnreplacedPipelineAlias(const Key& key, const Cache& cache,
+                                const Unreplaced& unreplaced) -> typename Cache::mapped_type {
+    if (!unreplaced.contains(key)) return {};
+    const auto it = cache.find(key);
+    return it != cache.end() ? it->second : typename Cache::mapped_type{};
+}
+
+// Publish metadata only for an alias of this exact pipeline. A pre-existing
+// different pipeline must never inherit replacement-free HLE eligibility.
+template <typename Key, typename Pipeline, typename Cache, typename Unreplaced>
+bool PublishNormalizedPipelineAlias(const Key& source, const Key& normalized,
+                                    const Pipeline& pipeline, Cache& cache,
+                                    Unreplaced& unreplaced) {
+    if (source == normalized) return false;
+    const auto [it, inserted] = cache.try_emplace(normalized, pipeline);
+    if (it->second == pipeline && unreplaced.contains(source)) {
+        unreplaced.insert(normalized);
+    }
+    return inserted;
+}
+
 // Updated by the GPU thread and disk-cache reader, never by pipeline worker jobs.
 class CbufSizeDependencies {
 public:

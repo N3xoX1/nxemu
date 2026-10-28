@@ -276,6 +276,11 @@ public:
         cache.clear();
     }
 
+    bool HasContradictoryUniformConditions()
+    {
+        return conditions.HasContradictoryUniformConditions();
+    }
+
     std::optional<ConstBufferAddr> Track(IR::Value value)
     {
         value = value.Resolve();
@@ -871,25 +876,30 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
     };
 }
 
-u32 GetTextureHandle(Environment& env, const ConstBufferAddr& cbuf) {
-    const u32 secondary_index{cbuf.has_secondary ? cbuf.secondary_index : cbuf.index};
-    const u32 secondary_offset{cbuf.has_secondary ? cbuf.secondary_offset : cbuf.offset};
-    const u32 lhs_raw{env.ReadCbufValue(cbuf.index, cbuf.offset) << cbuf.shift_left};
-    const u32 rhs_raw{env.ReadCbufValue(secondary_index, secondary_offset)
-                      << cbuf.secondary_shift_left};
-    return lhs_raw | rhs_raw | cbuf.handle_or_bits;
+TextureHandleSource TextureQuerySource(const ConstBufferAddr& cbuf) {
+    TextureHandleSource source{};
+    source.has_secondary = cbuf.has_secondary;
+    source.cbuf_index = cbuf.index;
+    source.cbuf_offset = cbuf.offset;
+    source.shift_left = cbuf.shift_left;
+    source.secondary_cbuf_index = cbuf.secondary_index;
+    source.secondary_cbuf_offset = cbuf.secondary_offset;
+    source.secondary_shift_left = cbuf.secondary_shift_left;
+    source.handle_or_bits = cbuf.handle_or_bits;
+    source.count = 1;
+    return source;
 }
 
 TextureType ReadTextureType(Environment& env, const ConstBufferAddr& cbuf) {
-    return env.ReadTextureType(GetTextureHandle(env, cbuf));
+    return static_cast<TextureType>(env.ReadTextureQuery(TextureQuerySource(cbuf), TextureQueryKind::Type));
 }
 
 TexturePixelFormat ReadTexturePixelFormat(Environment& env, const ConstBufferAddr& cbuf) {
-    return env.ReadTexturePixelFormat(GetTextureHandle(env, cbuf));
+    return static_cast<TexturePixelFormat>(env.ReadTextureQuery(TextureQuerySource(cbuf), TextureQueryKind::Format));
 }
 
 bool IsTexturePixelFormatInteger(Environment& env, const ConstBufferAddr& cbuf) {
-    return env.IsTexturePixelFormatInteger(GetTextureHandle(env, cbuf));
+    return env.ReadTextureQuery(TextureQuerySource(cbuf), TextureQueryKind::Integer) != 0;
 }
 
 ImageFormat RawImageReadFormat(ImageFormat access, TexturePixelFormat texture) {
@@ -1078,6 +1088,16 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         tracker.BeginBlock(block);
         for (IR::Inst& inst : block->Instructions()) {
             if (!IsTextureInstruction(inst)) {
+                continue;
+            }
+            // An impossible uniform branch can contain a stale loop-carried
+            // register as a texture handle. It never fetches at runtime, so do
+            // not allocate an entire TIC table just to compile that dead fetch.
+            if (inst.GetOpcode() == IR::Opcode::BindlessImageFetch &&
+                tracker.HasContradictoryUniformConditions()) {
+                IR::IREmitter ir{*block, IR::Block::InstructionList::s_iterator_to(inst)};
+                const auto zero = ir.Imm32(0.0f);
+                inst.ReplaceUsesWith(ir.CompositeConstruct(zero, zero, zero, zero));
                 continue;
             }
             to_replace.push_back(MakeInst(env, block, inst, host_info, tracker));

@@ -1,7 +1,10 @@
 #include <thread>
 #include <yuzu_common/thread.h>
+#include <yuzu_common/startup_wait.h>
+#include <yuzu_common/logging/log.h>
 #include <nxemu-core/settings/identifiers.h>
 #include "core/hle/kernel/k_process.h"
+#include "core/hle/kernel/k_thread.h"
 #include "core/cpu_manager.h"
 #include "core/core.h"
 #include "emu_thread.h"
@@ -29,10 +32,37 @@ public:
         auto stop_token = m_stop_source.get_token();
         m_system.RegisterHostThread();
 
+        // Host HLE service threads must initialize while shaders load, including
+        // when startup is cancelled. Suspend only the application before opening
+        // the CPU barrier; System::Run resumes it once GPU preparation is done.
+        if (m_process != nullptr)
+        {
+            Kernel::KScopedLightLock lock{m_process->GetListLock()};
+            for (auto& thread : m_process->GetThreadList())
+            {
+                thread.RequestSuspend(Kernel::SuspendType::System);
+            }
+        }
         m_system.GetCpuManager().OnGpuReady();
-        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Running);
+        const auto gpu_state = [] {
+            return static_cast<GpuInitializationState>(g_settings->GetInt(NXCoreSetting::GpuInitializationState));
+        };
+        const bool gpu_settled = Common::WaitForStartup(stop_token, [&] {
+            return gpu_state() != GpuInitializationState::Preparing;
+        });
+        const bool gpu_ready = gpu_settled && gpu_state() == GpuInitializationState::Ready;
+        if (gpu_settled && !gpu_ready)
+        {
+            LOG_ERROR(Core, "GPU initialization failed; guest execution will not start");
+        }
+        if (gpu_ready)
+        {
+            LOG_INFO(Core, "GPU preparation finished; starting guest execution");
+            m_started.store(true, std::memory_order_release);
+            g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Running);
+        }
 
-        while (!stop_token.stop_requested())
+        while (gpu_ready && !stop_token.stop_requested())
         {
             std::unique_lock lk{m_should_run_mutex};
             if (m_should_run.load(std::memory_order_relaxed))
@@ -81,6 +111,7 @@ public:
     std::condition_variable_any m_should_run_cv;
     Common::Event m_stopped;
     std::atomic<bool> m_should_run;
+    std::atomic<bool> m_started{false};
     Core::System & m_system;
     Kernel::KProcess *& m_process;
 };
@@ -124,8 +155,9 @@ void EmuThread::SetRunning(bool should_run)
         impl->m_should_run_cv.notify_one();
     }
 
-    // Wait until paused, if pausing.
-    if (!should_run)
+    // Before GPU readiness no guest code has run, so there is nothing to pause.
+    // Waiting for the normal pause acknowledgement here would block startup UI.
+    if (!should_run && impl->m_started.load(std::memory_order_acquire))
     {
         impl->m_stopped.Wait();
     }

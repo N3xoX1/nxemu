@@ -97,7 +97,7 @@ bool RasterizerNull::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surfac
 void RasterizerNull::AccelerateInlineToMemory(GPUVAddr address, size_t copy_size,
                                               std::span<const u8> memory) {}
 void RasterizerNull::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                                       const VideoCore::DiskResourceLoadCallback& callback) {}
+                                       const VideoCore::DiskResourceLoadCallback& callback, [[maybe_unused]] std::string_view content_identity, [[maybe_unused]] std::string_view game_path) {}
 void RasterizerNull::InitializeChannel(Tegra::Control::ChannelState& channel) {
     CreateChannel(channel);
 }
