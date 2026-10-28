@@ -1510,7 +1510,8 @@ void EmitContext::DefineTextureBuffers(const Info& info, u32& binding) {
     const Id type{TypePointer(spv::StorageClass::UniformConstant, image_buffer_type)};
     texture_buffers.reserve(info.texture_buffer_descriptors.size());
     for (const TextureBufferDescriptor& desc : info.texture_buffer_descriptors) {
-        const Id array_type{DescType(*this, image_buffer_type, type, desc.count)};
+        const u32 views{profile.texel_buffer_size_view ? desc.count * 2 : desc.count};
+        const Id array_type{DescType(*this, image_buffer_type, type, views)};
         const Id id{AddGlobalVariable(array_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
         Decorate(id, spv::Decoration::DescriptorSet, 0U);
@@ -1526,6 +1527,11 @@ void EmitContext::DefineTextureBuffers(const Info& info, u32& binding) {
     }
 }
 
+Id EmitContext::TexelBufferView(Id descriptor, Id image_type, Id element) {
+    const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, image_type)};
+    return OpAccessChain(pointer_type, descriptor, element);
+}
+
 void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
     image_buffers.reserve(info.image_buffer_descriptors.size());
     for (const ImageBufferDescriptor& desc : info.image_buffer_descriptors) {
@@ -1537,7 +1543,9 @@ void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
         const Id image_type{
             TypeImage(sampled_type, spv::Dim::Buffer, false, false, false, 2, format)};
         const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, image_type)};
-        const Id id{AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant)};
+        const Id variable_type{
+            DescType(*this, image_type, pointer_type, profile.texel_buffer_size_view ? 2U : 1U)};
+        const Id id{AddGlobalVariable(variable_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
         Decorate(id, spv::Decoration::DescriptorSet, 0U);
         Name(id, NameOf(stage, desc, "imgbuf"));

@@ -415,7 +415,7 @@ GraphicsPipeline::GraphicsPipeline(
         num_textures += NumCombinedSamplers(*info);
         uses_texture_table |= info->runtime_sampler_count != 0 ||
                               NumTableSetCombinedSamplers(*info) != 0;
-        num_descriptor_entries += NumDescriptorUpdateEntries(*info);
+        num_descriptor_entries += NumDescriptorUpdateEntries(device, *info);
         num_image_elements += Shader::NumDescriptors(info->texture_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_buffer_descriptors);
         num_image_elements += Shader::NumDescriptors(info->texture_descriptors);
@@ -443,7 +443,7 @@ GraphicsPipeline::GraphicsPipeline(
             info.constant_buffer_mask == vertex.constant_buffer_mask) {
             xfb = std::make_unique<XfbState>();
             xfb->stage.info = info;
-            xfb->stage.num_descriptor_entries = NumDescriptorUpdateEntries(info);
+            xfb->stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, info);
             xfb->stage.guest_info = info;
             xfb->stage.guest_info.storage_buffers_descriptors.resize(vtg_info->vertex_bindings.base);
             xfb->stage.module = std::move(vtg_info->modules[VtgPipelineInfo::VERTEX]);
@@ -466,7 +466,7 @@ GraphicsPipeline::GraphicsPipeline(
         for (size_t index = 0; index < vtg->stages.size(); ++index) {
             VtgState::Stage& stage{vtg->stages[index]};
             stage.info = vtg_info->infos[index];
-            stage.num_descriptor_entries = NumDescriptorUpdateEntries(stage.info);
+            stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, stage.info);
             stage.guest_info = stage.info;
             stage.guest_info.storage_buffers_descriptors.resize(guest_storage_buffers[index]);
             // The compute stages retain guest images absent from the generated vertex shader.

@@ -33,7 +33,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
       pipeline_cache(pipeline_cache_), guest_descriptor_queue{guest_descriptor_queue_}, info{info_},
       staging_pool{staging_pool_},
       spv_module(std::move(spv_module_)) {
-    num_descriptor_entries = NumDescriptorUpdateEntries(info);
+    num_descriptor_entries = NumDescriptorUpdateEntries(device, info);
     num_textures = Shader::NumDescriptors(info.texture_descriptors);
     descriptor_views.resize(num_textures + Shader::NumDescriptors(info.texture_buffer_descriptors) +
                             Shader::NumDescriptors(info.image_buffer_descriptors) +

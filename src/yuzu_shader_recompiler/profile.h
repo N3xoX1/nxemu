@@ -7,14 +7,6 @@
 
 namespace Shader {
 
-/// Bits of a texel buffer view's element count that hold its leading padding, see
-/// Profile::texel_buffer_pad_in_size.
-constexpr u32 TEXEL_BUFFER_PAD_BITS = 4;
-constexpr u32 TEXEL_BUFFER_PAD_MASK = (1U << TEXEL_BUFFER_PAD_BITS) - 1;
-/// Bytes a host buffer keeps readable past its data so that any texel buffer view inside the data
-/// can be rounded up to a whole number of 1 << TEXEL_BUFFER_PAD_BITS elements of up to 16 bytes.
-constexpr u32 TEXEL_BUFFER_TAIL_BYTES = TEXEL_BUFFER_PAD_MASK * 16;
-
 struct Profile {
     u32 supported_spirv{0x00010000};
     bool unified_descriptor_binding{};
@@ -114,12 +106,11 @@ struct Profile {
     u32 max_compute_shared_memory_size{};
 
     /// The host cannot start a texel buffer view at an arbitrary offset: it rounds it down to
-    /// its alignment. Views are then created at the aligned offset and their element count
-    /// carries the number of leading elements to skip in its low TEXEL_BUFFER_PAD_BITS bits. The
-    /// rest of the count is rounded up to a multiple of 1 << TEXEL_BUFFER_PAD_BITS, and the
-    /// requested size cannot be told apart from that, so size queries report up to
-    /// TEXEL_BUFFER_PAD_MASK elements more than the guest bound.
-    bool texel_buffer_pad_in_size{};
+    /// its alignment. Views are then created at the aligned offset, and every texel buffer
+    /// descriptor holds two views in an array of two: the one that is read, which can start before
+    /// the range the guest bound, and one whose element count is the size the guest bound. The
+    /// difference of their element counts is the number of leading elements to skip.
+    bool texel_buffer_size_view{};
 
     bool SupportsUniformBufferDescriptorAliasing() const {
         return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;

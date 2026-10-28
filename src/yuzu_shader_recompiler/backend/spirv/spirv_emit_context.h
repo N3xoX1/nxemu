@@ -265,6 +265,11 @@ public:
     Id image_buffer_type{};
     Id image_u32{};
 
+    /// Pointer to one view of a texel buffer descriptor, which holds two when
+    /// Profile::texel_buffer_size_view is set: the one that is read, then the one that has the
+    /// size the guest bound
+    [[nodiscard]] Id TexelBufferView(Id descriptor, Id image_type, Id element);
+
     std::array<UniformDefinitions, Info::MAX_CBUFS> cbufs{};
     std::array<StorageDefinitions, Info::MAX_SSBOS> ssbos{};
     /// Buffers accessed only by non-returning 64-bit additions in this shader.

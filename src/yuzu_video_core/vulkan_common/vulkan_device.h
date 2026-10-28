@@ -16,7 +16,6 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
-#include "yuzu_shader_recompiler/profile.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
 VK_DEFINE_HANDLE(VmaAllocator)
@@ -550,16 +549,15 @@ public:
     /// Returns true if a texel buffer view at an unaligned offset reads from the wrong place.
     /// MoltenVK passes the offset to Metal, which rounds it down to its alignment instead of
     /// rejecting it, so such views are created at the aligned offset and the shader skips the
-    /// leading elements.
+    /// leading elements. Every texel buffer descriptor then holds two views, see
+    /// Shader::Profile::texel_buffer_size_view.
     bool NeedsTexelBufferPad() const {
-        return GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
-               GetTexelBufferOffsetAlignment() <= (1U << Shader::TEXEL_BUFFER_PAD_BITS);
+        return GetDriverID() == VK_DRIVER_ID_MOLTENVK && GetTexelBufferOffsetAlignment() > 1;
     }
 
-    /// Bytes a host buffer needs past its data so that its texel buffer views can be rounded up
-    /// when NeedsTexelBufferPad returns true.
-    VkDeviceSize GetTexelBufferTailBytes() const {
-        return NeedsTexelBufferPad() ? Shader::TEXEL_BUFFER_TAIL_BYTES : 0;
+    /// Returns the number of views each texel buffer descriptor holds.
+    u32 GetTexelBufferViews() const {
+        return NeedsTexelBufferPad() ? 2U : 1U;
     }
 
     /// Returns true if VK_KHR_pipeline_executable_properties is enabled.

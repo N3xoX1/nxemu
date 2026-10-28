@@ -284,18 +284,27 @@ Id Texture(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
     }
 }
 
-Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
+/// With Profile::texel_buffer_size_view, size_view selects the view that has the size the guest
+/// bound instead of the one that is read.
+Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index,
+                bool size_view = false) {
     if (info.type == TextureType::Buffer && ctx.texture_buffers.at(info.descriptor_index).count > 1) {
         if (!ctx.profile.support_uniform_texel_buffer_array_nonuniform_indexing) {
             throw NotImplementedException("Nonuniform texel buffer indexing is unsupported by the host");
         }
         const auto& def = ctx.texture_buffers.at(info.descriptor_index);
         const Id array_index{ctx.Def(index)};
+        Id element{array_index};
+        if (ctx.profile.texel_buffer_size_view) {
+            element = ctx.OpIAdd(ctx.U32[1],
+                                 ctx.OpShiftLeftLogical(ctx.U32[1], array_index, ctx.Const(1U)),
+                                 ctx.Const(size_view ? 1U : 0U));
+        }
         const Id pointer_type{ctx.TypePointer(spv::StorageClass::UniformConstant, ctx.image_buffer_type)};
-        const Id pointer{ctx.OpAccessChain(pointer_type, def.id, array_index)};
+        const Id pointer{ctx.OpAccessChain(pointer_type, def.id, element)};
         const Id image{ctx.OpLoad(ctx.image_buffer_type, pointer)};
         ctx.uses_nonuniform_uniform_texel_buffer = true;
-        for (const Id object : {array_index, pointer, image}) {
+        for (const Id object : {array_index, element, pointer, image}) {
             if (ctx.nonuniform_sampled_ids.insert(object.value).second) {
                 ctx.Decorate(object, spv::Decoration::NonUniform);
             }
@@ -318,6 +327,11 @@ Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& ind
         if (def.count > 1) {
             throw NotImplementedException("Indirect texture sample");
         }
+        if (ctx.profile.texel_buffer_size_view) {
+            const Id view{
+                ctx.TexelBufferView(def.id, ctx.image_buffer_type, ctx.Const(size_view ? 1U : 0U))};
+            return ctx.OpLoad(ctx.image_buffer_type, view);
+        }
         return ctx.OpLoad(ctx.image_buffer_type, def.id);
     } else {
         const TextureDefinition& def{ctx.textures.at(info.descriptor_index)};
@@ -328,12 +342,18 @@ Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& ind
     }
 }
 
-std::pair<Id, bool> Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
+std::pair<Id, bool> Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info,
+                          bool size_view = false) {
     if (info.type == TextureType::Buffer) {
         if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
             throw NotImplementedException("Indirect image buffer indexing");
         }
         const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
+        if (ctx.profile.texel_buffer_size_view) {
+            const Id view{
+                ctx.TexelBufferView(def.id, def.image_type, ctx.Const(size_view ? 1U : 0U))};
+            return {ctx.OpLoad(def.image_type, view), def.is_integer};
+        }
         return {ctx.OpLoad(def.image_type, def.id), def.is_integer};
     } else {
         const ImageDefinition def{ctx.images.at(info.descriptor_index)};
@@ -492,11 +512,13 @@ Id ImageGatherSubpixelOffset(EmitContext& ctx, const IR::TextureInstInfo& info, 
     }
 }
 
-/// Skips the leading elements that a texel buffer view carries to start on an aligned offset.
-Id AddTexelBufferPad(EmitContext& ctx, Id coords, Id image) {
+/// Skips the leading elements that a texel buffer view carries to start on an aligned offset: the
+/// difference of the sizes of the view that is read and of the view that has the size the guest
+/// bound.
+Id AddTexelBufferPad(EmitContext& ctx, Id coords, Id image, Id size_view) {
     const Id size{ctx.OpImageQuerySize(ctx.U32[1], image)};
-    const Id pad{ctx.OpBitwiseAnd(ctx.U32[1], size, ctx.Const(TEXEL_BUFFER_PAD_MASK))};
-    return ctx.OpIAdd(ctx.U32[1], coords, pad);
+    const Id guest_size{ctx.OpImageQuerySize(ctx.U32[1], size_view)};
+    return ctx.OpIAdd(ctx.U32[1], coords, ctx.OpISub(ctx.U32[1], size, guest_size));
 }
 
 void AddOffsetToCoordinates(EmitContext& ctx, const IR::TextureInstInfo& info, Id& coords,
@@ -726,8 +748,9 @@ Id EmitImageFetch(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     AddOffsetToCoordinates(ctx, info, coords, offset);
     if (info.type == TextureType::Buffer) {
         lod = Id{};
-        if (ctx.profile.texel_buffer_pad_in_size) {
-            coords = AddTexelBufferPad(ctx, coords, TextureImage(ctx, info, index));
+        if (ctx.profile.texel_buffer_size_view) {
+            coords = AddTexelBufferPad(ctx, coords, TextureImage(ctx, info, index),
+                                       TextureImage(ctx, info, index, true));
         }
     }
     if (Sirit::ValidId(ms)) {
@@ -773,13 +796,9 @@ Id EmitImageQueryDimensions(EmitContext& ctx, IR::Inst* inst, const IR::Value& i
     case TextureType::ColorArrayCube:
         return ctx.OpCompositeConstruct(ctx.U32[4], query(ctx.U32[3]), mips());
     case TextureType::Buffer: {
-        Id size{query(ctx.U32[1])};
-        if (ctx.profile.texel_buffer_pad_in_size) {
-            // The count was rounded up to keep the padding bits free: this is the size of the
-            // view, which can exceed the size the guest bound by up to TEXEL_BUFFER_PAD_MASK
-            const Id pad{ctx.OpBitwiseAnd(ctx.U32[1], size, ctx.Const(TEXEL_BUFFER_PAD_MASK))};
-            size = ctx.OpISub(ctx.U32[1], size, pad);
-        }
+        const Id size{ctx.profile.texel_buffer_size_view
+                          ? ctx.OpImageQuerySize(ctx.U32[1], TextureImage(ctx, info, index, true))
+                          : query(ctx.U32[1])};
         return ctx.OpCompositeConstruct(ctx.U32[4], size, zero, zero, mips());
     }
     }
@@ -815,8 +834,8 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
         return ctx.ConstantNull(ctx.U32[4]);
     }
     const auto [image, is_integer] = Image(ctx, index, info);
-    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_pad_in_size) {
-        coords = AddTexelBufferPad(ctx, coords, image);
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
+        coords = AddTexelBufferPad(ctx, coords, image, Image(ctx, index, info, true).first);
     }
     const Id result_type{is_integer ? ctx.U32[4] : ctx.F32[4]};
     Id color{Emit(&EmitContext::OpImageSparseRead, &EmitContext::OpImageRead, ctx, inst,
@@ -830,8 +849,8 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
 void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords, Id color) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const auto [image, is_integer] = Image(ctx, index, info);
-    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_pad_in_size) {
-        coords = AddTexelBufferPad(ctx, coords, image);
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
+        coords = AddTexelBufferPad(ctx, coords, image, Image(ctx, index, info, true).first);
     }
     if (!is_integer) {
         color = ctx.OpBitcast(ctx.F32[4], color);

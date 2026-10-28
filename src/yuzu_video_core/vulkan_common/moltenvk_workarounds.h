@@ -34,8 +34,6 @@ SOFTWARE.
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
 
-#include "yuzu_shader_recompiler/profile.h"
-
 namespace Vulkan::MoltenVK {
 
 // MoltenVK must not enable unsupported depth-bounds dynamic states.
@@ -49,55 +47,34 @@ constexpr uint32_t PushDescriptorLimit(VkDriverId driver, uint32_t advertised_li
 }
 
 struct TexelBufferRange {
+    // The view shaders read: it starts at an offset the host accepts, possibly before the range
+    // the guest bound
     uint32_t offset;
     uint32_t size;
-    // Elements at the end of the requested range that the view cannot hold
-    uint32_t lost_elements;
-    // False when the view cannot start at the requested offset: it is created there and the host
-    // reads from the offset rounded down, as it does without this workaround
+    // Size of the second view, which starts at the same offset: its element count is the size the
+    // guest bound
+    uint32_t size_view_size;
+    // False when the range starts at an offset the host rounds down and that cannot be skipped
     bool aligned;
 };
 
 // Metal rounds the offset of a buffer-backed texture down to its alignment instead of rejecting
 // it. A texel buffer view that must start elsewhere is created at the aligned offset instead, and
-// the elements between the two are counted in the low Shader::TEXEL_BUFFER_PAD_BITS bits of its
-// element count, where shaders read them (Shader::Profile::texel_buffer_pad_in_size).
-//
-// Shaders decode every view this way, so the element count is always rounded up to keep those
-// bits equal to the padding, which is zero when the view is not shifted. buffer_size is the size of
-// the host buffer including the Shader::TEXEL_BUFFER_TAIL_BYTES past its data, which is what makes
-// the rounding possible for any view inside the data. Without that room the view cannot be made
-// decodable: it is returned as requested, or cut short with the missing elements counted in
-// lost_elements.
-constexpr TexelBufferRange AlignedTexelBufferRange(uint32_t alignment, uint64_t buffer_size,
-                                                   uint32_t offset, uint32_t size,
-                                                   uint32_t texel_size) {
-    constexpr uint32_t GRANULE = 1U << Shader::TEXEL_BUFFER_PAD_BITS;
-    const TexelBufferRange unchanged{offset, size, 0, false};
-    if (size == 0 || texel_size == 0) {
-        return unchanged;
-    }
+// the shader skips the elements before the range the guest bound
+// (Shader::Profile::texel_buffer_size_view). The element count of the second view is the size the
+// guest bound, and the difference with the element count of the first one is how many elements
+// to skip.
+constexpr TexelBufferRange AlignedTexelBufferRange(uint32_t alignment, uint32_t offset,
+                                                   uint32_t size, uint32_t texel_size) {
     const uint32_t pad_bytes = alignment > 1 ? offset % alignment : 0;
+    if (pad_bytes == 0) {
+        return {offset, size, size, true};
+    }
     // A shift that is not a whole number of elements cannot be skipped by the shader
-    const bool shiftable = pad_bytes % texel_size == 0;
-    const uint64_t start = shiftable ? offset - pad_bytes : offset;
-    const uint64_t pad = shiftable ? pad_bytes / texel_size : 0;
-    if (start >= buffer_size) {
-        return unchanged;
+    if (texel_size == 0 || pad_bytes % texel_size != 0 || size > UINT32_MAX - pad_bytes) {
+        return {offset, size, size, false};
     }
-    const uint64_t buffer_elements = (buffer_size - start) / texel_size;
-    if (buffer_elements <= pad) {
-        return unchanged;
-    }
-    const uint64_t needed = size / texel_size;
-    const uint64_t wanted = (needed + GRANULE - 1) / GRANULE * GRANULE;
-    const uint64_t fitting = (buffer_elements - pad) / GRANULE * GRANULE;
-    const uint64_t elements = std::min(wanted, fitting);
-    if (elements == 0) {
-        return unchanged;
-    }
-    return {static_cast<uint32_t>(start), static_cast<uint32_t>((pad + elements) * texel_size),
-            static_cast<uint32_t>(needed > elements ? needed - elements : 0), shiftable};
+    return {offset - pad_bytes, size + pad_bytes, size, true};
 }
 
 constexpr bool SubresourceRangesOverlap(const VkImageSubresourceRange& lhs,

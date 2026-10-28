@@ -43,14 +43,15 @@ static u32 Accumulate(const Descriptors& descriptors) {
     return count;
 }
 
-static DescriptorBankInfo MakeBankInfo(std::span<const Shader::Info> infos) {
+static DescriptorBankInfo MakeBankInfo(std::span<const Shader::Info> infos,
+                                       u32 texel_buffer_views) {
     DescriptorBankInfo bank;
     for (const Shader::Info& info : infos) {
         bank.uniform_buffers += Accumulate(info.constant_buffer_descriptors);
         bank.storage_buffers += Accumulate(info.storage_buffers_descriptors);
         bank.storage_buffers += info.runtime_image_write_mask_words != 0 ? 1U : 0U;
-        bank.texture_buffers += Accumulate(info.texture_buffer_descriptors);
-        bank.image_buffers += Accumulate(info.image_buffer_descriptors);
+        bank.texture_buffers += Accumulate(info.texture_buffer_descriptors) * texel_buffer_views;
+        bank.image_buffers += Accumulate(info.image_buffer_descriptors) * texel_buffer_views;
         for (const auto& desc : info.texture_descriptors) {
             // Texture tables are allocated from their own set
             bank.textures += desc.is_direct || desc.in_table_set ? 0U : desc.count;
@@ -143,12 +144,12 @@ DescriptorPool::~DescriptorPool() = default;
 
 DescriptorAllocator DescriptorPool::Allocator(VkDescriptorSetLayout layout,
                                               std::span<const Shader::Info> infos) {
-    return Allocator(layout, MakeBankInfo(infos));
+    return Allocator(layout, MakeBankInfo(infos, device.GetTexelBufferViews()));
 }
 
 DescriptorAllocator DescriptorPool::Allocator(VkDescriptorSetLayout layout,
                                               const Shader::Info& info) {
-    return Allocator(layout, MakeBankInfo(std::array{info}));
+    return Allocator(layout, MakeBankInfo(std::array{info}, device.GetTexelBufferViews()));
 }
 
 DescriptorAllocator DescriptorPool::Allocator(VkDescriptorSetLayout layout,
