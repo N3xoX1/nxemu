@@ -23,7 +23,8 @@ nxemu_unit_test(test_startup_wait)
 
 # SPIR-V layout of constant buffers. Link the archives themselves: their dependencies would
 # bring a second definition of the logging functions.
-add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp)
+add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp
+    spirv_constant_buffers/runtime_fetch.cpp)
 target_include_directories(test_spirv_constant_buffers PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
     "${CMAKE_SOURCE_DIR}/external/sirit/include"

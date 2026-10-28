@@ -91,6 +91,13 @@ void AddNVNStorageBuffers(IR::Program& program) {
     }
     auto& info{program.info};
     auto& descs{info.storage_buffers_descriptors};
+    for (auto& desc : descs) {
+        // Runtime global accesses may select any tracked buffer, including one
+        // outside the NVN table. Helpers also read its byte size at offset +8.
+        desc.is_written |= info.stores_global_memory;
+        auto& used_size = info.constant_buffer_used_sizes[desc.cbuf_index];
+        used_size = std::max(used_size, desc.cbuf_offset + 12);
+    }
     for (size_t nvn_index = 0; nvn_index < info.nvn_buffer_used.size(); ++nvn_index) {
         if (!info.nvn_buffer_used[nvn_index]) {
             continue;
