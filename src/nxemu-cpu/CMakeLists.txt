@@ -48,6 +48,7 @@ add_library(nxemu-cpu SHARED
     cpu_settings.cpp
     cpu_settings.h
     cpu_settings_identifiers.h
+    patch/runtime_code_patch.h
     patch/patch_collection.cpp
     patch/patch_collection.h
     dynarmic_cp15.cpp
@@ -493,6 +494,23 @@ if(ARCHITECTURE_arm64)
             dynarmic/backend/exception_handler_macos.cpp
             dynarmic/backend/exception_handler_macos_mig.c
         )
+        target_compile_definitions(nxemu-cpu PRIVATE NXEMU_HAS_NCE=1)
+        target_sources(nxemu-cpu PRIVATE
+            nce/arm_nce_asm_definitions.h
+            nce/arm_nce.cpp
+            nce/arm_nce.h
+            nce/arm_nce_darwin.cpp
+            nce/arm_nce_darwin.S
+            nce/decode.cpp
+            nce/decode.h
+            nce/guest_context.h
+            nce/instructions.h
+            nce/interpreter_visitor.cpp
+            nce/interpreter_visitor.h
+            nce/patcher.cpp
+            nce/patcher.h
+            nce/visitor_base.h
+        )
     elseif(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_definitions(nxemu-cpu PRIVATE NXEMU_HAS_NCE=1)
         target_sources(nxemu-cpu PRIVATE
@@ -501,6 +519,8 @@ if(ARCHITECTURE_arm64)
             nce/arm_nce.cpp
             nce/arm_nce.h
             nce/arm_nce.s
+            nce/decode.cpp
+            nce/decode.h
             nce/guest_context.h
             nce/instructions.h
             nce/interpreter_visitor.cpp

@@ -7,6 +7,9 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <deque>
 #include <thread>
 #include <list>
@@ -444,6 +447,42 @@ struct GPU::Impl :
         return raster_area;
     }
 
+    void OnNativeCPURead(DAddr addr, u64 size)
+    {
+        static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
+        using Clock = std::chrono::steady_clock;
+        const auto started = profile ? Clock::now() : Clock::time_point{};
+        // Native access requires current data, without enabling permanent preemptive copies.
+        const uint64_t fence = RequestSyncOperation([this, addr, size]() {
+            // Publish CPU stores before reading back, without pretending that the GPU
+            // wrote again: rearming here makes reads of two host pages evict each other.
+            m_modules.OperatingSystem().GatherGPUDirtyMemoryForReadback(this);
+            rasterizer->FlushNativeRegion(addr, size);
+            // Register and grant access before this serialized GPU producer can
+            // execute another image write. The CPU fault handler must not reopen it later.
+            host1x.MemoryManager().RegisterNativeRead(addr, size);
+        });
+        gpu_thread.TickGPU();
+        WaitForSyncOperation(fence);
+        if (profile) {
+            static thread_local u64 calls{}, bytes{};
+            static thread_local double wait_ms{};
+            static thread_local auto reported = Clock::now();
+            const auto now = Clock::now();
+            ++calls;
+            bytes += size;
+            wait_ms += std::chrono::duration<double, std::milli>(now - started).count();
+            if (now - reported >= std::chrono::seconds(5)) {
+                std::fprintf(stderr, "[NCE-DEMAND] interval=%.3f calls=%llu requested_KiB=%.3f wait_ms=%.3f\n",
+                    std::chrono::duration<double>(now - reported).count(),
+                    (unsigned long long)calls, static_cast<double>(bytes) / 1024.0, wait_ms);
+                calls = bytes = 0;
+                wait_ms = 0;
+                reported = now;
+            }
+        }
+    }
+
     /// Notify rasterizer that any caches of the specified region should be invalidated
     void InvalidateRegion(DAddr addr, uint64_t size)
     {
@@ -817,6 +856,11 @@ void GPU::ClearCdmaInstance(u32 id)
 RasterizerDownloadArea GPU::OnCPURead(PAddr addr, uint64_t size)
 {
     return impl->OnCPURead(addr, size);
+}
+
+void GPU::OnNativeCPURead(DAddr addr, u64 size)
+{
+    impl->OnNativeCPURead(addr, size);
 }
 
 void GPU::FlushRegion(DAddr addr, uint64_t size)

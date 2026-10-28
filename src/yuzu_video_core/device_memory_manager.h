@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <set>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -112,6 +113,10 @@ public:
     void UnregisterProcess(Asid id);
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
+    void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
+    // Called on the serialized GPU producer, under its execution lock.
+    void RegisterNativeRead(DAddr addr, size_t size);
+    void InvalidateNativeReadRegion(DAddr addr, size_t size);
 
     // Presence remains conservative across deletion, remapping and address reuse.
     void RegisterFlushCacheRegion(DAddr addr, u64 size, VideoCommon::CacheType types) {
@@ -128,8 +133,6 @@ public:
 private:
     static constexpr size_t device_virtual_bits = Traits::device_virtual_bits;
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
-    static constexpr size_t physical_min_bits = 32;
-    static constexpr size_t physical_max_bits = 33;
     static constexpr size_t page_bits = 12;
     static constexpr size_t page_size = 1ULL << page_bits;
     static constexpr size_t page_mask = page_size - 1ULL;
@@ -221,6 +224,9 @@ private:
     using CachedPages = std::array<CounterEntry, num_counter_entries>;
     std::unique_ptr<CachedPages> cached_pages;
     VideoCommon::FlushRegionCacheFilter<Traits::device_virtual_bits> flush_cache_filter;
+    // Physical pages opened by a completed native readback. Only actual GPU image
+    // writes consume these observers; cache-management commands leave them alone.
+    std::set<size_t> native_read_pages;
     Common::RangeMutex counter_guard;
     std::mutex mapping_guard;
 };

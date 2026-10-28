@@ -1,11 +1,17 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <memory>
 #include <stdint.h>
 
 #include "arm_dynarmic.h"
 #include "nce/arm_nce.h"
+#if defined(__APPLE__)
+#include <libkern/OSCacheControl.h>
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#endif
 #include "nce/interpreter_visitor.h"
 #include "nce/patcher.h"
 #include "yuzu_common/literals.h"
@@ -13,12 +19,16 @@
 #include "yuzu_common/yuzu_assert.h"
 
 #include <signal.h>
+#if !defined(__APPLE__)
 #include <sys/syscall.h>
+#endif
 #include <unistd.h>
 
 namespace Core
 {
 
+// The Darwin entry, exits and fault handling are in arm_nce_darwin.cpp.
+#if !defined(__APPLE__)
 namespace
 {
 
@@ -179,6 +189,8 @@ void ArmNce::HandleHostAccessFault(int sig, void * raw_info, void * raw_context)
     return g_orig_segv_action.sa_sigaction(sig, static_cast<siginfo_t *>(raw_info), raw_context);
 }
 
+#endif
+
 void ArmNce::LockThread(IKernelThread * thread)
 {
     NativeExecutionParameters * thread_params = &thread->GetNativeExecutionParameters();
@@ -191,6 +203,7 @@ void ArmNce::UnlockThread(IKernelThread * thread)
     UnlockThreadParameters(thread_params);
 }
 
+#if !defined(__APPLE__)
 CpuHaltReason ArmNce::RunThread(IKernelThread * thread)
 {
     Dynarmic::HaltReason hr = static_cast<Dynarmic::HaltReason>(m_guest_ctx.esr_el1.exchange(0));
@@ -226,6 +239,8 @@ CpuHaltReason ArmNce::RunThread(IKernelThread * thread)
     return TranslateHaltReason(hr);
 }
 
+#endif
+
 CpuHaltReason ArmNce::StepThread(IKernelThread * /*thread*/)
 {
     return CpuHaltReason::StepThread;
@@ -258,10 +273,20 @@ ArmNce::ArmNce(ICoreSystem & system, bool /*uses_wall_clock*/, IKernelProcess & 
 {
     m_guest_ctx.memory = &process.GetMemory();
     m_guest_ctx.parent = this;
+#if defined(__APPLE__)
+    uint64_t starts[4]{};
+    uint64_t ends[4]{};
+    const uint32_t count = process.GetPageTable().GetNceWindows(starts, ends, 4);
+    for (uint32_t i = 0; i < count && i < 4; i++)
+    {
+        m_guest_windows.emplace_back(starts[i], ends[i]);
+    }
+#endif
 }
 
 ArmNce::~ArmNce() = default;
 
+#if !defined(__APPLE__)
 void ArmNce::Initialize()
 {
     if (m_thread_id == -1)
@@ -320,6 +345,8 @@ void ArmNce::Initialize()
     });
 }
 
+#endif
+
 void ArmNce::SetTpidrroEl0(u64 value)
 {
     m_guest_ctx.tpidrro_el0 = value;
@@ -359,6 +386,7 @@ void ArmNce::SetContext(const CpuThreadContext & ctx)
     m_guest_ctx.tpidr_el0 = ctx.tpidr;
 }
 
+#if !defined(__APPLE__)
 void ArmNce::SignalInterrupt(IKernelThread * thread)
 {
     m_guest_ctx.esr_el1.fetch_or((uint64_t)TranslateDynarmicHaltReason(CpuHaltReason::BreakLoop));
@@ -376,6 +404,8 @@ void ArmNce::SignalInterrupt(IKernelThread * thread)
     }
 }
 
+#endif
+
 void ArmNce::ClearInstructionCache()
 {
     // TODO: This is not possible to implement correctly on Linux because
@@ -385,8 +415,33 @@ void ArmNce::ClearInstructionCache()
     std::atomic_thread_fence(std::memory_order_seq_cst);
 }
 
-void ArmNce::InvalidateCacheRange(uint64_t /*addr*/, uint64_t /*size*/)
+void ArmNce::InvalidateCacheRange(uint64_t addr, uint64_t size)
 {
+#if defined(__APPLE__)
+    // The kernel also invalidates code after unmapping/reprotecting it. Darwin's
+    // cache routine faults on inaccessible pages, so visit only live readable spans.
+    const uint64_t end = size > UINT64_MAX - addr ? UINT64_MAX : addr + size;
+    while (addr < end)
+    {
+        mach_vm_address_t region = addr;
+        mach_vm_size_t length{};
+        vm_region_basic_info_data_64_t info{};
+        mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
+        mach_port_t object{};
+        const auto result = mach_vm_region(mach_task_self(), &region, &length,
+            VM_REGION_BASIC_INFO_64, reinterpret_cast<vm_region_info_t>(&info), &count, &object);
+        if (object) mach_port_deallocate(mach_task_self(), object);
+        if (result != KERN_SUCCESS || region >= end || length == 0) break;
+        const auto begin = std::max<uint64_t>(addr, region);
+        const auto region_end = length > end - region ? end : region + length;
+        if (info.protection & VM_PROT_READ)
+            sys_icache_invalidate(reinterpret_cast<void*>(begin), region_end - begin);
+        addr = region_end;
+    }
+#else
+    (void)addr;
+    (void)size;
+#endif
     this->ClearInstructionCache();
 }
 

@@ -39,6 +39,41 @@ public:
 
     u64 ExtendReg(size_t bitsize, Reg reg, Imm<3> option, u8 shift);
 
+    // SIMD structure transfers can fault on host pages shared by guest pages.
+    bool StructureMultiple(bool load, bool Q, bool wback, Reg Rm, Imm<4> opcode, Imm<2> size,
+                           Reg Rn, Vec Vt);
+    bool StructureSingle(bool load, bool Q, bool wback, Reg Rm, unsigned count,
+                         Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt,
+                         bool replicate = false);
+    bool STx_mult_1(bool Q, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool STx_mult_2(bool Q, Reg Rm, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST1_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST1_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST2_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST2_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST3_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST3_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST4_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool ST4_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LDx_mult_1(bool Q, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LDx_mult_2(bool Q, Reg Rm, Imm<4> opcode, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD1_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD1_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD1R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD1R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD2_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD2_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD2R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD2R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD3_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD3_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD3R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD3R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD4_sngl_1(bool Q, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD4_sngl_2(bool Q, Reg Rm, Imm<2> upper_opcode, bool S, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD4R_1(bool Q, Imm<2> size, Reg Rn, Vec Vt) override;
+    bool LD4R_2(bool Q, Reg Rm, Imm<2> size, Reg Rn, Vec Vt) override;
+
     // Loads and stores - Load/Store Exclusive
     bool Ordered(size_t size, bool L, bool o0, Reg Rn, Reg Rt);
     bool STLLR(Imm<2> size, Reg Rn, Reg Rt) override;
@@ -97,7 +132,11 @@ private:
     const u64& m_pc;
 };
 
+#if defined(__APPLE__)
+std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, __darwin_mcontext64* context);
+#else
 std::optional<u64> MatchAndExecuteOneInstruction(IMemory& memory, mcontext_t* context,
                                                  fpsimd_context* fpsimd_context);
+#endif
 
 } // namespace Core

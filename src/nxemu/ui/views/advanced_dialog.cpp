@@ -77,6 +77,7 @@ constexpr Toggle kToggles[] = {
     {"start-ui-hidden", NXUISetting::StartGamesWithUiHidden, Store::Interface, true},
     {"confirm-stop", NXUISetting::ConfirmBeforeStopping, Store::Interface, true},
     {"discord", NXUISetting::EnableDiscordPresence, Store::Interface, true},
+    {"cpu-backend-info", NXUISetting::ShowCpuBackend, Store::Interface, true},
     {"log-console", NXCoreSetting::ShowLogConsole, Store::Core, true},
 };
 

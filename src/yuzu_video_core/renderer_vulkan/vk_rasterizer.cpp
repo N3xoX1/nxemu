@@ -747,6 +747,15 @@ void Vulkan::RasterizerVulkan::DisableGraphicsUniformBuffer(size_t stage, u32 in
 void RasterizerVulkan::FlushAll() {}
 
 void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
+    FlushRegionImpl(addr, size, which, false);
+}
+
+void RasterizerVulkan::FlushNativeRegion(DAddr addr, u64 size) {
+    FlushRegionImpl(addr, size, VideoCommon::CacheType::All, true);
+}
+
+void RasterizerVulkan::FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheType which,
+                                      bool native_read) {
     if (addr == 0 || size == 0) {
         return;
     }
@@ -759,7 +768,7 @@ void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType 
     }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
-        texture_cache.DownloadMemory(addr, size);
+        texture_cache.DownloadMemory(addr, size, native_read);
     }
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
         std::scoped_lock lock{buffer_cache.mutex};

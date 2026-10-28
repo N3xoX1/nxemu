@@ -13,7 +13,9 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-module-spec/cpu.h>
 #include <nxemu-module-spec/operating_system.h>
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/video.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-os/os_types.h>
@@ -2345,6 +2347,23 @@ void MainWindow::MeasureGame()
 
 void MainWindow::UpdateStatusText()
 {
+    std::string cpu_backend;
+    if (uiSettings.showCpuBackend && m_session.IsRunning())
+    {
+        if (IKernelProcess* process = m_session.Modules().OperatingSystem().CurrentProcess())
+        {
+            // Use the same eligibility as CreateCpuCore, after process creation. The
+            // configured backend alone can still fall back for this particular game.
+            const bool native = process->Is64Bit() && process->IsApplication() &&
+                                SettingsStore::GetInstance().GetBool(NXCpuSetting::NceEnabled);
+            cpu_backend = std::string(native ? "NCE" : "Dynarmic") +
+                          (process->Is64Bit() ? " · AArch64 · " : " · AArch32 · ") +
+                          std::to_string(process->GetPageTable().GetAddressSpaceWidth()) + "-bit";
+        }
+    }
+    SetText("title-cpu-backend", cpu_backend);
+    m_document->SetClass("show-cpu-backend", !cpu_backend.empty());
+
     std::vector<std::string> parts;
     if (m_session.IsRunning())
     {

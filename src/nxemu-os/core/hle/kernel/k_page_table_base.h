@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <map>
+#include <unordered_map>
 #include <memory>
 
 #include "yuzu_common/common_funcs.h"
@@ -47,8 +49,10 @@ static_assert(sizeof(KPageProperties) == sizeof(u32));
 
 class KResourceLimit;
 class KSystemResource;
+class NativeCodeBacking;
 
 class KPageTableBase {
+    friend class NativeCodeBacking;
     YUZU_NON_COPYABLE(KPageTableBase);
     YUZU_NON_MOVEABLE(KPageTableBase);
 
@@ -107,6 +111,7 @@ protected:
 
         MapFirstGroupPhysical = 65000,
         UnmapPhysical = 65001,
+        MapGroupPhysical = 65002,
     };
 
     static constexpr size_t MaxPhysicalMapAlignment = 1_GiB;
@@ -208,6 +213,22 @@ private:
     size_t m_mapped_unsafe_physical_memory{};
     size_t m_mapped_insecure_memory{};
     size_t m_mapped_ipc_server_memory{};
+
+    // Stack aliases (svcMapMemory) given their own pages, aligned like the guest address on
+    // host pages larger than the guest page, so they can be mapped directly. Keyed by stack address.
+    struct HostAlignedAlias {
+        KProcessAddress src_address;
+        size_t size;
+        KPhysicalAddress block;     // whole host pages covering the stack, opened once
+        size_t block_pages;
+        KPhysicalAddress stack_phys; // first page of the stack inside block
+    };
+    std::map<u64, HostAlignedAlias> m_host_aligned_aliases;
+
+    // Physical memory mapped by MapPhysicalMemory on host pages larger than the guest page: each
+    // host page it touches gets its own block of one host page, opened once, so the pages map
+    // directly and the guest pages left free on it belong to this process. Keyed by host page.
+    std::unordered_map<u64, KPhysicalAddress> m_host_physical_blocks;
     mutable KLightLock m_general_lock;
     mutable KLightLock m_map_physical_memory_lock;
     KLightLock m_device_map_lock;
@@ -448,6 +469,10 @@ private:
     void RemapPageGroup(PageLinkedList* page_list, KProcessAddress address, size_t size,
                         const KPageGroup& pg);
 
+    Result MapHostPhysicalPages(PageLinkedList* page_list, KProcessAddress address,
+                                size_t num_pages, const KPageProperties properties);
+    void ReleaseFreeHostPhysicalBlocks(KProcessAddress address, size_t size);
+
     Result MakePageGroup(KPageGroup& pg, KProcessAddress addr, size_t num_pages);
     bool IsValidPageGroup(const KPageGroup& pg, KProcessAddress addr, size_t num_pages);
 
@@ -554,6 +579,11 @@ public:
     Result MapPages(KProcessAddress address, size_t num_pages, KMemoryState state,
                     KMemoryPermission perm);
     Result UnmapPages(KProcessAddress address, size_t num_pages, KMemoryState state);
+    // Reserve guest VA for host-generated code/padding, without allocating guest DRAM.
+    Result ReserveNativeCode(KProcessAddress address, size_t size);
+    Result ReleaseNativeCode(KProcessAddress address, size_t size);
+    Result MaterializeNativeCode(std::unique_ptr<NativeCodeBacking>& out,
+                                 KProcessAddress address, size_t size);
 
     Result MapPageGroup(KProcessAddress* out_addr, const KPageGroup& pg,
                         KProcessAddress region_start, size_t region_num_pages, KMemoryState state,
@@ -711,6 +741,9 @@ public:
         return m_allocate_option;
     }
 
+    u32 GetNceWindows(u64* starts, u64* ends, u32 max) const;
+    uint64_t GetNceAtomicTable() const;
+
     u32 GetAddressSpaceWidth() const {
         return m_address_space_width;
     }
@@ -759,6 +792,23 @@ public:
 
     // TODO: GetPageTableVirtualAddress
     // TODO: GetPageTablePhysicalAddress
+};
+
+// An alternate physical layout for a locked code alias. The original page group stays
+// referenced until restoration; every normal memory/GPU access uses the installed layout.
+class NativeCodeBacking {
+    friend class KPageTableBase;
+public:
+    ~NativeCodeBacking();
+private:
+    NativeCodeBacking(KPageTableBase& table, KProcessAddress address, size_t size);
+    KPageTableBase& table;
+    KProcessAddress address;
+    size_t size;
+    std::unique_ptr<KPageGroup> original;
+    KPhysicalAddress allocation{};
+    size_t allocation_pages{};
+    bool opened{}, installed{};
 };
 
 } // namespace Kernel

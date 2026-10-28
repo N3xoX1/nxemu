@@ -6,6 +6,9 @@
 #include <array>
 #include <atomic>
 #include <cstddef>
+#if defined(__APPLE__)
+#include <pthread.h>
+#endif
 
 #include "nce/arm_nce_asm_definitions.h"
 #include "yuzu_common/common_types.h"
@@ -14,6 +17,30 @@
 namespace Core {
 
 class ArmNce;
+
+// Host page size. The patch section is aligned to it, so it gets its own host pages.
+#if defined(__APPLE__)
+constexpr u64 NceHostPageSize = 0x4000;
+#else
+constexpr u64 NceHostPageSize = 0x1000;
+#endif
+
+#if defined(__APPLE__)
+// The Darwin kernel owns TPIDR_EL0 (it holds the CPU number), so the thread parameters are
+// kept in a thread specific data slot, which Darwin stores at TPIDRRO_EL0 + key * 8.
+inline pthread_key_t ThreadParametersKey() {
+    static const pthread_key_t key = [] {
+        pthread_key_t new_key{};
+        pthread_key_create(&new_key, nullptr);
+        return new_key;
+    }();
+    return key;
+}
+
+inline u32 ThreadParametersSlotOffset() {
+    return static_cast<u32>(ThreadParametersKey() * sizeof(void*));
+}
+#endif
 
 struct HostContext {
     alignas(16) std::array<u64, 12> host_saved_regs{};

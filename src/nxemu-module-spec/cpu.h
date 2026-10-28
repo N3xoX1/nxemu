@@ -83,6 +83,9 @@ nxinterface IMemory
     virtual void RasterizerMarkRegionCached(uint64_t vaddr, uint64_t size, bool cached) = 0;
     virtual uint8_t * GetPointerSilent(uint64_t vaddr) = 0;
     virtual bool InvalidateNCE(uint64_t vaddr, uint64_t size) = 0;
+    virtual bool NceAccessAllowed(uint64_t vaddr, bool write) = 0;
+    virtual bool NceTrackWrites(uint64_t vaddr) = 0;
+    virtual bool NcePrepareCanonicalWrite(uint64_t vaddr) { return false; }
 
     virtual uint8_t Read8(uint64_t addr) = 0;
     virtual uint16_t Read16(uint64_t addr) = 0;
@@ -101,6 +104,11 @@ nxinterface IMemory
     virtual bool WriteExclusive32(uint64_t addr, uint32_t value, uint32_t expected) = 0;
     virtual bool WriteExclusive64(uint64_t addr, uint64_t value, uint64_t expected) = 0;
     virtual bool WriteExclusive128(uint64_t addr, uint64_t valueHi, uint64_t valueLow, uint64_t expectedHi, uint64_t expectedLow) = 0;
+    // Readback-capable caches need native CPU reads tracked independently of buffer writes.
+    virtual void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {}
+    virtual bool NceTrackReads(uint64_t vaddr) { return false; }
+    virtual void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) {}
+
 };
 
 nxinterface IExclusiveMonitor
@@ -126,6 +134,8 @@ nxinterface IKProcessPageTable
     virtual uint32_t GetAddressSpaceWidth() const = 0;
     virtual uint8_t * FastmemArena() const = 0;
     virtual void ** PageTable() const = 0;
+    virtual uint32_t GetNceWindows(uint64_t * starts, uint64_t * ends, uint32_t max) const = 0;
+    virtual uint64_t GetNceAtomicTable() const = 0;
 };
 
 nxinterface IKernelProcess
@@ -137,6 +147,14 @@ nxinterface IKernelProcess
     virtual uint64_t FindPostHandler(uint64_t pc) const = 0;
     virtual void RegisterPostHandler(uint64_t module_text, uint64_t patch_text) = 0;
     virtual void LogBacktrace(ICpuCore & cpuCore) = 0;
+    // Restart an interrupted native sequence whose temporary state belongs to its host thread.
+    virtual uint64_t GetNceRestartPc(uint64_t pc) const = 0;
+    virtual void RegisterNceRestartPc(uint64_t interrupted_pc, uint64_t restart_pc) = 0;
+    virtual uint64_t FindNceAtomicHandler(uint64_t pc) const = 0;
+    virtual void RegisterNceAtomicHandler(uint64_t pc, uint64_t handler) = 0;
+    virtual void EnableNceAtomicHandlers() = 0;
+    virtual void RegisterNceReadHandler(uint64_t pc, uint64_t handler) {}
+    virtual uint64_t InstallNceReadHandler(uint64_t pc) { return 0; }
 };
 
 struct NativeExecutionParameters
@@ -207,9 +225,29 @@ nxinterface ICpuCore
     virtual void Release() = 0;
 };
 
+struct NativeCodeWordPatch {
+    uint32_t offset;
+    uint32_t original;
+    uint32_t replacement;
+};
+struct NativeCodeEntry { uint64_t pc; uint64_t target; };
+
+// Owned by the CPU module. Construction and relocation have no guest-visible side effects.
+nxinterface IRuntimeCodePatch {
+    virtual uint64_t GetCodeSize() const = 0;
+    virtual bool Relocate(uint64_t text_base, uint64_t patch_base) = 0;
+    virtual const uint8_t* GetCode() const = 0;
+    virtual const NativeCodeWordPatch* GetTextChanges(uint32_t* count) const = 0;
+    virtual const NativeCodeEntry* GetPostHandlers(uint32_t* count) const = 0;
+    virtual const NativeCodeEntry* GetRestartPcs(uint32_t* count) const = 0;
+    virtual const NativeCodeEntry* GetAtomicHandlers(uint32_t* count) const = 0;
+    virtual void Release() = 0;
+};
+
 nxinterface ICpu
 {
     virtual bool Initialize(void) = 0;
+    virtual IRuntimeCodePatch* CreateRuntimeCodePatch(const uint8_t* text, uint32_t size, uint64_t atomic_table) = 0;
 
     virtual IExclusiveMonitor * CreateExclusiveMonitor(IMemory & memory) = 0;
     virtual IPatchCollection * CreatePatchCollection(bool is_application) = 0;

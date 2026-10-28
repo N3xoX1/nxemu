@@ -501,6 +501,14 @@ msgid "Log"
 msgstr "Registo"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show CPU backend in the title bar"
+msgstr "Mostrar o backend da CPU na barra de título"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The active backend, instruction set and address-space width."
+msgstr "O backend ativo, o conjunto de instruções e a largura do espaço de endereçamento."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Show the log console"
 msgstr "Mostrar consola de registo"
 

@@ -16,6 +16,7 @@
         <img id="title-game-icon" />
         <div id="title-text" translate="no" />
       </div>
+      <div id="title-cpu-backend" translate="no" />
       <div id="title-spacer" />
       <div id="title-settings-group" class="title-button-group" data-window="control">
         <button id="title-controllers" class="emulation-button" title="Controllers">

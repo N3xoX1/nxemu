@@ -82,7 +82,7 @@ constexpr VkBorderColor ConvertBorderColor(const std::array<float, 4>& color) {
     return {};
 }
 
-[[nodiscard]] VkSampleCountFlagBits ConvertSampleCount(u32 num_samples) {
+[[nodiscard]] VkSampleCountFlagBits GuestSampleCount(u32 num_samples) {
     switch (num_samples) {
     case 1:
         return VK_SAMPLE_COUNT_1_BIT;
@@ -98,6 +98,10 @@ constexpr VkBorderColor ConvertBorderColor(const std::array<float, 4>& color) {
         ASSERT_MSG(false, "Invalid number of samples={}", num_samples);
         return VK_SAMPLE_COUNT_1_BIT;
     }
+}
+
+[[nodiscard]] VkSampleCountFlagBits ConvertSampleCount(const Device& device, u32 num_samples) {
+    return device.SupportedSampleCount(GuestSampleCount(num_samples));
 }
 
 [[nodiscard]] VkImageUsageFlags ImageUsageFlags(const MaxwellToVK::FormatInfo& info,
@@ -150,7 +154,7 @@ constexpr VkBorderColor ConvertBorderColor(const std::array<float, 4>& color) {
         },
         .mipLevels = static_cast<u32>(info.resources.levels),
         .arrayLayers = static_cast<u32>(info.resources.layers),
-        .samples = ConvertSampleCount(info.num_samples),
+        .samples = ConvertSampleCount(device, info.num_samples),
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = ImageUsageFlags(format_info, info.format),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -2033,7 +2037,7 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
                      ImageId image_id_, Image& image)
     : VideoCommon::ImageViewBase{info, image.info, image_id_, image.gpu_addr},
       device{&runtime.device}, image_handle{image.Handle()},
-      samples(ConvertSampleCount(image.info.num_samples)) {
+      samples(ConvertSampleCount(runtime.device, image.info.num_samples)) {
     using Shader::TextureType;
 
     const VkImageAspectFlags aspect_mask = ImageViewAspectMask(info);

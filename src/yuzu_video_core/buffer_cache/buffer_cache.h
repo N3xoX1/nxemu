@@ -276,6 +276,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     const auto& copy = copies[0];
     src_buffer.MarkUsage(copy.src_offset, copy.size);
     dest_buffer.MarkUsage(copy.dst_offset, copy.size);
+    device_memory.InvalidateNativeReadRegion(*cpu_dest_address, amount);
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
@@ -305,6 +306,7 @@ bool BufferCache<P>::DMAClear(GPUVAddr dst_address, u64 amount, u32 value) {
     const BufferId buffer = FindBuffer(*cpu_dst_address, static_cast<u32>(size));
     Buffer& dest_buffer = slot_buffers[buffer];
     const u32 offset = dest_buffer.Offset(*cpu_dst_address);
+    device_memory.InvalidateNativeReadRegion(*cpu_dst_address, size);
     runtime.ClearBuffer(dest_buffer, offset, size, value);
     MarkBufferContentChanged(dest_buffer, *cpu_dst_address, size);
     dest_buffer.MarkUsage(offset, size);
@@ -502,7 +504,7 @@ void BufferCache<P>::BindGraphicsStorageBuffer(size_t stage, size_t ssbo_index, 
     const auto& cbufs = maxwell3d->state.shader_stages[stage];
     const GPUVAddr ssbo_addr = cbufs.const_buffers[cbuf_index].address + cbuf_offset;
     channel_state->storage_buffers[stage][ssbo_index] =
-        StorageBufferBinding(ssbo_addr, cbuf_index, is_written);
+        StorageBufferBinding(ssbo_addr, cbuf_index, cbuf_offset, is_written);
 }
 
 template <class P>
@@ -549,7 +551,7 @@ void BufferCache<P>::BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index,
     const auto& cbufs = launch_desc.const_buffer_config;
     const GPUVAddr ssbo_addr = cbufs[cbuf_index].Address() + cbuf_offset;
     channel_state->compute_storage_buffers[ssbo_index] =
-        StorageBufferBinding(ssbo_addr, cbuf_index, is_written);
+        StorageBufferBinding(ssbo_addr, cbuf_index, cbuf_offset, is_written);
 }
 
 template <class P>
@@ -1559,6 +1561,7 @@ void BufferCache<P>::UpdateComputeTextureBuffers() {
 
 template <class P>
 void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size) {
+    device_memory.InvalidateNativeReadRegion(device_addr, size);
     gpu_write_history.Mark(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
@@ -2045,10 +2048,17 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
 
 template <class P>
 Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
-                                             bool is_written) const {
+                                             u32 cbuf_offset, bool is_written) const {
     const GPUVAddr gpu_addr = gpu_memory->Read<u64>(ssbo_addr);
-    // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size.
-    const u32 declared_size = cbuf_index == 0 ? gpu_memory->Read<u32>(ssbo_addr + 8) : 0;
+    // The NVN driver buffer (index 0) is known to pack the SSBO address followed by its size,
+    // in the range the shader recompiler biases towards. Elsewhere in that buffer the next word
+    // is unrelated data: a game kept a 1 there, and its compute shader then wrote past the bound
+    // range, over the buffers placed after it.
+    static constexpr u32 NVN_SSBO_BEGIN = 0x110;
+    static constexpr u32 NVN_SSBO_END = 0x610;
+    const bool is_nvn_descriptor =
+        cbuf_index == 0 && cbuf_offset >= NVN_SSBO_BEGIN && cbuf_offset < NVN_SSBO_END;
+    const u32 declared_size = is_nvn_descriptor ? gpu_memory->Read<u32>(ssbo_addr + 8) : 0;
     const auto requested_size = [&]() {
         if (declared_size != 0) {
             return declared_size;
@@ -2380,6 +2390,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         // The canonical buffer receives the bytes after the draw or dispatch is recorded.
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
+        device_memory.InvalidateNativeReadRegion(device_addr, write_size);
         gpu_write_history.Mark(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);

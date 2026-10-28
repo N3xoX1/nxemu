@@ -176,7 +176,7 @@ PixelFormat DecodeFormat(u8 encoded_format) {
     return PixelFormatFromRenderTargetFormat(format);
 }
 
-RenderPassKey MakeRenderPassKey(const FixedPipelineState& state) {
+RenderPassKey MakeRenderPassKey(const Device& device, const FixedPipelineState& state) {
     RenderPassKey key;
     std::ranges::transform(state.color_formats, key.color_formats.begin(), DecodeFormat);
     if (state.depth_enabled != 0) {
@@ -185,7 +185,7 @@ RenderPassKey MakeRenderPassKey(const FixedPipelineState& state) {
     } else {
         key.depth_format = PixelFormat::Invalid;
     }
-    key.samples = MaxwellToVK::MsaaMode(state.msaa_mode);
+    key.samples = device.SupportedSampleCount(MaxwellToVK::MsaaMode(state.msaa_mode));
     return key;
 }
 
@@ -603,7 +603,7 @@ GraphicsPipeline::GraphicsPipeline(
                     build_compute_stage(stage);
                 }
             }
-            const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(key.state))};
+            const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(device, key.state))};
             Validate();
             MakePipeline(render_pass);
             if (pipeline_statistics) {
@@ -2011,7 +2011,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         device.IsExtLineRasterizationSupported() && device.SupportsRectangularLines();
     // As in OpenGL, line smoothing is ignored when rendering to a multisampled target.
     const bool is_multisampled =
-        MaxwellToVK::MsaaMode(key.state.msaa_mode) != VK_SAMPLE_COUNT_1_BIT;
+        device.SupportedSampleCount(MaxwellToVK::MsaaMode(key.state.msaa_mode)) !=
+        VK_SAMPLE_COUNT_1_BIT;
     const VkLineRasterizationModeEXT line_rasterization_mode =
         key.state.smooth_lines != 0 && smooth_lines_supported && !is_multisampled
             ? VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT
@@ -2061,7 +2062,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .rasterizationSamples = MaxwellToVK::MsaaMode(key.state.msaa_mode),
+        .rasterizationSamples = device.SupportedSampleCount(MaxwellToVK::MsaaMode(key.state.msaa_mode)),
         .sampleShadingEnable = VK_FALSE,
         .minSampleShading = 0.0f,
         .pSampleMask = nullptr,

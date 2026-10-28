@@ -29,6 +29,7 @@ public:
         static std::size_t GetApplicationPoolSize();
         static std::size_t GetAppletPoolSize();
         static std::size_t GetMinimumNonSecureSystemPoolSize();
+        static std::size_t GetHostPageMemoryMargin();
     };
 
     // Randomness.

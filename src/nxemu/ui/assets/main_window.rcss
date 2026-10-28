@@ -156,6 +156,29 @@ body.has-game-icon #title-game-icon
     text-overflow: ellipsis;
 }
 
+#title-cpu-backend
+{
+    display: none;
+    flex-shrink: 0;
+    margin-left: 12dp;
+    padding: 2dp 7dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    color: var(--text-muted);
+    font-size: 11dp;
+    white-space: nowrap;
+}
+
+body.show-cpu-backend #title-cpu-backend
+{
+    display: block;
+}
+
+body.title-hide-secondary #title-cpu-backend
+{
+    display: none;
+}
+
 /* The version, cut short; the whole of it shows on hover and is copied on a click. */
 #title-version
 {

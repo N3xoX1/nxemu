@@ -4,6 +4,9 @@
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/service/ro/ro_nro_utils.h"
 #include "core/hle/service/ro/ro_results.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
+
+extern IModuleSettings* g_settings;
 
 namespace Service::RO {
 
@@ -99,10 +102,25 @@ Result MapProcessCodeMemory(u64* out, Kernel::KProcess* process, const ProcessMe
         page_table.GetAliasCodeRegionStart().GetValue() / Kernel::PageSize;
     const u64 alias_code_size = page_table.GetAliasCodeRegionSize() / Kernel::PageSize;
 
+    u64 native_offset = 0;
+    bool native = false;
+#if defined(__APPLE__) && (defined(_M_ARM64) || defined(ARCHITECTURE_arm64))
+    u64 starts[2], ends[2];
+    native = g_settings->GetBool(NXCpuSetting::NceEnabled) && process->IsApplication() &&
+             page_table.GetNceWindows(starts, ends, 2) != 0;
+    if (native) {
+        Kernel::KPhysicalAddress physical;
+        R_UNLESS(page_table.GetPhysicalAddress(&physical, regions[0].address), RO::ResultInvalidAddress);
+        native_offset = physical.GetValue() & 0x3fff;
+    }
+#endif
+
     for (size_t trial = 0; trial < 64; trial++) {
         // Generate a new trial address.
-        const u64 mapped_address =
+        const u64 random_address =
             (alias_code_start + (generate_random() % alias_code_size)) * Kernel::PageSize;
+        const u64 mapped_address = native ? (random_address & ~0x3fffULL) + native_offset
+                                         : random_address;
 
         const auto MapRegions = [&] {
             // Map the regions in order.

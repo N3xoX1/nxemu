@@ -202,9 +202,11 @@ private:
 
     void FreeBlock(KPhysicalAddress block, s32 index);
 
-    static constexpr size_t NumMemoryBlockPageShifts{7};
+    // The 16 KiB size lets hosts with 16 KiB pages get whole host pages without fragmenting
+    // larger blocks.
+    static constexpr size_t NumMemoryBlockPageShifts{8};
     static constexpr std::array<size_t, NumMemoryBlockPageShifts> MemoryBlockPageShifts{
-        0xC, 0x10, 0x15, 0x16, 0x19, 0x1D, 0x1E,
+        0xC, 0xE, 0x10, 0x15, 0x16, 0x19, 0x1D, 0x1E,
     };
 
 private:

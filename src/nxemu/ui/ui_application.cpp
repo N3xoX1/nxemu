@@ -132,6 +132,11 @@ int Run(UiNotification & notification, const std::string & gamePath)
         return 1;
     }
 
+    if (!gamePath.empty())
+    {
+        mainWindow.OpenGame(gamePath);
+    }
+
     LiveResize liveResize{window, mainWindow};
     notification.SetPresenter([&](bool question, const std::string & title, const std::string & text) {
         const bool wasBusy = liveResize.busy;

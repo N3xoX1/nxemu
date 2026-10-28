@@ -435,6 +435,18 @@ public:
         return properties.properties.limits;
     }
 
+    /// Sample count to create images and pipelines with. Apple GPUs do not support 8 or 16
+    /// samples, which some games request. Unsupported counts render single-sampled, as MoltenVK
+    /// itself does for images: multisampled images cannot be copied to buffers there.
+    VkSampleCountFlagBits SupportedSampleCount(VkSampleCountFlagBits requested) const noexcept {
+        const VkPhysicalDeviceLimits& limits = properties.properties.limits;
+        const VkSampleCountFlags supported =
+            limits.framebufferColorSampleCounts & limits.framebufferDepthSampleCounts &
+            limits.framebufferStencilSampleCounts & limits.sampledImageColorSampleCounts &
+            limits.sampledImageDepthSampleCounts & limits.sampledImageIntegerSampleCounts;
+        return (supported & requested) != 0 ? requested : VK_SAMPLE_COUNT_1_BIT;
+    }
+
     bool UsesUpdateAfterBindDescriptorSets() const noexcept {
         return update_after_bind_descriptor_sets;
     }

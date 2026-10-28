@@ -81,6 +81,7 @@ private:
     Svc::MemoryPermission m_user_permission{};
     KPhysicalAddress m_physical_address{};
     std::size_t m_size{};
+    std::size_t m_padding_pages{}; // pages allocated after m_size to fill the last host page
     KResourceLimit* m_resource_limit{};
     bool m_is_initialized{};
 };

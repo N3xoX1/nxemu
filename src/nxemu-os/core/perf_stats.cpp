@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <iterator>
 #include <mutex>
 #include <numeric>
@@ -133,6 +135,14 @@ PerfStatsResults PerfStats::GetAndResetStats(microseconds current_system_time_us
         .emulation_speed = system_us_per_second.count() / 1'000'000.0,
         .longest_game_frame = duration_cast<DoubleSecs>(longest_frame).count(),
     };
+
+    // Temporary opt-in measurement alongside the NCE readback trace.
+    static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
+    if (profile) {
+        std::fprintf(stderr, "[NCE-FPS] interval=%.6f frames=%.0f fps=%.3f system_fps=%.3f longest_ms=%.3f at_s=%.6f\n",
+                     interval, current_frames, current_fps, results.system_fps,
+                     results.longest_game_frame * 1000.0, duration_cast<DoubleSecs>(now.time_since_epoch()).count());
+    }
 
     // Reset counters
     reset_point = now;

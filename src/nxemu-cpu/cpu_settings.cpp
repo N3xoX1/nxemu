@@ -4,6 +4,7 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <common/json.h>
 #include <common/json_util.h>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <nxemu-module-spec/base.h>
@@ -117,11 +118,36 @@ bool IsFastmemEnabled()
     return true;
 }
 
+#if defined(NXEMU_HAS_NCE) && defined(__APPLE__)
+// XNU keeps x18 across exceptions for processes whose main executable declares an SDK older
+// than 13.0, and flags them with bit 48 of TPIDR_EL0. Guest code uses x18 as a scratch register.
+static bool HostPreservesX18()
+{
+    uint64_t tpidr_el0;
+    asm volatile("mrs %0, tpidr_el0" : "=r"(tpidr_el0));
+    return ((tpidr_el0 >> 48) & 1) != 0;
+}
+#endif
+
 void UpdateNceEnabled()
 {
-    const bool has_39bit = g_settings->GetBool(NXCoreSetting::Has39BitAddressSpace);
+    const bool is_64bit = g_settings->GetBool(NXCoreSetting::Is64BitProgram);
+    bool supported_space = g_settings->GetBool(NXCoreSetting::Has39BitAddressSpace);
+#if defined(__APPLE__)
+    // Experimental: the 36-bit code region is relocated above Darwin hard page zero.
+    const char* enable_36bit = std::getenv("NXEMU_NCE_36BIT");
+    supported_space |= g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace) &&
+                       enable_36bit && std::strcmp(enable_36bit, "1") == 0;
+#endif
 #if defined(NXEMU_HAS_NCE)
-    const bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
+    bool is_nce = g_settings->GetInt(NXCpuSetting::CpuBackend) == static_cast<int32_t>(CpuBackend::Nce);
+#if defined(__APPLE__)
+    if (is_nce && !HostPreservesX18())
+    {
+        LOG_WARNING(Common, "The host does not preserve x18, unable to natively execute code");
+        is_nce = false;
+    }
+#endif
 #else
     const bool is_nce = false;
 #endif
@@ -129,11 +155,11 @@ void UpdateNceEnabled()
     {
         LOG_WARNING(Common, "Fastmem is required to natively execute code in a performant manner, falling back to Dynarmic");
     }
-    if (is_nce && !has_39bit)
+    if (is_nce && is_64bit && !supported_space)
     {
-        LOG_WARNING(Common, "Program does not utilize 39-bit address space, unable to natively execute code");
+        LOG_WARNING(Common, "Program address space is not supported by NCE, falling back to Dynarmic");
     }
-    g_settings->SetBool(NXCpuSetting::NceEnabled, IsFastmemEnabled() && is_nce && has_39bit);
+    g_settings->SetBool(NXCpuSetting::NceEnabled, IsFastmemEnabled() && is_nce && is_64bit && supported_space);
 }
 
 bool AffectsNceEnabled(const char * setting)
@@ -141,7 +167,9 @@ bool AffectsNceEnabled(const char * setting)
     return strcmp(setting, NXCpuSetting::CpuBackend) == 0 ||
            strcmp(setting, NXCpuSetting::CpuDebugMode) == 0 ||
            strcmp(setting, NXCpuSetting::CpuoptFastmem) == 0 ||
-           strcmp(setting, NXCoreSetting::Has39BitAddressSpace) == 0;
+           strcmp(setting, NXCoreSetting::Has39BitAddressSpace) == 0 ||
+           strcmp(setting, NXCoreSetting::Has36BitAddressSpace) == 0 ||
+           strcmp(setting, NXCoreSetting::Is64BitProgram) == 0;
 }
 
 void CpuSettingChanged(const char * setting, void * /*userData*/)
@@ -241,6 +269,7 @@ void SetupCpuSetting(void)
         }
     }
 
+
 #if !defined(NXEMU_HAS_NCE)
     if (cpuSettings.cpu_backend == CpuBackend::Nce)
     {
@@ -272,6 +301,8 @@ void SetupCpuSetting(void)
     }
 
     g_settings->RegisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
+    g_settings->RegisterCallback(NXCoreSetting::Has36BitAddressSpace, NceInputChanged, nullptr);
+    g_settings->RegisterCallback(NXCoreSetting::Is64BitProgram, NceInputChanged, nullptr);
 
     g_settings->SetDefaultBool(NXCpuSetting::NceEnabled, false);
     UpdateNceEnabled();
@@ -284,6 +315,8 @@ void CleanupCpuSetting(void)
         g_settings->UnregisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
     }
     g_settings->UnregisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
+    g_settings->UnregisterCallback(NXCoreSetting::Has36BitAddressSpace, NceInputChanged, nullptr);
+    g_settings->UnregisterCallback(NXCoreSetting::Is64BitProgram, NceInputChanged, nullptr);
 }
 
 void SaveCpuSettings(void)

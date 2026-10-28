@@ -98,6 +98,9 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${VERSION_BUILD}"
         OUTPUT_NAME "NxEmu"
         BUILD_RPATH "@executable_path/../Frameworks")
+    # Declare SDK 12.3: XNU then keeps x18 for the whole process, which native code execution
+    # needs (guest code uses it as a scratch register). The headers stay those of the build SDK.
+    target_link_options(nxemu PRIVATE "LINKER:-platform_version,macos,${CMAKE_OSX_DEPLOYMENT_TARGET},12.3")
     find_program(NXEMU_CODESIGN codesign REQUIRED)
     find_program(NXEMU_INSTALL_NAME_TOOL install_name_tool REQUIRED)
     find_program(NXEMU_OTOOL otool REQUIRED)

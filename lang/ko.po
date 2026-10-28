@@ -501,6 +501,14 @@ msgid "Log"
 msgstr "로그"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show CPU backend in the title bar"
+msgstr "제목 표시줄에 CPU 백엔드 표시"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The active backend, instruction set and address-space width."
+msgstr "사용 중인 백엔드, 명령어 집합, 주소 공간 비트 폭."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Show the log console"
 msgstr "로그 콘솔 표시"
 

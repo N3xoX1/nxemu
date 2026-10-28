@@ -10,7 +10,7 @@ is translated once. Catalogue loading, `Tr()` and the language list live in
 translates its own documents.
 
 The interface supports English plus German (`de`), Spanish (`es`), French (`fr`),
-Italian (`it`), Dutch (`nl`), Portuguese (`pt`), Russian (`ru`), Japanese (`ja`),
+Italian (`it`), Dutch (`nl`), Portuguese (`pt`), Russian (`ru`), Swedish (`sv`), Japanese (`ja`),
 Korean (`ko`) and Chinese (`zh`, written in simplified characters). There is one
 interface catalogue per language, with no regional variants. Console language
 choices retain their original regional values because games use those values.

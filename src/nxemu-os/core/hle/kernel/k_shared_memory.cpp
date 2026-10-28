@@ -38,10 +38,20 @@ Result KSharedMemory::Initialize(Core::DeviceMemory& device_memory, KProcess* ow
     // Allocate the memory.
 
     //! HACK: Open continuous mapping from sysmodule pool.
+    // Cover whole host pages, aligned, so that it can be mapped directly where the guest address
+    // is aligned too, without exposing the memory of others in its last host page.
+    const size_t host_ratio = KMemoryManager::GuestPagesPerHostPage();
+    const size_t allocated_pages = Common::AlignUp(num_pages, host_ratio);
     auto option = KMemoryManager::EncodeOption(KMemoryManager::Pool::Secure,
                                                KMemoryManager::Direction::FromBack);
-    m_physical_address = m_kernel.MemoryManager().AllocateAndOpenContinuous(num_pages, 1, option);
+    m_physical_address =
+        m_kernel.MemoryManager().AllocateAndOpenContinuous(allocated_pages, host_ratio, option);
     R_UNLESS(m_physical_address != 0, ResultOutOfMemory);
+    m_padding_pages = allocated_pages - num_pages;
+    if (m_padding_pages != 0) {
+        std::memset(m_device_memory->GetPointer<void>(m_physical_address + num_pages * PageSize),
+                    0, m_padding_pages * PageSize);
+    }
 
     //! Insert the result into our page group.
     m_page_group.emplace(m_kernel,
@@ -70,6 +80,9 @@ void KSharedMemory::Finalize() {
     // Close and finalize the page group.
     m_page_group->Close();
     m_page_group->Finalize();
+    if (m_padding_pages != 0) {
+        m_kernel.MemoryManager().Close(m_physical_address + m_size, m_padding_pages);
+    }
 
     // Release the memory reservation.
     m_resource_limit->Release(LimitableResource::PhysicalMemoryMax, m_size);

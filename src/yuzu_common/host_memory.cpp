@@ -22,7 +22,10 @@
 #endif
 #include <unistd.h>
 #if defined(__APPLE__)
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
 #include <stdlib.h>
+#include "yuzu_common/nce_direct_map.h"
 #endif
 #if defined(__ANDROID__)
 #include <sys/syscall.h>
@@ -487,23 +490,29 @@ public:
         // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
         fd = shm_open(SHM_ANON, O_RDWR, 0600);
 #elif defined(__APPLE__)
-        // Keep a shared backing store for the page-table path without exposing
-        // a 4 KiB fastmem arena on 16 KiB hosts.
-        for (int attempt = 0; attempt < 16; ++attempt) {
-            char name[32];
-            std::snprintf(name, sizeof(name), "/nxemu-%08x%08x", arc4random(), arc4random());
-            fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
-            if (fd >= 0) {
-                shm_unlink(name);
-                break;
-            }
-            if (errno != EEXIST) {
-                break;
-            }
+        // A Mach named memory entry rather than a shm object: code mapped from a shm object is
+        // not executable, and native code execution maps guest code from the backing.
+        memory_object_size_t entry_size = backing_size;
+        kern_return_t kr = mach_make_memory_entry_64(mach_task_self(), &entry_size, 0,
+                                                     MAP_MEM_NAMED_CREATE | VM_PROT_ALL,
+                                                     &backing_entry, MACH_PORT_NULL);
+        if (kr != KERN_SUCCESS) {
+            LOG_CRITICAL(HW_Memory, "mach_make_memory_entry_64 failed: {}", kr);
+            throw std::bad_alloc{};
         }
+        mach_vm_address_t backing_address = 0;
+        kr = mach_vm_map(mach_task_self(), &backing_address, backing_size, 0, VM_FLAGS_ANYWHERE,
+                         backing_entry, 0, FALSE, VM_PROT_READ | VM_PROT_WRITE, VM_PROT_ALL,
+                         VM_INHERIT_NONE);
+        if (kr != KERN_SUCCESS) {
+            LOG_CRITICAL(HW_Memory, "mach_vm_map of the backing failed: {}", kr);
+            throw std::bad_alloc{};
+        }
+        backing_base = reinterpret_cast<u8*>(backing_address);
 #else
         fd = memfd_create("HostMemory", 0);
 #endif
+#if !defined(__APPLE__)
         if (fd < 0) {
             LOG_CRITICAL(HW_Memory, "Failed to create HostMemory backing file: {}",
                          strerror(errno));
@@ -524,6 +533,7 @@ public:
             LOG_CRITICAL(HW_Memory, "mmap failed: {}", strerror(errno));
             throw std::bad_alloc{};
         }
+#endif
 
 #if defined(__APPLE__)
         if (host_page_size != GuestPageSize) {
@@ -557,6 +567,12 @@ public:
     }
 
     void Map(size_t virtual_offset, size_t host_offset, size_t length, MemoryPermission perms) {
+#if defined(__APPLE__)
+        if (nce_map) {
+            nce_map->Map(virtual_offset, host_offset, length, static_cast<u32>(perms));
+            return;
+        }
+#endif
         // Intersect the range with our address space.
         AdjustMap(&virtual_offset, &length);
         if (length == 0) {
@@ -586,6 +602,12 @@ public:
     }
 
     void Unmap(size_t virtual_offset, size_t length) {
+#if defined(__APPLE__)
+        if (nce_map) {
+            nce_map->Unmap(virtual_offset, length);
+            return;
+        }
+#endif
         // The method name is wrong. We're still talking about the virtual range.
         // We don't want to unmap, we want to reserve this memory.
 
@@ -605,6 +627,15 @@ public:
     }
 
     void Protect(size_t virtual_offset, size_t length, bool read, bool write, bool execute) {
+#if defined(__APPLE__)
+        if (nce_map) {
+            nce_map->Protect(virtual_offset, length,
+                             (read ? NceDirectMap::PermRead : 0) |
+                                 (write ? NceDirectMap::PermWrite : 0) |
+                                 (execute ? NceDirectMap::PermExecute : 0));
+            return;
+        }
+#endif
         // Intersect the range with our address space.
         AdjustMap(&virtual_offset, &length);
         if (length == 0) {
@@ -645,6 +676,26 @@ public:
         virtual_base = nullptr;
     }
 
+#if defined(__APPLE__)
+    /// Native code execution on 16 KiB pages: guest memory is mapped at the guest addresses by
+    /// an NceDirectMap instead of the 4 KiB fastmem arena. Returns the lowest guest address.
+    u8* EnableNceDirectMap() {
+        // Room for the code, heap (8 GiB), stack (2 GiB) and kernel map regions, plus free
+        // address space for the guest ASLR allocations.
+        constexpr u64 MinLowWindowSize = 24ULL << 30;
+        auto map = std::make_unique<NceDirectMap>(backing_entry, backing_base);
+        if (!map->Reserve(MinLowWindowSize)) {
+            LOG_CRITICAL(HW_Memory, "NCE: unable to reserve the guest address windows");
+            return nullptr;
+        }
+        nce_map = std::move(map);
+        return reinterpret_cast<u8*>(nce_map->Windows().front().start);
+    }
+
+    std::unique_ptr<NceDirectMap> nce_map;
+    mach_port_t backing_entry{MACH_PORT_NULL};
+#endif
+
     const size_t backing_size; ///< Size of the backing memory in bytes
     const size_t virtual_size; ///< Size of the virtual address placeholder in bytes
     const size_t host_page_size{GetHostPageSize()};
@@ -670,6 +721,12 @@ private:
             int ret = close(fd);
             ASSERT_MSG(ret == 0, "close failed: {}", strerror(errno));
         }
+#if defined(__APPLE__)
+        nce_map.reset();
+        if (backing_entry != MACH_PORT_NULL) {
+            mach_port_deallocate(mach_task_self(), backing_entry);
+        }
+#endif
     }
 
     void AdjustMap(size_t* virtual_offset, size_t* length) {
@@ -802,10 +859,87 @@ void HostMemory::ClearBackingRegion(size_t physical_offset, size_t length, u32 f
 }
 
 void HostMemory::EnableDirectMappedAddress() {
+#if defined(__APPLE__)
+    // Guest addresses are host addresses: the offsets passed to Map are guest addresses.
+    if (impl && GetHostPageSize() != GuestPageSize) {
+        if (u8* nce_base = impl->EnableNceDirectMap()) {
+            virtual_base = nce_base;
+            virtual_base_offset = 0;
+            virtual_size = 1ULL << 39;
+        }
+        return;
+    }
+#endif
     if (impl) {
         impl->EnableDirectMappedAddress();
         virtual_size += reinterpret_cast<uintptr_t>(virtual_base);
     }
+}
+
+void HostMemory::ProtectAccess(size_t virtual_offset, size_t length, MemoryPermission allowed) {
+#if defined(__APPLE__)
+    if (impl && impl->nce_map) {
+        impl->nce_map->SetAccessMask(virtual_offset, length, static_cast<u32>(allowed));
+        return;
+    }
+#endif
+    Protect(virtual_offset, length, allowed);
+}
+
+bool HostMemory::UsesNce() const {
+#if defined(__APPLE__)
+    return impl && impl->nce_map;
+#else
+    return false;
+#endif
+}
+
+bool HostMemory::NceAccessAllowed(u64 address, bool write) const {
+#if defined(__APPLE__)
+    return impl && impl->nce_map && impl->nce_map->AccessAllowed(address, write);
+#else
+    return false;
+#endif
+}
+
+bool HostMemory::NceHostAccessAllowed(u64 address, bool write) const {
+#if defined(__APPLE__)
+    return impl && impl->nce_map && impl->nce_map->HostAccessAllowed(address, write);
+#else
+    return false;
+#endif
+}
+
+bool HostMemory::NceTrackedAccessAllowed(u64 address, bool write) const {
+#if defined(__APPLE__)
+    return impl && impl->nce_map && impl->nce_map->TrackedAccessAllowed(address, write);
+#else
+    return false;
+#endif
+}
+
+const void* HostMemory::GetNceAtomicTable() const {
+#if defined(__APPLE__)
+    return impl && impl->nce_map ? impl->nce_map->AtomicTable() : nullptr;
+#else
+    return nullptr;
+#endif
+}
+
+size_t HostMemory::GetNceWindows(u64* starts, u64* ends, size_t max) const {
+#if defined(__APPLE__)
+    if (!impl || !impl->nce_map) {
+        return 0;
+    }
+    const auto& windows = impl->nce_map->Windows();
+    for (size_t i = 0; i < windows.size() && i < max; i++) {
+        starts[i] = windows[i].start;
+        ends[i] = windows[i].end;
+    }
+    return windows.size();
+#else
+    return 0;
+#endif
 }
 
 } // namespace Common

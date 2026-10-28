@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -200,6 +203,16 @@ void KMemoryManager::FinalizeOptimizedMemory(u64 process_id, Pool pool) {
     if (m_has_optimized_process[pool_index] && m_optimized_process_ids[pool_index] == process_id) {
         m_has_optimized_process[pool_index] = false;
     }
+}
+
+size_t KMemoryManager::GuestPagesPerHostPage() {
+#ifdef _WIN32
+    return 1;
+#else
+    static const size_t ratio =
+        std::max<size_t>(1, static_cast<size_t>(sysconf(_SC_PAGESIZE)) / PageSize);
+    return ratio;
+#endif
 }
 
 KPhysicalAddress KMemoryManager::AllocateAndOpenContinuous(size_t num_pages, size_t align_pages,
