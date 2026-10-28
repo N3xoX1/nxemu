@@ -116,9 +116,23 @@ Buffer::Buffer(BufferCacheRuntime& runtime, DAddr cpu_addr_, u64 size_bytes_)
 }
 
 VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat format) {
+    const BufferView* view{FindOrCreateView(offset, size, format)};
+    return view ? *view->handle : VK_NULL_HANDLE;
+}
+
+VkBufferView Buffer::SizeView(u32 offset, u32 size, VideoCore::Surface::PixelFormat format) {
+    const BufferView* view{FindOrCreateView(offset, size, format)};
+    if (!view) {
+        return VK_NULL_HANDLE;
+    }
+    return view->size_handle ? *view->size_handle : *view->handle;
+}
+
+const Buffer::BufferView* Buffer::FindOrCreateView(u32 offset, u32 size,
+                                                   VideoCore::Surface::PixelFormat format) {
     if (!device) {
         // Null buffer supported, return a null descriptor
-        return VK_NULL_HANDLE;
+        return nullptr;
     } else if (is_null) {
         // Null buffer not supported, adjust offset and size
         offset = 0;
@@ -128,23 +142,40 @@ VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat 
         return offset == view.offset && size == view.size && format == view.format;
     })};
     if (it != views.end()) {
-        return *it->handle;
+        return &*it;
     }
-    views.push_back({
-        .offset = offset,
-        .size = size,
-        .format = format,
-        .handle = device->GetLogical().CreateBufferView({
+    MoltenVK::TexelBufferRange range{offset, size, size, true};
+    if (device->NeedsTexelBufferPad() && !is_null) {
+        range = MoltenVK::AlignedTexelBufferRange(
+            static_cast<u32>(device->GetTexelBufferOffsetAlignment()), offset, size,
+            VideoCore::Surface::BytesPerBlock(format));
+        if (!range.aligned) {
+            LOG_WARNING(Render_Vulkan,
+                        "Texel buffer view at {} is not aligned to the texel size of format {}",
+                        offset, static_cast<u32>(format));
+        }
+    }
+    const auto create_view{[&](u32 view_size) {
+        return device->GetLogical().CreateBufferView({
             .sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
             .pNext = nullptr,
             .flags = 0,
             .buffer = *buffer,
             .format = MaxwellToVK::SurfaceFormat(*device, FormatType::Buffer, false, format).format,
-            .offset = offset,
-            .range = size,
-        }),
+            .offset = range.offset,
+            .range = view_size,
+        });
+    }};
+    views.push_back({
+        .offset = offset,
+        .size = size,
+        .format = format,
+        .handle = create_view(range.size),
+        // Both views are the same unless the range was moved back to an aligned offset
+        .size_handle = range.size_view_size != range.size ? create_view(range.size_view_size)
+                                                          : vk::BufferView{},
     });
-    return *views.back().handle;
+    return &views.back();
 }
 
 class QuadIndexBuffer {

@@ -790,6 +790,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .max_compute_shared_memory_size = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK
                                               ? device.GetMaxComputeSharedMemorySize()
                                               : 0,
+        .texel_buffer_size_view = device.NeedsTexelBufferPad(),
     };
 
     host_info = Shader::HostTranslateInfo{

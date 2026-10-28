@@ -541,6 +541,25 @@ public:
                GetDriverID() == VK_DRIVER_ID_MOLTENVK;
     }
 
+    /// Alignment the host requires for the offset of a texel buffer view.
+    VkDeviceSize GetTexelBufferOffsetAlignment() const {
+        return properties.properties.limits.minTexelBufferOffsetAlignment;
+    }
+
+    /// Returns true if a texel buffer view at an unaligned offset reads from the wrong place.
+    /// MoltenVK passes the offset to Metal, which rounds it down to its alignment instead of
+    /// rejecting it, so such views are created at the aligned offset and the shader skips the
+    /// leading elements. Every texel buffer descriptor then holds two views, see
+    /// Shader::Profile::texel_buffer_size_view.
+    bool NeedsTexelBufferPad() const {
+        return GetDriverID() == VK_DRIVER_ID_MOLTENVK && GetTexelBufferOffsetAlignment() > 1;
+    }
+
+    /// Returns the number of views each texel buffer descriptor holds.
+    u32 GetTexelBufferViews() const {
+        return NeedsTexelBufferPad() ? 2U : 1U;
+    }
+
     /// Returns true if VK_KHR_pipeline_executable_properties is enabled.
     bool IsKhrPipelineExecutablePropertiesEnabled() const {
         return extensions.pipeline_executable_properties;

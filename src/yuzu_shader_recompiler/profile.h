@@ -105,6 +105,13 @@ struct Profile {
     /// Largest compute shared memory the host accepts, in bytes. Zero means no limit.
     u32 max_compute_shared_memory_size{};
 
+    /// The host cannot start a texel buffer view at an arbitrary offset: it rounds it down to
+    /// its alignment. Views are then created at the aligned offset, and every texel buffer
+    /// descriptor holds two views in an array of two: the one that is read, which can start before
+    /// the range the guest bound, and one whose element count is the size the guest bound. The
+    /// difference of their element counts is the number of leading elements to skip.
+    bool texel_buffer_size_view{};
+
     bool SupportsUniformBufferDescriptorAliasing() const {
         return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;
     }

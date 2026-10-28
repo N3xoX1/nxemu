@@ -34,6 +34,11 @@ public:
 
     [[nodiscard]] VkBufferView View(u32 offset, u32 size, VideoCore::Surface::PixelFormat format);
 
+    /// View whose element count is the size the guest bound, the second view of a texel buffer
+    /// descriptor when the device needs it (Device::NeedsTexelBufferPad)
+    [[nodiscard]] VkBufferView SizeView(u32 offset, u32 size,
+                                        VideoCore::Surface::PixelFormat format);
+
     [[nodiscard]] VkBuffer Handle() const noexcept {
         return *buffer;
     }
@@ -60,7 +65,11 @@ private:
         u32 size;
         VideoCore::Surface::PixelFormat format;
         vk::BufferView handle;
+        vk::BufferView size_handle;
     };
+
+    [[nodiscard]] const BufferView* FindOrCreateView(u32 offset, u32 size,
+                                                     VideoCore::Surface::PixelFormat format);
 
     const Device* device{};
     vk::Buffer buffer;
@@ -197,6 +206,9 @@ public:
     void BindTextureBuffer(Buffer& buffer, u32 offset, u32 size,
                            VideoCore::Surface::PixelFormat format) {
         guest_descriptor_queue.AddTexelBuffer(buffer.View(offset, size, format));
+        if (device.NeedsTexelBufferPad()) {
+            guest_descriptor_queue.AddTexelBuffer(buffer.SizeView(offset, size, format));
+        }
     }
 
 private:

@@ -284,18 +284,27 @@ Id Texture(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
     }
 }
 
-Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index) {
+/// With Profile::texel_buffer_size_view, size_view selects the view that has the size the guest
+/// bound instead of the one that is read.
+Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& index,
+                bool size_view = false) {
     if (info.type == TextureType::Buffer && ctx.texture_buffers.at(info.descriptor_index).count > 1) {
         if (!ctx.profile.support_uniform_texel_buffer_array_nonuniform_indexing) {
             throw NotImplementedException("Nonuniform texel buffer indexing is unsupported by the host");
         }
         const auto& def = ctx.texture_buffers.at(info.descriptor_index);
         const Id array_index{ctx.Def(index)};
+        Id element{array_index};
+        if (ctx.profile.texel_buffer_size_view) {
+            element = ctx.OpIAdd(ctx.U32[1],
+                                 ctx.OpShiftLeftLogical(ctx.U32[1], array_index, ctx.Const(1U)),
+                                 ctx.Const(size_view ? 1U : 0U));
+        }
         const Id pointer_type{ctx.TypePointer(spv::StorageClass::UniformConstant, ctx.image_buffer_type)};
-        const Id pointer{ctx.OpAccessChain(pointer_type, def.id, array_index)};
+        const Id pointer{ctx.OpAccessChain(pointer_type, def.id, element)};
         const Id image{ctx.OpLoad(ctx.image_buffer_type, pointer)};
         ctx.uses_nonuniform_uniform_texel_buffer = true;
-        for (const Id object : {array_index, pointer, image}) {
+        for (const Id object : {array_index, element, pointer, image}) {
             if (ctx.nonuniform_sampled_ids.insert(object.value).second) {
                 ctx.Decorate(object, spv::Decoration::NonUniform);
             }
@@ -318,6 +327,11 @@ Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& ind
         if (def.count > 1) {
             throw NotImplementedException("Indirect texture sample");
         }
+        if (ctx.profile.texel_buffer_size_view) {
+            const Id view{
+                ctx.TexelBufferView(def.id, ctx.image_buffer_type, ctx.Const(size_view ? 1U : 0U))};
+            return ctx.OpLoad(ctx.image_buffer_type, view);
+        }
         return ctx.OpLoad(ctx.image_buffer_type, def.id);
     } else {
         const TextureDefinition& def{ctx.textures.at(info.descriptor_index)};
@@ -328,12 +342,18 @@ Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& ind
     }
 }
 
-std::pair<Id, bool> Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
+std::pair<Id, bool> Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info,
+                          bool size_view = false) {
     if (info.type == TextureType::Buffer) {
         if (!index.IsEmpty() && (!index.IsImmediate() || index.U32() != 0)) {
             throw NotImplementedException("Indirect image buffer indexing");
         }
         const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
+        if (ctx.profile.texel_buffer_size_view) {
+            const Id view{
+                ctx.TexelBufferView(def.id, def.image_type, ctx.Const(size_view ? 1U : 0U))};
+            return {ctx.OpLoad(def.image_type, view), def.is_integer};
+        }
         return {ctx.OpLoad(def.image_type, def.id), def.is_integer};
     } else {
         const ImageDefinition def{ctx.images.at(info.descriptor_index)};
@@ -719,6 +739,10 @@ Id EmitImageFetch(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     AddOffsetToCoordinates(ctx, info, coords, offset);
     if (info.type == TextureType::Buffer) {
         lod = Id{};
+        if (ctx.profile.texel_buffer_size_view) {
+            coords = ctx.TexelBufferCoord(coords, TextureImage(ctx, info, index),
+                                          TextureImage(ctx, info, index, true));
+        }
     }
     if (Sirit::ValidId(ms)) {
         // This image is multisampled, lod must be implicit
@@ -762,8 +786,12 @@ Id EmitImageQueryDimensions(EmitContext& ctx, IR::Inst* inst, const IR::Value& i
     case TextureType::Color3D:
     case TextureType::ColorArrayCube:
         return ctx.OpCompositeConstruct(ctx.U32[4], query(ctx.U32[3]), mips());
-    case TextureType::Buffer:
-        return ctx.OpCompositeConstruct(ctx.U32[4], query(ctx.U32[1]), zero, zero, mips());
+    case TextureType::Buffer: {
+        const Id size{ctx.profile.texel_buffer_size_view
+                          ? ctx.OpImageQuerySize(ctx.U32[1], TextureImage(ctx, info, index, true))
+                          : query(ctx.U32[1])};
+        return ctx.OpCompositeConstruct(ctx.U32[4], size, zero, zero, mips());
+    }
     }
     throw LogicError("Unspecified image type {}", info.type.Value());
 }
@@ -797,6 +825,9 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
         return ctx.ConstantNull(ctx.U32[4]);
     }
     const auto [image, is_integer] = Image(ctx, index, info);
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
+        coords = ctx.TexelBufferCoord(coords, image, Image(ctx, index, info, true).first);
+    }
     const Id result_type{is_integer ? ctx.U32[4] : ctx.F32[4]};
     Id color{Emit(&EmitContext::OpImageSparseRead, &EmitContext::OpImageRead, ctx, inst,
                   result_type, image, coords, std::nullopt, std::span<const Id>{})};
@@ -809,6 +840,9 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
 void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords, Id color) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const auto [image, is_integer] = Image(ctx, index, info);
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
+        coords = ctx.TexelBufferCoord(coords, image, Image(ctx, index, info, true).first);
+    }
     if (!is_integer) {
         color = ctx.OpBitcast(ctx.F32[4], color);
     } else if (info.type != TextureType::Buffer && ctx.images[info.descriptor_index].is_signed) {

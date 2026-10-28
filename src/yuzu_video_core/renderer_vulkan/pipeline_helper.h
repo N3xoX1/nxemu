@@ -83,11 +83,12 @@ inline u32 NumTableSetCombinedSamplers(const Shader::Info& info) {
     return num;
 }
 
-inline size_t NumDescriptorUpdateEntries(const Shader::Info& info) {
+inline size_t NumDescriptorUpdateEntries(const Device& device, const Shader::Info& info) {
+    const size_t texel_buffers{size_t{Shader::NumDescriptors(info.texture_buffer_descriptors)} +
+                               Shader::NumDescriptors(info.image_buffer_descriptors)};
     return size_t{Shader::NumDescriptors(info.constant_buffer_descriptors)} +
            Shader::NumDescriptors(info.storage_buffers_descriptors) +
-           Shader::NumDescriptors(info.texture_buffer_descriptors) +
-           Shader::NumDescriptors(info.image_buffer_descriptors) + NumCombinedSamplers(info) -
+           texel_buffers * device.GetTexelBufferViews() + NumCombinedSamplers(info) -
            NumTableSetCombinedSamplers(info) + Shader::NumDescriptors(info.image_descriptors) +
            (info.runtime_image_write_mask_words != 0 ? 1U : 0U) +
            static_cast<size_t>(std::popcount(info.input_attachment_mask));
@@ -239,8 +240,11 @@ public:
 
         Add(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage, info.constant_buffer_descriptors);
         Add(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stage, info.storage_buffers_descriptors);
-        Add(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, stage, info.texture_buffer_descriptors);
-        Add(VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, stage, info.image_buffer_descriptors);
+        const u32 texel_buffer_views{device->GetTexelBufferViews()};
+        Add(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, stage, info.texture_buffer_descriptors,
+            texel_buffer_views);
+        Add(VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, stage, info.image_buffer_descriptors,
+            texel_buffer_views);
         for (const auto& desc : info.texture_descriptors) {
             if (desc.is_direct) {
                 AddTable(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, stage, desc.count);
@@ -265,12 +269,13 @@ public:
 
 private:
     template <typename Descriptors>
-    void Add(VkDescriptorType type, VkShaderStageFlags stage, const Descriptors& descriptors) {
+    void Add(VkDescriptorType type, VkShaderStageFlags stage, const Descriptors& descriptors,
+             u32 views_per_descriptor = 1) {
         if (type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER && storage_buffer_stages != 0) {
             stage = storage_buffer_stages;
         }
         for (const auto& desc : descriptors) {
-            Add(type, stage, desc.count);
+            Add(type, stage, desc.count * views_per_descriptor);
         }
     }
 

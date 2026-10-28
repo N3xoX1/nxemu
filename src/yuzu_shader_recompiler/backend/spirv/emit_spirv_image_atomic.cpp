@@ -7,9 +7,14 @@
 
 namespace Shader::Backend::SPIRV {
 namespace {
-Id Image(EmitContext& ctx, IR::TextureInstInfo info) {
+/// With Profile::texel_buffer_size_view, size_view selects the view that has the size the guest
+/// bound instead of the one that is read.
+Id Image(EmitContext& ctx, IR::TextureInstInfo info, bool size_view = false) {
     if (info.type == TextureType::Buffer) {
         const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
+        if (ctx.profile.texel_buffer_size_view) {
+            return ctx.TexelBufferView(def.id, def.image_type, ctx.Const(size_view ? 1U : 0U));
+        }
         return def.id;
     } else {
         const ImageDefinition def{ctx.images.at(info.descriptor_index)};
@@ -31,6 +36,11 @@ Id ImageAtomicU32(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     }
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const Id image{Image(ctx, info)};
+    if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
+        const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
+        coords = ctx.TexelBufferCoord(coords, ctx.OpLoad(def.image_type, image),
+                                      ctx.OpLoad(def.image_type, Image(ctx, info, true)));
+    }
     const Id pointer{ctx.OpImageTexelPointer(ctx.image_u32, image, coords, ctx.Const(0U))};
     const auto [scope, semantics]{AtomicArgs(ctx)};
     return (ctx.*atomic_func)(ctx.U32[1], pointer, scope, semantics, value);
