@@ -56,7 +56,7 @@ struct Toggle
 
 constexpr Toggle kToggles[] = {
     {"gpu-sync", NXVideoSetting::GpuCommandSynchronization, Store::Module, true},
-    {"fast-readback", NXVideoSetting::FastGpuReadback, Store::Module, true},
+    {"fast-readback", NXVideoSetting::FastGpuReadback, Store::Module, false},
     {"reactive-flushing", NXVideoSetting::EnableReactiveFlushing, Store::Module, false},
     {"feedback-loops", NXVideoSetting::BarrierFeedbackLoops, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::FastGPUTime, Store::Module, true},
