@@ -70,7 +70,9 @@ constexpr TexelBufferRange AlignedTexelBufferRange(uint32_t alignment, uint32_t 
     if (pad_bytes == 0) {
         return {offset, size, size, true};
     }
-    // A shift that is not a whole number of elements cannot be skipped by the shader
+    // A shift that is not a whole number of elements cannot be skipped by the shader. The texel
+    // buffer formats Metal supports have power-of-two sizes no larger than its alignment, so this
+    // only happens when the guest offset is not a multiple of the texel size
     if (texel_size == 0 || pad_bytes % texel_size != 0 || size > UINT32_MAX - pad_bytes) {
         return {offset, size, size, false};
     }

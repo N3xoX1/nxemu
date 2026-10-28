@@ -150,7 +150,8 @@ const Buffer::BufferView* Buffer::FindOrCreateView(u32 offset, u32 size,
             static_cast<u32>(device->GetTexelBufferOffsetAlignment()), offset, size,
             VideoCore::Surface::BytesPerBlock(format));
         if (!range.aligned) {
-            LOG_WARNING(Render_Vulkan, "Texel buffer view at {} cannot be aligned for format {}",
+            LOG_WARNING(Render_Vulkan,
+                        "Texel buffer view at {} is not aligned to the texel size of format {}",
                         offset, static_cast<u32>(format));
         }
     }

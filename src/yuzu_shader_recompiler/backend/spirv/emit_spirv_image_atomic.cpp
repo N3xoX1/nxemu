@@ -38,10 +38,8 @@ Id ImageAtomicU32(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     const Id image{Image(ctx, info)};
     if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
         const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
-        const Id size{ctx.OpImageQuerySize(ctx.U32[1], ctx.OpLoad(def.image_type, image))};
-        const Id guest_size{ctx.OpImageQuerySize(
-            ctx.U32[1], ctx.OpLoad(def.image_type, Image(ctx, info, true)))};
-        coords = ctx.OpIAdd(ctx.U32[1], coords, ctx.OpISub(ctx.U32[1], size, guest_size));
+        coords = ctx.TexelBufferCoord(coords, ctx.OpLoad(def.image_type, image),
+                                      ctx.OpLoad(def.image_type, Image(ctx, info, true)));
     }
     const Id pointer{ctx.OpImageTexelPointer(ctx.image_u32, image, coords, ctx.Const(0U))};
     const auto [scope, semantics]{AtomicArgs(ctx)};

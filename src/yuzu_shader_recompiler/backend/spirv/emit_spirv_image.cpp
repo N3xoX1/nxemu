@@ -512,15 +512,6 @@ Id ImageGatherSubpixelOffset(EmitContext& ctx, const IR::TextureInstInfo& info, 
     }
 }
 
-/// Skips the leading elements that a texel buffer view carries to start on an aligned offset: the
-/// difference of the sizes of the view that is read and of the view that has the size the guest
-/// bound.
-Id AddTexelBufferPad(EmitContext& ctx, Id coords, Id image, Id size_view) {
-    const Id size{ctx.OpImageQuerySize(ctx.U32[1], image)};
-    const Id guest_size{ctx.OpImageQuerySize(ctx.U32[1], size_view)};
-    return ctx.OpIAdd(ctx.U32[1], coords, ctx.OpISub(ctx.U32[1], size, guest_size));
-}
-
 void AddOffsetToCoordinates(EmitContext& ctx, const IR::TextureInstInfo& info, Id& coords,
                             Id offset) {
     if (!Sirit::ValidId(offset)) {
@@ -749,8 +740,8 @@ Id EmitImageFetch(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
     if (info.type == TextureType::Buffer) {
         lod = Id{};
         if (ctx.profile.texel_buffer_size_view) {
-            coords = AddTexelBufferPad(ctx, coords, TextureImage(ctx, info, index),
-                                       TextureImage(ctx, info, index, true));
+            coords = ctx.TexelBufferCoord(coords, TextureImage(ctx, info, index),
+                                          TextureImage(ctx, info, index, true));
         }
     }
     if (Sirit::ValidId(ms)) {
@@ -835,7 +826,7 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
     }
     const auto [image, is_integer] = Image(ctx, index, info);
     if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
-        coords = AddTexelBufferPad(ctx, coords, image, Image(ctx, index, info, true).first);
+        coords = ctx.TexelBufferCoord(coords, image, Image(ctx, index, info, true).first);
     }
     const Id result_type{is_integer ? ctx.U32[4] : ctx.F32[4]};
     Id color{Emit(&EmitContext::OpImageSparseRead, &EmitContext::OpImageRead, ctx, inst,
@@ -850,7 +841,7 @@ void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const auto [image, is_integer] = Image(ctx, index, info);
     if (info.type == TextureType::Buffer && ctx.profile.texel_buffer_size_view) {
-        coords = AddTexelBufferPad(ctx, coords, image, Image(ctx, index, info, true).first);
+        coords = ctx.TexelBufferCoord(coords, image, Image(ctx, index, info, true).first);
     }
     if (!is_integer) {
         color = ctx.OpBitcast(ctx.F32[4], color);

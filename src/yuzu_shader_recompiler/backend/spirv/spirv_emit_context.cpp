@@ -1532,6 +1532,17 @@ Id EmitContext::TexelBufferView(Id descriptor, Id image_type, Id element) {
     return OpAccessChain(pointer_type, descriptor, element);
 }
 
+Id EmitContext::TexelBufferCoord(Id coords, Id image, Id size_image) {
+    // The view that is read starts with the elements before the range the guest bound: their
+    // count is the difference of the sizes of both views
+    const Id size{OpImageQuerySize(U32[1], image)};
+    const Id guest_size{OpImageQuerySize(U32[1], size_image)};
+    const Id shifted{OpIAdd(U32[1], coords, OpISub(U32[1], size, guest_size))};
+    // A coordinate outside the guest range, negative ones included, would otherwise wrap into
+    // those leading elements: send it past the end of the view, where the access is out of bounds
+    return OpSelect(U32[1], OpULessThan(U1, coords, guest_size), shifted, size);
+}
+
 void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
     image_buffers.reserve(info.image_buffer_descriptors.size());
     for (const ImageBufferDescriptor& desc : info.image_buffer_descriptors) {

@@ -270,6 +270,9 @@ public:
     /// size the guest bound
     [[nodiscard]] Id TexelBufferView(Id descriptor, Id image_type, Id element);
 
+    /// Coordinate in the view that is read for a coordinate the guest uses, given both views
+    [[nodiscard]] Id TexelBufferCoord(Id coords, Id image, Id size_image);
+
     std::array<UniformDefinitions, Info::MAX_CBUFS> cbufs{};
     std::array<StorageDefinitions, Info::MAX_SSBOS> ssbos{};
     /// Buffers accessed only by non-returning 64-bit additions in this shader.
