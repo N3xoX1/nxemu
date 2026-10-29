@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "surface_clip_state.h"
 #include <algorithm>
 #include <array>
 #include <memory>
@@ -1292,22 +1293,10 @@ void RasterizerVulkan::UpdateViewportsState(Tegra::Engines::Maxwell3D::Regs& reg
     }
     maxwell3d->dirty.flags[Dirty::Scissors] = true;
     if (!regs.viewport_scale_offset_enabled) {
-        const auto x = static_cast<float>(regs.surface_clip.x);
-        float y = static_cast<float>(regs.surface_clip.y);
-        const float width = std::max(1.0f, static_cast<float>(regs.surface_clip.width));
-        float height = std::max(1.0f, static_cast<float>(regs.surface_clip.height));
-        if (regs.window_origin.mode != Maxwell::WindowOrigin::Mode::UpperLeft) {
-            y += height;
-            height = -height;
-        }
-        VkViewport viewport{
-            .x = x,
-            .y = y,
-            .width = width,
-            .height = height,
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
+        const float scale = texture_cache.IsRescaling() ? videoSettings.resolution_info.up_factor : 1.0f;
+        const VkViewport viewport = SurfaceClipViewport(
+            regs.surface_clip.x, regs.surface_clip.y, regs.surface_clip.width, regs.surface_clip.height,
+            regs.window_origin.mode != Maxwell::WindowOrigin::Mode::UpperLeft, scale);
         scheduler.Record([this, viewport](vk::CommandBuffer cmdbuf) {
             const u32 num_viewports = std::min<u32>(device.GetMaxViewports(), Maxwell::NumViewports);
             std::array<VkViewport, Maxwell::NumViewports> viewport_list{};
@@ -1339,15 +1328,11 @@ void RasterizerVulkan::UpdateScissorsState(Tegra::Engines::Maxwell3D::Regs& regs
         return;
     }
     if (!regs.viewport_scale_offset_enabled) {
-        const auto x = static_cast<float>(regs.surface_clip.x);
-        const auto y = static_cast<float>(regs.surface_clip.y);
-        const auto width = static_cast<float>(regs.surface_clip.width);
-        const auto height = static_cast<float>(regs.surface_clip.height);
-        VkRect2D scissor;
-        scissor.offset.x = static_cast<u32>(x);
-        scissor.offset.y = static_cast<u32>(y);
-        scissor.extent.width = static_cast<u32>(width != 0.0f ? width : 1.0f);
-        scissor.extent.height = static_cast<u32>(height != 0.0f ? height : 1.0f);
+        const bool scaled = texture_cache.IsRescaling();
+        const VkRect2D scissor = SurfaceClipScissor(
+            regs.surface_clip.x, regs.surface_clip.y, regs.surface_clip.width, regs.surface_clip.height,
+            scaled ? videoSettings.resolution_info.up_scale : 1U,
+            scaled ? videoSettings.resolution_info.down_shift : 0U);
         scheduler.Record([this, scissor](vk::CommandBuffer cmdbuf) {
             const u32 num_scissors = std::min<u32>(device.GetMaxViewports(), Maxwell::NumViewports);
             std::array<VkRect2D, Maxwell::NumViewports> scissor_list{};

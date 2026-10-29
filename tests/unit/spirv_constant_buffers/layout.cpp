@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <cassert>
+#include <bit>
+#include <cstring>
+#include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 #include <cstdio>
 #include <map>
 #include <string>
@@ -92,7 +95,67 @@ static void GlobalMemoryLoads(bool aliasing, bool molten) {
 
 void TestRuntimeTextureFetch();
 
+static void PushConstantLayout() {
+    using namespace Shader::Backend::SPIRV;
+    for (auto stage : {Shader::Stage::VertexB, Shader::Stage::Fragment}) {
+        for (bool scaling : {false, true}) {
+            Shader::Profile profile{};
+            profile.unified_descriptor_binding = true;
+            Shader::IR::Program program{};
+            program.stage = stage;
+            program.info.uses_render_area = true;
+            program.info.uses_rescaling_uniform = scaling;
+            Shader::Backend::Bindings bindings{};
+            EmitContext context(profile, {}, program, bindings);
+            const auto words = context.Assemble();
+            using Member = std::pair<u32, u32>;
+            std::map<Member, std::string> names;
+            std::map<Member, u32> offsets;
+            unsigned push_variables{};
+            for (size_t i = 5; i < words.size();) {
+                const auto count = words[i] >> 16;
+                const auto op = static_cast<spv::Op>(words[i] & 0xffff);
+                const auto* args = words.data() + i + 1;
+                if (op == spv::Op::OpMemberName)
+                    names[{args[0], args[1]}] = reinterpret_cast<const char*>(args + 2);
+                if (op == spv::Op::OpMemberDecorate && args[2] == u32(spv::Decoration::Offset))
+                    offsets[{args[0], args[1]}] = args[3];
+                if (op == spv::Op::OpVariable && args[2] == u32(spv::StorageClass::PushConstant))
+                    ++push_variables;
+                assert(count != 0);
+                i += count;
+            }
+            assert(push_variables == 1); // Vulkan allows one push-constant block per entry point.
+            std::map<std::string, u32> named_offsets;
+            for (const auto& [member, name] : names) named_offsets[name] = offsets.at(member);
+            assert(named_offsets.at("render_area") == RENDERAREA_LAYOUT_OFFSET);
+            if (scaling) {
+                assert(named_offsets.at("rescaling_textures") == RESCALING_LAYOUT_WORDS_OFFSET);
+                assert(named_offsets.at("render_area") >= sizeof(RescalingLayout));
+            }
+            for (u32 factor : {1U, 2U, 3U}) {
+                std::array<u32, NUM_TEXTURE_AND_IMAGE_SCALING_WORDS> masks{};
+                for (size_t i = 0; i < masks.size(); ++i) masks[i] = factor == 1 ? 0 : 0xabcdef01U + u32(i);
+                const std::array<float, 4> area{128, 192, 0, 0};
+                auto data = MakeGraphicsPushConstants(masks, 1.f / factor, 0xdeadbeefU, area);
+                const auto* bytes = reinterpret_cast<const unsigned char*>(&data);
+                std::array<float, 4> actual_area;
+                std::memcpy(actual_area.data(), bytes + named_offsets.at("render_area"), sizeof(actual_area));
+                assert(actual_area == area);
+                for (size_t i = 0; i < NUM_TEXTURE_SCALING_WORDS; ++i)
+                    assert(data.scaling.rescaling_textures[i] == masks[i]);
+                for (size_t i = 0; i < NUM_IMAGE_SCALING_WORDS; ++i)
+                    assert(data.scaling.rescaling_images[i] == masks[NUM_TEXTURE_SCALING_WORDS + i]);
+                assert(std::bit_cast<float>(data.scaling.down_factor) == 1.f / factor);
+                assert(data.scaling.attachment_reads == 0xdeadbeefU);
+            }
+        }
+    }
+    std::puts("PASS: non-overlapping render-area/scaling payload, one SPIR-V block, x1/x2/x3");
+}
+
 int main() {
+    PushConstantLayout();
     TestRuntimeTextureFetch();
     auto sizes = Layout(true, 14080);
     assert(sizes.at("c0") == 16 && sizes.at("c3") == 14080);

@@ -48,7 +48,8 @@ ImageViewInfo::ImageViewInfo(const TICEntry& config, s32 base_layer) noexcept
         break;
     case TextureType::Texture2D:
     case TextureType::Texture2DNoMipmap:
-        ASSERT(config.Depth() == 1);
+        // The non-array view selects one layer even when Depth() describes
+        // multiple layers in its backing allocation.
         type = config.normalized_coords ? ImageViewType::e2D : ImageViewType::Rect;
         break;
     case TextureType::Texture3D:

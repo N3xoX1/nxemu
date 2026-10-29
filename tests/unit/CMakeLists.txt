@@ -51,3 +51,34 @@ target_link_libraries(test_loader_metadata PRIVATE nxemu-loader)
 nxemu_unit_test(test_loader_metadata)
 
 add_subdirectory(shader_profile)
+
+add_executable(test_surface_clip surface_clip/surface_clip.cpp)
+target_include_directories(test_surface_clip PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_surface_clip PRIVATE Vulkan::Headers)
+nxemu_unit_test(test_surface_clip)
+
+add_executable(test_image_rescaling image_rescaling/image_rescaling.cpp)
+target_include_directories(test_image_rescaling PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include" "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_image_rescaling video_core yuzu_common common)
+target_link_libraries(test_image_rescaling PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_image_rescaling)
+
+add_executable(test_image_views_and_slices image_views_and_slices/regression.cpp)
+target_include_directories(test_image_views_and_slices PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include" "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_image_views_and_slices video_core yuzu_common common)
+target_link_libraries(test_image_views_and_slices PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_image_views_and_slices)
+
+add_executable(test_swapchain_present_mode swapchain_present_mode/present_mode.cpp)
+target_include_directories(test_swapchain_present_mode PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_swapchain_present_mode PRIVATE Vulkan::Headers)
+nxemu_unit_test(test_swapchain_present_mode)
+
+add_test(NAME test_image_slice_copies COMMAND test_image_views_and_slices --copies)
+set_tests_properties(test_image_slice_copies PROPERTIES LABELS unit TIMEOUT 120)

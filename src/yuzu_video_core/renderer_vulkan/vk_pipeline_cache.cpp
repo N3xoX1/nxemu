@@ -83,7 +83,8 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 20;
+// Separate render-area and rescaling push constants invalidate old shaders.
+constexpr u32 CACHE_VERSION = 25;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 // Startup/shutdown diagnostics only; no probe work is added to the draw path.

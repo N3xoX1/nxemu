@@ -1695,32 +1695,15 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
             if (bind_pipeline) {
                 cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
             }
-            static_assert(RESCALING_LAYOUT_DOWN_FACTOR_OFFSET ==
-                          RESCALING_LAYOUT_WORDS_OFFSET + sizeof(rescaling_data));
-            static_assert(RENDERAREA_LAYOUT_OFFSET == RESCALING_LAYOUT_WORDS_OFFSET);
-            static_assert(sizeof(render_area_data) <= sizeof(rescaling_data));
-            struct ScalingData {
-                std::array<u32, sizeof(rescaling_data) / sizeof(u32)> words;
-                f32 down_factor;
-            };
-            static_assert(offsetof(ScalingData, down_factor) == sizeof(rescaling_data));
             const bool update_factor{update_rescaling || bind_pipeline};
-            ScalingData scaling_data{
-                rescaling_data,
-                update_factor && is_rescaling ? videoSettings.resolution_info.down_factor : 1.0f};
-            if (uses_render_area) {
-                std::memcpy(scaling_data.words.data(), render_area_data.data(),
-                            sizeof(render_area_data));
-            }
+            const auto data = Shader::Backend::SPIRV::MakeGraphicsPushConstants(
+                rescaling_data, is_rescaling ? videoSettings.resolution_info.down_factor : 1.0f,
+                reads, render_area_data);
+            const u32 size = uses_render_area ? sizeof(data) :
+                !attachment_read_kinds.empty() ? RESCALING_LAYOUT_ATTACHMENT_READS_OFFSET + sizeof(reads) :
+                sizeof(rescaling_data) + (update_factor ? sizeof(f32) : 0);
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
-                                 RESCALING_LAYOUT_WORDS_OFFSET,
-                                 sizeof(rescaling_data) + (update_factor ? sizeof(f32) : 0),
-                                 &scaling_data);
-            if (!attachment_read_kinds.empty()) {
-                cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
-                                     RESCALING_LAYOUT_ATTACHMENT_READS_OFFSET, sizeof(reads),
-                                     &reads);
-            }
+                                 RESCALING_LAYOUT_WORDS_OFFSET, size, &data);
             // An empty set 0 has a layout but nothing to update
             if (!descriptor_update_template) {
                 return;

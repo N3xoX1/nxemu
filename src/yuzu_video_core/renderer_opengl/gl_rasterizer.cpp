@@ -869,10 +869,10 @@ void RasterizerOpenGL::SyncViewport() {
             flags[Dirty::Viewport0 + index] = false;
 
             if (!regs.viewport_scale_offset_enabled) {
-                const auto x = static_cast<GLfloat>(regs.surface_clip.x);
-                const auto y = static_cast<GLfloat>(regs.surface_clip.y);
-                const auto width = static_cast<GLfloat>(regs.surface_clip.width);
-                const auto height = static_cast<GLfloat>(regs.surface_clip.height);
+                const auto x = conv(static_cast<float>(regs.surface_clip.x));
+                const auto y = conv(static_cast<float>(regs.surface_clip.y));
+                const auto width = conv(static_cast<float>(regs.surface_clip.width));
+                const auto height = conv(static_cast<float>(regs.surface_clip.height));
                 glViewportIndexedf(static_cast<GLuint>(index), x, y, width != 0.0f ? width : 1.0f,
                                    height != 0.0f ? height : 1.0f);
                 continue;
