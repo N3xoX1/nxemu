@@ -77,6 +77,12 @@ public:
         (void)SubmitFence(std::move(func), force_delay, false, nullptr);
     }
 
+    // Query values and their slots must remain alive until GPU readbacks retire.
+    // Empty submissions still complete inline, without a host GPU fence.
+    void SignalQueryFence(std::function<void()>&& func) {
+        (void)SubmitFence(std::move(func), true, true, nullptr);
+    }
+
     void SignalMemoryOperationFence(std::function<void()>&& func) {
         const bool completed_inline = SubmitFence(std::move(func), true, true, nullptr);
         if constexpr (!can_async_check) {

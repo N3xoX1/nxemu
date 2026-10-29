@@ -60,8 +60,8 @@ bool IsGpuCommandSynchronizationEnabled()
     return runtime_gpu_command_synchronization.load(std::memory_order_relaxed);
 }
 
-// High accuracy waits for the host GPU before the guest sees fences and query results.
-// Fast readback publishes them at submission, as Normal does, keeping High rendering.
+// High accuracy waits for host GPU completion before publishing guest fences.
+// Fast readback relaxes ordinary fences; GPU-backed query results still retire safely.
 bool IsGpuReadbackExact()
 {
     return IsGPULevelHigh() && !runtime_fast_gpu_readback.load(std::memory_order_relaxed);
