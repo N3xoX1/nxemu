@@ -1353,6 +1353,9 @@
     <ClInclude Include="core\hle\service\ptm\ts.h">
       <Filter>Header Files\core\hle\service\ptm</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\service\ro\nce_runtime_module.h">
+      <Filter>Header Files\core\hle\service\ro</Filter>
+    </ClInclude>
     <ClInclude Include="core\hle\service\ro\ro.h">
       <Filter>Header Files\core\hle\service\ro</Filter>
     </ClInclude>
@@ -2924,6 +2927,9 @@
       <Filter>Source Files\core\hle\service\ptm</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\ro\ro_nro_utils.cpp">
+      <Filter>Source Files\core\hle\service\ro</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\service\ro\nce_runtime_module.cpp">
       <Filter>Source Files\core\hle\service\ro</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\service\ro\ro.cpp">

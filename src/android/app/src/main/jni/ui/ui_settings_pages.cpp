@@ -382,7 +382,7 @@ void UiActivity::BuildSelects()
         languages.push_back({Translation::ConsoleLanguages[index], static_cast<int>(index), ""});
     }
     std::sort(languages.begin(), languages.end(), [](const Option & a, const Option & b) { return std::strcmp(a.label, b.label) < 0; });
-    m_selects.push_back({TrMark("Console language"), NXOsSetting::LanguageIndex, std::move(languages), nullptr, nullptr});
+    m_selects.push_back({TrMark("Console language"), NXCoreSetting::LanguageIndex, std::move(languages), nullptr, nullptr});
 }
 
 const UiActivity::Select & UiActivity::SelectFor(const char * key) const
@@ -466,7 +466,7 @@ void UiActivity::RenderInterfaceLanguage()
 {
     BeginBody();
     const std::string choice = UiLanguage::Choice();
-    const char * console = Translation::LanguageOfConsole(UiUtil::ReadInt(NXOsSetting::LanguageIndex));
+    const char * console = Translation::LanguageOfConsole(UiUtil::ReadInt(NXCoreSetting::LanguageIndex));
     AppendCheck(Translation::LanguageName(console), Tr("Follows the console language."), choice.empty(), [this] {
         UiLanguage::SetChoice("");
         RenderCurrentSettings();
@@ -796,7 +796,7 @@ void UiActivity::RenderSystemSettings()
     }
     AppendSelectSetting(SelectFor(NXOsSetting::SpeedLimit));
     AppendBoolSetting(Tr("Docked mode"), NXOsSetting::DockedMode, Tr("Higher resolution, lower performance"), true);
-    AppendSelectSetting(SelectFor(NXOsSetting::LanguageIndex));
+    AppendSelectSetting(SelectFor(NXCoreSetting::LanguageIndex));
     CommitBody();
 }
 

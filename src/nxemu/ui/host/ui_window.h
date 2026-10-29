@@ -1,4 +1,5 @@
 #pragma once
+#include "ui_presenter.h"
 #include "ui_renderer.h"
 #include <SDL.h>
 #include <SDL_metal.h>
@@ -80,6 +81,7 @@ private:
     UiWindow & operator=(const UiWindow &) = delete;
 
     bool Fail(const std::string & message);
+    void ReleaseRenderer();
     bool LoadFonts(const std::filesystem::path & fontDir);
     void SetWindowIcon(const std::filesystem::path & iconFile);
     void UpdateDimensions();
@@ -94,6 +96,7 @@ private:
     SDL_MetalView m_metalView = nullptr;
     std::unique_ptr<SystemInterface_SDL> m_system;
     std::unique_ptr<UiRenderer> m_renderer;
+    std::unique_ptr<UiPresenter> m_presenter;
     std::unique_ptr<UiPackFileInterface> m_packFiles;
     std::unique_ptr<UiThemeFileInterface> m_themeFiles;
     std::string m_themeChoice = "system";

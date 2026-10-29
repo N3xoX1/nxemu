@@ -138,7 +138,7 @@ private:
 
     // EmulatorSession::Listener
     void OnModulesReleasing() override;
-    void OnModulesReady() override;
+    void OnModulesReady(bool gameStarting) override;
     void OnGameStarted(const std::string & path) override;
     void OnSessionError(const std::string & message) override;
 

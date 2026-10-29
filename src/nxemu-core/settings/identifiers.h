@@ -51,5 +51,6 @@ constexpr const char * GpuHookLibDir = "nxcore:GpuHookLibDir";
 constexpr const char * GpuCustomDriverDir = "nxcore:GpuCustomDriverDir";
 constexpr const char * GpuCustomDriverName = "nxcore:GpuCustomDriverName";
 constexpr const char * GpuFileRedirectDir = "nxcore:GpuFileRedirectDir";
+constexpr const char * LanguageIndex = "nxcore:LanguageIndex";
 
 } // namespace NXCoreSetting

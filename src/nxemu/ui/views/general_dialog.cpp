@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/video.h>
@@ -213,7 +214,7 @@ void GeneralDialog::FillLists()
     m_profileCount = choices.size();
     Fill(Select(Document(), "profile"), choices, std::to_string(UserProfiles::Active(m_profileCount)));
 
-    Fill(Select(Document(), "language"), Sorted(Translation::ConsoleLanguages, false), std::to_string(settings.GetInt(NXOsSetting::LanguageIndex)));
+    Fill(Select(Document(), "language"), Sorted(Translation::ConsoleLanguages, false), std::to_string(settings.GetInt(NXCoreSetting::LanguageIndex)));
     Fill(Select(Document(), "region"), Sorted(kRegions), {});
     choices.clear();
     for (const Translation::LanguageInfo & language : Translation::Languages)
@@ -363,7 +364,7 @@ void GeneralDialog::ApplyChange(const std::string & id)
     }
     else if (id == "language")
     {
-        setting = NXOsSetting::LanguageIndex;
+        setting = NXCoreSetting::LanguageIndex;
     }
     else if (id == "region")
     {
@@ -388,7 +389,7 @@ bool GeneralDialog::RegionChosen() const
 
 int GeneralDialog::LanguageRegion() const
 {
-    const int language = std::clamp(m_settings.GetInt(NXOsSetting::LanguageIndex), 0, static_cast<int>(std::size(Translation::ConsoleLanguages)) - 1);
+    const int language = std::clamp(m_settings.GetInt(NXCoreSetting::LanguageIndex), 0, static_cast<int>(std::size(Translation::ConsoleLanguages)) - 1);
     return static_cast<int>(RegionOfLanguage(static_cast<Language>(language)));
 }
 

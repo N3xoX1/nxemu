@@ -123,7 +123,7 @@ void EmulatorSession::Update(bool releaseStoppedResources)
     if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
     {
-        if (!ResetModules())
+        if (!ResetModules(false))
         {
             ReportError(Tr("Required modules failed to reload after stopping the game."));
             return;
@@ -188,7 +188,7 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
             info->ReadProgramId(programId);
         }
     }
-    if (!ResetModules())
+    if (!ResetModules(true))
     {
         ReportError(Tr("Required modules failed to load."));
         return false;
@@ -231,7 +231,7 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     return true;
 }
 
-bool EmulatorSession::ResetModules()
+bool EmulatorSession::ResetModules(bool gameStarting)
 {
     m_releasePending = false;
 #ifdef __APPLE__
@@ -257,7 +257,7 @@ bool EmulatorSession::ResetModules()
     }
     if (m_listener != nullptr)
     {
-        m_listener->OnModulesReady();
+        m_listener->OnModulesReady(gameStarting);
     }
     return true;
 }
