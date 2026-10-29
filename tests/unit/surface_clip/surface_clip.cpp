@@ -30,6 +30,34 @@ int main() {
     auto s = Vulkan::SurfaceClipScissor(8, 12, 128, 192, 1, 1);
     check(v.x == 4 && v.y == 6 && v.width == 64 && v.height == 96 &&
           s.extent.width == 64 && s.extent.height == 96, "downscale stays consistent");
+    // Fractional scales: the scissor must contain the exact scaled rectangle and stay
+    // within one pixel of it. 1.5x is 3 >> 1, 0.75x is 3 >> 2 and 0.5x is 1 >> 1.
+    struct Scale { u32 up; u32 shift; };
+    for (const Scale scale : {Scale{3, 1}, Scale{3, 2}, Scale{1, 1}}) {
+        const float factor = float(scale.up) / float(1U << scale.shift);
+        for (u32 x : {0U, 1U, 3U, 7U}) {
+            for (u32 width : {1U, 3U, 5U, 129U}) {
+                const u32 y = x + 1;
+                const u32 height = width + 2;
+                s = Vulkan::SurfaceClipScissor(x, y, width, height, scale.up, scale.shift);
+                const float left = float(x) * factor;
+                const float right = float(x + width) * factor;
+                const float top = float(y) * factor;
+                const float bottom = float(y + height) * factor;
+                const float s_right = float(s.offset.x) + float(s.extent.width);
+                const float s_bottom = float(s.offset.y) + float(s.extent.height);
+                check(float(s.offset.x) <= left && s_right >= right &&
+                      float(s.offset.y) <= top && s_bottom >= bottom,
+                      "fractional scale scissor covers the scaled rectangle");
+                check(float(s.offset.x) > left - 1.f && s_right < right + 1.f &&
+                      float(s.offset.y) > top - 1.f && s_bottom < bottom + 1.f,
+                      "fractional scale scissor stays within one pixel");
+            }
+        }
+    }
+    s = Vulkan::SurfaceClipScissor(1, 0, 3, 4, 3, 1);
+    check(s.offset.x == 1 && s.extent.width == 5, "1.5x keeps the last partial pixel");
+
     v = Vulkan::SurfaceClipViewport(0, 0, 0, 0, false, 2.f);
     s = Vulkan::SurfaceClipScissor(0, 0, 0, 0, 2, 0);
     check(v.width == 1 && v.height == 1 && s.extent.width == 1 && s.extent.height == 1,
