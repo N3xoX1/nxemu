@@ -52,7 +52,7 @@ UiWindow::~UiWindow()
         m_themeQuery.wait();
     }
 #endif
-    DetachVideo();
+    ReleaseRenderer();
     if (m_rmlInitialised)
     {
         Rml::Shutdown();
@@ -60,6 +60,7 @@ UiWindow::~UiWindow()
         Rml::SetSystemInterface(nullptr);
     }
     m_renderer.reset();
+    m_presenter.reset();
     m_system.reset();
     if (m_metalView != nullptr)
     {
@@ -76,7 +77,7 @@ UiWindow::~UiWindow()
     }
 }
 
-bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir)
+bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir, int32_t deviceIndex)
 {
     SDL_SetMainReady();
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
@@ -160,12 +161,23 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
 
     m_systemTitleBar = ApplyNativeWindowStyle(m_window);
     UpdateDimensions();
+
+    m_presenter = std::make_unique<UiPresenter>();
+    if (!m_presenter->Create(*this, deviceIndex))
+    {
+        return Fail(m_presenter->Error());
+    }
+    if (!m_renderer->Bind(m_presenter->Context()))
+    {
+        return Fail(m_renderer->Error());
+    }
     return true;
 }
 
 bool UiWindow::AttachVideo(IVideo & video)
 {
-    DetachVideo();
+    ReleaseRenderer();
+    m_presenter->ReleaseWindow();
     VideoInterfaceDevice device{};
     if (!video.AttachInterface(&device))
     {
@@ -190,7 +202,28 @@ void UiWindow::DetachVideo()
     {
         return;
     }
-    m_video->WaitInterfaceIdle();
+    ReleaseRenderer();
+    if (!m_renderer->Bind(m_presenter->Context()))
+    {
+        Fail(m_renderer->Error());
+    }
+}
+
+void UiWindow::ReleaseRenderer()
+{
+    if (m_renderer == nullptr || !m_renderer->IsBound())
+    {
+        m_video = nullptr;
+        return;
+    }
+    if (m_video != nullptr)
+    {
+        m_video->WaitInterfaceIdle();
+    }
+    else
+    {
+        m_presenter->WaitIdle();
+    }
     Rml::ReleaseTextures();
     Rml::ReleaseCompiledGeometry();
     m_renderer->Unbind();
@@ -269,9 +302,30 @@ void UiWindow::HandleEvent(const SDL_Event & event)
 bool UiWindow::Render(const PixelRect * gameArea)
 {
     const bool hidden = (SDL_GetWindowFlags(m_window) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) != 0;
+    if (hidden || m_drawableWidth <= 0 || m_drawableHeight <= 0)
+    {
+        return false;
+    }
+    if (m_video == nullptr)
+    {
+        if (!m_renderer->IsBound() && !m_renderer->Bind(m_presenter->Context()))
+        {
+            return false;
+        }
+        VkImage image = VK_NULL_HANDLE;
+        const VkCommandBuffer commandBuffer = m_presenter->BeginFrame(static_cast<uint32_t>(m_drawableWidth), static_cast<uint32_t>(m_drawableHeight), image);
+        if (commandBuffer == VK_NULL_HANDLE)
+        {
+            return false;
+        }
+        m_renderer->BeginFrame(commandBuffer, m_drawableWidth, m_drawableHeight);
+        m_context->Render();
+        m_renderer->EndFrame(image);
+        m_presenter->EndFrame();
+        return true;
+    }
     VideoInterfaceFrame frame{};
-    if (m_video == nullptr || hidden || m_drawableWidth <= 0 || m_drawableHeight <= 0 ||
-        !m_video->BeginInterfaceFrame(static_cast<uint32_t>(m_drawableWidth), static_cast<uint32_t>(m_drawableHeight), &frame))
+    if (!m_video->BeginInterfaceFrame(static_cast<uint32_t>(m_drawableWidth), static_cast<uint32_t>(m_drawableHeight), &frame))
     {
         return false;
     }

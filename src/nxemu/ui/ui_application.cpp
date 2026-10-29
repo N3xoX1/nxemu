@@ -4,19 +4,23 @@
 #include "ui/host/ui_notification.h"
 #include "ui/host/ui_pack.h"
 #include "ui/host/ui_window.h"
+#include "ui/i18n/translation.h"
 #include "ui/library/game_library.h"
 #include "ui/library/interface_language.h"
 #include "ui/views/main_window.h"
 #include "ui/views/message_dialog.h"
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/ElementDocument.h>
 #include <iostream>
 #include <cstdlib>
 #include <nxemu-core/app_init.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
 #include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu-video/video_settings_identifiers.h>
 #include <string>
 #include <yuzu_common/fs/path_util.h>
+#include <yuzu_common/logging/log.h>
 
 namespace
 {
@@ -104,12 +108,25 @@ int Run(UiNotification & notification, const std::string & gamePath)
 
     UiWindow window;
     const std::string title = std::string("NXEmu ") + VER_FILE_VERSION_STR;
-    if (!window.Create(title.c_str(), kInitialWidth, kInitialHeight, assetDir))
+    if (!window.Create(title.c_str(), kInitialWidth, kInitialHeight, assetDir, SettingsStore::GetInstance().GetInt(NXVideoSetting::VulkanDevice)))
     {
         std::cerr << "NXEmu: " << window.Error() << '\n';
+        notification.DisplayError(window.Error().c_str(), "NXEmu");
         return 1;
     }
+    LOG_INFO(Frontend, "Startup: window created");
     window.SetTheme(uiSettings.interfaceTheme);
+    InterfaceLanguage::AdoptSystemLanguage();
+    InterfaceLanguage::Use(InterfaceLanguage::Code(), assetDir);
+
+    Rml::ElementDocument * startup = Translation::LoadDocument(*window.Context(), assetDir / "startup.rml");
+    if (startup != nullptr)
+    {
+        startup->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
+        window.Context()->Update();
+        window.Render(nullptr);
+        LOG_INFO(Frontend, "Startup: startup screen shown");
+    }
 
     EmulatorSession session(window, notification, window.Handle());
     if (!session.Initialise())
@@ -117,12 +134,10 @@ int Run(UiNotification & notification, const std::string & gamePath)
         notification.DisplayError("Required modules failed to load.", "NXEmu");
         return 1;
     }
-    InterfaceLanguage::AdoptSystemLanguage(session);
-    InterfaceLanguage::Use(InterfaceLanguage::Code(), assetDir);
-    if (!window.AttachVideo(session.Modules().Video()))
+    LOG_INFO(Frontend, "Startup: modules ready");
+    if (startup != nullptr)
     {
-        notification.DisplayError(window.Error().c_str(), "NXEmu");
-        return 1;
+        startup->Close();
     }
     GameLibrary library;
     MainWindow mainWindow(window, session, library, assetDir);
@@ -131,6 +146,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
         std::cerr << "NXEmu: unable to load the main window document\n";
         return 1;
     }
+    LOG_INFO(Frontend, "Startup: main window created");
 
     if (!gamePath.empty())
     {
@@ -220,7 +236,10 @@ int Run(UiNotification & notification, const std::string & gamePath)
         }
         if (now - lastChange < kStillAfterMs || now - lastRender >= kStillFrameMs || KeepGraphicsBusy(window, session))
         {
-            window.Render(mainWindow.GameArea());
+            if (window.Render(mainWindow.GameArea()) && lastRender == 0)
+            {
+                LOG_INFO(Frontend, "Startup: first frame shown");
+            }
             lastRender = SDL_GetTicks64();
         }
         liveResize.busy = false;
@@ -277,12 +296,14 @@ int RunUiApplication(int argc, char ** argv)
     }
 
     int result = 1;
+    LOG_INFO(Frontend, "Startup: checking Vulkan");
     if (argc > 0 && uiSettings.performVulkanCheck && !probeGraphics(argv[0]))
     {
         notification.DisplayError("Vulkan could not be initialised. Update the graphics driver and try again.", "NXEmu");
     }
     else
     {
+        LOG_INFO(Frontend, "Startup: Vulkan checked");
         result = Run(notification, gamePath);
     }
     SetNotification(nullptr);

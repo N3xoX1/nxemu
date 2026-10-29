@@ -13,6 +13,7 @@
 #include "yuzu_common/settings.h"
 #include <nxemu-module-spec/base.h>
 #include "nxemu-os/os_settings_identifiers.h"
+#include <nxemu-core/settings/identifiers.h>
 #ifndef _WIN32
 #include "yuzu_common/string_util.h"
 #endif
@@ -963,7 +964,7 @@ PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
     }
 
     // Get language code from settings
-    const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)g_settings->GetInt(NXOsSetting::LanguageIndex));
+    const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)g_settings->GetInt(NXCoreSetting::LanguageIndex));
 
     // Convert to application language and get priority list
     const auto application_language = Service::NS::ConvertToApplicationLanguage(language_code).value_or(Service::NS::ApplicationLanguage::AmericanEnglish);

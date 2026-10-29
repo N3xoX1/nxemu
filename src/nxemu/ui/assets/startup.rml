@@ -1,0 +1,11 @@
+<rml>
+  <head>
+    <title>NXEmu</title>
+    <link type="text/rcss" href="base.rcss" />
+    <link type="text/rcss" href="startup.rcss" />
+  </head>
+  <body>
+    <img src="images/nxemu-logo.png" />
+    <div id="startup-text">Loading</div>
+  </body>
+</rml>

@@ -512,10 +512,13 @@ void MainWindow::OnModulesReleasing()
     m_window.DetachVideo();
 }
 
-void MainWindow::OnModulesReady()
+void MainWindow::OnModulesReady(bool gameStarting)
 {
     m_firmwareDialog->SetLoader(m_session.Modules().Systemloader());
-    AttachVideo();
+    if (gameStarting)
+    {
+        AttachVideo();
+    }
 }
 
 void MainWindow::OnGameStarted(const std::string & path)

@@ -475,6 +475,7 @@
     <ClCompile Include="core\hle\service\ptm\psm.cpp" />
     <ClCompile Include="core\hle\service\ptm\ptm.cpp" />
     <ClCompile Include="core\hle\service\ptm\ts.cpp" />
+    <ClCompile Include="core\hle\service\ro\nce_runtime_module.cpp" />
     <ClCompile Include="core\hle\service\ro\ro.cpp" />
     <ClCompile Include="core\hle\service\ro\ro_nro_utils.cpp" />
     <ClCompile Include="core\hle\service\set\factory_settings_server.cpp" />
@@ -988,6 +989,7 @@
     <ClInclude Include="core\hle\service\ptm\psm.h" />
     <ClInclude Include="core\hle\service\ptm\ptm.h" />
     <ClInclude Include="core\hle\service\ptm\ts.h" />
+    <ClInclude Include="core\hle\service\ro\nce_runtime_module.h" />
     <ClInclude Include="core\hle\service\ro\ro.h" />
     <ClInclude Include="core\hle\service\ro\ro_nro_utils.h" />
     <ClInclude Include="core\hle\service\ro\ro_results.h" />

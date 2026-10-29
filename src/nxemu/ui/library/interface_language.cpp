@@ -1,8 +1,8 @@
 #include "interface_language.h"
+#include <nxemu-core/settings/core_settings.h>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
-#include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu/settings/ui_settings.h>
-#include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/system_language.h>
 #include <nxemu/ui/i18n/translation.h>
 
@@ -13,7 +13,7 @@ std::string InterfaceLanguage::Choice()
 
 std::string InterfaceLanguage::Code()
 {
-    return Translation::ResolveLanguage(SettingsStore::GetInstance().GetInt(NXOsSetting::LanguageIndex), Choice());
+    return Translation::ResolveLanguage(SettingsStore::GetInstance().GetInt(NXCoreSetting::LanguageIndex), Choice());
 }
 
 void InterfaceLanguage::SetChoice(const std::string & code)
@@ -28,7 +28,7 @@ void InterfaceLanguage::Use(const std::string & code, const std::filesystem::pat
     Translation::UseLanguage(code, assetDir / "lang", assetDir.parent_path().parent_path().parent_path().parent_path() / "lang");
 }
 
-void InterfaceLanguage::AdoptSystemLanguage(EmulatorSession & session)
+void InterfaceLanguage::AdoptSystemLanguage()
 {
     if (uiSettings.consoleLanguageSet)
     {
@@ -36,10 +36,10 @@ void InterfaceLanguage::AdoptSystemLanguage(EmulatorSession & session)
     }
     SettingsStore & settings = SettingsStore::GetInstance();
     Language language{};
-    if (settings.GetInt(NXOsSetting::LanguageIndex) == settings.GetDefaultInt(NXOsSetting::LanguageIndex) && SystemConsoleLanguage(language))
+    if (settings.GetInt(NXCoreSetting::LanguageIndex) == settings.GetDefaultInt(NXCoreSetting::LanguageIndex) && SystemConsoleLanguage(language))
     {
-        settings.SetInt(NXOsSetting::LanguageIndex, static_cast<int32_t>(language));
-        session.FlushSettings();
+        settings.SetInt(NXCoreSetting::LanguageIndex, static_cast<int32_t>(language));
+        SaveCoreSetting();
     }
     uiSettings.consoleLanguageSet = true;
     SaveUISetting();

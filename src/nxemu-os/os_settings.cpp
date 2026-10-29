@@ -5,6 +5,7 @@
 #include <climits>
 #include <common/json_util.h>
 #include <cstring>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-module-spec/base.h>
 #include <yuzu_common/yuzu_assert.h>
 
@@ -485,7 +486,6 @@ static OsSetting settings[] = {
         {NXOsSetting::CpuHleSynchronization, "system\\cpu_hle_synchronization", &osSettings.cpu_hle_synchronization, true},
         {NXOsSetting::UseSpeedLimit, nullptr, &osSettings.use_speed_limit, true},
         {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
-        {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Language::EnglishAmerican},
         {NXOsSetting::Region, "system\\region", &osSettings.region_setting, kRegionOfLanguage},
         {NXOsSetting::CurrentUser, "system\\current_user", &osSettings.current_user, 0},
         {NXOsSetting::RngSeedEnabled, "system\\rng_seed_enabled", &osSettings.rng_seed_enabled, false},
@@ -518,6 +518,11 @@ void ApplyRangedS64(OsSetting & osSetting, s64 value)
 }
 
 } // namespace
+
+void LanguageChanged(const char * /*setting*/, void * /*userData*/)
+{
+    osSettings.language_index = static_cast<Language>(g_settings->GetInt(NXCoreSetting::LanguageIndex));
+}
 
 void OsSettingChanged(const char * setting, void * /*userData*/)
 {
@@ -881,10 +886,13 @@ void SetupOsSetting(void)
         }
         g_settings->RegisterCallback(osSetting.identifier, OsSettingChanged, nullptr);
     }
+    LanguageChanged(nullptr, nullptr);
+    g_settings->RegisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
 }
 
 void CleanupOsSetting(void)
 {
+    g_settings->UnregisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
     for (const OsSetting & osSetting : settings)
     {
         if (osSetting.identifier == nullptr)

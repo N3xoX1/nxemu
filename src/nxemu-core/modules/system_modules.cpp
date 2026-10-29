@@ -10,6 +10,7 @@
 #include <vector>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/settings/identifiers.h>
+#include <yuzu_common/logging/log.h>
 
 namespace
 {
@@ -167,6 +168,7 @@ void SystemModules::Setup(IRenderWindow & window)
     LoadModule(impl->cpuFile, impl->cpuModule, &impl->moduleNotification, &impl->moduleSettings);
     LoadModule(impl->videoFile, impl->videoModule, &impl->moduleNotification, &impl->moduleSettings);
     LoadModule(impl->operatingsystemFile, impl->operatingsystemModule, &impl->moduleNotification, &impl->moduleSettings);
+    LOG_INFO(Frontend, "Module setup: libraries loaded");
 
     if (impl->loaderModule.get() == nullptr || 
         impl->cpuModule.get() == nullptr || 
@@ -195,23 +197,28 @@ void SystemModules::Setup(IRenderWindow & window)
     {
         return;
     }
+    LOG_INFO(Frontend, "Module setup: modules created");
 
     if (!impl->systemLoader->Initialize())
     {
         return;
     }
+    LOG_INFO(Frontend, "Module setup: loader initialized");
     if (!impl->cpu->Initialize())
     {
         return;
     }
+    LOG_INFO(Frontend, "Module setup: cpu initialized");
     if (!impl->video->Initialize())
     {
         return;
     }
+    LOG_INFO(Frontend, "Module setup: video initialized");
     if (!impl->operatingsystem->Initialize())
     {
         return;
     }
+    LOG_INFO(Frontend, "Module setup: operating system initialized");
 
     impl->baseModules.push_back(impl->cpuModule.get());
     impl->baseModules.push_back(impl->videoModule.get());
@@ -261,6 +268,7 @@ void SystemModules::FlushSettings(void)
     {
         (*itr)->FlushSettings();
     }
+    SaveCoreSetting();
 }
 
 bool SystemModules::IsValid() const

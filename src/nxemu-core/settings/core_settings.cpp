@@ -4,6 +4,7 @@
 #include <common/json.h>
 #include <common/path.h>
 #include <cstring>
+#include <iterator>
 #include <yuzu_common/yuzu_assert.h>
 
 namespace
@@ -25,6 +26,7 @@ namespace
         CoreSetting(const char * id, const char * section, const char * key, bool * settingValue, bool defaultValue);
         CoreSetting(const char * id, const char * section, const char * key, Path * settingPath, std::string * settingPathValue, const char * defaultValue);
         CoreSetting(const char * id, const char * section, const char * key, std::string * settingStr, const char * defaultValue);
+        CoreSetting(const char * id, const char * section, const char * key, int32_t * settingValue, int32_t defaultValue, const char * const * names, int32_t nameCount);
 
         const char * identifier;
         const char * json_section;
@@ -47,7 +49,15 @@ namespace
         {
             std::string * strValue;
         } clearValue;
+        const char * const * names = nullptr;
+        int32_t nameCount = 0;
     };
+
+    constexpr const char * LanguageNames[] = {
+        "Japanese", "EnglishAmerican", "French", "German", "Italian", "Spanish", "Chinese", "Korean", "Dutch", "Portuguese", "Russian",
+        "Taiwanese", "EnglishBritish", "FrenchCanadian", "SpanishLatin", "ChineseSimplified", "ChineseTraditional", "PortugueseBrazilian",
+    };
+    constexpr int32_t LanguageEnglishAmerican = 1;
 
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64) || defined(__aarch64__)
     constexpr const char * ModuleDirectorySettingKey = "ModuleDirectory-arm64";
@@ -111,6 +121,7 @@ namespace
         { NXCoreSetting::GpuCustomDriverDir, "", nullptr, &coreSettings.gpuCustomDriverDir, "" },
         { NXCoreSetting::GpuCustomDriverName, "", nullptr, &coreSettings.gpuCustomDriverName, "" },
         { NXCoreSetting::GpuFileRedirectDir, "", nullptr, &coreSettings.gpuFileRedirectDir, "" },
+        { NXCoreSetting::LanguageIndex, "", "ConsoleLanguage", &coreSettings.languageIndex, LanguageEnglishAmerican, LanguageNames, static_cast<int32_t>(std::size(LanguageNames)) },
     };
 
     void CoreSettingChanged(const char* setting, void* /*userData*/);
@@ -177,6 +188,27 @@ void SetupCoreSetting()
                     *setting.value.boolValue = value.asBool();
                 }
                 break;
+            case SettingType::Interger:
+                if (setting.value.intValue == nullptr)
+                {
+                    break;
+                }
+                if (value.isString() && setting.names != nullptr)
+                {
+                    const std::string name = value.asString();
+                    for (int32_t index = 0; index < setting.nameCount; index++)
+                    {
+                        if (name == setting.names[index])
+                        {
+                            *setting.value.intValue = index;
+                        }
+                    }
+                }
+                else if (value.isInt())
+                {
+                    *setting.value.intValue = static_cast<int32_t>(value.asInt64());
+                }
+                break;
             case SettingType::Path:
                 if (value.isString() && setting.value.path != nullptr && setting.clearValue.strValue != nullptr)
                 {
@@ -238,6 +270,20 @@ void SaveCoreSetting(void)
             if (*coreSetting.value.boolValue != coreSetting.defaults.boolValue)
             {
                 sections[coreSetting.json_section][coreSetting.json_key] = *coreSetting.value.boolValue;
+            }
+            break;
+        case SettingType::Interger:
+            if (*coreSetting.value.intValue != coreSetting.defaults.intValue)
+            {
+                const int32_t value = *coreSetting.value.intValue;
+                if (coreSetting.names != nullptr && value >= 0 && value < coreSetting.nameCount)
+                {
+                    sections[coreSetting.json_section][coreSetting.json_key] = coreSetting.names[value];
+                }
+                else
+                {
+                    sections[coreSetting.json_section][coreSetting.json_key] = value;
+                }
             }
             break;
         case SettingType::Path:
@@ -351,6 +397,19 @@ CoreSetting::CoreSetting(const char * id, const char * section, const char * key
 {
     defaults.strValue = defaultValue;
     value.strValue = settingStr;
+    clearValue.strValue = nullptr;
+}
+
+CoreSetting::CoreSetting(const char * id, const char * section, const char * key, int32_t * settingValue, int32_t defaultValue, const char * const * names_, int32_t nameCount_) :
+    identifier(id),
+    json_section(section),
+    json_key(key),
+    settingType(SettingType::Interger),
+    names(names_),
+    nameCount(nameCount_)
+{
+    defaults.intValue = defaultValue;
+    value.intValue = settingValue;
     clearValue.strValue = nullptr;
 }
 

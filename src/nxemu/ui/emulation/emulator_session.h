@@ -27,7 +27,7 @@ public:
     {
     public:
         virtual void OnModulesReleasing() = 0;
-        virtual void OnModulesReady() = 0;
+        virtual void OnModulesReady(bool gameStarting) = 0;
         virtual void OnGameStarted(const std::string & path) = 0;
         virtual void OnSessionError(const std::string & message) = 0;
 
@@ -84,7 +84,7 @@ private:
 
     bool LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                      ApplicationLaunchType launchType, const UserChannel & userChannel);
-    bool ResetModules();
+    bool ResetModules(bool gameStarting);
     void RegisterSystemCallbacks();
     void ProcessProgramEvents();
     void ReportError(const std::string & message);

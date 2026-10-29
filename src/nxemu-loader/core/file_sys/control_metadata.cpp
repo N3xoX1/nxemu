@@ -8,6 +8,7 @@
 #include "core/file_sys/vfs/vfs.h"
 #include <nxemu-module-spec/base.h>
 #include "nxemu-os/os_settings_identifiers.h"
+#include <nxemu-core/settings/identifiers.h>
 #include "yuzu_common/string_util.h"
 #include "yuzu_common/swap.h"
 
@@ -101,7 +102,7 @@ NACP & NACP::operator=(const NACP & other)
 
 const LanguageEntry & NACP::GetLanguageEntry() const
 {
-    Language language = language_to_codes[g_settings->GetInt(NXOsSetting::LanguageIndex)];
+    Language language = language_to_codes[g_settings->GetInt(NXCoreSetting::LanguageIndex)];
 
     {
         const auto & language_entry = raw.language_entries.at(static_cast<u8>(language));

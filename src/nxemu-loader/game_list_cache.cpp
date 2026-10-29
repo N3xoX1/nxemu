@@ -11,6 +11,7 @@
 #include "core/file_sys/submission_package.h"
 #include "core/loader/loader.h"
 #include "nxemu-os/os_settings_identifiers.h"
+#include <nxemu-core/settings/identifiers.h>
 #include <algorithm>
 #include <common/path.h>
 #include <cstring>
@@ -1050,7 +1051,7 @@ void GameListCache::Load()
     {
         return;
     }
-    if (reader.U32() != (uint32_t)g_settings->GetInt(NXOsSetting::LanguageIndex))
+    if (reader.U32() != (uint32_t)g_settings->GetInt(NXCoreSetting::LanguageIndex))
     {
         return;
     }
@@ -1127,7 +1128,7 @@ void GameListCache::Save() const
     CacheWriter writer;
     writer.U32(CacheMagic);
     writer.U32(CacheVersion);
-    writer.U32((uint32_t)g_settings->GetInt(NXOsSetting::LanguageIndex));
+    writer.U32((uint32_t)g_settings->GetInt(NXCoreSetting::LanguageIndex));
 
     const auto writeAddOns = [&writer](const AddOnEntries & entries) {
         writer.U32((uint32_t)entries.size());

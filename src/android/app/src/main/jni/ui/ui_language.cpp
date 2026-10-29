@@ -7,7 +7,8 @@
 #include <mutex>
 #include <nxemu-core/i18n/translation.h>
 #include <nxemu-core/settings/settings.h>
-#include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu-core/settings/core_settings.h>
+#include <nxemu-core/settings/identifiers.h>
 
 namespace
 {
@@ -39,7 +40,7 @@ namespace
             return;
         }
         SettingsStore & settings = SettingsStore::GetInstance();
-        if (settings.GetInt(NXOsSetting::LanguageIndex) == settings.GetDefaultInt(NXOsSetting::LanguageIndex))
+        if (settings.GetInt(NXCoreSetting::LanguageIndex) == settings.GetDefaultInt(NXCoreSetting::LanguageIndex))
         {
             for (size_t start = 0; start < locales.size();)
             {
@@ -50,7 +51,8 @@ namespace
                 int32_t language = 0;
                 if (Translation::ConsoleLanguageOfLocale(locale.substr(0, separator), separator == std::string::npos ? "" : locale.substr(separator + 1), language))
                 {
-                    settings.SetInt(NXOsSetting::LanguageIndex, language);
+                    settings.SetInt(NXCoreSetting::LanguageIndex, language);
+                    SaveCoreSetting();
                     break;
                 }
                 start = end + 1;
@@ -109,7 +111,7 @@ void SetChoice(const std::string & code)
 
 std::string Code()
 {
-    return Translation::ResolveLanguage(UiUtil::ReadInt(NXOsSetting::LanguageIndex), Choice());
+    return Translation::ResolveLanguage(UiUtil::ReadInt(NXCoreSetting::LanguageIndex), Choice());
 }
 
 int Generation()

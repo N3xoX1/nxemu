@@ -30,6 +30,8 @@ add_library(nxemu_ui STATIC
     host/ui_notification.h
     host/ui_pack.cpp
     host/ui_pack.h
+    host/ui_presenter.cpp
+    host/ui_presenter.h
     host/ui_renderer.cpp
     host/ui_renderer.h
     host/ui_renderer_effects.cpp
