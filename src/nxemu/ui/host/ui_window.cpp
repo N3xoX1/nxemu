@@ -12,9 +12,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
-#include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/video.h>
-#include <nxemu-video/video_settings_identifiers.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/platform/native_window.h>
 #include <nxemu/ui/platform/system_theme.h>
@@ -79,7 +77,7 @@ UiWindow::~UiWindow()
     }
 }
 
-bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir)
+bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir, int32_t deviceIndex)
 {
     SDL_SetMainReady();
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
@@ -165,7 +163,7 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
     UpdateDimensions();
 
     m_presenter = std::make_unique<UiPresenter>();
-    if (!m_presenter->Create(*this, SettingsStore::GetInstance().GetInt(NXVideoSetting::VulkanDevice)))
+    if (!m_presenter->Create(*this, deviceIndex))
     {
         return Fail(m_presenter->Error());
     }

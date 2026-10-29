@@ -34,7 +34,7 @@ public:
     UiWindow();
     ~UiWindow();
 
-    bool Create(const char * title, int width, int height, const std::filesystem::path & assetDir);
+    bool Create(const char * title, int width, int height, const std::filesystem::path & assetDir, int32_t deviceIndex);
     const std::string & Error() const { return m_error; }
 
     bool AttachVideo(IVideo & video);

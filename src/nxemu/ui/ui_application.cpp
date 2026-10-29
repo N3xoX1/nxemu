@@ -17,6 +17,7 @@
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
 #include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu-video/video_settings_identifiers.h>
 #include <string>
 #include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/logging/log.h>
@@ -107,7 +108,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
 
     UiWindow window;
     const std::string title = std::string("NXEmu ") + VER_FILE_VERSION_STR;
-    if (!window.Create(title.c_str(), kInitialWidth, kInitialHeight, assetDir))
+    if (!window.Create(title.c_str(), kInitialWidth, kInitialHeight, assetDir, SettingsStore::GetInstance().GetInt(NXVideoSetting::VulkanDevice)))
     {
         std::cerr << "NXEmu: " << window.Error() << '\n';
         notification.DisplayError(window.Error().c_str(), "NXEmu");
