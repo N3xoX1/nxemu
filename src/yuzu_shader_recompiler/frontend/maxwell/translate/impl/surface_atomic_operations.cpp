@@ -69,8 +69,14 @@ IR::Value MakeCoords(TranslatorVisitor& v, IR::Reg reg, Type type) {
     case Type::_1D:
     case Type::BUFFER_1D:
         return v.X(reg);
+    case Type::ARRAY_1D:
+        return v.ir.CompositeConstruct(
+            v.X(reg), v.X(reg + 1));
     case Type::_2D:
         return v.ir.CompositeConstruct(v.X(reg), v.X(reg + 1));
+    case Type::ARRAY_2D:
+        return v.ir.CompositeConstruct(
+            v.X(reg), v.X(reg + 1), v.X(reg + 2));
     case Type::_3D:
         return v.ir.CompositeConstruct(v.X(reg), v.X(reg + 1), v.X(reg + 2));
     default:
@@ -180,11 +186,11 @@ void TranslatorVisitor::SUATOM(u64 insn) {
 }
 
 void TranslatorVisitor::SURED(u64 insn) {
-    // TODO: confirm offsets
     union {
         u64 raw;
         BitField<51, 1, u64> is_bound;
-        BitField<21, 3, AtomicOp> op;
+        BitField<24, 3, AtomicOp> op;
+        BitField<23, 1, u64> byte_address;
         BitField<33, 3, Type> type;
         BitField<20, 3, Size> size;
         BitField<49, 2, Clamp> clamp;
@@ -193,6 +199,9 @@ void TranslatorVisitor::SURED(u64 insn) {
         BitField<36, 13, u64> bound_offset;    // is_bound
         BitField<39, 8, IR::Reg> bindless_reg; // !is_bound
     } const sured{insn};
+    if (sured.byte_address != 0) {
+        throw NotImplementedException("Byte-addressed SURED");
+    }
     ImageAtomOp(*this, IR::Reg::RZ, sured.operand_reg, sured.coord_reg, sured.bindless_reg,
                 sured.op, sured.clamp, sured.size, sured.type, sured.bound_offset,
                 sured.is_bound == 0, false);

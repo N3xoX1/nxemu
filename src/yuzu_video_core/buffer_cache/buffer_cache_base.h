@@ -24,6 +24,7 @@
 #include "yuzu_common/settings.h"
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_video_core/buffer_cache/buffer_base.h"
+#include "yuzu_video_core/buffer_cache/empty_storage_buffer_warning.h"
 #include "yuzu_video_core/control/channel_state_cache.h"
 #include "yuzu_video_core/delayed_destruction_ring.h"
 #include "yuzu_video_core/dirty_flags.h"
@@ -480,6 +481,7 @@ private:
     u32 last_index_count = 0;
 
     MemoryTracker memory_tracker;
+    mutable EmptyStorageBufferWarningCounter empty_storage_warnings;
 
     /// Part of a guest range that is continuous in device memory
     struct SparseBufferPart {

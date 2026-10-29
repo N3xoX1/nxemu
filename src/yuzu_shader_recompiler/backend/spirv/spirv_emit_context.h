@@ -375,6 +375,8 @@ public:
 
     bool need_input_position_indirect{};
     Id input_position{};
+    /// The fragment shader emulates the alpha-to-coverage dither of render target 0
+    bool alpha_to_coverage_dither{};
     std::array<InputGenericInfo, 32> input_generics{};
 
     Id output_point_size{};
