@@ -20,17 +20,25 @@ namespace {
 struct Cache {
     std::mutex mutex;
     bool pending{};
+    bool pending_on_presync{};
     mutable std::mutex slot_guard;
     std::deque<bool> slots;
     std::atomic<unsigned> retired{};
     std::atomic<unsigned> result{};
     bool HasUncommittedFlushes() const { return pending; }
     void AccumulateFlushes() {}
+    void NotifyWFI() {
+        pending |= std::exchange(pending_on_presync, false);
+    }
+    void PrepareAsyncFlushes() {
+        NotifyWFI();
+    }
     bool ShouldWaitAsyncFlushes() const {
         std::scoped_lock lock(slot_guard);
         return !slots.empty() && slots.front();
     }
     void CommitAsyncFlushes() {
+        NotifyWFI();
         std::scoped_lock lock(slot_guard);
         slots.push_back(std::exchange(pending, false));
     }
@@ -142,12 +150,39 @@ void BenchmarkEmpty() {
     std::printf("Empty query fences: %.1f ns/call, zero GPU submits/waits\n",
         std::chrono::duration<double, std::nano>(elapsed).count() / count);
 }
+
+template <bool async>
+void CheckCheckpointReadback(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<bool> completed{};
+
+    // A long-running counter can create its first readback while preparing the
+    // flush, without a guest counter report or previously pending query data.
+    queries.pending_on_presync = true;
+    assert(!queries.HasUncommittedFlushes());
+    manager.SignalQueryFence([&] {
+        assert(queries.result.load(std::memory_order_acquire) == 42);
+        completed.store(true, std::memory_order_release);
+    });
+    assert(manager.host_fences == 1 && rasterizer.flushes == 1);
+    assert(!completed.load(std::memory_order_acquire));
+    manager.SignalGpu();
+    manager.WaitForFence();
+    assert(completed.load(std::memory_order_acquire));
+    assert(textures.retired == buffers.retired && buffers.retired == queries.retired);
+}
 }
 
 int main() {
     for (bool exact_readback : {false, true}) {
         CheckOrdering<true>(exact_readback);
         CheckOrdering<false>(exact_readback);
+        CheckCheckpointReadback<true>(exact_readback);
+        CheckCheckpointReadback<false>(exact_readback);
     }
     BenchmarkEmpty();
     std::puts("PASS: GPU readback query fence ordering and empty fast path");
