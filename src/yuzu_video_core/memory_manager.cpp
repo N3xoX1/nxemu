@@ -631,8 +631,11 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
-        u8 * physical = memory.GetPointer<u8>(dev_addr_base);
-        std::memcpy(physical, src_buffer, copy_amount);
+        // A delayed readback can complete after the guest memory was unmapped at shutdown.
+        if (u8 * physical = memory.GetPointer<u8>(dev_addr_base))
+        {
+            std::memcpy(physical, src_buffer, copy_amount);
+        }
         src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;
     };
     auto mapped_big = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
@@ -646,9 +649,8 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             memory.WriteBlockUnsafe(dev_addr_base, src_buffer, copy_amount);
         }
-        else
+        else if (u8 * physical = memory.GetPointer<u8>(dev_addr_base))
         {
-            u8 * physical = memory.GetPointer<u8>(dev_addr_base);
             std::memcpy(physical, src_buffer, copy_amount);
         }
         src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;

@@ -227,10 +227,8 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
     {
         macro_addresses[addr_begin + i] = current_dma_segment + i * sizeof(u32);
     }
-    if (Settings::IsGPULevelHigh())
-    {
-        macro_segments.emplace_back(current_dma_segment, amount);
-    }
+    // A macro fallback can read GPU-written parameters at every accuracy level.
+    macro_segments.emplace_back(current_dma_segment, amount);
     current_macro_dirty |= current_dirty;
     current_dirty = false;
 
@@ -241,20 +239,13 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
         CallMacroMethod(executing_macro, macro_params);
         macro_params.clear();
         macro_addresses.clear();
-        if (Settings::IsGPULevelHigh())
-        {
-            macro_segments.clear();
-        }
+        macro_segments.clear();
         current_macro_dirty = false;
     }
 }
 
 void Maxwell3D::RefreshParametersImpl()
 {
-    if (!Settings::IsGPULevelHigh())
-    {
-        return;
-    }
     size_t current_index = 0;
     for (auto & segment : macro_segments)
     {

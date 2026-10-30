@@ -59,6 +59,8 @@ public:
 
     bool Contains(u64 address, u64 size) const;
 
+    /// Operations are clipped to the reserved windows. Ranges may span holes;
+    /// wrapping ranges are rejected before any state changes.
     void Map(u64 address, u64 backing_offset, u64 size, u32 perm);
     void Unmap(u64 address, u64 size);
     void Protect(u64 address, u64 size, u32 perm);
@@ -94,8 +96,7 @@ private:
     };
 
     std::atomic<u64>* GuestEntry(u64 address) const;
-    WindowState* FindWindow(u64 address);
-    void Update(u64 address, u64 size);
+    void Update(WindowState& state, u64 begin, u64 end);
     void UpdateWindow(WindowState& state, u64 begin, u64 end);
 
     // One canonical pointer/permission entry per guest page. Aligning the table to its size

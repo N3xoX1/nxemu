@@ -112,13 +112,13 @@ bool DmaPusher::Step()
         const auto engine = subchannel_type[dma_state.subchannel];
         const bool compute_payload = engine == Engines::EngineTypes::KeplerCompute &&
                                      dma_state.method == ComputeInline && dma_state.non_incrementing;
-        const bool macro_payload = Settings::IsGPULevelHigh() &&
-                                   engine == Engines::EngineTypes::Maxwell3D &&
+        const bool macro_payload = engine == Engines::EngineTypes::Maxwell3D &&
                                    dma_state.method >= MacroRegistersStart;
         if (compute_payload || macro_payload)
         {
             // A safe fetch can download the parameters and clear their GPU dirty state. Keep
-            // their origin so compute launches can still consume the live GPU arguments.
+            // their origin so compute launches and draw macros consume live GPU
+            // arguments, including at Normal accuracy where DMA reads may be unsafe.
             const std::size_t words = std::min<std::size_t>(dma_state.method_count, header.size);
             subchannels[dma_state.subchannel]->current_dirty =
                 memory_manager.IsMemoryDirty(dma_state.dma_get, words * sizeof(u32));
