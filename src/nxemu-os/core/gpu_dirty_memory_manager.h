@@ -33,16 +33,28 @@ public:
         }
     }
 
+    // Collect widens writes to 64-byte blocks. A block can also hold GPU writes not downloaded
+    // yet, which invalidating it would replace with stale guest memory: keep known ranges exact.
+    void CollectExact(PAddr address, size_t size) {
+        std::scoped_lock lk(guard);
+        exact_back_buffer.emplace_back(address, size);
+    }
+
     void Gather(ICacheInvalidator * invalidator)
     {
         {
             std::scoped_lock lk(guard);
             TransformAddress t = current.exchange(default_transform, std::memory_order_relaxed);
             front_buffer.swap(back_buffer);
+            exact_front_buffer.swap(exact_back_buffer);
             if (IsValid(t.address)) {
                 front_buffer.emplace_back(t);
             }
         }
+        for (const auto& [address, size] : exact_front_buffer) {
+            invalidator->OnCacheInvalidation(address, static_cast<uint32_t>(size));
+        }
+        exact_front_buffer.clear();
         for (auto& transform : front_buffer) {
             size_t offset = 0;
             u64 mask = transform.mask;
@@ -125,6 +137,8 @@ private:
     std::mutex guard;
     std::vector<TransformAddress> back_buffer;
     std::vector<TransformAddress> front_buffer;
+    std::vector<std::pair<PAddr, size_t>> exact_back_buffer;
+    std::vector<std::pair<PAddr, size_t>> exact_front_buffer;
 };
 
 } // namespace Core

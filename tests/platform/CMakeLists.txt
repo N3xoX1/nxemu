@@ -69,3 +69,14 @@ add_dependencies(nce_native_mapping fmt)
 target_link_libraries(nce_native_mapping PRIVATE $<TARGET_FILE:fmt>)
 nxemu_platform_executable(nce_native_mapping)
 nxemu_platform_test(nce_native_mapping nce_native_mapping)
+
+# Operations that span holes between the two native guest windows.
+add_executable(test_nce_range_clipping nce_direct_map/test_range_clipping.cpp
+    "${CMAKE_SOURCE_DIR}/src/yuzu_common/nce_direct_map.cpp")
+target_include_directories(test_nce_range_clipping PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+add_dependencies(test_nce_range_clipping fmt)
+target_link_libraries(test_nce_range_clipping PRIVATE $<TARGET_FILE:fmt>)
+nxemu_platform_executable(test_nce_range_clipping)
+nxemu_platform_test(test_nce_range_clipping test_nce_range_clipping)
+set_tests_properties(test_nce_range_clipping PROPERTIES TIMEOUT 30)

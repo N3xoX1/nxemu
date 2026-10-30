@@ -34,6 +34,7 @@
 #include "core/hle/kernel/k_page_table.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/memory.h"
+#include "core/nce_written_ranges.h"
 #include <nxemu-module-spec/video.h>
 
 extern IModuleSettings* g_settings;
@@ -923,6 +924,12 @@ struct Memory::Impl {
         context.impl->gpu_dirty_managers[context.core].Collect(address, size);
     }
 
+    static void HandleRasterizerWriteCollectExact(uint64_t address, uint64_t size, void * user_data)
+    {
+        auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
+        context.impl->gpu_dirty_managers[context.core].CollectExact(address, size);
+    }
+
 #if defined(__APPLE__)
     // Caller holds nce_write_mutex. Apply each contiguous permission run once, and never
     // temporarily expose GPU-dirty pages while changing buffer write tracking.
@@ -1205,7 +1212,7 @@ struct Memory::Impl {
 
     void FlushNceWrites(bool rearm_native_reads = true)
     {
-        std::vector<u64> written;
+        std::vector<std::pair<u64, u64>> written;
         {
             std::scoped_lock lk{nce_write_mutex};
             // Pages unmapped since are not cached anymore.
@@ -1230,19 +1237,24 @@ struct Memory::Impl {
                 if (rearm_native_reads) ProtectNceReadCached(begin, end - begin);
                 else buffer->ProtectAccess(begin, end - begin, Common::MemoryPermission::Read);
             }
+            // Report only the bytes the CPU changed. The rest of the page can hold GPU writes
+            // that are not downloaded yet, invalidating it would upload stale guest memory.
             for (const auto & [page, copy] : nce_written)
             {
                 const u8 * const pointer = GetPointerFromRasterizerCachedMemory(page);
-                if (pointer != nullptr && std::memcmp(pointer, copy->data(), YUZU_PAGESIZE) != 0)
+                if (pointer == nullptr || std::memcmp(pointer, copy->data(), YUZU_PAGESIZE) == 0)
                 {
-                    written.push_back(page);
+                    continue;
                 }
+                ForEachNceWrittenRange(pointer, copy->data(), YUZU_PAGESIZE, [&](u64 offset, u64 size) {
+                    written.emplace_back(page + offset, size);
+                });
             }
             nce_written.clear();
         }
-        for (const u64 page : written)
+        for (const auto & [address, size] : written)
         {
-            HandleRasterizerWrite(page, YUZU_PAGESIZE);
+            HandleRasterizerWrite(address, size, true);
         }
     }
 #endif
@@ -1266,7 +1278,7 @@ struct Memory::Impl {
         area = system.GetVideo().HandleRasterizerDownload(p, size, area);
     }
 
-    void HandleRasterizerWrite(VAddr v_address, size_t size)
+    void HandleRasterizerWrite(VAddr v_address, size_t size, bool exact = false)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
         constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
@@ -1285,7 +1297,8 @@ struct Memory::Impl {
         };
 
         RasterizerWriteCollectContext context{this, core};
-        system.GetVideo().HandleRasterizerWrite(p, size, &rasterizer_write_areas[core].last_address, HandleRasterizerWriteCollect, &context);
+        system.GetVideo().HandleRasterizerWrite(p, size, &rasterizer_write_areas[core].last_address,
+            exact ? HandleRasterizerWriteCollectExact : HandleRasterizerWriteCollect, &context);
     }
 
     struct GPUDirtyState

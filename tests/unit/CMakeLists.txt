@@ -82,3 +82,7 @@ nxemu_unit_test(test_swapchain_present_mode)
 
 add_test(NAME test_image_slice_copies COMMAND test_image_views_and_slices --copies)
 set_tests_properties(test_image_slice_copies PROPERTIES LABELS unit TIMEOUT 120)
+
+add_executable(test_nce_written_ranges nce_written_ranges/written_ranges.cpp)
+target_include_directories(test_nce_written_ranges PRIVATE "${CMAKE_SOURCE_DIR}/src")
+nxemu_unit_test(test_nce_written_ranges)
