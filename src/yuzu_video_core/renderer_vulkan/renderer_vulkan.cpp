@@ -172,13 +172,21 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
 
     if (!render_window.IsShown())
     {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+        scheduler.Flush(nullptr, nullptr, std::chrono::nanoseconds{});
+#endif
         return;
     }
 
     RenderScreenshot(framebuffers);
     if (HoldIncompleteFrame())
     {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+        scheduler.Flush(nullptr, nullptr,
+                        std::chrono::nanoseconds{framebuffers.front().frame_interval_ns});
+#else
         scheduler.Flush();
+#endif
         gpu.RendererFrameEndNotify();
         rasterizer.TickFrame();
         return;
@@ -192,7 +200,13 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     {
         RenderWatermark(*frame);
     }
+    frame->frame_interval_ns = framebuffers.front().frame_interval_ns;
+#ifdef __ANDROID__
+    scheduler.Flush(*frame->render_ready, nullptr,
+                    std::chrono::nanoseconds{frame->frame_interval_ns});
+#else
     scheduler.Flush(*frame->render_ready);
+#endif
     present_manager.Present(frame);
 
     gpu.RendererFrameEndNotify();

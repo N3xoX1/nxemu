@@ -134,6 +134,8 @@ struct VideoFramebufferConfig
     int32_t cropRight;
     int32_t cropBottom;
     uint32_t blending;
+    // Requested guest cadence in host time; zero means unlocked or unknown.
+    uint32_t frameIntervalNs = 0;
 };
 
 struct VideoNvFence

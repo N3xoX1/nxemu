@@ -454,6 +454,7 @@ void VideoManager::RequestComposite(VideoFramebufferConfig * layers, uint32_t la
             .transform_flags = (Service::android::BufferTransformFlags)layers[i].transformFlags,
             .crop_rect = Common::Rectangle<int>{layers[i].cropLeft, layers[i].cropTop, layers[i].cropRight, layers[i].cropBottom },
             .blending = (Tegra::BlendMode)layers[i].blending,
+            .frame_interval_ns = layers[i].frameIntervalNs,
         });
     }
     for (uint32_t i = 0; i < fenceCount; i++)

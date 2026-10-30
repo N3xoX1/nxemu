@@ -154,3 +154,5 @@ add_dependencies(test_alpha_to_coverage_dither shader_recompiler sirit fmt commo
 target_link_libraries(test_alpha_to_coverage_dither PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_alpha_to_coverage_dither)
+
+add_subdirectory(android_performance)

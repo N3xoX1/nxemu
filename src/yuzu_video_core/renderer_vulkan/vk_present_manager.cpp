@@ -220,7 +220,12 @@ void PresentManager::SetImageCount() {
 }
 
 void PresentManager::CopyToSwapchain(Frame* frame) {
-    Frame* const reusable = display.Present(frame, render_window.GetWindowInfo());
+    const auto window = render_window.GetWindowInfo();
+    bool presented = false;
+    Frame* const reusable = display.Present(frame, window, &presented);
+    if (presented) {
+        render_window.OnFramePresented(window.render_surface, frame->frame_interval_ns);
+    }
     SetImageCount();
     if (reusable != nullptr) {
         std::scoped_lock lock{free_mutex};

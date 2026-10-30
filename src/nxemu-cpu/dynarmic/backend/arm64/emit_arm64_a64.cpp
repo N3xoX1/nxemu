@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+// FPSR lazy-read changes adapted for NXEmu on 2026-10-30.
+
 /* This file is part of the dynarmic project.
  * Copyright (c) 2022 MerryMage
  * SPDX-License-Identifier: 0BSD
@@ -279,12 +283,11 @@ void EmitIR<IR::Opcode::A64GetFPCR>(oaknut::CodeGenerator& code, EmitContext& ct
 }
 
 template<>
-void EmitIR<IR::Opcode::A64GetFPSR>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
-    ctx.fpsr.Spill();
+void EmitIR<IR::Opcode::A64GetFPSR>(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst) {
     auto Wresult = ctx.reg_alloc.WriteW(inst);
     RegAlloc::Realize(Wresult);
 
-    code.LDR(Wresult, Xstate, offsetof(A64JitState, fpsr));
+    ctx.fpsr.GetFpsr(Wresult);
 }
 
 template<>

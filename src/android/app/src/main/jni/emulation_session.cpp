@@ -230,6 +230,7 @@ void EmulationSession::RestoreStubModulesLocked()
 bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path, uint64_t program_id)
 {
     std::lock_guard lock(m_mutex);
+    m_render_window.SetPaused(false);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     m_system_modules.reset();
 
@@ -410,6 +411,7 @@ void EmulationSession::ExitProgramCallback(void * userData)
 void EmulationSession::Stop()
 {
     std::lock_guard lock(m_mutex);
+    m_render_window.SetPaused(true);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     RestoreStubModulesLocked();
 }
@@ -427,6 +429,7 @@ void EmulationSession::SetPaused(bool paused)
         return;
     }
     os.SetEmulationPaused(paused);
+    m_render_window.SetPaused(paused);
     CountPlayTime(paused ? 0 : m_playing_program);
 }
 
