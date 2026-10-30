@@ -178,6 +178,10 @@ private:
             TryReleasePendingFences<false>();
         }
 
+        // Preparing query writes can checkpoint an active counter and enqueue a
+        // readback even when no guest report was pending. Decide whether a real
+        // GPU fence is needed only after that work has been materialized.
+        query_cache.PrepareAsyncFlushes();
         const bool should_flush = ShouldFlush();
         CommitAsyncFlushes();
 

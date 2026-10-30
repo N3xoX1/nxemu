@@ -197,6 +197,9 @@ public:
         return streams[static_cast<std::size_t>(type)];
     }
 
+    // Legacy queries do not materialize additional GPU work during a flush.
+    void PrepareAsyncFlushes() {}
+
     void CommitAsyncFlushes() {
         std::unique_lock lock{mutex};
         committed_flushes.push_back(uncommitted_flushes);

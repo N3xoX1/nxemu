@@ -102,6 +102,10 @@ public:
     bool AccelerateHostConditionalRendering();
 
     // Async downloads
+    void PrepareAsyncFlushes() {
+        NotifyWFI();
+    }
+
     void CommitAsyncFlushes();
 
     bool HasUncommittedFlushes() const;
