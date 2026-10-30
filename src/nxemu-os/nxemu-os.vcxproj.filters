@@ -2001,6 +2001,9 @@
     <ClInclude Include="emu_thread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="launch_gate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="applets\applet.h">
       <Filter>Header Files\applets</Filter>
     </ClInclude>

@@ -7,6 +7,9 @@
 #include "video_module.h"
 #include "notification.h"
 #include "settings/core_settings.h"
+#include <atomic>
+#include <chrono>
+#include <future>
 #include <vector>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/settings/identifiers.h>
@@ -148,6 +151,12 @@ struct SystemModules::Impl :
     IOperatingSystem * operatingsystem;
     bool valid;
     bool stopping;
+    bool launching = false;
+    std::atomic<bool> launchCancelled{false};
+    LaunchPrepareCallback launchPrepare = nullptr;
+    void * launchUserData = nullptr;
+    std::promise<bool> launchPromise;
+    std::future<bool> launchResult;
 };
 
 SystemModules::SystemModules()
@@ -163,13 +172,72 @@ void SystemModules::Setup(IRenderWindow & window)
 {
     ShutDown();
     impl = std::make_unique<Impl>(window);
-    if (!CreateModules())
+    if (!LoadModules() || !InitializeModules())
     {
         ShutDown();
+        return;
     }
+    impl->operatingsystem->InitializeInput();
 }
 
-bool SystemModules::CreateModules()
+bool SystemModules::StartLaunch(IRenderWindow & window, LaunchPrepareCallback prepare, void * userData)
+{
+    ShutDown();
+    impl = std::make_unique<Impl>(window);
+    if (!LoadModules())
+    {
+        ShutDown();
+        return false;
+    }
+    impl->launchPrepare = prepare;
+    impl->launchUserData = userData;
+    impl->launchResult = impl->launchPromise.get_future();
+    impl->launching = true;
+    impl->operatingsystem->StartEmulationThread(LaunchThread, this);
+    return true;
+}
+
+bool SystemModules::IsLaunching() const
+{
+    return impl != nullptr && impl->launching;
+}
+
+void SystemModules::CancelLaunch()
+{
+    if (!IsLaunching())
+    {
+        return;
+    }
+    impl->launchCancelled.store(true, std::memory_order_relaxed);
+    impl->systemLoader->CancelPrepareRom();
+}
+
+bool SystemModules::LaunchDone() const
+{
+    return IsLaunching() && impl->launchResult.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+}
+
+bool SystemModules::FinishLaunch()
+{
+    if (!IsLaunching())
+    {
+        return false;
+    }
+    const bool prepared = impl->launchResult.get();
+    impl->launching = false;
+    return prepared;
+}
+
+bool SystemModules::LaunchThread(void * userData)
+{
+    SystemModules & modules = *static_cast<SystemModules *>(userData);
+    Impl & impl = *modules.impl;
+    const bool prepared = modules.InitializeModules() && !impl.launchCancelled.load(std::memory_order_relaxed) && impl.launchPrepare(impl.launchUserData);
+    impl.launchPromise.set_value(prepared);
+    return prepared;
+}
+
+bool SystemModules::LoadModules()
 {
     impl->valid = false;
 
@@ -217,6 +285,15 @@ bool SystemModules::CreateModules()
     }
     LOG_INFO(Frontend, "Module setup: modules created");
 
+    impl->baseModules.push_back(impl->cpuModule.get());
+    impl->baseModules.push_back(impl->videoModule.get());
+    impl->baseModules.push_back(impl->operatingsystemModule.get());
+    impl->baseModules.push_back(impl->loaderModule.get());
+    return true;
+}
+
+bool SystemModules::InitializeModules()
+{
     if (!impl->systemLoader->Initialize())
     {
         LOG_ERROR(Frontend, "Module setup: failed to initialize the loader ({})", impl->loaderFile);
@@ -241,11 +318,6 @@ bool SystemModules::CreateModules()
         return false;
     }
     LOG_INFO(Frontend, "Module setup: operating system initialized");
-
-    impl->baseModules.push_back(impl->cpuModule.get());
-    impl->baseModules.push_back(impl->videoModule.get());
-    impl->baseModules.push_back(impl->operatingsystemModule.get());
-    impl->baseModules.push_back(impl->loaderModule.get());
     impl->valid = true;
     return true;
 }
@@ -255,6 +327,12 @@ void SystemModules::ShutDown()
     if (impl == nullptr)
     {
         return;
+    }
+    if (impl->launching)
+    {
+        CancelLaunch();
+        impl->launchResult.wait();
+        impl->launching = false;
     }
     impl->StopEmulation(true);
     impl->baseModules.clear();
@@ -283,7 +361,7 @@ void SystemModules::ShutDown()
 
 void SystemModules::FlushSettings(void)
 {
-    if (impl != nullptr)
+    if (IsValid())
     {
         for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
         {
@@ -295,7 +373,7 @@ void SystemModules::FlushSettings(void)
 
 bool SystemModules::IsValid() const
 {
-    return impl.get() != nullptr ? impl->IsValid() : false;
+    return impl.get() != nullptr && !impl->launching && impl->IsValid();
 }
 
 ISystemModules & SystemModules::Modules()

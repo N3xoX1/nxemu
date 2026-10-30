@@ -161,6 +161,7 @@ public:
      * This function will initialize core functionality used for system emulation
      */
     void Initialize();
+    void InitializeInput();
 
     /**
      * Run the OS and Application

@@ -313,6 +313,7 @@ struct Info {
     bool loads_indexed_attributes{};
 
     std::array<bool, 8> stores_frag_color{};
+    std::array<bool, 8> stores_frag_alpha{};
     bool stores_sample_mask{};
     bool stores_frag_depth{};
 

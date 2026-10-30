@@ -64,7 +64,10 @@ struct System::Impl {
     ~Impl()
     {
         hid_core.UnloadInputDevices();
-        input_subsystem->Shutdown();
+        if (input_initialized)
+        {
+            input_subsystem->Shutdown();
+        }
     }
 
     void Initialize(System& system)
@@ -73,7 +76,12 @@ struct System::Impl {
 
         // These objects outlive individual games and runtime setting changes.
         frontend_applets.SetDefaultAppletsIfMissing();
+    }
+
+    void InitializeInput()
+    {
         input_subsystem->Initialize();
+        input_initialized = true;
     }
 
     void ConfigureRuntime(System& system)
@@ -279,6 +287,7 @@ struct System::Impl {
     Core::HID::HIDCore hid_core;
     Network::RoomNetwork room_network;
     std::shared_ptr<InputCommon::InputSubsystem> input_subsystem;
+    bool input_initialized{};
 
     CpuManager cpu_manager;
     std::atomic_bool is_powered_on{};
@@ -369,6 +378,11 @@ void System::InitializeKernel(uint64_t titleID, bool is_64_bit)
 
 void System::Initialize() {
     impl->Initialize(*this);
+}
+
+void System::InitializeInput()
+{
+    impl->InitializeInput();
 }
 
 void System::Run()

@@ -274,7 +274,7 @@ void MainWindow::RequestQuit()
 {
     m_firmwareDialog->CancelInstall();
     if(m_shaderProfileDialog)m_shaderProfileDialog->Cancel();
-    if (!m_session.IsRunning() || ConfirmStop(Tr("NXEmu - Exit")))
+    if (!m_session.IsRunning() || m_session.IsLaunching() || ConfirmStop(Tr("NXEmu - Exit")))
     {
         m_quit = true;
     }
@@ -370,7 +370,7 @@ void MainWindow::Update()
     m_shaderProfileDialog->Update();
     if(!m_shaderProfileDialog->Busy())RunPendingWork();
     m_session.Update(!m_firmwareDialog->Installing() && !m_shaderProfileDialog->Busy());
-    if (!m_session.IsValid())
+    if (!m_session.IsValid() && !m_session.IsLaunching())
     {
         m_quit = true;
         return;
@@ -624,7 +624,7 @@ void MainWindow::Run(Action action)
     case Action::PauseOrContinue: m_session.TogglePause(); break;
     case Action::Stop: StopGame(); break;
     case Action::Restart:
-        if (m_session.IsRunning())
+        if (m_session.IsValid() && m_session.IsRunning())
         {
             const std::string path = SettingsStore::GetInstance().GetString(NXCoreSetting::GameFile);
             if (!path.empty() && ConfirmStop(Tr("Restart")))
@@ -2159,7 +2159,7 @@ void MainWindow::AnnounceGame(const std::string & path)
 
 void MainWindow::UpdateLoadingScreen()
 {
-    if (!m_loadingScreen->HasGame())
+    if (!m_loadingScreen->HasGame() && m_session.IsValid())
     {
         IRomInfoPtr info(m_session.Modules().Systemloader().LoadedRomInfo());
         if (info)
@@ -2329,7 +2329,7 @@ void MainWindow::MeasureGame()
     m_speedText.clear();
     const bool measured = m_longestMeasured;
     m_longestMeasured = false;
-    if (m_session.IsRunning())
+    if (m_session.IsValid() && m_session.IsRunning())
     {
         IOperatingSystem & os = m_session.Modules().OperatingSystem();
         m_longestMeasured = m_performance->Shown();
@@ -2351,7 +2351,7 @@ void MainWindow::MeasureGame()
 void MainWindow::UpdateStatusText()
 {
     std::string cpu_backend;
-    if (uiSettings.showCpuBackend && m_session.IsRunning())
+    if (uiSettings.showCpuBackend && m_session.IsValid() && m_session.IsRunning())
     {
         if (IKernelProcess* process = m_session.Modules().OperatingSystem().CurrentProcess())
         {
@@ -2368,7 +2368,7 @@ void MainWindow::UpdateStatusText()
     m_document->SetClass("show-cpu-backend", !cpu_backend.empty());
 
     std::vector<std::string> parts;
-    if (m_session.IsRunning())
+    if (m_session.IsValid() && m_session.IsRunning())
     {
         if (m_session.Modules().OperatingSystem().IsEmulationPaused())
         {
@@ -2421,7 +2421,11 @@ void MainWindow::StopGame()
         m_firmwareOfferedFor.clear();
         m_menuDirty = true;
     }
-    if (m_session.IsRunning() && ConfirmStop(Tr("NXEmu - Stop Emulation")))
+    if (m_session.IsLaunching())
+    {
+        m_session.Stop();
+    }
+    else if (m_session.IsRunning() && ConfirmStop(Tr("NXEmu - Stop Emulation")))
     {
         m_session.Stop();
     }

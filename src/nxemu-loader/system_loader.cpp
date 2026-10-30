@@ -26,6 +26,7 @@
 #include "loader_settings_identifiers.h"
 #include "rom_info.h"
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <common/path.h>
 #include <cstdint>
@@ -111,6 +112,16 @@ private:
 
 struct Systemloader::Impl
 {
+    struct PreparedRom
+    {
+        std::string fileName;
+        std::string title;
+        std::vector<uint8_t> nacpData;
+        uint32_t version = 0;
+        int32_t mainThreadPriority = 0;
+        uint64_t mainThreadStackSize = 0;
+    };
+
     explicit Impl(Systemloader & loader, ISystemModules & modules) :
         m_loader(loader),
         m_modules(modules),
@@ -129,6 +140,8 @@ struct Systemloader::Impl
 
     FileSys::VirtualFile m_file;
     std::shared_ptr<Loader::AppLoader> m_appLoader;
+    std::unique_ptr<PreparedRom> m_preparedRom;
+    std::atomic<bool> m_prepareCancelled{false};
     Systemloader & m_loader;
     ISystemModules & m_modules;
     /// RealVfsFilesystem instance
@@ -186,6 +199,13 @@ uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint
 
 bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
+    impl->m_prepareCancelled.store(false, std::memory_order_relaxed);
+    return PrepareRom(fileName, program_id, program_index, previous_program_index, launch_type) && StartPreparedRom();
+}
+
+bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
+{
+    impl->m_preparedRom.reset();
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorNotInitialized);
     if (fileName == nullptr || fileName[0] == '\0')
     {
@@ -238,6 +258,12 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     {
         LOG_ERROR(Core, "Failed to read title for ROM!");
     }
+    if (PrepareRomCancelled())
+    {
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorCancelled);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        return false;
+    }
 
     IOperatingSystem & operatingSystem = impl->m_modules.OperatingSystem();
     operatingSystem.SetApplicationLaunchParameters(program_index, previous_program_index, launch_type);
@@ -246,7 +272,14 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     if (load_result != LoaderResultStatus::Success)
     {
         g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)load_result);
-        LOG_CRITICAL(Core, "Failed to load ROM (Error {})!", load_result);
+        if (load_result == LoaderResultStatus::ErrorCancelled)
+        {
+            LOG_INFO(Core, "ROM load cancelled");
+        }
+        else
+        {
+            LOG_CRITICAL(Core, "Failed to load ROM (Error {})!", load_result);
+        }
         g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
@@ -262,10 +295,37 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     }
 
     FileSys::PatchManager pm(impl->m_titleID, impl->m_fsController, *impl->m_contentProvider);
-    uint32_t version = pm.GetGameVersion().value_or(0);
 
-    g_settings->SetString(NXCoreSetting::GameName, title.c_str());
-    g_settings->SetString(NXCoreSetting::GameFile, fileName);
+    impl->m_preparedRom = std::make_unique<Impl::PreparedRom>();
+    impl->m_preparedRom->fileName = fileName;
+    impl->m_preparedRom->title = std::move(title);
+    impl->m_preparedRom->nacpData = std::move(nacp_data);
+    impl->m_preparedRom->version = pm.GetGameVersion().value_or(0);
+    impl->m_preparedRom->mainThreadPriority = load_parameters->main_thread_priority;
+    impl->m_preparedRom->mainThreadStackSize = load_parameters->main_thread_stack_size;
+    return true;
+}
+
+void Systemloader::CancelPrepareRom()
+{
+    impl->m_prepareCancelled.store(true, std::memory_order_relaxed);
+}
+
+bool Systemloader::PrepareRomCancelled() const
+{
+    return impl->m_prepareCancelled.load(std::memory_order_relaxed);
+}
+
+bool Systemloader::StartPreparedRom()
+{
+    if (impl->m_preparedRom == nullptr)
+    {
+        return false;
+    }
+    std::unique_ptr<Impl::PreparedRom> prepared = std::move(impl->m_preparedRom);
+
+    g_settings->SetString(NXCoreSetting::GameName, prepared->title.c_str());
+    g_settings->SetString(NXCoreSetting::GameFile, prepared->fileName.c_str());
     g_settings->SetBool(NXCoreSetting::EmulationRunning, true);
     if (g_settings->GetInt(NXCoreSetting::GpuInitializationState) == (int32_t)GpuInitializationState::Failed)
     {
@@ -279,7 +339,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
 
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::Success);
-    operatingSystem.StartApplicationProcess(load_parameters->main_thread_priority, load_parameters->main_thread_stack_size, version, baseGameStorageId, updateStorageId, nacp_data.data(), (uint32_t)nacp_data.size());
+    impl->m_modules.OperatingSystem().StartApplicationProcess(prepared->mainThreadPriority, prepared->mainThreadStackSize, prepared->version, baseGameStorageId, updateStorageId, prepared->nacpData.data(), (uint32_t)prepared->nacpData.size());
     return true;
 }
 
