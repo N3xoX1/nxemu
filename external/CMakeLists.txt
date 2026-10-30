@@ -295,7 +295,7 @@ if(APPLE)
         set(_nxemu_moltenvk_runtime
             "${_nxemu_moltenvk_source}/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
         # The fork's nxemu branch carries the Ryujinx fixes and ours.
-        set(_nxemu_moltenvk_tag "eb9a230c02655de3cc151dedf23e0a35d9961915")
+        set(_nxemu_moltenvk_tag "fb1afa9b968226f694efa45625bb7ef90928f4df")
         ExternalProject_Add(nxemu_moltenvk
             GIT_REPOSITORY "https://github.com/fab918/MoltenVK.git"
             GIT_TAG "${_nxemu_moltenvk_tag}"
