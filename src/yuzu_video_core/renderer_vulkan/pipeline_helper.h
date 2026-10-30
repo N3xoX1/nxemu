@@ -396,7 +396,10 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
                     std::all_of(views, views + block_size, [](const auto& view) {
                         return view.id == VideoCommon::NULL_IMAGE_VIEW_ID;
                     })) {
-                    table_writer->WriteRun(table_start + position, block_size, null_entry);
+                    // Reserve already defines every compact entry as null, and
+                    // this loop visits each index only once in ascending order.
+                    if (!table_writer->IsCompact())
+                        table_writer->WriteRun(table_start + position, block_size, null_entry);
                     position += block_size;
                     views += block_size;
                     continue;
@@ -404,7 +407,8 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
                 const u32 index = position++;
                 const auto id = (views++)->id;
                 if (id == VideoCommon::NULL_IMAGE_VIEW_ID) {
-                    if (table_writer) table_writer->Write(table_start + index, null_entry);
+                    if (table_writer && !table_writer->IsCompact())
+                        table_writer->Write(table_start + index, null_entry);
                     continue;
                 }
                 ImageView& image_view{texture_cache.GetImageView(id)};

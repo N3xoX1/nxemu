@@ -310,12 +310,18 @@ private:
     DescriptorTableWriterState texture_table_writer_state;
     std::optional<bool> texture_table_change_hint;
     std::shared_ptr<const std::vector<VkDescriptorImageInfo>> texture_table_data;
+    DescriptorTablePlan texture_table_plan_scratch;
+    std::shared_ptr<const DescriptorTablePlan> texture_table_plan_data;
+    bool texture_table_compact_pending{};
+    bool texture_table_was_compact{};
+    unsigned texture_table_compact_cooldown{};
     u64 texture_table_tick{};
     u64 texture_table_version{};
     // Used only by the scheduler worker
     VkDescriptorSet texture_table_set{};
     u64 texture_table_set_version{};
     VkDescriptorSet texture_table_bound_set{};
+    DescriptorTableMaterializer worker_texture_table_materializer;
 
     vk::PipelineLayout pipeline_layout;
     vk::DescriptorUpdateTemplate descriptor_update_template;

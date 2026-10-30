@@ -13,6 +13,11 @@ after capture. Differential trials cover contiguous, fragmented and copied memor
 reference, including sampler/layout changes, null runs, partial-block writes and
 shrink/regrow. Comparisons use Vulkan fields, never structure padding.
 
+It also exercises compact recipes with multiple array defaults, sparse and dense
+overrides, restoring null entries, out-of-order writes, and a lagging worker.
+Queued immutable recipes must retain their own handles when producer scratch is
+overwritten. The materializer is worker-owned and only receives host values.
+
 Build the optional `benchmark_descriptor_table` target and run it directly. Its CSV
 compares the frozen scalar lookup algorithm from master against the production
 DescriptorTable, using tables of 128, 4096 and 524288 entries. Stride 0 is empty,
@@ -24,6 +29,11 @@ fragmented page mappings.
 `benchmark_descriptor_writer` compares clear/fill/compare with the retained writer.
 Both implementations must agree on final descriptors and content-change counts.
 It includes long null runs, sparse valid entries and mutations between draws.
+The compact mode reports producer time separately from worker expansion time;
+worker time is subtracted from the measured total, never counted as eliminated
+work. This is an isolated descriptor stage, not a whole-lock or game-FPS benchmark.
+Each image table is followed by 4096 runtime sampler entries, mostly identical,
+matching the additional sampler-array work observed in Nikoderiko.
 
 `benchmark_descriptor_compare` isolates the comparison step: memcmp versus the
 production CPU-dispatched equality routine, over a 16 MiB table split into 4 KiB
