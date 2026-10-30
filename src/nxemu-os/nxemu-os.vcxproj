@@ -1053,6 +1053,7 @@
     <ClInclude Include="core\reporter.h" />
     <ClInclude Include="default_profile_image.h" />
     <ClInclude Include="emu_thread.h" />
+    <ClInclude Include="launch_gate.h" />
     <ClInclude Include="nxemu-os.h" />
     <ClInclude Include="os_manager.h" />
     <ClInclude Include="os_enum_strings.h" />

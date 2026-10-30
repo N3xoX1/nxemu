@@ -8,6 +8,7 @@
 #include "core/cpu_manager.h"
 #include "core/core.h"
 #include "emu_thread.h"
+#include "launch_gate.h"
 
 extern IModuleSettings * g_settings;
 
@@ -23,13 +24,14 @@ public:
 
     void Run()
     {
-        const char * name = "EmuControlThread";
-#if MICROPROFILE_ENABLED
-        MicroProfileOnThreadCreate(name);
-#endif
-        Common::SetCurrentThreadName(name);
+        Common::SetCurrentThreadName("EmuControlThread");
 
         auto stop_token = m_stop_source.get_token();
+        if (m_gate.Armed() && m_gate.Prepare(stop_token) != LaunchGate::Result::Released)
+        {
+            ShutdownUnstarted();
+            return;
+        }
         m_system.RegisterHostThread();
 
         // Host HLE service threads must initialize while shaders load, including
@@ -91,17 +93,31 @@ public:
             }
         }
 
-        // Shutdown the main emulated process
+        ShutdownProcess();
+    }
+
+    void ShutdownUnstarted()
+    {
+        if (m_system.IsPoweredOn())
+        {
+            // HLE services created with the kernel can wait on services hosted by the CPU cores.
+            m_system.RegisterHostThread();
+            m_system.GetCpuManager().OnGpuReady();
+        }
+        ShutdownProcess();
+    }
+
+    void ShutdownProcess()
+    {
         if (m_process != nullptr)
         {
             m_process->Close();
             m_process = nullptr;
         }
-        m_system.ShutdownMainProcess();
-
-#if MICROPROFILE_ENABLED
-        MicroProfileOnThreadExit();
-#endif
+        if (m_system.IsPoweredOn())
+        {
+            m_system.ShutdownMainProcess();
+        }
         g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
     }
 
@@ -112,6 +128,7 @@ public:
     Common::Event m_stopped;
     std::atomic<bool> m_should_run;
     std::atomic<bool> m_started{false};
+    LaunchGate m_gate;
     Core::System & m_system;
     Kernel::KProcess *& m_process;
 };
@@ -133,6 +150,22 @@ EmuThread::~EmuThread()
 void EmuThread::Start()
 {
     impl->m_thread = std::thread(&Impl::Run, impl.get());
+}
+
+void EmuThread::StartPrepared(EmulationPrepareCallback prepare, void * userData)
+{
+    impl->m_gate.Arm(prepare, userData);
+    Start();
+}
+
+bool EmuThread::AwaitingRelease() const
+{
+    return impl->m_gate.AwaitingRelease();
+}
+
+void EmuThread::Release()
+{
+    impl->m_gate.Release();
 }
 
 void EmuThread::Stop()

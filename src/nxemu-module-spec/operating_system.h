@@ -529,6 +529,7 @@ nxinterface ICacheInvalidator
 typedef void (*DeviceEnumCallback)(const char * device, void * userData);
 typedef void (*ExecuteProgramCallback)(uint32_t program_index, void * userData);
 typedef void (*ExitCallback)(void * userData);
+typedef bool (*EmulationPrepareCallback)(void * userData);
 typedef void (*UserChannelEntryCallback)(const uint8_t * data, uint32_t size, void * userData);
 
 nxinterface IParamPackage
@@ -672,6 +673,8 @@ typedef struct HostProfileInfo
 nxinterface IOperatingSystem
 {
     virtual bool Initialize() = 0;
+    virtual void InitializeInput() = 0;
+    virtual void StartEmulationThread(EmulationPrepareCallback prepare, void * userData) = 0;
     virtual void ShutDown() = 0;
     virtual bool IsShuttingDown() const = 0;
     virtual bool IsPoweredOn() const = 0;
