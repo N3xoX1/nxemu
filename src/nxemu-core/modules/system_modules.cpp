@@ -21,8 +21,14 @@ void LoadModule(const std::string & fileName, std::unique_ptr<plugin_type> & plu
 {
     Path fullPath((const char *)coreSettings.moduleDir, fileName.c_str());
     plugin = std::make_unique<plugin_type>();
-    if (plugin.get() == nullptr || !fullPath.FileExists() || !plugin->Load(fullPath, moduleNotification, moduleSettings))
+    if (!fullPath.FileExists())
     {
+        LOG_ERROR(Frontend, "Module setup: module not found ({})", (const char *)fullPath);
+        plugin = nullptr;
+    }
+    else if (!plugin->Load(fullPath, moduleNotification, moduleSettings))
+    {
+        LOG_ERROR(Frontend, "Module setup: failed to load module ({})", (const char *)fullPath);
         plugin = nullptr;
     }
 }
@@ -157,6 +163,14 @@ void SystemModules::Setup(IRenderWindow & window)
 {
     ShutDown();
     impl = std::make_unique<Impl>(window);
+    if (!CreateModules())
+    {
+        ShutDown();
+    }
+}
+
+bool SystemModules::CreateModules()
+{
     impl->valid = false;
 
     impl->loaderFile = coreSettings.moduleLoader;
@@ -168,55 +182,63 @@ void SystemModules::Setup(IRenderWindow & window)
     LoadModule(impl->cpuFile, impl->cpuModule, &impl->moduleNotification, &impl->moduleSettings);
     LoadModule(impl->videoFile, impl->videoModule, &impl->moduleNotification, &impl->moduleSettings);
     LoadModule(impl->operatingsystemFile, impl->operatingsystemModule, &impl->moduleNotification, &impl->moduleSettings);
-    LOG_INFO(Frontend, "Module setup: libraries loaded");
-
-    if (impl->loaderModule.get() == nullptr || 
-        impl->cpuModule.get() == nullptr || 
-        impl->videoModule.get() == nullptr || 
+    if (impl->loaderModule.get() == nullptr ||
+        impl->cpuModule.get() == nullptr ||
+        impl->videoModule.get() == nullptr ||
         impl->operatingsystemModule.get() == nullptr)
     {
-        return;
+        return false;
     }
+    LOG_INFO(Frontend, "Module setup: libraries loaded");
+
     impl->systemLoader = impl->loaderModule->CreateSystemLoader(*impl);
     if (impl->systemLoader == nullptr)
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to create the loader ({})", impl->loaderFile);
+        return false;
     }
     impl->cpu = impl->cpuModule->CreateCpu(*impl);
     if (impl->cpu == nullptr)
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to create the cpu ({})", impl->cpuFile);
+        return false;
     }
     impl->operatingsystem = impl->operatingsystemModule->CreateOS(*impl);
     if (impl->operatingsystem == nullptr)
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to create the operating system ({})", impl->operatingsystemFile);
+        return false;
     }
     impl->video = impl->videoModule->CreateVideo(impl->window, *impl);
     if (impl->video == nullptr)
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to create the video ({})", impl->videoFile);
+        return false;
     }
     LOG_INFO(Frontend, "Module setup: modules created");
 
     if (!impl->systemLoader->Initialize())
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to initialize the loader ({})", impl->loaderFile);
+        return false;
     }
     LOG_INFO(Frontend, "Module setup: loader initialized");
     if (!impl->cpu->Initialize())
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to initialize the cpu ({})", impl->cpuFile);
+        return false;
     }
     LOG_INFO(Frontend, "Module setup: cpu initialized");
     if (!impl->video->Initialize())
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to initialize the video ({})", impl->videoFile);
+        return false;
     }
     LOG_INFO(Frontend, "Module setup: video initialized");
     if (!impl->operatingsystem->Initialize())
     {
-        return;
+        LOG_ERROR(Frontend, "Module setup: failed to initialize the operating system ({})", impl->operatingsystemFile);
+        return false;
     }
     LOG_INFO(Frontend, "Module setup: operating system initialized");
 
@@ -225,6 +247,7 @@ void SystemModules::Setup(IRenderWindow & window)
     impl->baseModules.push_back(impl->operatingsystemModule.get());
     impl->baseModules.push_back(impl->loaderModule.get());
     impl->valid = true;
+    return true;
 }
 
 void SystemModules::ShutDown()
@@ -255,18 +278,17 @@ void SystemModules::ShutDown()
         impl->loaderModule->DestroySystemLoader(impl->systemLoader);
         impl->systemLoader = nullptr;
     }
-    for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
-    {
-        (*itr)->ModuleCleanup();
-    }
     impl = nullptr;
 }
 
 void SystemModules::FlushSettings(void)
 {
-    for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
+    if (impl != nullptr)
     {
-        (*itr)->FlushSettings();
+        for (BaseModules::iterator itr = impl->baseModules.begin(); itr != impl->baseModules.end(); itr++)
+        {
+            (*itr)->FlushSettings();
+        }
     }
     SaveCoreSetting();
 }
