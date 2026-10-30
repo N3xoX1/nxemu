@@ -35,6 +35,14 @@ std::span<const u8> H264::ComposeFrame(const Host1x::NvdecCommon::NvdecRegisters
     H264DecoderContext context;
     host1x.GMMU().ReadBlock(state.picture_info_offset, &context, sizeof(H264DecoderContext));
 
+    // Reject oversized metadata before multiplication, so guest values cannot
+    // wrap into an apparently valid MediaCodec dimension.
+    constexpr u32 MaxMacroblocks = 16384 / 16;
+    const auto& parameters = context.h264_parameter_set;
+    frame_width = parameters.pic_width_in_mbs <= MaxMacroblocks ? parameters.pic_width_in_mbs * 16 : 0;
+    frame_height = parameters.frame_height_in_map_units <= MaxMacroblocks
+                       ? parameters.frame_height_in_map_units * 16 : 0;
+
     const s64 frame_number = context.h264_parameter_set.frame_number.Value();
     if (!is_first_frame && frame_number != 0) {
         frame.resize_destructive(context.stream_len);

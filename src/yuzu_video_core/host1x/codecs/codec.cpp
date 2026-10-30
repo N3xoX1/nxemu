@@ -32,6 +32,16 @@ void Codec::SetTargetCodec(Host1x::NvdecCommon::VideoCodec codec)
 {
     if (current_codec != codec)
     {
+        // A codec switch must not reuse the previous FFmpeg decoder or its frames.
+        initialized = false;
+        decode_api.Reset();
+        // VP9 reconstruction caches reference/probability state across frames.
+        // A new stream must not inherit it after H.264/VP8 -> VP9 transitions.
+        h264_decoder = std::make_unique<Decoder::H264>(host1x);
+        vp8_decoder = std::make_unique<Decoder::VP8>(host1x);
+        vp9_decoder = std::make_unique<Decoder::VP9>(host1x);
+        while (!frames.empty())
+            frames.pop();
         current_codec = codec;
         LOG_INFO(Service_NVDRV, "NVDEC video codec initialized to {}", GetCurrentCodecName());
     }
@@ -51,17 +61,29 @@ void Codec::Decode()
     }
 
     // Assemble bitstream.
-    bool vp9_hidden_frame = false;
     size_t configuration_size = 0;
+    FFmpeg::FrameInfo frame_info{};
     const auto packet_data = [&]() {
         switch (current_codec) {
         case Tegra::Host1x::NvdecCommon::VideoCodec::H264:
-            return h264_decoder->ComposeFrame(state, &configuration_size, is_first_frame);
+        {
+            const auto packet = h264_decoder->ComposeFrame(state, &configuration_size, is_first_frame);
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_MEDIACODEC)
+            const auto [width, height] = h264_decoder->GetFrameDimensions();
+            frame_info = {width, height};
+#endif
+            return packet;
+        }
         case Tegra::Host1x::NvdecCommon::VideoCodec::VP8:
             return vp8_decoder->ComposeFrame(state);
         case Tegra::Host1x::NvdecCommon::VideoCodec::VP9:
             vp9_decoder->ComposeFrame(state);
-            vp9_hidden_frame = vp9_decoder->WasFrameHidden();
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_MEDIACODEC)
+            {
+                const auto [width, height] = vp9_decoder->GetFrameDimensions();
+                frame_info = {width, height, vp9_decoder->IsKeyFrame()};
+            }
+#endif
             return vp9_decoder->GetFrameBytes();
         default:
             ASSERT(false);
@@ -69,26 +91,11 @@ void Codec::Decode()
         }
     }();
 
-    // Send assembled bitstream to decoder.
-    if (!decode_api.SendPacket(packet_data, configuration_size))
-    {
+    if (!decode_api.SendPacket(packet_data, configuration_size, frame_info, frames))
         return;
-    }
-
-    // Only receive/store visible frames.
-    if (vp9_hidden_frame)
-    {
-        return;
-    }
-
-    // Receive output frames from decoder.
+    // A hidden VP9 input can unblock earlier visible output. FFmpeg suppresses
+    // the hidden image itself, so always drain the available decoded frames.
     decode_api.ReceiveFrames(frames);
-
-    while (frames.size() > 10)
-    {
-        LOG_DEBUG(HW_GPU, "ReceiveFrames overflow, dropped frame");
-        frames.pop();
-    }
 }
 
 std::unique_ptr<FFmpeg::Frame> Codec::GetCurrentFrame() {
