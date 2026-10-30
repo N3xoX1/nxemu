@@ -28,7 +28,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang lld cmake ninja-build pkg-config ccache glslang-tools libsdl2-dev libdbus-1-dev libvulkan-dev libwayland-dev libasound2-dev libpulse-dev libusb-1.0-0-dev python3
+          sudo apt-get install -y build-essential clang libclang-rt-dev lld cmake ninja-build pkg-config ccache glslang-tools libsdl2-dev libdbus-1-dev libvulkan-dev libwayland-dev libasound2-dev libpulse-dev libusb-1.0-0-dev python3
       - name: Prepare build cache paths
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
@@ -66,11 +66,12 @@ jobs:
           -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF
           -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR"
           -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON
+          -DNXEMU_BUILD_TESTS=ON -DNXEMU_BUILD_PLATFORM_TESTS=OFF
       - name: Test
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
-          cmake --build "${NXEMU_BUILD_DIRECTORY:-build/linux}" --target nxemu_ui_settings_tests --parallel "$NXEMU_BUILD_JOBS"
-          ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build/linux}" --output-on-failure
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build/linux}" --target nxemu_ui_settings_tests test_shader_constant_folding --parallel "$NXEMU_BUILD_JOBS"
+          ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build/linux}" --output-on-failure --no-tests=error -R '^(nxemu_ui_settings|test_shader_constant_folding)$'
       - name: Compiler cache statistics
         if: ${{ always() }}
         run: ccache --show-stats --verbose
