@@ -78,6 +78,8 @@ target_include_directories(test_spirv_constant_buffers PRIVATE "${CMAKE_SOURCE_D
 add_dependencies(test_spirv_constant_buffers shader_recompiler sirit fmt common)
 target_link_libraries(test_spirv_constant_buffers PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
+target_compile_options(test_spirv_constant_buffers PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 nxemu_unit_test(test_spirv_constant_buffers)
 
 # Application control metadata (NACP) parsing.
