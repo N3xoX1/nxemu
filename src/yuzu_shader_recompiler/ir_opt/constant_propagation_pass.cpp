@@ -114,6 +114,19 @@ void FoldBitFieldUExtract(IR::Inst& inst) {
     inst.ReplaceUsesWith(IR::Value{result});
 }
 
+void FoldTrivialPhi(IR::Inst& inst) {
+    IR::Value same;
+    for (size_t index = 0; index < inst.NumArgs(); ++index) {
+        const auto input = inst.Arg(index).Resolve();
+        if (input.TryInstRecursive() == &inst) continue;
+        if (!same.IsEmpty() && same != input) return;
+        same = input;
+    }
+    // Self edges only carry the same value from another loop iteration.
+    // A phi with no external value, or distinct incoming values, stays intact.
+    if (!same.IsEmpty()) inst.ReplaceUsesWith(same);
+}
+
 /// Return true when all values in a range are equal
 template <typename Range>
 bool AreEqual(const Range& range) {
@@ -955,6 +968,8 @@ void FoldDriverConstBuffer(Environment& env, IR::Block& block, IR::Inst& inst, u
 
 void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
     switch (inst.GetOpcode()) {
+    case IR::Opcode::Phi:
+        return FoldTrivialPhi(inst);
     case IR::Opcode::GetRegister:
         return FoldGetRegister(inst);
     case IR::Opcode::GetPred:
