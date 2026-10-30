@@ -428,6 +428,8 @@ void UiPresenter::ReleaseWindow()
     WaitFrame();
     m_api->DeviceWaitIdle(m_context.device);
     DestroySwapchain();
+    // The video module draws the UI while it owns the window: BeginFrame recreates the target.
+    DestroyTarget();
     if (m_surface != VK_NULL_HANDLE)
     {
         m_api->DestroySurfaceKHR(m_context.instance, m_surface, nullptr);

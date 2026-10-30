@@ -5,6 +5,17 @@
 
 std::unique_ptr<SettingsStore> SettingsStore::s_instance;
 
+namespace
+{
+// Callbacks running on this thread, innermost first.
+struct CallbackCall
+{
+    const void * info;
+    const CallbackCall * previous;
+};
+thread_local const CallbackCall * t_callbackCall = nullptr;
+}
+
 SettingsStore::SettingsStore()
 {
 }
@@ -311,29 +322,49 @@ void SettingsStore::RegisterCallback(const std::string & setting, SettingChangeC
         return;
     }
 
-    CallbackInfo info = { callback, userData };
+    std::shared_ptr<CallbackInfo> info = std::make_shared<CallbackInfo>(CallbackInfo{callback, userData});
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_notification[setting].emplace_back(info);
+    m_notification[setting].emplace_back(std::move(info));
 }
 
 void SettingsStore::UnregisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::unique_lock<std::mutex> lock(m_mutex);
     NotificationMap::iterator itr = m_notification.find(setting);
     if (itr == m_notification.end())
     {
         return;
     }
+    NotificationCallbacks retired;
     NotificationCallbacks & callbacks = itr->second;
     for (NotificationCallbacks::iterator callItr = callbacks.begin(); callItr != callbacks.end();)
     {
-        if (callItr->callback == callback && callItr->userData == userData)
+        if ((*callItr)->callback == callback && (*callItr)->userData == userData)
         {
+            (*callItr)->removed = true;
+            retired.push_back(*callItr);
             callItr = callbacks.erase(callItr);
         }
         else
         {
             ++callItr;
+        }
+    }
+    if (callbacks.empty())
+    {
+        m_notification.erase(itr);
+    }
+    for (const std::shared_ptr<CallbackInfo> & info : retired)
+    {
+        // A callback removing itself cannot wait for its own call to return.
+        unsigned ownCalls = 0;
+        for (const CallbackCall * call = t_callbackCall; call != nullptr; call = call->previous)
+        {
+            ownCalls += call->info == info.get() ? 1 : 0;
+        }
+        if (ownCalls == 0)
+        {
+            m_callbackIdle.wait(lock, [&info] { return info->inFlight == 0; });
         }
     }
 }
@@ -368,9 +399,39 @@ void SettingsStore::NotifyChange(const char * setting)
         }
         callbacks = itr->second;
     }
-    for (NotificationCallbacks::const_iterator callItr = callbacks.begin(); callItr != callbacks.end(); callItr++)
+    for (const std::shared_ptr<CallbackInfo> & info : callbacks)
     {
-        callItr->callback(setting, callItr->userData);
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (info->removed)
+            {
+                continue;
+            }
+            info->inFlight++;
+        }
+        // Ends the call even if the callback throws.
+        struct CallScope
+        {
+            SettingsStore & store;
+            CallbackInfo & info;
+            CallbackCall call;
+
+            CallScope(SettingsStore & store, CallbackInfo & info) :
+                store(store), info(info), call{&info, t_callbackCall}
+            {
+                t_callbackCall = &call;
+            }
+            ~CallScope()
+            {
+                t_callbackCall = call.previous;
+                {
+                    std::lock_guard<std::mutex> lock(store.m_mutex);
+                    info.inFlight--;
+                }
+                store.m_callbackIdle.notify_all();
+            }
+        } scope(*this, *info);
+        info->callback(setting, info->userData);
     }
 }
 

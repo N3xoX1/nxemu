@@ -41,6 +41,12 @@ if(NOT MSVC)
 endif()
 nxemu_unit_test(test_launch_gate)
 
+# Unregistering a settings callback waits for its calls on other threads, before a module unloads.
+add_executable(test_settings_callback_drain session_lifecycle/settings_callback_drain.cpp)
+target_link_libraries(test_settings_callback_drain PRIVATE nxemu_core Threads::Threads)
+target_compile_features(test_settings_callback_drain PRIVATE cxx_std_20)
+nxemu_unit_test(test_settings_callback_drain)
+
 # SPIR-V layout of constant buffers. Link the archives themselves: their dependencies would
 # bring a second definition of the logging functions.
 add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp

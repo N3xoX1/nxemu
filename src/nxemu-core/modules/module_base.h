@@ -38,6 +38,7 @@ protected:
 
     DynLibHandle m_lib;
     MODULE_INFO m_moduleInfo;
+    bool m_moduleInitialized = false;
 
 private:
     ModuleBase(const ModuleBase &) = delete;

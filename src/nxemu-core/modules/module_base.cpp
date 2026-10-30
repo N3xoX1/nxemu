@@ -75,6 +75,8 @@ bool ModuleBase::Load(const char * fileName, IModuleNotification * notification,
     interfaces.java_vm = nullptr;
     interfaces.native_library_class = nullptr;
 #endif
+    // A module failing a check above has not initialized: never call its ModuleCleanup.
+    m_moduleInitialized = true;
     if (ModuleInitialize(interfaces) != 0)
     {
         return false;
@@ -109,10 +111,11 @@ void ModuleBase::ModuleDone(bool callUnloadModule)
     {
         return;
     }
-    if (ModuleCleanup != nullptr)
+    if (m_moduleInitialized && ModuleCleanup != nullptr)
     {
         ModuleCleanup();    
     }
+    m_moduleInitialized = false;
     if (callUnloadModule)
     {
         UnloadModule();

@@ -336,11 +336,6 @@ void SystemModules::ShutDown()
     }
     impl->StopEmulation(true);
     impl->baseModules.clear();
-    if (impl->cpu != nullptr && impl->cpuModule.get() != nullptr)
-    {
-        impl->cpuModule->DestroyCpu(impl->cpu);
-        impl->cpu = nullptr;
-    }
     if (impl->video != nullptr && impl->videoModule.get() != nullptr)
     {
         impl->videoModule->DestroyVideo(impl->video);
@@ -350,6 +345,12 @@ void SystemModules::ShutDown()
     {
         impl->operatingsystemModule->DestroyOS(impl->operatingsystem);
         impl->operatingsystem = nullptr;
+    }
+    // OS kernel objects hold interfaces created by the CPU module: release them first.
+    if (impl->cpu != nullptr && impl->cpuModule.get() != nullptr)
+    {
+        impl->cpuModule->DestroyCpu(impl->cpu);
+        impl->cpu = nullptr;
     }
     if (impl->systemLoader != nullptr && impl->loaderModule.get() != nullptr)
     {

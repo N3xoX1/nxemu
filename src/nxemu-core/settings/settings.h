@@ -1,6 +1,7 @@
 #pragma once
 #include <nxemu-module-spec/base.h>
 #include <common/json.h>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -13,13 +14,15 @@ class SettingsStore
     {
         SettingChangeCallback callback;
         void * userData;
+        unsigned inFlight = 0; // Guarded by m_mutex.
+        bool removed = false;
     };
 
     typedef std::unordered_map<std::string, std::string> SettingsMapString;
     typedef std::unordered_map<std::string, bool> SettingsMapBool;
     typedef std::unordered_map<std::string, int32_t> SettingsMapInt;
     typedef std::unordered_map<std::string, float> SettingsMapFloat;
-    typedef std::vector<CallbackInfo> NotificationCallbacks;
+    typedef std::vector<std::shared_ptr<CallbackInfo>> NotificationCallbacks;
     typedef std::unordered_map<std::string, NotificationCallbacks> NotificationMap;
 
 public:
@@ -53,6 +56,8 @@ public:
     void Save(void);
 
     void RegisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData);
+    // Waits for calls running on other threads, so the caller can then free userData
+    // or unload the module that owns the callback. A callback may remove itself.
     void UnregisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData);
 
     static SettingsStore& GetInstance();
@@ -66,6 +71,7 @@ private:
     float LookupDefaultFloat(const char * setting) const;
 
     mutable std::mutex m_mutex;
+    std::condition_variable m_callbackIdle;
     SettingsMapString m_settingsString;
     SettingsMapBool m_settingsBool;
     SettingsMapInt m_settingsInt;
