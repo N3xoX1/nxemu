@@ -204,6 +204,12 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
     }
     if (!m_modules.Modules().Systemloader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
     {
+        if (SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed))
+        {
+            Stop();
+            ReportError(Tr("The graphics renderer could not be initialized. Check that your GPU drivers are up to date."));
+            return false;
+        }
         const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
         if (result == LoaderResultStatus::ErrorNoExeFS)
         {
