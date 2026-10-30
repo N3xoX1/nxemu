@@ -1023,7 +1023,9 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     if (!info.uses_global_memory || !profile.support_int64) {
         return;
     }
-    const auto function_control = profile.avoid_global_memory_helper_inlining
+    // Only compute shaders have shown pathological Metal builds when these helpers are inlined.
+    const auto function_control = profile.avoid_global_memory_helper_inlining &&
+                                          stage == Stage::Compute
                                       ? spv::FunctionControlMask::DontInline
                                       : spv::FunctionControlMask::MaskNone;
     using DefPtr = Id StorageDefinitions::*;
