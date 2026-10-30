@@ -173,7 +173,6 @@ private:
 
     bool SubmitFence(std::function<void()>&& func, bool force_delay,
                      bool allow_stub_fast_path, std::atomic<bool>* waiter) {
-        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact();
         if constexpr (!can_async_check) {
             TryReleasePendingFences<false>();
         }
@@ -188,6 +187,12 @@ private:
         if constexpr (can_async_check) {
             guard.lock();
         }
+
+        // Ordinary fences and query housekeeping also occupy the queue after
+        // their completion signal has run inline. Only a readback or an earlier
+        // delayed signal requires Normal to defer this completion signal.
+        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact() || should_flush ||
+                                 pending_delayed_fences != 0;
 
         const bool can_complete_stub_inline =
             allow_stub_fast_path && delay_fence && !should_flush && fences.empty() &&
@@ -237,6 +242,12 @@ private:
             func();
         }
         fences.push(std::move(new_fence));
+        if (delay_fence) {
+            // Count through the last delayed signal, including an entry already
+            // owned by the worker. Later inline-only queue entries cannot keep
+            // Normal on the delayed path once this prefix has retired.
+            pending_delayed_fences = fences.size() + (fence_in_flight ? 1 : 0);
+        }
         if (should_flush) {
             rasterizer.FlushCommands();
         }
@@ -272,6 +283,9 @@ private:
                 delayed_destruction_ring.Push(std::move(current_fence));
             }
             fences.pop();
+            if (pending_delayed_fences != 0) {
+                --pending_delayed_fences;
+            }
             CompleteWaiter(waiter);
         }
     }
@@ -318,6 +332,9 @@ private:
             {
                 std::scoped_lock lock(guard);
                 fence_in_flight = false;
+                if (pending_delayed_fences != 0) {
+                    --pending_delayed_fences;
+                }
             }
             // Complete after retirement to avoid SMO-to-SMO stub convoys.
             CompleteWaiter(current_waiter);
@@ -360,6 +377,9 @@ private:
     std::deque<std::deque<std::function<void()>>> pending_operations;
     std::deque<std::atomic<bool>*> pending_waiters;
     bool fence_in_flight{};
+    // Number of queued/in-flight fences through the last delayed signal.
+    // Guarded by guard on the asynchronous path; cleared only after callbacks.
+    size_t pending_delayed_fences{};
     std::atomic<bool> wait_finished{};
 
     std::mutex guard;

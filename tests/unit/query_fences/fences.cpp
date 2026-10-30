@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cstdio>
 #include <future>
+#include <semaphore>
+#include <string_view>
 #include "yuzu_video_core/fence_manager.h"
 
 namespace Settings {
@@ -25,6 +27,8 @@ struct Cache {
     std::deque<bool> slots;
     std::atomic<unsigned> retired{};
     std::atomic<unsigned> result{};
+    std::function<void()> on_commit;
+    std::function<void()> before_pop;
     bool HasUncommittedFlushes() const { return pending; }
     void AccumulateFlushes() {}
     void NotifyWFI() {
@@ -39,10 +43,12 @@ struct Cache {
     }
     void CommitAsyncFlushes() {
         NotifyWFI();
+        if (on_commit) on_commit();
         std::scoped_lock lock(slot_guard);
         slots.push_back(std::exchange(pending, false));
     }
     void PopAsyncFlushes() {
+        if (before_pop) before_pop();
         std::scoped_lock lock(slot_guard);
         assert(!slots.empty());
         if (slots.front()) result.store(42, std::memory_order_release);
@@ -75,6 +81,7 @@ public:
     std::atomic<bool> ready{};
     std::atomic<unsigned> host_fences{};
     std::atomic<unsigned> waits{};
+    std::function<void()> on_wait;
 protected:
     std::shared_ptr<Fence> CreateFence(bool stub) override {
         if (!stub) ++host_fences;
@@ -87,9 +94,177 @@ protected:
     void WaitFence(std::shared_ptr<Fence>& fence) override {
         if (fence->IsStubbed()) return;
         ++waits;
+        if (on_wait) on_wait();
         ready.wait(false, std::memory_order_acquire);
     }
 };
+
+// Hold retirement at a known point, without depending on worker scheduling.
+struct RetirementGate {
+    std::binary_semaphore entered{0};
+    std::binary_semaphore released{0};
+    std::atomic<bool> used{};
+    void StopOnce() {
+        if (!used.exchange(true)) {
+            entered.release();
+            released.acquire();
+        }
+    }
+    void AwaitEntry() {
+        assert(entered.try_acquire_for(std::chrono::seconds{5}));
+    }
+};
+
+void CheckNormalBacklog() {
+    Settings::exact_readback.store(false);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    RetirementGate gate;
+    Manager<true> manager{rasterizer, gpu, textures, buffers, queries};
+    queries.before_pop = [&] { gate.StopOnce(); };
+    // Vulkan adds this bookkeeping even when no query readback is pending.
+    queries.on_commit = [&] { manager.SyncOperation([] {}); };
+    unsigned completed = 0;
+    manager.SignalFence([&] { ++completed; });
+    gate.AwaitEntry(); // An ordinary stub is now in flight; its callback ran inline.
+    assert(completed == 1);
+    for (unsigned i = 0; i < 4096; ++i) {
+        manager.SignalFence([&] { ++completed; });
+        assert(completed == i + 2); // Neither in-flight nor queued stubs justify delay.
+    }
+    assert(manager.host_fences == 0 && manager.waits == 0 && rasterizer.flushes == 0);
+    gate.released.release();
+    manager.WaitForFence();
+    assert(textures.retired == buffers.retired && buffers.retired == queries.retired);
+}
+
+void CheckQueuedReadback() {
+    Settings::exact_readback.store(false);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    RetirementGate gate, gpu_gate;
+    Manager<true> manager{rasterizer, gpu, textures, buffers, queries};
+    queries.before_pop = [&] { gate.StopOnce(); };
+    manager.on_wait = [&] { gpu_gate.StopOnce(); };
+    std::atomic<unsigned> completed{};
+    manager.SignalFence([&] { ++completed; });
+    gate.AwaitEntry();
+    // An inline prefix must be included when locating the last delayed fence.
+    for (unsigned i = 0; i < 8; ++i) manager.SignalFence([&] { ++completed; });
+    assert(completed == 9);
+    queries.pending = true;
+    manager.SignalFence([&] {
+        assert(queries.result.load(std::memory_order_acquire) == 42);
+        assert(completed.fetch_add(1) == 9);
+    });
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 10); });
+    assert(completed == 9);
+    gate.released.release();
+    gpu_gate.AwaitEntry(); // The inline prefix has retired; the root is now in flight.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 11); });
+    assert(completed == 9);
+    manager.SignalGpu();
+    gpu_gate.released.release();
+    manager.WaitForFence();
+    assert(completed == 12 && manager.host_fences == 1 && rasterizer.flushes == 1);
+}
+
+void CheckHighBacklog() {
+    Settings::exact_readback.store(true);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    RetirementGate gate;
+    Manager<true> manager{rasterizer, gpu, textures, buffers, queries};
+    queries.before_pop = [&] { gate.StopOnce(); };
+    std::atomic<unsigned> completed{};
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 0); });
+    gate.AwaitEntry();
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 1); });
+    assert(completed == 0);
+    gate.released.release();
+    manager.WaitForFence();
+    assert(completed == 2 && manager.host_fences == 0 && manager.waits == 0);
+}
+
+template <bool async>
+void CheckNormalResumes() {
+    Settings::exact_readback.store(false);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<unsigned> completed{};
+    for (unsigned round = 0; round < 16; ++round) {
+        manager.ready.store(false);
+        buffers.pending = true;
+        manager.SignalFence([&] { ++completed; });
+        manager.SignalFence([&] { ++completed; });
+        assert(completed == round * 3);
+        manager.SignalGpu();
+        manager.WaitForFence();
+        assert(completed == round * 3 + 2);
+        // The dependency must disappear after retirement, without a frame tick.
+        manager.SignalFence([&] { ++completed; });
+        assert(completed == round * 3 + 3);
+    }
+    assert(manager.host_fences == 16 && rasterizer.flushes == 16);
+}
+
+void CheckInFlightPublication(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    RetirementGate gpu_gate, copy_gate, callback_gate;
+    Manager<true> manager{rasterizer, gpu, textures, buffers, queries};
+    manager.on_wait = [&] { gpu_gate.StopOnce(); };
+    queries.before_pop = [&] { copy_gate.StopOnce(); };
+    queries.pending = true;
+    std::atomic<unsigned> completed{};
+    manager.SignalFence([&] {
+        assert(queries.result.load(std::memory_order_acquire) == 42);
+        callback_gate.StopOnce();
+        assert(completed.fetch_add(1) == 0);
+    });
+    gpu_gate.AwaitEntry(); // The readback has left the queue but is not ready.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 1); });
+    assert(completed == 0);
+    manager.SignalGpu();
+    gpu_gate.released.release();
+    copy_gate.AwaitEntry(); // GPU completion alone must not publish guest completion.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 2); });
+    assert(completed == 0);
+    copy_gate.released.release();
+    callback_gate.AwaitEntry(); // Nor may a later signal overtake a running callback.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 3); });
+    assert(completed == 0);
+    callback_gate.released.release();
+    manager.WaitForFence();
+    assert(completed == 4 && manager.host_fences == 1 && rasterizer.flushes == 1);
+}
+
+void CheckForcedCallback(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    RetirementGate gate;
+    Manager<true> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<unsigned> completed{};
+    manager.SignalFence([&] {
+        gate.StopOnce();
+        assert(completed.fetch_add(1) == 0);
+    }, true);
+    gate.AwaitEntry(); // A forced callback can carry ordering without GPU work.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 1); });
+    assert(completed == 0);
+    gate.released.release();
+    manager.WaitForFence();
+    assert(completed == 2 && manager.host_fences == 0 && manager.waits == 0);
+}
 
 template <bool async>
 void CheckOrdering(bool exact_readback) {
@@ -135,6 +310,31 @@ void CheckOrdering(bool exact_readback) {
     assert(manager.host_fences == 3);
 }
 
+// Ordinary completion signals, including syncpoints, must also respect pending
+// readbacks. Exercise the real queue with both synchronous and worker retirement.
+template <bool async>
+void CheckOrdinaryFenceOrdering(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<unsigned> completed{};
+    buffers.pending = true;
+    manager.SignalFence([&] {
+        assert(buffers.result.load(std::memory_order_acquire) == 42);
+        assert(completed.fetch_add(1) == 0);
+    });
+    assert(completed == 0);
+    // This empty signal must not overtake the queued or in-flight readback.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 1); });
+    assert(completed == 0);
+    manager.SignalGpu();
+    manager.WaitForFence();
+    assert(completed == 2);
+    assert(manager.host_fences == 1 && rasterizer.flushes == 1);
+}
+
 void BenchmarkEmpty() {
     Settings::exact_readback.store(false);
     VideoCore::RasterizerInterface rasterizer;
@@ -149,6 +349,30 @@ void BenchmarkEmpty() {
     assert(completed == count && manager.host_fences == 0 && manager.waits == 0);
     std::printf("Empty query fences: %.1f ns/call, zero GPU submits/waits\n",
         std::chrono::duration<double, std::nano>(elapsed).count() / count);
+}
+
+void BenchmarkOrdinaryBacklog() {
+    Settings::exact_readback.store(false);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    RetirementGate gate;
+    Manager<true> manager{rasterizer, gpu, textures, buffers, queries};
+    queries.before_pop = [&] { gate.StopOnce(); };
+    queries.on_commit = [&] { manager.SyncOperation([] {}); };
+    manager.SignalReference();
+    gate.AwaitEntry();
+    constexpr unsigned count = 10000;
+    std::atomic<unsigned> completed{};
+    const auto start = std::chrono::steady_clock::now();
+    for (unsigned i = 0; i < count; ++i) manager.SignalFence([&] { ++completed; });
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    std::printf("Ordinary backlog: %.1f ns/call, %u/%u inline, %u GPU submits/waits\n",
+        std::chrono::duration<double, std::nano>(elapsed).count() / count,
+        completed.load(), count, manager.host_fences.load() + manager.waits.load());
+    gate.released.release();
+    manager.WaitForFence();
+    assert(completed == count);
 }
 
 template <bool async>
@@ -177,10 +401,24 @@ void CheckCheckpointReadback(bool exact_readback) {
 }
 }
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 2 && std::string_view{argv[1]} == "--benchmark") {
+        BenchmarkEmpty();
+        BenchmarkOrdinaryBacklog();
+        return 0;
+    }
+    CheckNormalBacklog();
+    CheckQueuedReadback();
+    CheckHighBacklog();
+    CheckNormalResumes<true>();
+    CheckNormalResumes<false>();
     for (bool exact_readback : {false, true}) {
+        CheckInFlightPublication(exact_readback);
+        CheckForcedCallback(exact_readback);
         CheckOrdering<true>(exact_readback);
         CheckOrdering<false>(exact_readback);
+        CheckOrdinaryFenceOrdering<true>(exact_readback);
+        CheckOrdinaryFenceOrdering<false>(exact_readback);
         CheckCheckpointReadback<true>(exact_readback);
         CheckCheckpointReadback<false>(exact_readback);
     }
