@@ -3,6 +3,7 @@
 #include <common/json.h>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -59,7 +60,12 @@ public:
 
 private:
     void NotifyChange(const char * setting);
+    const char * LookupDefaultString(const char * setting) const;
+    bool LookupDefaultBool(const char * setting) const;
+    int32_t LookupDefaultInt(const char * setting) const;
+    float LookupDefaultFloat(const char * setting) const;
 
+    mutable std::mutex m_mutex;
     SettingsMapString m_settingsString;
     SettingsMapBool m_settingsBool;
     SettingsMapInt m_settingsInt;
