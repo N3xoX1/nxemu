@@ -35,6 +35,8 @@ public:
     bool Initialize() override;
     uint32_t GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const override;
     bool LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
+    bool PrepareRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) override;
+    bool StartPreparedRom() override;
     IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) override;
     IRomInfo * LoadedRomInfo() override;

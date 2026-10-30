@@ -64,6 +64,11 @@ bool EmulatorSession::LoadGame(const std::string & path)
 
 void EmulatorSession::Stop()
 {
+    if (m_modules.IsLaunching())
+    {
+        m_launchCancelled = true;
+        return;
+    }
     if (!IsRunning())
     {
         return;
@@ -75,7 +80,7 @@ void EmulatorSession::Stop()
 
 void EmulatorSession::TogglePause()
 {
-    if (!IsRunning())
+    if (!m_modules.IsValid() || !IsRunning())
     {
         return;
     }
@@ -85,16 +90,25 @@ void EmulatorSession::TogglePause()
 
 bool EmulatorSession::IsRunning() const
 {
-    return m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning);
+    return m_modules.IsLaunching() || (m_modules.IsValid() && SettingsStore::GetInstance().GetBool(NXCoreSetting::EmulationRunning));
+}
+
+bool EmulatorSession::IsLaunching() const
+{
+    return m_modules.IsLaunching();
 }
 
 bool EmulatorSession::IsPaused()
 {
-    return IsRunning() && m_modules.Modules().OperatingSystem().IsEmulationPaused();
+    return m_modules.IsValid() && IsRunning() && m_modules.Modules().OperatingSystem().IsEmulationPaused();
 }
 
 EmulatorSession::Phase EmulatorSession::CurrentPhase() const
 {
+    if (m_modules.IsLaunching())
+    {
+        return Phase::Loading;
+    }
     SettingsStore & settings = SettingsStore::GetInstance();
     switch (static_cast<EmulationState>(settings.GetInt(NXCoreSetting::EmulationState)))
     {
@@ -114,6 +128,14 @@ EmulatorSession::Phase EmulatorSession::CurrentPhase() const
 void EmulatorSession::Update(bool releaseStoppedResources)
 {
     m_notification.Pump();
+    if (m_modules.IsLaunching())
+    {
+        if (m_modules.LaunchDone())
+        {
+            FinishLaunch();
+        }
+        return;
+    }
     ProcessProgramEvents();
     if (IsRunning() && SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed))
     {
@@ -123,7 +145,7 @@ void EmulatorSession::Update(bool releaseStoppedResources)
     if (releaseStoppedResources && m_releasePending && !IsRunning() &&
         SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState) == static_cast<int32_t>(EmulationState::Stopped))
     {
-        if (!ResetModules(false))
+        if (!ResetModules())
         {
             ReportError(Tr("Required modules failed to reload after stopping the game."));
             return;
@@ -171,7 +193,7 @@ void EmulatorSession::SetViewportSize(uint32_t width, uint32_t height)
 bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                                   ApplicationLaunchType launchType, const UserChannel & userChannel)
 {
-    const auto started = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
     std::error_code error;
     if (!std::filesystem::is_regular_file(std::filesystem::path{Common::FS::ToU8String(path)}, error))
     {
@@ -188,56 +210,100 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
             info->ReadProgramId(programId);
         }
     }
-    if (!ResetModules(true))
+    ReleaseModules();
+    m_pendingLaunch = PendingLaunch{path, programId, programIndex, previousProgramIndex, launchType, userChannel, started};
+    m_launchCancelled = false;
+    m_notification.BindWindow(m_window);
+    if (!m_modules.StartLaunch(m_renderWindow, PrepareLaunch, this))
     {
         ReportError(Tr("Required modules failed to load."));
         return false;
     }
-    const auto resetDone = std::chrono::steady_clock::now();
-    LOG_INFO(Frontend, "Game launch: reset modules in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(resetDone - started).count());
-
-    IOperatingSystem & os = m_modules.Modules().OperatingSystem();
     m_releasePending = true;
-    for (const std::vector<uint8_t> & entry : userChannel)
-    {
-        os.PushUserChannelEntry(entry.data(), static_cast<uint32_t>(entry.size()));
-    }
-    if (!m_modules.Modules().Systemloader().LoadRom(path.c_str(), programId, programIndex, previousProgramIndex, launchType))
-    {
-        if (SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed))
-        {
-            Stop();
-            ReportError(Tr("The graphics renderer could not be initialized. Check that your GPU drivers are up to date."));
-            return false;
-        }
-        const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
-        if (result == LoaderResultStatus::ErrorNoExeFS)
-        {
-            ReportError(Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path}));
-        }
-        else if (result != LoaderResultStatus::ErrorNotInitialized)
-        {
-            ReportError(Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))}));
-        }
-        else
-        {
-            ReportError(Tr("Could not load the game:\n%1", {path}));
-        }
-        return false;
-    }
-    const auto loaded = std::chrono::steady_clock::now();
-    LOG_INFO(Frontend, "Game launch: load ROM in {} ms, total {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(loaded - resetDone).count(),
-             std::chrono::duration_cast<std::chrono::milliseconds>(loaded - started).count());
-    m_currentProgramIndex = programIndex;
-    m_previousProgramIndex = previousProgramIndex;
-    if (m_listener != nullptr)
-    {
-        m_listener->OnGameStarted(path);
-    }
+    LOG_INFO(Frontend, "Game launch: load modules in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count());
     return true;
 }
 
-bool EmulatorSession::ResetModules(bool gameStarting)
+bool EmulatorSession::PrepareLaunch(void * userData)
+{
+    EmulatorSession & session = *static_cast<EmulatorSession *>(userData);
+    const PendingLaunch & launch = session.m_pendingLaunch;
+    ISystemModules & modules = session.m_modules.Modules();
+    for (const std::vector<uint8_t> & entry : launch.userChannel)
+    {
+        modules.OperatingSystem().PushUserChannelEntry(entry.data(), static_cast<uint32_t>(entry.size()));
+    }
+    return modules.Systemloader().PrepareRom(launch.path.c_str(), launch.programId, launch.programIndex, launch.previousProgramIndex, launch.launchType);
+}
+
+void EmulatorSession::FinishLaunch()
+{
+    const bool prepared = m_modules.FinishLaunch();
+    const PendingLaunch launch = std::move(m_pendingLaunch);
+    const std::chrono::steady_clock::time_point preparedAt = std::chrono::steady_clock::now();
+    LOG_INFO(Frontend, "Game launch: prepared in {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(preparedAt - launch.started).count());
+    if (m_launchCancelled || !prepared)
+    {
+        AbortLaunch(m_launchCancelled ? std::string() : LoadFailureMessage(launch.path));
+        return;
+    }
+
+    m_modules.Modules().OperatingSystem().InitializeInput();
+    RegisterSystemCallbacks();
+    if (m_viewportWidth != 0 && m_viewportHeight != 0)
+    {
+        m_modules.Modules().Video().UpdateFramebufferLayout(m_viewportWidth, m_viewportHeight);
+    }
+    if (m_listener != nullptr)
+    {
+        m_listener->OnModulesReady(true);
+    }
+    if (!m_modules.Modules().Systemloader().StartPreparedRom())
+    {
+        const bool gpuFailed = SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed);
+        AbortLaunch(gpuFailed ? Tr("The graphics renderer could not be initialized. Check that your GPU drivers are up to date.") : LoadFailureMessage(launch.path));
+        return;
+    }
+    const std::chrono::steady_clock::time_point loaded = std::chrono::steady_clock::now();
+    LOG_INFO(Frontend, "Game launch: start in {} ms, total {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(loaded - preparedAt).count(),
+             std::chrono::duration_cast<std::chrono::milliseconds>(loaded - launch.started).count());
+    m_currentProgramIndex = launch.programIndex;
+    m_previousProgramIndex = launch.previousProgramIndex;
+    if (m_listener != nullptr)
+    {
+        m_listener->OnGameStarted(launch.path);
+    }
+}
+
+void EmulatorSession::AbortLaunch(const std::string & message)
+{
+    if (!ResetModules())
+    {
+        ReportError(Tr("Required modules failed to reload after stopping the game."));
+        return;
+    }
+    SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::Stopped));
+    if (!message.empty())
+    {
+        ReportError(message);
+    }
+}
+
+std::string EmulatorSession::LoadFailureMessage(const std::string & path) const
+{
+    const LoaderResultStatus result = static_cast<LoaderResultStatus>(SettingsStore::GetInstance().GetInt(NXCoreSetting::GameLoadResult));
+    if (result == LoaderResultStatus::ErrorNoExeFS)
+    {
+        return Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path});
+    }
+    if (result != LoaderResultStatus::ErrorNotInitialized)
+    {
+        return Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))});
+    }
+    return Tr("Could not load the game:\n%1", {path});
+}
+
+void EmulatorSession::ReleaseModules()
 {
     m_releasePending = false;
 #ifdef __APPLE__
@@ -256,6 +322,11 @@ bool EmulatorSession::ResetModules(bool gameStarting)
         std::lock_guard<std::mutex> lock(m_programEventsMutex);
         m_programEvents.clear();
     }
+}
+
+bool EmulatorSession::ResetModules()
+{
+    ReleaseModules();
     m_modules.Setup(m_renderWindow);
     m_notification.BindWindow(m_window);
     if (!m_modules.IsValid())
@@ -269,7 +340,7 @@ bool EmulatorSession::ResetModules(bool gameStarting)
     }
     if (m_listener != nullptr)
     {
-        m_listener->OnModulesReady(gameStarting);
+        m_listener->OnModulesReady(false);
     }
     return true;
 }

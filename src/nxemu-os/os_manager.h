@@ -15,6 +15,8 @@ public:
 
     // IOperatingSystem
     bool Initialize() override;
+    void InitializeInput() override;
+    void StartEmulationThread(EmulationPrepareCallback prepare, void * userData) override;
     void ShutDown() override;
     bool IsShuttingDown() const override;
     bool IsPoweredOn() const override;

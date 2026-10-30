@@ -151,20 +151,28 @@ struct VideoManager::Impl
         FFmpeg::ReleaseHardwareDecoderDevices();
     }
 
+    RenderWindow & EnsureEmuWindow()
+    {
+        if (m_emuWindow == nullptr)
+        {
+            m_emuWindow = std::make_unique<RenderWindow>(m_window);
+        }
+        return *m_emuWindow;
+    }
+
     Vulkan::Display * EnsureDisplay()
     {
-        if (m_display || m_emuWindow == nullptr || videoSettings.renderer_backend != RendererBackend::Vulkan)
+        if (m_display || videoSettings.renderer_backend != RendererBackend::Vulkan)
         {
             return m_display.get();
         }
-        m_display = VideoCore::CreateDisplay(*m_emuWindow);
+        m_display = VideoCore::CreateDisplay(EnsureEmuWindow());
         return m_display.get();
     }
 
     bool Initialize()
     {
         m_host1x = std::make_unique<Tegra::Host1x::Host1x>(m_modules.OperatingSystem().DeviceMemory());
-        m_emuWindow = std::make_unique<RenderWindow>(m_window);
         return true;
     }
 
@@ -476,8 +484,9 @@ void VideoManager::CancelPendingComposite()
 
 void VideoManager::UpdateFramebufferLayout(uint32_t width, uint32_t height)
 {
-    impl->m_emuWindow->RefreshRenderSurface();
-    impl->m_emuWindow->UpdateCurrentFramebufferLayout(width, height);
+    RenderWindow & emuWindow = impl->EnsureEmuWindow();
+    emuWindow.RefreshRenderSurface();
+    emuWindow.UpdateCurrentFramebufferLayout(width, height);
 }
 
 uint32_t VideoManager::GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height)

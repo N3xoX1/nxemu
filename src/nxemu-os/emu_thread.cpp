@@ -23,13 +23,18 @@ public:
 
     void Run()
     {
-        const char * name = "EmuControlThread";
-#if MICROPROFILE_ENABLED
-        MicroProfileOnThreadCreate(name);
-#endif
-        Common::SetCurrentThreadName(name);
+        Common::SetCurrentThreadName("EmuControlThread");
 
         auto stop_token = m_stop_source.get_token();
+        if (m_prepare != nullptr)
+        {
+            Prepare(stop_token);
+        }
+        if (!m_system.IsPoweredOn())
+        {
+            g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+            return;
+        }
         m_system.RegisterHostThread();
 
         // Host HLE service threads must initialize while shaders load, including
@@ -98,11 +103,24 @@ public:
             m_process = nullptr;
         }
         m_system.ShutdownMainProcess();
-
-#if MICROPROFILE_ENABLED
-        MicroProfileOnThreadExit();
-#endif
         g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+    }
+
+    void Prepare(std::stop_token stop_token)
+    {
+        const bool prepared = m_prepare(m_prepareUserData);
+        std::unique_lock lk{m_should_run_mutex};
+        if (prepared)
+        {
+            Common::CondvarWait(m_should_run_cv, lk, stop_token, [&] {
+                return m_released;
+            });
+        }
+        else
+        {
+            m_stop_source.request_stop();
+        }
+        m_awaitingRelease.store(false, std::memory_order_release);
     }
 
     std::thread m_thread;
@@ -112,6 +130,10 @@ public:
     Common::Event m_stopped;
     std::atomic<bool> m_should_run;
     std::atomic<bool> m_started{false};
+    std::atomic<bool> m_awaitingRelease{false};
+    EmulationPrepareCallback m_prepare = nullptr;
+    void * m_prepareUserData = nullptr;
+    bool m_released = false;
     Core::System & m_system;
     Kernel::KProcess *& m_process;
 };
@@ -133,6 +155,26 @@ EmuThread::~EmuThread()
 void EmuThread::Start()
 {
     impl->m_thread = std::thread(&Impl::Run, impl.get());
+}
+
+void EmuThread::StartPrepared(EmulationPrepareCallback prepare, void * userData)
+{
+    impl->m_prepare = prepare;
+    impl->m_prepareUserData = userData;
+    impl->m_awaitingRelease.store(true, std::memory_order_release);
+    Start();
+}
+
+bool EmuThread::AwaitingRelease() const
+{
+    return impl->m_awaitingRelease.load(std::memory_order_acquire);
+}
+
+void EmuThread::Release()
+{
+    std::lock_guard<std::mutex> lk{impl->m_should_run_mutex};
+    impl->m_released = true;
+    impl->m_should_run_cv.notify_one();
 }
 
 void EmuThread::Stop()

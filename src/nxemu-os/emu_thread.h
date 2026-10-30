@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <nxemu-module-spec/operating_system.h>
 
 namespace Core
 {
@@ -13,6 +14,9 @@ public:
     ~EmuThread();
 
     void Start();
+    void StartPrepared(EmulationPrepareCallback prepare, void * userData);
+    bool AwaitingRelease() const;
+    void Release();
     void Stop();
     void SetRunning(bool should_run);
     bool IsRunning() const;

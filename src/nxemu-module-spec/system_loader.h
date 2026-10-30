@@ -407,6 +407,8 @@ nxinterface ISystemloader
     virtual bool Initialize() = 0;
     virtual uint32_t GetSupportedGameExtensions(const char ** extensions, uint32_t maxCount) const = 0;
     virtual bool LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) = 0;
+    virtual bool PrepareRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) = 0;
+    virtual bool StartPreparedRom() = 0;
     virtual IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * LoadedRomInfo() = 0;
