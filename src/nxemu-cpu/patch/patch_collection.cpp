@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstdio>
-#include <charconv>
-#include <string_view>
 #include <iterator>
 
 extern IModuleSettings * g_settings;
@@ -30,35 +28,14 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
         return;
     }
 
-    std::vector<u32> read_filter;
-    const char* requested_filter = std::getenv("NXEMU_NCE_READ_INSTRUCTIONS");
-    if (requested_filter) {
-        std::string_view remaining{requested_filter};
-        while (!remaining.empty()) {
-            const size_t comma = remaining.find(',');
-            const auto word = remaining.substr(0, comma);
-            u32 instruction{};
-            const auto result = std::from_chars(word.data(), word.data() + word.size(), instruction, 16);
-            if (result.ec == std::errc{} && result.ptr == word.data() + word.size())
-                read_filter.push_back(instruction);
-            if (comma == std::string_view::npos) break;
-            remaining.remove_prefix(comma + 1);
-        }
-        std::fprintf(stderr, "[NCE-READ-THUNKS] filter_words=%zu\n", read_filter.size());
-    }
     Core::NCE::Patcher * patch = &m_patchers[patch_index];
     while (!patch->PatchText(program_image, image_size, code_offset, code_size
 #if defined(__APPLE__)
                              , 1, g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace) &&
                                   m_module_patcher_indices[0] < 0,
                                   g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace),
-                                  std::getenv("NXEMU_NCE_READ_THUNKS") != nullptr,
-                                  std::getenv("NXEMU_NCE_ALL_READ_BASES") != nullptr &&
-                                      (!requested_filter || !read_filter.empty()), read_filter,
-                                  std::getenv("NXEMU_NCE_FLOAT_READ_THUNKS") != nullptr &&
-                                      (!requested_filter || !read_filter.empty()),
-                                  std::getenv("NXEMU_NCE_STORE_THUNKS") != nullptr &&
-                                      (!requested_filter || !read_filter.empty())
+                                  /*read_thunks=*/true, std::getenv("NXEMU_NCE_ALL_READ_BASES") != nullptr,
+                                  /*float_reads=*/true, /*store_thunks=*/true
                              // The table address is known after process creation, at relocation.
 #endif
                              ))

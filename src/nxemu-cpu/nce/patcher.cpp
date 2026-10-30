@@ -65,7 +65,7 @@ Patcher::Patcher() : c(m_patch_instructions) {
 Patcher::~Patcher() = default;
 
 bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint64_t code_offset,
-                        uint64_t code_size, uint64_t atomic_table, bool legacy_36bit, bool legacy_36bit_sdk, bool read_thunks, bool all_read_bases, std::span<const u32> read_filter, bool float_reads, bool store_thunks) {
+                        uint64_t code_size, uint64_t atomic_table, bool legacy_36bit, bool legacy_36bit_sdk, bool read_thunks, bool all_read_bases, bool float_reads, bool store_thunks) {
     // If we have patched modules but cannot reach the new module, then it needs its own patcher.
     if (total_program_size + image_size > MaxRelativeBranch && total_program_size > 0) {
         return false;
@@ -131,8 +131,7 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
         std::vector<u32> candidates;
         for (u32 i = ModuleCodeIndex; i < text_words.size(); ++i) {
             if (ReadThunk::Eligible(text_words[i]) && !ReadThunk::Basic(text_words[i]) &&
-                (ReadThunk::Floating(text_words[i]) ? float_reads : all_read_bases) &&
-                (read_filter.empty() || std::find(read_filter.begin(), read_filter.end(), text_words[i]) != read_filter.end())) {
+                (ReadThunk::Floating(text_words[i]) ? float_reads : all_read_bases)) {
                 ++frequency[text_words[i]];
                 candidates.push_back(i);
             }
@@ -148,8 +147,7 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     if (store_thunks && atomic_table) {
         size_t available = (8_MiB - std::min(m_store_bytes, size_t{8_MiB})) / 256;
         for (u32 i = ModuleCodeIndex; i < text_words.size() && available; ++i) {
-            if (StoreThunk::Eligible(text_words[i]) &&
-                (read_filter.empty() || std::find(read_filter.begin(), read_filter.end(), text_words[i]) != read_filter.end())) {
+            if (StoreThunk::Eligible(text_words[i])) {
                 extra_stores[i] = true;
                 --available;
             }
