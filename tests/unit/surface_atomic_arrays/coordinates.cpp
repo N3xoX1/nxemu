@@ -71,7 +71,10 @@ void Verify(u64 word, bool reduction, u32 type, bool bound,
             Check(vector.NumArgs()==count,"coordinate component count");
             for(u32 component=0;component<count;++component) {
                 u32 expected=regs[base+component];
-                Check(Eval(vector.Arg(component),regs)==expected,"all coordinate registers, including array layer, retain their full value");
+                const bool array_layer=(type==2||type==4)&&component==count-1;
+                if(array_layer) expected&=0xffff;
+                Check(Eval(vector.Arg(component),regs)==expected,
+                      array_layer?"array layer uses only the low 16 bits":"spatial coordinate retains its full value");
             }
         }
     } catch(const std::exception& e) { ++failures;std::fprintf(stderr,"FAIL type=%u reduction=%u: %s\n",type,reduction,e.what()); }
