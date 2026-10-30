@@ -951,7 +951,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
 template <class P>
 std::optional<RasterizerDownloadArea> TextureCache<P>::GetFlushArea(DAddr cpu_addr,
                                                                                u64 size) {
-    static const bool observed = std::getenv("NXEMU_NCE_OBSERVED_READBACK") != nullptr;
+    constexpr bool observed = OBSERVED_READBACK;
     if (observed && size != 0) {
         const auto end = Common::AlignUp(cpu_addr + size, ReadbackPageTracker::PAGE_SIZE);
         cpu_addr = Common::AlignDown(cpu_addr, ReadbackPageTracker::PAGE_SIZE);
@@ -1275,8 +1275,7 @@ void TextureCache<P>::DeduplicateDownloads() {
 template <class P>
 bool TextureCache<P>::TryDownloadObservedImage(Image& image, AsyncBuffer& map,
                                               PendingDownload& download) {
-    static const bool enabled = std::getenv("NXEMU_NCE_OBSERVED_GPU_COPIES") != nullptr &&
-                                std::getenv("NXEMU_NCE_OBSERVED_READBACK") != nullptr;
+    constexpr bool enabled = OBSERVED_READBACK;
     const auto& info = image.info;
     if (!enabled || info.type != ImageType::e2D || info.resources.levels != 1 ||
         info.resources.layers != 1 || info.size.depth != 1 || info.block.depth != 0 ||
@@ -1390,7 +1389,7 @@ void TextureCache<P>::CommitAsyncFlushes() {
 
 template <class P>
 void TextureCache<P>::MarkReadbackSynchronized(Image& image) {
-    static const bool enabled = std::getenv("NXEMU_NCE_OBSERVED_READBACK") != nullptr;
+    constexpr bool enabled = OBSERVED_READBACK;
     if (!enabled) return;
     if (False(image.flags & ImageFlagBits::Sparse)) {
         if (image.cpu_addr < ~(1ULL << 40))
@@ -1407,7 +1406,7 @@ bool TextureCache<P>::PublishObservedReadback(const ImageBase& image,
                                              std::span<const BufferImageCopy> copies,
                                              std::span<const u8> memory, u64 observation_serial,
                                              Tegra::MemoryManager* publication_memory) {
-    static const bool enabled = std::getenv("NXEMU_NCE_OBSERVED_READBACK") != nullptr;
+    constexpr bool enabled = OBSERVED_READBACK;
     const auto& info = image.info;
     if (!enabled || info.type != ImageType::e2D || info.resources.levels != 1 ||
         info.resources.layers != 1 || info.size.depth != 1 || info.block.depth != 0 ||
