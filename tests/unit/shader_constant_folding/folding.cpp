@@ -80,10 +80,7 @@ constexpr std::array opcodes{IR::Opcode::BitwiseAnd32, IR::Opcode::BitwiseOr32,
 constexpr std::array unsupported{IR::Opcode::GetCarryFromOp, IR::Opcode::GetOverflowFromOp};
 size_t folded_cases{};
 
-void CheckFold(IR::Opcode opcode, std::initializer_list<IR::Value> args, u32 expected,
-               unsigned flags) {
-    Fixture f;
-    auto& inst = f.Add(opcode, args);
+void CheckFoldResult(Fixture& f, IR::Inst& inst, u32 expected, unsigned flags) {
     IR::Inst* zero = nullptr;
     IR::Inst* sign = nullptr;
     if (flags & 1) {
@@ -116,6 +113,13 @@ void CheckFold(IR::Opcode opcode, std::initializer_list<IR::Value> args, u32 exp
     Opt::VerificationPass(f.program);
     Check(result.Arg(0).U32() == expected, "cleanup changed the result");
     ++folded_cases;
+}
+
+void CheckFold(IR::Opcode opcode, std::initializer_list<IR::Value> args, u32 expected,
+               unsigned flags) {
+    Fixture f;
+    auto& inst = f.Add(opcode, args);
+    CheckFoldResult(f, inst, expected, flags);
 }
 
 std::vector<u32> Inputs() {
@@ -169,6 +173,80 @@ void Logical() {
     }
 }
 
+IR::Value AlgebraicRhs(IR::Opcode opcode, IR::Inst& dynamic) {
+    switch (opcode) {
+    case IR::Opcode::BitwiseAnd32:
+        return IR::Value{0U};
+    case IR::Opcode::BitwiseOr32:
+        return IR::Value{0xffffffffU};
+    default:
+        return IR::Value{&dynamic};
+    }
+}
+
+void AlgebraicIdentities() {
+    for (const auto opcode : {IR::Opcode::BitwiseAnd32, IR::Opcode::BitwiseOr32,
+                              IR::Opcode::BitwiseXor32}) {
+        for (unsigned flags = 0; flags < 4; ++flags) {
+            for (bool reverse : {false, true}) {
+                for (unsigned aliases = 0; aliases < 3; ++aliases) {
+                    Fixture f;
+                    auto& dynamic = f.Add(IR::Opcode::GetCbufU32, {IR::Value{0U}, IR::Value{16U}});
+                    IR::Value lhs{&dynamic};
+                    IR::Value rhs = AlgebraicRhs(opcode, dynamic);
+                    // Distinct Identity nodes still refer to the same SSA definition.
+                    for (unsigned i = 0; i < aliases; ++i) {
+                        lhs = IR::Value{&f.Add(IR::Opcode::Identity, {lhs})};
+                        rhs = IR::Value{&f.Add(IR::Opcode::Identity, {rhs})};
+                    }
+                    auto& inst = reverse ? f.Add(opcode, {rhs, lhs}) : f.Add(opcode, {lhs, rhs});
+                    CheckFoldResult(f, inst, opcode == IR::Opcode::BitwiseOr32 ? 0xffffffffU : 0U,
+                                    flags);
+                }
+            }
+        }
+        for (const auto pseudo : unsupported) {
+            Fixture f;
+            auto& dynamic = f.Add(IR::Opcode::GetCbufU32, {IR::Value{0U}, IR::Value{16U}});
+            auto& inst = f.Add(opcode, {IR::Value{&dynamic}, AlgebraicRhs(opcode, dynamic)});
+            auto& zero = f.Add(IR::Opcode::GetZeroFromOp, {IR::Value{&inst}});
+            auto& sign = f.Add(IR::Opcode::GetSignFromOp, {IR::Value{&inst}});
+            auto& other = f.Add(pseudo, {IR::Value{&inst}});
+            Opt::ConstantPropagationPass(f.env, f.program);
+            Check(inst.GetOpcode() == opcode, "algebraic folding changed an unsupported flag");
+            Check(zero.GetOpcode() == IR::Opcode::GetZeroFromOp, "partially folded zero flag");
+            Check(sign.GetOpcode() == IR::Opcode::GetSignFromOp, "partially folded sign flag");
+            Check(other.GetOpcode() == pseudo, "changed unsupported flag");
+            Opt::VerificationPass(f.program);
+        }
+    }
+}
+
+void PreserveDistinctSsaValues() {
+    for (unsigned flags = 0; flags < 4; ++flags) {
+        Fixture f;
+        auto& lhs = f.Add(IR::Opcode::GetCbufU32, {IR::Value{0U}, IR::Value{16U}});
+        auto& rhs = f.Add(IR::Opcode::GetCbufU32, {IR::Value{0U}, IR::Value{16U}});
+        auto& inst = f.Add(IR::Opcode::BitwiseXor32, {IR::Value{&lhs}, IR::Value{&rhs}});
+        if (flags & 1) {
+            f.Add(IR::Opcode::GetZeroFromOp, {IR::Value{&inst}});
+        }
+        if (flags & 2) {
+            f.Add(IR::Opcode::GetSignFromOp, {IR::Value{&inst}});
+        }
+        f.Reference(inst);
+        Opt::ConstantPropagationPass(f.env, f.program);
+        Check(inst.GetOpcode() == IR::Opcode::BitwiseXor32, "conflated distinct SSA definitions");
+        Opt::VerificationPass(f.program);
+    }
+    Fixture f;
+    auto& undefined = f.Add(IR::Opcode::UndefU32, {});
+    auto& inst = f.Add(IR::Opcode::BitwiseXor32, {IR::Value{&undefined}, IR::Value{&undefined}});
+    Opt::ConstantPropagationPass(f.env, f.program);
+    Check(inst.GetOpcode() == IR::Opcode::BitwiseXor32, "assumed correlated undefined values");
+    Opt::VerificationPass(f.program);
+}
+
 void PreserveUnsupportedFlagsAndDynamicOperands() {
     for (const auto opcode : opcodes) {
         // Also verify that no Z/S flag is partially replaced when another flag blocks folding.
@@ -192,7 +270,7 @@ void PreserveUnsupportedFlagsAndDynamicOperands() {
         for (unsigned dynamic_arg = 0; dynamic_arg < num_args; ++dynamic_arg) {
             Fixture f;
             auto& dynamic = f.Add(IR::Opcode::UndefU32, {});
-            std::array args{IR::Value{1U}, IR::Value{0U}, IR::Value{1U}};
+            std::array args{IR::Value{1U}, IR::Value{2U}, IR::Value{1U}};
             args[dynamic_arg] = IR::Value{&dynamic};
             auto& inst = num_args == 3 ? f.Add(opcode, {args[0], args[1], args[2]})
                                       : f.Add(opcode, {args[0], args[1]});
@@ -249,10 +327,12 @@ void ResolveHandleSelection() {
 } // namespace
 
 int main() {
-    const std::array<std::pair<const char*, void (*)()>, 6> tests{{
+    const std::array<std::pair<const char*, void (*)()>, 8> tests{{
         {"unsigned bitfields", [] { BitFields(false); }},
         {"signed bitfields", [] { BitFields(true); }},
         {"logical flags", Logical},
+        {"algebraic identities with runtime operands", AlgebraicIdentities},
+        {"distinct SSA and undefined values", PreserveDistinctSsaValues},
         {"unsupported flags and runtime operands", PreserveUnsupportedFlagsAndDynamicOperands},
         {"invalid bitfield ranges", InvalidBitFields},
         {"handle selection through folded flags", ResolveHandleSelection},
