@@ -173,7 +173,6 @@ private:
 
     bool SubmitFence(std::function<void()>&& func, bool force_delay,
                      bool allow_stub_fast_path, std::atomic<bool>* waiter) {
-        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact();
         if constexpr (!can_async_check) {
             TryReleasePendingFences<false>();
         }
@@ -188,6 +187,12 @@ private:
         if constexpr (can_async_check) {
             guard.lock();
         }
+
+        // A completion signal publishes preceding readbacks to the guest. Normal
+        // may retire it immediately only when no GPU results or older fences
+        // remain; otherwise the guest can consume stale visibility/buffer data.
+        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact() || should_flush ||
+                                 !fences.empty() || fence_in_flight;
 
         const bool can_complete_stub_inline =
             allow_stub_fast_path && delay_fence && !should_flush && fences.empty() &&

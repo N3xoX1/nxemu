@@ -135,6 +135,31 @@ void CheckOrdering(bool exact_readback) {
     assert(manager.host_fences == 3);
 }
 
+// Ordinary completion signals, including syncpoints, must also respect pending
+// readbacks. Exercise the real queue with both synchronous and worker retirement.
+template <bool async>
+void CheckOrdinaryFenceOrdering(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<unsigned> completed{};
+    buffers.pending = true;
+    manager.SignalFence([&] {
+        assert(buffers.result.load(std::memory_order_acquire) == 42);
+        assert(completed.fetch_add(1) == 0);
+    });
+    assert(completed == 0);
+    // This empty signal must not overtake the queued or in-flight readback.
+    manager.SignalFence([&] { assert(completed.fetch_add(1) == 1); });
+    assert(completed == 0);
+    manager.SignalGpu();
+    manager.WaitForFence();
+    assert(completed == 2);
+    assert(manager.host_fences == 1 && rasterizer.flushes == 1);
+}
+
 void BenchmarkEmpty() {
     Settings::exact_readback.store(false);
     VideoCore::RasterizerInterface rasterizer;
@@ -181,6 +206,8 @@ int main() {
     for (bool exact_readback : {false, true}) {
         CheckOrdering<true>(exact_readback);
         CheckOrdering<false>(exact_readback);
+        CheckOrdinaryFenceOrdering<true>(exact_readback);
+        CheckOrdinaryFenceOrdering<false>(exact_readback);
         CheckCheckpointReadback<true>(exact_readback);
         CheckCheckpointReadback<false>(exact_readback);
     }
