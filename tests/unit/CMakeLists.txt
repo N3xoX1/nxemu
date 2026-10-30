@@ -3,6 +3,29 @@ function(nxemu_unit_test name)
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
 
+# Compile the production integer folding pass and IR with sanitizers as well as the test.
+add_executable(test_shader_constant_folding shader_constant_folding/folding.cpp)
+foreach(source attribute basic_block condition flow_test ir_emitter microinstruction opcodes patch program type value)
+    target_sources(test_shader_constant_folding PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/frontend/ir/${source}.cpp")
+endforeach()
+foreach(source constant_propagation_pass dead_code_elimination_pass identity_removal_pass verification_pass)
+    target_sources(test_shader_constant_folding PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/${source}.cpp")
+endforeach()
+target_include_directories(test_shader_constant_folding PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_shader_constant_folding PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_shader_constant_folding PRIVATE nxemu_test_support)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(test_shader_constant_folding PRIVATE -fbracket-depth=1024)
+endif()
+if(NOT MSVC)
+    target_compile_options(test_shader_constant_folding PRIVATE -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(test_shader_constant_folding PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_shader_constant_folding)
+
 # Host thread state and Host1x syncpoint cancellation, under ASan and UBSan.
 add_executable(test_session_lifecycle
     session_lifecycle/test_session_lifecycle.cpp

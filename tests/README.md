@@ -18,6 +18,7 @@ They run in the macOS CI job.
 |---|---|
 | `test_session_lifecycle` | Host thread state across kernel sessions, cancellation of Host1x fence waits (ASan, UBSan) |
 | `test_spirv_constant_buffers` | SPIR-V declarations of constant buffers |
+| `test_shader_constant_folding` | Integer bitfields and AND/OR/XOR with Zero/Sign flags, runtime operands and unsupported flags (ASan, UBSan) |
 | `test_loader_metadata` | Application control metadata (NACP) parsing |
 | `test_shader_profile_*` | NXShader codec, validation, native cache/journal recovery, recorder, content selection, cross-version reuse and progressive warmup |
 
