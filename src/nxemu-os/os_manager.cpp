@@ -157,8 +157,19 @@ void OSManager::EmulationStarting()
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
 
+    if (m_emuThread && m_emuThread->AwaitingRelease())
+    {
+        m_emuThread->Release();
+        return;
+    }
     m_emuThread = std::make_unique<EmuThread>(m_coreSystem, m_applicationProcess);
     m_emuThread->Start();
+}
+
+void OSManager::StartEmulationThread(EmulationPrepareCallback prepare, void * userData)
+{
+    m_emuThread = std::make_unique<EmuThread>(m_coreSystem, m_applicationProcess);
+    m_emuThread->StartPrepared(prepare, userData);
 }
 
 void OSManager::EmulationStopping(bool wait)
@@ -188,8 +199,13 @@ bool OSManager::Initialize(void)
 {
     SetupOsSetting();
     m_coreSystem.Initialize();
-    m_coreSystem.HIDCore().ReloadInputDevices();
     return true;
+}
+
+void OSManager::InitializeInput(void)
+{
+    m_coreSystem.InitializeInput();
+    m_coreSystem.HIDCore().ReloadInputDevices();
 }
 
 void OSManager::ShutDown()

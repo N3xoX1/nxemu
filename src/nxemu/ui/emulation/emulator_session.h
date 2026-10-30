@@ -1,5 +1,6 @@
 #pragma once
 #include <SDL.h>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -49,6 +50,7 @@ public:
     void Stop();
     void TogglePause();
     bool IsRunning() const;
+    bool IsLaunching() const;
     bool ReleasePending() const { return m_releasePending; }
     bool IsPaused();
     Phase CurrentPhase() const;
@@ -82,13 +84,29 @@ private:
         uint64_t generation;
     };
 
+    struct PendingLaunch
+    {
+        std::string path;
+        uint64_t programId = 0;
+        int32_t programIndex = 0;
+        int32_t previousProgramIndex = -1;
+        ApplicationLaunchType launchType = ApplicationLaunchType::FrontendInitiated;
+        UserChannel userChannel;
+        std::chrono::steady_clock::time_point started;
+    };
+
     bool LoadProgram(const std::string & path, int32_t programIndex, int32_t previousProgramIndex,
                      ApplicationLaunchType launchType, const UserChannel & userChannel);
-    bool ResetModules(bool gameStarting);
+    void FinishLaunch();
+    void AbortLaunch(const std::string & message);
+    std::string LoadFailureMessage(const std::string & path) const;
+    void ReleaseModules();
+    bool ResetModules();
     void RegisterSystemCallbacks();
     void ProcessProgramEvents();
     void ReportError(const std::string & message);
 
+    static bool PrepareLaunch(void * userData);
     static void CollectUserChannel(const uint8_t * data, uint32_t size, void * userData);
     static void ExecuteProgramCallback(uint32_t index, void * userData);
     static void ExitProgramCallback(void * userData);
@@ -101,6 +119,8 @@ private:
     std::mutex m_programEventsMutex;
     std::deque<ProgramEvent> m_programEvents;
     std::unique_ptr<CallbackContext> m_callbackContext;
+    PendingLaunch m_pendingLaunch;
+    bool m_launchCancelled = false;
     uint64_t m_moduleGeneration = 0;
     int32_t m_currentProgramIndex = 0;
     int32_t m_previousProgramIndex = -1;

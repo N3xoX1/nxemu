@@ -53,6 +53,17 @@ target_compile_features(test_startup_wait PRIVATE cxx_std_20)
 target_link_libraries(test_startup_wait PRIVATE Threads::Threads)
 nxemu_unit_test(test_startup_wait)
 
+# Game launch on the emulation thread: release, failed preparation, cancellation and shutdown.
+add_executable(test_launch_gate session_lifecycle/launch_gate.cpp)
+target_include_directories(test_launch_gate PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_launch_gate PRIVATE cxx_std_20)
+target_link_libraries(test_launch_gate PRIVATE Threads::Threads)
+if(NOT MSVC)
+    target_compile_options(test_launch_gate PRIVATE -O1 -fsanitize=thread -fno-omit-frame-pointer)
+    target_link_options(test_launch_gate PRIVATE -fsanitize=thread)
+endif()
+nxemu_unit_test(test_launch_gate)
+
 # SPIR-V layout of constant buffers. Link the archives themselves: their dependencies would
 # bring a second definition of the logging functions.
 add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp
@@ -108,3 +119,38 @@ nxemu_unit_test(test_swapchain_present_mode)
 
 add_test(NAME test_image_slice_copies COMMAND test_image_views_and_slices --copies)
 set_tests_properties(test_image_slice_copies PROPERTIES LABELS unit TIMEOUT 120)
+
+add_executable(test_nce_written_ranges nce_written_ranges/written_ranges.cpp)
+target_include_directories(test_nce_written_ranges PRIVATE "${CMAKE_SOURCE_DIR}/src")
+nxemu_unit_test(test_nce_written_ranges)
+
+add_executable(test_storage_pointer_tracking
+    storage_pointer_tracking/loops.cpp
+    "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/global_memory_to_storage_buffer_pass.cpp")
+target_include_directories(test_storage_pointer_tracking PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_storage_pointer_tracking PRIVATE shader_recompiler yuzu_common)
+if(NOT MSVC)
+    target_compile_options(test_storage_pointer_tracking PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_storage_pointer_tracking PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_storage_pointer_tracking)
+
+add_executable(test_empty_storage_warnings storage_pointer_tracking/empty_warnings.cpp)
+target_include_directories(test_empty_storage_warnings PRIVATE "${CMAKE_SOURCE_DIR}/src")
+nxemu_unit_test(test_empty_storage_warnings)
+
+add_executable(test_surface_atomic_arrays surface_atomic_arrays/coordinates.cpp)
+target_include_directories(test_surface_atomic_arrays PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_surface_atomic_arrays PRIVATE shader_recompiler yuzu_common)
+nxemu_unit_test(test_surface_atomic_arrays)
+
+add_executable(test_alpha_to_coverage_dither alpha_to_coverage_dither/dither.cpp)
+target_include_directories(test_alpha_to_coverage_dither PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/externals/SPIRV-Headers/include")
+add_dependencies(test_alpha_to_coverage_dither shader_recompiler sirit fmt common)
+target_link_libraries(test_alpha_to_coverage_dither PRIVATE nxemu_test_support
+    $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
+nxemu_unit_test(test_alpha_to_coverage_dither)

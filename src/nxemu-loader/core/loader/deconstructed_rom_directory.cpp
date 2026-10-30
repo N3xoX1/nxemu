@@ -190,6 +190,10 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     // Use the NSO module loader to figure out the code layout
     for (size_t i = 0; i < static_modules.size(); i++)
     {
+        if (loader.PrepareRomCancelled())
+        {
+            return {LoaderResultStatus::ErrorCancelled, {}};
+        }
         const auto& module = static_modules[i];
         const FileSys::VirtualFile module_file{dir->GetFile(module)};
         if (!module_file)
@@ -231,6 +235,10 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     const FileSys::PatchManager pm{metadata.GetTitleID(), loader.GetFileSystemController(), loader.GetContentProvider()};
     for (size_t i = 0; i < static_modules.size(); i++)
     {
+        if (loader.PrepareRomCancelled())
+        {
+            return {LoaderResultStatus::ErrorCancelled, {}};
+        }
         const auto& module = static_modules[i];
         const FileSys::VirtualFile module_file{dir->GetFile(module)};
         if (!module_file)

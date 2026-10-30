@@ -2041,6 +2041,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
     }
 
     const bool supports_alpha_output = stage_infos[NUM_STAGES - 1].stores_frag_color[0];
+    const bool emulates_alpha_dither = key.state.EmulatesAlphaToCoverageDither() &&
+                                       stage_infos[NUM_STAGES - 1].stores_frag_alpha[0];
     const VkPipelineMultisampleStateCreateInfo multisample_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -2050,7 +2052,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         .minSampleShading = 0.0f,
         .pSampleMask = nullptr,
         .alphaToCoverageEnable = !smooth_line_rasterization && supports_alpha_output &&
-                                         key.state.alpha_to_coverage_enabled != 0
+                                         key.state.alpha_to_coverage_enabled != 0 &&
+                                         !emulates_alpha_dither
                                      ? VK_TRUE
                                      : VK_FALSE,
         .alphaToOneEnable = !smooth_line_rasterization && supports_alpha_output &&

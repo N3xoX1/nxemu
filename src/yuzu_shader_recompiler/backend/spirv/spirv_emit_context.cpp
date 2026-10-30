@@ -1724,7 +1724,11 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         layer = DefineInput(*this, U32[1], false, spv::BuiltIn::Layer);
         Decorate(layer, spv::Decoration::Flat);
     }
-    if (loads.AnyComponent(IR::Attribute::PositionX)) {
+    // The alpha-to-coverage dither reads the pixel position. Without an alpha output the coverage
+    // is undefined and is left to the host.
+    alpha_to_coverage_dither = stage == Stage::Fragment && runtime_info.alpha_to_coverage_dither &&
+                               info.stores_frag_alpha[0];
+    if (loads.AnyComponent(IR::Attribute::PositionX) || alpha_to_coverage_dither) {
         const bool is_fragment{stage == Stage::Fragment};
         if (!is_fragment && profile.has_broken_spirv_position_input) {
             need_input_position_indirect = true;
