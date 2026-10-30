@@ -16,6 +16,7 @@ public:
     void Setup(IRenderWindow & window);
     bool StartLaunch(IRenderWindow & window, LaunchPrepareCallback prepare, void * userData);
     bool IsLaunching() const;
+    void CancelLaunch();
     bool LaunchDone() const;
     bool FinishLaunch();
     void ShutDown();

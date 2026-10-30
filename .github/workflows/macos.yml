@@ -118,7 +118,7 @@ jobs:
       - name: Test
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
-          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests test_session_lifecycle test_query_fences test_startup_wait test_spirv_constant_buffers test_loader_metadata test_shader_profile test_surface_clip test_image_rescaling test_image_views_and_slices test_swapchain_present_mode --parallel "${NXEMU_BUILD_JOBS:-2}"
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests test_session_lifecycle test_query_fences test_startup_wait test_launch_gate test_spirv_constant_buffers test_loader_metadata test_shader_profile test_surface_clip test_image_rescaling test_image_views_and_slices test_swapchain_present_mode --parallel "${NXEMU_BUILD_JOBS:-2}"
           ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build}" --output-on-failure
 
       - name: Compiler cache statistics

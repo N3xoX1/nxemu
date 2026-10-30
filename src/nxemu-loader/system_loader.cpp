@@ -26,6 +26,7 @@
 #include "loader_settings_identifiers.h"
 #include "rom_info.h"
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <common/path.h>
 #include <cstdint>
@@ -140,6 +141,7 @@ struct Systemloader::Impl
     FileSys::VirtualFile m_file;
     std::shared_ptr<Loader::AppLoader> m_appLoader;
     std::unique_ptr<PreparedRom> m_preparedRom;
+    std::atomic<bool> m_prepareCancelled{false};
     Systemloader & m_loader;
     ISystemModules & m_modules;
     /// RealVfsFilesystem instance
@@ -197,6 +199,7 @@ uint32_t Systemloader::GetSupportedGameExtensions(const char ** extensions, uint
 
 bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type)
 {
+    impl->m_prepareCancelled.store(false, std::memory_order_relaxed);
     return PrepareRom(fileName, program_id, program_index, previous_program_index, launch_type) && StartPreparedRom();
 }
 
@@ -255,6 +258,12 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     {
         LOG_ERROR(Core, "Failed to read title for ROM!");
     }
+    if (PrepareRomCancelled())
+    {
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorCancelled);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        return false;
+    }
 
     IOperatingSystem & operatingSystem = impl->m_modules.OperatingSystem();
     operatingSystem.SetApplicationLaunchParameters(program_index, previous_program_index, launch_type);
@@ -263,7 +272,14 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     if (load_result != LoaderResultStatus::Success)
     {
         g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)load_result);
-        LOG_CRITICAL(Core, "Failed to load ROM (Error {})!", load_result);
+        if (load_result == LoaderResultStatus::ErrorCancelled)
+        {
+            LOG_INFO(Core, "ROM load cancelled");
+        }
+        else
+        {
+            LOG_CRITICAL(Core, "Failed to load ROM (Error {})!", load_result);
+        }
         g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
@@ -288,6 +304,16 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     impl->m_preparedRom->mainThreadPriority = load_parameters->main_thread_priority;
     impl->m_preparedRom->mainThreadStackSize = load_parameters->main_thread_stack_size;
     return true;
+}
+
+void Systemloader::CancelPrepareRom()
+{
+    impl->m_prepareCancelled.store(true, std::memory_order_relaxed);
+}
+
+bool Systemloader::PrepareRomCancelled() const
+{
+    return impl->m_prepareCancelled.load(std::memory_order_relaxed);
 }
 
 bool Systemloader::StartPreparedRom()

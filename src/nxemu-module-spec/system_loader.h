@@ -94,6 +94,7 @@ enum class LoaderResultStatus : uint16_t {
     ErrorIntegrityVerificationNotImplemented,
     ErrorIntegrityVerificationFailed,
     ErrorBufferTooSmall,
+    ErrorCancelled,
 };
 
 enum class VirtualFileOpenMode : uint32_t {
@@ -409,6 +410,7 @@ nxinterface ISystemloader
     virtual bool LoadRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) = 0;
     virtual bool PrepareRom(const char * fileName, uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type) = 0;
     virtual bool StartPreparedRom() = 0;
+    virtual void CancelPrepareRom() = 0;
     virtual IRomInfo * RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * FileRomInfo(IVirtualFile * file, uint64_t programId, uint64_t programIndex) = 0;
     virtual IRomInfo * LoadedRomInfo() = 0;

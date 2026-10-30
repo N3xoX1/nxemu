@@ -8,6 +8,7 @@
 #include "core/cpu_manager.h"
 #include "core/core.h"
 #include "emu_thread.h"
+#include "launch_gate.h"
 
 extern IModuleSettings * g_settings;
 
@@ -26,13 +27,9 @@ public:
         Common::SetCurrentThreadName("EmuControlThread");
 
         auto stop_token = m_stop_source.get_token();
-        if (m_prepare != nullptr)
+        if (m_gate.Armed() && m_gate.Prepare(stop_token) != LaunchGate::Result::Released)
         {
-            Prepare(stop_token);
-        }
-        if (!m_system.IsPoweredOn())
-        {
-            g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+            ShutdownUnstarted();
             return;
         }
         m_system.RegisterHostThread();
@@ -96,31 +93,32 @@ public:
             }
         }
 
-        // Shutdown the main emulated process
+        ShutdownProcess();
+    }
+
+    void ShutdownUnstarted()
+    {
+        if (m_system.IsPoweredOn())
+        {
+            // HLE services created with the kernel can wait on services hosted by the CPU cores.
+            m_system.RegisterHostThread();
+            m_system.GetCpuManager().OnGpuReady();
+        }
+        ShutdownProcess();
+    }
+
+    void ShutdownProcess()
+    {
         if (m_process != nullptr)
         {
             m_process->Close();
             m_process = nullptr;
         }
-        m_system.ShutdownMainProcess();
+        if (m_system.IsPoweredOn())
+        {
+            m_system.ShutdownMainProcess();
+        }
         g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
-    }
-
-    void Prepare(std::stop_token stop_token)
-    {
-        const bool prepared = m_prepare(m_prepareUserData);
-        std::unique_lock lk{m_should_run_mutex};
-        if (prepared)
-        {
-            Common::CondvarWait(m_should_run_cv, lk, stop_token, [&] {
-                return m_released;
-            });
-        }
-        else
-        {
-            m_stop_source.request_stop();
-        }
-        m_awaitingRelease.store(false, std::memory_order_release);
     }
 
     std::thread m_thread;
@@ -130,10 +128,7 @@ public:
     Common::Event m_stopped;
     std::atomic<bool> m_should_run;
     std::atomic<bool> m_started{false};
-    std::atomic<bool> m_awaitingRelease{false};
-    EmulationPrepareCallback m_prepare = nullptr;
-    void * m_prepareUserData = nullptr;
-    bool m_released = false;
+    LaunchGate m_gate;
     Core::System & m_system;
     Kernel::KProcess *& m_process;
 };
@@ -159,22 +154,18 @@ void EmuThread::Start()
 
 void EmuThread::StartPrepared(EmulationPrepareCallback prepare, void * userData)
 {
-    impl->m_prepare = prepare;
-    impl->m_prepareUserData = userData;
-    impl->m_awaitingRelease.store(true, std::memory_order_release);
+    impl->m_gate.Arm(prepare, userData);
     Start();
 }
 
 bool EmuThread::AwaitingRelease() const
 {
-    return impl->m_awaitingRelease.load(std::memory_order_acquire);
+    return impl->m_gate.AwaitingRelease();
 }
 
 void EmuThread::Release()
 {
-    std::lock_guard<std::mutex> lk{impl->m_should_run_mutex};
-    impl->m_released = true;
-    impl->m_should_run_cv.notify_one();
+    impl->m_gate.Release();
 }
 
 void EmuThread::Stop()

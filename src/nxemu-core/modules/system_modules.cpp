@@ -7,6 +7,7 @@
 #include "video_module.h"
 #include "notification.h"
 #include "settings/core_settings.h"
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <vector>
@@ -151,6 +152,7 @@ struct SystemModules::Impl :
     bool valid;
     bool stopping;
     bool launching = false;
+    std::atomic<bool> launchCancelled{false};
     LaunchPrepareCallback launchPrepare = nullptr;
     void * launchUserData = nullptr;
     std::promise<bool> launchPromise;
@@ -200,6 +202,16 @@ bool SystemModules::IsLaunching() const
     return impl != nullptr && impl->launching;
 }
 
+void SystemModules::CancelLaunch()
+{
+    if (!IsLaunching())
+    {
+        return;
+    }
+    impl->launchCancelled.store(true, std::memory_order_relaxed);
+    impl->systemLoader->CancelPrepareRom();
+}
+
 bool SystemModules::LaunchDone() const
 {
     return IsLaunching() && impl->launchResult.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
@@ -220,7 +232,7 @@ bool SystemModules::LaunchThread(void * userData)
 {
     SystemModules & modules = *static_cast<SystemModules *>(userData);
     Impl & impl = *modules.impl;
-    const bool prepared = modules.InitializeModules() && impl.launchPrepare(impl.launchUserData);
+    const bool prepared = modules.InitializeModules() && !impl.launchCancelled.load(std::memory_order_relaxed) && impl.launchPrepare(impl.launchUserData);
     impl.launchPromise.set_value(prepared);
     return prepared;
 }
@@ -318,6 +330,7 @@ void SystemModules::ShutDown()
     }
     if (impl->launching)
     {
+        CancelLaunch();
         impl->launchResult.wait();
         impl->launching = false;
     }

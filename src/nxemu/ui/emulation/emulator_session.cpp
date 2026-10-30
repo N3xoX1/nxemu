@@ -67,6 +67,7 @@ void EmulatorSession::Stop()
     if (m_modules.IsLaunching())
     {
         m_launchCancelled = true;
+        m_modules.CancelLaunch();
         return;
     }
     if (!IsRunning())
