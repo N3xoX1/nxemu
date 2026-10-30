@@ -36,6 +36,7 @@
     <ClInclude Include="algorithm.h" />
     <ClInclude Include="alignment.h" />
     <ClInclude Include="android\java_bridge.h" />
+    <ClInclude Include="android\performance_hint.h" />
     <ClInclude Include="announce_multiplayer_room.h" />
     <ClInclude Include="atomic_helpers.h" />
     <ClInclude Include="atomic_ops.h" />
@@ -142,6 +143,7 @@
   <ItemGroup>
     <ClCompile Include="address_space.cpp" />
     <ClCompile Include="cityhash.cpp" />
+    <ClCompile Include="android\performance_hint.cpp" />
     <ClCompile Include="dynamic_library.cpp" />
     <ClCompile Include="error.cpp" />
     <ClCompile Include="fiber.cpp" />

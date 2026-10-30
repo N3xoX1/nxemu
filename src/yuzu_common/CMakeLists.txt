@@ -1,4 +1,6 @@
 add_library(yuzu_common STATIC
+    android/performance_hint.cpp
+    android/performance_hint.h
     address_space.cpp
     algorithm.h
     alignment.h
@@ -140,6 +142,11 @@ if (NOT WIN32)
 endif()
 
 if(ANDROID)
+    option(NXEMU_ENABLE_ANDROID_ADPF "Enable Android Vulkan worker performance hints" ON)
+    if(NXEMU_ENABLE_ANDROID_ADPF)
+        target_compile_definitions(yuzu_common PRIVATE NXEMU_ENABLE_ANDROID_ADPF=1)
+    endif()
+    target_link_libraries(yuzu_common PRIVATE ${CMAKE_DL_LIBS})
     target_sources(yuzu_common PRIVATE
         android/java_bridge.cpp
         android/java_bridge.h

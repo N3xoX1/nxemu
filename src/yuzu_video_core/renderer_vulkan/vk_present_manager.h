@@ -24,6 +24,7 @@ class Scheduler;
 class Swapchain;
 
 struct Frame {
+    u32 frame_interval_ns{};
     u32 width;
     u32 height;
     vk::Image image;

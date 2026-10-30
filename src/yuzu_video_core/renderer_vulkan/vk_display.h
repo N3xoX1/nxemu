@@ -74,8 +74,9 @@ public:
 
     /// Presents a frame of the game. Returns the frame the caller may draw
     /// into again: `frame` itself, or an earlier one when the display keeps
-    /// `frame` to show it again under the interface.
-    Frame* Present(Frame* frame, const WindowSystemInfo& window);
+    /// `frame` to show it again under the interface. `presented` excludes missing surfaces
+    /// and recoverable present failures; success denotes submission, not scanout.
+    Frame* Present(Frame* frame, const WindowSystemInfo& window, bool* presented = nullptr);
 
     /// Prepares a newly created game image for sampling by the compositor.
     void PrepareFrame(Frame& frame, VkFormat format);
@@ -113,8 +114,8 @@ private:
         vk::Fence done;
     };
 
-    void PresentLocked(Frame* frame, bool fresh);
-    void PresentImage(Frame* frame, bool fresh);
+    bool PresentLocked(Frame* frame, bool fresh);
+    bool PresentImage(Frame* frame, bool fresh);
     void RecordGameOnly(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image);
     void RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image);
     void RecreateSwapchain(u32 width, u32 height);

@@ -347,6 +347,11 @@ void RenderWindow::OnFrameDisplayed()
     }
 }
 
+void RenderWindow::OnFramePresented(void * surface, uint32_t frame_interval_ns)
+{
+    m_renderWindow.OnFramePresented(surface, frame_interval_ns);
+}
+
 std::unique_ptr<Core::Frontend::GraphicsContext> RenderWindow::CreateSharedContext() const
 {
 #if defined(_WIN32)

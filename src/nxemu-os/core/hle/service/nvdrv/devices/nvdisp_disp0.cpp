@@ -13,6 +13,13 @@
 #include "core/hle/service/nvdrv/devices/nvdisp_disp0.h"
 #include "core/perf_stats.h"
 #include <nxemu-module-spec/video.h>
+#ifdef __ANDROID__
+#include "os_settings.h"
+#include "yuzu_common/android/performance_hint.h"
+#include <nxemu-video/video_settings_identifiers.h>
+
+extern IModuleSettings* g_settings;
+#endif
 
 namespace Service::Nvidia::Devices {
 
@@ -57,7 +64,20 @@ NvResult nvdisp_disp0::Ioctl3(DeviceFD fd, Ioctl command, std::span<const u8> in
 void nvdisp_disp0::OnOpen(NvCore::SessionId session_id, DeviceFD fd) {}
 void nvdisp_disp0::OnClose(DeviceFD fd) {}
 
-void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers) {
+void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers,
+                            u32 swap_interval, float compose_speed_scale) {
+    u32 frame_interval_ns = 0;
+#ifdef __ANDROID__
+    // Match VI's requested cadence and speed controls, including video playback.
+    float speed_scale = osSettings.use_speed_limit
+                            ? (osSettings.speed_limit / 100.f) * compose_speed_scale
+                            : 0.f;
+    if (system.GetNVDECActive() &&
+        g_settings->GetBool(NXVideoSetting::SyncToFramerateOfVideoPlayback)) {
+        speed_scale = 1.f;
+    }
+    frame_interval_ns = Common::Android::FrameIntervalNs(swap_interval, speed_scale);
+#endif
     std::vector<VideoFramebufferConfig> output_layers;
     std::vector<VideoNvFence> output_fences;
     output_layers.reserve(sorted_layers.size());
@@ -77,6 +97,7 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
             .cropRight = layer.crop_rect.right,
             .cropBottom = layer.crop_rect.bottom,
             .blending = (uint32_t)ConvertBlending(layer.blending),
+            .frameIntervalNs = frame_interval_ns,
         });
 
         for (size_t i = 0; i < layer.acquire_fence.num_fences; i++) {

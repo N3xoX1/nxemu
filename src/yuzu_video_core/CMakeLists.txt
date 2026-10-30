@@ -378,6 +378,9 @@ add_library(video_core STATIC
 
 target_include_directories(video_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(video_core PRIVATE ${CMAKE_SOURCE_DIR}/src/nxemu-video)
+if(ANDROID AND NXEMU_ENABLE_ANDROID_ADPF)
+    target_compile_definitions(video_core PRIVATE NXEMU_ENABLE_ANDROID_ADPF=1)
+endif()
 target_link_libraries(video_core PUBLIC common nxemu_core yuzu_common)
 target_link_libraries(video_core PRIVATE zstd::zstd)
 target_link_libraries(video_core PRIVATE ${CMAKE_DL_LIBS})
