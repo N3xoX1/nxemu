@@ -18,6 +18,7 @@ bool SettingsStore::Initialize(const char * configPath, const char * baseDirecto
 
     const Path normalization_base(baseDirectory);
 
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_configPath = configPath;
 
     m_details = JsonValue();
@@ -64,6 +65,7 @@ bool SettingsStore::Initialize(const char * configPath, const char * baseDirecto
 
 const char * SettingsStore::GetConfigFile(void) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_configPath.c_str();
 }
 
@@ -73,11 +75,13 @@ void SettingsStore::SetChanged(const char * setting, bool changed)
     {
         return;
     }
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_settingsChanged[setting] = changed;
 }
 
 JsonValue SettingsStore::GetSettings(const char * section) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     const JsonValue * value = m_details.Find(section);
     if (value != nullptr)
     {
@@ -88,6 +92,7 @@ JsonValue SettingsStore::GetSettings(const char * section) const
 
 void SettingsStore::SetSettings(const char * section, JsonValue & json)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (json.isNull())
     {
         m_details.removeMember(section);
@@ -100,66 +105,53 @@ void SettingsStore::SetSettings(const char * section, JsonValue & json)
 
 const char * SettingsStore::GetDefaultString(const char * setting) const
 {
-    SettingsMapString::const_iterator itr = m_settingsDefaultString.find(setting);
-    if (itr == m_settingsDefaultString.end())
-    {
-        return "";
-    }
-    return itr->second.c_str();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return LookupDefaultString(setting);
 }
 
 bool SettingsStore::GetDefaultBool(const char * setting) const
 {
-    SettingsMapBool::const_iterator itr = m_settingsDefaultBool.find(setting);
-    if (itr == m_settingsDefaultBool.end())
-    {
-        return false;
-    }
-    return itr->second;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return LookupDefaultBool(setting);
 }
 
 int32_t SettingsStore::GetDefaultInt(const char* setting) const
 {
-    SettingsMapInt::const_iterator itr = m_settingsDefaultInt.find(setting);
-    if (itr == m_settingsDefaultInt.end())
-    {
-        return false;
-    }
-    return itr->second;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return LookupDefaultInt(setting);
 }
 
 float SettingsStore::GetDefaultFloat(const char * setting) const
 {
-    SettingsMapFloat::const_iterator itr = m_settingsDefaultFloat.find(setting);
-    if (itr == m_settingsDefaultFloat.end())
-    {
-        return false;
-    }
-    return itr->second;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return LookupDefaultFloat(setting);
 }
 
 const char * SettingsStore::GetString(const char * setting) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     SettingsMapString::const_iterator itr = m_settingsString.find(setting);
     if (itr == m_settingsString.end())
     {
-        return GetDefaultString(setting);
+        return LookupDefaultString(setting);
     }
     return itr->second.c_str();
 }
 
 bool SettingsStore::GetBool(const char * setting) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     SettingsMapBool::const_iterator itr = m_settingsBool.find(setting);
     if (itr == m_settingsBool.end())
     {
-        return GetDefaultBool(setting);
+        return LookupDefaultBool(setting);
     }
     return itr->second;
 }
 
 bool SettingsStore::GetChanged(const char * setting) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     SettingsMapBool::const_iterator itr = m_settingsChanged.find(setting);
     if (itr == m_settingsChanged.end())
     {
@@ -170,20 +162,22 @@ bool SettingsStore::GetChanged(const char * setting) const
 
 int32_t SettingsStore::GetInt(const char* setting) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     SettingsMapInt::const_iterator itr = m_settingsInt.find(setting);
     if (itr == m_settingsInt.end())
     {
-        return GetDefaultInt(setting);
+        return LookupDefaultInt(setting);
     }
     return itr->second;
 }
 
 float SettingsStore::GetFloat(const char * setting) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     SettingsMapFloat::const_iterator itr = m_settingsFloat.find(setting);
     if (itr == m_settingsFloat.end())
     {
-        return GetDefaultFloat(setting);
+        return LookupDefaultFloat(setting);
     }
     return itr->second;
 }
@@ -194,21 +188,25 @@ void SettingsStore::SetDefaultString(const char * setting, const char * value)
     {
         return;
     }
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_settingsDefaultString[setting] = value;
 }
 
 void SettingsStore::SetDefaultBool(const char * setting, bool value)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_settingsDefaultBool[setting] = value;
 }
 
 void SettingsStore::SetDefaultInt(const char * setting, int32_t value)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_settingsDefaultInt[setting] = value;
 }
 
 void SettingsStore::SetDefaultFloat(const char * setting, float value)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_settingsDefaultFloat[setting] = value;
 }
 
@@ -219,12 +217,15 @@ void SettingsStore::SetString(const char * setting, const char * value)
         return;
     }
 
-    SettingsMapString::const_iterator it = m_settingsString.find(setting);
-    if (it != m_settingsString.end() && it->second.compare(value) == 0)
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        SettingsMapString::const_iterator it = m_settingsString.find(setting);
+        if (it != m_settingsString.end() && it->second.compare(value) == 0)
+        {
+            return;
+        }
+        m_settingsString[setting] = value;
     }
-    m_settingsString[setting] = value != nullptr ? value : "";
     NotifyChange(setting);
 }
 
@@ -235,12 +236,15 @@ void SettingsStore::SetBool(const char * setting, bool value)
         return;
     }
 
-    SettingsMapBool::const_iterator it = m_settingsBool.find(setting);
-    if (it != m_settingsBool.end() && it->second == value)
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        SettingsMapBool::const_iterator it = m_settingsBool.find(setting);
+        if (it != m_settingsBool.end() && it->second == value)
+        {
+            return;
+        }
+        m_settingsBool[setting] = value;
     }
-    m_settingsBool[setting] = value;
     NotifyChange(setting);
 }
 
@@ -251,12 +255,15 @@ void SettingsStore::SetInt(const char * setting, int32_t value)
         return;
     }
 
-    SettingsMapInt::const_iterator it = m_settingsInt.find(setting);
-    if (it != m_settingsInt.end() && it->second == value)
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        SettingsMapInt::const_iterator it = m_settingsInt.find(setting);
+        if (it != m_settingsInt.end() && it->second == value)
+        {
+            return;
+        }
+        m_settingsInt[setting] = value;
     }
-    m_settingsInt[setting] = value;
     NotifyChange(setting);
 }
 
@@ -267,21 +274,30 @@ void SettingsStore::SetFloat(const char * setting, float value)
         return;
     }
 
-    SettingsMapFloat::const_iterator it = m_settingsFloat.find(setting);
-    if (it != m_settingsFloat.end() && it->second == value)
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        SettingsMapFloat::const_iterator it = m_settingsFloat.find(setting);
+        if (it != m_settingsFloat.end() && it->second == value)
+        {
+            return;
+        }
+        m_settingsFloat[setting] = value;
     }
-    m_settingsFloat[setting] = value;
     NotifyChange(setting);
 }
 
 void SettingsStore::Save(void)
 {
-    std::string jsonStr = JsonStyledWriter().write(m_details);
-    Path(m_configPath).DirectoryCreate();
+    std::string jsonStr;
+    std::string configPath;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        jsonStr = JsonStyledWriter().write(m_details);
+        configPath = m_configPath;
+    }
+    Path(configPath).DirectoryCreate();
     File configFile;
-    if (!configFile.Open(m_configPath.c_str(), IFile::modeWrite | IFile::modeCreate))
+    if (!configFile.Open(configPath.c_str(), IFile::modeWrite | IFile::modeCreate))
     {
         return;
     }
@@ -296,11 +312,13 @@ void SettingsStore::RegisterCallback(const std::string & setting, SettingChangeC
     }
 
     CallbackInfo info = { callback, userData };
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_notification[setting].emplace_back(info);
 }
 
 void SettingsStore::UnregisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     NotificationMap::iterator itr = m_notification.find(setting);
     if (itr == m_notification.end())
     {
@@ -340,13 +358,58 @@ void SettingsStore::NotifyChange(const char * setting)
     {
         return;
     }
-    NotificationMap::const_iterator itr = m_notification.find(setting);
-    if (itr != m_notification.end())
+    NotificationCallbacks callbacks;
     {
-        const NotificationCallbacks & callbacks = itr->second;
-        for (NotificationCallbacks::const_iterator callItr = callbacks.begin(); callItr != callbacks.end(); callItr++)
+        std::lock_guard<std::mutex> lock(m_mutex);
+        NotificationMap::const_iterator itr = m_notification.find(setting);
+        if (itr == m_notification.end())
         {
-            callItr->callback(setting, callItr->userData);
+            return;
         }
+        callbacks = itr->second;
     }
+    for (NotificationCallbacks::const_iterator callItr = callbacks.begin(); callItr != callbacks.end(); callItr++)
+    {
+        callItr->callback(setting, callItr->userData);
+    }
+}
+
+const char * SettingsStore::LookupDefaultString(const char * setting) const
+{
+    SettingsMapString::const_iterator itr = m_settingsDefaultString.find(setting);
+    if (itr == m_settingsDefaultString.end())
+    {
+        return "";
+    }
+    return itr->second.c_str();
+}
+
+bool SettingsStore::LookupDefaultBool(const char * setting) const
+{
+    SettingsMapBool::const_iterator itr = m_settingsDefaultBool.find(setting);
+    if (itr == m_settingsDefaultBool.end())
+    {
+        return false;
+    }
+    return itr->second;
+}
+
+int32_t SettingsStore::LookupDefaultInt(const char * setting) const
+{
+    SettingsMapInt::const_iterator itr = m_settingsDefaultInt.find(setting);
+    if (itr == m_settingsDefaultInt.end())
+    {
+        return 0;
+    }
+    return itr->second;
+}
+
+float SettingsStore::LookupDefaultFloat(const char * setting) const
+{
+    SettingsMapFloat::const_iterator itr = m_settingsDefaultFloat.find(setting);
+    if (itr == m_settingsDefaultFloat.end())
+    {
+        return 0.0f;
+    }
+    return itr->second;
 }
