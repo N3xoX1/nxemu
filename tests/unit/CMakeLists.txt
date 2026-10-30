@@ -124,6 +124,12 @@ add_executable(test_nce_written_ranges nce_written_ranges/written_ranges.cpp)
 target_include_directories(test_nce_written_ranges PRIVATE "${CMAKE_SOURCE_DIR}/src")
 nxemu_unit_test(test_nce_written_ranges)
 
+add_executable(test_nce_store_thunk nce_store_thunk/store_thunk.cpp)
+target_include_directories(test_nce_store_thunk PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_options(test_nce_store_thunk PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+nxemu_unit_test(test_nce_store_thunk)
+
 add_executable(test_storage_pointer_tracking
     storage_pointer_tracking/loops.cpp
     "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/global_memory_to_storage_buffer_pass.cpp")

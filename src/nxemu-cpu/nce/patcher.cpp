@@ -451,7 +451,13 @@ void Patcher::WriteStoreHandler(ModuleDestLabel module_dest, u32 instruction) {
     const ptrdiff_t spill = c.offset();
     c.STR(reg, SP, PRE_INDEXED, -16);
     address();
-    for (unsigned bit = 0; (1u << bit) < StoreThunk::Bytes(instruction); ++bit) c.TBNZ(reg, bit, fallback);
+    // Unaligned stores stay native unless they cross a 4 KiB page. Flags are guest state.
+    if (const unsigned bytes = StoreThunk::Bytes(instruction); bytes > 1) {
+        c.AND(reg, reg, 0xfff);
+        c.ADD(reg, reg, bytes - 1);
+        c.TBNZ(reg, 12, fallback);
+        address();
+    }
     c.LSR(reg, reg, 39);
     c.CBNZ(reg, fallback);
     address();
