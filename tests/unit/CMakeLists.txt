@@ -3,6 +3,53 @@ function(nxemu_unit_test name)
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
 
+# Real Fermi2D, software blitter, GPU page tables and device-memory mappings.
+# The fixture models cache notifications; GPU cache integration needs a renderer.
+add_executable(test_fast_copy fast_copy/fast_copy.cpp)
+target_include_directories(test_fast_copy PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_fast_copy video_core yuzu_common common)
+target_link_libraries(test_fast_copy PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_fast_copy)
+
+option(NXEMU_BUILD_COPY_GPU_TESTS "Build the manual headless Vulkan copy integration test" OFF)
+if(NXEMU_BUILD_COPY_GPU_TESTS)
+    add_executable(test_fast_copy_gpu fast_copy/gpu_copy.cpp
+        "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_settings.cpp"
+        "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_enum_strings.cpp")
+    target_include_directories(test_fast_copy_gpu PRIVATE "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/src/nxemu-video"
+        "${CMAKE_SOURCE_DIR}/external/fmt/include" "${CMAKE_SOURCE_DIR}/external/boost")
+    add_dependencies(test_fast_copy_gpu video_core yuzu_common common shader_recompiler sirit)
+    target_link_libraries(test_fast_copy_gpu PRIVATE nxemu_test_support video_core
+        Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
+endif()
+
+if(NOT MSVC)
+    # Instrument the production paths themselves, not just the test executable.
+    add_executable(test_fast_copy_sanitized fast_copy/fast_copy.cpp
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/fermi_2d.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_dma.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/sw_blitter/blitter.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/textures/decoders.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/memory_manager.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/host1x/gpu_device_memory_manager.cpp")
+    target_include_directories(test_fast_copy_sanitized PRIVATE "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/src/nxemu-video"
+        "${CMAKE_SOURCE_DIR}/external/fmt/include" "${CMAKE_SOURCE_DIR}/external/boost")
+    add_dependencies(test_fast_copy_sanitized video_core yuzu_common common)
+    target_link_libraries(test_fast_copy_sanitized PRIVATE nxemu_test_support
+        $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+        fmt bc_decoder stb_dxt)
+    target_compile_options(test_fast_copy_sanitized PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_fast_copy_sanitized PRIVATE -fsanitize=address,undefined)
+    nxemu_unit_test(test_fast_copy_sanitized)
+endif()
+
 # Compile the production integer folding pass and IR with sanitizers as well as the test.
 add_executable(test_shader_constant_folding shader_constant_folding/folding.cpp)
 foreach(source attribute basic_block condition flow_test ir_emitter microinstruction opcodes patch program type value)

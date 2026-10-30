@@ -87,6 +87,12 @@ public:
 
     virtual bool BufferToImage(const DMA::ImageCopy& copy_info, const DMA::BufferOperand& src,
                                const DMA::ImageOperand& dst) = 0;
+
+    // Only consumes the transfer when both images can be copied on the host GPU.
+    virtual bool ImageToImage(Tegra::MemoryManager&, const DMA::ImageCopy&,
+                              const DMA::ImageOperand&, const DMA::ImageOperand&) {
+        return false;
+    }
 };
 
 /**

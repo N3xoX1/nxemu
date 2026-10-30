@@ -314,7 +314,9 @@ void Scheduler::EndPendingOperations() {
 #else
     // query_cache->DisableStreams();
 #endif
-    query_cache->NotifySegment(false);
+    if (query_cache) {
+        query_cache->NotifySegment(false);
+    }
     EndRenderPass();
 }
 

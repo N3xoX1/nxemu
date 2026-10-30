@@ -270,6 +270,10 @@ public:
 
     [[nodiscard]] ImageId DmaImageId(const Tegra::DMA::ImageOperand& operand, bool is_upload);
 
+    [[nodiscard]] bool DmaImageToImage(const Tegra::DMA::ImageCopy& copy_info,
+                                       const Tegra::DMA::ImageOperand& src,
+                                       const Tegra::DMA::ImageOperand& dst);
+
     [[nodiscard]] std::pair<Image*, BufferImageCopy> DmaBufferImageCopy(
         const Tegra::DMA::ImageCopy& copy_info, const Tegra::DMA::BufferOperand& buffer_operand,
         const Tegra::DMA::ImageOperand& image_operand, ImageId image_id, bool modifies_image);

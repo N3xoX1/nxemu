@@ -6,6 +6,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_video_core/engines/fast_copy.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/engines/maxwell_dma.h"
 #include "yuzu_video_core/guest_memory.h"
@@ -314,6 +315,27 @@ void MaxwellDMA::CopyBlockLinearToBlockLinear() {
     UNIMPLEMENTED_IF(regs.src_params.block_size.width != 0);
 
     const bool is_remapping = regs.launch_dma.remap_enable != 0;
+
+    if (!is_remapping) {
+        const DMA::ImageCopy copy{.length_x = regs.line_length_in, .length_y = regs.line_count};
+        const DMA::ImageOperand src_operand{
+            .bytes_per_pixel = 1, .params = regs.src_params, .address = regs.offset_in};
+        const DMA::ImageOperand dst_operand{
+            .bytes_per_pixel = 1, .params = regs.dst_params, .address = regs.offset_out};
+        if (rasterizer->AccessAccelerateDMA().ImageToImage(memory_manager, copy, src_operand,
+                                                           dst_operand)) {
+            return;
+        }
+        // Identical full guest layouts need no intermediate linear image. Only
+        // copy allocation bytes when there is no GOB padding to preserve.
+        const size_t size = DmaImageCopySize(copy, src_operand, dst_operand);
+        if (size != 0 && regs.src_params.width % 64 == 0 &&
+            regs.src_params.height % (8U << static_cast<u32>(regs.src_params.block_size.height)) ==
+                0 &&
+            TryFastGuestCopy(memory_manager, regs.offset_out, regs.offset_in, size)) {
+            return;
+        }
+    }
 
     // Deswizzle the input and copy it over.
     const DMA::Parameters& src = regs.src_params;
