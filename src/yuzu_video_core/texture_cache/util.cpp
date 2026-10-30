@@ -745,7 +745,11 @@ boost::container::small_vector<ImageCopy, 16> MakeShrinkImageCopies(const ImageI
 
     const bool is_dst_3d = dst.type == ImageType::e3D;
     if (is_dst_3d) {
-        ASSERT(src.type == ImageType::e3D);
+        // A single 2D plane can populate one slice of a volume. The destination
+        // slice is carried by base.layer and becomes dst_offset.z below.
+        const bool is_single_2d_slice = src.type == ImageType::e2D &&
+                                        src.size.depth == 1 && src.resources.layers == 1;
+        ASSERT(src.type == ImageType::e3D || is_single_2d_slice);
         ASSERT(src.resources.levels == 1);
     }
     const bool both_2d{src.type == ImageType::e2D && dst.type == ImageType::e2D};

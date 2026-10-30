@@ -1171,14 +1171,14 @@ void EmitContext::DefineRescalingInput(const Info& info) {
         return;
     }
     if (profile.unified_descriptor_binding) {
-        DefineRescalingInputPushConstant();
+        DefineRescalingInputPushConstant(info);
     } else {
         DefineRescalingInputUniformConstant();
     }
 }
 
-void EmitContext::DefineRescalingInputPushConstant() {
-    boost::container::static_vector<Id, 4> members{};
+void EmitContext::DefineRescalingInputPushConstant(const Info& info) {
+    boost::container::static_vector<Id, 5> members{};
     u32 member_index{0};
 
     rescaling_textures_type = TypeArray(U32[1], Const(4u));
@@ -1199,6 +1199,10 @@ void EmitContext::DefineRescalingInputPushConstant() {
     if (reads_attachments) {
         members.push_back(U32[1]);
         rescaling_attachment_reads_member_index = member_index++;
+    }
+    if (info.uses_render_area) {
+        render_are_member_index = member_index++;
+        members.push_back(F32[4]);
     }
     const Id push_constant_struct{TypeStruct(std::span(members.data(), members.size()))};
     Decorate(push_constant_struct, spv::Decoration::Block);
@@ -1225,8 +1229,16 @@ void EmitContext::DefineRescalingInputPushConstant() {
         MemberName(push_constant_struct, rescaling_attachment_reads_member_index,
                    "attachment_reads");
     }
+    if (info.uses_render_area) {
+        MemberDecorate(push_constant_struct, render_are_member_index, spv::Decoration::Offset,
+                       RENDERAREA_LAYOUT_OFFSET);
+        MemberName(push_constant_struct, render_are_member_index, "render_area");
+    }
     const Id pointer_type{TypePointer(spv::StorageClass::PushConstant, push_constant_struct)};
     rescaling_push_constants = AddGlobalVariable(pointer_type, spv::StorageClass::PushConstant);
+    if (info.uses_render_area) {
+        render_area_push_constant = rescaling_push_constants;
+    }
     Name(rescaling_push_constants, "rescaling_push_constants");
 
     if (profile.supported_spirv >= 0x00010400) {
@@ -1276,7 +1288,7 @@ void EmitContext::DefineInputAttachments(const Info& info, u32& binding) {
 }
 
 void EmitContext::DefineRenderArea(const Info& info) {
-    if (!info.uses_render_area) {
+    if (!info.uses_render_area || Sirit::ValidId(render_area_push_constant)) {
         return;
     }
 
@@ -1291,7 +1303,8 @@ void EmitContext::DefineRenderArea(const Info& info) {
         Decorate(push_constant_struct, spv::Decoration::Block);
         Name(push_constant_struct, "RenderAreaInfo");
 
-        MemberDecorate(push_constant_struct, render_are_member_index, spv::Decoration::Offset, 0);
+        MemberDecorate(push_constant_struct, render_are_member_index, spv::Decoration::Offset,
+                       RENDERAREA_LAYOUT_OFFSET);
         MemberName(push_constant_struct, render_are_member_index, "render_area");
 
         const Id pointer_type{TypePointer(spv::StorageClass::PushConstant, push_constant_struct)};
