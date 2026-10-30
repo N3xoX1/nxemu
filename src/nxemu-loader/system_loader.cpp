@@ -267,6 +267,11 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     g_settings->SetString(NXCoreSetting::GameName, title.c_str());
     g_settings->SetString(NXCoreSetting::GameFile, fileName);
     g_settings->SetBool(NXCoreSetting::EmulationRunning, true);
+    if (g_settings->GetInt(NXCoreSetting::GpuInitializationState) == (int32_t)GpuInitializationState::Failed)
+    {
+        LOG_ERROR(Core, "GPU initialization failed; not starting the application process");
+        return false;
+    }
 
     // TODO(DarkLordZach): When FSController/Game Card Support is added, if
     // current_process_game_card use correct StorageId
