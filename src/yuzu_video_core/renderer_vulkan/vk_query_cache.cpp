@@ -1378,9 +1378,11 @@ void QueryCacheRuntime::HostConditionalRenderingCompareValueImpl(VideoCommon::Lo
         impl->hcr_buffer = buffer->Handle();
         impl->hcr_offset = offset;
     }
+    const VkConditionalRenderingFlagsEXT flags =
+        is_equal ? VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT : 0;
     if (impl->hcr_is_set) {
         if (impl->hcr_setup.buffer == impl->hcr_buffer &&
-            impl->hcr_setup.offset == impl->hcr_offset) {
+            impl->hcr_setup.offset == impl->hcr_offset && impl->hcr_setup.flags == flags) {
             ResumeHostConditionalRendering();
             return;
         }
@@ -1388,7 +1390,7 @@ void QueryCacheRuntime::HostConditionalRenderingCompareValueImpl(VideoCommon::Lo
     }
     impl->hcr_setup.buffer = impl->hcr_buffer;
     impl->hcr_setup.offset = impl->hcr_offset;
-    impl->hcr_setup.flags = is_equal ? VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT : 0;
+    impl->hcr_setup.flags = flags;
     impl->hcr_is_set = true;
     impl->is_hcr_running = false;
     ResumeHostConditionalRendering();
@@ -1471,13 +1473,12 @@ bool QueryCacheRuntime::HostConditionalRenderingCompareValues(VideoCommon::Looku
     }
 
     const bool is_gpu_high = Settings::IsGPULevelHigh();
-    if (!is_gpu_high && impl->device.GetDriverID() == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS) {
-        return true;
-    }
-
-    auto driver_id = impl->device.GetDriverID();
-    if (driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
+    const auto driver_id = impl->device.GetDriverID();
+    if ((!is_gpu_high && driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS) ||
+        driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
         driver_id == VK_DRIVER_ID_ARM_PROPRIETARY || driver_id == VK_DRIVER_ID_MESA_TURNIP) {
+        // Do not let an earlier host condition leak into the guest's fast path.
+        EndHostConditionalRendering();
         return true;
     }
 
@@ -1494,11 +1495,13 @@ bool QueryCacheRuntime::HostConditionalRenderingCompareValues(VideoCommon::Looku
     }
 
     if (!is_gpu_high) {
+        EndHostConditionalRendering();
         return true;
     }
 
     if (!is_in_bc[0] && !is_in_bc[1]) {
         // Both queries are in query cache, it's best to just flush.
+        EndHostConditionalRendering();
         return true;
     }
     HostConditionalRenderingCompareBCImpl(object_1.address, equal_check);
