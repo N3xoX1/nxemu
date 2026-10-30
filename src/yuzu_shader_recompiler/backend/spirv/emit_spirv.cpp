@@ -96,7 +96,7 @@ void Invoke(EmitContext& ctx, IR::Inst* inst) {
     }
 }
 
-void EmitInst(EmitContext& ctx, IR::Inst* inst) {
+void EmitInst(EmitContext& ctx, IR::Inst* inst) try {
     switch (inst->GetOpcode()) {
 #define OPCODE(name, result_type, ...)                                                             \
     case IR::Opcode::name:                                                                         \
@@ -105,6 +105,9 @@ void EmitInst(EmitContext& ctx, IR::Inst* inst) {
 #undef OPCODE
     }
     throw LogicError("Invalid opcode {}", inst->GetOpcode());
+} catch (Exception& exception) {
+    exception.Prepend(fmt::format("SPIR-V opcode {}: ", inst->GetOpcode()));
+    throw;
 }
 
 Id TypeId(const EmitContext& ctx, IR::Type type) {

@@ -86,3 +86,34 @@ set_tests_properties(test_image_slice_copies PROPERTIES LABELS unit TIMEOUT 120)
 add_executable(test_nce_written_ranges nce_written_ranges/written_ranges.cpp)
 target_include_directories(test_nce_written_ranges PRIVATE "${CMAKE_SOURCE_DIR}/src")
 nxemu_unit_test(test_nce_written_ranges)
+
+add_executable(test_storage_pointer_tracking
+    storage_pointer_tracking/loops.cpp
+    "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/global_memory_to_storage_buffer_pass.cpp")
+target_include_directories(test_storage_pointer_tracking PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_storage_pointer_tracking PRIVATE shader_recompiler yuzu_common)
+if(NOT MSVC)
+    target_compile_options(test_storage_pointer_tracking PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_storage_pointer_tracking PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_storage_pointer_tracking)
+
+add_executable(test_empty_storage_warnings storage_pointer_tracking/empty_warnings.cpp)
+target_include_directories(test_empty_storage_warnings PRIVATE "${CMAKE_SOURCE_DIR}/src")
+nxemu_unit_test(test_empty_storage_warnings)
+
+add_executable(test_surface_atomic_arrays surface_atomic_arrays/coordinates.cpp)
+target_include_directories(test_surface_atomic_arrays PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_surface_atomic_arrays PRIVATE shader_recompiler yuzu_common)
+nxemu_unit_test(test_surface_atomic_arrays)
+
+add_executable(test_alpha_to_coverage_dither alpha_to_coverage_dither/dither.cpp)
+target_include_directories(test_alpha_to_coverage_dither PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/externals/SPIRV-Headers/include")
+add_dependencies(test_alpha_to_coverage_dither shader_recompiler sirit fmt common)
+target_link_libraries(test_alpha_to_coverage_dither PRIVATE nxemu_test_support
+    $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
+nxemu_unit_test(test_alpha_to_coverage_dither)

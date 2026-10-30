@@ -438,7 +438,16 @@ std::optional<StorageBufferAddr> TrackImpl(const IR::Value& value, const Bias* b
                 bool mismatch = false;
                 const size_t begin = inst->GetOpcode() == IR::Opcode::SelectU32 ? 1 : 0;
                 for (size_t arg = begin; arg < inst->NumArgs(); ++arg) {
-                    const auto branch = TrackImpl(inst->Arg(arg), bias, indirect_pointer, state);
+                    const auto& incoming = inst->Arg(arg);
+                    // Phi(base, self) preserves the incoming pointer across the loop.
+                    // Ignore only identity copies of this exact phi; arithmetic,
+                    // mutually recursive merges and loaded pointers remain conservative.
+                    // At least one non-self incoming edge must establish a common base.
+                    if (inst->GetOpcode() == IR::Opcode::Phi && !incoming.IsImmediate() &&
+                        incoming.InstRecursive() == inst) {
+                        continue;
+                    }
+                    const auto branch = TrackImpl(incoming, bias, indirect_pointer, state);
                     if (!branch || (common && *common != *branch)) {
                         mismatch = true;
                         break;

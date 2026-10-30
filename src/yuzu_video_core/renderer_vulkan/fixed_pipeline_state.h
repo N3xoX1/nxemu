@@ -32,6 +32,13 @@ struct DynamicFeatures {
 
 struct FixedPipelineState {
     static u32 PackComparisonOp(Maxwell::ComparisonOp op) noexcept;
+
+    /// Single-sample targets cannot represent the 2x2 alpha-to-coverage dither: the fragment
+    /// shader emulates it and host alpha-to-coverage is disabled.
+    bool EmulatesAlphaToCoverageDither() const noexcept {
+        return alpha_to_coverage_enabled != 0 && alpha_to_coverage_dither != 0 &&
+               msaa_mode == Tegra::Texture::MsaaMode::Msaa1x1;
+    }
     static Maxwell::ComparisonOp UnpackComparisonOp(u32 packed) noexcept;
 
     static u32 PackStencilOp(Maxwell::StencilOp::Op op) noexcept;
@@ -221,6 +228,7 @@ struct FixedPipelineState {
         BitField<16, 1, u32> alpha_to_one_enabled;
         BitField<17, 3, Tegra::Engines::Maxwell3D::EngineHint> app_stage;
         BitField<20, 1, u32> vertex_stride_workaround;
+        BitField<21, 1, u32> alpha_to_coverage_dither;
     };
     std::array<u8, Maxwell::NumRenderTargets> color_formats;
 
