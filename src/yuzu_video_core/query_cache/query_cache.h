@@ -283,21 +283,29 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         }
         impl->pending_unregister.push_back(query_location);
     });
+    // Fast readback publishes payloads at submission, like ordinary fences, even when the
+    // report is a fence: waiting for the host GPU here serializes the guest with it.
+    // A fence still submits the pending readbacks now, as ordinary fences do, and the
+    // slot stays alive until the GPU work submitted with it retires.
+    if (!Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload) {
+        if (has_timestamp) {
+            u64 timestamp = impl->gpu.GetTicks();
+            u64 value = static_cast<u64>(payload);
+            std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
+            std::memcpy(pointer, &value, sizeof(value));
+        } else {
+            std::memcpy(pointer, &payload, sizeof(payload));
+        }
+        impl->rasterizer.SyncOperation(
+            [streamer, new_query_id] { streamer->Free(new_query_id); });
+        if (is_fence) {
+            impl->rasterizer.SignalReference();
+        }
+        return;
+    }
     if (is_fence) {
         impl->rasterizer.SignalFence(std::move(operation));
     } else {
-        if (!Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload) {
-            if (has_timestamp) {
-                u64 timestamp = impl->gpu.GetTicks();
-                u64 value = static_cast<u64>(payload);
-                std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
-                std::memcpy(pointer, &value, sizeof(value));
-            } else {
-                std::memcpy(pointer, &payload, sizeof(payload));
-            }
-            streamer->Free(new_query_id);
-            return;
-        }
         impl->rasterizer.SyncOperation(std::move(operation));
     }
     auto [cont_addr, base] = gen_caching_indexing(cpu_addr);
