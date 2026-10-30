@@ -457,6 +457,9 @@ void VisitUsages(Info& info, IR::Inst& inst) {
         break;
     case IR::Opcode::SetFragColor:
         info.stores_frag_color[inst.Arg(0).U32()] = true;
+        if (inst.Arg(1).U32() == 3) {
+            info.stores_frag_alpha[inst.Arg(0).U32()] = true;
+        }
         break;
     case IR::Opcode::SetSampleMask:
         info.stores_sample_mask = true;

@@ -2130,10 +2130,21 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         }
     }
     if (!aligned_device_addr || size == 0) {
-        LOG_WARNING(HW_GPU,
-                    "Failed to find storage buffer: cbuf={}, descriptor={:#x}, address={:#x}, "
-                    "requested={}, contiguous={}",
-                    cbuf_index, ssbo_addr, gpu_addr, requested_size, size);
+        if (gpu_addr == 0 && requested_size == 0) {
+            const u64 occurrence = empty_storage_warnings.Observe(
+                {ssbo_addr, cbuf_index, cbuf_offset, is_written});
+            if (occurrence != 0) {
+                LOG_WARNING(HW_GPU,
+                            "Empty storage buffer: cbuf={}, offset={:#x}, descriptor={:#x}, "
+                            "written={}, occurrence={} (identical repeats are throttled)",
+                            cbuf_index, cbuf_offset, ssbo_addr, is_written, occurrence);
+            }
+        } else {
+            LOG_WARNING(HW_GPU,
+                        "Failed to find storage buffer: cbuf={}, offset={:#x}, descriptor={:#x}, "
+                        "address={:#x}, requested={}, contiguous={}",
+                        cbuf_index, cbuf_offset, ssbo_addr, gpu_addr, requested_size, size);
+        }
         return NULL_BINDING;
     }
     const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);

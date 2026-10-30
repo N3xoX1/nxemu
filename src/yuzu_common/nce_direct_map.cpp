@@ -3,6 +3,8 @@
 
 #if defined(__APPLE__)
 
+#include <algorithm>
+#include <limits>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 #include <sys/mman.h>
@@ -41,6 +43,25 @@ T* AllocateTable(size_t count) {
     void* table = mmap(nullptr, count * sizeof(T), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
                        -1, 0);
     return table == MAP_FAILED ? nullptr : static_cast<T*>(table);
+}
+
+// Page-table operations may cover the whole guest address space, including
+// holes outside the native reservations. Visit only their intersections with
+// the two windows; the original address is retained for relative backing offsets.
+template <typename States, typename Func>
+void ForEachWindowRange(States& states, u64 address, u64 size, Func&& visit) {
+    if (size > std::numeric_limits<u64>::max() - address) {
+        LOG_ERROR(HW_Memory, "NCE: overflowing guest range at {:#x}, size {:#x}", address, size);
+        return;
+    }
+    const u64 end = address + size;
+    for (auto& state : states) {
+        const u64 begin = std::max(address, state.window.start);
+        const u64 clipped_end = std::min(end, state.window.end);
+        if (begin < clipped_end) {
+            visit(state, begin, clipped_end);
+        }
+    }
 }
 
 } // namespace
@@ -144,63 +165,58 @@ std::atomic<u64>* NceDirectMap::GuestEntry(u64 address) const {
     return nullptr;
 }
 
-NceDirectMap::WindowState* NceDirectMap::FindWindow(u64 address) {
-    for (WindowState& state : states) {
-        if (address >= state.window.start && address < state.window.end) {
-            return &state;
-        }
-    }
-    return nullptr;
-}
-
 void NceDirectMap::Map(u64 address, u64 backing_offset, u64 size, u32 perm) {
     std::scoped_lock lk{mutex};
-    for (u64 offset = 0; offset < size; offset += GuestPageSize) {
-        if (std::atomic<u64>* guest = GuestEntry(address + offset)) {
-            guest->store(Mapped | (backing_offset + offset) | (perm & PermMask),
-                         std::memory_order_relaxed);
+    ForEachWindowRange(states, address, size, [&](WindowState& state, u64 begin, u64 end) {
+        for (u64 page = begin; page < end; page += GuestPageSize) {
+            auto& guest = state.guest[(page - state.window.start) / GuestPageSize];
+            guest.store(Mapped | (backing_offset + page - address) | (perm & PermMask),
+                        std::memory_order_relaxed);
         }
-    }
-    Update(address, size);
+        Update(state, begin, end);
+    });
 }
 
 void NceDirectMap::Unmap(u64 address, u64 size) {
     std::scoped_lock lk{mutex};
-    for (u64 offset = 0; offset < size; offset += GuestPageSize) {
-        if (std::atomic<u64>* guest = GuestEntry(address + offset)) {
-            guest->store(0, std::memory_order_relaxed);
+    ForEachWindowRange(states, address, size, [&](WindowState& state, u64 begin, u64 end) {
+        for (u64 page = begin; page < end; page += GuestPageSize) {
+            state.guest[(page - state.window.start) / GuestPageSize].store(
+                0, std::memory_order_relaxed);
         }
-    }
-    Update(address, size);
+        Update(state, begin, end);
+    });
 }
 
 void NceDirectMap::Protect(u64 address, u64 size, u32 perm) {
     std::scoped_lock lk{mutex};
-    for (u64 offset = 0; offset < size; offset += GuestPageSize) {
-        if (std::atomic<u64>* guest = GuestEntry(address + offset)) {
-            const u64 value = guest->load(std::memory_order_relaxed);
+    ForEachWindowRange(states, address, size, [&](WindowState& state, u64 begin, u64 end) {
+        for (u64 page = begin; page < end; page += GuestPageSize) {
+            auto& guest = state.guest[(page - state.window.start) / GuestPageSize];
+            const u64 value = guest.load(std::memory_order_relaxed);
             if ((value & Mapped) != 0) {
-                guest->store((value & ~PermMask) | (perm & PermMask), std::memory_order_relaxed);
+                guest.store((value & ~PermMask) | (perm & PermMask), std::memory_order_relaxed);
             }
         }
-    }
-    Update(address, size);
+        Update(state, begin, end);
+    });
 }
 
 void NceDirectMap::SetAccessMask(u64 address, u64 size, u32 allowed) {
     // Only reads and writes are ever denied: execution needs no tracking.
     const u64 denied = static_cast<u64>(~allowed & (PermRead | PermWrite)) << DenyShift;
     std::scoped_lock lk{mutex};
-    for (u64 offset = 0; offset < size; offset += GuestPageSize) {
-        if (std::atomic<u64>* guest = GuestEntry(address + offset)) {
-            const u64 value = guest->load(std::memory_order_relaxed);
+    ForEachWindowRange(states, address, size, [&](WindowState& state, u64 begin, u64 end) {
+        for (u64 page = begin; page < end; page += GuestPageSize) {
+            auto& guest = state.guest[(page - state.window.start) / GuestPageSize];
+            const u64 value = guest.load(std::memory_order_relaxed);
             if ((value & Mapped) != 0) {
-                guest->store((value & ~(PermMask << DenyShift)) | denied,
-                             std::memory_order_release);
+                guest.store((value & ~(PermMask << DenyShift)) | denied,
+                            std::memory_order_release);
             }
         }
-    }
-    Update(address, size);
+        Update(state, begin, end);
+    });
 }
 
 bool NceDirectMap::AccessAllowed(u64 address, bool write) const {
@@ -233,12 +249,11 @@ bool NceDirectMap::HostAccessAllowed(u64 address, bool write) const {
     return false;
 }
 
-void NceDirectMap::Update(u64 address, u64 size) {
+void NceDirectMap::Update(WindowState& state, u64 begin, u64 end) {
     if (atomic_table) {
-        for (u64 page = address; page < address + size; page += GuestPageSize) {
-            const auto* guest = GuestEntry(page);
-            if (!guest) continue;
-            const u64 value = guest->load(std::memory_order_relaxed);
+        for (u64 page = begin; page < end; page += GuestPageSize) {
+            const u64 value = state.guest[(page - state.window.start) / GuestPageSize].load(
+                std::memory_order_relaxed);
             u64 translated = 0;
             if (value & Mapped) {
                 const u64 permissions = (value & PermMask) & ~((value >> DenyShift) & PermMask);
@@ -248,18 +263,7 @@ void NceDirectMap::Update(u64 address, u64 size) {
             atomic_table[page / GuestPageSize].store(translated, std::memory_order_release);
         }
     }
-
-    const u64 end = address + size;
-    while (address < end) {
-        WindowState* state = FindWindow(address);
-        if (state == nullptr) {
-            LOG_ERROR(HW_Memory, "NCE: guest address {:#x} is outside the guest windows", address);
-            return;
-        }
-        const u64 window_end = std::min(end, state->window.end);
-        UpdateWindow(*state, address, window_end);
-        address = window_end;
-    }
+    UpdateWindow(state, begin, end);
 }
 
 void NceDirectMap::UpdateWindow(WindowState& state, u64 begin, u64 end) {
