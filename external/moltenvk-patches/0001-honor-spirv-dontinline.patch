@@ -1,0 +1,42 @@
+diff --git a/Scripts/spirv-cross-dontinline.patch b/Scripts/spirv-cross-dontinline.patch
+new file mode 100644
+index 00000000..e014464c
+--- /dev/null
++++ b/Scripts/spirv-cross-dontinline.patch
+@@ -0,0 +1,18 @@
++diff --git a/spirv_msl.cpp b/spirv_msl.cpp
++index 21232ee8..935896c9 100644
++--- a/spirv_msl.cpp
+++++ b/spirv_msl.cpp
++@@ -12406,7 +12406,12 @@ void CompilerMSL::emit_function_prototype(SPIRFunction &func, const Bitset &)
++ 
++ 	// Metal helper functions must be static force-inline otherwise they will cause problems when linked together in a single Metallib.
++ 	if (!processing_entry_point)
++-		statement(force_inline);
+++	{
+++		if (func.function_control & spv::FunctionControlDontInlineMask)
+++			statement("static __attribute__((noinline))");
+++		else
+++			statement(force_inline);
+++	}
++ 
++ 	auto &type = get<SPIRType>(func.return_type);
++ 
+diff --git a/fetchDependencies b/fetchDependencies
+index cee348f7..9a946d78 100755
+--- a/fetchDependencies
++++ b/fetchDependencies
+@@ -342,6 +342,13 @@ else
+ 	update_repo ${REPO_NAME} ${REPO_URL} ${REPO_REV}
+ fi
+ 
++# Preserve explicit SPIR-V noinline on large memory helpers before building the library.
++# update_repo resets SPIRV-Cross above, so this must run after its checkout.
++SPIRV_CROSS_DONTINLINE_PATCH="$(pwd)/../Scripts/spirv-cross-dontinline.patch"
++if ! git -C "${REPO_NAME}" apply --reverse --check "${SPIRV_CROSS_DONTINLINE_PATCH}" 2>/dev/null; then
++    git -C "${REPO_NAME}" apply "${SPIRV_CROSS_DONTINLINE_PATCH}"
++fi
++
+ 
+ # ----------------- SPIRV-Tools -------------------
+ 

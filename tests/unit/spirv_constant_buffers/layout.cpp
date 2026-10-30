@@ -59,6 +59,7 @@ static void GlobalMemoryLoads(bool aliasing, bool molten) {
     profile.support_int64 = true;
     profile.support_descriptor_aliasing = aliasing;
     profile.disable_uniform_buffer_descriptor_aliasing = molten;
+    profile.avoid_global_memory_helper_inlining = molten;
     profile.min_ssbo_alignment = 16;
     Shader::RuntimeInfo runtime{};
     Shader::IR::Program program{};
@@ -77,12 +78,16 @@ static void GlobalMemoryLoads(bool aliasing, bool molten) {
     Shader::Backend::SPIRV::EmitContext context(profile, runtime, program, bindings);
     const auto words = context.Assemble();
     std::map<u32, unsigned> loads;
+    std::map<u32, u32> function_controls;
     u32 function = 0;
     for (size_t i = 5; i < words.size();) {
         const auto count = words[i] >> 16;
         assert(count != 0 && i + count <= words.size());
         const auto op = static_cast<spv::Op>(words[i] & 0xffff);
-        if (op == spv::Op::OpFunction) function = words[i + 2];
+        if (op == spv::Op::OpFunction) {
+            function = words[i + 2];
+            function_controls[function] = words[i + 3];
+        }
         if (op == spv::Op::OpLoad) ++loads[function];
         if (op == spv::Op::OpFunctionEnd) function = 0;
         i += count;
@@ -91,6 +96,12 @@ static void GlobalMemoryLoads(bool aliasing, bool molten) {
     assert(loads[context.load_global_func_u32.value] >= 3);
     assert(loads[context.load_global_func_u32x2.value] >= 3);
     assert(loads[context.load_global_func_u32x4.value] >= 3);
+    for (const auto function : {context.load_global_func_u32, context.load_global_func_u32x2,
+                                context.load_global_func_u32x4, context.write_global_func_u32,
+                                context.write_global_func_u32x2, context.write_global_func_u32x4}) {
+        assert(function_controls.at(function.value) == static_cast<u32>(
+            molten ? spv::FunctionControlMask::DontInline : spv::FunctionControlMask::MaskNone));
+    }
 }
 
 void TestRuntimeTextureFetch();

@@ -81,7 +81,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.NXEMU_MOLTENVK_CACHE_DIR }}
-          key: macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
+          key: macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'external/moltenvk-patches/*.patch', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
 
       - name: Reset compiler cache statistics
         run: ccache --zero-stats
