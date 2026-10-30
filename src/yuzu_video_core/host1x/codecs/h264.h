@@ -4,6 +4,7 @@
 #pragma once
 
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "yuzu_common/bit_field.h"
@@ -70,7 +71,13 @@ public:
                                                    size_t* out_configuration_size,
                                                    bool is_first_frame = false);
 
+    [[nodiscard]] std::pair<u32, u32> GetFrameDimensions() const {
+        return {frame_width, frame_height};
+    }
+
 private:
+    u32 frame_width{};
+    u32 frame_height{};
     Common::ScratchBuffer<u8> frame;
     Common::ScratchBuffer<u8> scan;
     Host1x::Host1x& host1x;
