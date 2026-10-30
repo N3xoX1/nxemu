@@ -21,6 +21,8 @@ private:
     SystemModules(const SystemModules &) = delete;
     SystemModules & operator=(const SystemModules &) = delete;
 
+    bool CreateModules();
+
     struct Impl;
     std::unique_ptr<Impl> impl;
 };
