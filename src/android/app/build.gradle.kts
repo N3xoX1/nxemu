@@ -49,6 +49,7 @@ android {
         externalNativeBuild {
             cmake {
                 arguments("-DANDROID_ARM_NEON=true")
+                arguments("-DNXEMU_ENABLE_ANDROID_MEDIACODEC=${providers.gradleProperty("nxemuEnableAndroidMediacodec").getOrElse("ON")}")
                 // Gradle's worker limit does not limit Ninja's compilation jobs.
                 arguments("-DNXEMU_COMPILE_JOBS=${providers.environmentVariable("NXEMU_BUILD_JOBS").getOrElse("2")}")
                 providers.environmentVariable("NXEMU_THINLTO_CACHE_DIR").orNull?.let {
