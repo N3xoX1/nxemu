@@ -1,0 +1,38 @@
+# Descriptor-table regression and benchmark
+
+`test_descriptor_table` verifies snapshot lifetime, guest-memory mutation between
+passes, table relocation, invalidation, and dense-table fallback. Assertions remain
+enabled in Release.
+
+It also checks fragmented mappings, an unaligned first page, span-read fallback,
+canonical null entries with nonzero auxiliary words, and empty-block classification
+after scalar writes. Each snapshot must remain unchanged if guest memory changes
+after capture. Differential trials cover contiguous, fragmented and copied memory.
+
+`test_descriptor_writer` checks retained Vulkan descriptor contents against a fresh
+reference, including sampler/layout changes, null runs, partial-block writes and
+shrink/regrow. Comparisons use Vulkan fields, never structure padding.
+
+Build the optional `benchmark_descriptor_table` target and run it directly. Its CSV
+compares the frozen scalar lookup algorithm from master against the production
+DescriptorTable, using tables of 128, 4096 and 524288 entries. Stride 0 is empty,
+1024 populates one entry in 1024, and 1 is dense. Every pass changes a descriptor;
+checksums must match. Five trials alternate execution order and report medians.
+The span-mode CSV column is 0 for copied reads, 1 for a contiguous span and 2 for
+fragmented page mappings.
+
+`benchmark_descriptor_writer` compares clear/fill/compare with the retained writer.
+Both implementations must agree on final descriptors and content-change counts.
+It includes long null runs, sparse valid entries and mutations between draws.
+
+From the repository root, using a configured build directory:
+
+```powershell
+cmake --build build/windows-x64 --config Release --target test_descriptor_table test_descriptor_writer benchmark_descriptor_table benchmark_descriptor_writer --parallel 2
+ctest --test-dir build/windows-x64 -C Release -R '^test_descriptor_(table|writer)$' --output-on-failure
+```
+
+The stub memory manager uses an out-of-line read function and ordinary host RAM.
+It does not model GPU address translation, Vulkan driver work, or the image cache.
+These are lookup microbenchmarks, not game-FPS predictions. Dense lookup should be
+evaluated separately from the sparse-table workload found in Nikoderiko.

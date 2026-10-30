@@ -789,12 +789,19 @@ void TextureCache<P>::FillImageViews(DescriptorTable<TICEntry>& table,
     // index would read the same descriptor and find the same view, so it reuses the result.
     // Nothing is kept across passes: guest memory may change between them.
     const bool skip_repeats = views.size() >= 64;
+    const bool batch_table = views.size() >= 4096 &&
+                            std::ranges::any_of(views, [](const auto& view) { return view.is_table; });
     if (skip_repeats && visited_pass.size() <= table.Limit()) {
         visited_pass.resize(size_t{table.Limit()} + 1, 0);
         visited_view_ids.resize(visited_pass.size());
     }
     bool has_blacklisted = false;
     do {
+        struct BatchScope {
+            DescriptorTable<TICEntry>& table;
+            bool active;
+            ~BatchScope() { if (active) table.EndReadBatch(); }
+        } batch_scope{table, batch_table && table.BeginReadBatch()};
         has_deleted_images = false;
         if constexpr (has_blacklists) {
             has_blacklisted = false;
@@ -803,7 +810,50 @@ void TextureCache<P>::FillImageViews(DescriptorTable<TICEntry>& table,
             std::ranges::fill(visited_pass, 0);
             current_visit_pass = 1;
         }
-        for (ImageViewInOut& view : views) {
+        for (size_t position = 0; position < views.size();) {
+            ImageViewInOut& view = views[position];
+            constexpr size_t block_size = DescriptorTable<TICEntry>::BATCH_BLOCK_ENTRIES;
+            // Direct tables enumerate consecutive TIC indices. Resolve whole empty
+            // blocks together instead of executing the lookup machinery 128 times.
+            if (batch_scope.active && view.is_table && view.index % block_size == 0 &&
+                position + block_size <= views.size() &&
+                views[position + block_size - 1].is_table &&
+                views[position + block_size - 1].index == view.index + block_size - 1 &&
+                (table.BatchBlockEmpty(view.index) ||
+                 (table.BatchBlockUnchanged(view.index) &&
+                  std::all_of(cached_image_view_ids.begin() + view.index,
+                              cached_image_view_ids.begin() + view.index + block_size,
+                              [](ImageViewId id) { return id == NULL_IMAGE_VIEW_ID; })))) {
+                if (table.BatchBlockEmpty(view.index) && !table.BatchBlockUnchanged(view.index)) {
+                    table.CommitBatchBlock(view.index);
+                    std::fill_n(cached_image_view_ids.begin() + view.index, block_size, NULL_IMAGE_VIEW_ID);
+                }
+                for (auto& empty_view : views.subspan(position, block_size)) {
+                    empty_view.id = NULL_IMAGE_VIEW_ID;
+                }
+                position += block_size;
+                continue;
+            }
+            ++position;
+            // Null TIC addresses cannot denote an image (IsValidEntry rejects them).
+            // Large runtime tables are mostly empty; avoid touching the slot cache
+            // and constructing views for those entries, while preserving every index.
+            if (batch_table) {
+                const auto* descriptor = table.BatchedDescriptor(view.index);
+                if (descriptor && descriptor->Address() == 0) {
+                    if (!table.BatchEntryUnchanged(view.index)) {
+                        table.CommitBatchEntry(view.index);
+                        cached_image_view_ids[view.index] = NULL_IMAGE_VIEW_ID;
+                    }
+                    view.id = NULL_IMAGE_VIEW_ID;
+                    continue;
+                }
+                if (descriptor && table.BatchEntryUnchanged(view.index) &&
+                    cached_image_view_ids[view.index] == NULL_IMAGE_VIEW_ID) {
+                    view.id = NULL_IMAGE_VIEW_ID;
+                    continue;
+                }
+            }
             // A deletion or rescale erases views mid-pass, so the stored results may be gone.
             // The pass is repeated anyway; visit the rest of it without reusing them.
             if (skip_repeats && !has_deleted_images && view.index <= table.Limit()) {

@@ -3,6 +3,32 @@ function(nxemu_unit_test name)
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
 
+add_executable(test_descriptor_table descriptor_table/batch.cpp)
+target_include_directories(test_descriptor_table BEFORE PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/descriptor_table/stubs" "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_descriptor_table PRIVATE cxx_std_20)
+target_compile_options(test_descriptor_table PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+nxemu_unit_test(test_descriptor_table)
+
+add_executable(test_descriptor_writer descriptor_table/writer.cpp)
+target_include_directories(test_descriptor_writer PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_descriptor_writer PRIVATE Vulkan::Headers)
+target_compile_features(test_descriptor_writer PRIVATE cxx_std_20)
+target_compile_options(test_descriptor_writer PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+nxemu_unit_test(test_descriptor_writer)
+
+add_executable(benchmark_descriptor_writer EXCLUDE_FROM_ALL descriptor_table/writer_benchmark.cpp)
+target_include_directories(benchmark_descriptor_writer PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(benchmark_descriptor_writer PRIVATE Vulkan::Headers)
+target_compile_features(benchmark_descriptor_writer PRIVATE cxx_std_20)
+
+add_executable(benchmark_descriptor_table EXCLUDE_FROM_ALL descriptor_table/benchmark.cpp)
+target_include_directories(benchmark_descriptor_table BEFORE PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/descriptor_table/stubs" "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(benchmark_descriptor_table PRIVATE cxx_std_20)
+
 # Host thread state and Host1x syncpoint cancellation, under ASan and UBSan.
 add_executable(test_session_lifecycle
     session_lifecycle/test_session_lifecycle.cpp
@@ -34,6 +60,9 @@ nxemu_unit_test(test_startup_wait)
 # bring a second definition of the logging functions.
 add_executable(test_spirv_constant_buffers spirv_constant_buffers/layout.cpp
     spirv_constant_buffers/runtime_fetch.cpp)
+target_compile_options(test_spirv_constant_buffers PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+target_compile_definitions(test_spirv_constant_buffers PRIVATE FMT_HEADER_ONLY)
 target_include_directories(test_spirv_constant_buffers PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
     "${CMAKE_SOURCE_DIR}/external/sirit/include"

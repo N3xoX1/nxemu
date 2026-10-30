@@ -9,11 +9,13 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include "yuzu_video_core/renderer_vulkan/descriptor_table_writer.h"
 
 #include <boost/container/small_vector.hpp>
 #include <boost/container/static_vector.hpp>
@@ -281,6 +283,10 @@ private:
 
     // Used only by the GPU thread; queued commands use GuestDescriptorQueue's own copies.
     boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
+    bool direct_views_initialized{};
+    bool filter_feedback_views{};
+    std::vector<size_t> feedback_view_indices;
+    std::vector<VideoCommon::ImageViewInOut> feedback_views;
     boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
     std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
 
@@ -301,6 +307,8 @@ private:
     boost::container::small_vector<VkDescriptorSetLayoutBinding, 4> texture_table_bindings;
     // Used only by the GPU thread
     std::vector<VkDescriptorImageInfo> texture_table_scratch;
+    DescriptorTableWriterState texture_table_writer_state;
+    std::optional<bool> texture_table_change_hint;
     std::shared_ptr<const std::vector<VkDescriptorImageInfo>> texture_table_data;
     u64 texture_table_tick{};
     u64 texture_table_version{};

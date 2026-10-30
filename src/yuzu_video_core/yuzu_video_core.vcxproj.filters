@@ -493,6 +493,9 @@
     <ClInclude Include="renderer_vulkan\pipeline_helper.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_table_writer.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
     <ClInclude Include="renderer_vulkan\pipeline_statistics.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>

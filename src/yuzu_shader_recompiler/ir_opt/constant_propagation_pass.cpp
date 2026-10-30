@@ -89,6 +89,31 @@ bool FoldWhenAllImmediates(IR::Inst& inst, Func&& func) {
     return true;
 }
 
+void FoldBitFieldUExtract(IR::Inst& inst) {
+    if (!inst.AreAllArgsImmediates() ||
+        inst.GetAssociatedPseudoOperation(IR::Opcode::GetCarryFromOp) ||
+        inst.GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp)) {
+        return;
+    }
+    const u32 base = inst.Arg(0).U32();
+    const u32 shift = inst.Arg(1).U32();
+    const u32 count = inst.Arg(2).U32();
+    if (shift > 32 || count > 32 - shift) {
+        throw LogicError("Undefined result in {}({}, {}, {})", IR::Opcode::BitFieldUExtract,
+                         base, shift, count);
+    }
+    const u32 result = count == 0 ? 0 : (base >> shift) & (~u32{0} >> (32 - count));
+    // These flags describe the extracted 32-bit result, as in the GPU backend.
+    // Resolve them before replacing the parent instruction that owns them.
+    if (auto* zero = inst.GetAssociatedPseudoOperation(IR::Opcode::GetZeroFromOp)) {
+        zero->ReplaceUsesWith(IR::Value{result == 0});
+    }
+    if (auto* sign = inst.GetAssociatedPseudoOperation(IR::Opcode::GetSignFromOp)) {
+        sign->ReplaceUsesWith(IR::Value{(result & 0x80000000U) != 0});
+    }
+    inst.ReplaceUsesWith(IR::Value{result});
+}
+
 /// Return true when all values in a range are equal
 template <typename Range>
 bool AreEqual(const Range& range) {
@@ -1021,14 +1046,7 @@ void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
         FoldWhenAllImmediates(inst, [](u32 a, u32 b) { return a ^ b; });
         return;
     case IR::Opcode::BitFieldUExtract:
-        FoldWhenAllImmediates(inst, [](u32 base, u32 shift, u32 count) {
-            if (static_cast<size_t>(shift) + static_cast<size_t>(count) > 32) {
-                throw LogicError("Undefined result in {}({}, {}, {})", IR::Opcode::BitFieldUExtract,
-                                 base, shift, count);
-            }
-            return (base >> shift) & ((1U << count) - 1);
-        });
-        return;
+        return FoldBitFieldUExtract(inst);
     case IR::Opcode::BitFieldSExtract:
         FoldWhenAllImmediates(inst, [](s32 base, u32 shift, u32 count) {
             const size_t back_shift{static_cast<size_t>(shift) + static_cast<size_t>(count)};

@@ -18,6 +18,7 @@
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 #include "yuzu_video_core/renderer_vulkan/descriptor_limits.h"
+#include "yuzu_video_core/renderer_vulkan/descriptor_table_writer.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "yuzu_video_core/texture_cache/types.h"
@@ -367,7 +368,12 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
                                  const Shader::Info& info, RescalingPushConstant& rescaling,
                                  const VideoCommon::SamplerId*& samplers,
                                  const VideoCommon::ImageViewInOut*& views,
-                                 std::vector<VkDescriptorImageInfo>* texture_table = nullptr) {
+                                 std::vector<VkDescriptorImageInfo>* texture_table = nullptr,
+                                 DescriptorTableWriter* table_writer = nullptr) {
+    const auto append_table = [&](const VkDescriptorImageInfo& entry) {
+        if (table_writer) table_writer->Append(entry);
+        else texture_table->push_back(entry);
+    };
     const u32 num_texture_buffers = Shader::NumDescriptors(info.texture_buffer_descriptors);
     const u32 num_image_buffers = Shader::NumDescriptors(info.image_buffer_descriptors);
     views += num_texture_buffers;
@@ -378,20 +384,44 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
             // Every table entry is bound, whatever it holds. Entries that the image type of
             // the shader cannot view are replaced by the null image view.
             ImageView& null_view{texture_cache.GetImageView(VideoCommon::NULL_IMAGE_VIEW_ID)};
-            for (u32 index = 0; index < desc.count; ++index) {
-                ImageView& image_view{texture_cache.GetImageView((views++)->id)};
+            const VkImageView null_handle = null_view.Handle(desc.type);
+            const VkDescriptorImageInfo null_entry{VK_NULL_HANDLE, null_handle, VK_IMAGE_LAYOUT_GENERAL};
+            const size_t table_start = table_writer ? table_writer->Reserve(desc.count, null_entry)
+                                                   : texture_table->size();
+            if (!table_writer) texture_table->resize(table_start + desc.count, null_entry);
+            for (u32 position = 0; position < desc.count;) {
+                constexpr u32 block_size = DescriptorTableWriter::BLOCK_ENTRIES;
+                if (table_writer && (table_start + position) % block_size == 0 &&
+                    position + block_size <= desc.count &&
+                    std::all_of(views, views + block_size, [](const auto& view) {
+                        return view.id == VideoCommon::NULL_IMAGE_VIEW_ID;
+                    })) {
+                    table_writer->WriteRun(table_start + position, block_size, null_entry);
+                    position += block_size;
+                    views += block_size;
+                    continue;
+                }
+                const u32 index = position++;
+                const auto id = (views++)->id;
+                if (id == VideoCommon::NULL_IMAGE_VIEW_ID) {
+                    if (table_writer) table_writer->Write(table_start + index, null_entry);
+                    continue;
+                }
+                ImageView& image_view{texture_cache.GetImageView(id)};
                 VkImageView vk_image_view{image_view.Handle(desc.type)};
                 if (vk_image_view == VK_NULL_HANDLE ||
                     VideoCore::Surface::IsPixelFormatInteger(image_view.format)) {
-                    vk_image_view = null_view.Handle(desc.type);
+                    vk_image_view = null_handle;
                 } else {
                     is_rescaled |= texture_cache.IsRescaling(image_view);
                 }
-                texture_table->push_back({
+                const VkDescriptorImageInfo entry{
                     .sampler = VK_NULL_HANDLE,
                     .imageView = vk_image_view,
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                });
+                };
+                if (table_writer) table_writer->Write(table_start + index, entry);
+                else (*texture_table)[table_start + index] = entry;
             }
             rescaling.PushTexture(is_rescaled);
             continue;
@@ -407,7 +437,7 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
             const VkSampler vk_sampler{use_fallback_sampler ? sampler.HandleWithDefaultAnisotropy()
                                                             : sampler.Handle()};
             if (desc.in_table_set) {
-                texture_table->push_back({
+                append_table({
                     .sampler = vk_sampler,
                     .imageView = vk_image_view,
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -437,7 +467,7 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
     for (u32 index = 0; index < info.runtime_sampler_count; ++index) {
         const Sampler& sampler{texture_cache.GetSampler(texture_cache.GetGraphicsSamplerId(index))};
         // The sampled image is unknown here, so the guest anisotropy is kept as is.
-        texture_table->push_back({
+        append_table({
             .sampler = sampler.HasAddedAnisotropy() ? sampler.HandleWithDefaultAnisotropy()
                                                     : sampler.Handle(),
             .imageView = VK_NULL_HANDLE,

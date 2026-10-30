@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <cassert>
+#include <cstdio>
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
@@ -33,6 +34,81 @@ public:
     }
     void Dump(u64, u64) override {}
 };
+
+void ConstantBitfieldFlags() {
+    using namespace Shader;
+    for (const u32 base : {0U, 7U, 8U, 0x80000000U, 0xFFFFFFFFU}) {
+        for (u32 shift = 0; shift <= 32; ++shift) {
+            for (u32 count = 0; count <= 32 - shift; ++count) {
+                ObjectPool<IR::Inst> pool;
+                IR::Block block{pool};
+                IR::IREmitter ir{block};
+                const auto value = ir.BitFieldExtract(ir.Imm32(base), ir.Imm32(shift), ir.Imm32(count), false);
+                const auto zero = ir.GetZeroFromOp(value);
+                const auto sign = ir.GetSignFromOp(value);
+                IR::Program program{};
+                program.blocks = {&block};
+                program.post_order_blocks = {&block};
+                FetchEnvironment env;
+                try {
+                    Optimization::ConstantPropagationPass(env, program);
+                } catch (const std::exception& error) {
+                    std::fprintf(stderr, "base=%u shift=%u count=%u: %s\n", base, shift, count, error.what());
+                    throw;
+                }
+                // Independent bit-by-bit reference, including zero/full-width cases.
+                u32 expected{};
+                for (u32 bit = 0; bit < count; ++bit)
+                    expected |= ((base >> (shift + bit)) & 1U) << bit;
+                assert(value.Resolve().IsImmediate() && value.Resolve().U32() == expected);
+                assert(zero.Resolve().IsImmediate() && zero.Resolve().U1() == (expected == 0));
+                assert(sign.Resolve().IsImmediate() && sign.Resolve().U1() == ((expected >> 31) != 0));
+            }
+        }
+    }
+}
+
+void FlaggedPredicateHandle(bool propagate) {
+    using namespace Shader;
+    ObjectPool<IR::Inst> pool;
+    IR::Block entry{pool}, sampled{pool}, end{pool};
+    IR::IREmitter ir{entry}, body{sampled};
+    const auto predicate = ir.INotEqual(ir.GetAttributeU32(IR::Attribute::Generic0X), ir.Imm32(0));
+    const auto source = ir.GetCbuf(ir.Imm32(2), ir.Imm32(384));
+    const auto handle = ir.Select(predicate, source, ir.Imm32(0xDEADBEEF));
+    // Captured Nikoderiko pattern: BFE(7, 3, 1) is zero, but its live zero flag
+    // used to prevent folding. The repeated predicate then appeared unrelated.
+    const auto extracted = ir.BitFieldExtract(ir.Imm32(7), ir.Imm32(3), ir.Imm32(1), false);
+    const IR::U1 selected{ir.Select(ir.GetZeroFromOp(extracted), predicate, ir.Imm1(false))};
+    IR::TextureInstInfo flags{};
+    flags.type.Assign(TextureType::Color2D);
+    const auto sample = body.ImageSampleImplicitLod(handle,
+        body.CompositeConstruct(body.Imm32(0.0f), body.Imm32(0.0f)), body.Imm32(0.0f), {}, {}, flags);
+    IR::Program program{};
+    program.stage = Stage::Fragment;
+    program.blocks = {&entry, &sampled, &end};
+    program.post_order_blocks = {&end, &sampled, &entry};
+    using Node = IR::AbstractSyntaxNode;
+    program.syntax_list = {
+        {.data = {.block = &entry}, .type = Node::Type::Block},
+        {.data = {.if_node = {selected, &sampled, &end}}, .type = Node::Type::If},
+        {.data = {.block = &sampled}, .type = Node::Type::Block},
+        {.data = {.end_if = {&end}}, .type = Node::Type::EndIf},
+        {.data = {.block = &end}, .type = Node::Type::Block},
+    };
+    FetchEnvironment env;
+    HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = 32;
+    if (propagate) Optimization::ConstantPropagationPass(env, program);
+    Optimization::TexturePass(env, program, host);
+    assert(sample.Inst()->GetOpcode() == IR::Opcode::ImageSampleImplicitLod);
+    assert(program.info.texture_descriptors.size() == 1);
+    const auto& descriptor = program.info.texture_descriptors.front();
+    assert(descriptor.is_direct == !propagate);
+    assert(descriptor.count == (propagate ? 1U : 16U));
+    if (propagate) assert(descriptor.cbuf_index == 2 && descriptor.cbuf_offset == 384);
+}
 
 void RuntimeFetch(bool has_pool, u32 budget, bool succeeds) {
     Shader::ObjectPool<Shader::IR::Inst> pool;
@@ -126,6 +202,9 @@ void ImpossibleUniformFetch(bool same_word, bool uniform = true) {
 } // namespace
 
 void TestRuntimeTextureFetch() {
+    ConstantBitfieldFlags();
+    FlaggedPredicateHandle(false);
+    FlaggedPredicateHandle(true);
     RuntimeFetch(true, 32, false); // Reachable unknown handles must not allocate the full TIC table.
     RuntimeFetch(false, 32, false);
     RuntimeFetch(true, 8, false);

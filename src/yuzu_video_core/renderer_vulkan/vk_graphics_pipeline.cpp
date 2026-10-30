@@ -759,9 +759,12 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         for (const auto& desc : info.texture_descriptors) {
             if (desc.is_direct) {
                 // The shader indexes the texture table itself
-                for (u32 index = 0; index < desc.count; ++index) {
-                    views[view_index++] = {.index = index, .is_table = true};
+                if (!direct_views_initialized) {
+                    for (u32 index = 0; index < desc.count; ++index) {
+                        views[view_index + index] = {.index = index, .is_table = true};
+                    }
                 }
+                view_index += desc.count;
                 continue;
             }
             if (stage == NUM_STAGES - 1 && !attachment_read_kinds.empty() &&
@@ -812,6 +815,18 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     }
     ASSERT(view_index == views.size());
     ASSERT(sampler_index == samplers.size());
+    if (!direct_views_initialized && views.size() >= 4096) {
+        filter_feedback_views = std::ranges::any_of(views, [](const auto& view) { return view.is_table; });
+        if (filter_feedback_views) {
+            for (size_t index = 0; index < views.size(); ++index) {
+                if (!views[index].is_table) feedback_view_indices.push_back(index);
+            }
+            feedback_views.resize(feedback_view_indices.size());
+        }
+    }
+    // The descriptor layout is immutable for this pipeline. FillGraphicsImageViews
+    // refreshes IDs every draw without changing these direct-table indices.
+    direct_views_initialized = true;
     texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
     attachment_reads = attachment_read_kinds.empty()
                            ? Shader::Backend::SPIRV::NO_ATTACHMENT_READS
@@ -876,7 +891,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     }
 
     guest_descriptor_queue.Acquire(num_descriptor_entries);
-    texture_table_scratch.clear();
+    DescriptorTableWriter table_writer{texture_table_scratch, &texture_table_writer_state};
 
     RescalingPushConstant rescaling;
     RenderAreaPushConstant render_area;
@@ -885,7 +900,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     const auto prepare_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
         buffer_cache.BindHostStageBuffers(stage);
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage], rescaling,
-                             samplers_it, views_it, &texture_table_scratch);
+                             samplers_it, views_it, &texture_table_scratch, &table_writer);
         const auto& info{stage_infos[stage]};
         if (info.uses_render_area) {
             render_area.uses_render_area = true;
@@ -916,8 +931,19 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                                                : image_view.Handle(Shader::TextureType::Color2D));
         }
     }
+    table_writer.Finish();
+    texture_table_change_hint = table_writer.Changed();
     texture_cache.UpdateRenderTargets(false);
-    texture_cache.CheckFeedbackLoop(views);
+    if (filter_feedback_views) {
+        // CheckFeedbackLoop already excludes every direct-table entry. Keep
+        // its ordinary views in the same order without rescanning that table.
+        for (size_t index = 0; index < feedback_views.size(); ++index) {
+            feedback_views[index] = views[feedback_view_indices[index]];
+        }
+        texture_cache.CheckFeedbackLoop(feedback_views);
+    } else {
+        texture_cache.CheckFeedbackLoop(views);
+    }
     ConfigureDraw(rescaling, render_area);
 }
 
@@ -1675,10 +1701,17 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
         const auto same_entry{[](const VkDescriptorImageInfo& lhs, const VkDescriptorImageInfo& rhs) {
             return lhs.sampler == rhs.sampler && lhs.imageView == rhs.imageView;
         }};
-        if (!texture_table_data || texture_table_tick != tick ||
-            !std::ranges::equal(texture_table_scratch, *texture_table_data, same_entry)) {
+        const bool table_changed = !texture_table_data ||
+            (texture_table_change_hint ? *texture_table_change_hint :
+             !std::ranges::equal(texture_table_scratch, *texture_table_data, same_entry));
+        texture_table_change_hint.reset();
+        if (table_changed) {
             texture_table_data =
                 std::make_shared<const std::vector<VkDescriptorImageInfo>>(texture_table_scratch);
+        }
+        // A new tick still allocates a fresh descriptor set on the worker, but
+        // identical immutable host data can be shared with the preceding tick.
+        if (table_changed || texture_table_tick != tick) {
             texture_table_tick = tick;
             ++texture_table_version;
         }
