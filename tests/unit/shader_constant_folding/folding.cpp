@@ -47,14 +47,25 @@ struct Fixture {
     IR::Block block{pool};
     IR::Program program;
     Environment env;
+    std::vector<IR::Inst*> allocated;
 
     Fixture() {
         program.blocks.push_back(&block);
         program.post_order_blocks.push_back(&block);
     }
 
+    ~Fixture() {
+        // ObjectPool's union storage does not call the contained Inst destructors.
+        // Include instructions removed by cleanup passes, not just the current block list.
+        block.Instructions().clear();
+        for (IR::Inst* inst : allocated) {
+            std::destroy_at(inst);
+        }
+    }
+
     IR::Inst& Add(IR::Opcode opcode, std::initializer_list<IR::Value> args) {
         block.AppendNewInst(opcode, args);
+        allocated.push_back(&block.back());
         return block.back();
     }
 
