@@ -89,6 +89,96 @@ bool FoldWhenAllImmediates(IR::Inst& inst, Func&& func) {
     return true;
 }
 
+bool CanFoldWithZeroSign(IR::Inst& inst) {
+    return !inst.GetAssociatedPseudoOperation(IR::Opcode::GetCarryFromOp) &&
+           !inst.GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp);
+}
+
+void ReplaceU32WithZeroSign(IR::Inst& inst, u32 result) {
+    // These flags describe the 32-bit result, as in the GPU backend.
+    // Resolve them before replacing the parent instruction that owns them.
+    if (auto* zero = inst.GetAssociatedPseudoOperation(IR::Opcode::GetZeroFromOp)) {
+        zero->ReplaceUsesWith(IR::Value{result == 0});
+    }
+    if (auto* sign = inst.GetAssociatedPseudoOperation(IR::Opcode::GetSignFromOp)) {
+        sign->ReplaceUsesWith(IR::Value{(result & 0x80000000U) != 0});
+    }
+    inst.ReplaceUsesWith(IR::Value{result});
+}
+
+template <typename Func>
+bool FoldWhenAllImmediatesWithZeroSign(IR::Inst& inst, Func&& func) {
+    if (!inst.AreAllArgsImmediates() || !CanFoldWithZeroSign(inst)) {
+        return false;
+    }
+    using Indices = std::make_index_sequence<LambdaTraits<decltype(func)>::NUM_ARGS>;
+    ReplaceU32WithZeroSign(inst, EvalImmediates(inst, func, Indices{}).U32());
+    return true;
+}
+
+void FoldBitwise32(IR::Inst& inst) {
+    if (!CanFoldWithZeroSign(inst)) {
+        return;
+    }
+    const IR::Value lhs = inst.Arg(0).Resolve();
+    const IR::Value rhs = inst.Arg(1).Resolve();
+    const bool both_immediate = lhs.IsImmediate() && rhs.IsImmediate();
+    u32 result{};
+    switch (inst.GetOpcode()) {
+    case IR::Opcode::BitwiseAnd32:
+        if (lhs == IR::Value{0U} || rhs == IR::Value{0U}) {
+            result = 0;
+        } else if (both_immediate) {
+            result = lhs.U32() & rhs.U32();
+        } else {
+            return;
+        }
+        break;
+    case IR::Opcode::BitwiseOr32:
+        if (lhs == IR::Value{0xffffffffU} || rhs == IR::Value{0xffffffffU}) {
+            result = 0xffffffffU;
+        } else if (both_immediate) {
+            result = lhs.U32() | rhs.U32();
+        } else {
+            return;
+        }
+        break;
+    case IR::Opcode::BitwiseXor32:
+        if (both_immediate) {
+            result = lhs.U32() ^ rhs.U32();
+        } else if (lhs == rhs && lhs.Inst()->GetOpcode() != IR::Opcode::UndefU32) {
+            // Only the same resolved SSA definition qualifies, not equivalent-looking reads.
+            result = 0;
+        } else {
+            return;
+        }
+        break;
+    default:
+        return;
+    }
+    ReplaceU32WithZeroSign(inst, result);
+}
+
+void FoldBitFieldExtract(IR::Inst& inst, bool is_signed) {
+    FoldWhenAllImmediatesWithZeroSign(inst, [&](u32 base, u32 shift, u32 count) -> u32 {
+        if (shift > 32 || count > 32 - shift) {
+            throw LogicError("Undefined result in {}({}, {}, {})", inst.GetOpcode(), base, shift,
+                             count);
+        }
+        // A zero-width field is zero even at offset 32. Avoid any shifts by 32.
+        if (count == 0) {
+            return 0;
+        }
+        const u32 result = (base >> shift) & (~u32{0} >> (32 - count));
+        if (!is_signed) {
+            return result;
+        }
+        // Extend the field's sign using unsigned arithmetic, including count == 32.
+        const u32 sign_bit = 1U << (count - 1);
+        return (result ^ sign_bit) - sign_bit;
+    });
+}
+
 /// Return true when all values in a range are equal
 template <typename Range>
 bool AreEqual(const Range& range) {
@@ -1012,35 +1102,13 @@ void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
         FoldWhenAllImmediates(inst, [](u32 a, u32 b) { return a != b; });
         return;
     case IR::Opcode::BitwiseAnd32:
-        FoldWhenAllImmediates(inst, [](u32 a, u32 b) { return a & b; });
-        return;
     case IR::Opcode::BitwiseOr32:
-        FoldWhenAllImmediates(inst, [](u32 a, u32 b) { return a | b; });
-        return;
     case IR::Opcode::BitwiseXor32:
-        FoldWhenAllImmediates(inst, [](u32 a, u32 b) { return a ^ b; });
-        return;
+        return FoldBitwise32(inst);
     case IR::Opcode::BitFieldUExtract:
-        FoldWhenAllImmediates(inst, [](u32 base, u32 shift, u32 count) {
-            if (static_cast<size_t>(shift) + static_cast<size_t>(count) > 32) {
-                throw LogicError("Undefined result in {}({}, {}, {})", IR::Opcode::BitFieldUExtract,
-                                 base, shift, count);
-            }
-            return (base >> shift) & ((1U << count) - 1);
-        });
-        return;
+        return FoldBitFieldExtract(inst, false);
     case IR::Opcode::BitFieldSExtract:
-        FoldWhenAllImmediates(inst, [](s32 base, u32 shift, u32 count) {
-            const size_t back_shift{static_cast<size_t>(shift) + static_cast<size_t>(count)};
-            const size_t left_shift{32 - back_shift};
-            const size_t right_shift{static_cast<size_t>(32 - count)};
-            if (back_shift > 32 || left_shift >= 32 || right_shift >= 32) {
-                throw LogicError("Undefined result in {}({}, {}, {})", IR::Opcode::BitFieldSExtract,
-                                 base, shift, count);
-            }
-            return static_cast<u32>((base << left_shift) >> right_shift);
-        });
-        return;
+        return FoldBitFieldExtract(inst, true);
     case IR::Opcode::BitFieldInsert:
         FoldWhenAllImmediates(inst, [](u32 base, u32 insert, u32 offset, u32 bits) {
             if (bits >= 32 || offset >= 32) {
