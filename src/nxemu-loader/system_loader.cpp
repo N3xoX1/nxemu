@@ -198,7 +198,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     if (!impl->m_appLoader)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
 
@@ -208,7 +208,7 @@ bool Systemloader::LoadRom(const char * fileName, uint64_t program_id, int32_t p
     if (file_type == LoaderFileType::Unknown || file_type == LoaderFileType::Error)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
-        g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
         return false;
     }
     uint64_t loaded_program_id = 0;
