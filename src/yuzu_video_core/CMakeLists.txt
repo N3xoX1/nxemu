@@ -247,7 +247,6 @@ add_library(video_core STATIC
     renderer_vulkan/maxwell_to_vk.cpp
     renderer_vulkan/maxwell_to_vk.h
     renderer_vulkan/pipeline_helper.h
-    renderer_vulkan/descriptor_table_writer.h
     renderer_vulkan/pipeline_statistics.cpp
     renderer_vulkan/pipeline_statistics.h
     renderer_vulkan/renderer_vulkan.h

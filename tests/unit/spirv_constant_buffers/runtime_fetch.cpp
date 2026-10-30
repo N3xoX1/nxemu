@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <cassert>
-#include <cstdio>
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
@@ -50,12 +49,7 @@ void ConstantBitfieldFlags() {
                 program.blocks = {&block};
                 program.post_order_blocks = {&block};
                 FetchEnvironment env;
-                try {
-                    Optimization::ConstantPropagationPass(env, program);
-                } catch (const std::exception& error) {
-                    std::fprintf(stderr, "base=%u shift=%u count=%u: %s\n", base, shift, count, error.what());
-                    throw;
-                }
+                Optimization::ConstantPropagationPass(env, program);
                 // Independent bit-by-bit reference, including zero/full-width cases.
                 u32 expected{};
                 for (u32 bit = 0; bit < count; ++bit)
@@ -68,18 +62,29 @@ void ConstantBitfieldFlags() {
     }
 }
 
-void FlaggedPredicateHandle(bool propagate) {
+void FlaggedPredicateHandle(bool propagate, bool merged_predicate = false) {
     using namespace Shader;
     ObjectPool<IR::Inst> pool;
-    IR::Block entry{pool}, sampled{pool}, end{pool};
-    IR::IREmitter ir{entry}, body{sampled};
+    IR::Block entry{pool}, left{pool}, merge{pool}, left_again{pool}, merge_again{pool}, sampled{pool}, end{pool};
+    IR::IREmitter ir{entry}, left_ir{left}, body{sampled};
     const auto predicate = ir.INotEqual(ir.GetAttributeU32(IR::Attribute::Generic0X), ir.Imm32(0));
     const auto source = ir.GetCbuf(ir.Imm32(2), ir.Imm32(384));
     const auto handle = ir.Select(predicate, source, ir.Imm32(0xDEADBEEF));
     // Captured Nikoderiko pattern: BFE(7, 3, 1) is zero, but its live zero flag
     // used to prevent folding. The repeated predicate then appeared unrelated.
-    const auto extracted = ir.BitFieldExtract(ir.Imm32(7), ir.Imm32(3), ir.Imm32(1), false);
-    const IR::U1 selected{ir.Select(ir.GetZeroFromOp(extracted), predicate, ir.Imm1(false))};
+    auto& predicate_ir = merged_predicate ? left_ir : ir;
+    const auto extracted = predicate_ir.BitFieldExtract(ir.Imm32(7), ir.Imm32(3), ir.Imm32(1), false);
+    const IR::U1 selected{predicate_ir.Select(predicate_ir.GetZeroFromOp(extracted), predicate, ir.Imm1(false))};
+    IR::U1 condition = selected;
+    if (merged_predicate) {
+        auto first = merge.PrependNewInst(merge.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U1));
+        first->AddPhiOperand(&entry, predicate);
+        first->AddPhiOperand(&left, selected);
+        auto second = merge_again.PrependNewInst(merge_again.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U1));
+        second->AddPhiOperand(&merge, IR::Value{&*first});
+        second->AddPhiOperand(&left_again, IR::Value{&*first});
+        condition = IR::U1{IR::Value{&*second}};
+    }
     IR::TextureInstInfo flags{};
     flags.type.Assign(TextureType::Color2D);
     const auto sample = body.ImageSampleImplicitLod(handle,
@@ -91,11 +96,30 @@ void FlaggedPredicateHandle(bool propagate) {
     using Node = IR::AbstractSyntaxNode;
     program.syntax_list = {
         {.data = {.block = &entry}, .type = Node::Type::Block},
-        {.data = {.if_node = {selected, &sampled, &end}}, .type = Node::Type::If},
+        {.data = {.if_node = {condition, &sampled, &end}}, .type = Node::Type::If},
         {.data = {.block = &sampled}, .type = Node::Type::Block},
         {.data = {.end_if = {&end}}, .type = Node::Type::EndIf},
         {.data = {.block = &end}, .type = Node::Type::Block},
     };
+    if (merged_predicate) {
+        program.blocks = {&entry, &left, &merge, &left_again, &merge_again, &sampled, &end};
+        program.post_order_blocks = {&end, &sampled, &merge_again, &left_again, &merge, &left, &entry};
+        program.syntax_list = {
+            {.data = {.block = &entry}, .type = Node::Type::Block},
+            {.data = {.if_node = {predicate, &left, &merge}}, .type = Node::Type::If},
+            {.data = {.block = &left}, .type = Node::Type::Block},
+            {.data = {.end_if = {&merge}}, .type = Node::Type::EndIf},
+            {.data = {.block = &merge}, .type = Node::Type::Block},
+            {.data = {.if_node = {predicate, &left_again, &merge_again}}, .type = Node::Type::If},
+            {.data = {.block = &left_again}, .type = Node::Type::Block},
+            {.data = {.end_if = {&merge_again}}, .type = Node::Type::EndIf},
+            {.data = {.block = &merge_again}, .type = Node::Type::Block},
+            {.data = {.if_node = {condition, &sampled, &end}}, .type = Node::Type::If},
+            {.data = {.block = &sampled}, .type = Node::Type::Block},
+            {.data = {.end_if = {&end}}, .type = Node::Type::EndIf},
+            {.data = {.block = &end}, .type = Node::Type::Block},
+        };
+    }
     FetchEnvironment env;
     HostTranslateInfo host{};
     host.support_separate_sampler = true;
@@ -108,6 +132,52 @@ void FlaggedPredicateHandle(bool propagate) {
     assert(descriptor.is_direct == !propagate);
     assert(descriptor.count == (propagate ? 1U : 16U));
     if (propagate) assert(descriptor.cbuf_index == 2 && descriptor.cbuf_offset == 384);
+    if (merged_predicate) {
+        assert(merge.front().GetOpcode() == IR::Opcode::Phi);
+        assert(merge_again.front().GetOpcode() == IR::Opcode::Phi);
+    }
+}
+
+void PredicatePhiFacts() {
+    using namespace Shader;
+    for (unsigned mode = 0; mode < 4; ++mode) {
+        ObjectPool<IR::Inst> pool;
+        IR::Block entry{pool}, header{pool}, body{pool}, chosen{pool}, latch{pool}, end{pool};
+        IR::IREmitter ir{entry};
+        const auto original = ir.INotEqual(ir.GetAttributeU32(IR::Attribute::Generic0X), ir.Imm32(0));
+        const auto other = ir.INotEqual(ir.GetAttributeU32(IR::Attribute::Generic0Y), ir.Imm32(0));
+        auto phi = header.PrependNewInst(header.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U1));
+        phi->AddPhiOperand(&entry, original);
+        IR::Value incoming = original;
+        if (mode == 1) incoming = other;
+        if (mode == 2) incoming = IR::Value{&*phi};
+        if (mode == 3) incoming = IR::Value{&*latch.PrependNewInst(latch.end(), IR::Opcode::UndefU1)};
+        phi->AddPhiOperand(&latch, incoming);
+        const IR::U1 condition{IR::Value{&*phi}};
+        IR::Program program{};
+        program.blocks = {&entry, &header, &body, &chosen, &latch, &end};
+        using Node = IR::AbstractSyntaxNode;
+        program.syntax_list = {
+            {.data = {.block = &entry}, .type = Node::Type::Block},
+            {.data = {.block = &header}, .type = Node::Type::Block},
+            {.data = {.loop = {&body, &latch, &end}}, .type = Node::Type::Loop},
+            {.data = {.block = &body}, .type = Node::Type::Block},
+            {.data = {.if_node = {condition, &chosen, &latch}}, .type = Node::Type::If},
+            {.data = {.block = &chosen}, .type = Node::Type::Block},
+            {.data = {.end_if = {&latch}}, .type = Node::Type::EndIf},
+            {.data = {.block = &latch}, .type = Node::Type::Block},
+            {.data = {.repeat = {ir.Imm1(false), &header, &end}}, .type = Node::Type::Repeat},
+            {.data = {.block = &end}, .type = Node::Type::Block},
+        };
+        Optimization::ConditionalValueResolver resolver{program};
+        resolver.BeginBlock(&chosen);
+        assert(resolver.CrossesLoop(&*phi));
+        const auto truth = resolver.Truth(original);
+        if (mode == 0) assert(truth && *truth);
+        else assert(!truth);
+        assert(phi->GetOpcode() == IR::Opcode::Phi && phi->NumArgs() == 2);
+        assert(phi->Arg(0) == original && phi->Arg(1) == incoming);
+    }
 }
 
 void RuntimeFetch(bool has_pool, u32 budget, bool succeeds) {
@@ -205,6 +275,9 @@ void TestRuntimeTextureFetch() {
     ConstantBitfieldFlags();
     FlaggedPredicateHandle(false);
     FlaggedPredicateHandle(true);
+    FlaggedPredicateHandle(false, true);
+    FlaggedPredicateHandle(true, true);
+    PredicatePhiFacts();
     RuntimeFetch(true, 32, false); // Reachable unknown handles must not allocate the full TIC table.
     RuntimeFetch(false, 32, false);
     RuntimeFetch(true, 8, false);

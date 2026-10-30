@@ -275,11 +275,40 @@ private:
         return {opcode, lhs, rhs};
     }
 
+    // Prove identical boolean inputs without rewriting SSA or consulting facts
+    // from the use block. Cycles, undefined and distinct inputs stay opaque.
+    static IR::Value TrivialPredicatePhi(IR::Value value,
+        std::unordered_map<const IR::Inst*, IR::Value>& cache, unsigned depth = 0)
+    {
+        value = value.Resolve();
+        const auto* inst = value.TryInstRecursive();
+        if (!inst) return value;
+        if (inst->GetOpcode() == IR::Opcode::UndefU1) return {};
+        if (inst->GetOpcode() != IR::Opcode::Phi) return value;
+        if (value.Type() != IR::Type::U1 || depth >= 64) return {};
+        if (!cache.emplace(inst, IR::Value{}).second) return cache.at(inst);
+        IR::Value same;
+        for (size_t index = 0; index < inst->NumArgs(); ++index) {
+            const auto input = TrivialPredicatePhi(inst->Arg(index), cache, depth + 1);
+            if (input.IsEmpty() || (!same.IsEmpty() && same != input)) return {};
+            same = input;
+        }
+        cache[inst] = same;
+        return same;
+    }
+
     static std::pair<IR::Value, bool> Normalize(IR::Value value)
     {
         bool negated{};
         while (const auto * inst = value.TryInstRecursive())
         {
+            if (inst->GetOpcode() == IR::Opcode::Phi) {
+                std::unordered_map<const IR::Inst*, IR::Value> cache;
+                const auto input = TrivialPredicatePhi(value, cache);
+                if (input.IsEmpty()) break;
+                value = input;
+                continue;
+            }
             if (inst->GetOpcode() == IR::Opcode::IEqual || inst->GetOpcode() == IR::Opcode::INotEqual)
             {
                 IR::Value constant = inst->Arg(0).Resolve();

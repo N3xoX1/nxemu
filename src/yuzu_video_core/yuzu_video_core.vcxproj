@@ -165,7 +165,6 @@
     <ClInclude Include="renderer_vulkan\fixed_pipeline_state.h" />
     <ClInclude Include="renderer_vulkan\maxwell_to_vk.h" />
     <ClInclude Include="renderer_vulkan\pipeline_helper.h" />
-    <ClInclude Include="renderer_vulkan\descriptor_table_writer.h" />
     <ClInclude Include="renderer_vulkan\pipeline_statistics.h" />
     <ClInclude Include="renderer_vulkan\present\anti_alias_pass.h" />
     <ClInclude Include="renderer_vulkan\present\filters.h" />
