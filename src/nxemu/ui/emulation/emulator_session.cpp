@@ -244,6 +244,12 @@ bool EmulatorSession::ResetModules(bool gameStarting)
     m_notification.Close();
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     m_modules.ShutDown();
+    m_callbackContext.reset();
+    ++m_moduleGeneration;
+    {
+        std::lock_guard<std::mutex> lock(m_programEventsMutex);
+        m_programEvents.clear();
+    }
     m_modules.Setup(m_renderWindow);
     m_notification.BindWindow(m_window);
     if (!m_modules.IsValid())
