@@ -25,6 +25,9 @@ target_link_libraries(benchmark_descriptor_writer PRIVATE Vulkan::Headers)
 target_compile_features(benchmark_descriptor_writer PRIVATE cxx_std_20)
 
 add_executable(benchmark_descriptor_table EXCLUDE_FROM_ALL descriptor_table/benchmark.cpp)
+add_executable(benchmark_descriptor_compare EXCLUDE_FROM_ALL descriptor_table/compare_benchmark.cpp)
+target_include_directories(benchmark_descriptor_compare PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(benchmark_descriptor_compare PRIVATE cxx_std_20)
 target_include_directories(benchmark_descriptor_table BEFORE PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/descriptor_table/stubs" "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(benchmark_descriptor_table PRIVATE cxx_std_20)

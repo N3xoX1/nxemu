@@ -25,6 +25,12 @@ fragmented page mappings.
 Both implementations must agree on final descriptors and content-change counts.
 It includes long null runs, sparse valid entries and mutations between draws.
 
+`benchmark_descriptor_compare` isolates the comparison step: memcmp versus the
+production CPU-dispatched equality routine, over a 16 MiB table split into 4 KiB
+blocks. Seven trials alternate order and report medians. Aligned and unaligned
+inputs cover unchanged blocks and sparse/dense mismatches at the final byte;
+checksums must match. This measures comparison time, not frame rate.
+
 From the repository root, using a configured build directory:
 
 ```powershell

@@ -10,6 +10,7 @@
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/div_ceil.h"
+#include "yuzu_common/differential_memory_copy.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 
@@ -85,7 +86,7 @@ public:
             } else {
                 const void* incoming = source ? static_cast<const void*>(source + offset * sizeof(Descriptor))
                                               : static_cast<const void*>(batch.data() + offset);
-                batch_unchanged[block] = std::memcmp(incoming, descriptors.data() + offset, bytes) == 0;
+                batch_unchanged[block] = MemoryEqual(incoming, descriptors.data() + offset, bytes);
                 if (source && !batch_unchanged[block]) std::memcpy(batch.data() + offset, incoming, bytes);
             }
             const Descriptor* snapshot = batch_unchanged[block] ? descriptors.data() + offset
@@ -93,7 +94,7 @@ public:
             if (batch_unchanged[block] && canonical_empty_state[block] != 0) {
                 batch_empty[block] = canonical_empty_state[block] == 2;
             } else {
-                batch_empty[block] = std::memcmp(snapshot, empty.data(), bytes) == 0;
+                batch_empty[block] = MemoryEqual(snapshot, empty.data(), bytes);
                 if (batch_unchanged[block]) canonical_empty_state[block] = batch_empty[block] ? 2 : 1;
             }
         }
@@ -164,6 +165,11 @@ public:
     }
 
 private:
+    static bool MemoryEqual(const void* lhs, const void* rhs, size_t bytes) {
+        return Common::ReadbackMemoryEqual(static_cast<const unsigned char*>(lhs),
+                                           static_cast<const unsigned char*>(rhs), bytes);
+    }
+
     // A logical block can cross discontiguous GPU mappings. Check page-sized
     // segments without retaining their guest pointers. If any segment differs,
     // assemble a complete private snapshot, including the unchanged prefix/tail.
@@ -173,7 +179,7 @@ private:
             const size_t bytes = std::min(size - offset, size_t{4096} - size_t{(address + offset) & 4095});
             const u8* incoming = gpu_memory.GetSpan(address + offset, bytes);
             if (incoming) {
-                if (std::memcmp(incoming, previous + offset, bytes) != 0) {
+                if (!MemoryEqual(incoming, previous + offset, bytes)) {
                     if (!changed && offset) std::memcpy(output, previous, offset);
                     std::memcpy(output + offset, incoming, bytes);
                     changed = true;
@@ -182,7 +188,7 @@ private:
                 }
             } else {
                 gpu_memory.ReadBlockUnsafe(address + offset, output + offset, bytes);
-                if (std::memcmp(output + offset, previous + offset, bytes) != 0) {
+                if (!MemoryEqual(output + offset, previous + offset, bytes)) {
                     if (!changed && offset) std::memcpy(output, previous, offset);
                     changed = true;
                 }
