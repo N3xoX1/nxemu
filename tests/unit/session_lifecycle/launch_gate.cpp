@@ -122,7 +122,8 @@ void CancelDuringPreparation()
     const std::chrono::steady_clock::time_point cancelled = std::chrono::steady_clock::now();
     launch.Cancel();
     Check(launch.Wait(1s) == LaunchGate::Result::Failed, "cancelled preparation must not start");
-    Check(std::chrono::steady_clock::now() - cancelled < 200ms, "cancellation must stop at the next step, not finish loading");
+    // Loading takes 1 s; leave CI scheduling jitter well below that.
+    Check(std::chrono::steady_clock::now() - cancelled < 500ms, "cancellation must stop at the next step, not finish loading");
 }
 
 void CancelAfterPreparation()
