@@ -1631,9 +1631,10 @@ bool Memory::NceTrackReads(uint64_t vaddr) {
     static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
     const bool ready = impl->buffer->NceTrackedAccessAllowed(vaddr, false);
     // A native load can fault because a different 4 KiB page denies access to
-    // their shared 16 KiB host page. Already-current data needs no GPU readback;
-    // return false if the load must still be interpreted through its backing.
-    if (!ready) impl->DownloadNceHostPage(vaddr);
+    // their shared 16 KiB host page. Synchronize those neighbours too, as stores do:
+    // otherwise every later load of this page is interpreted. Return false if the
+    // load must still be interpreted through its backing.
+    if (!ready || !impl->buffer->NceHostAccessAllowed(vaddr, false)) impl->DownloadNceHostPage(vaddr);
     const bool host_ready = impl->buffer->NceHostAccessAllowed(vaddr, false);
     if (profile) {
         using Clock = std::chrono::steady_clock;
