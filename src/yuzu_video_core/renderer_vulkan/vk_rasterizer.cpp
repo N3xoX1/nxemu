@@ -723,6 +723,9 @@ void RasterizerVulkan::DispatchCompute() {
         const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
         const auto [buffer, offset] =
             buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
+        // The dispatch reads its parameters later in this command buffer. An upload reordered
+        // before it would replace parameters an earlier shader wrote.
+        buffer->MarkUsage(offset, 12);
         scheduler.RequestOutsideRenderPassOperationContext();
         scheduler.Record([pipeline, indirect_buffer = buffer->Handle(),
                           indirect_offset = offset](vk::CommandBuffer cmdbuf) {
