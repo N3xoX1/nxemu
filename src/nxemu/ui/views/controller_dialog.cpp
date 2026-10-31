@@ -263,7 +263,7 @@ int RangeValue(Rml::Element * element, int fallback)
 } // namespace
 
 ControllerDialog::ControllerDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir) :
-    Dialog(window.Context(), assetDir / "controller_dialog.rml", kSettingsNarrowBelow),
+    Dialog(window, assetDir / "controller_dialog.rml", kSettingsNarrowBelow, kSettingsWidth, kSettingsHeight),
     m_window(window),
     m_session(session)
 {

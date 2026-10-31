@@ -79,7 +79,7 @@ std::vector<uint8_t> ReadFile(const std::string & utf8Path)
 } // namespace
 
 ProfilesDialog::ProfilesDialog(UiWindow & window, EmulatorSession & session, const std::filesystem::path & assetDir, Host host) :
-    Dialog(window.Context(), assetDir / "profiles_dialog.rml", kSettingsNarrowBelow),
+    Dialog(window, assetDir / "profiles_dialog.rml", kSettingsNarrowBelow, kSettingsWidth, kSettingsHeight),
     m_window(window),
     m_session(session),
     m_host(std::move(host))
@@ -392,7 +392,7 @@ void ProfilesDialog::ChoosePicture()
     }
     const std::string filter = FileFilter({{Tr("Pictures"), "*.png;*.jpg;*.jpeg;*.bmp"}});
     Path selected;
-    if (!FileSelect(m_window.NativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
+    if (!FileSelect(m_window.FrontNativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
     {
         return;
     }

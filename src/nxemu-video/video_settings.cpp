@@ -17,7 +17,7 @@ namespace
 // Configuration storage stays on the settings thread; the GPU reads these snapshots.
 std::atomic<int32_t> runtime_dma_accuracy{0};
 std::atomic<bool> runtime_gpu_command_synchronization{false};
-std::atomic<bool> runtime_fast_gpu_readback{false};
+std::atomic<bool> runtime_fast_gpu_readback{true};
 }
 
 namespace Settings
@@ -254,7 +254,7 @@ static VideoSetting settings[] = {
 #endif
     {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2},
     {NXVideoSetting::GpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, false},
-    {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, false},
+    {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, true},
     {NXVideoSetting::VSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu},
 #ifdef _WIN32

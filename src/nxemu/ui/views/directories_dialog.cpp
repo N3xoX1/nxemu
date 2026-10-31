@@ -39,7 +39,7 @@ bool Exists(const std::string & directory)
 } // namespace
 
 DirectoriesDialog::DirectoriesDialog(UiWindow & window, GameLibrary & library, const std::filesystem::path & assetDir, Host host) :
-    Dialog(window.Context(), assetDir / "directories_dialog.rml", kSettingsNarrowBelow),
+    Dialog(window, assetDir / "directories_dialog.rml", kSettingsNarrowBelow, kSettingsWidth, kSettingsHeight),
     m_window(window),
     m_library(library),
     m_host(std::move(host))
@@ -118,7 +118,7 @@ void DirectoriesDialog::AddDirectory()
     {
         return;
     }
-    const Path selected = BrowseForDirectory(m_window.NativeHandle(), Tr("Choose a game directory").c_str());
+    const Path selected = BrowseForDirectory(m_window.FrontNativeHandle(), Tr("Choose a game directory").c_str());
     if (m_library.AddDirectory(static_cast<const char *>(selected)))
     {
         m_libraryChanged = true;

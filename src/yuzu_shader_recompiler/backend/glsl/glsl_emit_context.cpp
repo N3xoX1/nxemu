@@ -628,13 +628,16 @@ std::string EmitContext::DefineGlobalMemoryFunctions() {
     std::string load_func_128{"uvec4 LoadGlobal128(uint64_t addr){"};
     const size_t num_buffers{info.storage_buffers_descriptors.size()};
     for (size_t index = 0; index < num_buffers; ++index) {
-        // Indirect pointers can reference tracked buffers outside the NVN table too.
-        define_body(write_func, index, "{0}[uint(addr-{1})>>2]=data;return;}}");
-        define_body(write_func_64, index,
-                    "{0}[uint(addr-{1})>>2]=data.x;{0}[uint(addr-{1}+4)>>2]=data.y;return;}}");
-        define_body(write_func_128, index,
-                    "{0}[uint(addr-{1})>>2]=data.x;{0}[uint(addr-{1}+4)>>2]=data.y;{0}[uint("
-                    "addr-{1}+8)>>2]=data.z;{0}[uint(addr-{1}+12)>>2]=data.w;return;}}");
+        // Indirect reads can reference tracked buffers outside the NVN table too.
+        // Writes only reach buffers already known to be written.
+        if (info.storage_buffers_descriptors[index].is_written) {
+            define_body(write_func, index, "{0}[uint(addr-{1})>>2]=data;return;}}");
+            define_body(write_func_64, index,
+                        "{0}[uint(addr-{1})>>2]=data.x;{0}[uint(addr-{1}+4)>>2]=data.y;return;}}");
+            define_body(write_func_128, index,
+                        "{0}[uint(addr-{1})>>2]=data.x;{0}[uint(addr-{1}+4)>>2]=data.y;{0}[uint("
+                        "addr-{1}+8)>>2]=data.z;{0}[uint(addr-{1}+12)>>2]=data.w;return;}}");
+        }
         define_body(load_func, index, "return {0}[uint(addr-{1})>>2];}}");
         define_body(load_func_64, index,
                     "return uvec2({0}[uint(addr-{1})>>2],{0}[uint(addr-{1}+4)>>2]);}}");

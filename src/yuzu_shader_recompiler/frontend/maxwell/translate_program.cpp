@@ -92,9 +92,10 @@ void AddNVNStorageBuffers(IR::Program& program) {
     auto& info{program.info};
     auto& descs{info.storage_buffers_descriptors};
     for (auto& desc : descs) {
-        // Runtime global accesses may select any tracked buffer, including one
-        // outside the NVN table. Helpers also read its byte size at offset +8.
-        desc.is_written |= info.stores_global_memory;
+        // Runtime global reads may select any tracked buffer, including one outside
+        // the NVN table. Helpers also read its byte size at offset +8. Marking every
+        // buffer as written would make the GPU download buffers it only reads, over
+        // newer CPU writes.
         auto& used_size = info.constant_buffer_used_sizes[desc.cbuf_index];
         used_size = std::max(used_size, desc.cbuf_offset + 12);
     }

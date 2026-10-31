@@ -196,6 +196,9 @@ bool Maxwell3D::IsMethodExecutable(u32 method)
     case MAXWELL3D_REG_INDEX(topology_override):
     case MAXWELL3D_REG_INDEX(clear_surface):
     case MAXWELL3D_REG_INDEX(report_semaphore.query):
+    case MAXWELL3D_REG_INDEX(render_enable_override):
+    case MAXWELL3D_REG_INDEX(render_enable.address_high):
+    case MAXWELL3D_REG_INDEX(render_enable.address_low):
     case MAXWELL3D_REG_INDEX(render_enable.mode):
     case MAXWELL3D_REG_INDEX(clear_report_value):
     case MAXWELL3D_REG_INDEX(sync_info):
@@ -441,6 +444,16 @@ void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argume
         return ProcessCBBind(4);
     case MAXWELL3D_REG_INDEX(report_semaphore.query):
         return ProcessQueryGet();
+    case MAXWELL3D_REG_INDEX(render_enable.address_high):
+    case MAXWELL3D_REG_INDEX(render_enable.address_low):
+        if (regs.render_enable_override == Regs::RenderEnable::Override::UseRenderEnable &&
+            regs.render_enable.mode != Regs::RenderEnable::Mode::True &&
+            regs.render_enable.mode != Regs::RenderEnable::Mode::False)
+        {
+            ProcessQueryCondition();
+        }
+        return;
+    case MAXWELL3D_REG_INDEX(render_enable_override):
     case MAXWELL3D_REG_INDEX(render_enable.mode):
         return ProcessQueryCondition();
     case MAXWELL3D_REG_INDEX(clear_report_value):
@@ -610,6 +623,8 @@ void Maxwell3D::ProcessQueryGet()
 
 void Maxwell3D::ProcessQueryCondition()
 {
+    // Deferred instances still belong to the previous CPU and host predicate.
+    draw_manager->DrawDeferred();
     if (rasterizer->AccelerateConditionalRendering())
     {
         execute_on = true;

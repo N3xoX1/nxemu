@@ -3,6 +3,9 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Input.h>
+#include <cmath>
+#include <nxemu/ui/host/ui_dialog_window.h>
+#include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <yuzu_common/fs/fs_util.h>
 
@@ -18,6 +21,16 @@ Dialog::Dialog(Rml::Context * context, std::filesystem::path file, float narrowB
 {
 }
 
+Dialog::Dialog(UiWindow & window, std::filesystem::path file, float narrowBelow, int windowWidth, int windowHeight) :
+    m_context(window.Context()),
+    m_dialogWindow(window.DialogWindow()),
+    m_file(std::move(file)),
+    m_narrowBelow(narrowBelow),
+    m_windowWidth(windowWidth),
+    m_windowHeight(windowHeight)
+{
+}
+
 Dialog::~Dialog()
 {
     Close();
@@ -29,10 +42,18 @@ void Dialog::Show()
     {
         return;
     }
-    m_document = Translation::LoadDocument(*m_context, m_file);
+    const bool inDialogWindow = m_dialogWindow != nullptr && m_dialogWindow->Prepare();
+    m_document = Translation::LoadDocument(inDialogWindow ? *m_dialogWindow->Context() : *m_context, m_file);
     if (m_document == nullptr)
     {
         return;
+    }
+    if (inDialogWindow)
+    {
+        const Rml::Element * title = m_document->QuerySelector(".dialog-title");
+        m_dialogWindow->Present(title != nullptr ? title->GetInnerRML() : m_document->GetTitle(), m_windowWidth, m_windowHeight);
+        m_inDialogWindow = true;
+        m_document->SetClass("own-window", true);
     }
     m_commands.clear();
     UiEvents::Listen(m_document, "click", [this](Rml::Event & event) {
@@ -55,6 +76,14 @@ void Dialog::Show()
     m_document->SetClass("tight", WindowWidth() < kTightBelow);
     OnOpen();
     m_document->Show(Rml::ModalFlag::Modal);
+    if (m_inDialogWindow && m_windowHeight <= 0)
+    {
+        m_document->UpdateDocument();
+        Rml::Element * panel = m_document->QuerySelector(".dialog");
+        const float ratio = m_document->GetContext()->GetDensityIndependentPixelRatio();
+        const float height = panel != nullptr ? panel->GetOffsetHeight() : m_document->GetOffsetHeight();
+        m_dialogWindow->FitHeight(static_cast<int>(std::ceil(height / ratio)));
+    }
 }
 
 void Dialog::Update()
@@ -65,6 +94,10 @@ void Dialog::Update()
     }
     m_document->SetClass("narrow", WindowWidth() < m_narrowBelow);
     m_document->SetClass("tight", WindowWidth() < kTightBelow);
+    if (m_inDialogWindow && m_dialogWindow->TakeCloseRequest())
+    {
+        m_commands.push_back(kCloseCommand);
+    }
 
     std::vector<std::string> commands;
     commands.swap(m_commands);
@@ -96,7 +129,8 @@ void Dialog::RefreshTranslation()
 
 float Dialog::WindowWidth() const
 {
-    return static_cast<float>(m_context->GetDimensions().x) / m_context->GetDensityIndependentPixelRatio();
+    const Rml::Context * context = m_document != nullptr ? m_document->GetContext() : m_context;
+    return static_cast<float>(context->GetDimensions().x) / context->GetDensityIndependentPixelRatio();
 }
 
 void Dialog::Close()
@@ -105,6 +139,11 @@ void Dialog::Close()
     {
         m_document->Close();
         m_document = nullptr;
+    }
+    if (m_inDialogWindow)
+    {
+        m_inDialogWindow = false;
+        m_dialogWindow->Dismiss();
     }
 }
 
