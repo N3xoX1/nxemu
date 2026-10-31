@@ -8,11 +8,14 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <span>
 #include <string_view>
 #include <vector>
 
 VideoSettings videoSettings{};
 #include "yuzu_video_core/engines/sw_blitter/blitter.h"
+#include "yuzu_video_core/engines/dma_remap.h"
 #include "yuzu_video_core/textures/decoders.h"
 
 using Tegra::Engines::DmaImageCopySize;
@@ -254,8 +257,8 @@ void DmaEngineTests(CopyFixture& f) {
                     f.gpu.FlushCaching();
                     Check(std::equal(expected.begin(), expected.end(), output),
                           "remap identity matches reference");
-                    Check(f.rasterizer.dma.image_attempts == attempts,
-                          "remapped DMA skips both fast paths");
+                    Check(f.rasterizer.dma.image_attempts == attempts + 1,
+                          "identity remap tries the image-to-image fast path");
                 }
             }
         }
@@ -306,6 +309,241 @@ void DmaTests() {
     src.params.height = 64;
     src.params.block_size.height.Assign(15);
     Check(!DmaImageCopySize({64, 64}, src, src), "DMA invalid block height rejected before shifts");
+}
+
+// Reference remap semantics, independent of MaxwellDMA's implementation: every
+// destination element of num_dst components is built from the source element
+// of num_src components, a constant, or the previous destination value.
+using Remap = Tegra::Engines::MaxwellDMA::RemapConst;
+Remap MakeRemap(u32 size, u32 nsrc, u32 ndst, std::array<u32, 4> swizzle) {
+    Remap r{};
+    r.remap_consta_value = 0x11223344;
+    r.remap_constb_value = 0x55667788;
+    r.component_size_minus_one.Assign(size - 1);
+    r.num_src_components_minus_one.Assign(nsrc - 1);
+    r.num_dst_components_minus_one.Assign(ndst - 1);
+    r.dst_x.Assign(static_cast<Remap::Swizzle>(swizzle[0]));
+    r.dst_y.Assign(static_cast<Remap::Swizzle>(swizzle[1]));
+    r.dst_z.Assign(static_cast<Remap::Swizzle>(swizzle[2]));
+    r.dst_w.Assign(static_cast<Remap::Swizzle>(swizzle[3]));
+    return r;
+}
+// Applies the remap to linear element arrays.
+void ReferenceRemap(const Remap& r, std::span<const u8> src, std::span<u8> dst, u32 elements) {
+    const u32 size = r.component_size_minus_one + 1;
+    const u32 nsrc = r.num_src_components_minus_one + 1;
+    const u32 ndst = r.num_dst_components_minus_one + 1;
+    const std::array<Remap::Swizzle, 4> swizzle{r.dst_x, r.dst_y, r.dst_z, r.dst_w};
+    for (u32 e = 0; e < elements; ++e) {
+        for (u32 c = 0; c < ndst; ++c) {
+            u8* out = dst.data() + (size_t{e} * ndst + c) * size;
+            const u32 sw = static_cast<u32>(swizzle[c]);
+            if (sw <= 3) {
+                // A component outside the source element reads zero.
+                if (sw < nsrc)
+                    std::memcpy(out, src.data() + (size_t{e} * nsrc + sw) * size, size);
+                else
+                    std::memset(out, 0, size);
+            } else if (sw == 4 || sw == 5) {
+                const u32 value = sw == 4 ? r.remap_consta_value : r.remap_constb_value;
+                std::memcpy(out, &value, size);
+            }
+        }
+    }
+}
+void RemapIdentityTests() {
+    using Tegra::Engines::IdentityRemapBytesPerPixel;
+    constexpr u32 elements = 13; // 13 * bpp exercises SIMD chunks and a scalar tail
+    std::vector<u8> src(elements * 16), dst(elements * 16), before(elements * 16);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<u8>(i * 73 + 5);
+        before[i] = static_cast<u8>(i * 151 + 9);
+    }
+    unsigned accepted{}, rejected_equal{};
+    for (u32 size = 1; size <= 4; ++size) {
+        for (u32 nsrc = 1; nsrc <= 4; ++nsrc) {
+            for (u32 ndst = 1; ndst <= 4; ++ndst) {
+                for (u32 code = 0; code < 7 * 7 * 7 * 7; ++code) {
+                    std::array<u32, 4> sw{code % 7, code / 7 % 7, code / 49 % 7, code / 343};
+                    // Inactive components do not affect the result: only enumerate them once.
+                    bool redundant = false;
+                    for (u32 c = ndst; c < 4; ++c)
+                        redundant |= sw[c] != 0;
+                    if (redundant)
+                        continue;
+                    const Remap r = MakeRemap(size, nsrc, ndst, sw);
+                    dst = before;
+                    ReferenceRemap(r, src, dst, elements);
+                    const u32 bytes = elements * nsrc * size;
+                    const bool plain_copy = nsrc == ndst &&
+                                            std::equal(src.begin(), src.begin() + bytes,
+                                                       dst.begin());
+                    auto engine_dst = before;
+                    Tegra::Engines::ApplyRemap(r, src, engine_dst, elements);
+                    Check(engine_dst == dst, "ApplyRemap matches the reference remap");
+                    const u32 bpp = IdentityRemapBytesPerPixel(r);
+                    if (bpp != 0) {
+                        ++accepted;
+                        Check(plain_copy && bpp == nsrc * size,
+                              "accepted identity remap is a plain byte copy");
+                    } else if (plain_copy) {
+                        ++rejected_equal;
+                    }
+                }
+            }
+        }
+    }
+    // Only SRC_X..SRC_W in order for every active component, 4 sizes x 4 counts.
+    Check(accepted == 16, "exactly the 16 in-order remaps are accepted");
+    std::fprintf(stderr, "remap identity: %u accepted, %u equivalent but rejected\n", accepted,
+                 rejected_equal);
+}
+
+enum class Layout { Pitch, Block };
+// Programs a remapped multi-line (or 1D when lines == 0) transfer of `width` x `lines`
+// elements through the method interface.
+void LaunchRemapDMA(Tegra::Engines::MaxwellDMA& engine, const Remap& remap, Layout src_layout,
+                    Layout dst_layout, u32 width, u32 lines, u32 bh, u32 src_pitch,
+                    u32 dst_pitch) {
+    using DMA = Tegra::Engines::MaxwellDMA;
+    const auto params = [&](u32 offset) {
+        Tegra::DMA::Parameters p{};
+        p.width = width;
+        p.height = lines;
+        p.depth = 1;
+        p.block_size.height.Assign(bh);
+        const auto words = std::bit_cast<std::array<u32, 6>>(p);
+        for (u32 i = 0; i < words.size(); ++i)
+            engine.CallMethod(offset / 4 + i, words[i], true);
+    };
+    params(0x728);
+    params(0x70C);
+    const auto remap_words = std::bit_cast<std::array<u32, 3>>(remap);
+    for (u32 i = 0; i < 3; ++i)
+        engine.CallMethod(0x700 / 4 + i, remap_words[i], true);
+    engine.CallMethod(0x400 / 4, 0, true);
+    engine.CallMethod(0x404 / 4, static_cast<u32>(CopyFixture::Source), true);
+    engine.CallMethod(0x408 / 4, 0, true);
+    engine.CallMethod(0x40C / 4, static_cast<u32>(CopyFixture::Destination), true);
+    engine.CallMethod(0x410 / 4, src_pitch, true);
+    engine.CallMethod(0x414 / 4, dst_pitch, true);
+    engine.CallMethod(0x418 / 4, width, true);
+    engine.CallMethod(0x41C / 4, std::max(lines, 1U), true);
+    DMA::LaunchDMA launch{};
+    launch.multi_line_enable.Assign(lines != 0 ? 1 : 0);
+    launch.remap_enable.Assign(1);
+    launch.src_memory_layout.Assign(src_layout == Layout::Pitch ? DMA::LaunchDMA::MemoryLayout::PITCH
+                                                                : DMA::LaunchDMA::MemoryLayout::BLOCKLINEAR);
+    launch.dst_memory_layout.Assign(dst_layout == Layout::Pitch ? DMA::LaunchDMA::MemoryLayout::PITCH
+                                                                : DMA::LaunchDMA::MemoryLayout::BLOCKLINEAR);
+    launch.data_transfer_type.Assign(DMA::LaunchDMA::DataTransferType::NON_PIPELINED);
+    engine.CallMethod(0x300 / 4, std::bit_cast<u32>(launch), true);
+}
+
+// Runs real remapped transfers and compares the whole destination allocation with
+// the reference remap applied to the deswizzled surfaces.
+void RemapEngineTests(CopyFixture& f) {
+    using S = Remap::Swizzle;
+    constexpr u32 X = 0, Y = 1, Z = 2, W = 3, A = 4, B = 5, N = 6;
+    struct Case {
+        u32 size, nsrc, ndst;
+        std::array<u32, 4> sw;
+    };
+    const std::array cases{
+        Case{1, 4, 4, {X, Y, Z, W}}, // identity RGBA8
+        Case{4, 1, 1, {X, 0, 0, 0}}, // identity R32
+        Case{2, 2, 2, {X, Y, 0, 0}}, // identity RG16
+        Case{1, 4, 4, {Z, Y, X, W}}, // RGBA8 <-> BGRA8
+        Case{2, 2, 2, {Y, X, 0, 0}}, // swap RG16
+        Case{1, 3, 4, {X, Y, Z, A}}, // RGB8 -> RGBA8 with constant alpha
+        Case{2, 4, 1, {Z, 0, 0, 0}}, // extract one component
+        Case{4, 2, 2, {X, N, 0, 0}}, // keep the destination Y
+        Case{4, 4, 4, {B, B, B, B}}, // constant fill
+        Case{1, 2, 2, {A, B, 0, 0}}, // two constants, 8-bit
+    };
+    Tegra::Engines::MaxwellDMA engine{f.gpu};
+    engine.BindRasterizer(&f.rasterizer);
+    u8* const input = f.physical.bytes.data() + CopyFixture::Source;
+    u8* const output = f.physical.bytes.data() + CopyFixture::Destination;
+    for (const Case& c : cases) {
+        const Remap remap = MakeRemap(c.size, c.nsrc, c.ndst, c.sw);
+        const u32 src_bpp = c.nsrc * c.size, dst_bpp = c.ndst * c.size;
+        const bool identity = Tegra::Engines::IdentityRemapBytesPerPixel(remap) != 0;
+        for (Layout src_layout : {Layout::Pitch, Layout::Block}) {
+            for (Layout dst_layout : {Layout::Pitch, Layout::Block}) {
+                for (u32 width : {16U, 37U}) {
+                    for (u32 lines : {0U, 1U, 24U, 32U}) {
+                        if (lines == 0 && (src_layout != Layout::Pitch || dst_layout != Layout::Pitch))
+                            continue;
+                        constexpr u32 bh = 1;
+                        const u32 h = std::max(lines, 1U);
+                        const u32 src_pitch = width * src_bpp + 16, dst_pitch = width * dst_bpp + 8;
+                        const auto size = [&](Layout layout, u32 bpp, u32 pitch) {
+                            return layout == Layout::Pitch
+                                       ? size_t{pitch} * h
+                                       : Tegra::Texture::CalculateSize(true, bpp, width, h, 1, bh, 0);
+                        };
+                        const size_t src_size = size(src_layout, src_bpp, src_pitch);
+                        const size_t dst_size = size(dst_layout, dst_bpp, dst_pitch);
+                        for (size_t i = 0; i < src_size; ++i)
+                            input[i] = static_cast<u8>(i * 29 + i / 251 + 3);
+                        for (size_t i = 0; i < dst_size; ++i)
+                            output[i] = static_cast<u8>(i * 113 + 71);
+                        // Reference: packed elements in, remap, packed elements out.
+                        const u32 elements = width * h;
+                        std::vector<u8> src_lin(size_t{elements} * src_bpp),
+                            dst_lin(size_t{elements} * dst_bpp);
+                        std::vector<u8> expected(output, output + dst_size);
+                        if (src_layout == Layout::Pitch) {
+                            for (u32 y = 0; y < h; ++y)
+                                std::memcpy(src_lin.data() + size_t{y} * width * src_bpp,
+                                            input + size_t{y} * (lines ? src_pitch : 0),
+                                            size_t{width} * src_bpp);
+                        } else {
+                            Tegra::Texture::UnswizzleSubrect(src_lin, {input, src_size}, src_bpp,
+                                                             width, h, 1, 0, 0, width, h, bh, 0,
+                                                             width * src_bpp);
+                        }
+                        if (dst_layout == Layout::Pitch) {
+                            for (u32 y = 0; y < h; ++y)
+                                std::memcpy(dst_lin.data() + size_t{y} * width * dst_bpp,
+                                            output + size_t{y} * dst_pitch, size_t{width} * dst_bpp);
+                        } else {
+                            Tegra::Texture::UnswizzleSubrect(dst_lin, {output, dst_size}, dst_bpp,
+                                                             width, h, 1, 0, 0, width, h, bh, 0,
+                                                             width * dst_bpp);
+                        }
+                        ReferenceRemap(remap, src_lin, dst_lin, elements);
+                        if (dst_layout == Layout::Pitch) {
+                            for (u32 y = 0; y < h; ++y)
+                                std::memcpy(expected.data() + size_t{y} * dst_pitch,
+                                            dst_lin.data() + size_t{y} * width * dst_bpp,
+                                            size_t{width} * dst_bpp);
+                        } else {
+                            Tegra::Texture::SwizzleSubrect(expected, dst_lin, dst_bpp, width, h, 1,
+                                                           0, 0, width, h, bh, 0, width * dst_bpp);
+                        }
+                        const auto attempts = f.rasterizer.dma.image_attempts;
+                        LaunchRemapDMA(engine, remap, src_layout, dst_layout, width, lines, bh,
+                                       src_pitch, dst_pitch);
+                        f.gpu.FlushCaching();
+                        char message[160];
+                        std::snprintf(message, sizeof(message),
+                                      "remapped DMA matches reference (size %u, %u->%u, src %s, "
+                                      "dst %s, %ux%u)",
+                                      c.size, c.nsrc, c.ndst,
+                                      src_layout == Layout::Pitch ? "pitch" : "block",
+                                      dst_layout == Layout::Pitch ? "pitch" : "block", width, lines);
+                        Check(std::equal(expected.begin(), expected.end(), output), message);
+                        if (src_layout == Layout::Block && dst_layout == Layout::Block) {
+                            Check((f.rasterizer.dma.image_attempts != attempts) == identity,
+                                  "only identity remaps try the image-to-image fast path");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 struct Timing {
@@ -390,6 +628,63 @@ void Benchmark(CopyFixture& f) {
             }
         }
     }
+    // Remapped block copies. An identity remap previously took the software route
+    // (reproduced with a dirty report); a real swizzle now pays the component-wise
+    // route, compared with that same software identity cost.
+    for (auto dims : {std::array<u32, 2>{256, 256}, {1280, 768}, {1920, 1088}}) {
+        struct Kind {
+            const char* name;
+            Remap remap;
+        };
+        const std::array kinds{
+            Kind{"dma_remap_identity_rgba8", MakeRemap(1, 4, 4, {0, 1, 2, 3})},
+            Kind{"dma_remap_identity_r32", MakeRemap(4, 1, 1, {0, 0, 0, 0})},
+            Kind{"dma_remap_bgra8_vs_identity", MakeRemap(1, 4, 4, {2, 1, 0, 3})},
+            Kind{"dma_remap_rgb8_rgba8_vs_identity", MakeRemap(1, 3, 4, {0, 1, 2, 4})},
+        };
+        for (const Kind& kind : kinds) {
+            const Remap identity = MakeRemap(kind.remap.component_size_minus_one + 1,
+                                             kind.remap.num_dst_components_minus_one + 1,
+                                             kind.remap.num_dst_components_minus_one + 1,
+                                             {0, 1, 2, 3});
+            for (unsigned repeat = 0; repeat < 3; ++repeat) {
+                f.rasterizer.dirty = true;
+                const auto before = Time([&] {
+                    LaunchRemapDMA(dma, identity, Layout::Block, Layout::Block, dims[0], dims[1],
+                                   3, 0, 0);
+                    f.gpu.FlushCaching();
+                });
+                f.rasterizer.dirty = false;
+                const auto after = Time([&] {
+                    LaunchRemapDMA(dma, kind.remap, Layout::Block, Layout::Block, dims[0],
+                                   dims[1], 3, 0, 0);
+                    f.gpu.FlushCaching();
+                });
+                std::printf("%s,%u,%u,%u,%u,%.3f,%.3f,%.3f,%.3f,%.2f\n", kind.name, dims[0],
+                            dims[1], Tegra::Engines::RemapDstBytesPerPixel(kind.remap), repeat,
+                            before.median, after.median, before.p95, after.p95,
+                            before.median / after.median);
+            }
+        }
+    }
+    // The previous remap route deswizzled and reswizzled 4-byte elements and
+    // ignored the swizzle. Time it, and the component shuffle alone.
+    for (auto dims : {std::array<u32, 2>{256, 256}, {1920, 1088}}) {
+        const u32 w = dims[0], h = dims[1];
+        const size_t bytes = Tegra::Texture::CalculateSize(true, 4, w, h, 1, 3, 0);
+        std::vector<u8> lin(size_t{w} * h * 4), out(lin.size());
+        std::span<u8> in_mem{f.physical.bytes.data() + CopyFixture::Source, bytes};
+        std::span<u8> out_mem{f.physical.bytes.data() + CopyFixture::Destination, bytes};
+        const auto old_route = Time([&] {
+            Tegra::Texture::UnswizzleSubrect(lin, in_mem, 4, w, h, 1, 0, 0, w, h, 3, 0, w * 4);
+            Tegra::Texture::SwizzleSubrect(out_mem, lin, 4, w, h, 1, 0, 0, w, h, 3, 0, w * 4);
+        });
+        const Remap bgra = MakeRemap(1, 4, 4, {2, 1, 0, 3});
+        const auto shuffle =
+            Time([&] { Tegra::Engines::ApplyRemap(bgra, lin, out, size_t{w} * h); });
+        std::printf("remap_parts,%u,%u,4,0,%.3f,%.3f,%.3f,%.3f,0\n", w, h, old_route.median,
+                    shuffle.median, old_route.p95, shuffle.p95);
+    }
     // Include rejected copies: compare the full engine (failed guard + fallback)
     // with the original software route. No cache lookup is faked as successful.
     auto src = Surface(257, 256, 4, true, 0), dst = src;
@@ -421,6 +716,8 @@ int main(int argc, char** argv) {
         LayoutTests(fixture);
         MappingTests(fixture);
         DmaTests();
+        RemapIdentityTests();
+        RemapEngineTests(fixture);
         DmaEngineTests(fixture);
     }
     std::fprintf(stderr, "%u checks, %u failures\n", cases, failures);
