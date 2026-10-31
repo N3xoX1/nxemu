@@ -156,3 +156,31 @@ add_dependencies(test_alpha_to_coverage_dither shader_recompiler sirit fmt commo
 target_link_libraries(test_alpha_to_coverage_dither PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_alpha_to_coverage_dither)
+
+# Compile unchanged conditional-rendering method bodies with fake GPU dependencies.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(_conditional_generated "${CMAKE_CURRENT_BINARY_DIR}/conditional_rendering")
+add_custom_command(
+    OUTPUT "${_conditional_generated}/engine.inc" "${_conditional_generated}/runtime.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/conditional_rendering/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_conditional_generated}"
+    DEPENDS conditional_rendering/extract.py
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_query_cache.cpp"
+    VERBATIM)
+foreach(_part engine runtime)
+    add_executable(test_conditional_${_part} conditional_rendering/${_part}.cpp
+        "${_conditional_generated}/${_part}.inc")
+    target_include_directories(test_conditional_${_part} PRIVATE "${_conditional_generated}"
+        "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+        "${CMAKE_SOURCE_DIR}/external/fmt/include")
+    target_compile_definitions(test_conditional_${_part} PRIVATE FMT_HEADER_ONLY)
+    target_link_libraries(test_conditional_${_part} PRIVATE nxemu_test_support Vulkan::Headers)
+    if(NOT MSVC)
+        target_compile_options(test_conditional_${_part} PRIVATE
+            -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+        target_link_options(test_conditional_${_part} PRIVATE -fsanitize=address,undefined)
+    endif()
+    nxemu_unit_test(test_conditional_${_part})
+endforeach()
