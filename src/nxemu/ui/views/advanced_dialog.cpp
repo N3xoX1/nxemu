@@ -282,7 +282,7 @@ void CollectDevice(const char * device, void * userData)
 } // namespace
 
 AdvancedDialog::AdvancedDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, OpenSettingsPage openPage) :
-    Dialog(window.Context(), assetDir / "advanced_dialog.rml", kSettingsNarrowBelow),
+    Dialog(window, assetDir / "advanced_dialog.rml", kSettingsNarrowBelow, kSettingsWidth, kSettingsHeight),
     m_session(session),
     m_settings(settings),
     m_openPage(std::move(openPage))

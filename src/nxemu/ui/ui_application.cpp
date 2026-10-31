@@ -1,6 +1,7 @@
 #include "ui_application.h"
 #include "settings/ui_settings.h"
 #include "ui/emulation/emulator_session.h"
+#include "ui/host/ui_dialog_window.h"
 #include "ui/host/ui_notification.h"
 #include "ui/host/ui_pack.h"
 #include "ui/host/ui_window.h"
@@ -82,9 +83,10 @@ struct LiveResize
 int SDLCALL DrawWhileResizing(void * userdata, SDL_Event * event)
 {
     LiveResize & resize = *static_cast<LiveResize *>(userdata);
+    UiDialogWindow * dialogWindow = resize.window.DialogWindow();
     if (SDL_ThreadID() != resize.thread || resize.busy ||
         event->type != SDL_WINDOWEVENT || event->window.event != SDL_WINDOWEVENT_SIZE_CHANGED ||
-        event->window.windowID != SDL_GetWindowID(resize.window.Handle()))
+        (event->window.windowID != SDL_GetWindowID(resize.window.Handle()) && (dialogWindow == nullptr || !dialogWindow->Owns(*event))))
     {
         return 0;
     }
@@ -139,6 +141,9 @@ int Run(UiNotification & notification, const std::string & gamePath)
     {
         startup->Close();
     }
+    const auto closesMainWindow = [&window](const SDL_Event & event) {
+        return event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window.Handle());
+    };
     GameLibrary library;
     MainWindow mainWindow(window, session, library, assetDir);
     if (!mainWindow.Create())
@@ -158,7 +163,9 @@ int Run(UiNotification & notification, const std::string & gamePath)
         const bool wasBusy = liveResize.busy;
         liveResize.busy = true;
         mainWindow.RevealMouseCursor();
-        MessageDialog dialog(window.Context(), assetDir, question, title, text);
+        // The main window takes no input while the dialog window is open.
+        MessageDialog dialog(window.FrontContext(), assetDir, question, title, text);
+        UiDialogWindow * dialogWindow = window.DialogWindow();
         dialog.Show();
         SDL_Event deferred{};
         bool quitting = false;
@@ -167,18 +174,27 @@ int Run(UiNotification & notification, const std::string & gamePath)
             SDL_Event event;
             while (SDL_PollEvent(&event))
             {
-                if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
+                if (event.type == SDL_QUIT || closesMainWindow(event))
                 {
                     deferred = event;
                     quitting = true;
                     dialog.Dismiss();
                     break;
                 }
+                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE)
+                {
+                    dialog.Dismiss();
+                    continue;
+                }
                 window.HandleEvent(event);
             }
             dialog.Update();
             window.SyncNativeState();
             window.Context()->Update();
+            if (dialogWindow != nullptr)
+            {
+                dialogWindow->Update();
+            }
             window.PaceFrame();
             if (!window.Render(mainWindow.GameArea()) && !question)
             {
@@ -216,7 +232,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
         {
             liveResize.busy = true;
             changed = true;
-            if (event.type == SDL_QUIT)
+            if (event.type == SDL_QUIT || closesMainWindow(event))
             {
                 mainWindow.RequestQuit();
             }

@@ -18,6 +18,7 @@ public:
     ~UiPresenter();
 
     bool Create(IRenderWindow & window, int32_t deviceIndex);
+    bool Create(IRenderWindow & window, UiPresenter & shared);
     const VulkanContext & Context() const { return m_context; }
     const std::string & Error() const { return m_error; }
 
@@ -38,6 +39,7 @@ private:
     bool CreateSurface();
     bool ChooseDevice(int32_t deviceIndex);
     bool CreateDevice();
+    bool CreateFrameObjects();
     bool CreateSwapchain(uint32_t width, uint32_t height);
     void DestroySwapchain();
     bool CreateTarget(uint32_t width, uint32_t height);
@@ -47,6 +49,7 @@ private:
     std::unique_ptr<Common::DynamicLibrary> m_library;
     std::unique_ptr<Api> m_api;
     IRenderWindow * m_window = nullptr;
+    bool m_ownsDevice = false;
     VulkanContext m_context;
     VkSurfaceKHR m_surface = VK_NULL_HANDLE;
     uint32_t m_queueFamily = 0;

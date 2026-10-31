@@ -3,6 +3,18 @@
     width: 600dp;
 }
 
+body.own-window .dialog.about-dialog
+{
+    width: 100%;
+    border-width: 0;
+    border-radius: 0;
+}
+
+body.own-window .about-dialog .dialog-header
+{
+    display: none;
+}
+
 .about-body
 {
     padding: 26dp 32dp 6dp 32dp;

@@ -26,6 +26,8 @@ add_library(nxemu_ui STATIC
     host/system_language.h
     host/system_fonts.cpp
     host/system_fonts.h
+    host/ui_dialog_window.cpp
+    host/ui_dialog_window.h
     host/ui_notification.cpp
     host/ui_notification.h
     host/ui_pack.cpp

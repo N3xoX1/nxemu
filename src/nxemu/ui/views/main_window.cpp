@@ -23,6 +23,7 @@
 #include <nxemu/settings/ui_identifiers.h>
 #include <nxemu/settings/ui_settings.h>
 #include <nxemu/ui/host/shell.h>
+#include <nxemu/ui/host/ui_dialog_window.h>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/library/game_cache.h>
@@ -201,7 +202,7 @@ bool MainWindow::Create()
     m_shaderProfileDialog=std::make_unique<ShaderProfileDialog>(m_window,m_assetDir,[this](const std::string& game){OpenGame(game);});
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
-    m_aboutDialog = std::make_unique<AboutDialog>(m_window.Context(), m_assetDir);
+    m_aboutDialog = std::make_unique<AboutDialog>(m_window, m_assetDir);
     m_firmwareDialog = std::make_unique<FirmwareDialog>(m_window, m_session.Modules().Systemloader(), m_assetDir,
                                                         FirmwareDialog::Host{
                                                             [this] {
@@ -480,13 +481,25 @@ void MainWindow::Update()
     m_document->SetClass("title-minimal", titleSpace < 260.0f);
     m_tooltip->Update(m_menuBar->IsOpen() || (m_gameMenu->IsOpen() && !m_gameMenu->Hovered()));
     m_window.Context()->Update();
+    if (UiDialogWindow * dialogWindow = m_window.DialogWindow())
+    {
+        if (m_dialogTooltip == nullptr && dialogWindow->Context() != nullptr)
+        {
+            m_dialogTooltip = std::make_unique<Tooltip>(dialogWindow->Context(), m_assetDir);
+        }
+        if (m_dialogTooltip != nullptr)
+        {
+            m_dialogTooltip->Update(!dialogWindow->IsShown());
+        }
+        dialogWindow->Update();
+    }
     LayoutGameArea();
 }
 
 bool MainWindow::Still() const
 {
     return !m_shaderProfileDialog->Busy() && m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_firmwareDialog->Installing() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
-           m_window.Context()->GetNextUpdateDelay() > 0;
+           m_window.Context()->GetNextUpdateDelay() > 0 && (m_window.DialogWindow() == nullptr || m_window.DialogWindow()->Still());
 }
 
 bool MainWindow::DialogOpen() const
