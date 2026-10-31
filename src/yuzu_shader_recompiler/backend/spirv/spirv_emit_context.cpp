@@ -1023,6 +1023,11 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     if (!info.uses_global_memory || !profile.support_int64) {
         return;
     }
+    // Only compute shaders have shown pathological Metal builds when these helpers are inlined.
+    const auto function_control = profile.avoid_global_memory_helper_inlining &&
+                                          stage == Stage::Compute
+                                      ? spv::FunctionControlMask::DontInline
+                                      : spv::FunctionControlMask::MaskNone;
     using DefPtr = Id StorageDefinitions::*;
     const Id zero{u32_zero_value};
     const bool supports_uniform_aliasing{profile.SupportsUniformBufferDescriptorAliasing()};
@@ -1100,7 +1105,7 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     const auto define_load{[&](DefPtr ssbo_member, Id element_pointer, Id type, u32 shift,
                                u32 scalar_components) {
         const Id function_type{TypeFunction(type, U64)};
-        const Id func_id{OpFunction(type, spv::FunctionControlMask::MaskNone, function_type)};
+        const Id func_id{OpFunction(type, function_control, function_type)};
         const Id addr{OpFunctionParameter(U64)};
         define_body(ssbo_member, addr, element_pointer, shift, scalar_components, false,
                     [&](Id ssbo_pointer, Id ssbo_id, Id ssbo_index) {
@@ -1125,7 +1130,7 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     const auto define_write{[&](DefPtr ssbo_member, Id element_pointer, Id type, u32 shift,
                                 u32 scalar_components) {
         const Id function_type{TypeFunction(void_id, U64, type)};
-        const Id func_id{OpFunction(void_id, spv::FunctionControlMask::MaskNone, function_type)};
+        const Id func_id{OpFunction(void_id, function_control, function_type)};
         const Id addr{OpFunctionParameter(U64)};
         const Id data{OpFunctionParameter(type)};
         define_body(ssbo_member, addr, element_pointer, shift, scalar_components, true,

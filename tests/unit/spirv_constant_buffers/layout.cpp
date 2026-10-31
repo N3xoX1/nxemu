@@ -54,15 +54,17 @@ static std::map<std::string, u32> Layout(bool molten, u32 used_size, bool global
 
 // Ace Combat's indirect parameter reads target a tracked descriptor at c0[0x290],
 // outside the compute NVN table (0x310). These helpers used to return only zero.
-static void GlobalMemoryLoads(bool aliasing, bool molten) {
+static void GlobalMemoryLoads(bool aliasing, bool molten,
+                              Shader::Stage stage = Shader::Stage::Compute) {
     Shader::Profile profile{};
     profile.support_int64 = true;
     profile.support_descriptor_aliasing = aliasing;
     profile.disable_uniform_buffer_descriptor_aliasing = molten;
+    profile.avoid_global_memory_helper_inlining = molten;
     profile.min_ssbo_alignment = 16;
     Shader::RuntimeInfo runtime{};
     Shader::IR::Program program{};
-    program.stage = Shader::Stage::Compute;
+    program.stage = stage;
     auto& info = program.info;
     info.uses_global_memory = true;
     info.nvn_buffer_base = 0x310;
@@ -77,12 +79,16 @@ static void GlobalMemoryLoads(bool aliasing, bool molten) {
     Shader::Backend::SPIRV::EmitContext context(profile, runtime, program, bindings);
     const auto words = context.Assemble();
     std::map<u32, unsigned> loads;
+    std::map<u32, u32> function_controls;
     u32 function = 0;
     for (size_t i = 5; i < words.size();) {
         const auto count = words[i] >> 16;
         assert(count != 0 && i + count <= words.size());
         const auto op = static_cast<spv::Op>(words[i] & 0xffff);
-        if (op == spv::Op::OpFunction) function = words[i + 2];
+        if (op == spv::Op::OpFunction) {
+            function = words[i + 2];
+            function_controls[function] = words[i + 3];
+        }
         if (op == spv::Op::OpLoad) ++loads[function];
         if (op == spv::Op::OpFunctionEnd) function = 0;
         i += count;
@@ -91,6 +97,14 @@ static void GlobalMemoryLoads(bool aliasing, bool molten) {
     assert(loads[context.load_global_func_u32.value] >= 3);
     assert(loads[context.load_global_func_u32x2.value] >= 3);
     assert(loads[context.load_global_func_u32x4.value] >= 3);
+    // Graphics shaders keep inlined helpers: DontInline there made TOTK's Link flicker.
+    const bool dont_inline = molten && stage == Shader::Stage::Compute;
+    for (const auto function : {context.load_global_func_u32, context.load_global_func_u32x2,
+                                context.load_global_func_u32x4, context.write_global_func_u32,
+                                context.write_global_func_u32x2, context.write_global_func_u32x4}) {
+        assert(function_controls.at(function.value) == static_cast<u32>(
+            dont_inline ? spv::FunctionControlMask::DontInline : spv::FunctionControlMask::MaskNone));
+    }
 }
 
 void TestRuntimeTextureFetch();
@@ -208,5 +222,6 @@ int main() {
     GlobalMemoryLoads(true, false);
     GlobalMemoryLoads(false, false);
     GlobalMemoryLoads(true, true);
+    GlobalMemoryLoads(true, true, Shader::Stage::Fragment);
     std::puts("PASS: SPIR-V constant-buffer layouts and non-NVN global-memory loads");
 }

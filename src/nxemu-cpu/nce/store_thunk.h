@@ -57,7 +57,7 @@ void Complete(Memory& memory, Registers& r, std::uint64_t& sp, std::uint64_t& pc
     const auto last = address + bytes - 1;
     if (last < address || !memory.NceAccessAllowed(address, true) || !memory.NceAccessAllowed(last, true)) return;
     if (trap == Trap::Prepare && address < (1ULL << 39) &&
-        (address & (bytes - 1)) == 0 && memory.NceAccessAllowed(address, false) &&
+        (address & 0xfff) + bytes <= 0x1000 && memory.NceAccessAllowed(address, false) &&
         memory.NcePrepareCanonicalWrite(address)) {pc = original_pc;return;}
     memory.NceTrackWrites(address);
     if ((address >> 12) != (last >> 12)) memory.NceTrackWrites(last);

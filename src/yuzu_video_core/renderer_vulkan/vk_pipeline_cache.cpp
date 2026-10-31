@@ -781,6 +781,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_broken_signed_operations = false,
         .has_broken_fp16_float_controls = driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY,
         .has_slow_fragment_no_contraction = driver_id == VK_DRIVER_ID_MOLTENVK,
+        .avoid_global_memory_helper_inlining = driver_id == VK_DRIVER_ID_MOLTENVK,
         .ignore_nan_fp_comparisons = false,
         .has_broken_spirv_subgroup_mask_vector_extract_dynamic =
             driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY,

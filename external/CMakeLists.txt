@@ -296,6 +296,8 @@ if(APPLE)
             "${_nxemu_moltenvk_source}/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
         # The fork's nxemu branch carries the Ryujinx fixes and ours.
         set(_nxemu_moltenvk_tag "fb1afa9b968226f694efa45625bb7ef90928f4df")
+        set(_nxemu_moltenvk_patch
+            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk-patches/0001-honor-spirv-dontinline.patch")
         ExternalProject_Add(nxemu_moltenvk
             GIT_REPOSITORY "https://github.com/fab918/MoltenVK.git"
             GIT_TAG "${_nxemu_moltenvk_tag}"
@@ -303,18 +305,23 @@ if(APPLE)
             # Runs only when the tag changes, so an existing build checks out a new tag without
             # updating and rebuilding MoltenVK on every build.
             UPDATE_DISCONNECTED TRUE
+            # The build step patches the checkout in place; drop that before changing tag.
             UPDATE_COMMAND /bin/sh -c
-                "git cat-file -e ${_nxemu_moltenvk_tag}^{commit} 2>/dev/null || git fetch origin && git checkout --quiet ${_nxemu_moltenvk_tag}"
+                "git reset --hard --quiet && git clean -fdq -- Scripts && (git cat-file -e ${_nxemu_moltenvk_tag}^{commit} 2>/dev/null || git fetch origin) && git checkout --quiet ${_nxemu_moltenvk_tag}"
             SOURCE_DIR "${_nxemu_moltenvk_source}"
             CONFIGURE_COMMAND ""
             BUILD_IN_SOURCE TRUE
+            # Reapply from a clean checkout so an edited patch does not conflict with the old one.
             BUILD_COMMAND /bin/sh -c
-                "./fetchDependencies --macos && make macos"
+                "git reset --hard --quiet && git clean -fdq -- Scripts && git apply '${_nxemu_moltenvk_patch}' && ./fetchDependencies --macos && make macos"
             BUILD_BYPRODUCTS "${_nxemu_moltenvk_runtime}"
             INSTALL_COMMAND ""
         )
 
+        ExternalProject_Add_StepDependencies(nxemu_moltenvk build "${_nxemu_moltenvk_patch}")
+
         set(NXEMU_MOLTENVK_RUNTIME "${_nxemu_moltenvk_runtime}" CACHE INTERNAL "" FORCE)
+        unset(_nxemu_moltenvk_patch)
         unset(_nxemu_moltenvk_tag)
         unset(_nxemu_moltenvk_root)
         unset(_nxemu_moltenvk_source)

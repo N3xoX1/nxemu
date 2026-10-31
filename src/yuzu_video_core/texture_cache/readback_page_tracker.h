@@ -10,6 +10,13 @@
 
 namespace VideoCommon {
 
+// Reading back only the pages the CPU observes is validated with native execution on macOS.
+#if defined(__APPLE__)
+inline constexpr bool OBSERVED_READBACK = true;
+#else
+inline constexpr bool OBSERVED_READBACK = false;
+#endif
+
 // Tracks CPU observations separately from GPU ownership. A new observation must
 // synchronously initialize its backing before relying on asynchronous publications.
 class ReadbackPageTracker {
