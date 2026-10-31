@@ -88,6 +88,8 @@ struct Profile {
     bool has_gl_bool_ref_bug{};
     /// NoContraction makes fragment and compute shaders much slower to build
     bool has_slow_fragment_no_contraction{};
+    /// Large global-memory dispatch helpers make Metal register allocation pathological when inlined.
+    bool avoid_global_memory_helper_inlining{};
     /// Ignores SPIR-V ordered vs unordered using GLSL semantics
     bool ignore_nan_fp_comparisons{};
     /// Some drivers have broken support for OpVectorExtractDynamic on subgroup mask inputs

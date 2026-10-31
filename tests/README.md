@@ -16,6 +16,7 @@ The macOS CI job runs the unit suite. Linux also runs `test_shader_constant_fold
 
 | Test | Checks |
 |---|---|
+| `test_conditional_engine` / `test_conditional_runtime` | Register/override/address transitions, deferred draw order, predicate lifetime and polarity, with fake GPU dependencies (ASan, UBSan); Python 3 extracts unchanged production methods |
 | `test_session_lifecycle` | Host thread state across kernel sessions, cancellation of Host1x fence waits (ASan, UBSan) |
 | `test_spirv_constant_buffers` | SPIR-V declarations of constant buffers |
 | `test_shader_constant_folding` | Integer bitfields and AND/OR/XOR with Zero/Sign flags, algebraic identities, SSA aliases, runtime operands and unsupported flags (ASan, UBSan) |

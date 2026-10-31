@@ -1023,17 +1023,26 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     if (!info.uses_global_memory || !profile.support_int64) {
         return;
     }
+    // Only compute shaders have shown pathological Metal builds when these helpers are inlined.
+    const auto function_control = profile.avoid_global_memory_helper_inlining &&
+                                          stage == Stage::Compute
+                                      ? spv::FunctionControlMask::DontInline
+                                      : spv::FunctionControlMask::MaskNone;
     using DefPtr = Id StorageDefinitions::*;
     const Id zero{u32_zero_value};
     const bool supports_uniform_aliasing{profile.SupportsUniformBufferDescriptorAliasing()};
     const auto define_body{[&](DefPtr ssbo_member, Id addr, Id element_pointer, u32 shift,
-                               u32 scalar_components, auto&& callback) {
+                               u32 scalar_components, bool is_write, auto&& callback) {
         AddLabel();
         const size_t num_buffers{info.storage_buffers_descriptors.size()};
         for (size_t index = 0; index < num_buffers; ++index) {
-            // Indirect pointers can also reference explicitly tracked buffers outside
+            // Indirect reads can also reference explicitly tracked buffers outside
             // the NVN descriptor table. Test every bound guest range at runtime.
+            // Writes only reach buffers already known to be written.
             const auto& ssbo{info.storage_buffers_descriptors[index]};
+            if (is_write && !ssbo.is_written) {
+                continue;
+            }
             Id unaligned_addr{};
             Id ssbo_size_pointer{};
             Id ssbo_size_word{};
@@ -1096,9 +1105,9 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     const auto define_load{[&](DefPtr ssbo_member, Id element_pointer, Id type, u32 shift,
                                u32 scalar_components) {
         const Id function_type{TypeFunction(type, U64)};
-        const Id func_id{OpFunction(type, spv::FunctionControlMask::MaskNone, function_type)};
+        const Id func_id{OpFunction(type, function_control, function_type)};
         const Id addr{OpFunctionParameter(U64)};
-        define_body(ssbo_member, addr, element_pointer, shift, scalar_components,
+        define_body(ssbo_member, addr, element_pointer, shift, scalar_components, false,
                     [&](Id ssbo_pointer, Id ssbo_id, Id ssbo_index) {
                         if (scalar_components == 1) {
                             OpReturnValue(OpLoad(type, ssbo_pointer));
@@ -1121,10 +1130,10 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     const auto define_write{[&](DefPtr ssbo_member, Id element_pointer, Id type, u32 shift,
                                 u32 scalar_components) {
         const Id function_type{TypeFunction(void_id, U64, type)};
-        const Id func_id{OpFunction(void_id, spv::FunctionControlMask::MaskNone, function_type)};
+        const Id func_id{OpFunction(void_id, function_control, function_type)};
         const Id addr{OpFunctionParameter(U64)};
         const Id data{OpFunctionParameter(type)};
-        define_body(ssbo_member, addr, element_pointer, shift, scalar_components,
+        define_body(ssbo_member, addr, element_pointer, shift, scalar_components, true,
                     [&](Id ssbo_pointer, Id ssbo_id, Id ssbo_index) {
                         if (scalar_components == 1) {
                             OpStore(ssbo_pointer, data);

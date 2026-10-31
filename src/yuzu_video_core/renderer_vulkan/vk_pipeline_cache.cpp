@@ -83,8 +83,8 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-// Loop pointer tracking, masked array layers and IGN coverage invalidate old shaders.
-constexpr u32 CACHE_VERSION = 26;
+// Global-memory helper changes require a new shader ABI.
+constexpr u32 CACHE_VERSION = 27;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 // Startup/shutdown diagnostics only; no probe work is added to the draw path.
@@ -781,6 +781,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_broken_signed_operations = false,
         .has_broken_fp16_float_controls = driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY,
         .has_slow_fragment_no_contraction = driver_id == VK_DRIVER_ID_MOLTENVK,
+        .avoid_global_memory_helper_inlining = driver_id == VK_DRIVER_ID_MOLTENVK,
         .ignore_nan_fp_comparisons = false,
         .has_broken_spirv_subgroup_mask_vector_extract_dynamic =
             driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY,

@@ -221,6 +221,7 @@ private:
     std::unique_ptr<PopupMenu> m_gameMenu;
     std::unique_ptr<LoadingScreen> m_loadingScreen;
     std::unique_ptr<Tooltip> m_tooltip;
+    std::unique_ptr<Tooltip> m_dialogTooltip;
     std::unique_ptr<PerformanceOverlay> m_performance;
     std::unique_ptr<GameDetailsPanel> m_detailsPanel;
     GameDetails m_details;

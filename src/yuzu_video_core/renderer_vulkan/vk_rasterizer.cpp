@@ -1060,7 +1060,27 @@ void RasterizerVulkan::TickFrame() {
 
 bool RasterizerVulkan::AccelerateConditionalRendering() {
     gpu_memory->FlushCaching();
-    return query_cache.AccelerateHostConditionalRendering();
+    if (query_cache.AccelerateHostConditionalRendering()) {
+        return true;
+    }
+    // Without host conditional rendering, reading a result the GPU has not produced yet
+    // waits for the host GPU. Fast readback draws instead: an occluded draw is still correct.
+    const auto& regs = maxwell3d->regs;
+    if (Settings::IsGpuReadbackExact() || device.IsExtConditionalRendering() ||
+        regs.render_enable_override != Maxwell::RenderEnable::Override::UseRenderEnable) {
+        return false;
+    }
+    const auto mode = regs.render_enable.mode;
+    if (mode != Maxwell::RenderEnable::Mode::Conditional &&
+        mode != Maxwell::RenderEnable::Mode::IfEqual &&
+        mode != Maxwell::RenderEnable::Mode::IfNotEqual) {
+        return false;
+    }
+    const GPUVAddr address = regs.render_enable.Address();
+    constexpr size_t size = sizeof(Maxwell::ReportSemaphore::Compare);
+    const auto cpu_addr = gpu_memory->GpuToCpuAddress(address);
+    return (cpu_addr && query_cache.IsRegionGpuModified(*cpu_addr, size)) ||
+           gpu_memory->IsMemoryDirty(address, size, VideoCommon::CacheType::BufferCache);
 }
 
 bool RasterizerVulkan::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,

@@ -150,13 +150,16 @@ UiPresenter::~UiPresenter()
         m_api->DestroySemaphore(m_context.device, m_imageAcquired, nullptr);
         m_api->DestroyFence(m_context.device, m_frameDone, nullptr);
         m_api->DestroyCommandPool(m_context.device, m_commandPool, nullptr);
-        m_api->DestroyDevice(m_context.device, nullptr);
+        if (m_ownsDevice)
+        {
+            m_api->DestroyDevice(m_context.device, nullptr);
+        }
     }
     if (m_surface != VK_NULL_HANDLE)
     {
         m_api->DestroySurfaceKHR(m_context.instance, m_surface, nullptr);
     }
-    if (m_context.instance != VK_NULL_HANDLE)
+    if (m_ownsDevice && m_context.instance != VK_NULL_HANDLE)
     {
         m_api->DestroyInstance(m_context.instance, nullptr);
     }
@@ -165,7 +168,31 @@ UiPresenter::~UiPresenter()
 bool UiPresenter::Create(IRenderWindow & window, int32_t deviceIndex)
 {
     m_window = &window;
-    return CreateInstance() && CreateSurface() && ChooseDevice(deviceIndex) && CreateDevice();
+    m_ownsDevice = true;
+    return CreateInstance() && CreateSurface() && ChooseDevice(deviceIndex) && CreateDevice() && CreateFrameObjects();
+}
+
+bool UiPresenter::Create(IRenderWindow & window, UiPresenter & shared)
+{
+    if (shared.m_context.device == VK_NULL_HANDLE)
+    {
+        return Fail("The interface has no Vulkan device to share");
+    }
+    m_window = &window;
+    *m_api = *shared.m_api;
+    m_context = shared.m_context;
+    m_queueFamily = shared.m_queueFamily;
+    m_queue = shared.m_queue;
+    if (!CreateSurface())
+    {
+        return false;
+    }
+    VkBool32 presents = VK_FALSE;
+    if (m_api->GetPhysicalDeviceSurfaceSupportKHR(m_context.physicalDevice, m_queueFamily, m_surface, &presents) != VK_SUCCESS || presents != VK_TRUE)
+    {
+        return Fail("The interface's Vulkan device cannot show the window");
+    }
+    return CreateFrameObjects();
 }
 
 bool UiPresenter::Fail(const std::string & message)
@@ -396,7 +423,13 @@ bool UiPresenter::CreateDevice()
     }
     m_context.device = device;
     api.GetDeviceQueue(device, m_queueFamily, 0, &m_queue);
+    return true;
+}
 
+bool UiPresenter::CreateFrameObjects()
+{
+    const Api & api = *m_api;
+    const VkDevice device = m_context.device;
     VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolInfo.queueFamilyIndex = m_queueFamily;

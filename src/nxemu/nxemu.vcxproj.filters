@@ -111,6 +111,9 @@
     <ClCompile Include="ui\host\ui_presenter.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
+    <ClCompile Include="ui\host\ui_dialog_window.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
     <ClCompile Include="ui\host\ui_window.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
@@ -165,6 +168,9 @@
       <Filter>Header Files\ui\host</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\ui_presenter.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\ui_dialog_window.h">
       <Filter>Header Files\ui\host</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\ui_window.h">

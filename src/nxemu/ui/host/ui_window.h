@@ -10,6 +10,7 @@
 #include <string>
 
 class SystemInterface_SDL;
+class UiDialogWindow;
 class UiPackFileInterface;
 class UiThemeFileInterface;
 nxinterface IVideo;
@@ -48,8 +49,13 @@ public:
 
     SDL_Window * Handle() const { return m_window; }
     void * NativeHandle() const;
+    void * FrontNativeHandle() const;
     Rml::Context * Context() const { return m_context; }
     UiRenderer & Renderer() { return *m_renderer; }
+
+    // Null where dialogs are shown over the main window.
+    UiDialogWindow * DialogWindow();
+    Rml::Context * FrontContext() const;
 
     // RmlUi pixels per window coordinate unit.
     float PixelScale() const { return m_pixelScale; }
@@ -99,7 +105,10 @@ private:
     std::unique_ptr<UiPresenter> m_presenter;
     std::unique_ptr<UiPackFileInterface> m_packFiles;
     std::unique_ptr<UiThemeFileInterface> m_themeFiles;
+    std::unique_ptr<UiDialogWindow> m_dialogWindow;
+    std::filesystem::path m_assetDir;
     std::string m_themeChoice = "system";
+    bool m_light = false;
 #if defined(__linux__)
     Uint32 m_themeEvent = Uint32(-1);
     Uint32 m_themeRequest = 0;

@@ -47,6 +47,7 @@
     <ClCompile Include="ui\host\ui_renderer_effects.cpp" />
     <ClCompile Include="ui\host\ui_theme.cpp" />
     <ClCompile Include="ui\host\ui_presenter.cpp" />
+    <ClCompile Include="ui\host\ui_dialog_window.cpp" />
     <ClCompile Include="ui\host\ui_window.cpp" />
     <ClCompile Include="ui\host\vulkan\vma.cpp" />
     <ClCompile Include="..\..\external\rmlui\Backends\RmlUi_Platform_SDL.cpp" />
@@ -107,6 +108,7 @@
     <ClInclude Include="ui\emulation\emulator_session.h" />
     <ClInclude Include="ui\host\ui_notification.h" />
     <ClInclude Include="ui\host\ui_presenter.h" />
+    <ClInclude Include="ui\host\ui_dialog_window.h" />
     <ClInclude Include="ui\host\ui_window.h" />
     <ClInclude Include="ui\host\ui_theme.h" />
     <ClInclude Include="ui\ui_application.h" />

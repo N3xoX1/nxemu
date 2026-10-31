@@ -81,7 +81,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.NXEMU_MOLTENVK_CACHE_DIR }}
-          key: macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
+          key: macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'external/moltenvk-patches/*.patch', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
 
       - name: Reset compiler cache statistics
         run: ccache --zero-stats
@@ -118,7 +118,7 @@ jobs:
       - name: Test
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
-          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests test_fast_copy test_fast_copy_sanitized test_session_lifecycle test_query_fences test_startup_wait test_launch_gate test_spirv_constant_buffers test_shader_constant_folding test_loader_metadata test_shader_profile test_surface_clip test_image_rescaling test_image_views_and_slices test_swapchain_present_mode test_nce_written_ranges test_storage_pointer_tracking test_empty_storage_warnings test_surface_atomic_arrays test_alpha_to_coverage_dither --parallel "${NXEMU_BUILD_JOBS:-2}"
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build}" --target nxemu_ui_settings_tests test_fast_copy test_fast_copy_sanitized test_session_lifecycle test_query_fences test_startup_wait test_launch_gate test_spirv_constant_buffers test_shader_constant_folding test_loader_metadata test_shader_profile test_surface_clip test_image_rescaling test_image_views_and_slices test_swapchain_present_mode test_nce_written_ranges test_nce_store_thunk test_storage_pointer_tracking test_empty_storage_warnings test_surface_atomic_arrays test_alpha_to_coverage_dither test_conditional_engine test_conditional_runtime --parallel "${NXEMU_BUILD_JOBS:-2}"
           ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build}" --output-on-failure
 
       - name: Compiler cache statistics

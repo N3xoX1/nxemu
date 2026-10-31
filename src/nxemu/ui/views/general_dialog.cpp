@@ -82,7 +82,7 @@ void GeneralDialog::RefreshLanguage()
 }
 
 GeneralDialog::GeneralDialog(UiWindow & window, EmulatorSession & session, SettingsContext & settings, const std::filesystem::path & assetDir, Host host) :
-    Dialog(window.Context(), assetDir / "general_dialog.rml", kSettingsNarrowBelow),
+    Dialog(window, assetDir / "general_dialog.rml", kSettingsNarrowBelow, kSettingsWidth, kSettingsHeight),
     m_window(window),
     m_session(session),
     m_settings(settings),

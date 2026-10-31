@@ -32,7 +32,7 @@ public:
     explicit Patcher();
     ~Patcher();
 
-    bool PatchText(const uint8_t * program_image, uint64_t image_size, uint64_t code_offset, uint64_t code_size, uint64_t atomic_table = 0, bool legacy_36bit = false, bool legacy_36bit_sdk = false, bool read_thunks = false, bool all_read_bases = false, std::span<const u32> read_filter = {}, bool float_reads = false, bool store_thunks = false);
+    bool PatchText(const uint8_t * program_image, uint64_t image_size, uint64_t code_offset, uint64_t code_size, uint64_t atomic_table = 0, bool legacy_36bit = false, bool legacy_36bit_sdk = false, bool read_thunks = false, bool all_read_bases = false, bool float_reads = false, bool store_thunks = false);
     bool RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t code_size, uint8_t * program_image, uint64_t * image_size, EntryTrampolines * out_trampolines, RestartPcs * out_restart_pcs = nullptr, EntryTrampolines* out_atomics = nullptr, EntryTrampolines* out_reads = nullptr);
     // Relocate one module without assuming that its patch section is part of the image.
     // All branches are checked before either buffer is modified.

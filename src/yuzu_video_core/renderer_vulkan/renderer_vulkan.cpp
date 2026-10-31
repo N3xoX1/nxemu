@@ -731,6 +731,7 @@ void RendererVulkan::RenderAppletCaptureLayer(std::span<const Tegra::Framebuffer
         applet_frame.framebuffer = blit_applet.CreateFramebuffer(VideoCore::Capture::Layout, *applet_frame.image_view, CaptureFormat);
     }
 
-    blit_applet.DrawToFrame(rasterizer, &applet_frame, framebuffers, VideoCore::Capture::Layout, 1, CaptureFormat);
+    // Several resource sets, so drawing a frame does not wait for the previous one on the GPU.
+    blit_applet.DrawToFrame(rasterizer, &applet_frame, framebuffers, VideoCore::Capture::Layout, 3, CaptureFormat);
 }
 } // namespace Vulkan
