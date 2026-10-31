@@ -83,8 +83,8 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-// Loop pointer tracking, masked array layers and IGN coverage invalidate old shaders.
-constexpr u32 CACHE_VERSION = 26;
+// Global-memory helper changes require a new shader ABI.
+constexpr u32 CACHE_VERSION = 27;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 // Startup/shutdown diagnostics only; no probe work is added to the draw path.
