@@ -136,6 +136,19 @@ body.dialog-backdrop
     background-color: #000000a0;
 }
 
+body.own-window
+{
+    padding: 0;
+    background-color: var(--canvas);
+}
+
+body.own-window .dialog-header > img,
+body.own-window .dialog-title,
+body.own-window .dialog-close
+{
+    display: none;
+}
+
 .dialog
 {
     border: 1dp var(--border);

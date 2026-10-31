@@ -611,3 +611,8 @@ body.stacked .bind-columns
 {
     flex: 1;
 }
+
+body.own-window .settings-header
+{
+    display: none;
+}

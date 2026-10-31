@@ -4,8 +4,13 @@
 #include <nxemu-core/version.h>
 #include <nxemu/ui/host/shell.h>
 
-AboutDialog::AboutDialog(Rml::Context * context, const std::filesystem::path & assetDir) :
-    Dialog(context, assetDir / "about_dialog.rml")
+namespace
+{
+constexpr int kWidth = 600;
+} // namespace
+
+AboutDialog::AboutDialog(UiWindow & window, const std::filesystem::path & assetDir) :
+    Dialog(window, assetDir / "about_dialog.rml", 620.0f, kWidth, 0)
 {
 }
 

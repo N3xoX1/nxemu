@@ -1,5 +1,6 @@
 #include "ui_window.h"
 #include "system_fonts.h"
+#include "ui_dialog_window.h"
 #include "ui_pack.h"
 #include "ui_theme.h"
 #include <RmlUi/Core.h>
@@ -39,6 +40,25 @@ bool QueryWindow(SDL_Window * window, SDL_SysWMinfo & info)
     return window != nullptr && SDL_GetWindowWMInfo(window, &info) == SDL_TRUE;
 }
 
+void * NativeWindowHandle(SDL_Window * window)
+{
+    SDL_SysWMinfo info{};
+    if (!QueryWindow(window, info))
+    {
+        return nullptr;
+    }
+    switch (info.subsystem)
+    {
+#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+    case SDL_SYSWM_WINDOWS: return info.info.win.window;
+#endif
+#if defined(SDL_VIDEO_DRIVER_COCOA)
+    case SDL_SYSWM_COCOA: return info.info.cocoa.window;
+#endif
+    default: return nullptr;
+    }
+}
+
 using UiSystemInterface = SystemInterface_SDL;
 } // namespace
 
@@ -52,6 +72,7 @@ UiWindow::~UiWindow()
         m_themeQuery.wait();
     }
 #endif
+    m_dialogWindow.reset();
     ReleaseRenderer();
     if (m_rmlInitialised)
     {
@@ -81,6 +102,10 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
 {
     SDL_SetMainReady();
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+    // A hidden dialog window would otherwise stop closing the main window
+    // from quitting; that close is handled as a quit request instead.
+    SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
+    m_assetDir = assetDir;
 #if defined(_WIN32)
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
     // Keep what the window manager does for a framed window: snapping, the
@@ -224,14 +249,36 @@ void UiWindow::ReleaseRenderer()
     {
         m_presenter->WaitIdle();
     }
-    Rml::ReleaseTextures();
-    Rml::ReleaseCompiledGeometry();
+    Rml::ReleaseTextures(m_renderer.get());
+    Rml::ReleaseCompiledGeometry(m_renderer.get());
     m_renderer->Unbind();
     m_video = nullptr;
 }
 
+UiDialogWindow * UiWindow::DialogWindow()
+{
+#if defined(_WIN32)
+    if (m_dialogWindow == nullptr)
+    {
+        m_dialogWindow = std::make_unique<UiDialogWindow>(m_window, *m_presenter, m_assetDir / "images" / "window-icon.png");
+        m_dialogWindow->SetLight(m_light);
+    }
+#endif
+    return m_dialogWindow.get();
+}
+
+Rml::Context * UiWindow::FrontContext() const
+{
+    return m_dialogWindow != nullptr && m_dialogWindow->IsShown() ? m_dialogWindow->Context() : m_context;
+}
+
 void UiWindow::HandleEvent(const SDL_Event & event)
 {
+    if (m_dialogWindow != nullptr && m_dialogWindow->Owns(event))
+    {
+        m_dialogWindow->HandleEvent(event);
+        return;
+    }
 #if defined(__linux__)
     if (event.type == m_themeEvent)
     {
@@ -301,6 +348,10 @@ void UiWindow::HandleEvent(const SDL_Event & event)
 
 bool UiWindow::Render(const PixelRect * gameArea)
 {
+    if (m_dialogWindow != nullptr)
+    {
+        m_dialogWindow->Render();
+    }
     const bool hidden = (SDL_GetWindowFlags(m_window) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) != 0;
     if (hidden || m_drawableWidth <= 0 || m_drawableHeight <= 0)
     {
@@ -358,21 +409,12 @@ void UiWindow::PaceFrame()
 
 void * UiWindow::NativeHandle() const
 {
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(m_window, info))
-    {
-        return nullptr;
-    }
-    switch (info.subsystem)
-    {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
-    case SDL_SYSWM_WINDOWS: return info.info.win.window;
-#endif
-#if defined(SDL_VIDEO_DRIVER_COCOA)
-    case SDL_SYSWM_COCOA: return info.info.cocoa.window;
-#endif
-    default: return nullptr;
-    }
+    return NativeWindowHandle(m_window);
+}
+
+void * UiWindow::FrontNativeHandle() const
+{
+    return NativeWindowHandle(m_dialogWindow != nullptr && m_dialogWindow->IsShown() ? m_dialogWindow->Handle() : m_window);
 }
 
 void * UiWindow::RenderSurface() const
@@ -457,6 +499,7 @@ void UiWindow::SetTheme(const std::string & choice)
 void UiWindow::ApplyTheme(bool light, bool modeChanged)
 {
     const bool coloursChanged = m_themeFiles->SetLight(light);
+    m_light = light;
     if (modeChanged || coloursChanged)
     {
         SetNativeWindowTheme(m_window, m_themeChoice.c_str());
@@ -469,6 +512,10 @@ void UiWindow::ApplyTheme(bool light, bool modeChanged)
     for (int index = 0; index < m_context->GetNumDocuments(); ++index)
     {
         m_context->GetDocument(index)->ReloadStyleSheet();
+    }
+    if (m_dialogWindow != nullptr)
+    {
+        m_dialogWindow->SetLight(light);
     }
 }
 
