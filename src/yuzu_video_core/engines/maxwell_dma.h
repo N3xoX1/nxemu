@@ -87,6 +87,12 @@ public:
 
     virtual bool BufferToImage(const DMA::ImageCopy& copy_info, const DMA::BufferOperand& src,
                                const DMA::ImageOperand& dst) = 0;
+
+    // Only consumes the transfer when both images can be copied on the host GPU.
+    virtual bool ImageToImage(Tegra::MemoryManager&, const DMA::ImageCopy&,
+                              const DMA::ImageOperand&, const DMA::ImageOperand&) {
+        return false;
+    }
 };
 
 /**
@@ -249,6 +255,8 @@ public:
                          u32 methods_pending) override;
 
 private:
+    friend class IdentityRemapAsBytes;
+
     /// Performs the copy from the source buffer to the destination buffer as configured in the
     /// registers.
     void Launch();
@@ -258,6 +266,11 @@ private:
     void CopyPitchToBlockLinear();
 
     void CopyBlockLinearToBlockLinear();
+
+    /// Remapped transfers that are not a plain byte copy.
+    void CopyRemapped();
+    void CopyRemappedLinear();
+    bool TryRemapInPlace();
 
     void ReleaseSemaphore();
 
@@ -269,6 +282,7 @@ private:
     Common::ScratchBuffer<u8> read_buffer;
     Common::ScratchBuffer<u8> write_buffer;
     Common::ScratchBuffer<u8> intermediate_buffer;
+    Common::ScratchBuffer<u8> remap_buffer;
 
     static constexpr std::size_t NUM_REGS = 0x800;
     struct Regs {

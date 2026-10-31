@@ -1591,6 +1591,107 @@ ImageId TextureCache<P>::DmaImageId(const Tegra::DMA::ImageOperand& operand, boo
 }
 
 template <class P>
+bool TextureCache<P>::DmaImageToImage(const Tegra::DMA::ImageCopy& copy_info,
+                                      const Tegra::DMA::ImageOperand& src,
+                                      const Tegra::DMA::ImageOperand& dst) {
+    // The caller has checked the complete, non-remapped 2D layout and excluded
+    // buffer-cache registrations while holding both cache locks.
+    const auto& s = src.params;
+    const auto& d = dst.params;
+    const ImageId src_id = FindDMAImage(ImageInfo(src), src.address);
+    if (!src_id) {
+        return false;
+    }
+    const ImageId dst_id = FindDMAImage(ImageInfo(dst), dst.address);
+    if (!dst_id || src_id == dst_id) {
+        return false;
+    }
+    const Image& src_image = slot_images[src_id];
+    const Image& dst_image = slot_images[dst_id];
+    const auto unsupported = ImageFlagBits::BadOverlap | ImageFlagBits::Converted |
+                             ImageFlagBits::AsynchronousDecode | ImageFlagBits::Rescaled |
+                             ImageFlagBits::Remapped | ImageFlagBits::Sparse |
+                             ImageFlagBits::IsDecoding;
+    const u32 bpp = VideoCore::Surface::BytesPerBlock(src_image.info.format);
+    if (False(src_image.flags & ImageFlagBits::GpuModified) ||
+        True(src_image.flags & unsupported) || True(dst_image.flags & unsupported) ||
+        src_image.info.format != dst_image.info.format ||
+        GetFormatType(src_image.info.format) != SurfaceType::ColorTexture ||
+        !src_image.aliased_images.empty() || !dst_image.aliased_images.empty() ||
+        !src_image.overlapping_images.empty() || !dst_image.overlapping_images.empty() ||
+        src_image.info.size.depth != 1 || dst_image.info.size.depth != 1 ||
+        src_image.info.type != ImageType::e2D || dst_image.info.type != ImageType::e2D ||
+        src_image.info.is_sparse || dst_image.info.is_sparse ||
+        src_image.info.tile_width_spacing != 0 || dst_image.info.tile_width_spacing != 0 ||
+        src_image.info.num_samples != 1 || dst_image.info.num_samples != 1 ||
+        src_image.info.resources.levels != 1 || dst_image.info.resources.levels != 1 ||
+        src_image.info.resources.layers != 1 || dst_image.info.resources.layers != 1 ||
+        src_image.gpu_addr != src.address || dst_image.gpu_addr != dst.address ||
+        src_image.gpu_page_table_index != channel_state->gpu_page_table_index ||
+        dst_image.gpu_page_table_index != channel_state->gpu_page_table_index ||
+        src_image.info.block.width != s.block_size.width ||
+        src_image.info.block.height != s.block_size.height ||
+        src_image.info.block.depth != s.block_size.depth ||
+        dst_image.info.block.width != d.block_size.width ||
+        dst_image.info.block.height != d.block_size.height ||
+        dst_image.info.block.depth != d.block_size.depth ||
+        src_image.info.size.width != dst_image.info.size.width ||
+        src_image.info.size.height != dst_image.info.size.height ||
+        u64{src_image.info.size.width} * bpp != copy_info.length_x ||
+        src_image.info.size.height != copy_info.length_y ||
+        VideoCore::Surface::DefaultBlockWidth(src_image.info.format) != 1 ||
+        VideoCore::Surface::DefaultBlockHeight(src_image.info.format) != 1) {
+        return false;
+    }
+
+    // Host copy commands must not overlap physically aliased source and target.
+    const u64 size = src_image.guest_size_bytes;
+    const auto cpu_src = gpu_memory->GpuToCpuAddress(src.address);
+    const auto cpu_dst = gpu_memory->GpuToCpuAddress(dst.address);
+    if (!size || size != dst_image.guest_size_bytes || !cpu_src || !cpu_dst ||
+        gpu_memory->MaxContinuousRange(src.address, size) != size ||
+        gpu_memory->MaxContinuousRange(dst.address, size) != size) {
+        return false;
+    }
+    const auto* src_ptr = device_memory.GetSpan(*cpu_src, size);
+    const auto* dst_ptr = device_memory.GetSpan(*cpu_dst, size);
+    if (!src_ptr || !dst_ptr) {
+        return false;
+    }
+    const auto src_host = reinterpret_cast<uintptr_t>(src_ptr);
+    const auto dst_host = reinterpret_cast<uintptr_t>(dst_ptr);
+    const auto distance = src_host < dst_host ? dst_host - src_host : src_host - dst_host;
+    if (distance < size) {
+        return false;
+    }
+
+    PrepareImage(src_id, false, false);
+    // Every destination texel is overwritten. Do not upload CPU-dirty contents
+    // which would immediately be discarded. Aliases were excluded above so
+    // PrepareImage cannot rescale either image after the eligibility checks.
+    PrepareImage(dst_id, true, true);
+    ImageCopy copy{
+        .src_subresource = {.base_level = 0, .base_layer = 0, .num_layers = 1},
+        .dst_subresource = {.base_level = 0, .base_layer = 0, .num_layers = 1},
+        .src_offset = {},
+        .dst_offset = {},
+        .extent = {.width = src_image.info.size.width,
+                   .height = src_image.info.size.height,
+                   .depth = 1},
+    };
+    CopyImage(dst_id, src_id, {copy});
+
+    // Match framebuffer blits: native readbacks must observe the new contents.
+    for (const ImageViewId view_id : slot_images[dst_id].image_view_ids) {
+        if (True(slot_image_views[view_id].flags & ImageViewFlagBits::PreemtiveDownload)) {
+            uncommitted_downloads.emplace_back(PendingDownload{true, 0, dst_id});
+            break;
+        }
+    }
+    return true;
+}
+
+template <class P>
 bool TextureCache<P>::IsRescaling() const noexcept {
     return is_rescaling;
 }

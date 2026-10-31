@@ -17,6 +17,7 @@
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_video_core/control/channel_state.h"
+#include "yuzu_video_core/engines/fast_copy.h"
 #include "yuzu_video_core/engines/kepler_compute.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/memory_manager.h"
@@ -1448,6 +1449,26 @@ bool AccelerateDMA::BufferToImage(const Tegra::DMA::ImageCopy& copy_info,
                                   const Tegra::DMA::BufferOperand& buffer_operand,
                                   const Tegra::DMA::ImageOperand& image_operand) {
     return DmaBufferImageCopy<true>(copy_info, buffer_operand, image_operand);
+}
+
+bool AccelerateDMA::ImageToImage(Tegra::MemoryManager& gpu_memory,
+                                 const Tegra::DMA::ImageCopy& copy_info,
+                                 const Tegra::DMA::ImageOperand& src,
+                                 const Tegra::DMA::ImageOperand& dst) {
+    const size_t size = Tegra::Engines::DmaImageCopySize(copy_info, src, dst);
+    if (size == 0) {
+        return false;
+    }
+    std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+    const auto cpu_src = gpu_memory.GpuToCpuAddress(src.address);
+    const auto cpu_dst = gpu_memory.GpuToCpuAddress(dst.address);
+    if (!cpu_src || !cpu_dst || gpu_memory.MaxContinuousRange(src.address, size) != size ||
+        gpu_memory.MaxContinuousRange(dst.address, size) != size ||
+        buffer_cache.IsRegionRegistered(*cpu_src, size) ||
+        buffer_cache.IsRegionRegistered(*cpu_dst, size)) {
+        return false;
+    }
+    return texture_cache.DmaImageToImage(copy_info, src, dst);
 }
 
 } // namespace OpenGL
