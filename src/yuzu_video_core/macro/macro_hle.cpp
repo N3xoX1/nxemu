@@ -84,7 +84,9 @@ public:
                 0, 0x640, Maxwell3D::HLEReplacementAttributeType::BaseInstance);
         }
 
+        params.instance_mask = maxwell3d.GetRegisterValue(0xD1B);
         const bool is_drawn = maxwell3d.draw_manager->DrawArrayIndirect(topology);
+        params.instance_mask = 0xFFFFFFFF;
 
         if constexpr (extended) {
             maxwell3d.engine_state = Maxwell3D::EngineHint::None;

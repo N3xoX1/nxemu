@@ -74,6 +74,19 @@ private:
     Scheduler& scheduler;
 };
 
+/// Prepares an indirect draw whose vertex and geometry stages run as compute
+class VtgIndirectPass final : public ComputePass {
+public:
+    VtgIndirectPass(const Device& device, DescriptorPool& pool);
+
+    /// Records the preparation. The buffers are the draw arguments, the draw information read by
+    /// the stages, the dispatch and draw commands, and the capacity feedback. The parameters are
+    /// the first argument word, the topology, the capacity in vertices, the indices per
+    /// primitive and the mask the guest macro applies to the instance count.
+    void Record(vk::CommandBuffer cmdbuf, const std::array<VkDescriptorBufferInfo, 4>& buffers,
+                const std::array<u32, 5>& parameters);
+};
+
 class Uint8Pass final : public ComputePass {
 public:
     explicit Uint8Pass(const Device& device_, Scheduler& scheduler_,

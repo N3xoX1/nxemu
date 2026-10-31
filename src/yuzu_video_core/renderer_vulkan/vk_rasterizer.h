@@ -217,6 +217,9 @@ private:
     VtgScratchAllocator indirect_scratch;
     /// Instances of the draw being prepared, zero when it cannot run its stages as compute
     u32 vtg_instance_count{};
+    /// The next draw running its stages as compute reads its arguments from GPU memory
+    bool vtg_indirect{};
+    u32 vtg_indirect_instance_mask{};
     DescriptorPool descriptor_pool;
     GuestDescriptorQueue guest_descriptor_queue;
     ComputePassDescriptorQueue compute_pass_descriptor_queue;

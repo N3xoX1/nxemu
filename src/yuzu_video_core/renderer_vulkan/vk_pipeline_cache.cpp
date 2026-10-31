@@ -702,7 +702,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                              StagingBufferPool& staging_pool_)
     : VideoCommon::ShaderCache{device_memory_}, device{device_}, scheduler{scheduler_},
       staging_pool{staging_pool_}, vtg_scratch{device_, scheduler_, staging_pool_},
-      descriptor_pool{descriptor_pool_}, guest_descriptor_queue{guest_descriptor_queue_},
+      descriptor_pool{descriptor_pool_}, vtg_indirect_pass{device_, descriptor_pool_},
+      guest_descriptor_queue{guest_descriptor_queue_},
       render_pass_cache{render_pass_cache_}, buffer_cache{buffer_cache_},
       texture_cache{texture_cache_}, shader_notify{shader_notify_},
       use_asynchronous_shaders{videoSettings.use_asynchronous_shaders},
@@ -2600,6 +2601,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             info->geometry_stride = geometry_layout.stride;
             info->scratch = &vtg_scratch;
             info->staging_pool = &staging_pool;
+            info->indirect_pass = &vtg_indirect_pass;
 
             vtg_passthrough = GenerateVtgPassthroughVertex(pools.inst, pools.block, geometry,
                                                            geometry_stores, geometry_layout);
@@ -2677,6 +2679,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             info->topology = *vtg_topology;
             info->scratch = &vtg_scratch;
             info->staging_pool = &staging_pool;
+            info->indirect_pass = &vtg_indirect_pass;
             info->is_transform_feedback = true;
             vtg_info = std::move(info);
             LOG_INFO(Render_Vulkan, "Running vertex shader {:016x} as compute for transform feedback",

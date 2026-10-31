@@ -15,6 +15,7 @@ set(GLSL_INCLUDES
 
 set(SHADER_FILES
     vulkan_indirect_count.comp
+    vulkan_vtg_indirect.comp
     astc_decoder.comp
     blit_color_float.frag
     blit_color_msaa.frag
