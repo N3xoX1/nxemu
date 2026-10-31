@@ -28,14 +28,18 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
         return;
     }
 
+#if defined(__APPLE__)
+    // Opt-out for bisecting a title regression to the read and store thunks.
+    const bool thunks = std::getenv("NXEMU_NCE_NO_THUNKS") == nullptr;
+#endif
     Core::NCE::Patcher * patch = &m_patchers[patch_index];
     while (!patch->PatchText(program_image, image_size, code_offset, code_size
 #if defined(__APPLE__)
                              , 1, g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace) &&
                                   m_module_patcher_indices[0] < 0,
                                   g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace),
-                                  /*read_thunks=*/true, std::getenv("NXEMU_NCE_ALL_READ_BASES") != nullptr,
-                                  /*float_reads=*/true, /*store_thunks=*/true
+                                  thunks, thunks && std::getenv("NXEMU_NCE_ALL_READ_BASES") != nullptr,
+                                  thunks, thunks
                              // The table address is known after process creation, at relocation.
 #endif
                              ))

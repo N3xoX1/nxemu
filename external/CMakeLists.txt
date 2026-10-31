@@ -305,13 +305,15 @@ if(APPLE)
             # Runs only when the tag changes, so an existing build checks out a new tag without
             # updating and rebuilding MoltenVK on every build.
             UPDATE_DISCONNECTED TRUE
+            # The build step patches the checkout in place; drop that before changing tag.
             UPDATE_COMMAND /bin/sh -c
-                "git cat-file -e ${_nxemu_moltenvk_tag}^{commit} 2>/dev/null || git fetch origin && git checkout --quiet ${_nxemu_moltenvk_tag}"
+                "git reset --hard --quiet && git clean -fdq -- Scripts && (git cat-file -e ${_nxemu_moltenvk_tag}^{commit} 2>/dev/null || git fetch origin) && git checkout --quiet ${_nxemu_moltenvk_tag}"
             SOURCE_DIR "${_nxemu_moltenvk_source}"
             CONFIGURE_COMMAND ""
             BUILD_IN_SOURCE TRUE
+            # Reapply from a clean checkout so an edited patch does not conflict with the old one.
             BUILD_COMMAND /bin/sh -c
-                "(git apply --reverse --check '${_nxemu_moltenvk_patch}' || git apply '${_nxemu_moltenvk_patch}') && ./fetchDependencies --macos && make macos"
+                "git reset --hard --quiet && git clean -fdq -- Scripts && git apply '${_nxemu_moltenvk_patch}' && ./fetchDependencies --macos && make macos"
             BUILD_BYPRODUCTS "${_nxemu_moltenvk_runtime}"
             INSTALL_COMMAND ""
         )
