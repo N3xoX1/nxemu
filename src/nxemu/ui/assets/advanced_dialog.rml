@@ -32,7 +32,7 @@
       <div id="settings-scope" class="settings-scope" />
       <div class="settings-body">
         <div class="advanced-page">
-          <div class="settings-tabs">
+          <div class="settings-tabs advanced-tabs">
             <div id="tab-button-graphics" class="settings-tab" data-command="tab:graphics"><img src="images/docked.png" />
               <div>Graphics</div>
             </div>
@@ -44,6 +44,22 @@
             </div>
             <div id="tab-button-shortcuts" class="settings-tab global-only" data-command="tab:shortcuts"><img src="images/bolt.png" />
               <div>Shortcuts</div>
+            </div>
+
+            <div class="advanced-note">A game is running: what is greyed out cannot change until it stops.</div>
+          </div>
+          <div class="settings-tabs debug-tabs">
+            <div id="tab-button-debug-graphics" class="settings-tab" data-command="tab:debug-graphics"><img src="images/docked.png" />
+              <div>Graphics</div>
+            </div>
+            <div id="tab-button-debug-system" class="settings-tab" data-command="tab:debug-system"><img src="images/chip.png" />
+              <div>System</div>
+            </div>
+            <div id="tab-button-debug-applets" class="settings-tab" data-command="tab:debug-applets"><img src="images/view-grid.png" />
+              <div>Applets</div>
+            </div>
+            <div id="tab-button-debug-log" class="settings-tab global-only" data-command="tab:debug-log"><img src="images/log.png" />
+              <div>Log</div>
             </div>
 
             <div class="advanced-note">A game is running: what is greyed out cannot change until it stops.</div>
@@ -292,11 +308,13 @@
               </div>
             </div>
           </div>
-          <div id="tab-debug" class="tab-page">
+          <div id="tab-debug-graphics" class="tab-page">
             <div class="cards-page">
               <div class="cards-column">
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/layers.png" /><div>NXShader</div></div>
+                  <div class="card-title" data-upper=""><img src="images/layers.png" />
+                    <div>NXShader</div>
+                  </div>
                   <div class="row">
                     <div class="row-texts">
                       <div class="row-label">Shader warmup mode</div>
@@ -320,22 +338,22 @@
                   </div>
                 </div>
                 <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/chip.png" />
-                    <div>Emulation diagnostics</div>
+                  <div class="card-title" data-upper=""><img src="images/view-grid.png" />
+                    <div>Textures and video</div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
-                      <div class="row-label">Processor engine</div>
-                      <div class="row-text">How the game's code is run.</div>
+                      <div class="row-label">ASTC decoding</div>
+                      <div class="row-text">What decodes the textures of this kind.</div>
                     </div>
-                    <select id="cpu-backend" />
+                    <select id="astc" />
                   </div>
                   <div class="row">
                     <div class="row-texts">
-                      <div class="row-label">Processor accuracy</div>
-                      <div class="row-text">For the engine that translates the code.</div>
+                      <div class="row-label">Video decoding</div>
+                      <div class="row-text">What decodes the videos of games.</div>
                     </div>
-                    <select id="cpu-accuracy" />
+                    <select id="nvdec" />
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -345,6 +363,13 @@
                     <div id="driver-cache" class="switch" data-command="toggle:driver-cache">
                       <div class="switch-knob" />
                     </div>
+                  </div>
+                </div>
+              </div>
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/docked.png" />
+                    <div>Rendering</div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -398,19 +423,30 @@
                       <div class="switch-knob" />
                     </div>
                   </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">ASTC decoding</div>
-                      <div class="row-text">What decodes the textures of this kind.</div>
-                    </div>
-                    <select id="astc" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="tab-debug-system" class="tab-page">
+            <div class="cards-page">
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/chip.png" />
+                    <div>Processor</div>
                   </div>
                   <div class="row">
                     <div class="row-texts">
-                      <div class="row-label">Video decoding</div>
-                      <div class="row-text">What decodes the videos of games.</div>
+                      <div class="row-label">Processor engine</div>
+                      <div class="row-text">How the game's code is run.</div>
                     </div>
-                    <select id="nvdec" />
+                    <select id="cpu-backend" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Processor accuracy</div>
+                      <div class="row-text">For the engine that translates the code.</div>
+                    </div>
+                    <select id="cpu-accuracy" />
                   </div>
                 </div>
               </div>
@@ -465,7 +501,122 @@
                     </div>
                   </div>
                 </div>
-                <div class="card global-only">
+              </div>
+            </div>
+          </div>
+          <div id="tab-debug-applets" class="tab-page">
+            <div class="cards-page">
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/view-grid.png" />
+                    <div>Applets</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Amiibo editor</div>
+                    </div>
+                    <select id="applet-cabinet" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Controller configuration</div>
+                    </div>
+                    <select id="applet-controller" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Data erase</div>
+                    </div>
+                    <select id="applet-data-erase" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Error</div>
+                    </div>
+                    <select id="applet-error" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Net connect</div>
+                    </div>
+                    <select id="applet-net-connect" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Player select</div>
+                    </div>
+                    <select id="applet-player-select" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Software keyboard</div>
+                    </div>
+                    <select id="applet-swkbd" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Mii Edit</div>
+                    </div>
+                    <select id="applet-mii-edit" />
+                  </div>
+                </div>
+                <div class="hotkey-help">What a game opens of the console's own: NXEmu's version of it, or the real one from the installed firmware. Applies on the next game start.</div>
+              </div>
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/view-grid.png" />
+                    <div>Applets</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Online web</div>
+                    </div>
+                    <select id="applet-web" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Shop</div>
+                    </div>
+                    <select id="applet-shop" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Photo viewer</div>
+                    </div>
+                    <select id="applet-photo-viewer" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Offline web</div>
+                    </div>
+                    <select id="applet-offline-web" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Login share</div>
+                    </div>
+                    <select id="applet-login-share" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Wifi web auth</div>
+                    </div>
+                    <select id="applet-wifi-web-auth" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">My page</div>
+                    </div>
+                    <select id="applet-my-page" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="tab-debug-log" class="tab-page">
+            <div class="cards-page">
+              <div class="cards-column">
+                <div class="card">
                   <div class="card-title" data-upper=""><img src="images/log.png" />
                     <div>Log</div>
                   </div>

@@ -30,6 +30,7 @@ using namespace SettingsControls;
 namespace
 {
 constexpr const char * kTabs[] = {"graphics", "system", "application", "shortcuts"};
+constexpr const char * kDebugTabs[] = {"debug-graphics", "debug-system", "debug-applets", "debug-log"};
 constexpr const char * kHotkeyPrefix = "hotkey:";
 constexpr const char * kTogglePrefix = "toggle:";
 constexpr const char * kTabPrefix = "tab:";
@@ -196,6 +197,14 @@ Choices Memories()
     };
 }
 
+Choices AppletModes()
+{
+    return {
+        Numbered(Tr("Custom frontend"), static_cast<int>(AppletMode::HLE), Tr("NXEmu's own version of the applet.")),
+        Numbered(Tr("Real applet"), static_cast<int>(AppletMode::LLE), Tr("The console's applet, from the installed firmware.")),
+    };
+}
+
 Choices NXShaderModes()
 {
     return {
@@ -233,6 +242,21 @@ constexpr List kLists[] = {
     {"cpu-backend", NXCpuSetting::CpuBackend, false, ProcessorEngines},
     {"cpu-accuracy", NXCpuSetting::CpuAccuracy, false, ProcessorAccuracies},
     {"memory", NXOsSetting::MemoryLayout, false, Memories},
+    {"applet-cabinet", NXOsSetting::CabinetAppletMode, false, AppletModes},
+    {"applet-controller", NXOsSetting::ControllerAppletMode, false, AppletModes},
+    {"applet-data-erase", NXOsSetting::DataEraseAppletMode, false, AppletModes},
+    {"applet-error", NXOsSetting::ErrorAppletMode, false, AppletModes},
+    {"applet-net-connect", NXOsSetting::NetConnectAppletMode, false, AppletModes},
+    {"applet-player-select", NXOsSetting::PlayerSelectAppletMode, false, AppletModes},
+    {"applet-swkbd", NXOsSetting::SwkbdAppletMode, false, AppletModes},
+    {"applet-mii-edit", NXOsSetting::MiiEditAppletMode, false, AppletModes},
+    {"applet-web", NXOsSetting::WebAppletMode, false, AppletModes},
+    {"applet-shop", NXOsSetting::ShopAppletMode, false, AppletModes},
+    {"applet-photo-viewer", NXOsSetting::PhotoViewerAppletMode, false, AppletModes},
+    {"applet-offline-web", NXOsSetting::OfflineWebAppletMode, false, AppletModes},
+    {"applet-login-share", NXOsSetting::LoginShareAppletMode, false, AppletModes},
+    {"applet-wifi-web-auth", NXOsSetting::WifiWebAuthAppletMode, false, AppletModes},
+    {"applet-my-page", NXOsSetting::MyPageAppletMode, false, AppletModes},
 };
 
 // In the order the audio engines are numbered.
@@ -323,6 +347,7 @@ void AdvancedDialog::OnOpen()
     m_running = m_session.IsRunning() && !m_settings.IsGame();
     m_logFilterLeft = false;
     if (m_settings.IsGame() && (m_tab == "application" || m_tab == "shortcuts")) m_tab = "graphics";
+    if (m_settings.IsGame() && m_debugTab == "debug-log") m_debugTab = "debug-graphics";
     m_hotkeyAsked = -1;
     m_hotkeyNote.clear();
     FillLists();
@@ -401,8 +426,9 @@ void AdvancedDialog::OnCommand(const std::string & command)
     }
     else if (command.rfind(kTabPrefix, 0) == 0)
     {
-        if (m_settings.IsGame() && (command == "tab:application" || command == "tab:shortcuts")) return;
-        m_tab = command.substr(std::string(kTabPrefix).size());
+        if (m_settings.IsGame() && (command == "tab:application" || command == "tab:shortcuts" || command == "tab:debug-log")) return;
+        const std::string tab = command.substr(std::string(kTabPrefix).size());
+        (std::find(std::begin(kDebugTabs), std::end(kDebugTabs), tab) != std::end(kDebugTabs) ? m_debugTab : m_tab) = tab;
         ShowTab();
     }
     else if (command.rfind("clear-keyboard:", 0) == 0 || command.rfind("clear-gamepad:", 0) == 0)
@@ -704,6 +730,11 @@ void AdvancedDialog::ShowTab()
     {
         Document()->SetClass(std::string("tab-") + tab, !m_debug && m_tab == tab);
         SetClass(Document(), (std::string("tab-button-") + tab).c_str(), "selected", m_tab == tab);
+    }
+    for (const char * tab : kDebugTabs)
+    {
+        Document()->SetClass(std::string("tab-") + tab, m_debug && m_debugTab == tab);
+        SetClass(Document(), (std::string("tab-button-") + tab).c_str(), "selected", m_debugTab == tab);
     }
     Document()->SetClass("page-debug", m_debug);
     SetClass(Document(), "category-advanced", "selected", !m_debug);
