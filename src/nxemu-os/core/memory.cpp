@@ -1127,6 +1127,8 @@ struct Memory::Impl {
         }
         // GPU readback may untrack textures and acquire nce_write_mutex. Do not hold it
         // while synchronizing. Read every protected neighbor before opening the host page.
+        std::array<u64, NceHostPageSize / YUZU_PAGESIZE> deferred{};
+        size_t deferred_count{};
         for (size_t i = 0; i < count;)
         {
             const u64 begin = pages[i++];
@@ -1142,11 +1144,15 @@ struct Memory::Impl {
                 ++i;
             }
             const bool shared = IsSharedNcePage(begin, end, vaddr, read) && !PreciseNceReadTracking();
-            HandleRasterizerDownload(begin, end - begin, shared);
+            // Opening the host page would expose data an asynchronous copy has not
+            // published. The access is emulated instead until that copy completes.
+            bool defer = HandleRasterizerDownload(begin, end - begin, shared);
             // An existing readback target may still have its asynchronous copy in flight,
             // and the guest can read the page before the fence that publishes it.
             if (!shared && !DemandNceReadback())
-                HandleRasterizerDownload(begin, end - begin, true);
+                defer = HandleRasterizerDownload(begin, end - begin, true) || defer;
+            for (u64 page = begin; defer && page < end; page += YUZU_PAGESIZE)
+                deferred[deferred_count++] = page;
         }
         // Precise mode grants access and registers the observer on the GPU producer
         // before it resumes drawing. Reopening here could undo a subsequent GPU write.
@@ -1159,6 +1165,9 @@ struct Memory::Impl {
             // A shared page closes again at the next flush, so that a later guest read of
             // it still downloads current data.
             const bool shared = IsSharedNcePage(pages[i], pages[i] + YUZU_PAGESIZE, vaddr, read);
+            if (std::find(deferred.begin(), deferred.begin() + deferred_count, pages[i]) !=
+                deferred.begin() + deferred_count)
+                continue;
             if ((DemandNceReadback() || shared) && cached && nce_read_cached.contains(pages[i]))
                 nce_open_read_pages.insert(pages[i]);
             buffer->ProtectAccess(pages[i], YUZU_PAGESIZE, cached ? Common::MemoryPermission::Read
@@ -1280,7 +1289,9 @@ struct Memory::Impl {
     }
 #endif
 
-    void HandleRasterizerDownload(VAddr v_address, size_t size, [[maybe_unused]] bool shared_page = false)
+    // Returns true when a shared page must stay inaccessible until an asynchronous copy
+    // publishes it.
+    bool HandleRasterizerDownload(VAddr v_address, size_t size, [[maybe_unused]] bool shared_page = false)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
 #if defined(__APPLE__)
@@ -1289,8 +1300,7 @@ struct Memory::Impl {
             RasterizerDownloadArea request{};
             request.native_read = true;
             request.shared_page = true;
-            system.GetVideo().HandleRasterizerDownload(p, size, request);
-            return;
+            return system.GetVideo().HandleRasterizerDownload(p, size, request).deferred;
         }
         if (DemandNceReadback())
         {
@@ -1299,12 +1309,13 @@ struct Memory::Impl {
             RasterizerDownloadArea request{};
             request.native_read = true;
             system.GetVideo().HandleRasterizerDownload(p, size, request);
-            return;
+            return false;
         }
 #endif
         const size_t core = system.GetCurrentHostThreadID();
         RasterizerDownloadArea & area = rasterizer_read_areas[core];
         area = system.GetVideo().HandleRasterizerDownload(p, size, area);
+        return false;
     }
 
     void HandleRasterizerWrite(VAddr v_address, size_t size, bool exact = false)
@@ -1603,6 +1614,14 @@ Result Memory::FlushDataCache(Common::ProcessAddress dest_addr, const std::size_
 void Memory::RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {
 #if defined(__APPLE__)
     impl->RasterizerMarkRegionReadCached(vaddr, size, delta);
+#endif
+}
+
+bool Memory::ProtectsReadCachedRegions() {
+#if defined(__APPLE__)
+    return impl->buffer->UsesNce() && g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+#else
+    return false;
 #endif
 }
 

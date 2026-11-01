@@ -34,6 +34,7 @@
 #include "yuzu_video_core/texture_cache/image_info.h"
 #include "yuzu_video_core/texture_cache/image_view_base.h"
 #include "yuzu_video_core/texture_cache/render_targets.h"
+#include "yuzu_video_core/gpu_write_history.h"
 #include "yuzu_video_core/texture_cache/readback_page_tracker.h"
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/textures/texture.h"
@@ -288,6 +289,15 @@ public:
     /// Return true when an image the guest reads back has GPU writes missing from guest memory
     [[nodiscard]] bool HasUnpublishedReadImage(DAddr addr, size_t size);
 
+    /// Lock-free: false proves that no image the guest reads back has unpublished data here.
+    [[nodiscard]] bool MayHaveUnpublishedReadImage(DAddr addr, size_t size) const noexcept {
+        return unpublished_read_pages.Any(addr, size);
+    }
+
+    /// The guest accesses a page of an image it reads back. Returns whether that page must be
+    /// downloaded now; afterwards asynchronous publications include it.
+    [[nodiscard]] bool ObserveReadImages(DAddr addr, size_t size);
+
     [[nodiscard]] bool IsRescaling() const noexcept;
 
     [[nodiscard]] bool IsRescaling(const ImageViewBase& image_view) const noexcept;
@@ -447,6 +457,8 @@ private:
 
     /// Mark an image as modified from the GPU
     void MarkModification(ImageBase& image, ImageId image_id) noexcept;
+    void MarkUnpublishedRead(ImageBase& image);
+    void RefreshUnpublishedRead(DAddr addr, size_t size);
     void UpdateNativeReadTracking(ImageBase& image, ImageId image_id);
     void NotifyNativeImageModification(ImageBase& image, ImageId image_id);
 
@@ -531,6 +543,9 @@ private:
                                  Tegra::MemoryManager* publication_memory = nullptr);
     void MarkReadbackSynchronized(Image& image);
     ReadbackPageTracker readback_pages;
+    // Pages that may hold an image the guest reads back with GPU writes not published yet.
+    // Set on the GPU thread before a later fence can signal, cleared after publication.
+    AtomicPageBits<34, 12> unpublished_read_pages;
 
     struct PendingDownload {
         bool is_swizzle;

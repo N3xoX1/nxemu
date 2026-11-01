@@ -303,10 +303,24 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         }
         return;
     }
-    if (is_fence) {
+    // Keep the result unreadable by the CPU until it is written: an earlier access faults
+    // and waits for the fence, so the guest-visible signal need not wait for it.
+    const bool protect = impl->device_memory.ProtectsReadCachedPages();
+    if (protect) {
+        const u64 result_size = has_timestamp ? 16 : 4;
+        impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, 1);
+        operation = [this, op = std::move(operation), cpu_addr, result_size] {
+            op();
+            impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, -1);
+        };
+    }
+    if (is_fence && !protect) {
         impl->rasterizer.SignalFence(std::move(operation));
     } else {
         impl->rasterizer.SyncOperation(std::move(operation));
+        if (is_fence) {
+            impl->rasterizer.SignalReference();
+        }
     }
     auto [cont_addr, base] = gen_caching_indexing(cpu_addr);
     {

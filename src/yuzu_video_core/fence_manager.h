@@ -190,9 +190,11 @@ private:
 
         // Ordinary fences and query housekeeping also occupy the queue after
         // their completion signal has run inline. Only a readback or an earlier
-        // delayed signal requires Normal to defer this completion signal.
-        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact() || should_flush ||
-                                 pending_delayed_fences != 0;
+        // delayed signal requires Normal to defer this completion signal. Where pending
+        // readbacks fault on CPU access, a readback alone does not either.
+        const bool unprotected_flush = should_flush && !buffer_cache.PendingDownloadsProtected();
+        const bool delay_fence = force_delay || Settings::IsGpuReadbackExact() ||
+                                 unprotected_flush || pending_delayed_fences != 0;
 
         const bool can_complete_stub_inline =
             allow_stub_fast_path && delay_fence && !should_flush && fences.empty() &&

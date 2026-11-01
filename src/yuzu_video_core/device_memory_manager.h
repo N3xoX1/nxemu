@@ -114,6 +114,8 @@ public:
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
     void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
+    // Whether read-cached pages fault on CPU access in every registered process.
+    bool ProtectsReadCachedPages();
     // Called on the serialized GPU producer, under its execution lock.
     void RegisterNativeRead(DAddr addr, size_t size);
     void InvalidateNativeReadRegion(DAddr addr, size_t size);

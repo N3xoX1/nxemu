@@ -29,7 +29,9 @@ struct Cache {
     std::atomic<unsigned> result{};
     std::function<void()> on_commit;
     std::function<void()> before_pop;
+    bool protects_pending{};
     bool HasUncommittedFlushes() const { return pending; }
+    bool PendingDownloadsProtected() const { return protects_pending; }
     void AccumulateFlushes() {}
     void NotifyWFI() {
         pending |= std::exchange(pending_on_presync, false);
@@ -335,6 +337,35 @@ void CheckOrdinaryFenceOrdering(bool exact_readback) {
     assert(manager.host_fences == 1 && rasterizer.flushes == 1);
 }
 
+// Where a CPU access to pending readback data faults until publication, an ordinary
+// signal need not wait for the readback, but the readback itself still retires.
+template <bool async>
+void CheckProtectedReadback(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<unsigned> completed{};
+    buffers.protects_pending = true;
+    buffers.pending = true;
+    manager.SignalFence([&] { ++completed; });
+    assert(manager.host_fences == 1 && rasterizer.flushes == 1);
+    manager.SignalFence([&] { ++completed; });
+    assert(completed == (exact_readback ? 0u : 2u));
+    manager.SignalGpu();
+    manager.WaitForFence();
+    assert(completed == 2 && buffers.result.load(std::memory_order_acquire) == 42);
+    // Query fences keep their slots alive until retirement in every mode.
+    manager.ready.store(false);
+    buffers.pending = true;
+    manager.SignalQueryFence([&] { ++completed; });
+    assert(completed == 2);
+    manager.SignalGpu();
+    manager.WaitForFence();
+    assert(completed == 3);
+}
+
 void BenchmarkEmpty() {
     Settings::exact_readback.store(false);
     VideoCore::RasterizerInterface rasterizer;
@@ -421,6 +452,8 @@ int main(int argc, char** argv) {
         CheckOrdinaryFenceOrdering<false>(exact_readback);
         CheckCheckpointReadback<true>(exact_readback);
         CheckCheckpointReadback<false>(exact_readback);
+        CheckProtectedReadback<true>(exact_readback);
+        CheckProtectedReadback<false>(exact_readback);
     }
     BenchmarkEmpty();
     std::puts("PASS: GPU readback query fence ordering and empty fast path");

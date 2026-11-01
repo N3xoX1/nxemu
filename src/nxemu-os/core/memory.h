@@ -156,6 +156,7 @@ public:
     /// write-protects them again.
     void FlushNceWrites(bool rearm_native_reads = true);
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
+    bool ProtectsReadCachedRegions() override;
 
     template <typename T>
     T* GetPointer(Common::ProcessAddress vaddr) {
