@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     auto args = CreateBuffer(allocator, (ARGS_WORD + 4) * sizeof(u32));
     auto info = CreateBuffer(allocator, Info::NUM_WORDS * sizeof(u32));
     auto commands = CreateBuffer(allocator, COMMAND_WORDS * sizeof(u32));
-    auto feedback = CreateBuffer(allocator, sizeof(u32));
+    auto feedback = CreateBuffer(allocator, 2 * sizeof(u32));
 
     constexpr std::array topologies{
         VtgTopology::Points,        VtgTopology::Lines,
@@ -150,7 +150,8 @@ int main(int argc, char** argv) {
                         std::fill_n(commands.Words(), COMMAND_WORDS, SENTINEL);
                         commands.buffer.Flush();
                         // A previous, larger request must survive
-                        *feedback.Words() = 4096;
+                        feedback.Words()[0] = 4096;
+                        feedback.Words()[1] = 0;
                         feedback.buffer.Flush();
 
                         const std::array buffers{args.Descriptor(), info.Descriptor(),
@@ -203,6 +204,8 @@ int main(int argc, char** argv) {
                               "indexed draw");
                         check(*feedback.Words() == std::max(4096U, count * masked),
                               "largest request is reported");
+                        check(feedback.Words()[1] == (count != 0 && drawn < masked ? 1U : 0U),
+                              "a draw that does not fit is reported");
                     }
                     }
             }
@@ -216,7 +219,8 @@ int main(int argc, char** argv) {
         a[ARGS_WORD + 2] = 0;
         a[ARGS_WORD + 3] = 0;
         args.buffer.Flush();
-        *feedback.Words() = 0;
+        feedback.Words()[0] = 0;
+        feedback.Words()[1] = 0;
         feedback.buffer.Flush();
         const std::array buffers{args.Descriptor(), info.Descriptor(), commands.Descriptor(),
                                  feedback.Descriptor()};
@@ -232,6 +236,8 @@ int main(int argc, char** argv) {
               VtgTopology::Points, 0x10000, 0x10000, 1024, 0xFFFFFFFF);
         Check(commands.Words()[6] == 0, "a single instance over capacity draws nothing",
               VtgTopology::Points, 0x10000, 0x10000, 1024, 0xFFFFFFFF);
+        Check(feedback.Words()[1] == 1, "a draw over capacity is reported", VtgTopology::Points,
+              0x10000, 0x10000, 1024, 0xFFFFFFFF);
     }
     std::fprintf(stderr, "%u checks, %u failures\n", cases, failures);
     return failures ? EXIT_FAILURE : EXIT_SUCCESS;

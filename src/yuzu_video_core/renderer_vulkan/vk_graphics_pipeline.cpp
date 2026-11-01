@@ -369,7 +369,12 @@ struct GraphicsPipeline::VtgState {
     u32 indirect_instance_mask{};
     /// Vertices the scratch buffers hold for such draws, grown from the feedback
     u32 indirect_capacity{1024};
-    /// Largest number of vertices requested by such draws, written by the GPU
+    /// Largest number of vertices of the draws whose counts were known, which size the first
+    /// draws reading their arguments from GPU memory
+    u64 largest_draw{};
+    bool has_largest_draw{};
+    /// Largest number of vertices requested by such draws and whether one of them did not fit,
+    /// written by the GPU
     StagingBufferRef feedback{};
     bool has_feedback{};
     /// Dispatch and draw commands of the last draw when it read its arguments from GPU memory
@@ -385,7 +390,11 @@ struct GraphicsPipeline::XfbState {
     u32 instance_count{};
 };
 
-GraphicsPipeline::~GraphicsPipeline() = default;
+GraphicsPipeline::~GraphicsPipeline() {
+    if (vtg && vtg->has_feedback) {
+        vtg->staging_pool->FreeDeferred(vtg->feedback);
+    }
+}
 
 void GraphicsPipeline::SetVtgInstanceCount(u32 instance_count) noexcept {
     if (vtg) {
@@ -397,7 +406,18 @@ void GraphicsPipeline::SetVtgInstanceCount(u32 instance_count) noexcept {
 }
 
 bool GraphicsPipeline::CanDrawVtgIndirect() const noexcept {
-    return vtg && vtg->indirect_pass;
+    // The first draws read their counts on the CPU to size the buffers, and a pipeline goes back
+    // to it once a draw did not fit: instances past the capacity are not drawn.
+    if (!vtg || !vtg->indirect_pass || !vtg->has_largest_draw) {
+        return false;
+    }
+    if (!vtg->has_feedback) {
+        return true;
+    }
+    const u32 truncated{
+        std::atomic_ref<u32>(reinterpret_cast<u32*>(vtg->feedback.mapped_span.data())[1])
+            .load(std::memory_order_relaxed)};
+    return truncated == 0;
 }
 
 void GraphicsPipeline::SetVtgIndirect(bool indirect, u32 instance_mask) noexcept {
@@ -1171,20 +1191,21 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
     u64 total_vertices{};
     u64 total_primitives{};
     if (indirect) {
-        // The counts are only known on the GPU. The buffers are sized for a capacity, grown to
-        // the largest request reported by earlier draws; a primitive uses at least one vertex.
+        // The counts are only known on the GPU. The buffers are sized for twice the largest draw
+        // seen with known counts or requested by earlier draws; a primitive uses at least one
+        // vertex.
         if (!state.has_feedback) {
-            state.feedback = state.staging_pool->Request(sizeof(u32), MemoryUsage::Download, true);
-            std::memset(state.feedback.mapped_span.data(), 0, sizeof(u32));
+            state.feedback =
+                state.staging_pool->Request(2 * sizeof(u32), MemoryUsage::Download, true);
+            std::memset(state.feedback.mapped_span.data(), 0, 2 * sizeof(u32));
             state.has_feedback = true;
         }
         const u32 requested{
             std::atomic_ref<u32>(*reinterpret_cast<u32*>(state.feedback.mapped_span.data()))
                 .load(std::memory_order_relaxed)};
-        if (requested > state.indirect_capacity) {
-            state.indirect_capacity = static_cast<u32>(
-                std::min<u64>(std::bit_ceil(u64{requested}), MAX_INVOCATIONS));
-        }
+        const u64 largest{std::max<u64>(state.largest_draw, requested)};
+        state.indirect_capacity = static_cast<u32>(std::min<u64>(
+            std::max<u64>(state.indirect_capacity, 2 * std::bit_ceil(largest)), MAX_INVOCATIONS));
         while (state.indirect_capacity > VTG_LOCAL_SIZE &&
                !scratch_fits(state.indirect_capacity, state.indirect_capacity)) {
             state.indirect_capacity /= 2;
@@ -1197,6 +1218,10 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
         primitive_count = Shader::VtgPrimitiveCount(state.topology, vertex_count);
         total_vertices = u64{vertex_count} * instance_count;
         total_primitives = u64{primitive_count} * instance_count;
+        if (!is_indexed) {
+            state.largest_draw = std::max(state.largest_draw, total_vertices);
+            state.has_largest_draw = true;
+        }
     }
     const bool fits{scratch_fits(total_vertices, total_primitives)};
     const bool runs{(indirect || total_primitives != 0) && fits};
@@ -1396,7 +1421,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
             {args_buffer->Handle(), args_base, args_offset - args_base + 4 * sizeof(u32)},
             {info_buffer.buffer, info_buffer.offset, info_buffer.size},
             {commands_buffer, commands_offset, 11 * sizeof(u32)},
-            {state.feedback.buffer, state.feedback.offset, sizeof(u32)},
+            {state.feedback.buffer, state.feedback.offset, 2 * sizeof(u32)},
         }};
         const std::array<u32, 5> parameters{static_cast<u32>((args_offset - args_base) / 4),
                                             static_cast<u32>(state.topology),
