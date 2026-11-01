@@ -795,6 +795,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                               : 0,
         .texel_buffer_size_view = device.NeedsTexelBufferPad(),
     };
+    // Vertex and geometry stages running as compute are graphics shaders, which flicker on Metal
+    // when the global memory helpers are not inlined
+    vtg_profile = profile;
+    vtg_profile.avoid_global_memory_helper_inlining = false;
 
     host_info = Shader::HostTranslateInfo{
         .support_float64 = device.IsFloat64Supported(),
@@ -2584,7 +2588,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                 Shader::Backend::Bindings compute_binding;
                 const std::vector<u32> code{
                     Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
-                        [&] { return EmitSPIRV(profile, *runtimes[stage], *stages[stage], compute_binding); })};
+                        [&] { return EmitSPIRV(vtg_profile, *runtimes[stage], *stages[stage], compute_binding); })};
                 VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
                 info->modules[stage] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
@@ -2664,7 +2668,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                                                                info->vertex_bindings)) {
             Shader::Backend::Bindings compute_binding;
             const std::vector<u32> code{Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
-                [&] { return EmitSPIRV(profile, vertex_runtime, vertex, compute_binding); })};
+                [&] { return EmitSPIRV(vtg_profile, vertex_runtime, vertex, compute_binding); })};
             VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
             info->modules[VtgPipelineInfo::VERTEX] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,

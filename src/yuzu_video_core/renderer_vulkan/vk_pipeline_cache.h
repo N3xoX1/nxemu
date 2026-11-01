@@ -248,6 +248,7 @@ private:
     ShaderPools main_pools;
 
     Shader::Profile profile;
+    Shader::Profile vtg_profile;
     Shader::HostTranslateInfo host_info;
 
     std::string capture_context;
