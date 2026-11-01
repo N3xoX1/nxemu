@@ -327,3 +327,26 @@ if(NOT MSVC)
     target_link_options(test_gpu_commands PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_gpu_commands)
+
+set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
+add_custom_command(
+    OUTPUT "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/texture_hotpaths/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_texture_hotpaths_generated}"
+    DEPENDS texture_hotpaths/extract.py
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/texture_cache.h"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/texture_cache_base.h"
+    VERBATIM)
+add_executable(test_texture_regions texture_hotpaths/regions.cpp
+    "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc")
+target_include_directories(test_texture_regions PRIVATE "${_texture_hotpaths_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_texture_regions PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_texture_regions PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_texture_regions PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_texture_regions PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_texture_regions)
