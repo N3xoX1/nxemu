@@ -204,11 +204,13 @@ private:
     void UpdateBlending(Tegra::Engines::Maxwell3D::Regs& regs);
 
     void UpdateVertexInput(Tegra::Engines::Maxwell3D::Regs& regs);
+    void RefreshVertexInput(Tegra::Engines::Maxwell3D::Regs& regs);
 
     Tegra::GPU& gpu;
     Tegra::MaxwellDeviceMemoryManager& device_memory;
 
     const Device& device;
+    const bool has_dynamic_vertex_input;
     MemoryAllocator& memory_allocator;
     StateTracker& state_tracker;
     Scheduler& scheduler;

@@ -1398,6 +1398,13 @@ void BufferCache<P>::UpdateVertexBuffer(u32 index) {
         return;
     }
     const auto& array = maxwell3d->regs.vertex_streams[index];
+    if constexpr (!IS_OPENGL) {
+        // Rebasing a vertex buffer does not change its input layout. On Vulkan devices
+        // without extended dynamic state, only a changed stride requires a refresh.
+        if (runtime.NeedsVertexInputStrideTracking()) {
+            runtime.NotifyVertexBufferStride(index, array.stride, maxwell3d->dirty.flags);
+        }
+    }
     const auto& limit = maxwell3d->regs.vertex_stream_limits[index];
     const GPUVAddr gpu_addr_begin = array.Address();
     const GPUVAddr gpu_addr_end = limit.Address() + 1;

@@ -4,6 +4,7 @@
 #include "surface_clip_state.h"
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <memory>
 #include <mutex>
 
@@ -208,6 +209,7 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
                                    const Device& device_, MemoryAllocator& memory_allocator_,
                                    StateTracker& state_tracker_, Scheduler& scheduler_)
     : gpu{gpu_}, device_memory{device_memory_}, device{device_},
+      has_dynamic_vertex_input{SupportsDirectVertexInput(device)},
       memory_allocator{memory_allocator_}, state_tracker{state_tracker_}, scheduler{scheduler_},
       staging_pool(device, memory_allocator, scheduler),
       indirect_scratch(device, scheduler, staging_pool), descriptor_pool(device, scheduler),
@@ -1302,7 +1304,7 @@ void RasterizerVulkan::UpdateDynamicStates() {
             UpdateBlending(regs);
         }
     }
-    if (device.IsExtVertexInputDynamicStateSupported()) {
+    if (has_dynamic_vertex_input) {
         UpdateVertexInput(regs);
     }
 }
@@ -1846,47 +1848,45 @@ void RasterizerVulkan::UpdateStencilTestEnable(Tegra::Engines::Maxwell3D::Regs& 
 }
 
 void RasterizerVulkan::UpdateVertexInput(Tegra::Engines::Maxwell3D::Regs& regs) {
-    auto& dirty{maxwell3d->dirty.flags};
-    if (!dirty[Dirty::VertexInput]) {
+    if (!maxwell3d->dirty.flags[Dirty::VertexInput]) {
         return;
     }
+    RefreshVertexInput(regs);
+}
+
+void RasterizerVulkan::RefreshVertexInput(Tegra::Engines::Maxwell3D::Regs& regs) {
+    auto& dirty{maxwell3d->dirty.flags};
     dirty[Dirty::VertexInput] = false;
 
     boost::container::static_vector<VkVertexInputBindingDescription2EXT, 32> bindings;
     boost::container::static_vector<VkVertexInputAttributeDescription2EXT, 32> attributes;
 
-    // There seems to be a bug on Nvidia's driver where updating only higher attributes ends up
-    // generating dirty state. Track the highest dirty attribute and update all attributes until
-    // that one.
-    size_t highest_dirty_attr{};
-    for (size_t index = 0; index < Maxwell::NumVertexAttributes; ++index) {
-        if (dirty[Dirty::VertexAttribute0 + index]) {
-            highest_dirty_attr = index;
-        }
-    }
-    for (size_t index = 0; index < highest_dirty_attr; ++index) {
+    // vkCmdSetVertexInputEXT replaces the complete vertex input state. In particular, attributes
+    // absent from the command become undefined, even when only one guest attribute was dirty.
+    const u32 max_attributes = Maxwell::NumVertexAttributes;
+    const u32 max_bindings = Maxwell::NumVertexArrays;
+    static_assert(max_attributes == VertexInputMapping::NUM_SLOTS &&
+                  max_bindings == VertexInputMapping::NUM_SLOTS);
+    u32 used_bindings{};
+    for (u32 index = 0; index < max_attributes; ++index) {
         const Maxwell::VertexAttribute attribute{regs.vertex_attrib_format[index]};
         const u32 binding{attribute.buffer};
-        dirty[Dirty::VertexAttribute0 + index] = false;
-        dirty[Dirty::VertexBinding0 + static_cast<size_t>(binding)] = true;
-        if (!attribute.constant) {
-            attributes.push_back({
-                .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
-                .pNext = nullptr,
-                .location = static_cast<u32>(index),
-                .binding = binding,
-                .format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size),
-                .offset = attribute.offset,
-            });
-        }
-    }
-    for (size_t index = 0; index < Maxwell::NumVertexAttributes; ++index) {
-        if (!dirty[Dirty::VertexBinding0 + index]) {
+        if (attribute.constant || binding >= max_bindings) {
             continue;
         }
-        dirty[Dirty::VertexBinding0 + index] = false;
-
-        const u32 binding{static_cast<u32>(index)};
+        attributes.push_back({
+            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+            .pNext = nullptr,
+            .location = index,
+            .binding = binding,
+            .format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size),
+            .offset = attribute.offset,
+        });
+        used_bindings |= u32{1} << binding;
+    }
+    while (used_bindings != 0) {
+        const u32 binding = static_cast<u32>(std::countr_zero(used_bindings));
+        used_bindings &= used_bindings - 1;
         const auto& input_binding{regs.vertex_streams[binding]};
         const bool is_instanced{regs.vertex_stream_instances.IsInstancingEnabled(binding)};
         bindings.push_back({
@@ -1898,6 +1898,19 @@ void RasterizerVulkan::UpdateVertexInput(Tegra::Engines::Maxwell3D::Regs& regs) 
             .divisor = is_instanced ? input_binding.frequency : 1,
         });
     }
+    // Clear the per-slot flags together instead of 64 read/modify/write operations.
+    static const auto clean_mask = [] {
+        Tegra::Engines::Maxwell3D::DirtyState::Flags mask;
+        mask.set();
+        for (size_t index = 0; index < Maxwell::NumVertexAttributes; ++index) {
+            mask.reset(Dirty::VertexAttribute0 + index);
+        }
+        for (size_t index = 0; index < Maxwell::NumVertexArrays; ++index) {
+            mask.reset(Dirty::VertexBinding0 + index);
+        }
+        return mask;
+    }();
+    dirty &= clean_mask;
     scheduler.Record([bindings, attributes](vk::CommandBuffer cmdbuf) {
         cmdbuf.SetVertexInputEXT(bindings, attributes);
     });

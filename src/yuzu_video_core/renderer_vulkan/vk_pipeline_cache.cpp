@@ -828,7 +828,9 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_extended_dynamic_state_2_extra = device.IsExtExtendedDynamicState2ExtrasSupported(),
         .has_extended_dynamic_state_3_blend = device.IsExtExtendedDynamicState3BlendingSupported(),
         .has_extended_dynamic_state_3_enables = device.IsExtExtendedDynamicState3EnablesSupported(),
-        .has_dynamic_vertex_input = device.IsExtVertexInputDynamicStateSupported(),
+        // Low-limit hosts need the existing shader-aware vertex-location/binding compaction.
+        // The dynamic vertex path uses guest indices directly and cannot provide that mapping.
+        .has_dynamic_vertex_input = SupportsDirectVertexInput(device),
         .has_vertex_stride_workaround = device.NeedsVertexAttributeStrideWorkaround(),
     };
     guest_recipe_probe = GuestPipelineRecipeProbe::FromEnvironment();

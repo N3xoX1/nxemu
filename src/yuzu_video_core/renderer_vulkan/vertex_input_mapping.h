@@ -10,9 +10,10 @@ namespace Vulkan {
 // Guest slot numbers are independent of the number of inputs consumed by a draw.
 // Compact only live inputs, preserving shared streams and their instancing divisors.
 struct VertexInputMapping {
+    static constexpr uint32_t NUM_SLOTS = 32;
     static constexpr uint32_t UNUSED = ~uint32_t{};
-    std::array<uint32_t, 32> locations{};
-    std::array<uint32_t, 32> bindings{};
+    std::array<uint32_t, NUM_SLOTS> locations{};
+    std::array<uint32_t, NUM_SLOTS> bindings{};
     uint32_t num_attributes{};
     uint32_t num_bindings{};
 
@@ -37,6 +38,15 @@ struct VertexInputMapping {
         }
     }
 };
+
+// The direct dynamic path uses guest slot numbers. Smaller hosts need the
+// shader-aware compaction used by the static pipeline path.
+template <class Device>
+bool SupportsDirectVertexInput(const Device& device) {
+    return device.IsExtVertexInputDynamicStateSupported() &&
+           device.GetMaxVertexInputAttributes() >= VertexInputMapping::NUM_SLOTS &&
+           device.GetMaxVertexInputBindings() >= VertexInputMapping::NUM_SLOTS;
+}
 
 template <class State, class Loads>
 VertexInputMapping MakeVertexInputMapping(const State& state, const Loads& loads) {

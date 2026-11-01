@@ -2139,9 +2139,6 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE_EXT,
             VK_DYNAMIC_STATE_STENCIL_OP_EXT,
         };
-        if (key.state.dynamic_vertex_input) {
-            dynamic_states.push_back(VK_DYNAMIC_STATE_VERTEX_INPUT_EXT);
-        }
         dynamic_states.insert(dynamic_states.end(), extended.begin(), extended.end());
         if (key.state.extended_dynamic_state_2) {
             static constexpr std::array extended2{
@@ -2177,6 +2174,10 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
                        state == VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT;
             }),
             dynamic_states.end());
+    }
+    // Vertex-input dynamic state is independent of extended dynamic state.
+    if (key.state.dynamic_vertex_input) {
+        dynamic_states.push_back(VK_DYNAMIC_STATE_VERTEX_INPUT_EXT);
     }
     const VkPipelineDynamicStateCreateInfo dynamic_state_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
