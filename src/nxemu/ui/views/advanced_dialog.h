@@ -38,6 +38,7 @@ private:
     SettingsContext & m_settings;
     const OpenSettingsPage m_openPage;
     std::string m_tab = "graphics";
+    std::string m_debugTab = "debug-graphics";
     bool m_debug = false;
     std::vector<std::string> m_changes;
     bool m_logFilterLeft = false;

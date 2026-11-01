@@ -24,3 +24,6 @@ DockedMode DockedModeFromString(std::string_view str);
 
 const char* MemoryLayoutToString(MemoryLayout value);
 MemoryLayout MemoryLayoutFromString(std::string_view str);
+
+const char* AppletModeToString(AppletMode value);
+AppletMode AppletModeFromString(std::string_view str, AppletMode fallback);
