@@ -15,6 +15,7 @@
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_staging_buffer_pool.h"
+#include "yuzu_video_core/renderer_vulkan/vk_state_tracker.h"
 #include "yuzu_video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
@@ -370,6 +371,22 @@ private:
     }
 };
 
+void BufferCacheRuntime::NotifyVertexBufferStride(
+    u32 index, u32 stride, Tegra::Engines::Maxwell3D::DirtyState::Flags& dirty) noexcept {
+    if (!track_vertex_input_strides) {
+        return;
+    }
+    const u32 bit = 1U << index;
+    if ((known_vertex_input_strides & bit) != 0 && vertex_input_strides[index] == stride) {
+        return;
+    }
+    known_vertex_input_strides |= bit;
+    vertex_input_strides[index] = stride;
+    // Configure updates buffers before UpdateDynamicStates. Reuse the engine flag
+    // so clean draws pay no extra poll, and channel invalidation stays authoritative.
+    dirty[Dirty::VertexInput] = true;
+}
+
 BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& memory_allocator_,
                                        Scheduler& scheduler_, StagingBufferPool& staging_pool_,
                                        GuestDescriptorQueue& guest_descriptor_queue_,
@@ -381,6 +398,10 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
                       compute_pass_descriptor_queue),
       readback_descriptor_queue{compute_pass_descriptor_queue},
       readback_descriptor_pool{descriptor_pool} {
+    // vkCmdBindVertexBuffers2EXT already updates strides with extended dynamic state.
+    // Without it, vkCmdSetVertexInputEXT must update strides when they actually change.
+    track_vertex_input_strides =
+        SupportsDirectVertexInput(device) && !device.IsExtExtendedDynamicStateSupported();
     readback_shadow_budget = std::make_shared<ReadbackShadowBudget>();
     readback_shadow_budget->capacity = std::min<u64>(512ULL << 20, GetDeviceLocalMemory() / 16);
     if (device.GetDriverID() != VK_DRIVER_ID_QUALCOMM_PROPRIETARY) {
