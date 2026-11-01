@@ -44,8 +44,9 @@ SDL_GamepadBinding GetBinding(SDL_Gamepad * controller, SDL_GamepadBindingType o
         {
             continue;
         }
-        const int bound = output_type == SDL_GAMEPAD_BINDTYPE_BUTTON ? binding.output.button
-                                                                     : binding.output.axis.axis;
+        const int bound = output_type == SDL_GAMEPAD_BINDTYPE_BUTTON
+                              ? static_cast<int>(binding.output.button)
+                              : static_cast<int>(binding.output.axis.axis);
         if (bound == output)
         {
             result = binding;
