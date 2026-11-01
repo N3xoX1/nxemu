@@ -4,12 +4,12 @@
 #include "ui_renderer.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
-#include <SDL_syswm.h>
-// System SDL headers may expose platform macros.
-#undef None
 #include <algorithm>
 #include <stb_image.h>
 #include <yuzu_common/logging/log.h>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 namespace
 {
@@ -18,40 +18,17 @@ constexpr int kMinimumWidth = 640;
 constexpr int kMinimumHeight = 420;
 constexpr int kScreenMargin = 24;
 
-bool QueryWindow(SDL_Window * window, SDL_SysWMinfo & info)
+void * WindowPointer(SDL_Window * window, const char * property)
 {
-    SDL_VERSION(&info.version);
-    return window != nullptr && SDL_GetWindowWMInfo(window, &info) == SDL_TRUE;
+    return window != nullptr ? SDL_GetPointerProperty(SDL_GetWindowProperties(window), property, nullptr) : nullptr;
 }
 
 #if defined(_WIN32)
 HWND WindowHandle(SDL_Window * window)
 {
-    SDL_SysWMinfo info{};
-    return QueryWindow(window, info) && info.subsystem == SDL_SYSWM_WINDOWS ? info.info.win.window : nullptr;
+    return static_cast<HWND>(WindowPointer(window, SDL_PROP_WINDOW_WIN32_HWND_POINTER));
 }
 #endif
-
-Uint32 EventWindowId(const SDL_Event & event)
-{
-    switch (event.type)
-    {
-    case SDL_WINDOWEVENT: return event.window.windowID;
-    case SDL_KEYDOWN:
-    case SDL_KEYUP: return event.key.windowID;
-    case SDL_TEXTEDITING: return event.edit.windowID;
-    case SDL_TEXTINPUT: return event.text.windowID;
-    case SDL_MOUSEMOTION: return event.motion.windowID;
-    case SDL_MOUSEBUTTONDOWN:
-    case SDL_MOUSEBUTTONUP: return event.button.windowID;
-    case SDL_MOUSEWHEEL: return event.wheel.windowID;
-    case SDL_DROPFILE:
-    case SDL_DROPTEXT:
-    case SDL_DROPBEGIN:
-    case SDL_DROPCOMPLETE: return event.drop.windowID;
-    default: return 0;
-    }
-}
 } // namespace
 
 UiDialogWindow::UiDialogWindow(SDL_Window * owner, UiPresenter & sharedPresenter, std::filesystem::path iconFile) :
@@ -99,8 +76,7 @@ bool UiDialogWindow::Prepare()
     }
     m_failed = true;
 
-    m_window = SDL_CreateWindow("NXEmu", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 600,
-                                SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    m_window = SDL_CreateWindow("NXEmu", 960, 600, SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (m_window == nullptr)
     {
         LOG_WARNING(Frontend, "Dialog window: {}", SDL_GetError());
@@ -139,7 +115,7 @@ bool UiDialogWindow::Prepare()
 
 bool UiDialogWindow::Owns(const SDL_Event & event) const
 {
-    return m_window != nullptr && EventWindowId(event) == SDL_GetWindowID(m_window);
+    return m_window != nullptr && SDL_GetWindowFromEvent(&event) == m_window;
 }
 
 void UiDialogWindow::Present(const std::string & title, int width, int height)
@@ -189,10 +165,14 @@ bool UiDialogWindow::TakeCloseRequest()
 
 void UiDialogWindow::Place(int width, int height, bool resizable)
 {
-    const int display = std::max(SDL_GetWindowDisplayIndex(m_owner), 0);
+    SDL_DisplayID display = SDL_GetDisplayForWindow(m_owner);
+    if (display == 0)
+    {
+        display = SDL_GetPrimaryDisplay();
+    }
     const float scale = ContentScale();
     SDL_Rect usable{};
-    if (SDL_GetDisplayUsableBounds(display, &usable) != 0)
+    if (!SDL_GetDisplayUsableBounds(display, &usable))
     {
         usable = {0, 0, 1280, 720};
     }
@@ -205,7 +185,7 @@ void UiDialogWindow::Place(int width, int height, bool resizable)
     const int minimumHeight = resizable ? std::min(static_cast<int>(kMinimumHeight * scale), roomHeight) : 1;
     width = std::clamp(static_cast<int>(width * scale), minimumWidth, roomWidth);
     height = std::clamp(static_cast<int>(height * scale), minimumHeight, roomHeight);
-    SDL_SetWindowResizable(m_window, resizable ? SDL_TRUE : SDL_FALSE);
+    SDL_SetWindowResizable(m_window, resizable);
     SDL_SetWindowMinimumSize(m_window, minimumWidth, minimumHeight);
     SDL_SetWindowSize(m_window, width, height);
 
@@ -254,33 +234,30 @@ void UiDialogWindow::HandleEvent(const SDL_Event & event)
     {
         return;
     }
-    if (event.type == SDL_WINDOWEVENT)
+    if (event.type >= SDL_EVENT_WINDOW_FIRST && event.type <= SDL_EVENT_WINDOW_LAST)
     {
-        switch (event.window.event)
+        switch (event.type)
         {
-        case SDL_WINDOWEVENT_SIZE_CHANGED:
-        case SDL_WINDOWEVENT_DISPLAY_CHANGED:
-        case SDL_WINDOWEVENT_MOVED:
-        case SDL_WINDOWEVENT_MAXIMIZED:
-        case SDL_WINDOWEVENT_RESTORED:
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+        case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+        case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+        case SDL_EVENT_WINDOW_MOVED:
+        case SDL_EVENT_WINDOW_MAXIMIZED:
+        case SDL_EVENT_WINDOW_RESTORED:
             UpdateDimensions();
             break;
-        case SDL_WINDOWEVENT_LEAVE:
+        case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             m_context->ProcessMouseLeave();
             break;
-        case SDL_WINDOWEVENT_CLOSE:
+        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
             m_closeRequested = true;
             break;
         }
         return;
     }
-    SDL_Event translated = event;
-    if (translated.type == SDL_MOUSEMOTION)
-    {
-        translated.motion.x = static_cast<Sint32>(translated.motion.x * m_pixelScale);
-        translated.motion.y = static_cast<Sint32>(translated.motion.y * m_pixelScale);
-    }
-    RmlSDL::InputEventHandler(m_context, m_window, translated);
+    // The handler scales mouse positions by the window's pixel density.
+    SDL_Event forwarded = event;
+    RmlSDL::InputEventHandler(m_context, m_window, forwarded);
 }
 
 void UiDialogWindow::Update()
@@ -336,49 +313,18 @@ void UiDialogWindow::SetLight(bool light)
 
 void * UiDialogWindow::RenderSurface() const
 {
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(m_window, info))
-    {
-        return nullptr;
-    }
-    switch (info.subsystem)
-    {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
-    case SDL_SYSWM_WINDOWS: return info.info.win.window;
-#endif
-#if defined(SDL_VIDEO_DRIVER_WAYLAND)
-    case SDL_SYSWM_WAYLAND: return info.info.wl.surface;
-#endif
-    default: return nullptr;
-    }
+    // Dialogs get their own window only on Windows.
+    return WindowPointer(m_window, SDL_PROP_WINDOW_WIN32_HWND_POINTER);
 }
 
 void * UiDialogWindow::DisplayConnection() const
 {
-#if defined(SDL_VIDEO_DRIVER_WAYLAND)
-    SDL_SysWMinfo info{};
-    if (QueryWindow(m_window, info) && info.subsystem == SDL_SYSWM_WAYLAND)
-    {
-        return info.info.wl.display;
-    }
-#endif
     return nullptr;
 }
 
 RenderWindowSystem UiDialogWindow::WindowSystem() const
 {
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(m_window, info))
-    {
-        return RenderWindowSystem::Default;
-    }
-    switch (info.subsystem)
-    {
-    case SDL_SYSWM_WINDOWS: return RenderWindowSystem::Windows;
-    case SDL_SYSWM_COCOA: return RenderWindowSystem::Cocoa;
-    case SDL_SYSWM_WAYLAND: return RenderWindowSystem::Wayland;
-    default: return RenderWindowSystem::Default;
-    }
+    return WindowPointer(m_window, SDL_PROP_WINDOW_WIN32_HWND_POINTER) != nullptr ? RenderWindowSystem::Windows : RenderWindowSystem::Default;
 }
 
 float UiDialogWindow::PixelRatio() const
@@ -405,10 +351,11 @@ float UiDialogWindow::ContentScale() const
     SDL_Window * window = m_shown ? m_window : m_owner;
     float scale = 1.0f;
 #if defined(_WIN32)
-    float dpi = 0;
-    if (SDL_GetDisplayDPI(std::max(SDL_GetWindowDisplayIndex(window), 0), nullptr, &dpi, nullptr) == 0 && dpi > 0)
+    // Window coordinates are pixels on Windows; the display scale carries the DPI.
+    const float displayScale = SDL_GetWindowDisplayScale(window);
+    if (displayScale > 0.0f)
     {
-        scale = dpi / 96.0f;
+        scale = displayScale;
     }
 #else
     (void)window;
@@ -429,11 +376,11 @@ void UiDialogWindow::SetWindowIcon()
     {
         return;
     }
-    SDL_Surface * icon = SDL_CreateRGBSurfaceWithFormatFrom(pixels, width, height, 32, width * 4, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface * icon = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, pixels, width * 4);
     if (icon != nullptr)
     {
         SDL_SetWindowIcon(m_window, icon);
-        SDL_FreeSurface(icon);
+        SDL_DestroySurface(icon);
     }
     stbi_image_free(pixels);
 }

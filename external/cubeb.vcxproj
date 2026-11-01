@@ -31,6 +31,10 @@
       <AdditionalIncludeDirectories>$(SolutionDir)external\cubeb\include;$(SolutionDir)external\cubeb\subprojects\;$(SolutionDir)src\3rd_party\cubeb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4101;4244;4267;4305;4312;4715;4996;5287;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <Lib>
+      <!-- The WASAPI backend's thread priority calls. -->
+      <AdditionalDependencies>avrt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="cubeb\src\cubeb.c" />

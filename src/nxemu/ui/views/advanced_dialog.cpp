@@ -459,7 +459,7 @@ void AdvancedDialog::OnCommand(const std::string & command)
         const int asked = std::atoi(command.c_str() + (gamepad ? 8 : std::string(kHotkeyPrefix).size()));
         m_hotkeyAsked = (asked == m_hotkeyAsked && gamepad == m_hotkeyGamepad) || asked < 0 || asked >= static_cast<int>(std::size(Hotkeys::kAll)) ? -1 : asked;
         m_hotkeyGamepad = gamepad;
-        m_hotkeyDevice = -1;
+        m_hotkeyDevice = 0;
         if (gamepad && m_hotkeyAsked >= 0 && !Hotkeys::kAll[m_hotkeyAsked].inGame)
         {
             m_hotkeyAsked = -1;
@@ -599,9 +599,9 @@ bool AdvancedDialog::HandleKey(const SDL_KeyboardEvent & event)
     {
         return false;
     }
-    const Shortcut shortcut = Shortcut::Of(event.keysym);
+    const Shortcut shortcut = Shortcut::Of(event);
     // A modifier alone is the start of a shortcut.
-    if (event.type != SDL_KEYDOWN || event.repeat != 0 || shortcut.key == SDLK_UNKNOWN)
+    if (event.type != SDL_EVENT_KEY_DOWN || event.repeat || shortcut.key == SDLK_UNKNOWN)
     {
         return true;
     }
@@ -692,19 +692,19 @@ bool AdvancedDialog::HandleGamepad(const SDL_Event & event, const Hotkeys::Gamep
     {
         return false;
     }
-    if (event.type == SDL_JOYDEVICEREMOVED && event.jdevice.which == m_hotkeyDevice)
+    if (event.type == SDL_EVENT_JOYSTICK_REMOVED && event.jdevice.which == m_hotkeyDevice)
     {
-        m_hotkeyDevice = -1;
+        m_hotkeyDevice = 0;
     }
-    if (event.type != SDL_JOYBUTTONDOWN && event.type != SDL_JOYBUTTONUP)
+    if (event.type != SDL_EVENT_JOYSTICK_BUTTON_DOWN && event.type != SDL_EVENT_JOYSTICK_BUTTON_UP)
     {
         return false;
     }
-    if (event.type == SDL_JOYBUTTONDOWN && m_hotkeyDevice < 0)
+    if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN && m_hotkeyDevice == 0)
     {
         m_hotkeyDevice = event.jbutton.which;
     }
-    if (event.type != SDL_JOYBUTTONUP || event.jbutton.which != m_hotkeyDevice || chord.buttons == 0)
+    if (event.type != SDL_EVENT_JOYSTICK_BUTTON_UP || event.jbutton.which != m_hotkeyDevice || chord.buttons == 0)
     {
         return true;
     }
@@ -712,7 +712,7 @@ bool AdvancedDialog::HandleGamepad(const SDL_Event & event, const Hotkeys::Gamep
     if (const Hotkeys::Info * holder = Hotkeys::GamepadHolder(chord, id))
     {
         m_hotkeyNote = Tr("%1 is already the shortcut of \"%2\".", {chord.Label(), Tr(holder->label)});
-        m_hotkeyDevice = -1;
+        m_hotkeyDevice = 0;
     }
     else
     {

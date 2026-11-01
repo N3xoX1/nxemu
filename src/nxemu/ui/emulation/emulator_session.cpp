@@ -153,11 +153,11 @@ void EmulatorSession::Update(bool releaseStoppedResources)
         }
         SettingsStore::GetInstance().SetInt(NXCoreSetting::EmulationState, static_cast<int32_t>(EmulationState::Stopped));
 #ifdef __APPLE__
-        m_idleTrimAt = SDL_GetTicks64() + 1000;
+        m_idleTrimAt = SDL_GetTicks() + 1000;
 #endif
     }
 #ifdef __APPLE__
-    if (m_idleTrimAt != 0 && releaseStoppedResources && !IsRunning() && SDL_GetTicks64() >= m_idleTrimAt)
+    if (m_idleTrimAt != 0 && releaseStoppedResources && !IsRunning() && SDL_GetTicks() >= m_idleTrimAt)
     {
         m_idleTrimAt = 0;
         malloc_zone_pressure_relief(nullptr, 0);

@@ -44,12 +44,12 @@ bool Take(std::string & text, const char * modifier)
 
 bool CommandKeyboard()
 {
-    return std::strcmp(SDL_GetPlatform(), "Mac OS X") == 0;
+    return std::strcmp(SDL_GetPlatform(), "macOS") == 0;
 }
 
-bool Shortcut::Matches(const SDL_Keysym & keysym) const
+bool Shortcut::Matches(const SDL_KeyboardEvent & event) const
 {
-    return key != SDLK_UNKNOWN && *this == Of(keysym);
+    return key != SDLK_UNKNOWN && *this == Of(event);
 }
 
 std::string Shortcut::Label() const
@@ -73,11 +73,11 @@ Shortcut Shortcut::Parse(const std::string & text)
     return shortcut.key != SDLK_UNKNOWN ? shortcut : Shortcut{};
 }
 
-Shortcut Shortcut::Of(const SDL_Keysym & keysym)
+Shortcut Shortcut::Of(const SDL_KeyboardEvent & event)
 {
-    if (IsModifier(keysym.sym))
+    if (IsModifier(event.key))
     {
         return {};
     }
-    return {keysym.sym, (keysym.mod & (KMOD_CTRL | KMOD_GUI)) != 0, (keysym.mod & KMOD_ALT) != 0, (keysym.mod & KMOD_SHIFT) != 0};
+    return {event.key, (event.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) != 0, (event.mod & SDL_KMOD_ALT) != 0, (event.mod & SDL_KMOD_SHIFT) != 0};
 }

@@ -1,6 +1,6 @@
 #include "firmware_dialog.h"
 #include <RmlUi/Core/ElementDocument.h>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <common/path.h>
 #include <common/std_string.h>
 #include <nxemu/ui/host/ui_window.h>
@@ -138,7 +138,7 @@ void FirmwareDialog::OnUpdate()
 
 void FirmwareDialog::OnCommand(const std::string & command)
 {
-    if (SDL_GetTicks64() - m_stepShown < kStepSettleMs)
+    if (SDL_GetTicks() - m_stepShown < kStepSettleMs)
     {
         return;
     }
@@ -184,7 +184,7 @@ void FirmwareDialog::OnCloseRequested()
     {
         m_installer.Cancel();
     }
-    else if (SDL_GetTicks64() - m_stepShown >= kStepSettleMs)
+    else if (SDL_GetTicks() - m_stepShown >= kStepSettleMs)
     {
         Close();
     }
@@ -208,7 +208,7 @@ void FirmwareDialog::ShowStep(const char * step, bool failed)
         panel->SetClass(std::string("at-") + name, std::string(name) == step);
     }
     panel->SetClass("failed", failed);
-    m_stepShown = SDL_GetTicks64();
+    m_stepShown = SDL_GetTicks();
 
     const std::string current = std::string(step) == "ask" ? "install" : std::string(step) == "offer" ? "source" : step;
     bool passed = true;

@@ -1,5 +1,5 @@
 #pragma once
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <filesystem>
 #include <memory>
 #include <nxemu-module-spec/base.h>
