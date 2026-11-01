@@ -4,12 +4,9 @@
 #include <algorithm>
 #include <array>
 #include <bit>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
-#include <random>
-#include <vector>
 #include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan.h>
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -51,16 +48,8 @@ struct BufferCacheRuntime {
     std::array<u32, 32> vertex_input_strides{};
     void NotifyVertexBufferStride(u32 index, u32 stride,
                                  Tegra::Engines::Maxwell3D::DirtyState::Flags& dirty) noexcept;
-#ifdef VERTEX_INPUT_COMPARE
-    bool needs_vertex_input_refresh{};
-    void NotifySuppliedVertexBufferStride(u32 index, u32 stride) noexcept;
-#include "consume_supplied.inc"
-#endif
 };
 #include "notify.inc"
-#ifdef VERTEX_INPUT_COMPARE
-#include "notify_supplied.inc"
-#endif
 struct Capture {
     Bindings bindings;
     Attributes attributes;
@@ -79,11 +68,6 @@ struct CommandBuffer {
 struct Scheduler {
     Capture capture;
     template<class F>
-#ifdef _MSC_VER
-    __declspec(noinline)
-#else
-    __attribute__((noinline))
-#endif
     void Record(F callback) { callback(vk::CommandBuffer{&capture}); }
 };
 struct Engine {
@@ -98,16 +82,8 @@ struct RasterizerVulkan {
     Scheduler scheduler;
     void UpdateVertexInput(Maxwell& regs);
     void RefreshVertexInput(Maxwell& regs);
-#ifdef VERTEX_INPUT_COMPARE
-    void Original(Maxwell& regs);
-    void Supplied(Maxwell& regs);
-#endif
 };
 #include "update.inc"
-#ifdef VERTEX_INPUT_COMPARE
-#include "original.inc"
-#include "supplied.inc"
-#endif
 
 void Layout(RasterizerVulkan& f, u32 count, bool shared = false) {
     for (u32 i = 0; i < 32; ++i) {
@@ -124,23 +100,10 @@ void Layout(RasterizerVulkan& f, u32 count, bool shared = false) {
     f.engine.dirty.flags.set(Dirty::VertexInput);
 }
 
-using Update = void (RasterizerVulkan::*)(Maxwell&);
-void Notify(RasterizerVulkan& f, Update update, u32 index, u32 stride) {
-#ifdef VERTEX_INPUT_COMPARE
-    if (update == &RasterizerVulkan::Original) {
-        return;
-    }
-    if (update != &RasterizerVulkan::UpdateVertexInput) {
-        f.buffer_cache_runtime.NotifySuppliedVertexBufferStride(index, stride);
-        return;
-    }
-#endif
-    f.buffer_cache_runtime.NotifyVertexBufferStride(index, stride, f.engine.dirty.flags);
-}
-void Check(Update update) {
+void Check() {
     auto owned = std::make_unique<RasterizerVulkan>();
     auto& f = *owned;
-    auto draw = [&] { (f.*update)(f.engine.regs); };
+    auto draw = [&] { f.UpdateVertexInput(f.engine.regs); };
     Layout(f, 32);
     f.engine.dirty.flags.set();
     draw();
@@ -174,7 +137,7 @@ void Check(Update update) {
             f.scheduler.capture.bindings.back().inputRate == VK_VERTEX_INPUT_RATE_INSTANCE,
             "binding-only update preserves attributes and updates divisor");
     f.engine.regs.vertex_streams[31].stride.Assign(80);
-    Notify(f, update, 31, 80);
+    f.buffer_cache_runtime.NotifyVertexBufferStride(31, 80, f.engine.dirty.flags);
     draw();
     Require(f.scheduler.capture.bindings.back().stride == 80, "stride-only refresh");
     Layout(f, 4, true);
@@ -250,89 +213,8 @@ void PipelineStates() {
     }
 }
 
-#ifdef VERTEX_INPUT_COMPARE
-double Measure(Update update, u32 count, int scenario) {
-    auto owned = std::make_unique<RasterizerVulkan>();
-    auto& f = *owned;
-    Layout(f, count);
-    f.buffer_cache_runtime.track_vertex_input_strides = scenario != 4;
-    if (scenario == 5) {
-        Notify(f, update, 0, 64);
-    }
-    f.engine.dirty.flags.set();
-    (f.*update)(f.engine.regs);
-    const u32 iterations = (scenario == 0 || scenario >= 4) ? 3000000 : 500000;
-    const auto start = std::chrono::steady_clock::now();
-    for (u32 i = 0; i < iterations; ++i) {
-        if (scenario != 0) {
-            if (scenario >= 4) {
-                if (f.buffer_cache_runtime.track_vertex_input_strides) {
-                    Notify(f, update, 0, 64);
-                }
-            } else if (scenario == 3) {
-                Notify(f, update, 0, (i & 1) ? 64 : 80);
-                f.engine.regs.vertex_streams[0].stride.Assign((i & 1) ? 64 : 80);
-            } else {
-                f.engine.dirty.flags.set(Dirty::VertexInput);
-                if (scenario == 1) {
-                    f.engine.dirty.flags.set(Dirty::VertexAttribute0 + count - 1);
-                    f.engine.regs.vertex_attrib_format[count - 1].offset.Assign(i & 31);
-                } else {
-                    f.engine.dirty.flags.set(Dirty::VertexBinding0);
-                    f.engine.regs.vertex_streams[0].frequency = i & 7;
-                }
-            }
-        }
-        (f.*update)(f.engine.regs);
-    }
-    const auto end = std::chrono::steady_clock::now();
-    // Observe the recorded result outside the timed loop.
-    Require(f.scheduler.capture.commands != 0, "benchmark observable result");
-    return std::chrono::duration<double, std::nano>(end - start).count() / iterations;
-}
-void Benchmark() {
-    const std::array<Update, 3> variants{&RasterizerVulkan::Original,
-                                      &RasterizerVulkan::Supplied,
-                                      &RasterizerVulkan::UpdateVertexInput};
-    const char* names[]{"original_invalid", "supplied", "improved"};
-    const char* scenarios[]{"clean", "attribute", "divisor", "stride",
-                            "rebase_extended", "rebase_tracked"};
-    std::mt19937 random(1729);
-    std::puts("variant,attributes,scenario,median_ns,min_ns,max_ns");
-    for (u32 count : {1U, 8U, 32U}) {
-        for (int scenario = 0; scenario < 6; ++scenario) {
-            std::array<std::vector<double>, 3> samples;
-            for (int repeat = 0; repeat < 11; ++repeat) {
-                std::array<int, 3> order{0, 1, 2};
-                std::shuffle(order.begin(), order.end(), random);
-                for (int variant : order) {
-                    samples[variant].push_back(Measure(variants[variant], count, scenario));
-                }
-            }
-            for (int v = 0; v < 3; ++v) {
-                auto& s = samples[v];
-                std::sort(s.begin(), s.end());
-                std::printf("%s,%u,%s,%.3f,%.3f,%.3f\n", names[v], count,
-                            scenarios[scenario], s[s.size()/2], s.front(), s.back());
-            }
-        }
-    }
-}
-#endif
-
-int main(int argc, char** argv) {
-#ifdef VERTEX_INPUT_COMPARE
-    if (argc > 1 && std::string_view(argv[1]) == "--original") {
-        Check(&RasterizerVulkan::Original);
-        return 0;
-    }
-    if (argc > 1 && std::string_view(argv[1]) == "--benchmark") {
-        Benchmark();
-        return 0;
-    }
-    Check(&RasterizerVulkan::Supplied);
-#endif
-    Check(&RasterizerVulkan::UpdateVertexInput);
+int main() {
+    Check();
     StridesAndPolicy();
     PipelineStates();
     std::puts("PASS: vertex input regressions and capability matrix");
