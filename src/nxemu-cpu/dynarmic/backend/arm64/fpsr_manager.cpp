@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+// FPSR lazy-read changes adapted for NXEmu on 2026-10-30.
+
 /* This file is part of the dynarmic project.
  * Copyright (c) 2022 MerryMage
  * SPDX-License-Identifier: 0BSD
@@ -35,6 +39,15 @@ void FpsrManager::Load() {
     code.MSR(oaknut::SystemReg::FPSR, XZR);
 
     fpsr_loaded = true;
+}
+
+void FpsrManager::GetFpsr(oaknut::WReg dest) {
+    // Read the guest's accumulated exception flags without forcing a spill.
+    code.LDR(dest, Xstate, state_fpsr_offset);
+    if (fpsr_loaded) {
+        code.MRS(Xscratch1, oaknut::SystemReg::FPSR);
+        code.ORR(dest, dest, Wscratch1);
+    }
 }
 
 }  // namespace Dynarmic::Backend::Arm64

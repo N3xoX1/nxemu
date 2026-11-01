@@ -80,3 +80,12 @@ target_link_libraries(test_nce_range_clipping PRIVATE $<TARGET_FILE:fmt>)
 nxemu_platform_executable(test_nce_range_clipping)
 nxemu_platform_test(test_nce_range_clipping test_nce_range_clipping)
 set_tests_properties(test_nce_range_clipping PROPERTIES TIMEOUT 30)
+
+# Execute generated FPSR code against the legacy spill sequence on real ARM64.
+add_executable(test_arm64_fpsr fpsr/fpsr.cpp
+    "${CMAKE_SOURCE_DIR}/src/nxemu-cpu/dynarmic/backend/arm64/fpsr_manager.cpp")
+target_include_directories(test_arm64_fpsr PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu"
+    "${CMAKE_SOURCE_DIR}/external/oaknut/include" "${CMAKE_SOURCE_DIR}/external/mcl/include")
+target_compile_options(test_arm64_fpsr PRIVATE -UNDEBUG)
+nxemu_platform_executable(test_arm64_fpsr)
+nxemu_platform_test(test_arm64_fpsr test_arm64_fpsr)
