@@ -13,6 +13,7 @@
 #include "yuzu_common/bit_field.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/scratch_buffer.h"
+#include "yuzu_video_core/command_header.h"
 #include "yuzu_video_core/engines/engine_interface.h"
 #include "yuzu_video_core/engines/puller.h"
 
@@ -28,15 +29,6 @@ struct ChannelState;
 
 class GPU;
 class MemoryManager;
-
-enum class SubmissionMode : u32 {
-    IncreasingOld = 0,
-    Increasing = 1,
-    NonIncreasingOld = 2,
-    NonIncreasing = 3,
-    Inline = 4,
-    IncreaseOnce = 5
-};
 
 // Note that, traditionally, methods are treated as 4-byte addressable locations, and hence
 // their numbers are written down multiplied by 4 in Docs. Here we are not multiply by 4.
@@ -87,18 +79,6 @@ struct CommandListHeader {
     }
 };
 static_assert(sizeof(CommandListHeader) == sizeof(u64), "CommandListHeader is incorrect size");
-
-union CommandHeader {
-    u32 argument;
-    BitField<0, 13, u32> method;
-    BitField<0, 24, u32> method_count_;
-    BitField<13, 3, u32> subchannel;
-    BitField<16, 13, u32> arg_count;
-    BitField<16, 13, u32> method_count;
-    BitField<29, 3, SubmissionMode> mode;
-};
-static_assert(std::is_standard_layout_v<CommandHeader>, "CommandHeader is not standard layout");
-static_assert(sizeof(CommandHeader) == sizeof(u32), "CommandHeader has incorrect size!");
 
 inline CommandHeader BuildCommandHeader(BufferMethods method, u32 arg_count, SubmissionMode mode) {
     CommandHeader result{};

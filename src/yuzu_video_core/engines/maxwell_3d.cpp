@@ -344,6 +344,39 @@ u32 Maxwell3D::ProcessShadowRam(u32 method, u32 argument)
     return argument;
 }
 
+void Maxwell3D::PushMethod(u32 method, u32 argument)
+{
+    ProcessDirtyRegisters(method, ProcessShadowRam(method, argument));
+}
+
+void Maxwell3D::PushMethodRun(u32 method, std::span<const CommandHeader> arguments)
+{
+    // Shadow mode changes are executable methods: the pusher ends the run before them.
+    const auto control = shadow_state.shadow_ram_control;
+    if (control == Regs::ShadowRamControl::Replay)
+    {
+        for (size_t i = 0; i < arguments.size(); ++i, ++method)
+        {
+            ProcessDirtyRegisters(method, shadow_state.reg_array[method]);
+        }
+        return;
+    }
+    if (control == Regs::ShadowRamControl::Track ||
+        control == Regs::ShadowRamControl::TrackWithFilter)
+    {
+        for (const auto& argument : arguments)
+        {
+            shadow_state.reg_array[method] = argument.argument;
+            ProcessDirtyRegisters(method++, argument.argument);
+        }
+        return;
+    }
+    for (const auto& argument : arguments)
+    {
+        ProcessDirtyRegisters(method++, argument.argument);
+    }
+}
+
 void Maxwell3D::ConsumeSinkImpl()
 {
     SCOPE_EXIT

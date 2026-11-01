@@ -10,6 +10,7 @@ if(LIBVA_FOUND)
 endif()
 
 add_library(video_core STATIC
+    command_header.h
     pipeline_cache_store.cpp
     pipeline_cache_store.h
     shader_profile_audit.h

@@ -3149,6 +3149,9 @@ private:
 
     u32 ProcessShadowRam(u32 method, u32 argument);
 
+    void PushMethod(u32 method, u32 argument) override;
+    void PushMethodRun(u32 method, std::span<const CommandHeader> arguments) override;
+
     void ProcessDirtyRegisters(u32 method, u32 argument);
 
     void ConsumeSinkImpl() override;

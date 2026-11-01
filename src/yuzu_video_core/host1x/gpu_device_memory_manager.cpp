@@ -236,14 +236,36 @@ void DeviceMemoryManager<Traits>::Free(DAddr start, size_t size)
 }
 
 template <typename Traits>
+void DeviceMemoryManager<Traits>::TruncateContinuityBefore(size_t start_page)
+{
+    // Counts include the starting page. Keep runs before the changed range from
+    // crossing its first page. Once a run ends here, earlier runs end no later.
+    size_t distance = 1;
+    for (size_t page = start_page; page > 0; ++distance)
+    {
+        --page;
+        if (continuity_tracker[page] <= distance)
+        {
+            break;
+        }
+        continuity_tracker[page] = static_cast<u32>(distance);
+    }
+}
+
+template <typename Traits>
 void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size_t size, Asid asid, bool track)
 {
     IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
     std::unique_lock lk(mapping_guard);
+    if (num_pages != 0)
+    {
+        TruncateContinuityBefore(start_page_d);
+    }
     for (size_t i = 0; i < num_pages; i++)
     {
+        continuity_tracker[start_page_d + i] = 1;
         const VAddr new_vaddress = virtual_address + i * DEVICE_PAGESIZE;
         auto* ptr = process_memory->GetPointerSilent(new_vaddress);
         if (ptr == nullptr) [[unlikely]]
@@ -289,8 +311,13 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
     device_inter->InvalidateRegion(address, size);
     std::scoped_lock lk(mapping_guard);
+    if (num_pages != 0)
+    {
+        TruncateContinuityBefore(start_page_d);
+    }
     for (size_t i = 0; i < num_pages; i++)
     {
+        continuity_tracker[start_page_d + i] = 1;
         auto phys_addr = compressed_physical_ptr[start_page_d + i];
         compressed_physical_ptr[start_page_d + i] = 0;
         cpu_backing_address[start_page_d + i] = 0;
@@ -319,6 +346,10 @@ void DeviceMemoryManager<Traits>::TrackContinuityImpl(DAddr address, VAddr virtu
     IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
+    if (num_pages != 0)
+    {
+        TruncateContinuityBefore(start_page_d);
+    }
     uintptr_t last_ptr = 0;
     size_t page_count = 1;
     for (size_t i = num_pages; i > 0; i--)

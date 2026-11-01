@@ -301,3 +301,62 @@ if(NXEMU_BUILD_VTG_GPU_TESTS)
     target_link_libraries(test_vtg_indirect_gpu PRIVATE nxemu_test_support video_core
         Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
 endif()
+
+# Differential tests execute the production DMA and Maxwell register methods.
+set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
+add_custom_command(
+    OUTPUT "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
+        "${_gpu_commands_generated}/baseline.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gpu_commands/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_gpu_commands_generated}"
+    DEPENDS gpu_commands/extract.py gpu_commands/baseline.inc
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
+    VERBATIM)
+add_executable(test_gpu_commands gpu_commands/commands.cpp
+    "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
+    "${_gpu_commands_generated}/baseline.inc")
+target_include_directories(test_gpu_commands PRIVATE "${_gpu_commands_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_gpu_commands PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_gpu_commands PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_gpu_commands PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_gpu_commands PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_gpu_commands)
+
+set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
+add_custom_command(
+    OUTPUT "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/texture_hotpaths/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_texture_hotpaths_generated}"
+    DEPENDS texture_hotpaths/extract.py
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/texture_cache.h"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/texture_cache_base.h"
+    VERBATIM)
+add_executable(test_texture_regions texture_hotpaths/regions.cpp
+    "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc")
+target_include_directories(test_texture_regions PRIVATE "${_texture_hotpaths_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_texture_regions PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_texture_regions PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_texture_regions PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_texture_regions PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_texture_regions)
+
+add_executable(test_mapping_continuity mapping_continuity/mapping.cpp)
+target_include_directories(test_mapping_continuity PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_mapping_continuity video_core yuzu_common common)
+target_link_libraries(test_mapping_continuity PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_mapping_continuity)
