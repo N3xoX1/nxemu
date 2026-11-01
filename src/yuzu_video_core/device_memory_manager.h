@@ -156,6 +156,9 @@ private:
         return static_cast<PAddr>(reinterpret_cast<uintptr_t>(ptr) - physical_base);
     }
 
+    // Called under mapping_guard before shortening or replacing a tracked run.
+    void TruncateContinuityBefore(size_t start_page);
+
     void WalkBlock(const DAddr addr, const std::size_t size, auto on_unmapped, auto on_memory,
                    auto increment);
 

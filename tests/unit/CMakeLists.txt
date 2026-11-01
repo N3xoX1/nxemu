@@ -350,3 +350,13 @@ if(NOT MSVC)
     target_link_options(test_texture_regions PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_texture_regions)
+
+add_executable(test_mapping_continuity mapping_continuity/mapping.cpp)
+target_include_directories(test_mapping_continuity PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_mapping_continuity video_core yuzu_common common)
+target_link_libraries(test_mapping_continuity PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_mapping_continuity)
