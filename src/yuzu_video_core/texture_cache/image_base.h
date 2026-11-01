@@ -109,6 +109,8 @@ struct ImageBase {
     u64 modification_tick = 0;
     /// Modification tick of the contents last written back to guest memory
     u64 published_tick = 0;
+    /// Modification tick of the last GPU write; alias synchronization does not change it
+    u64 gpu_write_tick = 0;
     /// Attachment barrier tick, plus one, of the last write to the image as a render target
     u64 attachment_write_tick = 0;
     /// Frame in which the image was first bound as a render target

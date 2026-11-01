@@ -543,10 +543,23 @@ private:
         size_t staging_bytes{};
         // The image was deleted after its copy was recorded; skip publication.
         bool discarded{};
-        // Modification tick of the contents the copy records.
+        // Modification and GPU write ticks of the contents the copy records.
         u64 modification_tick{};
+        u64 gpu_write_tick{};
     };
     bool TryDownloadObservedImage(Image& image, AsyncBuffer& map, PendingDownload& download);
+
+    // Keeps, across a writeback of an image, the guest bytes of overlapping images that the
+    // GPU wrote after it: an older alias must not overwrite them.
+    class NewerOverlapGuard {
+    public:
+        NewerOverlapGuard(TextureCache& cache, ImageId id, const ImageBase& image, u64 write_tick);
+        ~NewerOverlapGuard();
+
+    private:
+        TextureCache& cache;
+        boost::container::small_vector<std::pair<DAddr, std::vector<u8>>, 2> saved;
+    };
 
     Common::SlotVector<Image> slot_images;
     Common::SlotVector<ImageMapView> slot_map_views;
