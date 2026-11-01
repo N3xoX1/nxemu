@@ -7,8 +7,8 @@ namespace {
 
 int VirtualKey(SDL_Keycode key)
 {
-    if (key >= SDLK_a && key <= SDLK_z)
-        return 'A' + int(key - SDLK_a);
+    if (key >= SDLK_A && key <= SDLK_Z)
+        return 'A' + int(key - SDLK_A);
     if (key >= SDLK_0 && key <= SDLK_9)
         return int(key);
     if (key >= SDLK_F1 && key <= SDLK_F12)
@@ -40,11 +40,11 @@ int VirtualKey(SDL_Keycode key)
     case SDLK_MINUS: return 0xbd;
     case SDLK_PERIOD: return 0xbe;
     case SDLK_SLASH: return 0xbf;
-    case SDLK_BACKQUOTE: return 0xc0;
+    case SDLK_GRAVE: return 0xc0;
     case SDLK_LEFTBRACKET: return 0xdb;
     case SDLK_BACKSLASH: return 0xdc;
     case SDLK_RIGHTBRACKET: return 0xdd;
-    case SDLK_QUOTE: return 0xde;
+    case SDLK_APOSTROPHE: return 0xde;
     case SDLK_LSHIFT:
     case SDLK_RSHIFT: return 0x10;
     case SDLK_LCTRL:
@@ -64,7 +64,7 @@ int VirtualKey(SDL_Keycode key)
 SDL_Keycode UsKeycode(SDL_Scancode scancode)
 {
     if (scancode >= SDL_SCANCODE_A && scancode <= SDL_SCANCODE_Z)
-        return SDLK_a + int(scancode - SDL_SCANCODE_A);
+        return SDLK_A + int(scancode - SDL_SCANCODE_A);
     if (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_9)
         return SDLK_1 + int(scancode - SDL_SCANCODE_1);
     switch (scancode)
@@ -76,11 +76,11 @@ SDL_Keycode UsKeycode(SDL_Scancode scancode)
     case SDL_SCANCODE_MINUS: return SDLK_MINUS;
     case SDL_SCANCODE_PERIOD: return SDLK_PERIOD;
     case SDL_SCANCODE_SLASH: return SDLK_SLASH;
-    case SDL_SCANCODE_GRAVE: return SDLK_BACKQUOTE;
+    case SDL_SCANCODE_GRAVE: return SDLK_GRAVE;
     case SDL_SCANCODE_LEFTBRACKET: return SDLK_LEFTBRACKET;
     case SDL_SCANCODE_BACKSLASH: return SDLK_BACKSLASH;
     case SDL_SCANCODE_RIGHTBRACKET: return SDLK_RIGHTBRACKET;
-    case SDL_SCANCODE_APOSTROPHE: return SDLK_QUOTE;
+    case SDL_SCANCODE_APOSTROPHE: return SDLK_APOSTROPHE;
     default: return SDL_SCANCODE_TO_KEYCODE(scancode);
     }
 }
@@ -96,13 +96,13 @@ void ForwardKeyboardEvent(const SDL_KeyboardEvent& event, IOperatingSystem& os)
 {
     if (event.repeat)
         return;
-    const auto scancode = static_cast<uint32_t>(event.keysym.scancode);
+    const auto scancode = static_cast<uint32_t>(event.scancode);
     if (scancode == 0 || scancode >= static_cast<uint32_t>(KeyboardKey::NumKeyboardKeys))
         return;
-    const int virtual_key = VirtualKey(UsKeycode(event.keysym.scancode));
-    if (event.type == SDL_KEYDOWN)
+    const int virtual_key = VirtualKey(UsKeycode(event.scancode));
+    if (event.type == SDL_EVENT_KEY_DOWN)
         os.KeyboardKeyPress(0, int(scancode), virtual_key);
-    else if (event.type == SDL_KEYUP)
+    else if (event.type == SDL_EVENT_KEY_UP)
         os.KeyboardKeyRelease(0, int(scancode), virtual_key);
 }
 
@@ -114,7 +114,7 @@ std::string VirtualKeyName(int virtualKey)
         {
             if (VirtualKey(UsKeycode(static_cast<SDL_Scancode>(scancode))) == virtualKey)
             {
-                const char * name = SDL_GetKeyName(SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(scancode)));
+                const char * name = SDL_GetKeyName(SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(scancode), SDL_KMOD_NONE, false));
                 if (name != nullptr && name[0] != '\0')
                     return name;
                 break;

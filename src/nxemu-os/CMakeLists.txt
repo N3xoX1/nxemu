@@ -75,6 +75,10 @@ elseif(APPLE)
 elseif(WIN32)
     target_link_libraries(nxemu-os PRIVATE
         ntdll iphlpapi winmm ksuser crypt32 secur32 ws2_32)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # The module is copied to modules/operating_system beside the executable,
+    # two levels below the bundled SDL.
+    set_property(TARGET nxemu-os APPEND PROPERTY BUILD_RPATH "$ORIGIN/../..")
 endif()
 
 # Use BSD socket headers and TranslateIPv4(in_addr) path (Linux/macOS/Android).

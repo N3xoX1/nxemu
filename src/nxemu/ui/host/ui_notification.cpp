@@ -1,7 +1,7 @@
 #include "ui_notification.h"
 
 #define SDL_MAIN_HANDLED
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <cstdlib>
 #include <iostream>
 

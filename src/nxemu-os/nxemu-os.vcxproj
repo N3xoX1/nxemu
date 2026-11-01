@@ -32,7 +32,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\nx_tzdb\include;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)external\libusb\libusb;$(SolutionDir)external\opus\include;$(SolutionDir)external\sdl\include;$(SolutionDir)external;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
-      <PreprocessorDefinitions>NOMINMAX;BOOST_CONTEXT_STATIC_LINK;BOOST_ALL_NO_LIB;HAVE_SDL2;HAVE_LIBUSB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;BOOST_CONTEXT_STATIC_LINK;BOOST_ALL_NO_LIB;HAVE_SDL;HAVE_LIBUSB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PreBuildEvent>
       <Command>"$(SolutionDir)src\script\update_version.cmd" "$(Configuration)" "$(Platform)" "$(SolutionDir)src\nxemu-os\version.h.in" "$(SolutionDir)src\nxemu-os\version.h"</Command>

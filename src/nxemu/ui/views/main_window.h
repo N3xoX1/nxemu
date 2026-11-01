@@ -18,7 +18,7 @@
 #include "tooltip.h"
 #include "user_profiles.h"
 #include "volume_control.h"
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <filesystem>
 #include <memory>
 #include <optional>

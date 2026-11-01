@@ -1,7 +1,7 @@
 #include "performance_overlay.h"
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/StringUtilities.h>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -221,8 +221,8 @@ void PerformanceOverlay::Add(const PerfStatsResults & stats, uint32_t shaders, b
     if (Has(PerformanceItem::Processor))
     {
         const double seconds = ProcessCpuSeconds();
-        const uint64_t now = SDL_GetTicks64();
-        m_cpuShare = m_cpuAt != 0 && now > m_cpuAt ? (seconds - m_cpuSeconds) * 1000.0 / static_cast<double>(now - m_cpuAt) / std::max(1, SDL_GetCPUCount()) : -1.0;
+        const uint64_t now = SDL_GetTicks();
+        m_cpuShare = m_cpuAt != 0 && now > m_cpuAt ? (seconds - m_cpuSeconds) * 1000.0 / static_cast<double>(now - m_cpuAt) / std::max(1, SDL_GetNumLogicalCPUCores()) : -1.0;
         m_cpuSeconds = seconds;
         m_cpuAt = now;
     }

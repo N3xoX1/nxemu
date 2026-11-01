@@ -276,7 +276,7 @@ ControllerDialog::~ControllerDialog()
 
 void ControllerDialog::HandleKey(const SDL_KeyboardEvent & event)
 {
-    if (IsVisible() && event.keysym.sym != SDLK_ESCAPE)
+    if (IsVisible() && event.key != SDLK_ESCAPE)
     {
         ForwardKeyboardEvent(event, Os());
     }
@@ -439,7 +439,7 @@ void ControllerDialog::OnUpdate()
     {
         ApplyChange(id);
     }
-    if (SDL_GetTicks64() - m_devicesRead >= kDevicesEveryMs && !Listening())
+    if (SDL_GetTicks() - m_devicesRead >= kDevicesEveryMs && !Listening())
     {
         const std::vector<InputParams> before = std::move(m_devices);
         ReadDevices();
@@ -562,7 +562,7 @@ void ControllerDialog::BuildRows()
 void ControllerDialog::ReadDevices()
 {
     m_devices.clear();
-    m_devicesRead = SDL_GetTicks64();
+    m_devicesRead = SDL_GetTicks();
     IParamPackageList * devices = Os().GetInputDevices();
     if (devices == nullptr)
     {
@@ -1008,7 +1008,7 @@ void ControllerDialog::ShowHint()
         SetText("hint", Tr("Click a control or a button of the picture to bind it."));
         return;
     }
-    const uint64_t now = SDL_GetTicks64();
+    const uint64_t now = SDL_GetTicks();
     const int seconds = m_listenBegun && m_listenUntil > now ? static_cast<int>((m_listenUntil - now + 999) / 1000) : static_cast<int>(kListenMs / 1000);
     if (seconds == m_shownSeconds)
     {
@@ -1176,7 +1176,7 @@ void ControllerDialog::Listen(int slot, bool sequence)
     m_listenSlot = slot;
     m_listenSequence = sequence;
     m_listenBegun = false;
-    m_listenFrom = SDL_GetTicks64() + (m_listenIgnore.empty() ? 0 : kSequenceGapMs);
+    m_listenFrom = SDL_GetTicks() + (m_listenIgnore.empty() ? 0 : kSequenceGapMs);
     m_shownSeconds = -1;
     ShowBindings();
 }
@@ -1207,7 +1207,7 @@ void ControllerDialog::PollListening()
         return;
     }
     IOperatingSystem & os = Os();
-    const uint64_t now = SDL_GetTicks64();
+    const uint64_t now = SDL_GetTicks();
     const Slot & info = kSlots[m_listenSlot];
     if (!m_listenBegun)
     {

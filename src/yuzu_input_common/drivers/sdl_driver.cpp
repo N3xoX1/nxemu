@@ -18,31 +18,71 @@ namespace
 {
 Common::UUID GetGUID(SDL_Joystick * joystick)
 {
-    const SDL_JoystickGUID guid = SDL_JoystickGetGUID(joystick);
+    const SDL_GUID guid = SDL_GetJoystickGUID(joystick);
     std::array<u8, 16> data{};
     std::memcpy(data.data(), guid.data, sizeof(data));
     // Clear controller name crc
     std::memset(data.data() + 2, 0, sizeof(u16));
     return Common::UUID{data};
 }
+
+/// Finds what drives a gamepad button or axis. Unmapped outputs give an empty binding.
+SDL_GamepadBinding GetBinding(SDL_Gamepad * controller, SDL_GamepadBindingType output_type,
+                              int output)
+{
+    SDL_GamepadBinding result{};
+    int count = 0;
+    SDL_GamepadBinding ** bindings = SDL_GetGamepadBindings(controller, &count);
+    if (bindings == nullptr)
+    {
+        return result;
+    }
+    for (int i = 0; i < count; ++i)
+    {
+        const SDL_GamepadBinding & binding = *bindings[i];
+        if (binding.output_type != output_type)
+        {
+            continue;
+        }
+        const int bound = output_type == SDL_GAMEPAD_BINDTYPE_BUTTON ? binding.output.button
+                                                                     : binding.output.axis.axis;
+        if (bound == output)
+        {
+            result = binding;
+            break;
+        }
+    }
+    SDL_free(bindings);
+    return result;
+}
+
+SDL_GamepadBinding GetBindForButton(SDL_Gamepad * controller, SDL_GamepadButton button)
+{
+    return GetBinding(controller, SDL_GAMEPAD_BINDTYPE_BUTTON, button);
+}
+
+SDL_GamepadBinding GetBindForAxis(SDL_Gamepad * controller, SDL_GamepadAxis axis)
+{
+    return GetBinding(controller, SDL_GAMEPAD_BINDTYPE_AXIS, axis);
+}
 } // Anonymous namespace
 
-static int SDLEventWatcher(void * user_data, SDL_Event * event)
+static bool SDLCALL SDLEventWatcher(void * user_data, SDL_Event * event)
 {
     auto * const sdl_state = static_cast<SDLDriver *>(user_data);
 
     sdl_state->HandleGameControllerEvent(*event);
 
-    return 0;
+    return true;
 }
 
 class SDLJoystick
 {
 public:
     SDLJoystick(Common::UUID guid_, int port_, SDL_Joystick * joystick,
-                SDL_GameController * game_controller) :
-        guid{guid_}, port{port_}, sdl_joystick{joystick, &SDL_JoystickClose},
-        sdl_controller{game_controller, &SDL_GameControllerClose}
+                SDL_Gamepad * game_controller) :
+        guid{guid_}, port{port_}, sdl_joystick{joystick, &SDL_CloseJoystick},
+        sdl_controller{game_controller, &SDL_CloseGamepad}
     {
         EnableMotion();
     }
@@ -53,21 +93,21 @@ public:
         {
             return;
         }
-        SDL_GameController * controller = sdl_controller.get();
+        SDL_Gamepad * controller = sdl_controller.get();
         if (HasMotion())
         {
-            SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_ACCEL, SDL_FALSE);
-            SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_GYRO, SDL_FALSE);
+            SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_ACCEL, false);
+            SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_GYRO, false);
         }
-        has_accel = SDL_GameControllerHasSensor(controller, SDL_SENSOR_ACCEL) == SDL_TRUE;
-        has_gyro = SDL_GameControllerHasSensor(controller, SDL_SENSOR_GYRO) == SDL_TRUE;
+        has_accel = SDL_GamepadHasSensor(controller, SDL_SENSOR_ACCEL);
+        has_gyro = SDL_GamepadHasSensor(controller, SDL_SENSOR_GYRO);
         if (has_accel)
         {
-            SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_ACCEL, SDL_TRUE);
+            SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_ACCEL, true);
         }
         if (has_gyro)
         {
-            SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_GYRO, SDL_TRUE);
+            SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_GYRO, true);
         }
     }
 
@@ -76,10 +116,11 @@ public:
         return has_gyro || has_accel;
     }
 
-    bool UpdateMotion(SDL_ControllerSensorEvent event)
+    bool UpdateMotion(SDL_GamepadSensorEvent event)
     {
         constexpr float gravity_constant = 9.80665f;
         std::scoped_lock lock{mutex};
+        // Event timestamps are in nanoseconds
         const u64 time_difference = event.timestamp - last_motion_update;
         last_motion_update = event.timestamp;
         switch (event.sensor)
@@ -121,7 +162,7 @@ public:
         }
 
         motion_error_count = 0;
-        motion.delta_timestamp = time_difference * 1000;
+        motion.delta_timestamp = time_difference / 1000;
         return true;
     }
 
@@ -160,15 +201,13 @@ public:
 
         if (sdl_controller)
         {
-            return SDL_GameControllerRumble(sdl_controller.get(), static_cast<u16>(low_amplitude),
-                                            static_cast<u16>(high_amplitude),
-                                            rumble_max_duration_ms) != -1;
+            return SDL_RumbleGamepad(sdl_controller.get(), static_cast<u16>(low_amplitude),
+                                     static_cast<u16>(high_amplitude), rumble_max_duration_ms);
         }
         else if (sdl_joystick)
         {
-            return SDL_JoystickRumble(sdl_joystick.get(), static_cast<u16>(low_amplitude),
-                                      static_cast<u16>(high_amplitude),
-                                      rumble_max_duration_ms) != -1;
+            return SDL_RumbleJoystick(sdl_joystick.get(), static_cast<u16>(low_amplitude),
+                                      static_cast<u16>(high_amplitude), rumble_max_duration_ms);
         }
 
         return false;
@@ -178,11 +217,11 @@ public:
     {
         if (sdl_controller)
         {
-            const auto type = SDL_GameControllerGetType(sdl_controller.get());
-            return (type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO) ||
-                   (type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT) ||
-                   (type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT) ||
-                   (type == SDL_CONTROLLER_TYPE_PS5);
+            const auto type = SDL_GetGamepadType(sdl_controller.get());
+            return (type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO) ||
+                   (type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT) ||
+                   (type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT) ||
+                   (type == SDL_GAMEPAD_TYPE_PS5);
         }
         return false;
     }
@@ -236,12 +275,12 @@ public:
         return sdl_joystick.get();
     }
 
-    SDL_GameController * GetSDLGameController() const
+    SDL_Gamepad * GetSDLGameController() const
     {
         return sdl_controller.get();
     }
 
-    void SetSDLJoystick(SDL_Joystick * joystick, SDL_GameController * controller)
+    void SetSDLJoystick(SDL_Joystick * joystick, SDL_Gamepad * controller)
     {
         sdl_joystick.reset(joystick);
         sdl_controller.reset(controller);
@@ -275,22 +314,33 @@ public:
         return false;
     }
 
-    Common::Input::BatteryLevel GetBatteryLevel(SDL_JoystickPowerLevel battery_level)
+    Common::Input::BatteryLevel GetBatteryLevel(SDL_PowerState state, int percent)
     {
-        switch (battery_level)
+        switch (state)
         {
-        case SDL_JOYSTICK_POWER_EMPTY:
-            return Common::Input::BatteryLevel::Empty;
-        case SDL_JOYSTICK_POWER_LOW:
-            return Common::Input::BatteryLevel::Low;
-        case SDL_JOYSTICK_POWER_MEDIUM:
-            return Common::Input::BatteryLevel::Medium;
-        case SDL_JOYSTICK_POWER_FULL:
-        case SDL_JOYSTICK_POWER_MAX:
+        case SDL_POWERSTATE_ON_BATTERY:
+            // The thresholds of the power levels SDL 2 reported
+            if (percent < 0)
+            {
+                return Common::Input::BatteryLevel::None;
+            }
+            if (percent <= 5)
+            {
+                return Common::Input::BatteryLevel::Empty;
+            }
+            if (percent <= 20)
+            {
+                return Common::Input::BatteryLevel::Low;
+            }
+            if (percent <= 70)
+            {
+                return Common::Input::BatteryLevel::Medium;
+            }
             return Common::Input::BatteryLevel::Full;
-        case SDL_JOYSTICK_POWER_WIRED:
+        case SDL_POWERSTATE_NO_BATTERY:
+        case SDL_POWERSTATE_CHARGING:
+        case SDL_POWERSTATE_CHARGED:
             return Common::Input::BatteryLevel::Charging;
-        case SDL_JOYSTICK_POWER_UNKNOWN:
         default:
             return Common::Input::BatteryLevel::None;
         }
@@ -300,22 +350,22 @@ public:
     {
         if (sdl_controller)
         {
-            switch (SDL_GameControllerGetType(sdl_controller.get()))
+            switch (SDL_GetGamepadType(sdl_controller.get()))
             {
-            case SDL_CONTROLLER_TYPE_XBOX360:
+            case SDL_GAMEPAD_TYPE_XBOX360:
                 return "Xbox 360 Controller";
-            case SDL_CONTROLLER_TYPE_XBOXONE:
+            case SDL_GAMEPAD_TYPE_XBOXONE:
                 return "Xbox One Controller";
-            case SDL_CONTROLLER_TYPE_PS3:
+            case SDL_GAMEPAD_TYPE_PS3:
                 return "DualShock 3 Controller";
-            case SDL_CONTROLLER_TYPE_PS4:
+            case SDL_GAMEPAD_TYPE_PS4:
                 return "DualShock 4 Controller";
-            case SDL_CONTROLLER_TYPE_PS5:
+            case SDL_GAMEPAD_TYPE_PS5:
                 return "DualSense Controller";
             default:
                 break;
             }
-            const auto name = SDL_GameControllerName(sdl_controller.get());
+            const auto name = SDL_GetGamepadName(sdl_controller.get());
             if (name)
             {
                 return name;
@@ -324,7 +374,7 @@ public:
 
         if (sdl_joystick)
         {
-            const auto name = SDL_JoystickName(sdl_joystick.get());
+            const auto name = SDL_GetJoystickName(sdl_joystick.get());
             if (name)
             {
                 return name;
@@ -337,8 +387,8 @@ public:
 private:
     Common::UUID guid;
     int port;
-    std::unique_ptr<SDL_Joystick, decltype(&SDL_JoystickClose)> sdl_joystick;
-    std::unique_ptr<SDL_GameController, decltype(&SDL_GameControllerClose)> sdl_controller;
+    std::unique_ptr<SDL_Joystick, decltype(&SDL_CloseJoystick)> sdl_joystick;
+    std::unique_ptr<SDL_Gamepad, decltype(&SDL_CloseGamepad)> sdl_controller;
     mutable std::mutex mutex;
 
     u64 last_motion_update{};
@@ -379,7 +429,7 @@ std::shared_ptr<SDLJoystick> SDLDriver::GetSDLJoystickByGUID(const std::string &
 
 std::shared_ptr<SDLJoystick> SDLDriver::GetSDLJoystickBySDLID(SDL_JoystickID sdl_id)
 {
-    auto sdl_joystick = SDL_JoystickFromInstanceID(sdl_id);
+    auto sdl_joystick = SDL_GetJoystickFromID(sdl_id);
     const auto guid = GetGUID(sdl_joystick);
 
     std::scoped_lock lock{joystick_map_mutex};
@@ -403,20 +453,25 @@ std::shared_ptr<SDLJoystick> SDLDriver::GetSDLJoystickBySDLID(SDL_JoystickID sdl
     return *vec_it;
 }
 
-void SDLDriver::InitJoystick(int joystick_index)
+void SDLDriver::InitJoystick(SDL_JoystickID instance_id)
 {
-    SDL_Joystick * sdl_joystick = SDL_JoystickOpen(joystick_index);
-    SDL_GameController * sdl_gamecontroller = nullptr;
-
-    if (SDL_IsGameController(joystick_index))
+    if (SDL_GetJoystickFromID(instance_id) != nullptr)
     {
-        sdl_gamecontroller = SDL_GameControllerOpen(joystick_index);
+        // Already open: listed at start-up and announced again by an added event
+        return;
     }
+    SDL_Joystick * sdl_joystick = SDL_OpenJoystick(instance_id);
+    SDL_Gamepad * sdl_gamecontroller = nullptr;
 
     if (!sdl_joystick)
     {
-        LOG_ERROR(Input, "Failed to open joystick {}", joystick_index);
+        LOG_ERROR(Input, "Failed to open joystick {}", instance_id);
         return;
+    }
+
+    if (SDL_IsGamepad(instance_id))
+    {
+        sdl_gamecontroller = SDL_OpenGamepad(instance_id);
     }
 
     const auto guid = GetGUID(sdl_joystick);
@@ -426,8 +481,9 @@ void SDLDriver::InitJoystick(int joystick_index)
         if (guid.uuid[5] == 0x05 && guid.uuid[4] == 0x7e &&
             (guid.uuid[8] == 0x06 || guid.uuid[8] == 0x07))
         {
-            LOG_WARNING(Input, "Preferring joycon driver for device index {}", joystick_index);
-            SDL_JoystickClose(sdl_joystick);
+            LOG_WARNING(Input, "Preferring joycon driver for device {}", instance_id);
+            SDL_CloseGamepad(sdl_gamecontroller);
+            SDL_CloseJoystick(sdl_joystick);
             return;
         }
     }
@@ -436,8 +492,9 @@ void SDLDriver::InitJoystick(int joystick_index)
     {
         if (guid.uuid[5] == 0x05 && guid.uuid[4] == 0x7e && guid.uuid[8] == 0x09)
         {
-            LOG_WARNING(Input, "Preferring joycon driver for device index {}", joystick_index);
-            SDL_JoystickClose(sdl_joystick);
+            LOG_WARNING(Input, "Preferring joycon driver for device {}", instance_id);
+            SDL_CloseGamepad(sdl_gamecontroller);
+            SDL_CloseJoystick(sdl_joystick);
             return;
         }
     }
@@ -473,6 +530,10 @@ void SDLDriver::InitJoystick(int joystick_index)
 
 void SDLDriver::CloseJoystick(SDL_Joystick * sdl_joystick)
 {
+    if (sdl_joystick == nullptr)
+    {
+        return;
+    }
     const auto guid = GetGUID(sdl_joystick);
 
     std::scoped_lock lock{joystick_map_mutex};
@@ -496,13 +557,13 @@ void SDLDriver::PumpEvents() const
 #ifdef __APPLE__
         // The frontend owns the Cocoa event loop; this backend only needs controller
         // events. Do not let SDL pump native window events in a host frontend.
-        SDL_JoystickUpdate();
+        SDL_UpdateJoysticks();
 #else
         SDL_PumpEvents();
 #endif
         // The event watcher already delivered these inputs. Keep motion events
         // from accumulating in SDL's queue during long sessions.
-        SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_CONTROLLERSENSORUPDATE);
+        SDL_FlushEvents(SDL_EVENT_JOYSTICK_AXIS_MOTION, SDL_EVENT_GAMEPAD_SENSOR_UPDATE);
     }
 }
 
@@ -510,7 +571,7 @@ void SDLDriver::HandleGameControllerEvent(const SDL_Event & event)
 {
     switch (event.type)
     {
-    case SDL_JOYBUTTONUP:
+    case SDL_EVENT_JOYSTICK_BUTTON_UP:
     {
         if (const auto joystick = GetSDLJoystickBySDLID(event.jbutton.which))
         {
@@ -519,7 +580,7 @@ void SDLDriver::HandleGameControllerEvent(const SDL_Event & event)
         }
         break;
     }
-    case SDL_JOYBUTTONDOWN:
+    case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
     {
         if (const auto joystick = GetSDLJoystickBySDLID(event.jbutton.which))
         {
@@ -528,7 +589,7 @@ void SDLDriver::HandleGameControllerEvent(const SDL_Event & event)
         }
         break;
     }
-    case SDL_JOYHATMOTION:
+    case SDL_EVENT_JOYSTICK_HAT_MOTION:
     {
         if (const auto joystick = GetSDLJoystickBySDLID(event.jhat.which))
         {
@@ -537,7 +598,7 @@ void SDLDriver::HandleGameControllerEvent(const SDL_Event & event)
         }
         break;
     }
-    case SDL_JOYAXISMOTION:
+    case SDL_EVENT_JOYSTICK_AXIS_MOTION:
     {
         if (const auto joystick = GetSDLJoystickBySDLID(event.jaxis.which))
         {
@@ -546,11 +607,11 @@ void SDLDriver::HandleGameControllerEvent(const SDL_Event & event)
         }
         break;
     }
-    case SDL_CONTROLLERSENSORUPDATE:
+    case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
     {
-        if (auto joystick = GetSDLJoystickBySDLID(event.csensor.which))
+        if (auto joystick = GetSDLJoystickBySDLID(event.gsensor.which))
         {
-            if (joystick->UpdateMotion(event.csensor))
+            if (joystick->UpdateMotion(event.gsensor))
             {
                 const PadIdentifier identifier = joystick->GetPadIdentifier();
                 SetMotion(identifier, 0, joystick->GetMotion());
@@ -558,21 +619,22 @@ void SDLDriver::HandleGameControllerEvent(const SDL_Event & event)
         }
         break;
     }
-    case SDL_JOYBATTERYUPDATED:
+    case SDL_EVENT_JOYSTICK_BATTERY_UPDATED:
     {
         if (auto joystick = GetSDLJoystickBySDLID(event.jbattery.which))
         {
             const PadIdentifier identifier = joystick->GetPadIdentifier();
-            SetBattery(identifier, joystick->GetBatteryLevel(event.jbattery.level));
+            SetBattery(identifier,
+                       joystick->GetBatteryLevel(event.jbattery.state, event.jbattery.percent));
         }
         break;
     }
-    case SDL_JOYDEVICEREMOVED:
+    case SDL_EVENT_JOYSTICK_REMOVED:
         LOG_DEBUG(Input, "Controller removed with Instance_ID {}", event.jdevice.which);
-        CloseJoystick(SDL_JoystickFromInstanceID(event.jdevice.which));
+        CloseJoystick(SDL_GetJoystickFromID(event.jdevice.which));
         break;
-    case SDL_JOYDEVICEADDED:
-        LOG_DEBUG(Input, "Controller connected with device index {}", event.jdevice.which);
+    case SDL_EVENT_JOYSTICK_ADDED:
+        LOG_DEBUG(Input, "Controller connected with Instance_ID {}", event.jdevice.which);
         InitJoystick(event.jdevice.which);
         break;
     }
@@ -597,12 +659,8 @@ SDLDriver::SDLDriver(std::string input_engine_) :
         SDL_SetHint(SDL_HINT_JOYSTICK_RAWINPUT, "0");
     }
 
-    // Prevent SDL from adding undesired axis
-    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
-
-    // Enable HIDAPI rumble. This prevents SDL from disabling motion on PS4 and PS5 controllers
-    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1");
-    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
+    // Enable enhanced reports. This prevents SDL from disabling motion on PS4 and PS5 controllers
+    SDL_SetHint(SDL_HINT_JOYSTICK_ENHANCED_REPORTS, "1");
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 
     // Disable hidapi drivers for joycon controllers when the custom joycon driver is enabled
@@ -630,8 +688,7 @@ SDLDriver::SDLDriver(std::string input_engine_) :
     }
 
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_SWITCH_PLAYER_LED, "1");
-    // Share the same button mapping with non-Nintendo controllers
-    SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
+    // Gamepad buttons are positional, so Nintendo and other controllers share one button mapping
 
     // Windows and Linux have native Xbox backends. macOS needs HIDAPI for
     // supported USB Xbox controllers, so retain SDL's platform default there.
@@ -640,8 +697,8 @@ SDLDriver::SDLDriver(std::string input_engine_) :
 #endif
 
     // If the frontend is going to manage the event loop, then we don't start one here
-    start_thread = SDL_WasInit(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0;
-    if (start_thread && SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0)
+    start_thread = SDL_WasInit(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD) == 0;
+    if (start_thread && !SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD))
     {
         LOG_CRITICAL(Input, "SDL_Init failed with: {}", SDL_GetError());
         return;
@@ -664,16 +721,21 @@ SDLDriver::SDLDriver(std::string input_engine_) :
     }
     // Because the events for joystick connection happens before we have our event watcher added, we
     // can just open all the joysticks right here
-    for (int i = 0; i < SDL_NumJoysticks(); ++i)
+    int count = 0;
+    if (SDL_JoystickID * joysticks = SDL_GetJoysticks(&count))
     {
-        InitJoystick(i);
+        for (int i = 0; i < count; ++i)
+        {
+            InitJoystick(joysticks[i]);
+        }
+        SDL_free(joysticks);
     }
 }
 
 SDLDriver::~SDLDriver()
 {
     CloseJoysticks();
-    SDL_DelEventWatch(&SDLEventWatcher, this);
+    SDL_RemoveEventWatch(&SDLEventWatcher, this);
 
     initialized = false;
     if (start_thread)
@@ -682,7 +744,7 @@ SDLDriver::~SDLDriver()
         {
             vibration_thread.join();
         }
-        SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+        SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD);
     }
 }
 
@@ -899,19 +961,19 @@ Common::ParamPackage SDLDriver::BuildMotionParam(int port, const Common::UUID & 
 }
 
 Common::ParamPackage SDLDriver::BuildParamPackageForBinding(
-    int port, const Common::UUID & guid, const SDL_GameControllerButtonBind & binding) const
+    int port, const Common::UUID & guid, const SDL_GamepadBinding & binding) const
 {
-    switch (binding.bindType)
+    switch (binding.input_type)
     {
-    case SDL_CONTROLLER_BINDTYPE_NONE:
+    case SDL_GAMEPAD_BINDTYPE_NONE:
         break;
-    case SDL_CONTROLLER_BINDTYPE_AXIS:
-        return BuildAnalogParamPackageForButton(port, guid, binding.value.axis);
-    case SDL_CONTROLLER_BINDTYPE_BUTTON:
-        return BuildButtonParamPackageForButton(port, guid, binding.value.button);
-    case SDL_CONTROLLER_BINDTYPE_HAT:
-        return BuildHatParamPackageForButton(port, guid, binding.value.hat.hat,
-                                             static_cast<u8>(binding.value.hat.hat_mask));
+    case SDL_GAMEPAD_BINDTYPE_AXIS:
+        return BuildAnalogParamPackageForButton(port, guid, binding.input.axis.axis);
+    case SDL_GAMEPAD_BINDTYPE_BUTTON:
+        return BuildButtonParamPackageForButton(port, guid, binding.input.button);
+    case SDL_GAMEPAD_BINDTYPE_HAT:
+        return BuildHatParamPackageForButton(port, guid, binding.input.hat.hat,
+                                             static_cast<u8>(binding.input.hat.hat_mask));
     }
     return {};
 }
@@ -955,8 +1017,8 @@ ButtonMapping SDLDriver::GetButtonMappingForDevice(const IParamPackage & params)
 
     // Add the missing bindings for ZL/ZR
     static constexpr ZButtonBindings switch_to_sdl_axis{{
-        {NativeButtonValues::ZL, SDL_CONTROLLER_AXIS_TRIGGERLEFT},
-        {NativeButtonValues::ZR, SDL_CONTROLLER_AXIS_TRIGGERRIGHT},
+        {NativeButtonValues::ZL, SDL_GAMEPAD_AXIS_LEFT_TRIGGER},
+        {NativeButtonValues::ZR, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER},
     }};
 
     // Parameters contain two joysticks return dual
@@ -978,43 +1040,43 @@ ButtonBindings SDLDriver::GetDefaultButtonBinding(
     const std::shared_ptr<SDLJoystick> & joystick) const
 {
     // Default SL/SR mapping for other controllers
-    auto sll_button = SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
-    auto srl_button = SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
-    auto slr_button = SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
-    auto srr_button = SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
+    auto sll_button = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
+    auto srl_button = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
+    auto slr_button = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
+    auto srr_button = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
 
     if (joystick->IsJoyconLeft())
     {
-        sll_button = SDL_CONTROLLER_BUTTON_PADDLE2;
-        srl_button = SDL_CONTROLLER_BUTTON_PADDLE4;
+        sll_button = SDL_GAMEPAD_BUTTON_LEFT_PADDLE1;
+        srl_button = SDL_GAMEPAD_BUTTON_LEFT_PADDLE2;
     }
     if (joystick->IsJoyconRight())
     {
-        slr_button = SDL_CONTROLLER_BUTTON_PADDLE3;
-        srr_button = SDL_CONTROLLER_BUTTON_PADDLE1;
+        slr_button = SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2;
+        srr_button = SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1;
     }
 
     return {
-        std::pair{NativeButtonValues::A, SDL_CONTROLLER_BUTTON_B},
-        {NativeButtonValues::B, SDL_CONTROLLER_BUTTON_A},
-        {NativeButtonValues::X, SDL_CONTROLLER_BUTTON_Y},
-        {NativeButtonValues::Y, SDL_CONTROLLER_BUTTON_X},
-        {NativeButtonValues::LStick, SDL_CONTROLLER_BUTTON_LEFTSTICK},
-        {NativeButtonValues::RStick, SDL_CONTROLLER_BUTTON_RIGHTSTICK},
-        {NativeButtonValues::L, SDL_CONTROLLER_BUTTON_LEFTSHOULDER},
-        {NativeButtonValues::R, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER},
-        {NativeButtonValues::Plus, SDL_CONTROLLER_BUTTON_START},
-        {NativeButtonValues::Minus, SDL_CONTROLLER_BUTTON_BACK},
-        {NativeButtonValues::DLeft, SDL_CONTROLLER_BUTTON_DPAD_LEFT},
-        {NativeButtonValues::DUp, SDL_CONTROLLER_BUTTON_DPAD_UP},
-        {NativeButtonValues::DRight, SDL_CONTROLLER_BUTTON_DPAD_RIGHT},
-        {NativeButtonValues::DDown, SDL_CONTROLLER_BUTTON_DPAD_DOWN},
+        std::pair{NativeButtonValues::A, SDL_GAMEPAD_BUTTON_EAST},
+        {NativeButtonValues::B, SDL_GAMEPAD_BUTTON_SOUTH},
+        {NativeButtonValues::X, SDL_GAMEPAD_BUTTON_NORTH},
+        {NativeButtonValues::Y, SDL_GAMEPAD_BUTTON_WEST},
+        {NativeButtonValues::LStick, SDL_GAMEPAD_BUTTON_LEFT_STICK},
+        {NativeButtonValues::RStick, SDL_GAMEPAD_BUTTON_RIGHT_STICK},
+        {NativeButtonValues::L, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER},
+        {NativeButtonValues::R, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
+        {NativeButtonValues::Plus, SDL_GAMEPAD_BUTTON_START},
+        {NativeButtonValues::Minus, SDL_GAMEPAD_BUTTON_BACK},
+        {NativeButtonValues::DLeft, SDL_GAMEPAD_BUTTON_DPAD_LEFT},
+        {NativeButtonValues::DUp, SDL_GAMEPAD_BUTTON_DPAD_UP},
+        {NativeButtonValues::DRight, SDL_GAMEPAD_BUTTON_DPAD_RIGHT},
+        {NativeButtonValues::DDown, SDL_GAMEPAD_BUTTON_DPAD_DOWN},
         {NativeButtonValues::SLLeft, sll_button},
         {NativeButtonValues::SRLeft, srl_button},
         {NativeButtonValues::SLRight, slr_button},
         {NativeButtonValues::SRRight, srr_button},
-        {NativeButtonValues::Home, SDL_CONTROLLER_BUTTON_GUIDE},
-        {NativeButtonValues::Screenshot, SDL_CONTROLLER_BUTTON_MISC1},
+        {NativeButtonValues::Home, SDL_GAMEPAD_BUTTON_GUIDE},
+        {NativeButtonValues::Screenshot, SDL_GAMEPAD_BUTTON_MISC1},
     };
 }
 
@@ -1028,14 +1090,14 @@ ButtonMapping SDLDriver::GetSingleControllerMapping(
 
     for (const auto & [switch_button, sdl_button] : switch_to_sdl_button)
     {
-        const auto & binding = SDL_GameControllerGetBindForButton(controller, sdl_button);
+        const auto binding = GetBindForButton(controller, sdl_button);
         mapping.insert_or_assign(
             switch_button,
             BuildParamPackageForBinding(joystick->GetPort(), joystick->GetGUID(), binding));
     }
     for (const auto & [switch_button, sdl_axis] : switch_to_sdl_axis)
     {
-        const auto & binding = SDL_GameControllerGetBindForAxis(controller, sdl_axis);
+        const auto binding = GetBindForAxis(controller, sdl_axis);
         mapping.insert_or_assign(
             switch_button,
             BuildParamPackageForBinding(joystick->GetPort(), joystick->GetGUID(), binding));
@@ -1058,13 +1120,13 @@ ButtonMapping SDLDriver::GetDualControllerMapping(const std::shared_ptr<SDLJoyst
     {
         if (IsButtonOnLeftSide(switch_button))
         {
-            const auto & binding = SDL_GameControllerGetBindForButton(controller2, sdl_button);
+            const auto binding = GetBindForButton(controller2, sdl_button);
             mapping.insert_or_assign(
                 switch_button,
                 BuildParamPackageForBinding(joystick2->GetPort(), joystick2->GetGUID(), binding));
             continue;
         }
-        const auto & binding = SDL_GameControllerGetBindForButton(controller, sdl_button);
+        const auto binding = GetBindForButton(controller, sdl_button);
         mapping.insert_or_assign(
             switch_button,
             BuildParamPackageForBinding(joystick->GetPort(), joystick->GetGUID(), binding));
@@ -1073,13 +1135,13 @@ ButtonMapping SDLDriver::GetDualControllerMapping(const std::shared_ptr<SDLJoyst
     {
         if (IsButtonOnLeftSide(switch_button))
         {
-            const auto & binding = SDL_GameControllerGetBindForAxis(controller2, sdl_axis);
+            const auto binding = GetBindForAxis(controller2, sdl_axis);
             mapping.insert_or_assign(
                 switch_button,
                 BuildParamPackageForBinding(joystick2->GetPort(), joystick2->GetGUID(), binding));
             continue;
         }
-        const auto & binding = SDL_GameControllerGetBindForAxis(controller, sdl_axis);
+        const auto binding = GetBindForAxis(controller, sdl_axis);
         mapping.insert_or_assign(
             switch_button,
             BuildParamPackageForBinding(joystick->GetPort(), joystick->GetGUID(), binding));
@@ -1122,43 +1184,43 @@ AnalogMapping SDLDriver::GetAnalogMappingForDevice(const IParamPackage & params)
     }
 
     AnalogMapping mapping = {};
-    const auto & binding_left_x =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
-    const auto & binding_left_y =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
+    const auto binding_left_x =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_LEFTX);
+    const auto binding_left_y =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_LEFTY);
     if (params.Has("guid2"))
     {
         const auto identifier = joystick2->GetPadIdentifier();
         PreSetController(identifier);
-        PreSetAxis(identifier, binding_left_x.value.axis);
-        PreSetAxis(identifier, binding_left_y.value.axis);
-        const auto left_offset_x = -GetAxis(identifier, binding_left_x.value.axis);
-        const auto left_offset_y = GetAxis(identifier, binding_left_y.value.axis);
-        mapping.insert_or_assign(NativeAnalogValues::LStick, BuildParamPackageForAnalog(identifier, binding_left_x.value.axis, binding_left_y.value.axis, left_offset_x, left_offset_y));
+        PreSetAxis(identifier, binding_left_x.input.axis.axis);
+        PreSetAxis(identifier, binding_left_y.input.axis.axis);
+        const auto left_offset_x = -GetAxis(identifier, binding_left_x.input.axis.axis);
+        const auto left_offset_y = GetAxis(identifier, binding_left_y.input.axis.axis);
+        mapping.insert_or_assign(NativeAnalogValues::LStick, BuildParamPackageForAnalog(identifier, binding_left_x.input.axis.axis, binding_left_y.input.axis.axis, left_offset_x, left_offset_y));
     }
     else
     {
         const auto identifier = joystick->GetPadIdentifier();
         PreSetController(identifier);
-        PreSetAxis(identifier, binding_left_x.value.axis);
-        PreSetAxis(identifier, binding_left_y.value.axis);
-        const auto left_offset_x = -GetAxis(identifier, binding_left_x.value.axis);
-        const auto left_offset_y = GetAxis(identifier, binding_left_y.value.axis);
-        mapping.insert_or_assign(NativeAnalogValues::LStick, BuildParamPackageForAnalog(identifier, binding_left_x.value.axis, binding_left_y.value.axis, left_offset_x, left_offset_y));
+        PreSetAxis(identifier, binding_left_x.input.axis.axis);
+        PreSetAxis(identifier, binding_left_y.input.axis.axis);
+        const auto left_offset_x = -GetAxis(identifier, binding_left_x.input.axis.axis);
+        const auto left_offset_y = GetAxis(identifier, binding_left_y.input.axis.axis);
+        mapping.insert_or_assign(NativeAnalogValues::LStick, BuildParamPackageForAnalog(identifier, binding_left_x.input.axis.axis, binding_left_y.input.axis.axis, left_offset_x, left_offset_y));
     }
-    const auto & binding_right_x =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_RIGHTX);
-    const auto & binding_right_y =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_RIGHTY);
+    const auto binding_right_x =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_RIGHTX);
+    const auto binding_right_y =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_RIGHTY);
     const auto identifier = joystick->GetPadIdentifier();
     PreSetController(identifier);
-    PreSetAxis(identifier, binding_right_x.value.axis);
-    PreSetAxis(identifier, binding_right_y.value.axis);
-    const auto right_offset_x = -GetAxis(identifier, binding_right_x.value.axis);
-    const auto right_offset_y = GetAxis(identifier, binding_right_y.value.axis);
+    PreSetAxis(identifier, binding_right_x.input.axis.axis);
+    PreSetAxis(identifier, binding_right_y.input.axis.axis);
+    const auto right_offset_x = -GetAxis(identifier, binding_right_x.input.axis.axis);
+    const auto right_offset_y = GetAxis(identifier, binding_right_y.input.axis.axis);
     mapping.insert_or_assign(NativeAnalogValues::RStick,
-                             BuildParamPackageForAnalog(identifier, binding_right_x.value.axis,
-                                                        binding_right_y.value.axis, right_offset_x,
+                             BuildParamPackageForAnalog(identifier, binding_right_x.input.axis.axis,
+                                                        binding_right_y.input.axis.axis, right_offset_x,
                                                         right_offset_y));
     return mapping;
 }
@@ -1295,20 +1357,20 @@ bool SDLDriver::IsStickInverted(const IParamPackage & params)
 
     const auto & axis_x = params.GetInt("axis_x", 0);
     const auto & axis_y = params.GetInt("axis_y", 0);
-    const auto & binding_left_x =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
-    const auto & binding_right_x =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_RIGHTX);
-    const auto & binding_left_y =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
-    const auto & binding_right_y =
-        SDL_GameControllerGetBindForAxis(controller, SDL_CONTROLLER_AXIS_RIGHTY);
+    const auto binding_left_x =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_LEFTX);
+    const auto binding_right_x =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_RIGHTX);
+    const auto binding_left_y =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_LEFTY);
+    const auto binding_right_y =
+        GetBindForAxis(controller, SDL_GAMEPAD_AXIS_RIGHTY);
 
-    if (axis_x != binding_left_y.value.axis && axis_x != binding_right_y.value.axis)
+    if (axis_x != binding_left_y.input.axis.axis && axis_x != binding_right_y.input.axis.axis)
     {
         return false;
     }
-    if (axis_y != binding_left_x.value.axis && axis_y != binding_right_x.value.axis)
+    if (axis_y != binding_left_x.input.axis.axis && axis_y != binding_right_x.input.axis.axis)
     {
         return false;
     }

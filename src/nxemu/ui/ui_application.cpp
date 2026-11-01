@@ -76,19 +76,18 @@ struct LiveResize
 {
     UiWindow & window;
     MainWindow & mainWindow;
-    SDL_threadID thread = SDL_ThreadID();
+    SDL_ThreadID thread = SDL_GetCurrentThreadID();
     bool busy = false;
 };
 
-int SDLCALL DrawWhileResizing(void * userdata, SDL_Event * event)
+bool SDLCALL DrawWhileResizing(void * userdata, SDL_Event * event)
 {
     LiveResize & resize = *static_cast<LiveResize *>(userdata);
     UiDialogWindow * dialogWindow = resize.window.DialogWindow();
-    if (SDL_ThreadID() != resize.thread || resize.busy ||
-        event->type != SDL_WINDOWEVENT || event->window.event != SDL_WINDOWEVENT_SIZE_CHANGED ||
+    if (SDL_GetCurrentThreadID() != resize.thread || resize.busy || event->type != SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
         (event->window.windowID != SDL_GetWindowID(resize.window.Handle()) && (dialogWindow == nullptr || !dialogWindow->Owns(*event))))
     {
-        return 0;
+        return true;
     }
     resize.busy = true;
     resize.mainWindow.HandleEvent(*event);
@@ -96,7 +95,7 @@ int SDLCALL DrawWhileResizing(void * userdata, SDL_Event * event)
     resize.window.PaceFrame();
     resize.window.Render(resize.mainWindow.GameArea());
     resize.busy = false;
-    return 0;
+    return true;
 }
 
 int Run(UiNotification & notification, const std::string & gamePath)
@@ -142,7 +141,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
         startup->Close();
     }
     const auto closesMainWindow = [&window](const SDL_Event & event) {
-        return event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window.Handle());
+        return event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window.Handle());
     };
     GameLibrary library;
     MainWindow mainWindow(window, session, library, assetDir);
@@ -174,14 +173,14 @@ int Run(UiNotification & notification, const std::string & gamePath)
             SDL_Event event;
             while (SDL_PollEvent(&event))
             {
-                if (event.type == SDL_QUIT || closesMainWindow(event))
+                if (event.type == SDL_EVENT_QUIT || closesMainWindow(event))
                 {
                     deferred = event;
                     quitting = true;
                     dialog.Dismiss();
                     break;
                 }
-                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE)
+                if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
                 {
                     dialog.Dismiss();
                     continue;
@@ -218,7 +217,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
         mainWindow.OpenGame(gamePath);
     }
 
-    uint64_t lastChange = SDL_GetTicks64();
+    uint64_t lastChange = SDL_GetTicks();
     uint64_t lastRender = 0;
     while (!mainWindow.QuitRequested())
     {
@@ -227,12 +226,12 @@ int Run(UiNotification & notification, const std::string & gamePath)
         window.PaceFrame();
         SDL_Event event;
         bool changed = false;
-        bool pending = !session.IsRunning() && SDL_GetTicks64() - lastChange >= kStillAfterMs ? SDL_WaitEventTimeout(&event, kStillFrameMs) != 0 : SDL_PollEvent(&event) != 0;
+        bool pending = !session.IsRunning() && SDL_GetTicks() - lastChange >= kStillAfterMs ? SDL_WaitEventTimeout(&event, kStillFrameMs) != 0 : SDL_PollEvent(&event) != 0;
         for (; pending; pending = SDL_PollEvent(&event) != 0)
         {
             liveResize.busy = true;
             changed = true;
-            if (event.type == SDL_QUIT || closesMainWindow(event))
+            if (event.type == SDL_EVENT_QUIT || closesMainWindow(event))
             {
                 mainWindow.RequestQuit();
             }
@@ -245,7 +244,7 @@ int Run(UiNotification & notification, const std::string & gamePath)
         liveResize.busy = true;
         window.SyncNativeState();
         mainWindow.Update();
-        const uint64_t now = SDL_GetTicks64();
+        const uint64_t now = SDL_GetTicks();
         if (changed || !mainWindow.Still())
         {
             lastChange = now;
@@ -256,11 +255,11 @@ int Run(UiNotification & notification, const std::string & gamePath)
             {
                 LOG_INFO(Frontend, "Startup: first frame shown");
             }
-            lastRender = SDL_GetTicks64();
+            lastRender = SDL_GetTicks();
         }
         liveResize.busy = false;
     }
-    SDL_DelEventWatch(&DrawWhileResizing, &liveResize);
+    SDL_RemoveEventWatch(&DrawWhileResizing, &liveResize);
     notification.SetPresenter({});
     return 0;
 }

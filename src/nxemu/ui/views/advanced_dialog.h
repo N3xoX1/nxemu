@@ -3,7 +3,7 @@
 #include "hotkeys.h"
 #include "settings_page.h"
 #include "settings_context.h"
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <string>
 #include <vector>
 
@@ -44,7 +44,7 @@ private:
     bool m_running = false;
     int m_hotkeyAsked = -1;
     bool m_hotkeyGamepad = false;
-    SDL_JoystickID m_hotkeyDevice = -1;
+    SDL_JoystickID m_hotkeyDevice = 0;
     std::string m_hotkeyNote;
     bool m_unsaved = false;
 };

@@ -1,8 +1,7 @@
 #pragma once
 #include "ui_presenter.h"
 #include "ui_renderer.h"
-#include <SDL.h>
-#include <SDL_metal.h>
+#include <SDL3/SDL.h>
 #include <filesystem>
 #include <future>
 #include <memory>
@@ -110,7 +109,7 @@ private:
     std::string m_themeChoice = "system";
     bool m_light = false;
 #if defined(__linux__)
-    Uint32 m_themeEvent = Uint32(-1);
+    Uint32 m_themeEvent = 0;
     Uint32 m_themeRequest = 0;
     std::future<void> m_themeQuery;
 #endif
@@ -124,7 +123,6 @@ private:
     int m_hiddenFrame = 0;
     uint64_t m_barPressTime = 0;
     SDL_Point m_barPress{};
-    bool m_hitTestOnPress = true;
     bool m_waylandVideo = false;
     bool m_overDragArea = false;
     bool m_leftButtonDown = false;

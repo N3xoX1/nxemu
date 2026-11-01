@@ -26,7 +26,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
-      <PreprocessorDefinitions>HAVE_CUBEB=1;HAVE_SDL2;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CUBEB=1;HAVE_SDL;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\cubeb\include;$(SolutionDir)external\fmt\include;$(SolutionDir)external\opus\include;$(SolutionDir)external\sdl\include;$(SolutionDir)src\3rd_party\cubeb;$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\nxemu-os;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -272,8 +272,8 @@
     <ClInclude Include="sink\sink_stream.h" />
     <ClCompile Include="sink\cubeb_sink.cpp" />
     <ClInclude Include="sink\cubeb_sink.h" />
-    <ClCompile Include="sink\sdl2_sink.cpp" />
-    <ClInclude Include="sink\sdl2_sink.h" />
+    <ClCompile Include="sink\sdl_sink.cpp" />
+    <ClInclude Include="sink\sdl_sink.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

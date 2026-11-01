@@ -2,8 +2,7 @@
 
 #include "native_window.h"
 #include "system_theme.h"
-#include <SDL.h>
-#include <SDL_syswm.h>
+#include <SDL3/SDL.h>
 #include <unordered_map>
 #include <vector>
 
@@ -26,13 +25,11 @@ std::unordered_map<SDL_Window *, NativeWindowState> windows;
 
 int ApplyNativeWindowStyle(SDL_Window * window)
 {
-    SDL_SysWMinfo info{};
-    SDL_VERSION(&info.version);
-    if (window == nullptr || !SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_COCOA)
+    NSWindow * nativeWindow = CocoaWindow(window);
+    if (nativeWindow == nil)
     {
         return 0;
     }
-    NSWindow * nativeWindow = info.info.cocoa.window;
     nativeWindow.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     nativeWindow.backgroundColor = NSColor.blackColor;
     nativeWindow.tabbingMode = NSWindowTabbingModeDisallowed;
@@ -43,8 +40,8 @@ int ApplyNativeWindowStyle(SDL_Window * window)
     nativeWindow.styleMask |= NSWindowStyleMaskFullSizeContentView;
     [nativeWindow setFrame:frame display:YES];
 
-    // SDL 2 does not update its fullscreen flags for the native green button.
-    // Let Cocoa own every transition, including keyboard/menu requests. Trying
+    // Let Cocoa own every fullscreen transition, including the native green
+    // button and keyboard/menu requests. Trying
     // to synchronise SDL's flags with SDL_SetWindowFullscreen can start a second
     // transition while SDL is handling the first one's notifications.
     NativeWindowState & state = windows[window];
@@ -161,9 +158,8 @@ bool SystemPrefersDarkTheme()
 
 void SetNativeWindowTheme(SDL_Window * window, const char * choice)
 {
-    SDL_SysWMinfo info{};
-    SDL_VERSION(&info.version);
-    if (window == nullptr || !SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_COCOA)
+    NSWindow * nativeWindow = CocoaWindow(window);
+    if (nativeWindow == nil)
     {
         return;
     }
@@ -177,7 +173,7 @@ void SetNativeWindowTheme(SDL_Window * window, const char * choice)
     {
         appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     }
-    info.info.cocoa.window.appearance = appearance;
+    nativeWindow.appearance = appearance;
 }
 
 void ReleaseNativeWindowStyle(SDL_Window * window)

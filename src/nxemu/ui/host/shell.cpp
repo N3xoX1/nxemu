@@ -1,10 +1,10 @@
 #include "shell.h"
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <cctype>
 
 bool OpenUrl(const std::string & url)
 {
-    return !url.empty() && SDL_OpenURL(url.c_str()) == 0;
+    return !url.empty() && SDL_OpenURL(url.c_str());
 }
 
 bool OpenDirectory(const std::string & utf8Path)

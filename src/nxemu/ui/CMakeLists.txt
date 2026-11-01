@@ -1,8 +1,5 @@
 set(_nxemu_rmlui_backends "${CMAKE_SOURCE_DIR}/external/rmlui/Backends")
 
-if(NOT TARGET SDL2::SDL2)
-    find_package(SDL2 REQUIRED CONFIG)
-endif()
 
 # The RmlUi frontend. Everything here is shared by all platforms, apart from
 # the few window conventions macOS needs set natively.
@@ -156,12 +153,12 @@ target_include_directories(nxemu_ui PRIVATE
     "${CMAKE_SOURCE_DIR}/src/common"
     "${CMAKE_SOURCE_DIR}/src/yuzu_common"
     "${CMAKE_SOURCE_DIR}/external/boost")
-target_compile_definitions(nxemu_ui PRIVATE RMLUI_SDL_VERSION_MAJOR=2)
+target_compile_definitions(nxemu_ui PRIVATE RMLUI_SDL_VERSION_MAJOR=3)
 if(UNIX)
     target_compile_definitions(nxemu_ui PRIVATE NXEMU_UNIX=1)
 endif()
 target_link_libraries(nxemu_ui
-    PUBLIC RmlUi::RmlUi SDL2::SDL2
+    PUBLIC RmlUi::RmlUi SDL3::SDL3
     PRIVATE nxemu_core common yuzu_common discord-rpc fmt::fmt stb::headers Freetype::Freetype
         Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
