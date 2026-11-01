@@ -256,7 +256,9 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     [[nodiscard]] RasterizerDownloadArea OnCPURead(DAddr addr, u64 size);
-    void OnNativeCPURead(DAddr addr, u64 size, bool shared_page = false);
+    /// Returns true when a shared page is left inaccessible until an asynchronous copy is
+    /// published, instead of waiting for the GPU.
+    bool OnNativeCPURead(DAddr addr, u64 size, bool shared_page = false);
 
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, u64 size);

@@ -449,16 +449,37 @@ struct GPU::Impl :
 
     // The CPU accessed a host page that holds GPU data. Images the guest reads back must be
     // current before the host page opens, but this download must not make other images
-    // readback targets. The cache state is only current in GPU thread order: probe
-    // it there, or here once the GPU thread has executed every submitted command.
-    void SynchronizeSharedPage(DAddr addr, u64 size)
+    // readback targets. Once a page was observed, asynchronous publications keep it current
+    // like a preemptive read, so only its first access downloads.
+    // The lock-free probe is set on the GPU thread before any later fence signals, so it
+    // reports every write the guest can have synchronized with. The cache state is only
+    // current in GPU thread order: inspect it there, or here once the GPU thread has
+    // executed every submitted command.
+    bool SynchronizeSharedPage(DAddr addr, u64 size)
     {
-        if (gpu_thread.IsIdle() && !rasterizer->MustFlushSharedPage(addr, size))
+        // Keeping the host page closed is always safe: a later access to this guest memory
+        // itself still downloads it.
+        if (rasterizer->AwaitsProtectedDownload(addr, size))
         {
-            return;
+            return true;
         }
-        const uint64_t fence = RequestSyncOperation([this, addr, size]() {
-            if (!rasterizer->MustFlushSharedPage(addr, size))
+        if (!rasterizer->MayFlushSharedPage(addr, size))
+        {
+            return false;
+        }
+        if (gpu_thread.IsIdle())
+        {
+            const auto access = rasterizer->ObserveSharedPage(addr, size);
+            if (access != VideoCore::SharedPageAccess::Flush)
+            {
+                return access == VideoCore::SharedPageAccess::Deferred;
+            }
+        }
+        bool deferred = false;
+        const uint64_t fence = RequestSyncOperation([this, addr, size, &deferred]() {
+            const auto access = rasterizer->ObserveSharedPage(addr, size);
+            deferred = access == VideoCore::SharedPageAccess::Deferred;
+            if (access != VideoCore::SharedPageAccess::Flush)
             {
                 return;
             }
@@ -467,6 +488,7 @@ struct GPU::Impl :
         });
         gpu_thread.TickGPU();
         WaitForSyncOperation(fence);
+        return deferred;
     }
 
     void OnNativeCPURead(DAddr addr, u64 size)
@@ -880,14 +902,14 @@ RasterizerDownloadArea GPU::OnCPURead(PAddr addr, uint64_t size)
     return impl->OnCPURead(addr, size);
 }
 
-void GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)
+bool GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)
 {
     if (shared_page)
     {
-        impl->SynchronizeSharedPage(addr, size);
-        return;
+        return impl->SynchronizeSharedPage(addr, size);
     }
     impl->OnNativeCPURead(addr, size);
+    return false;
 }
 
 void GPU::FlushRegion(DAddr addr, uint64_t size)

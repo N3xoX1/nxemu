@@ -91,12 +91,12 @@ void StagingBufferPool::FreeDeferred(StagingBufferRef& ref) {
     ASSERT(it != entries.end());
     ASSERT(it->deferred);
     it->tick = scheduler.CurrentTick();
+    it->frame = frame;
     it->deferred = false;
 }
 
 void StagingBufferPool::TickFrame() {
-    current_delete_level = (current_delete_level + 1) % NUM_LEVELS;
-
+    ++frame;
     ReleaseCache(MemoryUsage::DeviceLocal);
     ReleaseCache(MemoryUsage::Upload);
     ReleaseCache(MemoryUsage::Download);
@@ -161,22 +161,24 @@ StagingBufferRef StagingBufferPool::GetStagingBuffer(size_t size, MemoryUsage us
 std::optional<StagingBufferRef> StagingBufferPool::TryGetReservedBuffer(size_t size,
                                                                         MemoryUsage usage,
                                                                         bool deferred) {
-    StagingBuffers& cache_level = GetCache(usage)[Common::Log2Ceil64(size)];
-
     const auto is_free = [this](const StagingBuffer& entry) {
         return !entry.deferred && scheduler.IsFree(entry.tick);
     };
-    auto& entries = cache_level.entries;
-    const auto hint_it = entries.begin() + cache_level.iterate_index;
-    auto it = std::find_if(entries.begin() + cache_level.iterate_index, entries.end(), is_free);
-    if (it == entries.end()) {
-        it = std::find_if(entries.begin(), hint_it, is_free);
-        if (it == hint_it) {
-            return std::nullopt;
-        }
+    // Reuse the oldest buffers first, so that the ones beyond what is used at once go idle.
+    // A free buffer of the next size is reused rather than allocating another one.
+    auto& cache = GetCache(usage);
+    const size_t log2 = Common::Log2Ceil64(size);
+    auto* entries = &cache[log2].entries;
+    auto it = std::find_if(entries->begin(), entries->end(), is_free);
+    if (it == entries->end() && log2 + 1 < NUM_LEVELS) {
+        entries = &cache[log2 + 1].entries;
+        it = std::find_if(entries->begin(), entries->end(), is_free);
     }
-    cache_level.iterate_index = std::distance(entries.begin(), it) + 1;
+    if (it == entries->end()) {
+        return std::nullopt;
+    }
     it->tick = deferred ? std::numeric_limits<u64>::max() : scheduler.CurrentTick();
+    it->frame = frame;
     ASSERT(!it->deferred);
     it->deferred = deferred;
     return it->Ref();
@@ -214,6 +216,7 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
         .log2_level = log2,
         .index = unique_ids++,
         .tick = deferred ? std::numeric_limits<u64>::max() : scheduler.CurrentTick(),
+        .frame = frame,
         .deferred = deferred,
     });
     return entry.Ref();
@@ -234,32 +237,18 @@ StagingBufferPool::StagingBuffersCache& StagingBufferPool::GetCache(MemoryUsage 
 }
 
 void StagingBufferPool::ReleaseCache(MemoryUsage usage) {
-    ReleaseLevel(GetCache(usage), current_delete_level);
+    auto& cache = GetCache(usage);
+    for (size_t log2 = 0; log2 < NUM_LEVELS; ++log2) {
+        ReleaseLevel(cache, log2);
+    }
 }
 
 void StagingBufferPool::ReleaseLevel(StagingBuffersCache& cache, size_t log2) {
-    constexpr size_t deletions_per_tick = 16;
-    auto& staging = cache[log2];
-    auto& entries = staging.entries;
-    const size_t old_size = entries.size();
-
     const auto is_deletable = [this](const StagingBuffer& entry) {
-        return scheduler.IsFree(entry.tick);
+        return !entry.deferred && frame - entry.frame >= IDLE_FRAMES &&
+               scheduler.IsFree(entry.tick);
     };
-    const size_t begin_offset = staging.delete_index;
-    const size_t end_offset = std::min(begin_offset + deletions_per_tick, old_size);
-    const auto begin = entries.begin() + begin_offset;
-    const auto end = entries.begin() + end_offset;
-    entries.erase(std::remove_if(begin, end, is_deletable), end);
-
-    const size_t new_size = entries.size();
-    staging.delete_index += deletions_per_tick;
-    if (staging.delete_index >= new_size) {
-        staging.delete_index = 0;
-    }
-    if (staging.iterate_index > new_size) {
-        staging.iterate_index = 0;
-    }
+    std::erase_if(cache[log2].entries, is_deletable);
 }
 
 } // namespace Vulkan

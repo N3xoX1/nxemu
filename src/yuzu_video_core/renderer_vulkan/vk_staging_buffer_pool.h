@@ -55,6 +55,7 @@ private:
         u32 log2_level;
         u64 index;
         u64 tick = 0;
+        u64 frame = 0;
         bool deferred{};
 
         StagingBufferRef Ref() const noexcept {
@@ -71,9 +72,10 @@ private:
 
     struct StagingBuffers {
         std::vector<StagingBuffer> entries;
-        size_t delete_index = 0;
-        size_t iterate_index = 0;
     };
+
+    /// Frames a free buffer stays cached without being requested.
+    static constexpr u64 IDLE_FRAMES = 60;
 
     static constexpr size_t NUM_LEVELS = sizeof(size_t) * CHAR_BIT;
     using StagingBuffersCache = std::array<StagingBuffers, NUM_LEVELS>;
@@ -116,7 +118,7 @@ private:
     StagingBuffersCache upload_cache;
     StagingBuffersCache download_cache;
 
-    size_t current_delete_level = 0;
+    u64 frame = 0;
     u64 buffer_index = 0;
     u64 unique_ids{};
 };

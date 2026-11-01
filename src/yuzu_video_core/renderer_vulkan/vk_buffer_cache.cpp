@@ -532,6 +532,18 @@ void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {
     scheduler.MarkBufferWrite(buffer.Handle());
 }
 
+u64 BufferCacheRuntime::CurrentTick() const noexcept {
+    return scheduler.CurrentTick();
+}
+
+bool BufferCacheRuntime::IsFree(u64 tick) const noexcept {
+    return scheduler.IsFree(tick);
+}
+
+void BufferCacheRuntime::Wait(u64 tick) {
+    scheduler.Wait(tick);
+}
+
 void BufferCacheRuntime::Finish() {
     scheduler.Finish();
 }

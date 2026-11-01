@@ -809,15 +809,31 @@ void RasterizerVulkan::FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheT
     }
 }
 
-bool RasterizerVulkan::MustFlushSharedPage(DAddr addr, u64 size) {
+bool RasterizerVulkan::MayFlushSharedPage(DAddr addr, u64 size) {
+    return buffer_cache.MayHaveGpuWrites(addr, size) ||
+           texture_cache.MayHaveUnpublishedReadImage(addr, size);
+}
+
+bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
+    return buffer_cache.AwaitsProtectedDownload(addr, size);
+}
+
+VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {
+    bool deferred = false;
     {
         std::scoped_lock lock{buffer_cache.mutex};
         if (buffer_cache.IsRegionGpuModified(addr, size)) {
-            return true;
+            if (!buffer_cache.IsGpuModifiedRegionProtected(addr, size)) {
+                return VideoCore::SharedPageAccess::Flush;
+            }
+            deferred = true;
         }
     }
     std::scoped_lock lock{texture_cache.mutex};
-    return texture_cache.HasUnpublishedReadImage(addr, size);
+    if (texture_cache.ObserveReadImages(addr, size)) {
+        return VideoCore::SharedPageAccess::Flush;
+    }
+    return deferred ? VideoCore::SharedPageAccess::Deferred : VideoCore::SharedPageAccess::Current;
 }
 
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
