@@ -100,6 +100,12 @@ public:
     /// Notes that the commands being recorded write to a buffer.
     void MarkHostWrite(const Buffer& buffer);
 
+    [[nodiscard]] u64 CurrentTick() const noexcept;
+
+    [[nodiscard]] bool IsFree(u64 tick) const noexcept;
+
+    void Wait(u64 tick);
+
     void Finish();
 
     u64 GetDeviceLocalMemory() const;

@@ -919,6 +919,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
                 image.published_observed_pages = false;
                 MarkReadbackSynchronized(image);
                 UpdateNativeReadTracking(image, id);
+                RefreshUnpublishedRead(image.cpu_addr, image.guest_size_bytes);
                 runtime.FreeDeferredStagingBuffer(map);
             }
             downloads.clear();
@@ -951,6 +952,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
         image.published_observed_pages = false;
         MarkReadbackSynchronized(image);
         UpdateNativeReadTracking(image, image_id);
+        RefreshUnpublishedRead(image.cpu_addr, image.guest_size_bytes);
     }
 }
 
@@ -982,6 +984,7 @@ std::optional<RasterizerDownloadArea> TextureCache<P>::GetFlushArea(DAddr cpu_ad
         }
         area->preemtive &= image.info.forced_flushed;
         image.info.forced_flushed = true;
+        MarkUnpublishedRead(image);
     });
     if (observed && area) {
         // Cache only the requested range in the OS, so the first read of another
@@ -1577,6 +1580,7 @@ void TextureCache<P>::PopAsyncFlushes() {
                     if (published && download_info.modification_tick >= image.published_tick) {
                         image.published_tick = download_info.modification_tick;
                         image.published_observed_pages = observed_pages;
+                        RefreshUnpublishedRead(image.cpu_addr, image.guest_size_bytes);
                     }
                 }
             } else {
@@ -1802,6 +1806,30 @@ bool TextureCache<P>::HasUnpublishedReadImage(DAddr addr, size_t size) {
         return true;
     });
     return unpublished;
+}
+
+template <class P>
+bool TextureCache<P>::ObserveReadImages(DAddr addr, size_t size) {
+    constexpr bool observed = OBSERVED_READBACK;
+    if (!observed) {
+        return HasUnpublishedReadImage(addr, size);
+    }
+    bool read_image = false;
+    ForEachImageInRegion(addr, size, [&](ImageId, ImageBase& image) {
+        read_image = True(image.flags & ImageFlagBits::GpuModified) && image.info.forced_flushed;
+        return read_image;
+    });
+    if (!read_image) {
+        return false;
+    }
+    const DAddr begin = Common::AlignDown(addr, ReadbackPageTracker::PAGE_SIZE);
+    const DAddr end = Common::AlignUp(addr + size, ReadbackPageTracker::PAGE_SIZE);
+    // An observed page is current up to the last publication, like a preemptive read.
+    // A new one has no asynchronous copy yet and is initialized synchronously.
+    const bool must_flush = !readback_pages.Contains(begin, end - begin) &&
+                            HasUnpublishedReadImage(begin, end - begin);
+    readback_pages.Observe(begin, end - begin);
+    return must_flush;
 }
 
 template <class P>
@@ -2968,6 +2996,7 @@ void TextureCache<P>::RegisterImage(ImageId image_id) {
     ASSERT_MSG(False(image.flags & ImageFlagBits::Registered),
                "Trying to register an already registered image");
     image.flags |= ImageFlagBits::Registered;
+    MarkUnpublishedRead(image);
     u64 tentative_size = std::max(image.guest_size_bytes, image.unswizzled_size_bytes);
     if ((IsPixelFormatASTC(image.info.format) &&
          True(image.flags & ImageFlagBits::AcceleratedUpload)) ||
@@ -3055,6 +3084,7 @@ void TextureCache<P>::UnregisterImage(ImageId image_id) {
             image_map_ids.erase(vector_it);
         });
         slot_map_views.erase(map_id);
+        RefreshUnpublishedRead(image.cpu_addr, image.guest_size_bytes);
         return;
     }
     auto& image_sparse_page_table = gpu_page_table_storage[image.gpu_page_table_index + 1];
@@ -3097,6 +3127,7 @@ void TextureCache<P>::UnregisterImage(ImageId image_id) {
 template <class P>
 void TextureCache<P>::NotifyNativeImageModification(ImageBase& image, ImageId image_id) {
 #if defined(__APPLE__)
+    MarkUnpublishedRead(image);
     if (False(image.flags & ImageFlagBits::Sparse)) {
         if (image.cpu_addr < ~(1ULL << 40))
             device_memory.InvalidateNativeReadRegion(image.cpu_addr, image.guest_size_bytes);
@@ -3342,6 +3373,40 @@ void TextureCache<P>::RemoveFramebuffers(std::span<const ImageViewId> removed_vi
             ++it;
         }
     }
+}
+
+template <class P>
+void TextureCache<P>::MarkUnpublishedRead(ImageBase& image) {
+#if defined(__APPLE__)
+    if (!image.info.forced_flushed || False(image.flags & ImageFlagBits::GpuModified)) {
+        return;
+    }
+    if (False(image.flags & ImageFlagBits::Sparse)) {
+        unpublished_read_pages.Set(image.cpu_addr, image.guest_size_bytes);
+        return;
+    }
+    // Sparse pages are never refreshed: they stay conservatively set.
+    ForEachSparseSegment(image, [this](GPUVAddr, DAddr address, size_t size) {
+        unpublished_read_pages.Set(address, size);
+    });
+#endif
+}
+
+template <class P>
+void TextureCache<P>::RefreshUnpublishedRead(DAddr addr, size_t size) {
+#if defined(__APPLE__)
+    if (addr >= ~(1ULL << 40)) {
+        return;
+    }
+    using Bits = decltype(unpublished_read_pages);
+    const DAddr end = Common::AlignUp(addr + size, Bits::PAGE_SIZE);
+    for (DAddr page = Common::AlignDown(addr, Bits::PAGE_SIZE); page < end; page += Bits::PAGE_SIZE) {
+        if (unpublished_read_pages.Any(page, Bits::PAGE_SIZE) &&
+            !HasUnpublishedReadImage(page, Bits::PAGE_SIZE)) {
+            unpublished_read_pages.Clear(page, Bits::PAGE_SIZE);
+        }
+    }
+#endif
 }
 
 template <class P>

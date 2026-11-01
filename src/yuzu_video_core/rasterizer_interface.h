@@ -37,6 +37,13 @@ enum class LoadCallbackStage {
 };
 using DiskResourceLoadCallback = std::function<void(LoadCallbackStage, std::size_t, std::size_t)>;
 
+/// How guest memory sharing a host page with a CPU access can be exposed.
+enum class SharedPageAccess {
+    Current,  ///< Guest memory is current.
+    Flush,    ///< Guest memory must be downloaded first.
+    Deferred, ///< An asynchronous copy will publish it, and keeps it inaccessible until then.
+};
+
 class RasterizerInterface {
 public:
     virtual ~RasterizerInterface() = default;
@@ -103,8 +110,18 @@ public:
     /// Synchronize native reads while retaining GPU cache ownership.
     virtual void FlushNativeRegion(DAddr addr, u64 size) { FlushRegion(addr, size); }
 
-    /// Check if guest memory sharing a host page with a CPU access is behind data the guest reads.
-    virtual bool MustFlushSharedPage(DAddr addr, u64 size) { return true; }
+    /// Lock-free: false proves that guest memory sharing a host page with a CPU access is not
+    /// behind data the guest reads.
+    virtual bool MayFlushSharedPage(DAddr addr, u64 size) { return true; }
+
+    /// Check if guest memory sharing a host page with a CPU access is behind data the guest
+    /// reads, and let later asynchronous publications keep it current.
+    virtual SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) {
+        return SharedPageAccess::Flush;
+    }
+    /// Lock-free: true when guest memory sharing a host page with a CPU access may wait for an
+    /// asynchronous copy that keeps it inaccessible until it is published.
+    virtual bool AwaitsProtectedDownload(DAddr addr, u64 size) { return false; }
 
     /// Check if the the specified memory area requires flushing to CPU Memory.
     virtual bool MustFlushRegion(DAddr addr, u64 size,

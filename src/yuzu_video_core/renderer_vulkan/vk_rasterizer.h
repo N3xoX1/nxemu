@@ -115,7 +115,9 @@ public:
     void FlushRegion(DAddr addr, u64 size,
                      VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void FlushNativeRegion(DAddr addr, u64 size) override;
-    bool MustFlushSharedPage(DAddr addr, u64 size) override;
+    bool MayFlushSharedPage(DAddr addr, u64 size) override;
+    VideoCore::SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) override;
+    bool AwaitsProtectedDownload(DAddr addr, u64 size) override;
     void FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheType which, bool native_read);
     bool MustFlushRegion(DAddr addr, u64 size,
                          VideoCommon::CacheType which = VideoCommon::CacheType::All) override;

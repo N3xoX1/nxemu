@@ -581,8 +581,9 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
         const DAddr end_address = address + size;
         if (current_area.native_read) {
-            impl->m_gpuCore->OnNativeCPURead(address, size, current_area.shared_page);
-            area = {address, end_address, false, true, current_area.shared_page};
+            const bool deferred = impl->m_gpuCore->OnNativeCPURead(address, size, current_area.shared_page);
+            area = {address, end_address, false, true, current_area.shared_page,
+                    area.deferred || deferred};
             return;
         }
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {

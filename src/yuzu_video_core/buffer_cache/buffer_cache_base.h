@@ -160,6 +160,10 @@ class BufferCache : public VideoCommon::ChannelSetupCaches<BufferCacheChannelInf
     // This is unrelated to the CPU page size and it can be changed as it seems optimal.
     static constexpr u32 CACHING_PAGEBITS = 16;
     static constexpr u64 CACHING_PAGESIZE = u64{1} << CACHING_PAGEBITS;
+    /// Largest download kept unreadable by the CPU instead of delaying the fence signal.
+    static constexpr u64 MAX_PROTECTED_DOWNLOAD_BYTES = 1_MiB;
+    /// Staging memory of downloads the GPU has not executed yet, before a commit waits.
+    static constexpr u64 MAX_INCOMPLETE_DOWNLOAD_BYTES = 512_MiB;
 
     static constexpr bool IS_OPENGL = P::IS_OPENGL;
     static constexpr bool HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS =
@@ -300,6 +304,22 @@ public:
 
     /// Return true when a CPU region is modified from the GPU
     [[nodiscard]] bool IsRegionGpuModified(DAddr addr, size_t size);
+
+    /// Lock-free: true when the region may hold a download that keeps it unreadable by the
+    /// CPU until it is published.
+    [[nodiscard]] bool AwaitsProtectedDownload(DAddr addr, size_t size) const noexcept {
+        return protected_download_pages.Any(addr, size);
+    }
+
+    /// Return true when every GPU write in the region waits in a download that keeps it
+    /// unreadable by the CPU until it is published.
+    [[nodiscard]] bool IsGpuModifiedRegionProtected(DAddr addr, size_t size);
+
+    /// The latest committed downloads stay unreadable by the CPU until they are published.
+    [[nodiscard]] bool PendingDownloadsProtected() const noexcept {
+        return pending_downloads_protected;
+    }
+
     [[nodiscard]] bool MayHaveGpuWrites(DAddr addr, size_t size) const noexcept {
         return gpu_write_history.MayHaveWrites(addr, size);
     }
@@ -585,6 +605,13 @@ private:
     std::deque<std::vector<Common::ReadbackCpuCopy>> pending_readback_cpu_copies;
     /// Ranges of each pending download that guest memory did not get newer data for since
     std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
+    // Pages kept unreadable by the CPU until their asynchronous download is published.
+    std::deque<boost::container::small_vector<std::pair<DAddr, u64>, 4>> pending_protected_ranges;
+    bool pending_downloads_protected = true;
+    Common::OverlapRangeSet<DAddr> protected_downloads;
+    VideoCommon::AtomicPageBits<34, 12> protected_download_pages;
+    std::deque<std::pair<u64, u64>> incomplete_downloads;
+    u64 incomplete_download_bytes = 0;
     std::optional<Async_Buffer> current_buffer;
 
     std::deque<Async_Buffer> async_buffers_death_ring;
