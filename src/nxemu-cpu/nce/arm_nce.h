@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #if defined(__APPLE__)
 #include <mach/mach_types.h>
@@ -85,6 +86,10 @@ public:
 
     GuestContext m_guest_ctx{};
     IKernelThread * m_running_thread{};
+
+    // A break signal was sent and not yet received. It stays blocked while the core handles
+    // a guest fault, which may wait on the GPU, so later interrupts must not wait for it.
+    std::atomic<bool> m_break_pending{};
 
     // Ranges of the host address space that hold guest memory; guest code only runs there.
     std::vector<std::pair<uint64_t, uint64_t>> m_guest_windows;
