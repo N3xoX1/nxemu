@@ -164,6 +164,7 @@ void TextureCache<P>::PollGCReadbacks() {
             gc_readback_ids.erase(id);
             if (unchanged) {
                 const auto copies = FullDownloadCopies(image.info);
+                NewerOverlapGuard guard{*this, id, image, image.gpu_write_tick};
                 SwizzleImage(*owner->second.gpu_memory, image.gpu_addr, image.info, copies,
                              readback.map.mapped_span, swizzle_data_buffer);
                 if (True(image.flags & ImageFlagBits::Tracked)) {
@@ -290,6 +291,7 @@ void TextureCache<P>::RunGarbageCollector() {
             const auto copies = FullDownloadCopies(image.info);
             image.DownloadMemory(map, copies);
             runtime.Finish();
+            NewerOverlapGuard guard{*this, image_id, image, image.gpu_write_tick};
             SwizzleImage(*image_gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span,
                          swizzle_data_buffer);
         }
@@ -1345,6 +1347,7 @@ void TextureCache<P>::CommitAsyncFlushes() {
         download.observation_serial = readback_pages.Serial();
         if (download.is_swizzle) {
             download.modification_tick = slot_images[download.object_id].modification_tick;
+            download.gpu_write_tick = slot_images[download.object_id].gpu_write_tick;
         }
     }
     // This is intentionally passing the value by copy
@@ -1463,6 +1466,36 @@ bool TextureCache<P>::PublishObservedReadback(const ImageBase& image,
 }
 
 template <class P>
+TextureCache<P>::NewerOverlapGuard::NewerOverlapGuard(TextureCache& cache_, ImageId id,
+                                                      const ImageBase& image, u64 write_tick)
+    : cache{cache_} {
+    if (True(image.flags & ImageFlagBits::Sparse)) {
+        return;
+    }
+    cache.ForEachImageInRegion(image.cpu_addr, image.guest_size_bytes,
+                               [&](ImageId other_id, ImageBase& other) {
+        if (other_id == id || False(other.flags & ImageFlagBits::GpuModified) ||
+            True(other.flags & ImageFlagBits::Sparse) || other.gpu_write_tick <= write_tick) {
+            return;
+        }
+        const DAddr begin = std::max<DAddr>(image.cpu_addr, other.cpu_addr);
+        const DAddr end = std::min<DAddr>(image.cpu_addr_end, other.cpu_addr_end);
+        if (begin >= end) {
+            return;
+        }
+        auto& [address, bytes] = saved.emplace_back(begin, std::vector<u8>(end - begin));
+        cache.device_memory.ReadBlockUnsafe(address, bytes.data(), bytes.size());
+    });
+}
+
+template <class P>
+TextureCache<P>::NewerOverlapGuard::~NewerOverlapGuard() {
+    for (const auto& [address, bytes] : saved) {
+        cache.device_memory.WriteBlockUnsafe(address, bytes.data(), bytes.size());
+    }
+}
+
+template <class P>
 void TextureCache<P>::PopAsyncFlushes() {
     if (committed_downloads.empty()) {
         return;
@@ -1488,6 +1521,8 @@ void TextureCache<P>::PopAsyncFlushes() {
                 std::span<u8> download_span =
                     download_buffer.mapped_span.subspan(download_buffer.offset);
                 if (False(image.flags & ImageFlagBits::Remapped)) {
+                    NewerOverlapGuard guard{*this, download_info.object_id, image,
+                                            download_info.gpu_write_tick};
                     image.published_tick =
                         std::max(image.published_tick, download_info.modification_tick);
                     if (download_info.observed_partial) {
@@ -1559,6 +1594,8 @@ void TextureCache<P>::PopAsyncFlushes() {
             const ImageBase& image = slot_images[download_info.object_id];
             const auto copies = FullDownloadCopies(image.info);
             if (False(image.flags & ImageFlagBits::Remapped)) {
+                NewerOverlapGuard guard{*this, download_info.object_id, image,
+                                        download_info.gpu_write_tick};
                 SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
                              swizzle_data_buffer);
             }
@@ -3270,6 +3307,7 @@ template <class P>
 void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexcept {
     image.flags |= ImageFlagBits::GpuModified;
     image.modification_tick = ++modification_tick;
+    image.gpu_write_tick = modification_tick;
     NotifyNativeImageModification(image, image_id);
     UpdateNativeReadTracking(image, image_id);
 }
