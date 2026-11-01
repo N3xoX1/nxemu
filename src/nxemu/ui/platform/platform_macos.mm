@@ -21,6 +21,15 @@ struct NativeWindowState
 // Notifications and the frontend loop both run on the main thread. The
 // notification center owns the observer tokens until explicit removal.
 std::unordered_map<SDL_Window *, NativeWindowState> windows;
+
+NSWindow * CocoaWindow(SDL_Window * window)
+{
+    if (window == nullptr)
+    {
+        return nil;
+    }
+    return (__bridge NSWindow *)SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
+}
 } // namespace
 
 int ApplyNativeWindowStyle(SDL_Window * window)
