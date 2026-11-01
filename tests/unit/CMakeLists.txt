@@ -301,3 +301,29 @@ if(NXEMU_BUILD_VTG_GPU_TESTS)
     target_link_libraries(test_vtg_indirect_gpu PRIVATE nxemu_test_support video_core
         Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
 endif()
+
+# Differential tests execute the production DMA and Maxwell register methods.
+set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
+add_custom_command(
+    OUTPUT "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
+        "${_gpu_commands_generated}/baseline.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gpu_commands/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_gpu_commands_generated}"
+    DEPENDS gpu_commands/extract.py gpu_commands/baseline.inc
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
+    VERBATIM)
+add_executable(test_gpu_commands gpu_commands/commands.cpp
+    "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
+    "${_gpu_commands_generated}/baseline.inc")
+target_include_directories(test_gpu_commands PRIVATE "${_gpu_commands_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_gpu_commands PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_gpu_commands PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_gpu_commands PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_gpu_commands PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_gpu_commands)

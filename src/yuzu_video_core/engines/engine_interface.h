@@ -5,9 +5,11 @@
 
 #include <bitset>
 #include <limits>
+#include <span>
 #include <vector>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_video_core/command_header.h"
 
 namespace Tegra::Engines {
 
@@ -29,6 +31,18 @@ public:
     /// Write multiple values to the register identified by method.
     virtual void CallMultiMethod(u32 method, const u32* base_start, u32 amount,
                                  u32 methods_pending) = 0;
+
+    /// Queue a non-executable register write, preserving command order.
+    virtual void PushMethod(u32 method, u32 argument) {
+        method_sink.emplace_back(method, argument);
+    }
+
+    /// The caller must stop the run before any executable method.
+    virtual void PushMethodRun(u32 method, std::span<const CommandHeader> arguments) {
+        for (const auto& argument : arguments) {
+            method_sink.emplace_back(method++, argument.argument);
+        }
+    }
 
     void ConsumeSink() {
         if (method_sink.empty()) {
