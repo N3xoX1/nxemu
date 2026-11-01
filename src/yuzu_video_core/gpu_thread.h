@@ -132,6 +132,9 @@ public:
 
     void TickGPU();
 
+    /// Returns true when the GPU thread has executed every command pushed so far
+    bool IsIdle() const;
+
     std::unique_lock<std::recursive_mutex> LockExecution() {
         return std::unique_lock{state->execution_mutex};
     }

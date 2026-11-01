@@ -807,6 +807,17 @@ void RasterizerVulkan::FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheT
     }
 }
 
+bool RasterizerVulkan::MustFlushSharedPage(DAddr addr, u64 size) {
+    {
+        std::scoped_lock lock{buffer_cache.mutex};
+        if (buffer_cache.IsRegionGpuModified(addr, size)) {
+            return true;
+        }
+    }
+    std::scoped_lock lock{texture_cache.mutex};
+    return texture_cache.HasUnpublishedReadImage(addr, size);
+}
+
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {

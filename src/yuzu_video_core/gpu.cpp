@@ -447,6 +447,28 @@ struct GPU::Impl :
         return raster_area;
     }
 
+    // The CPU accessed another guest page of this host page. Images the guest reads back
+    // must be current before the host page opens, but this download must not make other
+    // images readback targets. The cache state is only current in GPU thread order: probe
+    // it there, or here once the GPU thread has executed every submitted command.
+    void SynchronizeSharedPage(DAddr addr, u64 size)
+    {
+        if (gpu_thread.IsIdle() && !rasterizer->MustFlushSharedPage(addr, size))
+        {
+            return;
+        }
+        const uint64_t fence = RequestSyncOperation([this, addr, size]() {
+            if (!rasterizer->MustFlushSharedPage(addr, size))
+            {
+                return;
+            }
+            m_modules.OperatingSystem().GatherGPUDirtyMemoryForReadback(this);
+            rasterizer->FlushNativeRegion(addr, size);
+        });
+        gpu_thread.TickGPU();
+        WaitForSyncOperation(fence);
+    }
+
     void OnNativeCPURead(DAddr addr, u64 size)
     {
         static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
@@ -858,8 +880,13 @@ RasterizerDownloadArea GPU::OnCPURead(PAddr addr, uint64_t size)
     return impl->OnCPURead(addr, size);
 }
 
-void GPU::OnNativeCPURead(DAddr addr, u64 size)
+void GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)
 {
+    if (shared_page)
+    {
+        impl->SynchronizeSharedPage(addr, size);
+        return;
+    }
     impl->OnNativeCPURead(addr, size);
 }
 

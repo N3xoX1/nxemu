@@ -148,6 +148,8 @@ struct RasterizerDownloadArea
     uint64_t endAddress;
     bool preemtive;
     bool native_read = false;
+    // The CPU accessed another guest page of the same host page.
+    bool shared_page = false;
 };
 
 nxinterface IChannelState
