@@ -702,7 +702,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                              StagingBufferPool& staging_pool_)
     : VideoCommon::ShaderCache{device_memory_}, device{device_}, scheduler{scheduler_},
       staging_pool{staging_pool_}, vtg_scratch{device_, scheduler_, staging_pool_},
-      descriptor_pool{descriptor_pool_}, guest_descriptor_queue{guest_descriptor_queue_},
+      descriptor_pool{descriptor_pool_}, vtg_indirect_pass{device_, descriptor_pool_},
+      guest_descriptor_queue{guest_descriptor_queue_},
       render_pass_cache{render_pass_cache_}, buffer_cache{buffer_cache_},
       texture_cache{texture_cache_}, shader_notify{shader_notify_},
       use_asynchronous_shaders{videoSettings.use_asynchronous_shaders},
@@ -795,6 +796,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                               : 0,
         .texel_buffer_size_view = device.NeedsTexelBufferPad(),
     };
+    // Vertex and geometry stages running as compute are graphics shaders, which flicker on Metal
+    // when the global memory helpers are not inlined
+    vtg_profile = profile;
+    vtg_profile.avoid_global_memory_helper_inlining = false;
 
     host_info = Shader::HostTranslateInfo{
         .support_float64 = device.IsFloat64Supported(),
@@ -2586,7 +2591,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                 Shader::Backend::Bindings compute_binding;
                 const std::vector<u32> code{
                     Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
-                        [&] { return EmitSPIRV(profile, *runtimes[stage], *stages[stage], compute_binding); })};
+                        [&] { return EmitSPIRV(vtg_profile, *runtimes[stage], *stages[stage], compute_binding); })};
                 VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
                 info->modules[stage] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
@@ -2598,6 +2603,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             info->geometry_stride = geometry_layout.stride;
             info->scratch = &vtg_scratch;
             info->staging_pool = &staging_pool;
+            info->indirect_pass = &vtg_indirect_pass;
 
             vtg_passthrough = GenerateVtgPassthroughVertex(pools.inst, pools.block, geometry,
                                                            geometry_stores, geometry_layout);
@@ -2666,7 +2672,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                                                                info->vertex_bindings)) {
             Shader::Backend::Bindings compute_binding;
             const std::vector<u32> code{Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
-                [&] { return EmitSPIRV(profile, vertex_runtime, vertex, compute_binding); })};
+                [&] { return EmitSPIRV(vtg_profile, vertex_runtime, vertex, compute_binding); })};
             VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
             info->modules[VtgPipelineInfo::VERTEX] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
@@ -2675,6 +2681,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             info->topology = *vtg_topology;
             info->scratch = &vtg_scratch;
             info->staging_pool = &staging_pool;
+            info->indirect_pass = &vtg_indirect_pass;
             info->is_transform_feedback = true;
             vtg_info = std::move(info);
             LOG_INFO(Render_Vulkan, "Running vertex shader {:016x} as compute for transform feedback",

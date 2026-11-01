@@ -115,6 +115,7 @@ public:
     void FlushRegion(DAddr addr, u64 size,
                      VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void FlushNativeRegion(DAddr addr, u64 size) override;
+    bool MustFlushSharedPage(DAddr addr, u64 size) override;
     void FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheType which, bool native_read);
     bool MustFlushRegion(DAddr addr, u64 size,
                          VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
@@ -219,6 +220,9 @@ private:
     VtgScratchAllocator indirect_scratch;
     /// Instances of the draw being prepared, zero when it cannot run its stages as compute
     u32 vtg_instance_count{};
+    /// The next draw running its stages as compute reads its arguments from GPU memory
+    bool vtg_indirect{};
+    u32 vtg_indirect_instance_mask{};
     DescriptorPool descriptor_pool;
     GuestDescriptorQueue guest_descriptor_queue;
     ComputePassDescriptorQueue compute_pass_descriptor_queue;

@@ -124,6 +124,12 @@ void ThreadManager::TickGPU()
     PushCommand(GPUTickCommand());
 }
 
+bool ThreadManager::IsIdle() const
+{
+    std::scoped_lock lk{state->write_lock};
+    return state->signaled_fence.load(std::memory_order_acquire) == state->last_fence;
+}
+
 void ThreadManager::InvalidateRegion(DAddr addr, u64 size)
 {
     rasterizer->OnCacheInvalidation(addr, size);

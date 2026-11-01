@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <tuple>
 #include <type_traits>
@@ -80,6 +81,7 @@ class RenderAreaPushConstant;
 class Scheduler;
 
 class StagingBufferPool;
+class VtgIndirectPass;
 
 /// Memory for the buffers shared between the stages of the draws running as compute
 class VtgScratchAllocator {
@@ -120,6 +122,8 @@ struct VtgPipelineInfo {
     u32 geometry_stride{};
     VtgScratchAllocator* scratch{};
     StagingBufferPool* staging_pool{};
+    /// Prepares draws whose arguments the guest GPU wrote
+    VtgIndirectPass* indirect_pass{};
     /// Only the vertex stage runs as compute, to write what transform feedback captures on hosts
     /// without it. The pipeline draws with its own shaders.
     bool is_transform_feedback{};
@@ -212,9 +216,22 @@ public:
     /// compute
     void SetVtgInstanceCount(u32 instance_count) noexcept;
 
+    /// Returns true when the stages running as compute can take the arguments of a single
+    /// non-indexed draw from GPU memory
+    [[nodiscard]] bool CanDrawVtgIndirect() const noexcept;
+
+    /// Makes the next draw read its arguments from the bound indirect buffer, with the mask the
+    /// guest macro applies to the instance count
+    void SetVtgIndirect(bool indirect, u32 instance_mask) noexcept;
+
     /// Index buffer, its offset and the number of indices drawing the output of the stages
     /// running as compute. The count is zero when there is nothing to draw.
     [[nodiscard]] std::tuple<VkBuffer, VkDeviceSize, u32> VtgDraw() const noexcept;
+
+    /// Indexed indirect command drawing the output of the stages, when the last draw read its
+    /// arguments from GPU memory. The index buffer is the one of VtgDraw.
+    [[nodiscard]] std::optional<std::pair<VkBuffer, VkDeviceSize>> VtgIndirectDraw()
+        const noexcept;
 
     void SetEngine(Tegra::Engines::Maxwell3D* maxwell3d_, Tegra::MemoryManager* gpu_memory_) {
         maxwell3d = maxwell3d_;

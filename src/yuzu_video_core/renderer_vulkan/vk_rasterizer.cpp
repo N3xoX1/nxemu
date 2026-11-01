@@ -277,6 +277,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
+    pipeline->SetVtgIndirect(std::exchange(vtg_indirect, false), vtg_indirect_instance_mask);
     // Update the guest counter state before Configure opens the draw's render pass.
     // Host queries begin/end within that pass and accumulate across pass boundaries.
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
@@ -315,7 +316,8 @@ void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
         maxwell3d->dirty.flags[Dirty::StateEnable] = true;
     }
     scheduler.Record([pipeline, index_buffer = index_buffer, index_offset = index_offset,
-                      index_count = index_count, dynamic_restart](vk::CommandBuffer cmdbuf) {
+                      index_count = index_count, dynamic_restart,
+                      indirect = pipeline->VtgIndirectDraw()](vk::CommandBuffer cmdbuf) {
         if (!pipeline->IsBuilt()) {
             return;
         }
@@ -323,7 +325,12 @@ void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
             cmdbuf.SetPrimitiveRestartEnableEXT(true);
         }
         cmdbuf.BindIndexBuffer(index_buffer, index_offset, VK_INDEX_TYPE_UINT32);
-        cmdbuf.DrawIndexed(index_count, 1, 0, 0, 0);
+        if (indirect) {
+            cmdbuf.DrawIndexedIndirect(indirect->first, indirect->second, 1,
+                                       sizeof(VkDrawIndexedIndirectCommand));
+        } else {
+            cmdbuf.DrawIndexed(index_count, 1, 0, 0, 0);
+        }
     });
 }
 
@@ -365,13 +372,28 @@ bool RasterizerVulkan::DrawIndirect() {
         gpu_memory->FlushCaching();
         const GraphicsPipeline* const pipeline{pipeline_cache.CurrentGraphicsPipeline()};
         if (pipeline && (pipeline->IsVtgAsCompute() || pipeline->IsTransformFeedbackEmulated())) {
-            return false;
+            // A single non-indexed draw keeps its arguments on the GPU when only its vertex and
+            // geometry stages run as compute. Draws counted by transform feedback have no
+            // arguments to read.
+            const bool gpu_arguments = pipeline->CanDrawVtgIndirect() &&
+                                       !pipeline->IsTransformFeedbackEmulated() &&
+                                       !params.is_byte_count && !params.is_indexed &&
+                                       !params.include_count && params.max_draw_counts == 1;
+            if (!gpu_arguments) {
+                return false;
+            }
+            vtg_indirect = true;
+            vtg_indirect_instance_mask = params.instance_mask;
         }
     }
     buffer_cache.SetDrawIndirect(&params);
     PrepareDraw(params.is_indexed, [this, &params](const GraphicsPipeline* pipeline) {
         if (pipeline->IsVtgAsCompute()) {
-            // Only draws that take their count from transform feedback get here
+            // Only draws whose stages took their arguments from GPU memory are drawn here. A
+            // pipeline that became ready after the arguments were checked has no counts.
+            if (pipeline->VtgIndirectDraw()) {
+                DrawVtgAsCompute(pipeline);
+            }
             return;
         }
         const auto indirect_buffer = buffer_cache.GetDrawIndirectBuffer();
@@ -454,6 +476,7 @@ bool RasterizerVulkan::DrawIndirect() {
         });
     });
     buffer_cache.SetDrawIndirect(nullptr);
+    vtg_indirect = false;
     return true;
 }
 
@@ -702,6 +725,9 @@ void RasterizerVulkan::DispatchCompute() {
         const auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
         const auto [buffer, offset] =
             buffer_cache.ObtainBuffer(*indirect_address, 12, sync_info, post_op);
+        // The dispatch reads its parameters later in this command buffer. An upload reordered
+        // before it would replace parameters an earlier shader wrote.
+        buffer->MarkUsage(offset, 12);
         scheduler.RequestOutsideRenderPassOperationContext();
         scheduler.Record([pipeline, indirect_buffer = buffer->Handle(),
                           indirect_offset = offset](vk::CommandBuffer cmdbuf) {
@@ -781,6 +807,17 @@ void RasterizerVulkan::FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheT
     if ((True(which & VideoCommon::CacheType::QueryCache))) {
         query_cache.FlushRegion(addr, size);
     }
+}
+
+bool RasterizerVulkan::MustFlushSharedPage(DAddr addr, u64 size) {
+    {
+        std::scoped_lock lock{buffer_cache.mutex};
+        if (buffer_cache.IsRegionGpuModified(addr, size)) {
+            return true;
+        }
+    }
+    std::scoped_lock lock{texture_cache.mutex};
+    return texture_cache.HasUnpublishedReadImage(addr, size);
 }
 
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {

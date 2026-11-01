@@ -30,6 +30,7 @@
 #include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pipeline.h"
+#include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
 #include "yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 #include "yuzu_video_core/shader_cache.h"
@@ -213,6 +214,7 @@ private:
     StagingBufferPool& staging_pool;
     VtgScratchAllocator vtg_scratch;
     DescriptorPool& descriptor_pool;
+    VtgIndirectPass vtg_indirect_pass;
     GuestDescriptorQueue& guest_descriptor_queue;
     RenderPassCache& render_pass_cache;
     BufferCache& buffer_cache;
@@ -248,6 +250,7 @@ private:
     ShaderPools main_pools;
 
     Shader::Profile profile;
+    Shader::Profile vtg_profile;
     Shader::HostTranslateInfo host_info;
 
     std::string capture_context;

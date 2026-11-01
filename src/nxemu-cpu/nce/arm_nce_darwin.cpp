@@ -454,7 +454,11 @@ void ArmNce::ExitGuestSignalHandler(int sig, siginfo_t * info, void * raw_contex
         return;
     }
 
-    if (sig != BreakFromRunCodeSignal)
+    if (sig == BreakFromRunCodeSignal)
+    {
+        nce->m_break_pending.store(false, std::memory_order_release);
+    }
+    else
     {
         // The interrupter, which holds the lock, already set BreakLoop.
         guest_ctx->esr_el1.fetch_or((uint64_t)TranslateDynarmicHaltReason(CpuHaltReason::PrefetchAbort));
@@ -495,6 +499,8 @@ CpuHaltReason ArmNce::RunThread(IKernelThread * thread)
     m_guest_ctx.tpidr_el0 = thread_params->tpidr_el0;
     thread_params->native_context = nullptr;
     thread_params->is_running = false;
+    // A break that arrived in host code was dropped as spurious.
+    m_break_pending.store(false, std::memory_order_release);
 
 
     return TranslateHaltReason(hr);
@@ -537,6 +543,13 @@ void ArmNce::SignalInterrupt(IKernelThread * thread)
 {
     m_guest_ctx.esr_el1.fetch_or((uint64_t)TranslateDynarmicHaltReason(CpuHaltReason::BreakLoop));
 
+    // The pending signal will stop the core and the halt reason is already set. Its sender
+    // holds the lock until the core receives it, possibly after a fault that waits on the GPU.
+    if (m_break_pending.exchange(true, std::memory_order_acq_rel))
+    {
+        return;
+    }
+
     NativeExecutionParameters * params = &thread->GetNativeExecutionParameters();
     LockThreadParameters(params);
 
@@ -546,6 +559,7 @@ void ArmNce::SignalInterrupt(IKernelThread * thread)
     }
     else
     {
+        m_break_pending.store(false, std::memory_order_release);
         UnlockThreadParameters(params);
     }
 }

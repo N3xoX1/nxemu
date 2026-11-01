@@ -34,6 +34,12 @@ public:
         return known;
     }
 
+    bool Contains(u64 address, u64 size) const {
+        bool known = true;
+        ForPages(address, size, [&](u64 page) { known &= pages.contains(page); });
+        return known;
+    }
+
     u64 Serial() const { return serial; }
 
     void MarkSynchronized(u64 address, u64 size) {

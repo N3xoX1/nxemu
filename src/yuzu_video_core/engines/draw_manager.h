@@ -54,6 +54,9 @@ public:
         size_t buffer_size;
         size_t max_draw_counts;
         size_t stride;
+        /// Mask the macro applies to the instance count it reads from memory. Only draws whose
+        /// vertex and geometry stages run as compute apply it to arguments on the GPU.
+        u32 instance_mask{0xFFFFFFFF};
     };
 
     explicit DrawManager(Maxwell3D* maxwell_3d);

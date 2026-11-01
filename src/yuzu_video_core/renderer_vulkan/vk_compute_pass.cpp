@@ -23,6 +23,7 @@
 #include "yuzu_video_core/host_shaders/vulkan_readback_delta_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_uint8_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_indirect_count_comp_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_vtg_indirect_comp_spv.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pass.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -369,6 +370,23 @@ void IndirectCountPass::Convert(VkBuffer source, u64 source_offset, VkBuffer cou
         upload.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, {}, after, {});
     });
+}
+
+VtgIndirectPass::VtgIndirectPass(const Device& device_, DescriptorPool& pool)
+    : ComputePass(device_, pool, READBACK_DELTA_BINDINGS, READBACK_DELTA_TEMPLATES,
+                  READBACK_DELTA_BANK, COMPUTE_PUSH_CONSTANT_RANGE<5 * sizeof(u32)>,
+                  VULKAN_VTG_INDIRECT_COMP_SPV) {}
+
+void VtgIndirectPass::Record(vk::CommandBuffer cmdbuf,
+                             const std::array<VkDescriptorBufferInfo, 4>& buffers,
+                             const std::array<u32, 5>& parameters) {
+    const VkDescriptorSet set = descriptor_allocator.Commit();
+    device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, buffers.data());
+    cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+    cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
+    cmdbuf.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(parameters),
+                         parameters.data());
+    cmdbuf.Dispatch(1, 1, 1);
 }
 
 ReadbackDeltaPass::ReadbackDeltaPass(const Device& device_, Scheduler& scheduler_,

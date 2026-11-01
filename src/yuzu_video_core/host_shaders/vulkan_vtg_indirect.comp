@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#version 450
+
+// Prepares an indirect draw whose vertex and geometry stages run as compute. Reads the draw
+// arguments the guest GPU wrote, describes the draw to the stages, and writes the arguments of
+// their dispatches and of the final indexed draw. Instances past the capacity of the scratch
+// buffers are not drawn; the largest request is reported so the next draws allocate for it, and
+// such a draw is reported so the next draws of the pipeline read their counts on the CPU.
+
+layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0, std430) readonly buffer Arguments { uint args[]; };
+layout(set = 0, binding = 1, std430) buffer DrawInfo { uint info[]; };
+layout(set = 0, binding = 2, std430) writeonly buffer Commands { uint commands[]; };
+layout(set = 0, binding = 3, std430) buffer Feedback {
+    uint requested;
+    uint truncated;
+};
+
+layout(push_constant) uniform Parameters {
+    uint args_word;
+    uint topology;
+    uint capacity;
+    uint indices_per_primitive;
+    uint instance_mask;
+};
+
+// Shader::VtgDrawInfo
+const uint VERTEX_COUNT = 0;
+const uint INSTANCE_COUNT = 1;
+const uint BASE_VERTEX = 2;
+const uint BASE_INSTANCE = 3;
+const uint PRIMITIVE_COUNT = 6;
+
+// Shader::VTG_LOCAL_SIZE
+const uint LOCAL_SIZE = 32;
+
+// Shader::VtgPrimitiveCount, with the order of Shader::VtgTopology
+uint PrimitiveCount(uint count) {
+    switch (topology) {
+    case 0: // Points
+        return count;
+    case 1: // Lines
+        return count / 2;
+    case 2: // LineLoop
+        return count >= 2 ? count : 0;
+    case 3: // LineStrip
+        return count >= 2 ? count - 1 : 0;
+    case 4: // Triangles
+        return count / 3;
+    case 5: // TriangleStrip
+    case 6: // TriangleFan
+        return count >= 3 ? count - 2 : 0;
+    case 7: // Quads
+        return (count / 4) * 2;
+    case 8: // QuadStrip
+        return count >= 4 ? ((count - 2) / 2) * 2 : 0;
+    case 9: // LinesAdjacency
+        return count / 4;
+    case 10: // LineStripAdjacency
+        return count >= 4 ? count - 3 : 0;
+    case 11: // TrianglesAdjacency
+        return count / 6;
+    case 12: // TriangleStripAdjacency
+        return count >= 6 ? (count - 4) / 2 : 0;
+    }
+    return 0;
+}
+
+void main() {
+    // VkDrawIndirectCommand
+    const uint count = args[args_word];
+    // The guest macro masks the instance count it reads
+    const uint instances = args[args_word + 1] & instance_mask;
+    const uint first = args[args_word + 2];
+    const uint base_instance = args[args_word + 3];
+
+    const uint per_instance = PrimitiveCount(count);
+    const bool overflows = count != 0 && instances > 0xffffffffu / count;
+    atomicMax(requested, overflows ? 0xffffffffu : count * instances);
+
+    // Each primitive uses at least one vertex, the capacity bounds both stages
+    const uint drawn = count == 0 ? 0 : min(instances, capacity / count);
+    if (count != 0 && drawn < instances) {
+        truncated = 1;
+    }
+    const uint vertices = count * drawn;
+    const uint primitives = per_instance * drawn;
+
+    info[VERTEX_COUNT] = count;
+    info[INSTANCE_COUNT] = max(drawn, 1);
+    info[BASE_VERTEX] = first;
+    info[BASE_INSTANCE] = base_instance;
+    info[PRIMITIVE_COUNT] = per_instance;
+
+    // Vertex stage dispatch, nothing runs when no primitive is drawn
+    commands[0] = primitives == 0 ? 0 : (vertices + LOCAL_SIZE - 1) / LOCAL_SIZE;
+    commands[1] = 1;
+    commands[2] = 1;
+    // Geometry stage dispatch
+    commands[3] = (primitives + LOCAL_SIZE - 1) / LOCAL_SIZE;
+    commands[4] = 1;
+    commands[5] = 1;
+    // VkDrawIndexedIndirectCommand
+    commands[6] = primitives * indices_per_primitive;
+    commands[7] = 1;
+    commands[8] = 0;
+    commands[9] = 0;
+    commands[10] = 0;
+}

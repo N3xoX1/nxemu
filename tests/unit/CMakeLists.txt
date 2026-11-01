@@ -288,3 +288,16 @@ foreach(_part engine runtime)
     endif()
     nxemu_unit_test(test_conditional_${_part})
 endforeach()
+
+option(NXEMU_BUILD_VTG_GPU_TESTS "Build the manual headless Vulkan test of indirect draws running as compute" OFF)
+if(NXEMU_BUILD_VTG_GPU_TESTS)
+    add_executable(test_vtg_indirect_gpu vtg_indirect/vtg_indirect_gpu.cpp
+        "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_settings.cpp"
+        "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_enum_strings.cpp")
+    target_include_directories(test_vtg_indirect_gpu PRIVATE "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/src/nxemu-video"
+        "${CMAKE_SOURCE_DIR}/external/fmt/include" "${CMAKE_SOURCE_DIR}/external/boost")
+    add_dependencies(test_vtg_indirect_gpu video_core yuzu_common common shader_recompiler sirit)
+    target_link_libraries(test_vtg_indirect_gpu PRIVATE nxemu_test_support video_core
+        Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
+endif()
