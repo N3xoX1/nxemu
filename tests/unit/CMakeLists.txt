@@ -3,6 +3,15 @@ function(nxemu_unit_test name)
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
 
+if(ARCHITECTURE_x86_64)
+    # Exercise the JIT objects shipped in the CPU module, including its Release flags.
+    add_executable(test_dynarmic_regalloc dynarmic_regalloc/jit.cpp
+        $<TARGET_OBJECTS:nxemu-cpu>)
+    target_include_directories(test_dynarmic_regalloc PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu")
+    target_link_libraries(test_dynarmic_regalloc PRIVATE common yuzu_common fmt merry::mcl Zydis)
+    nxemu_unit_test(test_dynarmic_regalloc)
+endif()
+
 # Real Fermi2D, software blitter, GPU page tables and device-memory mappings.
 # The fixture models cache notifications; GPU cache integration needs a renderer.
 add_executable(test_fast_copy fast_copy/fast_copy.cpp)
