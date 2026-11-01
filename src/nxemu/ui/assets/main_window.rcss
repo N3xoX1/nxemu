@@ -2051,12 +2051,13 @@ body.compact #profile .select-icon
 }
 
 /* Text needs a block of its own inside a flex container. */
-/* The sign of a speed that is not held to that of the console, after it. */
+/* The sign of a speed that is not held to that of the console, after it: green while
+   VSync still paces the picture, the warning colour when nothing does. */
 #status-unlocked
 {
     display: none;
     margin-left: 6dp;
-    color: var(--warning);
+    color: var(--success);
     font-size: 22dp;
     font-weight: bold;
     line-height: 16dp;
@@ -2065,6 +2066,11 @@ body.compact #profile .select-icon
 body.speed-unlocked #status-unlocked
 {
     display: block;
+}
+
+body.speed-uncapped #status-unlocked
+{
+    color: var(--warning);
 }
 
 #status-text
@@ -2161,13 +2167,18 @@ body.compact .volume-range
 {
     display: none;
     margin-left: 0.3em;
-    color: #ffbd7a;
+    color: #7ee0a0;
     font-size: 1.5em;
 }
 
 #performance.unlocked .perf-unlocked
 {
     display: block;
+}
+
+#performance.uncapped .perf-unlocked
+{
+    color: #ffbd7a;
 }
 
 /* The lowest, the average and the highest, each after its mark. */

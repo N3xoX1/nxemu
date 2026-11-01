@@ -12,6 +12,7 @@ namespace NXOsSetting
     constexpr const char * CpuHleSynchronization = "nxos:CpuHleSynchronization";
     constexpr const char * UseMultiCore = "nxos:UseMultiCore";
     constexpr const char * UseSpeedLimit = "nxos:UseSpeedLimit";
+    constexpr const char * UncappedPresent = "nxos:UncappedPresent";
     constexpr const char * DockedMode = "nxos:DockedMode";
     constexpr const char * MemoryLayout = "nxos:MemoryLayout";
     constexpr const char * Region = "nxos:Region";

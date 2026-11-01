@@ -58,7 +58,7 @@ public:
     void SetLength(int length);
     uint64_t Interval() const { return m_interval; }
 
-    void Add(const PerfStatsResults & stats, uint32_t shaders, bool unlocked);
+    void Add(const PerfStatsResults & stats, uint32_t shaders, bool unlocked, bool uncapped);
 
 private:
     PerformanceOverlay(const PerformanceOverlay &) = delete;
@@ -80,6 +80,7 @@ private:
     PerfStatsResults m_stats{};
     uint32_t m_shaders = 0;
     bool m_unlocked = false;
+    bool m_uncapped = false;
     double m_cpuSeconds = 0.0;
     uint64_t m_cpuAt = 0;
     double m_cpuShare = -1.0;

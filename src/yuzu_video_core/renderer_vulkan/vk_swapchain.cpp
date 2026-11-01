@@ -15,6 +15,10 @@
 #include "vulkan/vulkan_core.h"
 #include "video_settings.h"
 #include "yuzu_video_core/renderer_vulkan/swapchain_present_mode.h"
+#include "nxemu-os/os_settings_identifiers.h"
+#include <nxemu-module-spec/base.h>
+
+extern IModuleSettings * g_settings;
 
 namespace Vulkan {
 
@@ -36,7 +40,10 @@ VkSurfaceFormatKHR ChooseSwapSurfaceFormat(vk::Span<VkSurfaceFormatKHR> formats)
 
 static VkPresentModeKHR ChooseSwapPresentMode(bool has_imm, bool has_mailbox,
                                               bool has_fifo_relaxed) {
-    return SelectPresentMode(videoSettings.vsync_mode, has_imm, has_mailbox, has_fifo_relaxed);
+    const bool uncapped = !g_settings->GetBool(NXOsSetting::UseSpeedLimit) &&
+                          g_settings->GetBool(NXOsSetting::UncappedPresent);
+    return SelectPresentMode(videoSettings.vsync_mode, uncapped, has_imm, has_mailbox,
+                             has_fifo_relaxed);
 }
 
 VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, u32 width, u32 height) {

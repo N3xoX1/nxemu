@@ -150,6 +150,32 @@ std::string FileName(const std::string & utf8Path)
 {
     return Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(utf8Path)}.filename());
 }
+
+// Unlocked keeps the VSync mode, so a game that uses delta time runs smoother
+// at the display rate; uncapped ignores VSync too, to see how fast it can go.
+enum class SpeedMode
+{
+    Limited,
+    Unlocked,
+    Uncapped,
+};
+
+SpeedMode CurrentSpeedMode()
+{
+    const SettingsStore & settings = SettingsStore::GetInstance();
+    if (settings.GetBool(NXOsSetting::UseSpeedLimit))
+    {
+        return SpeedMode::Limited;
+    }
+    return settings.GetBool(NXOsSetting::UncappedPresent) ? SpeedMode::Uncapped : SpeedMode::Unlocked;
+}
+
+void SetSpeedMode(SpeedMode mode)
+{
+    SettingsStore & settings = SettingsStore::GetInstance();
+    settings.SetBool(NXOsSetting::UncappedPresent, mode == SpeedMode::Uncapped);
+    settings.SetBool(NXOsSetting::UseSpeedLimit, mode == SpeedMode::Limited);
+}
 } // namespace
 
 const MainWindow::HotkeyAction MainWindow::kHotkeyActions[] = {
@@ -816,9 +842,17 @@ void MainWindow::Run(Action action)
         ApplyLibraryOptions();
         break;
     case Action::ToggleSpeedLimit:
+    case Action::SpeedLimited:
+    case Action::SpeedUnlocked:
+    case Action::SpeedUncapped:
     {
-        SettingsStore & settings = SettingsStore::GetInstance();
-        settings.SetBool(NXOsSetting::UseSpeedLimit, !settings.GetBool(NXOsSetting::UseSpeedLimit));
+        // The shortcut steps through the modes in turn; the menu picks one.
+        static constexpr SpeedMode kNext[] = {SpeedMode::Unlocked, SpeedMode::Uncapped, SpeedMode::Limited};
+        SpeedMode mode = kNext[static_cast<int>(CurrentSpeedMode())];
+        if (action == Action::SpeedLimited) mode = SpeedMode::Limited;
+        if (action == Action::SpeedUnlocked) mode = SpeedMode::Unlocked;
+        if (action == Action::SpeedUncapped) mode = SpeedMode::Uncapped;
+        SetSpeedMode(mode);
         m_session.FlushSettings();
         m_menuDirty = true;
         UpdateStatusText();
@@ -1095,9 +1129,20 @@ void MainWindow::RebuildMenu()
 
     emulation.push_back(check(Action::ToggleEmulationControls, Tr("Show emulation controls"), uiSettings.showEmulationControls));
     emulation.push_back(MenuItem::Separator());
-    MenuItem speedLimit = check(Action::ToggleSpeedLimit, Tr("Limit &Speed"), SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
-    speedLimit.enabled = playing;
-    emulation.push_back(std::move(speedLimit));
+    const SpeedMode speedMode = CurrentSpeedMode();
+    const auto speedChoice = [&](Action id, std::string label, SpeedMode mode, std::string hint) {
+        MenuItem item = MenuItem::Choice(static_cast<int>(id), std::move(label), speedMode == mode);
+        item.enabled = playing;
+        item.hint = std::move(hint);
+        return item;
+    };
+    MenuItem speed = MenuItem::Submenu(Tr("&Speed"), {
+        speedChoice(Action::SpeedLimited, Tr("Limited"), SpeedMode::Limited, Tr("Runs at the speed of the console.")),
+        speedChoice(Action::SpeedUnlocked, Tr("Unlocked"), SpeedMode::Unlocked, Tr("Runs as fast as it can, shown at the VSync setting.")),
+        speedChoice(Action::SpeedUncapped, Tr("Unlocked, no VSync"), SpeedMode::Uncapped, Tr("Runs and shows as fast as it can, to compare speeds. The picture can tear.")),
+    });
+    speed.tag = ShortcutLabel(Action::ToggleSpeedLimit); // the shortcut steps through them
+    emulation.push_back(std::move(speed));
 
     // Fullscreen and the hidden interface are for a game: without one, the
     // menu says how the next starts.
@@ -2350,7 +2395,7 @@ void MainWindow::MeasureGame()
         const PerfStatsResults stats = os.GetAndResetPerfStats();
         if (measured && m_longestMeasured && !os.IsEmulationPaused())
         {
-            m_performance->Add(stats, m_session.Modules().Video().ShadersBuilding(), !SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
+            m_performance->Add(stats, m_session.Modules().Video().ShadersBuilding(), CurrentSpeedMode() != SpeedMode::Limited, CurrentSpeedMode() == SpeedMode::Uncapped);
         }
         if (std::isfinite(stats.average_game_fps) && stats.average_game_fps != 0)
         {
@@ -2408,7 +2453,14 @@ void MainWindow::UpdateStatusText()
         status += (status.empty() ? "" : " | ") + part;
     }
     SetText("status-text", status);
-    m_document->SetClass("speed-unlocked", m_session.IsRunning() && !m_speedText.empty() && !SettingsStore::GetInstance().GetBool(NXOsSetting::UseSpeedLimit));
+    const SpeedMode speedMode = CurrentSpeedMode();
+    const bool unlocked = m_session.IsRunning() && !m_speedText.empty() && speedMode != SpeedMode::Limited;
+    m_document->SetClass("speed-unlocked", unlocked);
+    m_document->SetClass("speed-uncapped", unlocked && speedMode == SpeedMode::Uncapped);
+    if (Rml::Element * sign = m_document->GetElementById("status-unlocked"))
+    {
+        sign->SetAttribute("title", speedMode == SpeedMode::Uncapped ? Tr("Unlocked, no VSync") : Tr("Unlocked, shown at the VSync setting"));
+    }
 }
 
 void MainWindow::SetText(const char * id, const std::string & text)

@@ -485,6 +485,7 @@ static OsSetting settings[] = {
         {NXOsSetting::UseMultiCore, "system\\use_multi_core", &osSettings.use_multi_core, true},
         {NXOsSetting::CpuHleSynchronization, "system\\cpu_hle_synchronization", &osSettings.cpu_hle_synchronization, true},
         {NXOsSetting::UseSpeedLimit, nullptr, &osSettings.use_speed_limit, true},
+        {NXOsSetting::UncappedPresent, nullptr, &osSettings.uncapped_present, false},
         {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
         {NXOsSetting::Region, "system\\region", &osSettings.region_setting, kRegionOfLanguage},
         {NXOsSetting::CurrentUser, "system\\current_user", &osSettings.current_user, 0},

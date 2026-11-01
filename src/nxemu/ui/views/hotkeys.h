@@ -54,7 +54,7 @@ inline constexpr Info kAll[] = {
     {HotkeyId::PauseOrContinue, "PauseContinue", TrMark("Pause or continue"), true},
     {HotkeyId::Stop, "StopEmulation", TrMark("Stop the game"), true},
     {HotkeyId::DockedMode, "ToggleDockedMode", TrMark("Docked or handheld"), true},
-    {HotkeyId::SpeedLimit, "ToggleSpeedLimit", TrMark("Limit speed"), true},
+    {HotkeyId::SpeedLimit, "ToggleSpeedLimit", TrMark("Change speed"), true},
 };
 
 Shortcut Default(HotkeyId id);

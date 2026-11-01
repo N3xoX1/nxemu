@@ -156,6 +156,7 @@ OSManager::~OSManager()
 void OSManager::EmulationStarting()
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
+    g_settings->SetBool(NXOsSetting::UncappedPresent, false);
 
     if (m_emuThread && m_emuThread->AwaitingRelease())
     {
@@ -175,6 +176,7 @@ void OSManager::StartEmulationThread(EmulationPrepareCallback prepare, void * us
 void OSManager::EmulationStopping(bool wait)
 {
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
+    g_settings->SetBool(NXOsSetting::UncappedPresent, false);
     g_settings->SetBool(NXCoreSetting::Is64BitProgram, false);
     g_settings->SetBool(NXCoreSetting::Has36BitAddressSpace, false);
     g_settings->SetBool(NXCoreSetting::Has39BitAddressSpace, false);
