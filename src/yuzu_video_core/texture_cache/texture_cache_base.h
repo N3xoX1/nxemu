@@ -285,6 +285,9 @@ public:
     /// Return true when a CPU region is modified from the GPU
     [[nodiscard]] bool IsRegionGpuModified(DAddr addr, size_t size);
 
+    /// Return true when an image the guest reads back has GPU writes missing from guest memory
+    [[nodiscard]] bool HasUnpublishedReadImage(DAddr addr, size_t size);
+
     [[nodiscard]] bool IsRescaling() const noexcept;
 
     [[nodiscard]] bool IsRescaling(const ImageViewBase& image_view) const noexcept;
@@ -540,6 +543,8 @@ private:
         size_t staging_bytes{};
         // The image was deleted after its copy was recorded; skip publication.
         bool discarded{};
+        // Modification tick of the contents the copy records.
+        u64 modification_tick{};
     };
     bool TryDownloadObservedImage(Image& image, AsyncBuffer& map, PendingDownload& download);
 

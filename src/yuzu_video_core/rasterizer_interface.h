@@ -103,6 +103,9 @@ public:
     /// Synchronize native reads while retaining GPU cache ownership.
     virtual void FlushNativeRegion(DAddr addr, u64 size) { FlushRegion(addr, size); }
 
+    /// Check if guest memory sharing a host page with a CPU access is behind data the guest reads.
+    virtual bool MustFlushSharedPage(DAddr addr, u64 size) { return true; }
+
     /// Check if the the specified memory area requires flushing to CPU Memory.
     virtual bool MustFlushRegion(DAddr addr, u64 size,
                                  VideoCommon::CacheType which = VideoCommon::CacheType::All) = 0;

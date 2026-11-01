@@ -1094,7 +1094,20 @@ struct Memory::Impl {
         nce_open_read_pages.clear();
     }
 
-    void DownloadNceHostPage(u64 vaddr)
+    // Only the guest page the CPU reads is a guest read. A store, or a page that merely
+    // shares the 16 KiB host page, needs current memory before the page opens, but must not
+    // make its images readback targets: their later writebacks would overwrite memory the
+    // guest has reused.
+    static bool IsSharedNcePage(u64 begin, u64 end, [[maybe_unused]] u64 vaddr, [[maybe_unused]] bool read)
+    {
+#if defined(__APPLE__)
+        return !(read && begin <= vaddr && vaddr < end);
+#else
+        return false;
+#endif
+    }
+
+    void DownloadNceHostPage(u64 vaddr, bool read = true)
     {
         std::array<u64, NceHostPageSize / YUZU_PAGESIZE> pages{};
         size_t count{};
@@ -1128,7 +1141,8 @@ struct Memory::Impl {
                 end += YUZU_PAGESIZE;
                 ++i;
             }
-            HandleRasterizerDownload(begin, end - begin);
+            HandleRasterizerDownload(begin, end - begin,
+                                     IsSharedNcePage(begin, end, vaddr, read) && !PreciseNceReadTracking());
         }
         // Precise mode grants access and registers the observer on the GPU producer
         // before it resumes drawing. Reopening here could undo a subsequent GPU write.
@@ -1138,7 +1152,10 @@ struct Memory::Impl {
         {
             const bool cached = current_page_table->pointers[pages[i] >> YUZU_PAGEBITS].Type() ==
                                 Common::PageType::RasterizerCachedMemory;
-            if (DemandNceReadback() && cached && nce_read_cached.contains(pages[i]))
+            // A shared page closes again at the next flush, so that a later guest read of
+            // it still downloads current data.
+            const bool shared = IsSharedNcePage(pages[i], pages[i] + YUZU_PAGESIZE, vaddr, read);
+            if ((DemandNceReadback() || shared) && cached && nce_read_cached.contains(pages[i]))
                 nce_open_read_pages.insert(pages[i]);
             buffer->ProtectAccess(pages[i], YUZU_PAGESIZE, cached ? Common::MemoryPermission::Read
                                                                : Common::MemoryPermission::ReadWrite);
@@ -1168,7 +1185,7 @@ struct Memory::Impl {
             if (it != nce_read_cached.end() && it->first < host_page + NceHostPageSize)
             {
                 lk.unlock();
-                DownloadNceHostPage(vaddr);
+                DownloadNceHostPage(vaddr, false);
                 lk.lock();
                 if (!(canonical ? buffer->NceTrackedAccessAllowed(vaddr, false)
                                 : buffer->NceHostAccessAllowed(vaddr, false))) return false;
@@ -1222,7 +1239,7 @@ struct Memory::Impl {
             });
             // Only pages opened by a native read are rearmed; untouched image pages
             // retain their existing protection without a per-image walk.
-            if (rearm_native_reads && DemandNceReadback() && !PreciseNceReadTracking())
+            if (rearm_native_reads && !PreciseNceReadTracking())
                 RearmNceReads();
             // Protect before comparing, so that later writes fault again.
             for (auto it = nce_written.begin(); it != nce_written.end();)
@@ -1259,10 +1276,18 @@ struct Memory::Impl {
     }
 #endif
 
-    void HandleRasterizerDownload(VAddr v_address, size_t size)
+    void HandleRasterizerDownload(VAddr v_address, size_t size, [[maybe_unused]] bool shared_page = false)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
 #if defined(__APPLE__)
+        if (shared_page)
+        {
+            RasterizerDownloadArea request{};
+            request.native_read = true;
+            request.shared_page = true;
+            system.GetVideo().HandleRasterizerDownload(p, size, request);
+            return;
+        }
         if (DemandNceReadback())
         {
             // Do not reuse a whole-image range across GPU submissions. It carries no

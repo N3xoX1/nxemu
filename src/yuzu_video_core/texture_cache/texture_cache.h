@@ -913,6 +913,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
                 Image& image = slot_images[id];
                 SwizzleImage(*gpu_memory, image.gpu_addr, image.info, FullDownloadCopies(image.info),
                              map.mapped_span, swizzle_data_buffer);
+                image.published_tick = image.modification_tick;
                 MarkReadbackSynchronized(image);
                 UpdateNativeReadTracking(image, id);
                 runtime.FreeDeferredStagingBuffer(map);
@@ -943,6 +944,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
         runtime.Finish();
         SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span,
                      swizzle_data_buffer);
+        image.published_tick = image.modification_tick;
         MarkReadbackSynchronized(image);
         UpdateNativeReadTracking(image, image_id);
     }
@@ -1341,6 +1343,9 @@ void TextureCache<P>::CommitAsyncFlushes() {
     DeduplicateDownloads();
     for (auto& download : uncommitted_downloads) {
         download.observation_serial = readback_pages.Serial();
+        if (download.is_swizzle) {
+            download.modification_tick = slot_images[download.object_id].modification_tick;
+        }
     }
     // This is intentionally passing the value by copy
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
@@ -1478,11 +1483,13 @@ void TextureCache<P>::PopAsyncFlushes() {
                 if (download_info.discarded) {
                     continue;
                 }
-                const ImageBase& image = slot_images[download_info.object_id];
+                ImageBase& image = slot_images[download_info.object_id];
                 const auto copies = FullDownloadCopies(image.info);
                 std::span<u8> download_span =
                     download_buffer.mapped_span.subspan(download_buffer.offset);
                 if (False(image.flags & ImageFlagBits::Remapped)) {
+                    image.published_tick =
+                        std::max(image.published_tick, download_info.modification_tick);
                     if (download_info.observed_partial) {
                         // Never fall back to a full swizzle of a partially initialized
                         // staging buffer. Use this image's original address space even
@@ -1703,6 +1710,20 @@ bool TextureCache<P>::IsRescaling(const ImageViewBase& image_view) const noexcep
     }
     const ImageBase& image = slot_images[image_view.image_id];
     return True(image.flags & ImageFlagBits::Rescaled);
+}
+
+template <class P>
+bool TextureCache<P>::HasUnpublishedReadImage(DAddr addr, size_t size) {
+    bool unpublished = false;
+    ForEachImageInRegion(addr, size, [&unpublished](ImageId, ImageBase& image) {
+        if (False(image.flags & ImageFlagBits::GpuModified) || !image.info.forced_flushed ||
+            image.published_tick >= image.modification_tick) {
+            return false;
+        }
+        unpublished = true;
+        return true;
+    });
+    return unpublished;
 }
 
 template <class P>
