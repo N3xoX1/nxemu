@@ -6,6 +6,7 @@
 #include "dynarmic/backend/x64/reg_alloc.h"
 
 #include <algorithm>
+#include <bit>
 #include <boost/container/small_vector.hpp>
 #include <numeric>
 #include <utility>
@@ -266,8 +267,9 @@ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(IR::Inst* inst) {
         const IR::Value arg = inst->GetArg(i);
         ret[i].value = arg;
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
-            ASSERT_MSG(ValueLocation(arg.GetInst()), "argument must already been defined");
-            LocInfo(*ValueLocation(arg.GetInst())).AddArgReference();
+            const auto location = ValueLocation(arg.GetInst());
+            ASSERT_MSG(location, "argument must already been defined");
+            LocInfo(*location).AddArgReference();
         }
     }
     return ret;
@@ -505,8 +507,21 @@ void RegAlloc::ReleaseStackSpace(size_t stack_space) {
 }
 
 void RegAlloc::EndOfAllocScope() {
-    for (auto& iter : hostloc_info) {
-        iter.ReleaseAll();
+#ifndef NDEBUG
+    for (size_t index = 0; index < hostloc_info.size(); ++index) {
+        ASSERT((occupied[index / 64] & (u64{1} << (index % 64))) != 0 ||
+               hostloc_info[index].IsEmpty());
+    }
+#endif
+    for (size_t word = 0; word < occupied.size(); ++word) {
+        for (u64 pending = occupied[word]; pending != 0; pending &= pending - 1) {
+            const auto bit = std::countr_zero(pending);
+            auto& info = hostloc_info[word * 64 + bit];
+            info.ReleaseAll();
+            if (info.IsEmpty()) {
+                occupied[word] &= ~(u64{1} << bit);
+            }
+        }
     }
 }
 
@@ -541,9 +556,17 @@ HostLoc RegAlloc::SelectARegister(const std::vector<HostLoc>& desired_locations)
 }
 
 std::optional<HostLoc> RegAlloc::ValueLocation(const IR::Inst* value) const {
-    for (size_t i = 0; i < hostloc_info.size(); i++) {
-        if (hostloc_info[i].ContainsValue(value)) {
-            return static_cast<HostLoc>(i);
+    if (memo_inst == value && hostloc_info[memo_loc].ContainsValue(value)) {
+        return static_cast<HostLoc>(memo_loc);
+    }
+    for (size_t word = 0; word < occupied.size(); ++word) {
+        for (u64 pending = occupied[word]; pending != 0; pending &= pending - 1) {
+            const size_t index = word * 64 + std::countr_zero(pending);
+            if (hostloc_info[index].ContainsValue(value)) {
+                memo_inst = value;
+                memo_loc = index;
+                return static_cast<HostLoc>(index);
+            }
         }
     }
 
@@ -551,12 +574,16 @@ std::optional<HostLoc> RegAlloc::ValueLocation(const IR::Inst* value) const {
 }
 
 void RegAlloc::DefineValueImpl(IR::Inst* def_inst, HostLoc host_loc) {
+#ifndef NDEBUG
     ASSERT_MSG(!ValueLocation(def_inst), "def_inst has already been defined");
+#endif
     LocInfo(host_loc).AddValue(def_inst);
 }
 
 void RegAlloc::DefineValueImpl(IR::Inst* def_inst, const IR::Value& use_inst) {
+#ifndef NDEBUG
     ASSERT_MSG(!ValueLocation(def_inst), "def_inst has already been defined");
+#endif
 
     if (use_inst.IsImmediate()) {
         const HostLoc location = ScratchImpl(gpr_order);
@@ -565,9 +592,9 @@ void RegAlloc::DefineValueImpl(IR::Inst* def_inst, const IR::Value& use_inst) {
         return;
     }
 
-    ASSERT_MSG(ValueLocation(use_inst.GetInst()), "use_inst must already be defined");
-    const HostLoc location = *ValueLocation(use_inst.GetInst());
-    DefineValueImpl(def_inst, location);
+    const auto location = ValueLocation(use_inst.GetInst());
+    ASSERT_MSG(location, "use_inst must already be defined");
+    DefineValueImpl(def_inst, *location);
 }
 
 HostLoc RegAlloc::LoadImmediate(IR::Value imm, HostLoc host_loc) {
@@ -668,6 +695,8 @@ HostLoc RegAlloc::FindFreeSpill() const {
 
 HostLocInfo& RegAlloc::LocInfo(HostLoc loc) {
     ASSERT(loc != HostLoc::RSP && loc != HostLoc::R15);
+    const size_t index = static_cast<size_t>(loc);
+    occupied[index / 64] |= u64{1} << (index % 64);
     return hostloc_info[static_cast<size_t>(loc)];
 }
 

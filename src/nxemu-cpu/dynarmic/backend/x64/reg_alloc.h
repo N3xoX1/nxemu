@@ -17,6 +17,7 @@
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/hostloc.h"
 #include "dynarmic/backend/x64/oparg.h"
+#include "dynarmic/backend/x64/stack_layout.h"
 #include "dynarmic/ir/cond.h"
 #include "dynarmic/ir/microinstruction.h"
 #include "dynarmic/ir/value.h"
@@ -174,6 +175,11 @@ private:
     HostLoc FindFreeSpill() const;
 
     std::vector<HostLocInfo> hostloc_info;
+    // A superset of locations with state. Every mutable access marks the location;
+    // only EndOfAllocScope may clear it, after releasing all instruction state.
+    std::array<u64, (NonSpillHostLocCount + SpillCount + 63) / 64> occupied{};
+    mutable const IR::Inst* memo_inst = nullptr;
+    mutable size_t memo_loc = 0;
     HostLocInfo& LocInfo(HostLoc loc);
     const HostLocInfo& LocInfo(HostLoc loc) const;
 
