@@ -38,11 +38,13 @@ void* Symbol(const char* name) {
     assert(false);
     return nullptr;
 }
-void Work(Common::Android::PerformanceHintSession& hint) {
+std::chrono::nanoseconds Work(Common::Android::PerformanceHintSession& hint) {
+    const auto start = std::chrono::steady_clock::now();
     hint.BeginWork();
     const auto until = std::chrono::steady_clock::now() + 1ms;
     while (std::chrono::steady_clock::now() < until) {}
     hint.EndWork();
+    return std::chrono::steady_clock::now() - start;
 }
 }
 
@@ -67,9 +69,10 @@ int main() {
         Work(hint); hint.ReportFrame(16ms);
         assert(created == 1 && reports == 0 && target == 16'000'000);
         hint.EndWork(); // An unmatched end must not count time since the epoch.
-        std::this_thread::sleep_for(150ms); // Queue wait is outside work boundaries.
-        Work(hint); hint.ReportFrame(16ms);
-        assert(reports == 1 && actual > 0 && actual < 100'000'000);
+        const auto elapsed = Work(hint); hint.ReportFrame(16ms);
+        // A loaded CI runner may preempt Work for more than 100 ms. Compare
+        // against its measured interval rather than a fixed scheduling limit.
+        assert(reports == 1 && actual > 0 && actual <= elapsed.count());
         Work(hint); hint.ReportFrame(33ms);
         assert(updated == 1 && reports == 1 && target == 33'000'000);
         Work(hint); hint.ReportFrame(33ms);
@@ -112,4 +115,16 @@ int main() {
         hint.ReportFrame(16ms);
     }
     assert(created == 6 && closed == 5); // Worker exit closes its session once.
+    {
+        PerformanceHintSession hint;
+        hint.ReportFrame(16ms);
+        const auto elapsed = Work(hint);
+        // Do not BeginWork after this wait: an oversleep past the 250 ms
+        // resume threshold is valid behavior and would recreate the session.
+        std::this_thread::sleep_for(150ms);
+        hint.ReportFrame(16ms);
+        assert(created == 7 && reports == 4 && actual > 0 && actual <= elapsed.count());
+    }
+    assert(closed == 6);
+
 }

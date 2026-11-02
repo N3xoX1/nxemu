@@ -2784,6 +2784,9 @@ ImageViewId TextureCache<P>::FindRenderTargetView(const ImageInfo& info, GPUVAdd
 template <class P>
 template <typename Func>
 void TextureCache<P>::ForEachImageInRegion(DAddr cpu_addr, size_t size, Func&& func) {
+    if (size == 0) [[unlikely]] {
+        return;
+    }
     using FuncReturn = typename std::invoke_result<Func, ImageId, Image&>::type;
     static constexpr bool BOOL_BREAK = std::is_same_v<FuncReturn, bool>;
     boost::container::small_vector<ImageId, 32> images;
@@ -2837,6 +2840,9 @@ template <class P>
 template <typename Func>
 void TextureCache<P>::ForEachImageInRegionGPU(size_t as_id, GPUVAddr gpu_addr, size_t size,
                                               Func&& func) {
+    if (size == 0) [[unlikely]] {
+        return;
+    }
     using FuncReturn = typename std::invoke_result<Func, ImageId, Image&>::type;
     static constexpr bool BOOL_BREAK = std::is_same_v<FuncReturn, bool>;
     boost::container::small_vector<ImageId, 8> images;
