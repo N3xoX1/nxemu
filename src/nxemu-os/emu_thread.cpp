@@ -200,3 +200,8 @@ bool EmuThread::IsRunning() const
 {
     return impl->m_should_run.load(std::memory_order_acquire);
 }
+
+bool EmuThread::HasStarted() const
+{
+    return impl->m_started.load(std::memory_order_acquire);
+}

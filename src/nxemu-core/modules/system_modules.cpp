@@ -101,9 +101,18 @@ struct SystemModules::Impl :
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopping);
 
-        for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
+        // The OS must deliver a final guest focus event while the video module is still active.
+        // In particular, VideoManager::EmulationStopping() signals GPU shutdown immediately.
+        if (operatingsystemModule)
         {
-            (*itr)->EmulationStopping(wait);
+            operatingsystemModule->EmulationStopping(wait);
+        }
+        for (ModuleBase * module : baseModules)
+        {
+            if (module != operatingsystemModule.get())
+            {
+                module->EmulationStopping(wait);
+            }
         }
         if (settings.GetBool(NXCoreSetting::EmulationRunning))
         {

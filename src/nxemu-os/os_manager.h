@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <nxemu-module-spec/operating_system.h>
 #include "core/core.h"
 #include "emu_thread.h"
@@ -78,6 +79,7 @@ private:
     OSManager & operator=(const OSManager &) = delete;
 
     bool CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl);
+    void NotifyApplicationBackgroundedBeforeShutdown();
 
     Core::System m_coreSystem;
     ISystemModules & m_modules;
@@ -86,4 +88,6 @@ private:
     int32_t m_programIndex;
     int32_t m_previousProgramIndex;
     ApplicationLaunchType m_launchType;
+    std::mutex m_backgroundMutex;
+    bool m_backgroundNotified{};
 };

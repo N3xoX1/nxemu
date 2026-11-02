@@ -194,6 +194,12 @@ static CPUCaps Detect() {
         }
     }
 
+    // AMD CPUs can expose an invariant TSC without implementing CPUID leaf 0x15.
+    // Measuring its frequency once avoids falling back to the OS clock on every guest read.
+    if (caps.invariant_tsc && caps.tsc_frequency == 0) {
+        caps.tsc_frequency = X64::EstimateRDTSCFrequency();
+    }
+
     if (max_std_fn >= 0x16) {
         __cpuid(cpu_id, 0x16);
         caps.base_frequency = cpu_id[0];

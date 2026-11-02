@@ -367,15 +367,39 @@ void CommandGenerator::GenerateBiquadFilterEffectCommand(const s16 buffer_offset
     EffectInfoBase::ParameterState param_state{};
     s8 channel_count = 0;
 
+    // Reject malformed guest effect parameters before generating commands. An exception handler
+    // would not protect against out-of-range reads or DSP mix-buffer accesses.
+    const auto valid_parameter = [&](const auto& parameter) {
+        if (parameter.channel_count < 0 || parameter.channel_count > MaxChannels) {
+            return false;
+        }
+        for (s32 channel = 0; channel < parameter.channel_count; ++channel) {
+            const s32 input = static_cast<s32>(buffer_offset) + parameter.inputs[channel];
+            const s32 output = static_cast<s32>(buffer_offset) + parameter.outputs[channel];
+            if (input < 0 || output < 0 ||
+                input >= static_cast<s32>(render_context.mix_buffer_count) ||
+                output >= static_cast<s32>(render_context.mix_buffer_count)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     const auto& biquad_info = static_cast<const BiquadFilterInfo&>(effect_info);
     if (biquad_info.UsesFloatParameterFormat()) {
         const auto* parameter =
             reinterpret_cast<const BiquadFilterInfo::ParameterVersion2*>(effect_info.GetParameter());
+        if (!valid_parameter(*parameter)) {
+            return;
+        }
         param_state = parameter->state;
         channel_count = parameter->channel_count;
     } else {
         const auto* parameter =
             reinterpret_cast<const BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter());
+        if (!valid_parameter(*parameter)) {
+            return;
+        }
         param_state = parameter->state;
         channel_count = parameter->channel_count;
     }

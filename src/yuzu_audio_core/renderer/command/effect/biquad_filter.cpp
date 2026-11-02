@@ -7,6 +7,8 @@
 #include "yuzu_audio_core/adsp/apps/audio_renderer/command_list_processor.h"
 #include "yuzu_audio_core/renderer/command/effect/biquad_filter.h"
 #include "yuzu_audio_core/renderer/voice/voice_state.h"
+#include <algorithm>
+#include <cstddef>
 #include <numeric>
 #include <bit>
 
@@ -122,6 +124,18 @@ void BiquadFilterCommand::Dump(
 }
 
 void BiquadFilterCommand::Process(const AudioRenderer::CommandListProcessor& processor) {
+    // Verify the generated command before touching the filter state or indexing the mix buffers.
+    // This also protects voice commands, which bypass effect parameter validation.
+    if (state == 0 || input < 0 || output < 0 || processor.sample_count == 0) {
+        return;
+    }
+    const std::size_t available_buffers =
+        std::min(static_cast<std::size_t>(processor.buffer_count),
+                 processor.mix_buffers.size() / processor.sample_count);
+    if (static_cast<std::size_t>(input) >= available_buffers ||
+        static_cast<std::size_t>(output) >= available_buffers) {
+        return;
+    }
     auto state_{reinterpret_cast<VoiceState::BiquadFilterState*>(state)};
     if (needs_init) {
         *state_ = {};
