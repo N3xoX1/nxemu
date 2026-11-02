@@ -1361,7 +1361,18 @@ void EmitContext::DefineWriteTrackingFunction(const Info& info) {
         AddLabel(merge_label);
     }};
     mark(begin);
+    // Most writes fit in one page
+    const Id spans_label{OpLabel()};
+    const Id spans_merge_label{OpLabel()};
+    OpSelectionMerge(spans_merge_label, spv::SelectionControlMask::MaskNone);
+    OpBranchConditional(
+        OpINotEqual(U1, OpShiftRightLogical(U32[1], begin, Const(WRITE_TRACK_PAGE_BITS)),
+                    OpShiftRightLogical(U32[1], last, Const(WRITE_TRACK_PAGE_BITS))),
+        spans_label, spans_merge_label);
+    AddLabel(spans_label);
     mark(last);
+    OpBranch(spans_merge_label);
+    AddLabel(spans_merge_label);
     OpBranch(end_label);
 
     AddLabel(end_label);
