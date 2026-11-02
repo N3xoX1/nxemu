@@ -146,6 +146,10 @@ public:
     VkBuffer WriteTrackBitmap();
     bool CanTrackedReadback(const VideoCommon::BufferCopy& copy, DAddr device_addr) const;
     /// Downloads the pages of the copy marked in the bitmap, with one flag word per page
+    /// Tracked readbacks of a commit run between these barriers, not each one between its own
+    void PreTrackedReadbackBarrier();
+    void PostTrackedReadbackBarrier();
+
     void TrackedReadback(Buffer& buffer, const StagingBufferRef& data,
                          const StagingBufferRef& flags, const VideoCommon::BufferCopy& copy,
                          u64 flag_offset, DAddr device_addr);

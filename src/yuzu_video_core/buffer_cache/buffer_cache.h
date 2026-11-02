@@ -757,6 +757,11 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
     boost::container::small_vector<BufferCopy, 4> normalized_copies;
     Common::RangeSet<DAddr> download_ranges;
     runtime.PreCopyBarrier();
+    bool any_tracked = false;
+    if constexpr (!IS_OPENGL) {
+        any_tracked = std::ranges::any_of(downloads, [](const auto& d) { return std::get<2>(d); });
+        if (any_tracked) runtime.PreTrackedReadbackBarrier();
+    }
     for (auto& [copy, buffer_id, tracked] : downloads) {
         copy.dst_offset += download_staging.offset;
         const std::array copies{copy};
@@ -800,6 +805,9 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
             runtime.CopyBuffer(download_staging.buffer, buffer, copies, false);
         }
         normalized_copies.push_back(second_copy);
+    }
+    if constexpr (!IS_OPENGL) {
+        if (any_tracked) runtime.PostTrackedReadbackBarrier();
     }
     runtime.PostCopyBarrier();
     pending_downloads.emplace_back(std::move(normalized_copies));

@@ -557,6 +557,37 @@ bool BufferCacheRuntime::CanTrackedReadback(const VideoCommon::BufferCopy& copy,
            copy.size + device.GetStorageBufferAlignment() <= device.GetMaxStorageBufferRange();
 }
 
+void BufferCacheRuntime::PreTrackedReadbackBarrier() {
+    // Every store of the marking shaders and every earlier write of the sources is visible
+    static constexpr VkMemoryBarrier BARRIER{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+    };
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([](vk::CommandBuffer cmdbuf) {
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, BARRIER);
+    });
+}
+
+void BufferCacheRuntime::PostTrackedReadbackBarrier() {
+    static constexpr VkMemoryBarrier BARRIER{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT |
+                         VK_ACCESS_HOST_READ_BIT,
+    };
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([](vk::CommandBuffer cmdbuf) {
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                               VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0,
+                               BARRIER);
+    });
+}
+
 void BufferCacheRuntime::TrackedReadback(Buffer& buffer, const StagingBufferRef& data,
                                          const StagingBufferRef& flags,
                                          const VideoCommon::BufferCopy& copy, u64 flag_offset,

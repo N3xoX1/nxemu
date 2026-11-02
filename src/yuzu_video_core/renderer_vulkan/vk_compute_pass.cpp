@@ -467,13 +467,9 @@ void TrackedReadbackPass::Copy(VkBuffer source, VkBuffer destination, VkBuffer f
         static_cast<u32>(device_addr / PAGE_SIZE), static_cast<u32>(head / 4), 0,
     };
     scheduler.RequestOutsideRenderPassOperationContext();
+    // The caller records the barriers around all the tracked readbacks of a commit. Their copies,
+    // flags and bits never overlap, and pages shared by two copies keep their bits.
     scheduler.Record([this, descriptors, parameters, pages](vk::CommandBuffer cb) {
-        // Every store of the marking shaders and every earlier write of the source is visible
-        const VkMemoryBarrier before{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
-                                    VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT,
-                                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT};
-        cb.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, before);
         const auto set = descriptor_allocator.Commit();
         device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptors);
         cb.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
@@ -484,12 +480,6 @@ void TrackedReadbackPass::Copy(VkBuffer source, VkBuffer destination, VkBuffer f
             cb.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(chunk), &chunk);
             cb.Dispatch(std::min(pages - base, MAX_GROUPS), 1, 1);
         }
-        const VkMemoryBarrier after{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
-                                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                                   VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT |
-                                       VK_ACCESS_HOST_READ_BIT};
-        cb.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0, after);
     });
 }
 
