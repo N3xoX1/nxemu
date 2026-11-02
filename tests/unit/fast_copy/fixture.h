@@ -120,6 +120,14 @@ struct TestMemory : IDeviceMemory, IMemory {
     bool NceTrackWrites(uint64_t vaddr) override {
         return {};
     }
+    bool NcePrepareCanonicalWrite(uint64_t vaddr) override {
+        return false;
+    }
+    void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override {}
+    bool NceTrackReads(uint64_t vaddr) override {
+        return false;
+    }
+    void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) override {}
     uint8_t Read8(uint64_t addr) override {
         return {};
     }
