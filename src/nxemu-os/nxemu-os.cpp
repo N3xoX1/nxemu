@@ -108,6 +108,14 @@ void CALL EmulationStopping(bool wait)
     g_osManager->EmulationStopping(wait);
 }
 
+EXPORT void CALL PrepareEmulationStopping()
+{
+    if (g_osManager)
+    {
+        g_osManager->NotifyApplicationBackgroundedBeforeShutdown();
+    }
+}
+
 /*
 Function: FlushSettings
 Purpose: Called when emulation is saving settings

@@ -32,6 +32,15 @@ static inline u64 FencedRDTSC() {
 }
 #endif
 
+// Deliberately broad bounds: reject corrupt measurements without tying this to a CPU model.
+constexpr bool IsValidTSCFrequency(u64 frequency) {
+    return frequency >= 1'000'000 && frequency <= 100'000'000'000ULL;
+}
+
 u64 EstimateRDTSCFrequency();
+
+namespace detail {
+u64 CalculateRDTSCFrequency(u64 ticks, s64 elapsed_ns);
+}
 
 } // namespace Common::X64

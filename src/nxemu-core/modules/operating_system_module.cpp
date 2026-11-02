@@ -12,6 +12,9 @@ void OperatingSystemModule::UnloadModule()
 
 bool OperatingSystemModule::LoadFunctions()
 {
+    // Optional export: older OS modules keep their previous shutdown behavior.
+    m_PrepareEmulationStopping = reinterpret_cast<tyPrepareEmulationStopping>(
+        DynamicLibraryGetProc(m_lib, "PrepareEmulationStopping"));
     m_CreateOS = (tyCreateOperatingSystem)DynamicLibraryGetProc(m_lib, "CreateOperatingSystem");
     m_DestroyOS = (tyDestroyOperatingSystem)DynamicLibraryGetProc(m_lib, "DestroyOperatingSystem");
 

@@ -9,10 +9,18 @@
 #include "yuzu_audio_core/renderer/voice/voice_state.h"
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
 #include <numeric>
 #include <bit>
 
 namespace AudioCore::Renderer {
+namespace {
+void ResetNonFiniteState(std::array<f64, 4>& state) {
+    if (!std::all_of(state.begin(), state.end(), [](f64 value) { return std::isfinite(value); })) {
+        state = {};
+    }
+}
+} // namespace
 /**
  * Biquad filter float implementation.
  *
@@ -35,10 +43,15 @@ void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
                          Common::FixedPoint<50, 14>::from_base(a_[1]).to_double()};
     std::array<f64, 4> s{std::bit_cast<f64>(state.s0), std::bit_cast<f64>(state.s1),
                          std::bit_cast<f64>(state.s2), std::bit_cast<f64>(state.s3)};
+    ResetNonFiniteState(s);
 
     for (u32 i = 0; i < sample_count; i++) {
         f64 in_sample{static_cast<f64>(input[i])};
         auto sample{in_sample * b[0] + s[0] * b[1] + s[1] * b[2] + s[2] * a[0] + s[3] * a[1]};
+        if (!std::isfinite(sample)) {
+            sample = 0.0;
+            s = {};
+        }
 
         output[i] = static_cast<s32>(std::clamp(sample, min, max));
 
@@ -60,6 +73,13 @@ void ApplyBiquadFilterFloat(std::span<s32> output, std::span<const s32> input,
 void ApplyBiquadFilterFloat2(std::span<s32> output, std::span<const s32> input,
                              std::array<f32, 3>& b, std::array<f32, 2>& a,
                              VoiceState::BiquadFilterState& state, const u32 sample_count) {
+    const auto finite = [](f32 value) { return std::isfinite(value); };
+    if (!std::all_of(b.begin(), b.end(), finite) || !std::all_of(a.begin(), a.end(), finite)) {
+        // Bypass malformed coefficients and discard contaminated history.
+        std::copy_n(input.begin(), sample_count, output.begin());
+        state = {};
+        return;
+    }
     constexpr f64 min{std::numeric_limits<s32>::min()};
     constexpr f64 max{std::numeric_limits<s32>::max()};
 
@@ -68,11 +88,16 @@ void ApplyBiquadFilterFloat2(std::span<s32> output, std::span<const s32> input,
     std::array<f64, 2> a_double{static_cast<f64>(a[0]), static_cast<f64>(a[1])};
     std::array<f64, 4> s{std::bit_cast<f64>(state.s0), std::bit_cast<f64>(state.s1),
                          std::bit_cast<f64>(state.s2), std::bit_cast<f64>(state.s3)};
+    ResetNonFiniteState(s);
 
     for (u32 i = 0; i < sample_count; i++) {
         f64 in_sample{static_cast<f64>(input[i])};
         auto sample{in_sample * b_double[0] + s[0] * b_double[1] + s[1] * b_double[2] +
                     s[2] * a_double[0] + s[3] * a_double[1]};
+        if (!std::isfinite(sample)) {
+            sample = 0.0;
+            s = {};
+        }
 
         output[i] = static_cast<s32>(std::clamp(sample, min, max));
 

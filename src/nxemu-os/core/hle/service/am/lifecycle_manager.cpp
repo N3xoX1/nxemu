@@ -200,7 +200,7 @@ void LifecycleManager::SetOutOfFocusSuspendingEnabled(bool enabled) {
 }
 
 bool LifecycleManager::IsRunnable() const {
-    if (m_has_requested_exit) {
+    if (m_has_requested_exit || (m_is_application && m_shutdown_focus_override)) {
         return true;
     }
     if (m_activity_state == ActivityState::ForegroundVisible) {

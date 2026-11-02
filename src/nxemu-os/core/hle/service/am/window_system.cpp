@@ -151,6 +151,7 @@ bool WindowSystem::OnApplicationBackgrounded() {
     }
     std::scoped_lock applet_lk{m_application->lock};
     m_application->lifecycle_manager.SetShutdownFocusState(FocusState::NotInFocus);
+    m_application->UpdateSuspensionStateLocked(true);
     return true;
 }
 

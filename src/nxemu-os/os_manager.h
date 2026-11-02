@@ -13,6 +13,7 @@ public:
 
     void EmulationStarting();
     void EmulationStopping(bool wait);
+    void NotifyApplicationBackgroundedBeforeShutdown();
 
     // IOperatingSystem
     bool Initialize() override;
@@ -79,7 +80,6 @@ private:
     OSManager & operator=(const OSManager &) = delete;
 
     bool CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl);
-    void NotifyApplicationBackgroundedBeforeShutdown();
 
     Core::System m_coreSystem;
     ISystemModules & m_modules;

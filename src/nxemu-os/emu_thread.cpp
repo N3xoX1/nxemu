@@ -86,7 +86,9 @@ public:
                     return m_should_run.load(std::memory_order_relaxed);
                 });
 
-                if (!stop_token.stop_requested())
+                if (!stop_token.stop_requested() &&
+                    static_cast<EmulationState>(g_settings->GetInt(NXCoreSetting::EmulationState)) !=
+                        EmulationState::Stopping)
                 {
                     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Running);
                 }
