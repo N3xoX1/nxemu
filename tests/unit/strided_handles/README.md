@@ -36,10 +36,17 @@ $env:VK_LAYER_VALIDATE_SYNC = '1'
 build/windows-x64/tests/unit/Release/test_strided_copy_gpu.exe C:/Windows/System32/vulkan-1.dll
 ```
 
-Adding `--benchmark` after the Vulkan library path measures CPU recording time and
-completed batch wall time for 10,000 two-region copies. The latter includes CPU,
-submission and GPU work and is not a GPU timestamp measurement. Validation remains
-enabled during this benchmark. Neither benchmark predicts game FPS.
+The GPU test also executes 192 chained 4/2/8-byte copies reusing the same scratch
+buffer, plus 17-region R32F/D32F copies in both directions, including untouched bytes.
 
-Compressed formats, depth/stencil, multisample copies, 3D volumes, other drivers and
-long game sessions require separate coverage. These tests are not sanitizer runs.
+Adding `--benchmark` after the Vulkan library path measures CPU recording time,
+completed batch wall time and GPU timestamp intervals. It reports the median of
+five batches after warmup for 2 KiB, 2 MiB and 7.9 MiB copies, in both 4-to-2 and
+2-to-4 byte directions, with a 4-to-4 byte control. Timestamps include barriers and
+any GPU idle time in the measured interval. Use `--benchmark-no-validation` instead
+for performance comparisons without the validation layer. Always run the default
+validation pass separately. Neither benchmark predicts game FPS.
+
+Compressed formats, combined depth/stencil, multisample copies, 3D volumes, other
+drivers and long game sessions require separate coverage. These tests are not
+sanitizer runs. R32F/D32F checks cover reinterpretation, not depth rendering.
