@@ -3,10 +3,12 @@
 
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <utility>
 #include <queue>
@@ -41,7 +43,8 @@ public:
     ~Scheduler();
 
     /// Sends the current execution context to the GPU.
-    u64 Flush(VkSemaphore signal_semaphore = nullptr, VkSemaphore wait_semaphore = nullptr);
+    u64 Flush(VkSemaphore signal_semaphore = nullptr, VkSemaphore wait_semaphore = nullptr,
+              std::optional<std::chrono::nanoseconds> frame_budget = std::nullopt);
 
     /// Sends the current execution context to the GPU and waits for it to complete.
     void Finish(VkSemaphore signal_semaphore = nullptr, VkSemaphore wait_semaphore = nullptr);
@@ -216,6 +219,8 @@ private:
             return submit;
         }
 
+        std::optional<std::chrono::nanoseconds> frame_budget;
+
     private:
         Command* first = nullptr;
         Command* last = nullptr;
@@ -238,7 +243,8 @@ private:
 
     void AllocateWorkerCommandBuffer();
 
-    u64 SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore);
+    u64 SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore,
+                        std::optional<std::chrono::nanoseconds> frame_budget = std::nullopt);
 
     void AllocateNewContext();
 

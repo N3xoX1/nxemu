@@ -113,7 +113,7 @@ Display::~Display() {
     void(device.GetLogical().WaitIdle());
 }
 
-Frame* Display::Present(Frame* frame, const WindowSystemInfo& window) {
+Frame* Display::Present(Frame* frame, const WindowSystemInfo& window, bool* presented) {
     std::scoped_lock lock{present_mutex};
     window_info = window;
 
@@ -125,7 +125,10 @@ Frame* Display::Present(Frame* frame, const WindowSystemInfo& window) {
             WaitOwnPresents();
         }
     }
-    PresentLocked(frame, true);
+    const bool success = PresentLocked(frame, true);
+    if (presented) {
+        *presented = success;
+    }
     last_game_present = std::chrono::steady_clock::now();
     return reusable;
 }
@@ -235,14 +238,14 @@ void Display::WaitOwnPresents() {
     }
 }
 
-void Display::PresentLocked(Frame* frame, bool fresh) {
+bool Display::PresentLocked(Frame* frame, bool fresh) {
     const void* window = window_info.render_surface;
     if (window == nullptr || device.IsLost()) {
         presented_window = nullptr;
-        return;
+        return false;
     }
     if (frame == nullptr && !interface_ready) {
-        return;
+        return false;
     }
 
     try {
@@ -251,7 +254,7 @@ void Display::PresentLocked(Frame* frame, bool fresh) {
             presented_window = window;
             RecreateSwapchain(swapchain.GetWidth(), swapchain.GetHeight());
         }
-        PresentImage(frame, fresh);
+        return PresentImage(frame, fresh);
     } catch (const vk::Exception& except) {
         switch (except.GetResult()) {
         case VK_ERROR_SURFACE_LOST_KHR:
@@ -266,9 +269,10 @@ void Display::PresentLocked(Frame* frame, bool fresh) {
             throw;
         }
     }
+    return false;
 }
 
-void Display::PresentImage(Frame* frame, bool fresh) {
+bool Display::PresentImage(Frame* frame, bool fresh) {
     // With an interface the swapchain covers the window; alone, the game is
     // the only thing in it and its frames set the size.
     const bool composite = interface_attached && interface_extent.width != 0;
@@ -338,10 +342,11 @@ void Display::PresentImage(Frame* frame, bool fresh) {
             break;
         }
     }
-    swapchain.Present(render_semaphore);
+    const bool presented = swapchain.Present(render_semaphore);
 
     presented_serial = interface_serial;
     interface_presented.notify_all();
+    return presented;
 }
 
 void Display::RecordGameOnly(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image) {

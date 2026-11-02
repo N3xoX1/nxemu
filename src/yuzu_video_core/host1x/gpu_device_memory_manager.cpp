@@ -195,17 +195,19 @@ DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_me
     physical_base{reinterpret_cast<const uintptr_t>(device_memory_.BackingBasePointer())},
     device_inter{nullptr}, compressed_physical_ptr(device_as_size >> DEVICE_PAGEBITS),
     compressed_device_addr(Common::AlignUp(device_memory_.BackingSize(), DEVICE_PAGESIZE) >> DEVICE_PAGEBITS),
-    continuity_tracker(device_as_size >> DEVICE_PAGEBITS),
     cpu_backing_address(device_as_size >> DEVICE_PAGEBITS)
 {
     impl = std::make_unique<DeviceMemoryManagerAllocator<Traits>>();
     cached_pages = std::make_unique<CachedPages>();
 
-    // VirtualBuffer uses fresh, zero-filled OS pages. Leave the address tables
-    // untouched so unmapped pages do not consume physical memory. Only the
-    // continuity table has a nonzero initial value.
-    const size_t total_virtual = device_as_size >> DEVICE_PAGEBITS;
-    std::fill_n(continuity_tracker.data(), total_virtual, 1U);
+    // Fresh VirtualBuffer pages are zero-filled: the initial address space is
+    // one unmapped run. Only nonempty boundary words need a summary bit.
+    size_t entries = device_as_size >> page_bits;
+    for (auto& level : continuity_boundaries)
+    {
+        entries = (entries + 63) / 64;
+        level.resize(entries);
+    }
 }
 
 template <typename Traits>
@@ -236,7 +238,75 @@ void DeviceMemoryManager<Traits>::Free(DAddr start, size_t size)
 }
 
 template <typename Traits>
-void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size_t size, Asid asid, bool track)
+void DeviceMemoryManager<Traits>::SetContinuityBoundary(size_t page, bool boundary)
+{
+    for (auto& level : continuity_boundaries)
+    {
+        const size_t index = page >> 6;
+        const u64 mask = u64{1} << (page & 63);
+        const u64 before = level[index];
+        const u64 after = boundary ? before | mask : before & ~mask;
+        if (before == after)
+        {
+            break;
+        }
+        level[index] = after;
+        if ((before != 0) == (after != 0))
+        {
+            break;
+        }
+        page = index;
+        boundary = after != 0;
+    }
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::UpdateContinuityBoundary(size_t page)
+{
+    if (page == 0 || page == (device_as_size >> page_bits))
+    {
+        return;
+    }
+    const u32 left = compressed_physical_ptr[page - 1];
+    const u32 right = compressed_physical_ptr[page];
+    const bool continuous = (left == 0 && right == 0) ||
+                            (left != 0 && right != 0 && right == left + 1U);
+    SetContinuityBoundary(page, !continuous);
+}
+
+template <typename Traits>
+size_t DeviceMemoryManager<Traits>::NextContinuityBoundary(size_t first_page, size_t end_page) const
+{
+    if (first_page >= end_page)
+    {
+        return end_page;
+    }
+    size_t bit = first_page;
+    for (size_t level = 0; level < continuity_levels; ++level)
+    {
+        const size_t index = bit >> 6;
+        const u64 word = continuity_boundaries[level][index] & (~u64{0} << (bit & 63));
+        if (word != 0)
+        {
+            bit = (index << 6) + std::countr_zero(word);
+            while (level != 0)
+            {
+                --level;
+                bit = (bit << 6) + std::countr_zero(continuity_boundaries[level][bit]);
+            }
+            return std::min(bit, end_page);
+        }
+        bit = index + 1;
+        if ((bit << (6 * (level + 1))) >= end_page)
+        {
+            return end_page;
+        }
+    }
+    return end_page;
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size_t size, Asid asid, bool /*track*/)
 {
     IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
@@ -249,10 +319,13 @@ void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size
         if (ptr == nullptr) [[unlikely]]
         {
             compressed_physical_ptr[start_page_d + i] = 0;
+            cpu_backing_address[start_page_d + i] = 0;
+            UpdateContinuityBoundary(start_page_d + i);
             continue;
         }
         auto phys_addr = static_cast<u32>(GetRawPhysicalAddr(ptr) >> DEVICE_PAGEBITS) + 1U;
         compressed_physical_ptr[start_page_d + i] = phys_addr;
+        UpdateContinuityBoundary(start_page_d + i);
         InsertCPUBacking(start_page_d + i, new_vaddress, asid);
         const u32 base_dev = compressed_device_addr[phys_addr - 1U];
         const u32 new_dev = static_cast<u32>(start_page_d + i);
@@ -269,9 +342,9 @@ void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size
         }
         impl->multi_dev_address.Register(new_dev, start_id);
     }
-    if (track)
+    if (num_pages != 0)
     {
-        TrackContinuityImpl(address, virtual_address, size, asid);
+        UpdateContinuityBoundary(start_page_d + num_pages);
     }
     lk.unlock();
     if (device_inter != nullptr)
@@ -294,6 +367,7 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
         auto phys_addr = compressed_physical_ptr[start_page_d + i];
         compressed_physical_ptr[start_page_d + i] = 0;
         cpu_backing_address[start_page_d + i] = 0;
+        UpdateContinuityBoundary(start_page_d + i);
         if (phys_addr != 0) [[likely]]
         {
             const u32 base_dev = compressed_device_addr[phys_addr - 1U];
@@ -311,31 +385,9 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
             compressed_device_addr[phys_addr - 1] = new_start | MULTI_FLAG;
         }
     }
-}
-
-template <typename Traits>
-void DeviceMemoryManager<Traits>::TrackContinuityImpl(DAddr address, VAddr virtual_address, size_t size, Asid asid)
-{
-    IMemory * process_memory = GetRegisteredProcess(asid);
-    size_t start_page_d = address >> DEVICE_PAGEBITS;
-    size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
-    uintptr_t last_ptr = 0;
-    size_t page_count = 1;
-    for (size_t i = num_pages; i > 0; i--)
+    if (num_pages != 0)
     {
-        size_t index = i - 1;
-        const VAddr new_vaddress = virtual_address + index * DEVICE_PAGESIZE;
-        const uintptr_t new_ptr = reinterpret_cast<uintptr_t>(process_memory->GetPointerSilent(new_vaddress));
-        if (new_ptr + page_size == last_ptr)
-        {
-            page_count++;
-        }
-        else
-        {
-            page_count = 1;
-        }
-        last_ptr = new_ptr;
-        continuity_tracker[start_page_d + index] = static_cast<u32>(page_count);
+        UpdateContinuityBoundary(start_page_d + num_pages);
     }
 }
 
@@ -344,11 +396,20 @@ u8 * DeviceMemoryManager<Traits>::GetSpan(const DAddr src_addr, const std::size_
 {
     size_t page_index = src_addr >> page_bits;
     size_t subbits = src_addr & page_mask;
-    if ((static_cast<size_t>(continuity_tracker[page_index]) << page_bits) >= size + subbits)
+    if (src_addr >= device_as_size || size > device_as_size - src_addr)
+    {
+        return nullptr;
+    }
+    if (size <= page_size - subbits)
     {
         return GetPointer<u8>(src_addr);
     }
-    return nullptr;
+    const size_t end_page = ((src_addr + size - 1) >> page_bits) + 1;
+    if (NextContinuityBoundary(page_index + 1, end_page) != end_page)
+    {
+        return nullptr;
+    }
+    return GetPointer<u8>(src_addr);
 }
 
 template <typename Traits>
@@ -356,11 +417,20 @@ const u8 * DeviceMemoryManager<Traits>::GetSpan(const DAddr src_addr, const std:
 {
     size_t page_index = src_addr >> page_bits;
     size_t subbits = src_addr & page_mask;
-    if ((static_cast<size_t>(continuity_tracker[page_index]) << page_bits) >= size + subbits)
+    if (src_addr >= device_as_size || size > device_as_size - src_addr)
+    {
+        return nullptr;
+    }
+    if (size <= page_size - subbits)
     {
         return GetPointer<u8>(src_addr);
     }
-    return nullptr;
+    const size_t end_page = ((src_addr + size - 1) >> page_bits) + 1;
+    if (NextContinuityBoundary(page_index + 1, end_page) != end_page)
+    {
+        return nullptr;
+    }
+    return GetPointer<u8>(src_addr);
 }
 
 template <typename Traits>
@@ -438,10 +508,11 @@ void DeviceMemoryManager<Traits>::WalkBlock(DAddr addr, std::size_t size, auto o
     std::size_t remaining_size = size;
     std::size_t page_index = addr >> DEVICE_PAGEBITS;
     std::size_t page_offset = addr & DEVICE_PAGEMASK;
+    const size_t end_page = (addr + size + DEVICE_PAGEMASK) >> DEVICE_PAGEBITS;
 
     while (remaining_size)
     {
-        const size_t next_pages = static_cast<std::size_t>(continuity_tracker[page_index]);
+        const size_t next_pages = NextContinuityBoundary(page_index + 1, end_page) - page_index;
         const std::size_t copy_amount = std::min((next_pages << DEVICE_PAGEBITS) - page_offset, remaining_size);
         const auto current_vaddr = static_cast<u64>((page_index << DEVICE_PAGEBITS) + page_offset);
         SCOPE_EXIT{

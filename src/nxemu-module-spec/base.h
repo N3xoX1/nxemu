@@ -26,9 +26,9 @@
 enum
 {
     MODULE_LOADER_SPECS_VERSION = 0x0139,
-    MODULE_VIDEO_SPECS_VERSION = 0x0128,
+    MODULE_VIDEO_SPECS_VERSION = 0x0129,
     MODULE_CPU_SPECS_VERSION = 0x0120,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x0129,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x012A,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -255,6 +255,8 @@ nxinterface IRenderWindow
     virtual void * DisplayConnection(void) const = 0;
     virtual RenderWindowSystem WindowSystem(void) const = 0;
     virtual float PixelRatio(void) const = 0;
+    // Native submission, not scanout. surface identifies the submitted native window.
+    virtual void OnFramePresented(void * surface, uint32_t frame_interval_ns) = 0;
 };
 
 nxinterface IOperatingSystem;

@@ -120,7 +120,7 @@ bool Swapchain::AcquireNextImage() {
     return false;
 }
 
-void Swapchain::Present(VkSemaphore render_semaphore) {
+bool Swapchain::Present(VkSemaphore render_semaphore) {
     const auto present_queue{device.GetPresentQueue()};
     const VkPresentInfoKHR present_info{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -133,7 +133,8 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
         .pResults = nullptr,
     };
     std::scoped_lock lock{device.QueueMutex()};
-    switch (const VkResult result = present_queue.Present(present_info)) {
+    const VkResult result = present_queue.Present(present_info);
+    switch (result) {
     case VK_SUCCESS:
         break;
     case VK_SUBOPTIMAL_KHR:
@@ -157,6 +158,7 @@ void Swapchain::Present(VkSemaphore render_semaphore) {
     if (frame_index >= image_count) {
         frame_index = 0;
     }
+    return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
 }
 
 void Swapchain::CreateSwapchain(const VkSurfaceCapabilitiesKHR& capabilities) {

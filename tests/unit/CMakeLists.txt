@@ -3,6 +3,15 @@ function(nxemu_unit_test name)
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
 
+if(ARCHITECTURE_x86_64)
+    # Exercise the JIT objects shipped in the CPU module, including its Release flags.
+    add_executable(test_dynarmic_regalloc dynarmic_regalloc/jit.cpp
+        $<TARGET_OBJECTS:nxemu-cpu>)
+    target_include_directories(test_dynarmic_regalloc PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu")
+    target_link_libraries(test_dynarmic_regalloc PRIVATE common yuzu_common fmt merry::mcl Zydis)
+    nxemu_unit_test(test_dynarmic_regalloc)
+endif()
+
 # Real Fermi2D, software blitter, GPU page tables and device-memory mappings.
 # The fixture models cache notifications; GPU cache integration needs a renderer.
 add_executable(test_fast_copy fast_copy/fast_copy.cpp)
@@ -248,29 +257,6 @@ if(NOT MSVC)
     target_link_options(test_vertex_input PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_vertex_input)
-set(NXEMU_VERTEX_INPUT_REFERENCE_PATCH "" CACHE FILEPATH "Reviewed Lot1 patch for host comparison")
-set(NXEMU_VERTEX_INPUT_BASELINE "HEAD" CACHE STRING "Git ref before the vertex-input fix")
-if(NXEMU_VERTEX_INPUT_REFERENCE_PATCH)
-    set(_vertex_input_compare)
-    foreach(_part original supplied consume_supplied notify_supplied)
-        list(APPEND _vertex_input_compare "${_vertex_input_generated}/${_part}.inc")
-    endforeach()
-    add_custom_command(
-        OUTPUT ${_vertex_input_compare}
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/vertex_input/prepare_compare.py"
-            "${CMAKE_SOURCE_DIR}" "${_vertex_input_generated}"
-            "${NXEMU_VERTEX_INPUT_REFERENCE_PATCH}" "${NXEMU_VERTEX_INPUT_BASELINE}"
-        DEPENDS vertex_input/prepare_compare.py vertex_input/extract.py
-            "${NXEMU_VERTEX_INPUT_REFERENCE_PATCH}"
-        VERBATIM)
-    add_executable(bench_vertex_input vertex_input/vertex_input.cpp
-        ${_vertex_input_includes} ${_vertex_input_compare})
-    target_include_directories(bench_vertex_input PRIVATE "${_vertex_input_generated}"
-        "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
-        "${CMAKE_SOURCE_DIR}/external/fmt/include")
-    target_compile_definitions(bench_vertex_input PRIVATE FMT_HEADER_ONLY VERTEX_INPUT_COMPARE)
-    target_link_libraries(bench_vertex_input PRIVATE nxemu_test_support Vulkan::Headers)
-endif()
 set(_conditional_generated "${CMAKE_CURRENT_BINARY_DIR}/conditional_rendering")
 add_custom_command(
     OUTPUT "${_conditional_generated}/engine.inc" "${_conditional_generated}/runtime.inc"
@@ -319,3 +305,64 @@ add_dependencies(test_strided_handles shader_recompiler sirit fmt common)
 target_link_libraries(test_strided_handles PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_strided_handles)
+
+add_subdirectory(android_performance)
+
+# Differential tests execute the production DMA and Maxwell register methods.
+set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
+add_custom_command(
+    OUTPUT "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
+        "${_gpu_commands_generated}/baseline.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gpu_commands/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_gpu_commands_generated}"
+    DEPENDS gpu_commands/extract.py gpu_commands/baseline.inc
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
+    VERBATIM)
+add_executable(test_gpu_commands gpu_commands/commands.cpp
+    "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
+    "${_gpu_commands_generated}/baseline.inc")
+target_include_directories(test_gpu_commands PRIVATE "${_gpu_commands_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_gpu_commands PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_gpu_commands PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_gpu_commands PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_gpu_commands PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_gpu_commands)
+
+set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
+add_custom_command(
+    OUTPUT "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/texture_hotpaths/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_texture_hotpaths_generated}"
+    DEPENDS texture_hotpaths/extract.py
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/texture_cache.h"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/texture_cache_base.h"
+    VERBATIM)
+add_executable(test_texture_regions texture_hotpaths/regions.cpp
+    "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc")
+target_include_directories(test_texture_regions PRIVATE "${_texture_hotpaths_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_texture_regions PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_texture_regions PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_texture_regions PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_texture_regions PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_texture_regions)
+
+add_executable(test_mapping_continuity mapping_continuity/mapping.cpp)
+target_include_directories(test_mapping_continuity PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_mapping_continuity video_core yuzu_common common)
+target_link_libraries(test_mapping_continuity PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_mapping_continuity)

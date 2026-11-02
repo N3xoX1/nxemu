@@ -192,35 +192,53 @@ void MaxwellDMA::Launch() {
             return (address & ~0x1f0ULL) | ((address & 0x40) >> 2) | ((address & 0x10) << 1) |
                    ((address & 0x180) >> 1) | ((address & 0x20) << 3);
         };
-        const auto src_kind = memory_manager.GetPageKind(regs.offset_in);
-        const auto dst_kind = memory_manager.GetPageKind(regs.offset_out);
+        const GPUVAddr src_address = regs.offset_in;
+        const GPUVAddr dst_address = regs.offset_out;
+        const auto src_kind = memory_manager.GetPageKind(src_address);
+        const auto dst_kind = memory_manager.GetPageKind(dst_address);
         const bool is_src_pitch = IsPitchKind(src_kind);
         const bool is_dst_pitch = IsPitchKind(dst_kind);
-        if (!is_src_pitch && is_dst_pitch) {
-            UNIMPLEMENTED_IF(regs.line_length_in % 16 != 0);
-            UNIMPLEMENTED_IF(regs.offset_in % 16 != 0);
-            UNIMPLEMENTED_IF(regs.offset_out % 16 != 0);
+        // GOB address conversion preserves bits [3:0], so each 16-byte segment is
+        // contiguous. Peel the two partial segments and keep an uncomplicated 16-byte
+        // loop for the interior, including the fully aligned common case.
+        const auto copy_gob_chunks = [&](GPUVAddr gob_address, auto&& copy_chunk) {
+            const u32 length = regs.line_length_in;
+            if (length == 0) {
+                return;
+            }
             read_buffer.resize_destructive(16);
-            for (u32 offset = 0; offset < regs.line_length_in; offset += 16) {
+            u32 offset{};
+            const u32 misalignment = static_cast<u32>(gob_address & 15U);
+            if (misalignment != 0) {
+                const u32 head = std::min<u32>(16 - misalignment, length);
+                copy_chunk(offset, head);
+                offset = head;
+            }
+            const u32 aligned_end = offset + ((length - offset) & ~15U);
+            for (; offset < aligned_end; offset += 16) {
+                copy_chunk(offset, 16);
+            }
+            if (offset < length) {
+                copy_chunk(offset, length - offset);
+            }
+        };
+        if (!is_src_pitch && is_dst_pitch) {
+            copy_gob_chunks(src_address, [&](u32 offset, u32 size) {
                 Tegra::Memory::GpuGuestMemoryScoped<
                     u8, GuestMemoryFlags::SafeReadCachedWrite>
                     tmp_write_buffer(memory_manager,
-                                     convert_linear_2_blocklinear_addr(regs.offset_in + offset),
-                                     16, &read_buffer);
-                tmp_write_buffer.SetAddressAndSize(regs.offset_out + offset, 16);
-            }
+                                     convert_linear_2_blocklinear_addr(src_address + offset),
+                                     size, &read_buffer);
+                tmp_write_buffer.SetAddressAndSize(dst_address + offset, size);
+            });
         } else if (is_src_pitch && !is_dst_pitch) {
-            UNIMPLEMENTED_IF(regs.line_length_in % 16 != 0);
-            UNIMPLEMENTED_IF(regs.offset_in % 16 != 0);
-            UNIMPLEMENTED_IF(regs.offset_out % 16 != 0);
-            read_buffer.resize_destructive(16);
-            for (u32 offset = 0; offset < regs.line_length_in; offset += 16) {
+            copy_gob_chunks(dst_address, [&](u32 offset, u32 size) {
                 Tegra::Memory::GpuGuestMemoryScoped<
                     u8, GuestMemoryFlags::SafeReadCachedWrite>
-                    tmp_write_buffer(memory_manager, regs.offset_in + offset, 16, &read_buffer);
+                    tmp_write_buffer(memory_manager, src_address + offset, size, &read_buffer);
                 tmp_write_buffer.SetAddressAndSize(
-                    convert_linear_2_blocklinear_addr(regs.offset_out + offset), 16);
-            }
+                    convert_linear_2_blocklinear_addr(dst_address + offset), size);
+            });
         } else {
             if (!accelerate.BufferCopy(regs.offset_in, regs.offset_out, regs.line_length_in)) {
                 // Snapshot the source before writing. GPU virtual ranges can alias physical

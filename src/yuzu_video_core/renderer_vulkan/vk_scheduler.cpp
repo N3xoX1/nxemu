@@ -19,6 +19,9 @@
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 #include "video_settings.h"
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+#include "yuzu_common/android/performance_hint.h"
+#endif
 
 namespace Vulkan {
 void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
@@ -31,6 +34,7 @@ void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
         command = next;
     }
     submit = false;
+    frame_budget.reset();
     command_offset = 0;
     first = nullptr;
     last = nullptr;
@@ -47,9 +51,10 @@ Scheduler::Scheduler(const Device& device_, StateTracker& state_tracker_)
 
 Scheduler::~Scheduler() = default;
 
-u64 Scheduler::Flush(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
+u64 Scheduler::Flush(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore,
+                     std::optional<std::chrono::nanoseconds> frame_budget) {
     // When flushing, we only send data to the worker thread; no waiting is necessary.
-    const u64 signal_value = SubmitExecution(signal_semaphore, wait_semaphore);
+    const u64 signal_value = SubmitExecution(signal_semaphore, wait_semaphore, frame_budget);
     AllocateNewContext();
     return signal_value;
 }
@@ -155,6 +160,10 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
 #endif
 
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+    Common::Android::PerformanceHintSession performance_hint;
+#endif
+
     const auto TryPopQueue{[this](auto& work) -> bool {
         if (work_queue.empty()) {
             return false;
@@ -168,6 +177,9 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
 
     while (!stop_token.stop_requested()) {
         std::unique_ptr<CommandChunk> work;
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+        std::optional<std::chrono::nanoseconds> frame_budget;
+#endif
 
         {
             std::unique_lock lk{queue_mutex};
@@ -185,6 +197,10 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
             // to complete in the next step.
             std::exchange(lk, std::unique_lock{execution_mutex});
 
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+            frame_budget = work->frame_budget;
+            performance_hint.BeginWork();
+#endif
             // Perform the work, tracking whether the chunk was a submission
             // before executing.
             const bool has_submit = work->HasSubmit();
@@ -197,7 +213,16 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
             if (has_submit) {
                 AllocateWorkerCommandBuffer();
             }
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+            performance_hint.EndWork();
+#endif
         }
+
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
+        if (frame_budget) {
+            performance_hint.ReportFrame(*frame_budget);
+        }
+#endif
 
         {
             std::scoped_lock rl{reserve_mutex};
@@ -225,7 +250,8 @@ void Scheduler::AllocateWorkerCommandBuffer() {
     });
 }
 
-u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
+u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore,
+                               std::optional<std::chrono::nanoseconds> frame_budget) {
     EndPendingOperations();
     InvalidateState();
 
@@ -261,6 +287,7 @@ u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_se
         }
     });
     chunk->MarkSubmit();
+    chunk->frame_budget = frame_budget;
     DispatchWork();
     return signal_value;
 }
