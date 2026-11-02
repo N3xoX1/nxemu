@@ -604,7 +604,9 @@ bool BufferCache<P>::ShouldWaitAsyncFlushes() const noexcept {
 template <class P>
 void BufferCache<P>::CommitAsyncFlushesHigh() {
     AccumulateFlushes();
-    pending_downloads_protected = true;
+    // Without a buffer download, the texture and query readbacks of this fence are protected
+    // only where read-cached pages fault on CPU access.
+    pending_downloads_protected = device_memory.ProtectsReadCachedPages();
 
     if (committed_gpu_modified_ranges.empty()) {
         async_buffers.emplace_back(std::optional<Async_Buffer>{});

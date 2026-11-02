@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
@@ -309,8 +310,10 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     if (protect) {
         const u64 result_size = has_timestamp ? 16 : 4;
         impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, 1);
+        UpdateProtectedResult(cpu_addr, result_size, 1);
         operation = [this, op = std::move(operation), cpu_addr, result_size] {
             op();
+            UpdateProtectedResult(cpu_addr, result_size, -1);
             impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, -1);
         };
     }
@@ -335,6 +338,30 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         auto* old_query = impl->ObtainQuery(it_current->second);
         old_query->flags |= QueryFlagBits::IsRewritten;
         sub_container.insert_or_assign(base, query_location);
+    }
+}
+
+template <typename Traits>
+void QueryCacheBase<Traits>::UpdateProtectedResult(VAddr addr, u64 size, s32 delta) {
+    // A CPU access to a neighbouring guest page of the same host page must not open the
+    // page before the result is written: the guest-visible signal does not wait for it.
+    using PageBits = decltype(protected_result_pages);
+    std::scoped_lock lock{protected_result_mutex};
+    const VAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
+    for (VAddr page = Common::AlignDown(addr, PageBits::PAGE_SIZE); page < end;
+         page += PageBits::PAGE_SIZE) {
+        if (delta > 0) {
+            if (protected_result_counts[page]++ == 0) {
+                protected_result_pages.Set(page, PageBits::PAGE_SIZE);
+            }
+            continue;
+        }
+        const auto it = protected_result_counts.find(page);
+        ASSERT(it != protected_result_counts.end());
+        if (--it->second == 0) {
+            protected_result_counts.erase(it);
+            protected_result_pages.Clear(page, PageBits::PAGE_SIZE);
+        }
     }
 }
 

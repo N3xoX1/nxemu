@@ -14,6 +14,7 @@
 #include "yuzu_common/bit_field.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_video_core/control/channel_state_cache.h"
+#include "yuzu_video_core/gpu_write_history.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/query_cache/query_base.h"
 #include "yuzu_video_core/query_cache/types.h"
@@ -76,6 +77,12 @@ public:
             mask |= 1ULL << (static_cast<u64>(query_type));
         }
         return mask;
+    }
+
+    /// Lock-free: true when the region may hold a result that stays unreadable by the CPU
+    /// until it is written.
+    [[nodiscard]] bool AwaitsProtectedResult(VAddr addr, size_t size) const noexcept {
+        return protected_result_pages.Any(addr, size);
     }
 
     /// Return true when a CPU region is modified from the GPU
@@ -170,9 +177,15 @@ protected:
     bool SemiFlushQueryDirty(QueryLocation location);
     void RequestGuestHostSync();
     void UnregisterPending();
+    void UpdateProtectedResult(VAddr addr, u64 size, s32 delta);
 
     std::unordered_map<u64, std::unordered_map<u32, QueryLocation>> cached_queries;
     std::mutex cache_mutex;
+
+    /// Pages of results kept unreadable by the CPU, with the count of each page
+    AtomicPageBits<34, 12> protected_result_pages;
+    std::unordered_map<u64, u32> protected_result_counts;
+    std::mutex protected_result_mutex;
 
     struct QueryCacheBaseImpl;
     friend struct QueryCacheBaseImpl;

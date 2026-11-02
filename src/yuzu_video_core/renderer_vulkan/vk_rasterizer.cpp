@@ -815,7 +815,8 @@ bool RasterizerVulkan::MayFlushSharedPage(DAddr addr, u64 size) {
 }
 
 bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
-    return buffer_cache.AwaitsProtectedDownload(addr, size);
+    return buffer_cache.AwaitsProtectedDownload(addr, size) ||
+           query_cache.AwaitsProtectedResult(addr, size);
 }
 
 VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {

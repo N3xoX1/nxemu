@@ -366,6 +366,25 @@ void CheckProtectedReadback(bool exact_readback) {
     assert(completed == 3);
 }
 
+// A texture or query readback without a buffer download is not protected where pending
+// readbacks do not fault, and still delays an ordinary signal.
+template <bool async>
+void CheckUnprotectedTextureReadback(bool exact_readback) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    std::atomic<unsigned> completed{};
+    textures.pending = true;
+    manager.SignalFence([&] { ++completed; });
+    assert(manager.host_fences == 1 && rasterizer.flushes == 1);
+    assert(completed == 0);
+    manager.SignalGpu();
+    manager.WaitForFence();
+    assert(completed == 1 && textures.result.load(std::memory_order_acquire) == 42);
+}
+
 void BenchmarkEmpty() {
     Settings::exact_readback.store(false);
     VideoCore::RasterizerInterface rasterizer;
@@ -454,6 +473,8 @@ int main(int argc, char** argv) {
         CheckCheckpointReadback<false>(exact_readback);
         CheckProtectedReadback<true>(exact_readback);
         CheckProtectedReadback<false>(exact_readback);
+        CheckUnprotectedTextureReadback<true>(exact_readback);
+        CheckUnprotectedTextureReadback<false>(exact_readback);
     }
     BenchmarkEmpty();
     std::puts("PASS: GPU readback query fence ordering and empty fast path");
