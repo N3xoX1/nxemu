@@ -166,17 +166,31 @@ std::optional<StagingBufferRef> StagingBufferPool::TryGetReservedBuffer(size_t s
     };
     // Reuse the oldest buffers first, so that the ones beyond what is used at once go idle.
     // A free buffer of the next size is reused rather than allocating another one.
+    // A buffer in use only becomes free once the GPU completes more work, so the search
+    // resumes after the buffers found in use until then.
+    const u64 gpu_tick = scheduler.GetMasterSemaphore().KnownGpuTick();
+    const auto find_free = [&](StagingBuffers& level) {
+        if (level.scan_tick != gpu_tick) {
+            level.scan_index = 0;
+            level.scan_tick = gpu_tick;
+        }
+        const auto it = std::find_if(level.entries.begin() + level.scan_index,
+                                     level.entries.end(), is_free);
+        level.scan_index = std::distance(level.entries.begin(), it);
+        return it;
+    };
     auto& cache = GetCache(usage);
     const size_t log2 = Common::Log2Ceil64(size);
-    auto* entries = &cache[log2].entries;
-    auto it = std::find_if(entries->begin(), entries->end(), is_free);
-    if (it == entries->end() && log2 + 1 < NUM_LEVELS) {
-        entries = &cache[log2 + 1].entries;
-        it = std::find_if(entries->begin(), entries->end(), is_free);
+    StagingBuffers* level = &cache[log2];
+    auto it = find_free(*level);
+    if (it == level->entries.end() && log2 + 1 < NUM_LEVELS) {
+        level = &cache[log2 + 1];
+        it = find_free(*level);
     }
-    if (it == entries->end()) {
+    if (it == level->entries.end()) {
         return std::nullopt;
     }
+    ++level->scan_index;
     it->tick = deferred ? std::numeric_limits<u64>::max() : scheduler.CurrentTick();
     it->frame = frame;
     ASSERT(!it->deferred);
@@ -249,6 +263,7 @@ void StagingBufferPool::ReleaseLevel(StagingBuffersCache& cache, size_t log2) {
                scheduler.IsFree(entry.tick);
     };
     std::erase_if(cache[log2].entries, is_deletable);
+    cache[log2].scan_index = 0;
 }
 
 } // namespace Vulkan

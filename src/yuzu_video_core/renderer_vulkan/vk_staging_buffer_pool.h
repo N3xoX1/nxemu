@@ -72,6 +72,9 @@ private:
 
     struct StagingBuffers {
         std::vector<StagingBuffer> entries;
+        /// Entries before this index were in use while the GPU had completed scan_tick
+        size_t scan_index = 0;
+        u64 scan_tick = 0;
     };
 
     /// Frames a free buffer stays cached without being requested.

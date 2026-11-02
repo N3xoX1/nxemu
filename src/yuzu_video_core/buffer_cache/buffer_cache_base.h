@@ -162,7 +162,9 @@ class BufferCache : public VideoCommon::ChannelSetupCaches<BufferCacheChannelInf
     static constexpr u64 CACHING_PAGESIZE = u64{1} << CACHING_PAGEBITS;
     /// Largest download kept unreadable by the CPU instead of delaying the fence signal.
     static constexpr u64 MAX_PROTECTED_DOWNLOAD_BYTES = 1_MiB;
-    /// Staging memory of downloads the GPU has not executed yet, before a commit waits.
+    /// Staging bytes of buffer downloads the GPU has not executed yet, above which a commit
+    /// waits for the oldest ones. Copies already executed but not published yet, texture
+    /// downloads and a single larger download are not bounded by it.
     static constexpr u64 MAX_INCOMPLETE_DOWNLOAD_BYTES = 512_MiB;
 
     static constexpr bool IS_OPENGL = P::IS_OPENGL;

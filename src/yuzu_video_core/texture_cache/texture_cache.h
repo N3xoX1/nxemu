@@ -1824,8 +1824,10 @@ bool TextureCache<P>::ObserveReadImages(DAddr addr, size_t size) {
     }
     const DAddr begin = Common::AlignDown(addr, ReadbackPageTracker::PAGE_SIZE);
     const DAddr end = Common::AlignUp(addr + size, ReadbackPageTracker::PAGE_SIZE);
-    // An observed page is current up to the last publication, like a preemptive read.
-    // A new one has no asynchronous copy yet and is initialized synchronously.
+    // An observed page is current up to the last publication, like a preemptive read of it:
+    // later GPU writes close the host page again and are published before the fence the
+    // guest waits on. A new one has no asynchronous copy yet and is initialized synchronously.
+    // Only pages of images the guest already reads back are observed.
     const bool must_flush = !readback_pages.Contains(begin, end - begin) &&
                             HasUnpublishedReadImage(begin, end - begin);
     readback_pages.Observe(begin, end - begin);
