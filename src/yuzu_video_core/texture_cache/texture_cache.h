@@ -1523,8 +1523,12 @@ void TextureCache<P>::PopAsyncFlushes() {
                 if (False(image.flags & ImageFlagBits::Remapped)) {
                     NewerOverlapGuard guard{*this, download_info.object_id, image,
                                             download_info.gpu_write_tick};
-                    image.published_tick =
-                        std::max(image.published_tick, download_info.modification_tick);
+                    // A partial readback publishes only the pages observed so far, the image
+                    // stays unpublished until a full one
+                    if (!download_info.observed_partial) {
+                        image.published_tick =
+                            std::max(image.published_tick, download_info.modification_tick);
+                    }
                     if (download_info.observed_partial) {
                         // Never fall back to a full swizzle of a partially initialized
                         // staging buffer. Use this image's original address space even
@@ -2403,6 +2407,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             const AliasedImage& aliased = new_image.aliased_images[alias_pointer->second];
             CopyImage(new_image_id, aliased.id, aliased.copies);
             new_image.modification_tick = overlap.modification_tick;
+            new_image.gpu_write_tick = std::max(new_image.gpu_write_tick, overlap.gpu_write_tick);
             continue;
         }
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
@@ -2419,6 +2424,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
                 runtime.CopyImage(new_image, overlap, std::move(copies));
             }
             new_image.modification_tick = overlap.modification_tick;
+            new_image.gpu_write_tick = std::max(new_image.gpu_write_tick, overlap.gpu_write_tick);
         }
         if (True(overlap.flags & ImageFlagBits::Tracked)) {
             UntrackImage(overlap, copy_object.id);

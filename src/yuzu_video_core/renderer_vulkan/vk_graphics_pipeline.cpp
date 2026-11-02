@@ -385,7 +385,12 @@ struct GraphicsPipeline::XfbState {
     u32 instance_count{};
 };
 
-GraphicsPipeline::~GraphicsPipeline() = default;
+GraphicsPipeline::~GraphicsPipeline() {
+    // The GPU may still write the feedback, the pool reuses it once the current tick completes
+    if (vtg && vtg->has_feedback) {
+        vtg->staging_pool->FreeDeferred(vtg->feedback);
+    }
+}
 
 void GraphicsPipeline::SetVtgInstanceCount(u32 instance_count) noexcept {
     if (vtg) {
