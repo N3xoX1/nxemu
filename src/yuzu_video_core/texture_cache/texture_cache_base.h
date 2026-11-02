@@ -556,8 +556,14 @@ private:
         NewerOverlapGuard(TextureCache& cache, ImageId id, const ImageBase& image, u64 write_tick);
         ~NewerOverlapGuard();
 
+        /// Newer GPU writes cover the whole image: publishing it would change no byte
+        [[nodiscard]] bool Covered() const noexcept {
+            return covered;
+        }
+
     private:
         TextureCache& cache;
+        bool covered{};
         boost::container::small_vector<std::pair<DAddr, std::vector<u8>>, 2> saved;
     };
 
