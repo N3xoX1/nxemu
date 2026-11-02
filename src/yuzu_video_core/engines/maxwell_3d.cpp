@@ -65,9 +65,6 @@ void Maxwell3D::InitializeRegisterDefaults()
         viewport.depth_range_near = 0.0f;
         viewport.depth_range_far = 1.0f;
     }
-    // Rendering is enabled until a game sets a condition. Games that only toggle the override
-    // expect UseRenderEnable to render.
-    regs.render_enable.mode = Regs::RenderEnable::Mode::True;
     for (auto & viewport : regs.viewport_transform)
     {
         viewport.swizzle.x.Assign(Regs::ViewportSwizzle::PositiveX);

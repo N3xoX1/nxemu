@@ -1478,6 +1478,7 @@ TextureCache<P>::NewerOverlapGuard::NewerOverlapGuard(TextureCache& cache_, Imag
     if (True(image.flags & ImageFlagBits::Sparse)) {
         return;
     }
+    boost::container::small_vector<std::pair<DAddr, DAddr>, 4> ranges;
     cache.ForEachImageInRegion(image.cpu_addr, image.guest_size_bytes,
                                [&](ImageId other_id, ImageBase& other) {
         // Guest memory only holds the newer bytes once they were written back. Until then the
@@ -1492,9 +1493,7 @@ TextureCache<P>::NewerOverlapGuard::NewerOverlapGuard(TextureCache& cache_, Imag
         if (begin >= end) {
             return;
         }
-        const auto save = [&](DAddr lo, DAddr hi) {
-            saved.emplace_back(lo, std::vector<u8>(hi - lo));
-        };
+        const auto save = [&](DAddr lo, DAddr hi) { ranges.emplace_back(lo, hi); };
         if (!other.published_observed_pages) {
             save(begin, end);
             return;
@@ -1517,21 +1516,20 @@ TextureCache<P>::NewerOverlapGuard::NewerOverlapGuard(TextureCache& cache_, Imag
         }
     });
     // Saving and restoring ranges that span the whole image only copies bytes for nothing
-    std::sort(saved.begin(), saved.end(),
-              [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+    std::sort(ranges.begin(), ranges.end());
     DAddr covered_end = image.cpu_addr;
-    for (const auto& [address, bytes] : saved) {
-        if (address > covered_end) {
+    for (const auto& [lo, hi] : ranges) {
+        if (lo > covered_end) {
             break;
         }
-        covered_end = std::max<DAddr>(covered_end, address + bytes.size());
+        covered_end = std::max(covered_end, hi);
     }
-    if (!saved.empty() && covered_end >= image.cpu_addr_end) {
+    if (!ranges.empty() && covered_end >= image.cpu_addr_end) {
         covered = true;
-        saved.clear();
         return;
     }
-    for (auto& [address, bytes] : saved) {
+    for (const auto& [lo, hi] : ranges) {
+        auto& [address, bytes] = saved.emplace_back(lo, std::vector<u8>(hi - lo));
         cache.device_memory.ReadBlockUnsafe(address, bytes.data(), bytes.size());
     }
 }
@@ -1571,33 +1569,39 @@ void TextureCache<P>::PopAsyncFlushes() {
                 if (False(image.flags & ImageFlagBits::Remapped)) {
                     NewerOverlapGuard guard{*this, download_info.object_id, image,
                                             download_info.gpu_write_tick};
-                    bool published = true;
-                    bool observed_pages = true;
-                    if (download_info.observed_partial) {
-                        // Never fall back to a full swizzle of a partially initialized
-                        // staging buffer. Use this image's original address space even
-                        // if another GPU channel is currently bound.
-                        published = false;
-                        const auto owner = address_spaces.find(download_info.observed_address_space);
-                        if (owner != address_spaces.end()) {
-                            const auto address = owner->second.gpu_memory->GpuToCpuAddress(
-                                image.gpu_addr, image.guest_size_bytes);
-                            if (address && *address == image.cpu_addr) {
-                                published = PublishObservedReadback(
-                                    image, copies, download_span, download_info.observation_serial,
-                                    owner->second.gpu_memory);
-                                ASSERT(published);
+                    // Newer writes already in guest memory replace every byte of this copy,
+                    // and skipping it publishes nothing of this image
+                    if (!guard.Covered()) {
+                        bool published = true;
+                        bool observed_pages = true;
+                        if (download_info.observed_partial) {
+                            // Never fall back to a full swizzle of a partially initialized
+                            // staging buffer. Use this image's original address space even
+                            // if another GPU channel is currently bound.
+                            published = false;
+                            const auto owner =
+                                address_spaces.find(download_info.observed_address_space);
+                            if (owner != address_spaces.end()) {
+                                const auto address = owner->second.gpu_memory->GpuToCpuAddress(
+                                    image.gpu_addr, image.guest_size_bytes);
+                                if (address && *address == image.cpu_addr) {
+                                    published = PublishObservedReadback(
+                                        image, copies, download_span,
+                                        download_info.observation_serial, owner->second.gpu_memory);
+                                    ASSERT(published);
+                                }
                             }
+                        } else if (!PublishObservedReadback(image, copies, download_span,
+                                                            download_info.observation_serial)) {
+                            SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies,
+                                         download_span, swizzle_data_buffer);
+                            observed_pages = false;
                         }
-                    } else if (!PublishObservedReadback(image, copies, download_span,
-                                                        download_info.observation_serial)) {
-                        SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
-                                     swizzle_data_buffer);
-                        observed_pages = false;
-                    }
-                    if (published && download_info.modification_tick >= image.published_tick) {
-                        image.published_tick = download_info.modification_tick;
-                        image.published_observed_pages = observed_pages;
+                        if (published &&
+                            download_info.modification_tick >= image.published_tick) {
+                            image.published_tick = download_info.modification_tick;
+                            image.published_observed_pages = observed_pages;
+                        }
                     }
                 }
             } else {
