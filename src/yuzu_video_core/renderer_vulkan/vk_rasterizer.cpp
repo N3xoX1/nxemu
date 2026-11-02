@@ -110,7 +110,12 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
 
     if (lower_left) {
         // Flip by surface clip height
-        y += conv(static_cast<f32>(regs.surface_clip.height));
+        const float clip_height = conv(static_cast<f32>(regs.surface_clip.height));
+        if (src.scale_y < 0.0f && y >= clip_height) {
+            y = clip_height - y;
+        } else {
+            y += clip_height;
+        }
         height = -height;
     }
 
