@@ -139,12 +139,19 @@ u32 WriteTrackingSlots(const Profile& profile, const IR::Program& program) {
         program.stage != Stage::Compute) {
         return 0;
     }
+    // One slot per written descriptor: the host binds the elements of an array one by one
     u32 slots{};
     for (const auto& desc : info.storage_buffers_descriptors) {
-        slots += desc.is_written ? desc.count : 0U;
+        if (desc.is_written && desc.count != 1) {
+            return 0;
+        }
+        slots += desc.is_written ? 1U : 0U;
     }
     for (const auto& desc : info.image_buffer_descriptors) {
-        slots += desc.is_written ? desc.count : 0U;
+        if (desc.is_written && desc.count != 1) {
+            return 0;
+        }
+        slots += desc.is_written ? 1U : 0U;
     }
     if (slots == 0 || slots > MAX_WRITE_TRACK_SLOTS) {
         return 0;

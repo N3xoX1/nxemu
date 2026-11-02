@@ -22,7 +22,8 @@ void main() {
     const uint device_page=params.first_page+page;
     const uint word=device_page>>5u;
     const uint bit=1u<<(device_page&31u);
-    if(gl_LocalInvocationIndex==0)written=written_bits[word]&bit;
+    // Other workgroups clear other bits of this word: read it atomically
+    if(gl_LocalInvocationIndex==0)written=atomicOr(written_bits[word],0u)&bit;
     barrier();
     // The first page can start before the copy
     const int begin=int(page*1024u)-int(params.head_words);

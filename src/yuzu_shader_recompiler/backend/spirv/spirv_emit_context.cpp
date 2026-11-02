@@ -1343,7 +1343,13 @@ void EmitContext::DefineWriteTrackingFunction(const Info& info) {
             OpAccessChain(write_track_bitmap_element, write_track_bitmap, u32_zero_value, word)};
         // Most stores find their page already marked: skip the atomic then
         const Id is_clear{
-            OpIEqual(U1, OpBitwiseAnd(U32[1], OpLoad(U32[1], pointer), bit), u32_zero_value)};
+            OpIEqual(U1,
+                     OpBitwiseAnd(U32[1],
+                                  OpAtomicLoad(U32[1], pointer,
+                                               Const(static_cast<u32>(spv::Scope::Device)),
+                                               u32_zero_value),
+                                  bit),
+                     u32_zero_value)};
         const Id set_label{OpLabel()};
         const Id merge_label{OpLabel()};
         OpSelectionMerge(merge_label, spv::SelectionControlMask::MaskNone);
