@@ -571,6 +571,15 @@ void DeviceMemoryManager<Traits>::WriteBlock(DAddr address, const void* src_poin
 }
 
 template <typename Traits>
+void DeviceMemoryManager<Traits>::GpuWrittenResults(DAddr address, size_t size,
+                                                    std::vector<std::pair<DAddr, u64>>& ranges)
+{
+    if (device_inter) {
+        device_inter->GpuWrittenResults(address, size, ranges);
+    }
+}
+
+template <typename Traits>
 void DeviceMemoryManager<Traits>::ReadBlockUnsafe(DAddr address, void* dest_pointer, size_t size)
 {
     WalkBlock(address, size,[&](size_t copy_amount, DAddr current_vaddr) 

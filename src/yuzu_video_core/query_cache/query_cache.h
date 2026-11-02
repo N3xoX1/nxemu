@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -169,6 +170,8 @@ struct QueryCacheBase<Traits>::QueryCacheBaseImpl {
     std::mutex flush_guard;
     std::deque<u64> flushes_pending;
     std::vector<QueryCacheBase<Traits>::QueryLocation> pending_unregister;
+    // Payloads kept behind a readback and not published yet
+    std::atomic<size_t> payloads_behind_readback{};
 };
 
 template <typename Traits>
@@ -245,6 +248,11 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         return;
     }
     DAddr cpu_addr = *cpu_addr_opt;
+    // Fast readback publishes payloads at submission, like ordinary fences, unless a readback
+    // the CPU could read before its publication keeps them behind it. Commit before this
+    // report exists: the fence also prepares the pending queries.
+    const bool fast_payload = !Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload;
+    const bool behind_readback = fast_payload && !impl->rasterizer.CommitReadbacksForEarlySignal();
     impl->device_memory.InvalidateNativeReadRegion(cpu_addr, has_timestamp ? 16 : 4);
     impl->device_memory.RegisterFlushCacheRegion(cpu_addr, has_timestamp ? 16 : 4,
                                                 CacheType::QueryCache);
@@ -282,20 +290,37 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             u32 value = static_cast<u32>(query_base->value);
             std::memcpy(pointer, &value, sizeof(value));
         }
+        query_base->flags |= QueryFlagBits::IsWritten;
         impl->pending_unregister.push_back(query_location);
     });
-    // Fast readback publishes payloads at submission, like ordinary fences, even when the
-    // report is a fence: waiting for the host GPU here serializes the guest with it.
-    // A fence still submits the pending readbacks now, as ordinary fences do, and the
-    // slot stays alive until the GPU work submitted with it retires.
-    if (!Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload) {
-        if (has_timestamp) {
-            u64 timestamp = impl->gpu.GetTicks();
-            u64 value = static_cast<u64>(payload);
-            std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
-            std::memcpy(pointer, &value, sizeof(value));
+    // Fast payloads are published even when the report is a fence: waiting for the host GPU
+    // here serializes the guest with it. A fence still submits the pending readbacks now, as
+    // ordinary fences do, and the slot stays alive until the GPU work submitted with it
+    // retires. A payload kept behind a readback needs its own fence: the guest may wait for it
+    // without submitting more work.
+    if (fast_payload && !behind_readback) {
+        const auto publish = [&] {
+            if (has_timestamp) {
+                u64 timestamp = impl->gpu.GetTicks();
+                u64 value = static_cast<u64>(payload);
+                std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
+                std::memcpy(pointer, &value, sizeof(value));
+            } else {
+                std::memcpy(pointer, &payload, sizeof(payload));
+            }
+        };
+        if (impl->payloads_behind_readback.load(std::memory_order_acquire) == 0) {
+            publish();
         } else {
-            std::memcpy(pointer, &payload, sizeof(payload));
+            // An older payload kept behind a readback must not overwrite this one
+            const auto [cont_addr, base] = gen_caching_indexing(cpu_addr);
+            std::scoped_lock lock(cache_mutex);
+            if (const auto it1 = cached_queries.find(cont_addr); it1 != cached_queries.end()) {
+                if (const auto it = it1->second.find(base); it != it1->second.end()) {
+                    impl->ObtainQuery(it->second)->flags |= QueryFlagBits::IsRewritten;
+                }
+            }
+            publish();
         }
         impl->rasterizer.SyncOperation(
             [streamer, new_query_id] { streamer->Free(new_query_id); });
@@ -317,11 +342,27 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, -1);
         };
     }
+    if (behind_readback) {
+        // A later payload to this address may have been published already: semaphores only
+        // move forward.
+        impl->payloads_behind_readback.fetch_add(1, std::memory_order_relaxed);
+        operation = [this, op = std::move(operation), query_base = query, query_location] {
+            {
+                std::scoped_lock lock(cache_mutex);
+                if (True(query_base->flags & QueryFlagBits::IsRewritten)) {
+                    impl->pending_unregister.push_back(query_location);
+                } else {
+                    op();
+                }
+            }
+            impl->payloads_behind_readback.fetch_sub(1, std::memory_order_release);
+        };
+    }
     if (is_fence && !protect) {
         impl->rasterizer.SignalFence(std::move(operation));
     } else {
         impl->rasterizer.SyncOperation(std::move(operation));
-        if (is_fence) {
+        if (is_fence || behind_readback) {
             impl->rasterizer.SignalReference();
         }
     }
@@ -392,6 +433,41 @@ void QueryCacheBase<Traits>::UnregisterPending() {
         streamer->Free(query_id);
     }
     impl->pending_unregister.clear();
+}
+
+template <typename Traits>
+bool QueryCacheBase<Traits>::HasPendingResult(VAddr addr, size_t size) {
+    bool pending = false;
+    IterateCache<false>(addr, size, [&](QueryLocation location) {
+        const auto [streamer_id, query_id] = location.unpack();
+        auto* streamer = impl->streamers[streamer_id];
+        if (!streamer) [[unlikely]] {
+            return;
+        }
+        constexpr auto done = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated |
+                              QueryFlagBits::IsWritten;
+        pending |= False(streamer->GetQuery(query_id)->flags & done);
+    });
+    return pending;
+}
+
+template <typename Traits>
+void QueryCacheBase<Traits>::HostSyncedResults(VAddr addr, size_t size,
+                                               std::vector<std::pair<VAddr, u64>>& ranges) {
+    IterateCache<false>(addr, size, [&](QueryLocation location) {
+        const auto [streamer_id, query_id] = location.unpack();
+        auto* streamer = impl->streamers[streamer_id];
+        if (!streamer) [[unlikely]] {
+            return;
+        }
+        const auto* query = streamer->GetQuery(query_id);
+        constexpr auto skipped = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated;
+        if (False(query->flags & QueryFlagBits::IsHostSynced) || True(query->flags & skipped)) {
+            return;
+        }
+        // The host sync copies the 64-bit value
+        ranges.emplace_back(query->guest_address, sizeof(u64));
+    });
 }
 
 template <typename Traits>

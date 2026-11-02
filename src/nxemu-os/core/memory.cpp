@@ -13,6 +13,7 @@
 #include <mutex>
 #include <span>
 #include <map>
+#include <thread>
 #include <vector>
 
 #include "yuzu_common/yuzu_assert.h"
@@ -1289,6 +1290,18 @@ struct Memory::Impl {
     }
 #endif
 
+    // Returns true when a query result the read covers is not written yet. With kick, the
+    // GPU work that writes it is submitted.
+    bool AwaitPendingResult(VAddr v_address, size_t size, bool kick)
+    {
+        const auto * p = GetPointerImpl(v_address, []() {}, []() {});
+        if (p == nullptr) return false;
+        RasterizerDownloadArea request{};
+        request.pending_result = true;
+        request.kick = kick;
+        return system.GetVideo().HandleRasterizerDownload(p, size, request).deferred;
+    }
+
     // Returns true when a shared page must stay inaccessible until an asynchronous copy
     // publishes it.
     bool HandleRasterizerDownload(VAddr v_address, size_t size, [[maybe_unused]] bool shared_page = false)
@@ -1683,7 +1696,18 @@ bool Memory::NceTrackReads(uint64_t vaddr) {
     // otherwise every later load of this page is interpreted. Return false if the
     // load must still be interpreted through its backing.
     if (!ready || !impl->buffer->NceHostAccessAllowed(vaddr, false)) impl->DownloadNceHostPage(vaddr);
-    const bool host_ready = impl->buffer->NceHostAccessAllowed(vaddr, false);
+    bool host_ready = impl->buffer->NceHostAccessAllowed(vaddr, false);
+    // Fast readback publishes GPU signals before the results of earlier queries are written,
+    // and an emulated load reads guest memory directly. Wait for a result the load reads.
+    if (!host_ready && impl->AwaitPendingResult(vaddr, sizeof(u64), true)) {
+        const auto started = std::chrono::steady_clock::now();
+        while (impl->AwaitPendingResult(vaddr, sizeof(u64), false) &&
+               std::chrono::steady_clock::now() - started < std::chrono::milliseconds(100)) {
+            std::this_thread::yield();
+        }
+        impl->DownloadNceHostPage(vaddr);
+        host_ready = impl->buffer->NceHostAccessAllowed(vaddr, false);
+    }
     if (profile) {
         using Clock = std::chrono::steady_clock;
         static thread_local u64 reads{}, ready_reads{}, emulated{};

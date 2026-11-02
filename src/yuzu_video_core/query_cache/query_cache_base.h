@@ -106,6 +106,13 @@ public:
 
     void NotifyWFI();
 
+    /// Return true when a result in the region is not written to guest memory yet.
+    bool HasPendingResult(VAddr addr, size_t size);
+
+    /// Append the ranges of pending results in a region that the GPU already copied into
+    /// the buffer cache.
+    void HostSyncedResults(VAddr addr, size_t size, std::vector<std::pair<VAddr, u64>>& ranges);
+
     bool AccelerateHostConditionalRendering();
 
     // Async downloads

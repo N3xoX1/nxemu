@@ -491,6 +491,23 @@ struct GPU::Impl :
         return deferred;
     }
 
+    bool AwaitPendingResult(DAddr addr, u64 size, bool kick)
+    {
+        if (!rasterizer->HasPendingResult(addr, size))
+        {
+            return false;
+        }
+        if (kick)
+        {
+            // The result is written when a fence after its query signals
+            [[maybe_unused]] const uint64_t fence = RequestSyncOperation([this]() {
+                rasterizer->SignalReference();
+            });
+            gpu_thread.TickGPU();
+        }
+        return true;
+    }
+
     void OnNativeCPURead(DAddr addr, u64 size)
     {
         static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
@@ -900,6 +917,11 @@ void GPU::ClearCdmaInstance(u32 id)
 RasterizerDownloadArea GPU::OnCPURead(PAddr addr, uint64_t size)
 {
     return impl->OnCPURead(addr, size);
+}
+
+bool GPU::AwaitPendingResult(DAddr addr, u64 size, bool kick)
+{
+    return impl->AwaitPendingResult(addr, size, kick);
 }
 
 bool GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)

@@ -8,6 +8,7 @@
 #include <optional>
 #include <span>
 #include <utility>
+#include <vector>
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/polyfill_thread.h"
 #include "yuzu_video_core/cache_types.h"
@@ -122,6 +123,18 @@ public:
     /// Lock-free: true when guest memory sharing a host page with a CPU access may wait for an
     /// asynchronous copy that keeps it inaccessible until it is published.
     virtual bool AwaitsProtectedDownload(DAddr addr, u64 size) { return false; }
+
+    /// Commit the pending readbacks. Return true when the CPU cannot see any readback in
+    /// flight before its publication, so a GPU signal may be published ahead of the GPU.
+    virtual bool CommitReadbacksForEarlySignal() { return true; }
+
+    /// True when a query result in the region is not written to guest memory yet.
+    virtual bool HasPendingResult(DAddr addr, u64 size) { return false; }
+
+    /// Append the ranges of a region holding pending query results that the GPU already
+    /// copied into its buffers: guest memory there still holds an older value.
+    virtual void GpuWrittenResults(DAddr addr, u64 size,
+                                   std::vector<std::pair<DAddr, u64>>& ranges) {}
 
     /// Check if the the specified memory area requires flushing to CPU Memory.
     virtual bool MustFlushRegion(DAddr addr, u64 size,

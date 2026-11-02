@@ -322,6 +322,12 @@ public:
         return pending_downloads_protected;
     }
 
+    /// Return true when a committed download the CPU can read before its publication is
+    /// still in flight.
+    [[nodiscard]] bool HasUnprotectedDownloads() const noexcept {
+        return unprotected_downloads != 0;
+    }
+
     [[nodiscard]] bool MayHaveGpuWrites(DAddr addr, size_t size) const noexcept {
         return gpu_write_history.MayHaveWrites(addr, size);
     }
@@ -468,6 +474,9 @@ private:
     void ImmediateUploadMemory(Buffer& buffer, u64 largest_copy,
                                std::span<const BufferCopy> copies);
 
+    void SplitAroundGpuWrittenResults(DAddr buffer_addr, const BufferCopy& copy,
+                                      std::vector<BufferCopy>& out) const;
+
     void MappedUploadMemory(Buffer& buffer, u64 total_size_bytes, std::span<BufferCopy> copies);
 
     void DownloadBufferMemory(Buffer& buffer_id);
@@ -585,6 +594,8 @@ private:
 
     std::vector<SparseBuffer> sparse_buffers;
     std::vector<std::pair<GPUVAddr, u32>> sparse_writes;
+    std::vector<std::pair<DAddr, u64>> gpu_written_results;
+    std::vector<BufferCopy> split_upload_copies;
     u64 sparse_bind_tick = 0;
     bool has_bound_sparse = false;
     bool has_written_sparse = false;
@@ -609,6 +620,8 @@ private:
     std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
     // Pages kept unreadable by the CPU until their asynchronous download is published.
     std::deque<boost::container::small_vector<std::pair<DAddr, u64>, 4>> pending_protected_ranges;
+    std::deque<bool> pending_unprotected_downloads;
+    size_t unprotected_downloads = 0;
     bool pending_downloads_protected = true;
     Common::OverlapRangeSet<DAddr> protected_downloads;
     VideoCommon::AtomicPageBits<34, 12> protected_download_pages;

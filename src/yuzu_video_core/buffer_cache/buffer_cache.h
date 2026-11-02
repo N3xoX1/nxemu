@@ -781,6 +781,8 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
                 protected_ranges.emplace_back(addr, copy.size);
             }
         }
+        pending_unprotected_downloads.push_back(!pending_downloads_protected);
+        unprotected_downloads += pending_downloads_protected ? 0 : 1;
     }
     async_buffers.emplace_back(download_staging);
 }
@@ -873,6 +875,8 @@ void BufferCache<P>::PopAsyncBuffers() {
     pending_readback_flag_offsets.pop_front();
     pending_readback_cpu_copies.pop_front();
     pending_download_ranges.pop_front();
+    unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
+    pending_unprotected_downloads.pop_front();
     for (const auto& [addr, size] : pending_protected_ranges.front()) {
         device_memory.UpdatePagesReadCachedCount(addr, size, -1);
         protected_downloads.Subtract(addr, size);
@@ -1923,17 +1927,64 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
     if constexpr (USE_MEMORY_MAPS) {
         auto upload_staging = runtime.UploadStagingBuffer(total_size_bytes);
         const std::span<u8> staging_pointer = upload_staging.mapped_span;
+        gpu_written_results.clear();
         for (BufferCopy& copy : copies) {
             u8* const src_pointer = staging_pointer.data() + copy.src_offset;
             const DAddr device_addr = buffer.CpuAddr() + copy.dst_offset;
             device_memory.ReadBlockUnsafe(device_addr, src_pointer, copy.size);
+            device_memory.GpuWrittenResults(device_addr, copy.size, gpu_written_results);
 
             // Apply the staging offset
             copy.src_offset += upload_staging.offset;
         }
+        if (!gpu_written_results.empty()) [[unlikely]] {
+            // Guest memory still holds the old value of a result the GPU already copied into
+            // the buffer: upload around it.
+            split_upload_copies.clear();
+            for (const BufferCopy& copy : copies) {
+                SplitAroundGpuWrittenResults(buffer.CpuAddr(), copy, split_upload_copies);
+            }
+            if (split_upload_copies.empty()) {
+                return;
+            }
+            const std::span<BufferCopy> split_copies(split_upload_copies);
+            const bool can_reorder = runtime.CanReorderUpload(buffer, split_copies);
+            runtime.CopyBuffer(buffer, upload_staging.buffer, split_copies, true, can_reorder);
+            return;
+        }
         const bool can_reorder = runtime.CanReorderUpload(buffer, copies);
         runtime.CopyBuffer(buffer, upload_staging.buffer, copies, true, can_reorder);
     }
+}
+
+template <class P>
+void BufferCache<P>::SplitAroundGpuWrittenResults(DAddr buffer_addr, const BufferCopy& copy,
+                                                  std::vector<BufferCopy>& out) const {
+    const DAddr copy_begin = buffer_addr + copy.dst_offset;
+    const DAddr end = copy_begin + copy.size;
+    DAddr begin = copy_begin;
+    const auto emit = [&](DAddr range_end) {
+        if (range_end <= begin) {
+            return;
+        }
+        out.push_back(BufferCopy{
+            .src_offset = copy.src_offset + (begin - copy_begin),
+            .dst_offset = copy.dst_offset + (begin - copy_begin),
+            .size = static_cast<size_t>(range_end - begin),
+        });
+    };
+    std::vector<std::pair<DAddr, u64>> holes;
+    for (const auto& [addr, size] : gpu_written_results) {
+        if (addr < end && begin < addr + size) {
+            holes.emplace_back(addr, size);
+        }
+    }
+    std::sort(holes.begin(), holes.end());
+    for (const auto& [addr, size] : holes) {
+        emit(std::min(addr, end));
+        begin = std::max(begin, std::min<DAddr>(addr + size, end));
+    }
+    emit(end);
 }
 
 template <class P>

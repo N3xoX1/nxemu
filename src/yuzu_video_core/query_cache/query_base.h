@@ -18,6 +18,7 @@ enum class QueryFlagBits : u32 {
     IsInvalidated = 1 << 6,      ///< Indicates the value of th query has been nullified.
     IsOrphan = 1 << 7,           ///< Indicates the query has not been set by a guest query.
     IsFence = 1 << 8,            ///< Indicates the query is a fence.
+    IsWritten = 1 << 9,          ///< Indicates the result is written to guest memory.
 };
 DECLARE_ENUM_FLAG_OPERATORS(QueryFlagBits)
 

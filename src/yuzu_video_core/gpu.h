@@ -260,6 +260,10 @@ public:
     /// published, instead of waiting for the GPU.
     bool OnNativeCPURead(DAddr addr, u64 size, bool shared_page = false);
 
+    /// Return true when a query result in the region is not written yet. With kick, also
+    /// submit the GPU work that writes it.
+    bool AwaitPendingResult(DAddr addr, u64 size, bool kick);
+
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, u64 size);
 

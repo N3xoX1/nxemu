@@ -819,6 +819,38 @@ bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
            query_cache.AwaitsProtectedResult(addr, size);
 }
 
+bool RasterizerVulkan::HasPendingResult(DAddr addr, u64 size) {
+    return query_cache.AwaitsProtectedResult(addr, size) && query_cache.HasPendingResult(addr, size);
+}
+
+void RasterizerVulkan::GpuWrittenResults(DAddr addr, u64 size,
+                                         std::vector<std::pair<DAddr, u64>>& ranges) {
+    // Only results kept unreadable by the CPU can be pending once the guest moved on
+    if (!query_cache.AwaitsProtectedResult(addr, size)) {
+        return;
+    }
+    query_cache.HostSyncedResults(addr, size, ranges);
+}
+
+bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
+    // Without CPU faults on pending readbacks, fast readback accepts stale reads.
+    if (!device_memory.ProtectsReadCachedPages()) {
+        return true;
+    }
+    // Readbacks are protected when they are committed, and the CPU can read them as soon as
+    // the signal is published.
+    bool pending;
+    {
+        std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+        pending = buffer_cache.HasUncommittedFlushes() || texture_cache.HasUncommittedFlushes();
+    }
+    if (pending) {
+        fence_manager.SignalReference();
+    }
+    std::scoped_lock lock{buffer_cache.mutex};
+    return !buffer_cache.HasUnprotectedDownloads();
+}
+
 VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {
     bool deferred = false;
     {
