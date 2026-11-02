@@ -1569,39 +1569,37 @@ void TextureCache<P>::PopAsyncFlushes() {
                 if (False(image.flags & ImageFlagBits::Remapped)) {
                     NewerOverlapGuard guard{*this, download_info.object_id, image,
                                             download_info.gpu_write_tick};
-                    // Newer writes already in guest memory replace every byte of this copy,
-                    // and skipping it publishes nothing of this image
-                    if (!guard.Covered()) {
-                        bool published = true;
-                        bool observed_pages = true;
-                        if (download_info.observed_partial) {
-                            // Never fall back to a full swizzle of a partially initialized
-                            // staging buffer. Use this image's original address space even
-                            // if another GPU channel is currently bound.
-                            published = false;
-                            const auto owner =
-                                address_spaces.find(download_info.observed_address_space);
-                            if (owner != address_spaces.end()) {
-                                const auto address = owner->second.gpu_memory->GpuToCpuAddress(
-                                    image.gpu_addr, image.guest_size_bytes);
-                                if (address && *address == image.cpu_addr) {
-                                    published = PublishObservedReadback(
-                                        image, copies, download_span,
-                                        download_info.observation_serial, owner->second.gpu_memory);
-                                    ASSERT(published);
-                                }
+                    bool published = true;
+                    bool observed_pages = true;
+                    if (guard.Covered()) {
+                        // Newer writes already in guest memory replace every byte of this copy,
+                        // so guest memory is not older than this image anywhere
+                        observed_pages = false;
+                    } else if (download_info.observed_partial) {
+                        // Never fall back to a full swizzle of a partially initialized
+                        // staging buffer. Use this image's original address space even
+                        // if another GPU channel is currently bound.
+                        published = false;
+                        const auto owner = address_spaces.find(download_info.observed_address_space);
+                        if (owner != address_spaces.end()) {
+                            const auto address = owner->second.gpu_memory->GpuToCpuAddress(
+                                image.gpu_addr, image.guest_size_bytes);
+                            if (address && *address == image.cpu_addr) {
+                                published = PublishObservedReadback(
+                                    image, copies, download_span, download_info.observation_serial,
+                                    owner->second.gpu_memory);
+                                ASSERT(published);
                             }
-                        } else if (!PublishObservedReadback(image, copies, download_span,
-                                                            download_info.observation_serial)) {
-                            SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies,
-                                         download_span, swizzle_data_buffer);
-                            observed_pages = false;
                         }
-                        if (published &&
-                            download_info.modification_tick >= image.published_tick) {
-                            image.published_tick = download_info.modification_tick;
-                            image.published_observed_pages = observed_pages;
-                        }
+                    } else if (!PublishObservedReadback(image, copies, download_span,
+                                                        download_info.observation_serial)) {
+                        SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
+                                     swizzle_data_buffer);
+                        observed_pages = false;
+                    }
+                    if (published && download_info.modification_tick >= image.published_tick) {
+                        image.published_tick = download_info.modification_tick;
+                        image.published_observed_pages = observed_pages;
                     }
                 }
             } else {
