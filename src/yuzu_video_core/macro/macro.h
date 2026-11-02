@@ -17,6 +17,13 @@ class Maxwell3D;
 
 namespace Macro {
 constexpr std::size_t NUM_MACRO_REGISTERS = 8;
+
+// The hardware MME's variable 32-bit shifts use the low five bits of the shift count.
+// This also matches the x64 JIT, where the host shift instruction masks CL automatically.
+constexpr u32 MaskShiftCount(u32 count) {
+    return count & 31U;
+}
+
 enum class Operation : u32 {
     ALU = 0,
     AddImmediate = 1,
@@ -79,7 +86,7 @@ union Opcode {
     BitField<27, 5, u32> bf_dst_bit;
 
     u32 GetBitfieldMask() const {
-        return (1 << bf_size) - 1;
+        return (u32{1} << bf_size) - 1;
     }
 
     s32 GetBranchTarget() const {
@@ -134,7 +141,16 @@ private:
         bool has_hle_program{};
     };
 
+    /// Direct lookup of compiled macros by code position, kept in sync with macro_cache. It avoids
+    /// a hash-table probe on every macro call; positions outside the table use macro_cache.
+    struct FastEntry {
+        CachedMacro* program{};
+        bool is_lle{};
+    };
+    static constexpr std::size_t FAST_LOOKUP_SIZE = 0x2000;
+
     std::unordered_map<u32, CacheInfo> macro_cache;
+    std::vector<FastEntry> fast_lookup;
     std::unordered_map<u32, std::vector<u32>> uploaded_macro_code;
     std::unique_ptr<HLEMacro> hle_macros;
     Engines::Maxwell3D& maxwell3d;
