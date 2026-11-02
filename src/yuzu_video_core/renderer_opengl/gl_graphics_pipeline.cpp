@@ -306,7 +306,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
         const auto read_handle{[&](const auto& desc, u32 index) {
             ASSERT(cbufs[desc.cbuf_index].enabled);
-            const u32 index_offset{index << desc.size_shift};
+            const u32 index_offset{index * desc.stride};
             const u32 offset{desc.cbuf_offset + index_offset};
             const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
             if constexpr (std::is_same_v<decltype(desc), const TextureDescriptor&> ||

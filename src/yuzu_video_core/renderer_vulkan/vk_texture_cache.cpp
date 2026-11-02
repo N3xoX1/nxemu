@@ -5,6 +5,7 @@
 #include <array>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <span>
 #include <vector>
 #include <boost/container/small_vector.hpp>
@@ -1423,19 +1424,87 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
                                     std::span<const VideoCommon::ImageCopy> copies) {
     const u32 src_bpp = BytesPerBlock(src.info.format);
     const u32 dst_bpp = BytesPerBlock(dst.info.format);
-    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
-        src.info.type == ImageType::Linear && dst.info.type == ImageType::Linear &&
-        src_bpp != dst_bpp) {
-        // Copy incompatible linear formats through a buffer.
-        boost::container::small_vector<VideoCommon::ImageCopy, 16> reinterpret_copies(
-            copies.begin(), copies.end());
-        for (auto& copy : reinterpret_copies) {
-            // ReinterpretImage expects widths in destination texels.
+    if (src_bpp != dst_bpp) {
+        // Vulkan image copies require size-compatible texel blocks. Reinterpret through a
+        // buffer when their sizes differ, regardless of the host driver or image tiling.
+        // ReinterpretImage expresses its source X offset in destination-byte units.
+        const u32 src_unit = src_bpp / DefaultBlockWidth(src.info.format);
+        const u32 dst_unit = dst_bpp / DefaultBlockWidth(dst.info.format);
+        const auto host_size = [this](const Image& image) {
+            auto size = image.info.size;
+            if (True(image.flags & ImageFlagBits::Rescaled)) {
+                size.width = resolution.ScaleUp(size.width);
+                if (image.info.type == ImageType::e2D) {
+                    size.height = resolution.ScaleUp(size.height);
+                }
+            }
+            return size;
+        };
+        const auto src_size = host_size(src);
+        const auto dst_size = host_size(dst);
+        boost::container::small_vector<VideoCommon::ImageCopy, 16> reinterpret_copies;
+        reinterpret_copies.reserve(copies.size());
+        for (auto copy : copies) {
+            const auto valid_subresource = [](const auto& sub, const auto& info) {
+                return sub.base_level >= 0 && sub.base_level < info.resources.levels &&
+                       sub.base_level < 32 && sub.base_layer >= 0 &&
+                       sub.base_layer < info.resources.layers && sub.num_layers > 0;
+            };
+            if (!valid_subresource(copy.src_subresource, src.info) ||
+                !valid_subresource(copy.dst_subresource, dst.info)) {
+                continue;
+            }
+            const auto src_mip = VideoCommon::MipSize(src_size, copy.src_subresource.base_level);
+            const auto dst_mip = VideoCommon::MipSize(dst_size, copy.dst_subresource.base_level);
+            if (copy.src_offset.x < 0 || copy.dst_offset.x < 0 ||
+                copy.src_offset.y < 0 || copy.dst_offset.y < 0 ||
+                copy.src_offset.z < 0 || copy.dst_offset.z < 0 ||
+                static_cast<u32>(copy.src_offset.x) >= src_mip.width ||
+                static_cast<u32>(copy.dst_offset.x) >= dst_mip.width ||
+                static_cast<u32>(copy.src_offset.y) >= src_mip.height ||
+                static_cast<u32>(copy.dst_offset.y) >= dst_mip.height ||
+                static_cast<u32>(copy.src_offset.z) >= src_mip.depth ||
+                static_cast<u32>(copy.dst_offset.z) >= dst_mip.depth ||
+                src_unit == 0 || dst_unit == 0) {
+                continue;
+            }
+            const u64 src_byte_offset = static_cast<u64>(copy.src_offset.x) * src_unit;
+            if (src_byte_offset % dst_unit != 0) {
+                continue;
+            }
+            const u64 available_src_bytes =
+                static_cast<u64>(src_mip.width - copy.src_offset.x) * src_unit;
+            // Copy widths are destination texels; the source width is rescaled by
+            // ReinterpretImage. Clamp both sides before issuing any Vulkan command.
             copy.extent.width = std::min({
-                copy.extent.width * std::max(src_bpp, dst_bpp) / dst_bpp,
-                src.info.size.width * src_bpp / dst_bpp,
-                dst.info.size.width,
+                copy.extent.width,
+                static_cast<u32>(available_src_bytes / dst_unit),
+                dst_mip.width - static_cast<u32>(copy.dst_offset.x),
             });
+            // Each copied source row must occupy exactly the bytes written to the
+            // destination row. Otherwise the last texel can read uninitialized scratch.
+            const u32 dst_granularity = src_unit / std::gcd(src_unit, dst_unit);
+            copy.extent.width -= copy.extent.width % dst_granularity;
+            copy.extent.height = std::min({copy.extent.height,
+                src_mip.height - static_cast<u32>(copy.src_offset.y),
+                dst_mip.height - static_cast<u32>(copy.dst_offset.y)});
+            copy.extent.depth = std::min({copy.extent.depth,
+                src_mip.depth - static_cast<u32>(copy.src_offset.z),
+                dst_mip.depth - static_cast<u32>(copy.dst_offset.z)});
+            const s32 layers = std::min({copy.src_subresource.num_layers,
+                copy.dst_subresource.num_layers,
+                src.info.resources.layers - copy.src_subresource.base_layer,
+                dst.info.resources.layers - copy.dst_subresource.base_layer});
+            copy.src_subresource.num_layers = layers;
+            copy.dst_subresource.num_layers = layers;
+            copy.src_offset.x = static_cast<s32>(src_byte_offset / dst_unit);
+            if (copy.extent.width == 0 || copy.extent.height == 0 || copy.extent.depth == 0) {
+                continue;
+            }
+            reinterpret_copies.push_back(copy);
+        }
+        if (reinterpret_copies.empty()) {
+            return;
         }
         return ReinterpretImage(dst, src, reinterpret_copies);
     }

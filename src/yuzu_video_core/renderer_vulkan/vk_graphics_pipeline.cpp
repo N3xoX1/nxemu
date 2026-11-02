@@ -780,7 +780,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 }
             }
             return [=](u32 index) {
-                const u32 delta = index << desc.size_shift;
+                const u32 delta = index * desc.stride;
                 const u32 raw = primary.Read(desc.cbuf_offset + delta);
                 return TexturePair(Tegra::Texture::ComposeTextureHandle(
                                        desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
@@ -1081,7 +1081,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
         const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
         const auto read_handle{[&](const auto& desc, u32 index) {
             ASSERT(cbufs[desc.cbuf_index].enabled);
-            const u32 index_offset{index << desc.size_shift};
+            const u32 index_offset{index * desc.stride};
             const u32 offset{desc.cbuf_offset + index_offset};
             const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
             if constexpr (requires { desc.has_secondary; }) {

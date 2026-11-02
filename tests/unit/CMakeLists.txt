@@ -17,6 +17,14 @@ nxemu_unit_test(test_fast_copy)
 
 option(NXEMU_BUILD_COPY_GPU_TESTS "Build the manual headless Vulkan copy integration test" OFF)
 if(NXEMU_BUILD_COPY_GPU_TESTS)
+    add_executable(test_strided_copy_gpu strided_handles/gpu_copy.cpp
+        "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_settings.cpp"
+        "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_enum_strings.cpp")
+    target_include_directories(test_strided_copy_gpu PRIVATE "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/src/nxemu-video"
+        "${CMAKE_SOURCE_DIR}/external/fmt/include" "${CMAKE_SOURCE_DIR}/external/boost")
+    target_link_libraries(test_strided_copy_gpu PRIVATE nxemu_test_support video_core
+        Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
     add_executable(test_fast_copy_gpu fast_copy/gpu_copy.cpp
         "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_settings.cpp"
         "${CMAKE_SOURCE_DIR}/src/nxemu-video/video_enum_strings.cpp")
@@ -301,3 +309,13 @@ if(NXEMU_BUILD_VTG_GPU_TESTS)
     target_link_libraries(test_vtg_indirect_gpu PRIVATE nxemu_test_support video_core
         Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
 endif()
+
+# Execute the production texture pass, including wrapped U32 guest addresses.
+add_executable(test_strided_handles strided_handles/handles.cpp)
+target_include_directories(test_strided_handles PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_strided_handles PRIVATE FMT_HEADER_ONLY)
+add_dependencies(test_strided_handles shader_recompiler sirit fmt common)
+target_link_libraries(test_strided_handles PRIVATE nxemu_test_support
+    $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
+nxemu_unit_test(test_strided_handles)
