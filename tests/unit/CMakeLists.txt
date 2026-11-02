@@ -240,29 +240,6 @@ if(NOT MSVC)
     target_link_options(test_vertex_input PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_vertex_input)
-set(NXEMU_VERTEX_INPUT_REFERENCE_PATCH "" CACHE FILEPATH "Reviewed Lot1 patch for host comparison")
-set(NXEMU_VERTEX_INPUT_BASELINE "HEAD" CACHE STRING "Git ref before the vertex-input fix")
-if(NXEMU_VERTEX_INPUT_REFERENCE_PATCH)
-    set(_vertex_input_compare)
-    foreach(_part original supplied consume_supplied notify_supplied)
-        list(APPEND _vertex_input_compare "${_vertex_input_generated}/${_part}.inc")
-    endforeach()
-    add_custom_command(
-        OUTPUT ${_vertex_input_compare}
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/vertex_input/prepare_compare.py"
-            "${CMAKE_SOURCE_DIR}" "${_vertex_input_generated}"
-            "${NXEMU_VERTEX_INPUT_REFERENCE_PATCH}" "${NXEMU_VERTEX_INPUT_BASELINE}"
-        DEPENDS vertex_input/prepare_compare.py vertex_input/extract.py
-            "${NXEMU_VERTEX_INPUT_REFERENCE_PATCH}"
-        VERBATIM)
-    add_executable(bench_vertex_input vertex_input/vertex_input.cpp
-        ${_vertex_input_includes} ${_vertex_input_compare})
-    target_include_directories(bench_vertex_input PRIVATE "${_vertex_input_generated}"
-        "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
-        "${CMAKE_SOURCE_DIR}/external/fmt/include")
-    target_compile_definitions(bench_vertex_input PRIVATE FMT_HEADER_ONLY VERTEX_INPUT_COMPARE)
-    target_link_libraries(bench_vertex_input PRIVATE nxemu_test_support Vulkan::Headers)
-endif()
 set(_conditional_generated "${CMAKE_CURRENT_BINARY_DIR}/conditional_rendering")
 add_custom_command(
     OUTPUT "${_conditional_generated}/engine.inc" "${_conditional_generated}/runtime.inc"
