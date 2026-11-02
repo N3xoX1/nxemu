@@ -147,6 +147,13 @@ public:
 
     void BindVertexBuffers(VideoCommon::HostBindings<Buffer>& bindings);
 
+    void NotifyVertexBufferStride(u32 index, u32 stride,
+                                  Tegra::Engines::Maxwell3D::DirtyState::Flags& dirty) noexcept;
+
+    [[nodiscard]] bool NeedsVertexInputStrideTracking() const noexcept {
+        return track_vertex_input_strides;
+    }
+
     bool SetVertexBindingMap(const std::array<u32, 32>& bindings) {
         if (vertex_binding_map == bindings) {
             return false;
@@ -231,6 +238,9 @@ private:
     vk::Buffer null_buffer;
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;
     bool compact_vertex_bindings{};
+    bool track_vertex_input_strides{};
+    u32 known_vertex_input_strides{};
+    std::array<u32, 32> vertex_input_strides{};
     std::array<EmulatedTransformFeedbackBuffer, 4> emulated_xfb_buffers{};
     bool emulated_xfb_enabled{};
 

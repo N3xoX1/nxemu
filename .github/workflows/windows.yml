@@ -110,7 +110,7 @@ jobs:
       - name: Package
         run: |
           New-Item -ItemType Directory -Force package | Out-Null
-          Compress-Archive -Path bin/x64/Release/nxemu.exe, bin/x64/Release/SDL2.dll, bin/x64/Release/nxemu.lang, bin/x64/Release/modules, bin/x64/Release/ui -DestinationPath package/NxEmu-windows-x64.zip -Force
+          Compress-Archive -Path bin/x64/Release/nxemu.exe, bin/x64/Release/SDL3.dll, bin/x64/Release/nxemu.lang, bin/x64/Release/modules, bin/x64/Release/ui -DestinationPath package/NxEmu-windows-x64.zip -Force
           $symbols = @(Get-ChildItem bin/x64/Release, modules/x64 -Recurse -Filter *.pdb)
           if ($symbols.Count -eq 0) { throw 'Linker debug symbols were not generated' }
           Compress-Archive -Path $symbols.FullName -DestinationPath package/NxEmu-windows-x64-symbols.zip -Force

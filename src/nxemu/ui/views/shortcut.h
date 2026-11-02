@@ -1,5 +1,5 @@
 #pragma once
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <string>
 
 struct Shortcut
@@ -10,11 +10,11 @@ struct Shortcut
     bool shift = false;
 
     bool operator==(const Shortcut & other) const { return key == other.key && ctrl == other.ctrl && alt == other.alt && shift == other.shift; }
-    bool Matches(const SDL_Keysym & keysym) const;
+    bool Matches(const SDL_KeyboardEvent & event) const;
     std::string Label() const;
     std::string Text() const;
     static Shortcut Parse(const std::string & text);
-    static Shortcut Of(const SDL_Keysym & keysym);
+    static Shortcut Of(const SDL_KeyboardEvent & event);
 };
 
 bool CommandKeyboard();

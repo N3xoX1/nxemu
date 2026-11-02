@@ -155,3 +155,15 @@ MemoryLayout MemoryLayoutFromString(std::string_view str)
     if (str == "Memory_8Gb") return MemoryLayout::Memory_8Gb;
     return MemoryLayout::Memory_4Gb;
 }
+
+const char* AppletModeToString(AppletMode value)
+{
+    return value == AppletMode::LLE ? "LLE" : "HLE";
+}
+
+AppletMode AppletModeFromString(std::string_view str, AppletMode fallback)
+{
+    if (str == "HLE") return AppletMode::HLE;
+    if (str == "LLE") return AppletMode::LLE;
+    return fallback;
+}

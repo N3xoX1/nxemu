@@ -1141,8 +1141,12 @@ struct Memory::Impl {
                 end += YUZU_PAGESIZE;
                 ++i;
             }
-            HandleRasterizerDownload(begin, end - begin,
-                                     IsSharedNcePage(begin, end, vaddr, read) && !PreciseNceReadTracking());
+            const bool shared = IsSharedNcePage(begin, end, vaddr, read) && !PreciseNceReadTracking();
+            HandleRasterizerDownload(begin, end - begin, shared);
+            // An existing readback target may still have its asynchronous copy in flight,
+            // and the guest can read the page before the fence that publishes it.
+            if (!shared && !DemandNceReadback())
+                HandleRasterizerDownload(begin, end - begin, true);
         }
         // Precise mode grants access and registers the observer on the GPU producer
         // before it resumes drawing. Reopening here could undo a subsequent GPU write.

@@ -1,6 +1,6 @@
 #pragma once
 #include "dialog.h"
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <array>
 #include <functional>
 #include <nxemu-module-spec/operating_system.h>

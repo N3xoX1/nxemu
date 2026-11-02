@@ -1,5 +1,5 @@
 #pragma once
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <filesystem>
 #include <memory>
 #include <nxemu-module-spec/base.h>
@@ -43,6 +43,7 @@ public:
     void * DisplayConnection() const override;
     RenderWindowSystem WindowSystem() const override;
     float PixelRatio() const override;
+    void OnFramePresented(void *, uint32_t) override {}
 
 private:
     UiDialogWindow(const UiDialogWindow &) = delete;

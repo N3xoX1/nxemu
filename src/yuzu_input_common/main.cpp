@@ -23,7 +23,7 @@
 #ifdef HAVE_LIBUSB
 #include "yuzu_input_common/drivers/gc_adapter.h"
 #endif
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
 #include "yuzu_input_common/drivers/joycon.h"
 #include "yuzu_input_common/drivers/sdl_driver.h"
 #endif
@@ -88,7 +88,7 @@ struct InputSubsystem::Impl {
 #endif
         RegisterEngine("virtual_amiibo", virtual_amiibo);
         RegisterEngine("virtual_gamepad", virtual_gamepad);
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         RegisterEngine("sdl", sdl);
         RegisterEngine("joycon", joycon);
 #endif
@@ -122,7 +122,7 @@ struct InputSubsystem::Impl {
 #endif
         UnregisterEngine(virtual_amiibo);
         UnregisterEngine(virtual_gamepad);
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         UnregisterEngine(sdl);
         UnregisterEngine(joycon);
 #endif
@@ -152,7 +152,7 @@ struct InputSubsystem::Impl {
 #endif
         auto udp_devices = udp_client->GetInputDevices();
         devices.insert(devices.end(), udp_devices.begin(), udp_devices.end());
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         auto joycon_devices = joycon->GetInputDevices();
         devices.insert(devices.end(), joycon_devices.begin(), joycon_devices.end());
         auto sdl_devices = sdl->GetInputDevices();
@@ -190,7 +190,7 @@ struct InputSubsystem::Impl {
         if (engine == udp_client->GetEngineName()) {
             return udp_client;
         }
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         if (engine == sdl->GetEngineName()) {
             return sdl;
         }
@@ -282,7 +282,7 @@ struct InputSubsystem::Impl {
         if (engine == virtual_gamepad->GetEngineName()) {
             return true;
         }
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         if (engine == sdl->GetEngineName()) {
             return true;
         }
@@ -303,7 +303,7 @@ struct InputSubsystem::Impl {
         gcadapter->BeginConfiguration();
 #endif
         udp_client->BeginConfiguration();
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         sdl->BeginConfiguration();
         joycon->BeginConfiguration();
 #endif
@@ -319,7 +319,7 @@ struct InputSubsystem::Impl {
         gcadapter->EndConfiguration();
 #endif
         udp_client->EndConfiguration();
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         sdl->EndConfiguration();
         joycon->EndConfiguration();
 #endif
@@ -327,7 +327,7 @@ struct InputSubsystem::Impl {
 
     void PumpEvents() const {
         update_engine->PumpEvents();
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
         sdl->PumpEvents();
 #endif
     }
@@ -352,7 +352,7 @@ struct InputSubsystem::Impl {
     std::shared_ptr<GCAdapter> gcadapter;
 #endif
 
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
     std::shared_ptr<SDLDriver> sdl;
     std::shared_ptr<Joycons> joycon;
 #endif

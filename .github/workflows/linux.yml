@@ -28,7 +28,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang libclang-rt-dev lld cmake ninja-build pkg-config ccache glslang-tools libsdl2-dev libdbus-1-dev libvulkan-dev libwayland-dev libasound2-dev libpulse-dev libusb-1.0-0-dev python3
+          sudo apt-get install -y build-essential clang libclang-rt-dev lld cmake ninja-build pkg-config ccache glslang-tools libdbus-1-dev libvulkan-dev libwayland-dev libegl-dev libxkbcommon-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libudev-dev libusb-1.0-0-dev python3
       - name: Prepare build cache paths
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
@@ -79,7 +79,8 @@ jobs:
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
           mkdir -p package
-          tar -C bin/x64/Release -czf package/NxEmu-linux-x64.tar.gz nxemu nxemu.lang modules ui
+          # The executable loads SDL by its soname, beside it.
+          tar -C bin/x64/Release --dereference -czf package/NxEmu-linux-x64.tar.gz nxemu libSDL3.so.0 nxemu.lang modules ui
       - name: Package AppImage from the existing Release build
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
@@ -97,6 +98,7 @@ jobs:
           test -x "$app/nxemu"
           test -s "$app/nxemu.lang"
           test -s "$app/ui/main_window.rml"
+          test -s "$check_dir/squashfs-root/usr/lib/libSDL3.so.0"
           export LD_LIBRARY_PATH="$check_dir/squashfs-root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           binaries=("$app/nxemu" "$app/modules/loader/libnxemu-loader.so"
             "$app/modules/cpu/libnxemu-cpu.so" "$app/modules/video/libnxemu-video.so"

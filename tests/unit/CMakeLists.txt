@@ -212,6 +212,34 @@ nxemu_unit_test(test_alpha_to_coverage_dither)
 
 # Compile unchanged conditional-rendering method bodies with fake GPU dependencies.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(_vertex_input_generated "${CMAKE_CURRENT_BINARY_DIR}/vertex_input")
+set(_vertex_input_includes)
+foreach(_part update notify format states)
+    list(APPEND _vertex_input_includes "${_vertex_input_generated}/${_part}.inc")
+endforeach()
+add_custom_command(
+    OUTPUT ${_vertex_input_includes}
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/vertex_input/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_vertex_input_generated}"
+    DEPENDS vertex_input/extract.py
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_rasterizer.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_buffer_cache.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/maxwell_to_vk.cpp"
+    VERBATIM)
+add_executable(test_vertex_input vertex_input/vertex_input.cpp ${_vertex_input_includes})
+target_include_directories(test_vertex_input PRIVATE "${_vertex_input_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_vertex_input PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_vertex_input PRIVATE nxemu_test_support Vulkan::Headers)
+if(NOT MSVC)
+    target_compile_options(test_vertex_input PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_vertex_input PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_vertex_input)
 set(_conditional_generated "${CMAKE_CURRENT_BINARY_DIR}/conditional_rendering")
 add_custom_command(
     OUTPUT "${_conditional_generated}/engine.inc" "${_conditional_generated}/runtime.inc"
@@ -250,3 +278,5 @@ if(NXEMU_BUILD_VTG_GPU_TESTS)
     target_link_libraries(test_vtg_indirect_gpu PRIVATE nxemu_test_support video_core
         Vulkan::Headers Vulkan::UtilityHeaders GPUOpen::VulkanMemoryAllocator ${CMAKE_DL_LIBS})
 endif()
+
+add_subdirectory(android_performance)

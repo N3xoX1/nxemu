@@ -4,14 +4,18 @@
 // Prepares an indirect draw whose vertex and geometry stages run as compute. Reads the draw
 // arguments the guest GPU wrote, describes the draw to the stages, and writes the arguments of
 // their dispatches and of the final indexed draw. Instances past the capacity of the scratch
-// buffers are not drawn; the largest request is reported so the next draws allocate for it.
+// buffers are not drawn; the largest request is reported so the next draws allocate for it, and
+// such a draw is reported so the next draws of the pipeline read their counts on the CPU.
 
 layout(local_size_x = 1) in;
 
 layout(set = 0, binding = 0, std430) readonly buffer Arguments { uint args[]; };
 layout(set = 0, binding = 1, std430) buffer DrawInfo { uint info[]; };
 layout(set = 0, binding = 2, std430) writeonly buffer Commands { uint commands[]; };
-layout(set = 0, binding = 3, std430) buffer Feedback { uint requested; };
+layout(set = 0, binding = 3, std430) buffer Feedback {
+    uint requested;
+    uint truncated;
+};
 
 layout(push_constant) uniform Parameters {
     uint args_word;
@@ -77,6 +81,9 @@ void main() {
 
     // Each primitive uses at least one vertex, the capacity bounds both stages
     const uint drawn = count == 0 ? 0 : min(instances, capacity / count);
+    if (count != 0 && drawn < instances) {
+        truncated = 1;
+    }
     const uint vertices = count * drawn;
     const uint primitives = per_instance * drawn;
 

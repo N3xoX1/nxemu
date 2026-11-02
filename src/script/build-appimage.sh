@@ -54,8 +54,8 @@ if ! $skip_build; then
     need cmake
     need ninja
     need pkg-config
-    if ! pkg-config --exists wayland-client dbus-1; then
-        echo "Missing build packages: wayland-client and dbus-1 development files." >&2
+    if ! pkg-config --exists wayland-client wayland-egl wayland-cursor egl xkbcommon dbus-1; then
+        echo "Missing build packages: wayland-client, wayland-egl, wayland-cursor, egl, xkbcommon and dbus-1 development files." >&2
         exit 1
     fi
     jobs="${NXEMU_BUILD_JOBS:-2}"

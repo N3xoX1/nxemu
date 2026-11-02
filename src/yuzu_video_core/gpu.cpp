@@ -447,9 +447,9 @@ struct GPU::Impl :
         return raster_area;
     }
 
-    // The CPU accessed another guest page of this host page. Images the guest reads back
-    // must be current before the host page opens, but this download must not make other
-    // images readback targets. The cache state is only current in GPU thread order: probe
+    // The CPU accessed a host page that holds GPU data. Images the guest reads back must be
+    // current before the host page opens, but this download must not make other images
+    // readback targets. The cache state is only current in GPU thread order: probe
     // it there, or here once the GPU thread has executed every submitted command.
     void SynchronizeSharedPage(DAddr addr, u64 size)
     {

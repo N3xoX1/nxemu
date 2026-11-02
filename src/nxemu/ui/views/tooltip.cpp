@@ -5,7 +5,7 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/ElementText.h>
 #include <RmlUi/Core/StringUtilities.h>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <algorithm>
 #include <nxemu/ui/i18n/translation.h>
 #include <yuzu_common/fs/fs_util.h>
@@ -84,7 +84,7 @@ void Tooltip::Update(bool suppressed)
         }
     }
 
-    const uint64_t now = SDL_GetTicks64();
+    const uint64_t now = SDL_GetTicks();
     if (target != m_target || text != m_text)
     {
         Hide();
@@ -149,7 +149,7 @@ void Tooltip::Hide()
     if (m_shown)
     {
         m_shown = false;
-        m_hiddenAt = SDL_GetTicks64();
+        m_hiddenAt = SDL_GetTicks();
         m_tip->SetClass("shown", false);
     }
 }

@@ -71,18 +71,18 @@ Shortcut Hotkeys::Default(HotkeyId id)
 {
     switch (id)
     {
-    case HotkeyId::LoadFile: return {SDLK_o, true};
-    case HotkeyId::Settings: return {SDLK_t, true};
-    case HotkeyId::Controllers: return {SDLK_c, true};
-    case HotkeyId::Exit: return {SDLK_q, true};
-    case HotkeyId::Fullscreen: return CommandKeyboard() ? Shortcut{SDLK_f, true, false, true} : Shortcut{SDLK_F11};
+    case HotkeyId::LoadFile: return {SDLK_O, true};
+    case HotkeyId::Settings: return {SDLK_T, true};
+    case HotkeyId::Controllers: return {SDLK_C, true};
+    case HotkeyId::Exit: return {SDLK_Q, true};
+    case HotkeyId::Fullscreen: return CommandKeyboard() ? Shortcut{SDLK_F, true, false, true} : Shortcut{SDLK_F11};
     case HotkeyId::ExitFullscreen: return {SDLK_ESCAPE};
     case HotkeyId::HideUi: return {SDLK_F4};
     case HotkeyId::Performance: return {SDLK_F3};
     case HotkeyId::PauseOrContinue: return {SDLK_F2};
     case HotkeyId::Stop: return {SDLK_F5};
     case HotkeyId::DockedMode: return {SDLK_F10};
-    case HotkeyId::SpeedLimit: return {SDLK_u, true};
+    case HotkeyId::SpeedLimit: return {SDLK_U, true};
     }
     return {};
 }
@@ -167,30 +167,30 @@ std::string Hotkeys::GamepadShortcut::Label() const
 Hotkeys::GamepadShortcut Hotkeys::TrackGamepad(const SDL_Event & event)
 {
     static std::unordered_map<SDL_JoystickID, uint64_t> held;
-    if (event.type == SDL_JOYDEVICEREMOVED)
+    if (event.type == SDL_EVENT_JOYSTICK_REMOVED)
     {
         held.erase(event.jdevice.which);
         return {};
     }
-    if ((event.type != SDL_JOYBUTTONDOWN && event.type != SDL_JOYBUTTONUP) || event.jbutton.button >= 64)
+    if ((event.type != SDL_EVENT_JOYSTICK_BUTTON_DOWN && event.type != SDL_EVENT_JOYSTICK_BUTTON_UP) || event.jbutton.button >= 64)
     {
         return {};
     }
-    SDL_Joystick * joystick = SDL_JoystickFromInstanceID(event.jbutton.which);
+    SDL_Joystick * joystick = SDL_GetJoystickFromID(event.jbutton.which);
     if (joystick == nullptr)
     {
         return {};
     }
     char guid[33];
-    SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick), guid, sizeof(guid));
+    SDL_GUIDToString(SDL_GetJoystickGUID(joystick), guid, sizeof(guid));
     uint64_t & buttons = held[event.jbutton.which];
     const uint64_t bit = uint64_t{1} << event.jbutton.button;
-    if (event.type == SDL_JOYBUTTONDOWN)
+    if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN)
     {
         buttons |= bit;
     }
     GamepadShortcut chord{guid, buttons};
-    if (event.type == SDL_JOYBUTTONUP)
+    if (event.type == SDL_EVENT_JOYSTICK_BUTTON_UP)
     {
         buttons &= ~bit;
     }

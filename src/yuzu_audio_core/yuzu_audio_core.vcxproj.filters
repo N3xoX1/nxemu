@@ -256,7 +256,7 @@
     <ClCompile Include="sink\cubeb_sink.cpp">
       <Filter>sink</Filter>
     </ClCompile>
-    <ClCompile Include="sink\sdl2_sink.cpp">
+    <ClCompile Include="sink\sdl_sink.cpp">
       <Filter>sink</Filter>
     </ClCompile>
   </ItemGroup>
@@ -604,7 +604,7 @@
     <ClInclude Include="sink\cubeb_sink.h">
       <Filter>sink</Filter>
     </ClInclude>
-    <ClInclude Include="sink\sdl2_sink.h">
+    <ClInclude Include="sink\sdl_sink.h">
       <Filter>sink</Filter>
     </ClInclude>
     <ClInclude Include="audio_types.h" />

@@ -30,7 +30,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir)ui\host\shaders;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\fmt\include;$(SolutionDir)external\rmlui\Backends;$(SolutionDir)external\rmlui\Include;$(SolutionDir)external\sdl\include;$(SolutionDir)external\vulkan-headers\include;$(SolutionDir)external\vulkan-memory-allocator\include;$(SolutionDir)external\vulkan_utility_libraries\include;$(SolutionDir)src\3rd_party\discord-rpc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
-      <PreprocessorDefinitions>NOMINMAX;RMLUI_STATIC_LIB;RMLUI_SDL_VERSION_MAJOR=2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;RMLUI_STATIC_LIB;RMLUI_SDL_VERSION_MAJOR=3;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PreBuildEvent>
       <Command>IF NOT EXIST "$(SolutionDir)config\NxEmu.config" (copy  "$(SolutionDir)config\NxEmu.config.development" "$(SolutionDir)config\NxEmu.config")

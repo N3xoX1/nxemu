@@ -35,15 +35,12 @@ endif()
 find_package(Threads REQUIRED)
 
 if(NOT ANDROID)
-    option(ENABLE_SDL2 "Enable SDL game controller input" ON)
+    option(ENABLE_SDL "Use SDL for controller input and audio output" ON)
     option(ENABLE_LIBUSB "Enable direct GameCube USB adapter input" ON)
 endif()
 if(APPLE)
     # Use Boost.Container for overlapping ICL interval lookups on libc++.
     add_compile_definitions(ICL_USE_BOOST_MOVE_IMPLEMENTATION)
-endif()
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND ENABLE_SDL2)
-    find_package(SDL2 REQUIRED CONFIG)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -169,7 +166,7 @@ if(MSVC)
     foreach(_target nxemu nxemu_ui nxemu_core nxemu-cpu nxemu-loader nxemu-os nxemu-video
             common network yuzu_common hid_core input_common shader_recompiler video_core
             yuzu_audio_core ui_packer bc_decoder discord-rpc glad lz4 stb_dxt
-            fmt nxemu_libusb SDL2 rmlui_core freetype enet mcl opus sirit
+            fmt nxemu_libusb SDL3-shared rmlui_core freetype enet mcl opus sirit
             libzstd_static zlibstatic minizip Zydis Zycore cubeb speex)
         nxemu_apply_legacy_stack_settings(${_target})
     endforeach()

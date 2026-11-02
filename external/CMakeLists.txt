@@ -42,29 +42,64 @@ if(ENABLE_LIBUSB AND NOT TARGET libusb::usb)
     unset(_nxemu_usb)
 endif()
 
-# Linux packages provide the SDL runtime; macOS/Windows ship a bundled copy.
-# SDL is built from source so the application ships its own copy.
-if(ENABLE_SDL2 AND NOT TARGET SDL2::SDL2)
+# SDL is built from source on every platform, so the application ships its own copy.
+# The interface always needs it; ENABLE_SDL adds controller input and audio output.
+if(NOT ANDROID AND NOT TARGET SDL3::SDL3)
     # The frontend and the dynamically loaded OS module both use SDL. They
     # share one runtime: two copies would each claim the controllers, and
     # on macOS would define the same Objective-C classes twice.
     set(SDL_SHARED ON CACHE BOOL "Build shared SDL" FORCE)
     set(SDL_STATIC OFF CACHE BOOL "Build static SDL" FORCE)
-    set(SDL_TEST OFF CACHE BOOL "Build SDL test library" FORCE)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build the SDL test library" FORCE)
     set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
-    set(SDL2_DISABLE_INSTALL ON CACHE BOOL "Disable SDL installation" FORCE)
-    # SDL's bundled checks use an older minimum; CMake 4 requires at least 3.5.
-    set(_nxemu_saved_policy_minimum "${CMAKE_POLICY_VERSION_MINIMUM}")
-    if(NOT CMAKE_POLICY_VERSION_MINIMUM OR CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS "3.5")
-        set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
+    set(SDL_EXAMPLES OFF CACHE BOOL "Build SDL examples" FORCE)
+    set(SDL_INSTALL OFF CACHE BOOL "Enable SDL installation" FORCE)
+    set(SDL_UNINSTALL OFF CACHE BOOL "Enable SDL uninstallation" FORCE)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # The interface runs on Wayland only. Audio goes through PipeWire,
+        # PulseAudio or ALSA, whichever the system has; SDL loads them at run time.
+        set(SDL_WAYLAND ON CACHE BOOL "Use the Wayland video driver" FORCE)
+        set(SDL_X11 OFF CACHE BOOL "Use the X11 video driver" FORCE)
+        set(SDL_KMSDRM OFF CACHE BOOL "Use the KMS DRM video driver" FORCE)
+        set(SDL_PIPEWIRE ON CACHE BOOL "Use PipeWire audio" FORCE)
+        set(SDL_PULSEAUDIO ON CACHE BOOL "Use PulseAudio" FORCE)
+        set(SDL_ALSA ON CACHE BOOL "Support the ALSA audio API" FORCE)
+        set(SDL_JACK OFF CACHE BOOL "Support the JACK audio API" FORCE)
+        set(SDL_SNDIO OFF CACHE BOOL "Support the sndio audio API" FORCE)
+        set(SDL_OSS OFF CACHE BOOL "Support the OSS audio API" FORCE)
     endif()
     add_subdirectory(sdl)
-    set(CMAKE_POLICY_VERSION_MINIMUM "${_nxemu_saved_policy_minimum}")
-    unset(_nxemu_saved_policy_minimum)
-    if(WIN32)
-        # Windows finds the library beside the executable that loads it.
-        nxemu_set_app_output(SDL2)
-        set_target_properties(SDL2 PROPERTIES DEBUG_POSTFIX "")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # SDL leaves out a driver whose development files are missing.
+        get_directory_property(_nxemu_sdl_wayland DIRECTORY sdl DEFINITION SDL_VIDEO_DRIVER_WAYLAND)
+        if(NOT _nxemu_sdl_wayland)
+            message(FATAL_ERROR "SDL was configured without Wayland. Install the development files for "
+                "wayland-client, wayland-egl, wayland-cursor, egl and xkbcommon, and wayland-scanner.")
+        endif()
+        set(_nxemu_sdl_audio FALSE)
+        foreach(_nxemu_sdl_driver PIPEWIRE PULSEAUDIO ALSA)
+            get_directory_property(_nxemu_sdl_found DIRECTORY sdl DEFINITION SDL_AUDIO_DRIVER_${_nxemu_sdl_driver})
+            if(_nxemu_sdl_found)
+                set(_nxemu_sdl_audio TRUE)
+            endif()
+        endforeach()
+        if(NOT _nxemu_sdl_audio)
+            message(WARNING "SDL was configured without PipeWire, PulseAudio or ALSA; its audio output will not work.")
+        endif()
+        get_directory_property(_nxemu_sdl_udev DIRECTORY sdl DEFINITION HAVE_LIBUDEV_H)
+        if(NOT _nxemu_sdl_udev)
+            message(WARNING "SDL was configured without libudev; controllers connected later may not be found.")
+        endif()
+        unset(_nxemu_sdl_wayland)
+        unset(_nxemu_sdl_audio)
+        unset(_nxemu_sdl_driver)
+        unset(_nxemu_sdl_found)
+        unset(_nxemu_sdl_udev)
+    endif()
+    if(NOT APPLE)
+        # The executable and the OS module find the library beside the executable.
+        nxemu_set_app_output(SDL3-shared)
+        set_target_properties(SDL3-shared PROPERTIES DEBUG_POSTFIX "")
     endif()
 endif()
 

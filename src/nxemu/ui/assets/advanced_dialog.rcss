@@ -17,7 +17,10 @@ body.tab-graphics #tab-graphics,
 body.tab-system #tab-system,
 body.tab-application #tab-application,
 body.tab-shortcuts #tab-shortcuts,
-body.page-debug #tab-debug
+body.tab-debug-graphics #tab-debug-graphics,
+body.tab-debug-system #tab-debug-system,
+body.tab-debug-applets #tab-debug-applets,
+body.tab-debug-log #tab-debug-log
 {
     flex: 1;
     display: flex;
@@ -87,7 +90,10 @@ body.narrow.tab-graphics #tab-graphics,
 body.narrow.tab-system #tab-system,
 body.narrow.tab-application #tab-application,
 body.narrow.tab-shortcuts #tab-shortcuts,
-body.narrow.page-debug #tab-debug
+body.narrow.tab-debug-graphics #tab-debug-graphics,
+body.narrow.tab-debug-system #tab-debug-system,
+body.narrow.tab-debug-applets #tab-debug-applets,
+body.narrow.tab-debug-log #tab-debug-log
 {
     display: block;
 }
@@ -203,7 +209,14 @@ body.narrow #tab-shortcuts .hotkey-binding
     color: var(--warning);
 }
 
-body.page-debug .settings-tabs
+/* The tabs of the page chosen: Advanced or Debug. */
+.debug-tabs,
+body.page-debug .advanced-tabs
 {
     display: none;
+}
+
+body.page-debug .debug-tabs
+{
+    display: flex;
 }

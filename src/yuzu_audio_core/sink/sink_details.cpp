@@ -13,8 +13,8 @@
 #ifdef HAVE_CUBEB
 #include "yuzu_audio_core/sink/cubeb_sink.h"
 #endif
-#ifdef HAVE_SDL2
-#include "yuzu_audio_core/sink/sdl2_sink.h"
+#ifdef HAVE_SDL
+#include "yuzu_audio_core/sink/sdl_sink.h"
 #endif
 #include "yuzu_audio_core/sink/null_sink.h"
 #include "nxemu-os/os_enum_strings.h"
@@ -60,7 +60,7 @@ constexpr SinkDetails sink_details[] = {
         &IsCubebSuitable,
     },
 #endif
-#ifdef HAVE_SDL2
+#ifdef HAVE_SDL
     SinkDetails{
         AudioEngine::Sdl2,
         [](std::string_view device_id) -> std::unique_ptr<Sink> {

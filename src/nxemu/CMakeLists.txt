@@ -57,6 +57,10 @@ target_link_libraries(nxemu PRIVATE
 )
 nxemu_set_app_output(nxemu)
 add_dependencies(nxemu nxemu-loader nxemu-cpu nxemu-video nxemu-os)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # The bundled SDL is beside the executable.
+    set_property(TARGET nxemu APPEND PROPERTY BUILD_RPATH "$ORIGIN")
+endif()
 
 set(_nxemu_ui_assets "${CMAKE_CURRENT_SOURCE_DIR}/ui/assets")
 # The catalogues at the root are shared with the Android build.
@@ -113,7 +117,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DVIDEO=$<TARGET_FILE:nxemu-video>"
         "-DOS=$<TARGET_FILE:nxemu-os>"
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
-        "-DSDL=$<TARGET_FILE:SDL2>"
+        "-DSDL=$<TARGET_FILE:SDL3-shared>"
         "-DASSETS=${_nxemu_ui_assets}"
         "-DLANG_DIR=${_nxemu_lang_dir}"
         "-DUI_PACK=${_nxemu_ui_pack}"

@@ -3,7 +3,7 @@
 #include "hotkeys.h"
 #include "settings_page.h"
 #include "settings_context.h"
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <string>
 #include <vector>
 
@@ -38,13 +38,14 @@ private:
     SettingsContext & m_settings;
     const OpenSettingsPage m_openPage;
     std::string m_tab = "graphics";
+    std::string m_debugTab = "debug-graphics";
     bool m_debug = false;
     std::vector<std::string> m_changes;
     bool m_logFilterLeft = false;
     bool m_running = false;
     int m_hotkeyAsked = -1;
     bool m_hotkeyGamepad = false;
-    SDL_JoystickID m_hotkeyDevice = -1;
+    SDL_JoystickID m_hotkeyDevice = 0;
     std::string m_hotkeyNote;
     bool m_unsaved = false;
 };

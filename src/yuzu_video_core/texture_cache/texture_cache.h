@@ -165,10 +165,8 @@ void TextureCache<P>::PollGCReadbacks() {
             if (unchanged) {
                 const auto copies = FullDownloadCopies(image.info);
                 NewerOverlapGuard guard{*this, id, image, image.gpu_write_tick};
-                if (!guard.Covered()) {
-                    SwizzleImage(*owner->second.gpu_memory, image.gpu_addr, image.info, copies,
-                                 readback.map.mapped_span, swizzle_data_buffer);
-                }
+                SwizzleImage(*owner->second.gpu_memory, image.gpu_addr, image.info, copies,
+                             readback.map.mapped_span, swizzle_data_buffer);
                 if (True(image.flags & ImageFlagBits::Tracked)) {
                     UntrackImage(image, id);
                 }
@@ -294,10 +292,8 @@ void TextureCache<P>::RunGarbageCollector() {
             image.DownloadMemory(map, copies);
             runtime.Finish();
             NewerOverlapGuard guard{*this, image_id, image, image.gpu_write_tick};
-            if (!guard.Covered()) {
-                SwizzleImage(*image_gpu_memory, image.gpu_addr, image.info, copies,
-                             map.mapped_span, swizzle_data_buffer);
-            }
+            SwizzleImage(*image_gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span,
+                         swizzle_data_buffer);
         }
         if (True(image.flags & ImageFlagBits::Tracked)) {
             UntrackImage(image, image_id);
@@ -920,6 +916,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
                 SwizzleImage(*gpu_memory, image.gpu_addr, image.info, FullDownloadCopies(image.info),
                              map.mapped_span, swizzle_data_buffer);
                 image.published_tick = image.modification_tick;
+                image.published_observed_pages = false;
                 MarkReadbackSynchronized(image);
                 UpdateNativeReadTracking(image, id);
                 runtime.FreeDeferredStagingBuffer(map);
@@ -951,6 +948,7 @@ void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_re
         SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span,
                      swizzle_data_buffer);
         image.published_tick = image.modification_tick;
+        image.published_observed_pages = false;
         MarkReadbackSynchronized(image);
         UpdateNativeReadTracking(image, image_id);
     }
@@ -1478,8 +1476,11 @@ TextureCache<P>::NewerOverlapGuard::NewerOverlapGuard(TextureCache& cache_, Imag
     }
     cache.ForEachImageInRegion(image.cpu_addr, image.guest_size_bytes,
                                [&](ImageId other_id, ImageBase& other) {
+        // Guest memory only holds the newer bytes once they were written back. Until then the
+        // image written back may hold them itself, copied by an alias synchronization.
         if (other_id == id || False(other.flags & ImageFlagBits::GpuModified) ||
-            True(other.flags & ImageFlagBits::Sparse) || other.gpu_write_tick <= write_tick) {
+            True(other.flags & ImageFlagBits::Sparse) || other.gpu_write_tick <= write_tick ||
+            other.published_tick < other.gpu_write_tick) {
             return;
         }
         const DAddr begin = std::max<DAddr>(image.cpu_addr, other.cpu_addr);
@@ -1487,26 +1488,31 @@ TextureCache<P>::NewerOverlapGuard::NewerOverlapGuard(TextureCache& cache_, Imag
         if (begin >= end) {
             return;
         }
-        saved.emplace_back(begin, std::vector<u8>(end - begin));
-    });
-    // Saving and restoring ranges that span the whole image only copies bytes for nothing
-    std::sort(saved.begin(), saved.end(),
-              [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
-    DAddr covered_end = image.cpu_addr;
-    for (const auto& [address, bytes] : saved) {
-        if (address > covered_end) {
-            break;
+        const auto save = [&](DAddr lo, DAddr hi) {
+            auto& [address, bytes] = saved.emplace_back(lo, std::vector<u8>(hi - lo));
+            cache.device_memory.ReadBlockUnsafe(address, bytes.data(), bytes.size());
+        };
+        if (!other.published_observed_pages) {
+            save(begin, end);
+            return;
         }
-        covered_end = std::max<DAddr>(covered_end, address + bytes.size());
-    }
-    if (!saved.empty() && covered_end >= image.cpu_addr_end) {
-        covered = true;
-        saved.clear();
-        return;
-    }
-    for (auto& [address, bytes] : saved) {
-        cache.device_memory.ReadBlockUnsafe(address, bytes.data(), bytes.size());
-    }
+        // Only the pages the CPU observed were written back
+        constexpr DAddr page_size = ReadbackPageTracker::PAGE_SIZE;
+        DAddr run = begin;
+        for (DAddr page = Common::AlignDown(begin, page_size); page < end; page += page_size) {
+            const DAddr lo = std::max(page, begin);
+            const DAddr hi = std::min(page + page_size, end);
+            if (!cache.readback_pages.Contains(page, page_size)) {
+                if (run < lo) {
+                    save(run, lo);
+                }
+                run = hi;
+            }
+        }
+        if (run < end) {
+            save(run, end);
+        }
+    });
 }
 
 template <class P>
@@ -1544,22 +1550,19 @@ void TextureCache<P>::PopAsyncFlushes() {
                 if (False(image.flags & ImageFlagBits::Remapped)) {
                     NewerOverlapGuard guard{*this, download_info.object_id, image,
                                             download_info.gpu_write_tick};
-                    // A partial readback publishes only the pages observed so far, the image
-                    // stays unpublished until a full one
-                    if (!download_info.observed_partial) {
-                        image.published_tick =
-                            std::max(image.published_tick, download_info.modification_tick);
-                    }
+                    bool published = true;
+                    bool observed_pages = true;
                     if (download_info.observed_partial) {
                         // Never fall back to a full swizzle of a partially initialized
                         // staging buffer. Use this image's original address space even
                         // if another GPU channel is currently bound.
+                        published = false;
                         const auto owner = address_spaces.find(download_info.observed_address_space);
                         if (owner != address_spaces.end()) {
                             const auto address = owner->second.gpu_memory->GpuToCpuAddress(
                                 image.gpu_addr, image.guest_size_bytes);
                             if (address && *address == image.cpu_addr) {
-                                const bool published = PublishObservedReadback(
+                                published = PublishObservedReadback(
                                     image, copies, download_span, download_info.observation_serial,
                                     owner->second.gpu_memory);
                                 ASSERT(published);
@@ -1569,6 +1572,11 @@ void TextureCache<P>::PopAsyncFlushes() {
                                                         download_info.observation_serial)) {
                         SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
                                      swizzle_data_buffer);
+                        observed_pages = false;
+                    }
+                    if (published && download_info.modification_tick >= image.published_tick) {
+                        image.published_tick = download_info.modification_tick;
+                        image.published_observed_pages = observed_pages;
                     }
                 }
             } else {
@@ -1621,10 +1629,8 @@ void TextureCache<P>::PopAsyncFlushes() {
             if (False(image.flags & ImageFlagBits::Remapped)) {
                 NewerOverlapGuard guard{*this, download_info.object_id, image,
                                         download_info.gpu_write_tick};
-                if (!guard.Covered()) {
-                    SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
-                                 swizzle_data_buffer);
-                }
+                SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, download_span,
+                             swizzle_data_buffer);
             }
             download_map.offset += image.unswizzled_size_bytes;
             download_span = download_span.subspan(image.unswizzled_size_bytes);
@@ -1778,10 +1784,18 @@ bool TextureCache<P>::IsRescaling(const ImageViewBase& image_view) const noexcep
 
 template <class P>
 bool TextureCache<P>::HasUnpublishedReadImage(DAddr addr, size_t size) {
+    constexpr bool observed = OBSERVED_READBACK;
     bool unpublished = false;
-    ForEachImageInRegion(addr, size, [&unpublished](ImageId, ImageBase& image) {
-        if (False(image.flags & ImageFlagBits::GpuModified) || !image.info.forced_flushed ||
-            image.published_tick >= image.modification_tick) {
+    ForEachImageInRegion(addr, size, [&](ImageId, ImageBase& image) {
+        if (False(image.flags & ImageFlagBits::GpuModified) || !image.info.forced_flushed) {
+            return false;
+        }
+        // A publication of the pages the CPU observed leaves the others older
+        const DAddr begin = std::max<DAddr>(addr, image.cpu_addr);
+        const DAddr end = std::min<DAddr>(addr + size, image.cpu_addr_end);
+        if (image.published_tick >= image.modification_tick &&
+            (!observed || !image.published_observed_pages || begin >= end ||
+             readback_pages.Contains(begin, end - begin))) {
             return false;
         }
         unpublished = true;
@@ -2430,7 +2444,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             const AliasedImage& aliased = new_image.aliased_images[alias_pointer->second];
             CopyImage(new_image_id, aliased.id, aliased.copies);
             new_image.modification_tick = overlap.modification_tick;
-            new_image.gpu_write_tick = std::max(new_image.gpu_write_tick, overlap.gpu_write_tick);
             continue;
         }
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
@@ -2447,7 +2460,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
                 runtime.CopyImage(new_image, overlap, std::move(copies));
             }
             new_image.modification_tick = overlap.modification_tick;
-            new_image.gpu_write_tick = std::max(new_image.gpu_write_tick, overlap.gpu_write_tick);
         }
         if (True(overlap.flags & ImageFlagBits::Tracked)) {
             UntrackImage(overlap, copy_object.id);

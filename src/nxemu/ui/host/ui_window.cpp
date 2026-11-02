@@ -5,8 +5,9 @@
 #include "ui_theme.h"
 #include <RmlUi/Core.h>
 #include <RmlUi_Platform_SDL.h>
-#include <SDL_syswm.h>
-// System SDL headers may expose platform macros.
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
+// Platform headers may expose X11 macros.
 #undef None
 #include <algorithm>
 #include <cstdlib>
@@ -34,29 +35,27 @@ constexpr uint64_t kDoubleClickMs = 500;
 constexpr int kDoubleClickReach = 4;
 #endif
 
-bool QueryWindow(SDL_Window * window, SDL_SysWMinfo & info)
+void * WindowPointer(SDL_Window * window, const char * property)
 {
-    SDL_VERSION(&info.version);
-    return window != nullptr && SDL_GetWindowWMInfo(window, &info) == SDL_TRUE;
+    return window != nullptr ? SDL_GetPointerProperty(SDL_GetWindowProperties(window), property, nullptr) : nullptr;
 }
 
 void * NativeWindowHandle(SDL_Window * window)
 {
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(window, info))
-    {
-        return nullptr;
-    }
-    switch (info.subsystem)
-    {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
-    case SDL_SYSWM_WINDOWS: return info.info.win.window;
+#if defined(_WIN32)
+    return WindowPointer(window, SDL_PROP_WINDOW_WIN32_HWND_POINTER);
+#elif defined(__APPLE__)
+    return WindowPointer(window, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER);
+#else
+    (void)window;
+    return nullptr;
 #endif
-#if defined(SDL_VIDEO_DRIVER_COCOA)
-    case SDL_SYSWM_COCOA: return info.info.cocoa.window;
-#endif
-    default: return nullptr;
-    }
+}
+
+SDL_DisplayID WindowDisplay(SDL_Window * window)
+{
+    const SDL_DisplayID display = SDL_GetDisplayForWindow(window);
+    return display != 0 ? display : SDL_GetPrimaryDisplay();
 }
 
 using UiSystemInterface = SystemInterface_SDL;
@@ -107,35 +106,42 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
     SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
     m_assetDir = assetDir;
 #if defined(_WIN32)
-    SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
     // Keep what the window manager does for a framed window: snapping, the
     // shadow, the animations.
     SDL_SetHint("SDL_BORDERLESS_WINDOWED_STYLE", "1");
     SDL_SetHint("SDL_BORDERLESS_RESIZABLE_STYLE", "1");
 #elif !defined(__APPLE__)
-    SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland");
+    SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland");
 #endif
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0)
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
     {
         return Fail(SDL_GetError());
     }
     m_sdlInitialised = true;
 #if defined(__linux__)
     m_themeEvent = SDL_RegisterEvents(1);
-    if (m_themeEvent == Uint32(-1))
+    if (m_themeEvent == 0)
     {
         return Fail("Unable to register the theme notification");
     }
 #endif
 
-    Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
 #else
     flags |= SDL_WINDOW_BORDERLESS;
     m_frameless = true;
 #endif
-    m_window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, flags);
+    const SDL_PropertiesID properties = SDL_CreateProperties();
+    SDL_SetStringProperty(properties, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title);
+    SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED);
+    SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED);
+    SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, width);
+    SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, height);
+    SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, static_cast<Sint64>(flags));
+    m_window = SDL_CreateWindowWithProperties(properties);
+    SDL_DestroyProperties(properties);
     if (m_window == nullptr)
     {
         return Fail(SDL_GetError());
@@ -144,9 +150,6 @@ bool UiWindow::Create(const char * title, int width, int height, const std::file
     SetWindowIcon(assetDir / "images" / "window-icon.png");
     if (m_frameless)
     {
-        SDL_version linked{};
-        SDL_GetVersion(&linked);
-        m_hitTestOnPress = SDL_VERSIONNUM(linked.major, linked.minor, linked.patch) < SDL_VERSIONNUM(2, 32, 50);
         const char * driver = SDL_GetCurrentVideoDriver();
         m_waylandVideo = driver != nullptr && std::strcmp(driver, "wayland") == 0;
         SDL_SetWindowHitTest(
@@ -290,11 +293,11 @@ void UiWindow::HandleEvent(const SDL_Event & event)
         return;
     }
 #endif
-    if (event.type == SDL_WINDOWEVENT)
+    if (event.type >= SDL_EVENT_WINDOW_FIRST && event.type <= SDL_EVENT_WINDOW_LAST)
     {
-        switch (event.window.event)
+        switch (event.type)
         {
-        case SDL_WINDOWEVENT_FOCUS_GAINED:
+        case SDL_EVENT_WINDOW_FOCUS_GAINED:
             if (m_themeChoice == "system")
             {
 #if defined(__linux__)
@@ -304,19 +307,20 @@ void UiWindow::HandleEvent(const SDL_Event & event)
 #endif
             }
             break;
-        case SDL_WINDOWEVENT_SIZE_CHANGED:
-        case SDL_WINDOWEVENT_DISPLAY_CHANGED:
-        case SDL_WINDOWEVENT_MOVED:
-        case SDL_WINDOWEVENT_MAXIMIZED:
-        case SDL_WINDOWEVENT_RESTORED:
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+        case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+        case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+        case SDL_EVENT_WINDOW_MOVED:
+        case SDL_EVENT_WINDOW_MAXIMIZED:
+        case SDL_EVENT_WINDOW_RESTORED:
             UpdateDimensions();
             break;
-        case SDL_WINDOWEVENT_LEAVE:
+        case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             m_context->ProcessMouseLeave();
             break;
 #if defined(__linux__)
-        case SDL_WINDOWEVENT_HIT_TEST:
-            if (!m_hitTestOnPress && !m_waylandVideo && m_overDragArea)
+        case SDL_EVENT_WINDOW_HIT_TEST:
+            if (!m_waylandVideo && m_overDragArea)
             {
                 TitleBarPressed(m_dragAreaPoint);
             }
@@ -327,23 +331,19 @@ void UiWindow::HandleEvent(const SDL_Event & event)
     }
 
 #if defined(__linux__)
-    if ((event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) && event.button.button == SDL_BUTTON_LEFT)
+    if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.button == SDL_BUTTON_LEFT)
     {
-        if (event.type == SDL_MOUSEBUTTONUP && !m_leftButtonDown && !m_hitTestOnPress && m_waylandVideo && m_overDragArea)
+        if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && !m_leftButtonDown && m_waylandVideo && m_overDragArea)
         {
             TitleBarPressed(m_dragAreaPoint);
         }
-        m_leftButtonDown = event.type == SDL_MOUSEBUTTONDOWN;
+        m_leftButtonDown = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
     }
 #endif
 
-    SDL_Event translated = event;
-    if (translated.type == SDL_MOUSEMOTION)
-    {
-        translated.motion.x = static_cast<Sint32>(translated.motion.x * m_pixelScale);
-        translated.motion.y = static_cast<Sint32>(translated.motion.y * m_pixelScale);
-    }
-    RmlSDL::InputEventHandler(m_context, m_window, translated);
+    // The handler scales mouse positions by the window's pixel density.
+    SDL_Event forwarded = event;
+    RmlSDL::InputEventHandler(m_context, m_window, forwarded);
 }
 
 bool UiWindow::Render(const PixelRect * gameArea)
@@ -423,49 +423,43 @@ void * UiWindow::RenderSurface() const
     {
         return SDL_Metal_GetLayer(m_metalView);
     }
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(m_window, info))
+    switch (WindowSystem())
     {
-        return nullptr;
-    }
-    switch (info.subsystem)
-    {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
-    case SDL_SYSWM_WINDOWS: return info.info.win.window;
-#endif
-#if defined(SDL_VIDEO_DRIVER_WAYLAND)
-    case SDL_SYSWM_WAYLAND: return info.info.wl.surface;
-#endif
+    case RenderWindowSystem::Windows: return WindowPointer(m_window, SDL_PROP_WINDOW_WIN32_HWND_POINTER);
+    case RenderWindowSystem::Wayland: return WindowPointer(m_window, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER);
     default: return nullptr;
     }
 }
 
 void * UiWindow::DisplayConnection() const
 {
-#if defined(SDL_VIDEO_DRIVER_WAYLAND)
-    SDL_SysWMinfo info{};
-    if (QueryWindow(m_window, info) && info.subsystem == SDL_SYSWM_WAYLAND)
+    if (WindowSystem() == RenderWindowSystem::Wayland)
     {
-        return info.info.wl.display;
+        return WindowPointer(m_window, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER);
     }
-#endif
     return nullptr;
 }
 
 RenderWindowSystem UiWindow::WindowSystem() const
 {
-    SDL_SysWMinfo info{};
-    if (!QueryWindow(m_window, info))
+    const char * driver = m_window != nullptr ? SDL_GetCurrentVideoDriver() : nullptr;
+    if (driver == nullptr)
     {
         return RenderWindowSystem::Default;
     }
-    switch (info.subsystem)
+    if (std::strcmp(driver, "windows") == 0)
     {
-    case SDL_SYSWM_WINDOWS: return RenderWindowSystem::Windows;
-    case SDL_SYSWM_COCOA: return RenderWindowSystem::Cocoa;
-    case SDL_SYSWM_WAYLAND: return RenderWindowSystem::Wayland;
-    default: return RenderWindowSystem::Default;
+        return RenderWindowSystem::Windows;
     }
+    if (std::strcmp(driver, "cocoa") == 0)
+    {
+        return RenderWindowSystem::Cocoa;
+    }
+    if (std::strcmp(driver, "wayland") == 0)
+    {
+        return RenderWindowSystem::Wayland;
+    }
+    return RenderWindowSystem::Default;
 }
 
 float UiWindow::PixelRatio() const
@@ -549,7 +543,7 @@ bool UiWindow::IsFullscreen() const
 #if defined(__APPLE__)
     return NativeWindowIsFullscreen(m_window);
 #else
-    return (SDL_GetWindowFlags(m_window) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+    return (SDL_GetWindowFlags(m_window) & SDL_WINDOW_FULLSCREEN) != 0;
 #endif
 }
 
@@ -566,7 +560,8 @@ void UiWindow::SetFullscreen(bool fullscreen)
 #if defined(__APPLE__)
     SetNativeWindowFullscreen(m_window, fullscreen);
 #else
-    SDL_SetWindowFullscreen(m_window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+    // Without a fullscreen mode set, SDL uses borderless desktop fullscreen.
+    SDL_SetWindowFullscreen(m_window, fullscreen);
 #endif
 }
 
@@ -613,7 +608,7 @@ void UiWindow::GetClientSize(int & width, int & height) const
 void UiWindow::SetClientSize(int width, int height)
 {
     SDL_Rect usable{};
-    const bool bounded = SDL_GetDisplayUsableBounds(std::max(SDL_GetWindowDisplayIndex(m_window), 0), &usable) == 0;
+    const bool bounded = SDL_GetDisplayUsableBounds(WindowDisplay(m_window), &usable);
     int top = 0, left = 0, bottom = 0, right = 0;
     SDL_GetWindowBordersSize(m_window, &top, &left, &bottom, &right);
     if (bounded)
@@ -675,21 +670,21 @@ void UiWindow::SetWindowIcon(const std::filesystem::path & iconFile)
     {
         return;
     }
-    SDL_Surface * icon = SDL_CreateRGBSurfaceWithFormatFrom(pixels, width, height, 32, width * 4, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface * icon = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, pixels, width * 4);
     if (icon != nullptr)
     {
         SDL_SetWindowIcon(m_window, icon);
-        SDL_FreeSurface(icon);
+        SDL_DestroySurface(icon);
     }
     stbi_image_free(pixels);
 }
 
 void UiWindow::UpdateDimensions()
 {
-    SDL_DisplayMode mode{};
-    const int display = std::max(SDL_GetWindowDisplayIndex(m_window), 0);
-    const int rate = SDL_GetCurrentDisplayMode(display, &mode) == 0 && mode.refresh_rate > 0 ? mode.refresh_rate : 60;
-    m_frameInterval = SDL_GetPerformanceFrequency() / static_cast<uint64_t>(rate);
+    const SDL_DisplayID display = WindowDisplay(m_window);
+    const SDL_DisplayMode * mode = SDL_GetCurrentDisplayMode(display);
+    const float rate = mode != nullptr && mode->refresh_rate > 0.0f ? mode->refresh_rate : 60.0f;
+    m_frameInterval = static_cast<uint64_t>(static_cast<double>(SDL_GetPerformanceFrequency()) / rate);
     int width = 0, height = 0;
     SDL_GetWindowSize(m_window, &width, &height);
     SDL_GetWindowSizeInPixels(m_window, &m_drawableWidth, &m_drawableHeight);
@@ -702,17 +697,18 @@ void UiWindow::UpdateDimensions()
 
     float contentScale = m_pixelScale;
 #if defined(_WIN32)
-    float dpi = 0;
-    if (SDL_GetDisplayDPI(std::max(SDL_GetWindowDisplayIndex(m_window), 0), nullptr, &dpi, nullptr) == 0 && dpi > 0)
+    // Window coordinates are pixels on Windows; the display scale carries the DPI.
+    const float displayScale = SDL_GetWindowDisplayScale(m_window);
+    if (displayScale > 0.0f)
     {
-        contentScale = std::max(contentScale, dpi / 96.0f);
+        contentScale = std::max(contentScale, displayScale);
     }
 #endif
     m_context->SetDensityIndependentPixelRatio(contentScale);
 
     m_hiddenFrame = 0;
     SDL_Rect usable{};
-    if (m_frameless && IsMaximised() && !IsFullscreen() && SDL_GetDisplayUsableBounds(std::max(SDL_GetWindowDisplayIndex(m_window), 0), &usable) == 0)
+    if (m_frameless && IsMaximised() && !IsFullscreen() && SDL_GetDisplayUsableBounds(display, &usable))
     {
         int x = 0, y = 0;
         SDL_GetWindowPosition(m_window, &x, &y);
@@ -753,10 +749,6 @@ SDL_HitTestResult UiWindow::HitTest(const SDL_Point & point)
                 return SDL_HITTEST_NORMAL;
             }
 #if defined(__linux__)
-            if (m_hitTestOnPress && TitleBarPressed(point))
-            {
-                return SDL_HITTEST_NORMAL;
-            }
             m_overDragArea = true;
             m_dragAreaPoint = point;
 #endif
@@ -772,7 +764,7 @@ bool UiWindow::TitleBarPressed(const SDL_Point & point)
     (void)point;
     return false;
 #else
-    const uint64_t now = SDL_GetTicks64();
+    const uint64_t now = SDL_GetTicks();
     const bool again = now - m_barPressTime <= kDoubleClickMs && std::abs(point.x - m_barPress.x) <= kDoubleClickReach &&
                        std::abs(point.y - m_barPress.y) <= kDoubleClickReach;
     m_barPressTime = again ? 0 : now;

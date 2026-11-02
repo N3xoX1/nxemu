@@ -13,15 +13,15 @@ endif()
 
 file(GLOB_RECURSE YUZU_AUDIO_CORE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
-list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/sdl2_sink\\.cpp$")
+list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/sdl_sink\\.cpp$")
 list(FILTER YUZU_AUDIO_CORE_SOURCES EXCLUDE REGEX ".*/oboe_sink\\.cpp$")
 
 add_library(yuzu_audio_core STATIC ${YUZU_AUDIO_CORE_SOURCES})
 
-if(ENABLE_SDL2)
-    target_sources(yuzu_audio_core PRIVATE sink/sdl2_sink.cpp)
-    target_compile_definitions(yuzu_audio_core PRIVATE HAVE_SDL2)
-    target_link_libraries(yuzu_audio_core PRIVATE SDL2::SDL2)
+if(ENABLE_SDL)
+    target_sources(yuzu_audio_core PRIVATE sink/sdl_sink.cpp)
+    target_compile_definitions(yuzu_audio_core PRIVATE HAVE_SDL)
+    target_link_libraries(yuzu_audio_core PRIVATE SDL3::SDL3)
 endif()
 
 target_include_directories(yuzu_audio_core PUBLIC

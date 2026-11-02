@@ -39,6 +39,7 @@ md "%base_dir%\bin\package\modules\video\"
 
 copy "%base_dir%\bin\%VSPlatform%\Release\user\portable.txt" "%base_dir%\bin\package\user"
 copy "%base_dir%\bin\%VSPlatform%\Release\nxemu.exe" "%base_dir%\bin\package"
+copy "%base_dir%\bin\%VSPlatform%\Release\SDL3.dll" "%base_dir%\bin\package"
 copy "%base_dir%\modules\%VSPlatform%\cpu\nxemu-cpu.dll" "%base_dir%\bin\package\modules\cpu"
 copy "%base_dir%\modules\%VSPlatform%\loader\nxemu-loader.dll" "%base_dir%\bin\package\modules\loader"
 copy "%base_dir%\modules\%VSPlatform%\operating_system\nxemu-os.dll" "%base_dir%\bin\package\modules\operating_system"

@@ -288,7 +288,7 @@ void MainWindow::HandleEvent(const SDL_Event & event)
     {
         return;
     }
-    if (event.type == SDL_JOYBUTTONDOWN && chord.buttons != 0 && !DialogOpen() && m_session.IsRunning() &&
+    if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN && chord.buttons != 0 && !DialogOpen() && m_session.IsRunning() &&
         (SDL_GetWindowFlags(m_window.Handle()) & SDL_WINDOW_INPUT_FOCUS) != 0)
     {
         for (const HotkeyAction & hotkey : kHotkeyActions)
@@ -300,24 +300,23 @@ void MainWindow::HandleEvent(const SDL_Event & event)
             }
         }
     }
-    if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEWHEEL)
+    if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_WHEEL)
     {
-        m_mouseMovedAt = SDL_GetTicks64();
+        m_mouseMovedAt = SDL_GetTicks();
         UpdateMouseCursor();
     }
-    if (event.type == SDL_DROPFILE)
+    if (event.type == SDL_EVENT_DROP_FILE)
     {
-        if (event.drop.file != nullptr)
+        if (event.drop.data != nullptr)
         {
-            if (!m_firmwareDialog->OfferSource(event.drop.file) && !DialogOpen())
+            if (!m_firmwareDialog->OfferSource(event.drop.data) && !DialogOpen())
             {
-                OpenGame(event.drop.file);
+                OpenGame(event.drop.data);
             }
-            SDL_free(event.drop.file);
         }
         return;
     }
-    if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
+    if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP)
     {
         m_controllerDialog->HandleKey(event.key);
         if (m_advancedDialog->HandleKey(event.key))
@@ -325,7 +324,7 @@ void MainWindow::HandleEvent(const SDL_Event & event)
             return;
         }
     }
-    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE &&
+    if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE &&
         (m_menuBar->IsOpen() || m_gameMenu->IsOpen()))
     {
         m_menuBar->Close();
@@ -334,11 +333,11 @@ void MainWindow::HandleEvent(const SDL_Event & event)
         m_pendingSelectMenu = nullptr;
         return;
     }
-    if ((event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) && !DialogOpen())
+    if ((event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) && !DialogOpen())
     {
         for (const HotkeyAction & hotkey : kHotkeyActions)
         {
-            if (!Hotkeys::Get(hotkey.id).Matches(event.key.keysym))
+            if (!Hotkeys::Get(hotkey.id).Matches(event.key))
             {
                 continue;
             }
@@ -346,7 +345,7 @@ void MainWindow::HandleEvent(const SDL_Event & event)
             {
                 continue;
             }
-            if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
             {
                 Post(hotkey.action);
             }
@@ -354,12 +353,12 @@ void MainWindow::HandleEvent(const SDL_Event & event)
         }
         m_session.HandleKey(event.key);
     }
-    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_HIT_TEST)
+    if (event.type == SDL_EVENT_WINDOW_HIT_TEST)
     {
         m_menuBar->Close();
         m_gameMenu->Close();
     }
-    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+    if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
     {
         m_gameMenu->Close();
     }
@@ -429,11 +428,11 @@ void MainWindow::Update()
     if (m_pendingIconSize != 0 && m_pendingIconSize != m_iconSize)
     {
         m_iconSize = m_pendingIconSize;
-        m_iconSizeChanged = SDL_GetTicks64();
+        m_iconSizeChanged = SDL_GetTicks();
         ApplyIconSize();
     }
     m_pendingIconSize = 0;
-    if (m_iconSizeChanged != 0 && SDL_GetTicks64() - m_iconSizeChanged >= kIconSizeSaveDelayMs)
+    if (m_iconSizeChanged != 0 && SDL_GetTicks() - m_iconSizeChanged >= kIconSizeSaveDelayMs)
     {
         SaveIconSize();
     }
@@ -446,12 +445,12 @@ void MainWindow::Update()
     }
     SyncWindowState();
     UpdateMouseCursor();
-    if (const uint64_t now = SDL_GetTicks64(); now - m_lastMeasure >= (m_performance->Shown() ? m_performance->Interval() : kStatusIntervalMs))
+    if (const uint64_t now = SDL_GetTicks(); now - m_lastMeasure >= (m_performance->Shown() ? m_performance->Interval() : kStatusIntervalMs))
     {
         m_lastMeasure = now;
         MeasureGame();
     }
-    if (const uint64_t now = SDL_GetTicks64(); now - m_lastStatusUpdate >= kStatusIntervalMs)
+    if (const uint64_t now = SDL_GetTicks(); now - m_lastStatusUpdate >= kStatusIntervalMs)
     {
         m_lastStatusUpdate = now;
         UpdateStatusWidgets();
@@ -852,7 +851,7 @@ void MainWindow::Run(Action action)
         break;
     case Action::CopyVersion:
         SDL_SetClipboardText(VER_FILE_VERSION_STR);
-        m_versionCopiedUntil = SDL_GetTicks64() + kVersionCopiedMs;
+        m_versionCopiedUntil = SDL_GetTicks() + kVersionCopiedMs;
         ShowVersion();
         break;
     default:
@@ -1230,7 +1229,7 @@ void MainWindow::UpdateScanIndicator()
     {
         return;
     }
-    const uint64_t now = SDL_GetTicks64();
+    const uint64_t now = SDL_GetTicks();
     const float elapsed = static_cast<float>(now - m_scanIndicatorTime) / 1000.0f;
     m_scanIndicatorTime = now;
     if (!m_library.ReadingGames())
@@ -2242,22 +2241,22 @@ void MainWindow::ShowVersion()
 
 void MainWindow::RevealMouseCursor()
 {
-    m_mouseMovedAt = SDL_GetTicks64();
+    m_mouseMovedAt = SDL_GetTicks();
     if (m_mouseHidden)
     {
         m_mouseHidden = false;
-        SDL_ShowCursor(SDL_ENABLE);
+        SDL_ShowCursor();
     }
 }
 
 void MainWindow::UpdateMouseCursor()
 {
     bool hide = false;
-    if (m_phase == EmulatorSession::Phase::Running && GameArea() != nullptr && SDL_GetTicks64() - m_mouseMovedAt >= kMouseHideMs && !DialogOpen() &&
+    if (m_phase == EmulatorSession::Phase::Running && GameArea() != nullptr && SDL_GetTicks() - m_mouseMovedAt >= kMouseHideMs && !DialogOpen() &&
         !m_menuBar->IsOpen() && !m_gameMenu->IsOpen())
     {
-        int x = 0;
-        int y = 0;
+        float x = 0;
+        float y = 0;
         SDL_GetMouseState(&x, &y);
         const float scale = m_window.PixelScale();
         const int px = static_cast<int>(x * scale);
@@ -2268,7 +2267,14 @@ void MainWindow::UpdateMouseCursor()
     if (hide != m_mouseHidden)
     {
         m_mouseHidden = hide;
-        SDL_ShowCursor(hide ? SDL_DISABLE : SDL_ENABLE);
+        if (hide)
+        {
+            SDL_HideCursor();
+        }
+        else
+        {
+            SDL_ShowCursor();
+        }
     }
 }
 
@@ -2285,11 +2291,11 @@ void MainWindow::SyncWindowState()
     if (m_hintDue && m_panel == Panel::Renderer)
     {
         m_hintDue = false;
-        m_hintUntil = SDL_GetTicks64() + kGameHintMs;
+        m_hintUntil = SDL_GetTicks() + kGameHintMs;
         SetText("game-hint-text", fullscreen ? Tr("Press %1 or %2 to leave fullscreen", {Hotkeys::Get(HotkeyId::ExitFullscreen).Label(), Hotkeys::Get(HotkeyId::Fullscreen).Label()})
                                              : Tr("Press %1 to show the interface", {Hotkeys::Get(HotkeyId::HideUi).Label()}));
     }
-    if (m_hintUntil != 0 && SDL_GetTicks64() >= m_hintUntil)
+    if (m_hintUntil != 0 && SDL_GetTicks() >= m_hintUntil)
     {
         m_hintUntil = 0;
     }
@@ -2297,7 +2303,7 @@ void MainWindow::SyncWindowState()
     {
         hint->SetClass("shown", m_hintUntil != 0);
     }
-    if (m_versionCopiedUntil != 0 && SDL_GetTicks64() >= m_versionCopiedUntil)
+    if (m_versionCopiedUntil != 0 && SDL_GetTicks() >= m_versionCopiedUntil)
     {
         m_versionCopiedUntil = 0;
         ShowVersion();
