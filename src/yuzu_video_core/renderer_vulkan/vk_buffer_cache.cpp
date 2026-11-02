@@ -11,6 +11,7 @@
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "yuzu_common/readback_reference.h"
+#include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -530,6 +531,45 @@ void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noe
 
 void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {
     scheduler.MarkBufferWrite(buffer.Handle());
+}
+
+VkBuffer BufferCacheRuntime::WriteTrackBitmap() {
+    if (!write_track_bitmap) {
+        constexpr u64 size = Shader::Backend::SPIRV::WRITE_TRACK_WORDS * sizeof(u32);
+        write_track_bitmap = CreateBuffer(device, memory_allocator, size);
+        scheduler.RequestOutsideRenderPassOperationContext();
+        scheduler.Record([buffer = *write_track_bitmap](vk::CommandBuffer cmdbuf) {
+            cmdbuf.FillBuffer(buffer, 0, VK_WHOLE_SIZE, 0);
+            const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                          VK_ACCESS_TRANSFER_WRITE_BIT,
+                                          VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT};
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, barrier);
+        });
+    }
+    return *write_track_bitmap;
+}
+
+bool BufferCacheRuntime::CanTrackedReadback(const VideoCommon::BufferCopy& copy,
+                                            DAddr device_addr) const {
+    // No page has been marked before the first tracking shader bound the bitmap
+    return write_track_bitmap && ((device_addr | copy.src_offset | copy.dst_offset | copy.size) & 3) == 0 &&
+           copy.size + device.GetStorageBufferAlignment() <= device.GetMaxStorageBufferRange();
+}
+
+void BufferCacheRuntime::TrackedReadback(Buffer& buffer, const StagingBufferRef& data,
+                                         const StagingBufferRef& flags,
+                                         const VideoCommon::BufferCopy& copy, u64 flag_offset,
+                                         DAddr device_addr) {
+    if (!tracked_readback_pass) {
+        tracked_readback_pass = std::make_unique<TrackedReadbackPass>(
+            device, scheduler, readback_descriptor_pool, readback_descriptor_queue);
+    }
+    tracked_readback_pass->Copy(buffer.Handle(), data.buffer, flags.buffer, *write_track_bitmap,
+                                copy.src_offset, copy.dst_offset, copy.size,
+                                flags.offset + flag_offset, flags.offset + flags.mapped_span.size(),
+                                Shader::Backend::SPIRV::WRITE_TRACK_WORDS * sizeof(u32),
+                                device_addr);
 }
 
 u64 BufferCacheRuntime::CurrentTick() const noexcept {

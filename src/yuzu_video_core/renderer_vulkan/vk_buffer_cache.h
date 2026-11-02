@@ -142,6 +142,14 @@ public:
     void InvalidateReadbackReference(Buffer& buffer, u64 offset, u64 size);
     std::shared_ptr<Common::ReadbackCpuReference> GetReadbackCpuReference(const Buffer& buffer) const;
 
+    /// Bitmap of the device pages written by compute shaders that track their stores
+    VkBuffer WriteTrackBitmap();
+    bool CanTrackedReadback(const VideoCommon::BufferCopy& copy, DAddr device_addr) const;
+    /// Downloads the pages of the copy marked in the bitmap, with one flag word per page
+    void TrackedReadback(Buffer& buffer, const StagingBufferRef& data,
+                         const StagingBufferRef& flags, const VideoCommon::BufferCopy& copy,
+                         u64 flag_offset, DAddr device_addr);
+
     void ClearBuffer(VkBuffer dest_buffer, u32 offset, size_t size, u32 value);
 
     void BindIndexBuffer(PrimitiveTopology topology, IndexFormat index_format, u32 num_indices,
@@ -253,6 +261,8 @@ private:
     std::unique_ptr<Uint8Pass> uint8_pass;
     QuadIndexedPass quad_index_pass;
     std::unique_ptr<ReadbackDeltaPass> readback_delta_pass;
+    std::unique_ptr<TrackedReadbackPass> tracked_readback_pass;
+    vk::Buffer write_track_bitmap;
     std::shared_ptr<ReadbackShadowBudget> readback_shadow_budget;
     ComputePassDescriptorQueue& readback_descriptor_queue;
     DescriptorPool& readback_descriptor_pool;

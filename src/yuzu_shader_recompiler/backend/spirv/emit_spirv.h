@@ -34,6 +34,19 @@ constexpr u32 RESCALING_LAYOUT_DOWN_FACTOR_OFFSET = offsetof(RescalingLayout, do
 constexpr u32 RESCALING_LAYOUT_ATTACHMENT_READS_OFFSET =
     offsetof(RescalingLayout, attachment_reads);
 constexpr u32 NO_ATTACHMENT_READS = ~0U;
+
+// Compute shaders whose every store goes to a written storage or image buffer set one bit per
+// device page they write, so readbacks copy those pages instead of the whole bound range. Each
+// written binding, in descriptor order, has a slot of two push constant words: its first page,
+// and its offset in that page plus the log2 of its texel size, shifted by 16.
+constexpr u32 MAX_WRITE_TRACK_SLOTS = 12;
+constexpr u32 WRITE_TRACK_OFFSET = 32;
+constexpr u32 WRITE_TRACK_PAGE_BITS = 12;
+constexpr u32 WRITE_TRACK_ADDRESS_BITS = 34;
+constexpr u32 WRITE_TRACK_WORDS = 1U << (WRITE_TRACK_ADDRESS_BITS - WRITE_TRACK_PAGE_BITS - 5);
+constexpr u32 WRITE_TRACK_DISABLED = ~0U;
+static_assert(WRITE_TRACK_OFFSET >= offsetof(RescalingLayout, down_factor));
+static_assert(WRITE_TRACK_OFFSET + MAX_WRITE_TRACK_SLOTS * 2 * sizeof(u32) <= 128);
 // Render-area dimensions must not alias texture/image scaling masks.
 struct GraphicsPushConstants {
     RescalingLayout scaling{};

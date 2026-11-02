@@ -548,11 +548,13 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
             interfaces.push_back(runtime_image_write_mask);
         }
     }
+    DefineWriteTrackingBitmap(program.info, storage_binding);
     DefineInputAttachments(program.info, texture_binding);
     DefineAttributeMemAccess(program.info);
     DefineWriteStorageCasLoopFunction(program.info);
     DefineGlobalMemoryFunctions(program.info);
     DefineRescalingInput(program.info);
+    DefineWriteTrackingFunction(program.info);
     DefineRenderArea(program.info);
 }
 
@@ -1176,7 +1178,8 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
 }
 
 void EmitContext::DefineRescalingInput(const Info& info) {
-    if (!info.uses_rescaling_uniform && info.input_attachment_mask == 0) {
+    if (!info.uses_rescaling_uniform && info.input_attachment_mask == 0 &&
+        info.write_tracking_slots == 0) {
         return;
     }
     if (profile.unified_descriptor_binding) {
@@ -1187,7 +1190,7 @@ void EmitContext::DefineRescalingInput(const Info& info) {
 }
 
 void EmitContext::DefineRescalingInputPushConstant(const Info& info) {
-    boost::container::static_vector<Id, 5> members{};
+    boost::container::static_vector<Id, 6> members{};
     u32 member_index{0};
 
     rescaling_textures_type = TypeArray(U32[1], Const(4u));
@@ -1212,6 +1215,12 @@ void EmitContext::DefineRescalingInputPushConstant(const Info& info) {
     if (info.uses_render_area) {
         render_are_member_index = member_index++;
         members.push_back(F32[4]);
+    }
+    if (info.write_tracking_slots != 0) {
+        const Id slots_type{TypeArray(U32[1], Const(info.write_tracking_slots * 2))};
+        Decorate(slots_type, spv::Decoration::ArrayStride, 4u);
+        write_track_member_index = member_index++;
+        members.push_back(slots_type);
     }
     const Id push_constant_struct{TypeStruct(std::span(members.data(), members.size()))};
     Decorate(push_constant_struct, spv::Decoration::Block);
@@ -1243,6 +1252,11 @@ void EmitContext::DefineRescalingInputPushConstant(const Info& info) {
                        RENDERAREA_LAYOUT_OFFSET);
         MemberName(push_constant_struct, render_are_member_index, "render_area");
     }
+    if (info.write_tracking_slots != 0) {
+        MemberDecorate(push_constant_struct, write_track_member_index, spv::Decoration::Offset,
+                       WRITE_TRACK_OFFSET);
+        MemberName(push_constant_struct, write_track_member_index, "write_track");
+    }
     const Id pointer_type{TypePointer(spv::StorageClass::PushConstant, push_constant_struct)};
     rescaling_push_constants = AddGlobalVariable(pointer_type, spv::StorageClass::PushConstant);
     if (info.uses_render_area) {
@@ -1253,6 +1267,101 @@ void EmitContext::DefineRescalingInputPushConstant(const Info& info) {
     if (profile.supported_spirv >= 0x00010400) {
         interfaces.push_back(rescaling_push_constants);
     }
+}
+
+void EmitContext::DefineWriteTrackingBitmap(const Info& info, u32& binding) {
+    if (info.write_tracking_slots == 0) {
+        return;
+    }
+    // Slots follow the descriptor order of written buffers, as the host fills them
+    u32 slot{};
+    for (size_t index = 0; index < info.storage_buffers_descriptors.size(); ++index) {
+        if (info.storage_buffers_descriptors[index].is_written) {
+            ssbo_write_slots[index] = slot++;
+        }
+    }
+    image_buffer_write_slots.resize(info.image_buffer_descriptors.size());
+    for (size_t index = 0; index < info.image_buffer_descriptors.size(); ++index) {
+        if (info.image_buffer_descriptors[index].is_written) {
+            image_buffer_write_slots[index] = slot++;
+        }
+    }
+    const auto storage = spv::StorageClass::StorageBuffer;
+    const Id array = TypeArray(U32[1], Const(WRITE_TRACK_WORDS));
+    Decorate(array, spv::Decoration::ArrayStride, 4U);
+    const Id block = TypeStruct(array);
+    Decorate(block, spv::Decoration::Block);
+    MemberDecorate(block, 0U, spv::Decoration::Offset, 0U);
+    write_track_bitmap = AddGlobalVariable(TypePointer(storage, block), storage);
+    write_track_bitmap_element = TypePointer(storage, U32[1]);
+    Decorate(write_track_bitmap, spv::Decoration::DescriptorSet, 0U);
+    Decorate(write_track_bitmap, spv::Decoration::Binding, binding++);
+    Name(write_track_bitmap, "write_track_bitmap");
+    if (profile.supported_spirv >= 0x00010400) {
+        interfaces.push_back(write_track_bitmap);
+    }
+}
+
+void EmitContext::DefineWriteTrackingFunction(const Info& info) {
+    if (info.write_tracking_slots == 0) {
+        return;
+    }
+    // (slot, offset in texels, size in texels): sets the bits of the first and last page written
+    const Id func_type{TypeFunction(void_id, U32[1], U32[1], U32[1])};
+    const Id func{OpFunction(void_id, spv::FunctionControlMask::MaskNone, func_type)};
+    const Id slot{OpFunctionParameter(U32[1])};
+    const Id offset{OpFunctionParameter(U32[1])};
+    const Id size{OpFunctionParameter(U32[1])};
+    AddLabel();
+    const Id push_u32{TypePointer(spv::StorageClass::PushConstant, U32[1])};
+    const Id member{Const(write_track_member_index)};
+    const Id first_word{OpShiftLeftLogical(U32[1], slot, Const(1U))};
+    const Id second_word{OpIAdd(U32[1], first_word, Const(1U))};
+    const Id first_page{
+        OpLoad(U32[1], OpAccessChain(push_u32, rescaling_push_constants, member, first_word))};
+    const Id packed{
+        OpLoad(U32[1], OpAccessChain(push_u32, rescaling_push_constants, member, second_word))};
+    const Id enabled_label{OpLabel()};
+    const Id end_label{OpLabel()};
+    OpSelectionMerge(end_label, spv::SelectionControlMask::MaskNone);
+    OpBranchConditional(OpINotEqual(U1, first_page, Const(WRITE_TRACK_DISABLED)), enabled_label,
+                        end_label);
+
+    AddLabel(enabled_label);
+    const Id shift{OpShiftRightLogical(U32[1], packed, Const(16U))};
+    const Id begin{OpIAdd(U32[1], OpBitwiseAnd(U32[1], packed, Const(0xffffU)),
+                          OpShiftLeftLogical(U32[1], offset, shift))};
+    const Id last{OpIAdd(U32[1], begin,
+                         OpISub(U32[1], OpShiftLeftLogical(U32[1], size, shift), Const(1U)))};
+    const auto mark{[&](Id byte) {
+        const Id page{OpIAdd(U32[1], first_page,
+                             OpShiftRightLogical(U32[1], byte, Const(WRITE_TRACK_PAGE_BITS)))};
+        const Id word{OpBitwiseAnd(U32[1], OpShiftRightLogical(U32[1], page, Const(5U)),
+                                   Const(WRITE_TRACK_WORDS - 1))};
+        const Id bit{OpShiftLeftLogical(U32[1], Const(1U), OpBitwiseAnd(U32[1], page, Const(31U)))};
+        const Id pointer{
+            OpAccessChain(write_track_bitmap_element, write_track_bitmap, u32_zero_value, word)};
+        // Most stores find their page already marked: skip the atomic then
+        const Id is_clear{
+            OpIEqual(U1, OpBitwiseAnd(U32[1], OpLoad(U32[1], pointer), bit), u32_zero_value)};
+        const Id set_label{OpLabel()};
+        const Id merge_label{OpLabel()};
+        OpSelectionMerge(merge_label, spv::SelectionControlMask::MaskNone);
+        OpBranchConditional(is_clear, set_label, merge_label);
+        AddLabel(set_label);
+        OpAtomicOr(U32[1], pointer, Const(static_cast<u32>(spv::Scope::Device)), u32_zero_value,
+                   bit);
+        OpBranch(merge_label);
+        AddLabel(merge_label);
+    }};
+    mark(begin);
+    mark(last);
+    OpBranch(end_label);
+
+    AddLabel(end_label);
+    OpReturn();
+    OpFunctionEnd();
+    track_write_func = func;
 }
 
 void EmitContext::DefineRescalingInputUniformConstant() {

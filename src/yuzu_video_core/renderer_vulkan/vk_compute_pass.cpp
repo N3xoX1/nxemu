@@ -21,6 +21,7 @@
 #include "yuzu_video_core/host_shaders/resolve_conditional_render_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_quad_indexed_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_readback_delta_comp_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_tracked_readback_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_uint8_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_indirect_count_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_vtg_indirect_comp_spv.h"
@@ -428,6 +429,61 @@ void ReadbackDeltaPass::Copy(VkBuffer source, VkBuffer reference, VkBuffer desti
         cb.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
         cb.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(parameters), &parameters);
         cb.Dispatch(Common::DivCeil(parameters[0], 16384U), 1, 1);
+        const VkMemoryBarrier after{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                                   VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT |
+                                       VK_ACCESS_HOST_READ_BIT};
+        cb.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0, after);
+    });
+}
+
+TrackedReadbackPass::TrackedReadbackPass(const Device& device_, Scheduler& scheduler_,
+                                         DescriptorPool& pool, ComputePassDescriptorQueue& queue_)
+    : ComputePass(device_, pool, READBACK_DELTA_BINDINGS, READBACK_DELTA_TEMPLATES,
+                  READBACK_DELTA_BANK, COMPUTE_PUSH_CONSTANT_RANGE<7 * sizeof(u32)>,
+                  VULKAN_TRACKED_READBACK_COMP_SPV), scheduler{scheduler_}, queue{queue_} {}
+
+void TrackedReadbackPass::Copy(VkBuffer source, VkBuffer destination, VkBuffer flags,
+                               VkBuffer bitmap, u64 source_offset, u64 destination_offset,
+                               u64 size, u64 flag_offset, u64 flags_size, u64 bitmap_size,
+                               u64 device_addr) {
+    static constexpr u64 PAGE_SIZE = 4096;
+    static constexpr u32 MAX_GROUPS = 65535;
+    const u64 alignment = device.GetStorageBufferAlignment();
+    const u64 src_aligned = Common::AlignDown(source_offset, alignment);
+    const u64 dst_aligned = Common::AlignDown(destination_offset, alignment);
+    queue.Acquire(4);
+    queue.AddBuffer(source, src_aligned, size + source_offset - src_aligned);
+    queue.AddBuffer(destination, dst_aligned, size + destination_offset - dst_aligned);
+    queue.AddBuffer(flags, 0, flags_size);
+    queue.AddBuffer(bitmap, 0, bitmap_size);
+    const void* descriptors = queue.UpdateData();
+    const u64 head = device_addr % PAGE_SIZE;
+    const u32 pages = static_cast<u32>(Common::DivCeil(head + size, PAGE_SIZE));
+    const std::array<u32, 7> parameters{
+        static_cast<u32>(size / 4), static_cast<u32>((source_offset - src_aligned) / 4),
+        static_cast<u32>((destination_offset - dst_aligned) / 4), static_cast<u32>(flag_offset / 4),
+        static_cast<u32>(device_addr / PAGE_SIZE), static_cast<u32>(head / 4), 0,
+    };
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([this, descriptors, parameters, pages](vk::CommandBuffer cb) {
+        // Every store of the marking shaders and every earlier write of the source is visible
+        const VkMemoryBarrier before{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                    VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT,
+                                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT};
+        cb.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, before);
+        const auto set = descriptor_allocator.Commit();
+        device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptors);
+        cb.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+        cb.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
+        for (u32 base = 0; base < pages; base += MAX_GROUPS) {
+            auto chunk = parameters;
+            chunk[6] = base;
+            cb.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(chunk), &chunk);
+            cb.Dispatch(std::min(pages - base, MAX_GROUPS), 1, 1);
+        }
         const VkMemoryBarrier after{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
                                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                                    VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT |

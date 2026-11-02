@@ -797,11 +797,14 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                               ? device.GetMaxComputeSharedMemorySize()
                                               : 0,
         .texel_buffer_size_view = device.NeedsTexelBufferPad(),
+        .track_storage_writes = true,
     };
     // Vertex and geometry stages running as compute are graphics shaders, which flicker on Metal
     // when the global memory helpers are not inlined
     vtg_profile = profile;
     vtg_profile.avoid_global_memory_helper_inlining = false;
+    // Their pipelines bind the buffers of a draw, without the bitmap of written pages
+    vtg_profile.track_storage_writes = false;
 
     host_info = Shader::HostTranslateInfo{
         .support_float64 = device.IsFloat64Supported(),

@@ -91,6 +91,7 @@ inline size_t NumDescriptorUpdateEntries(const Device& device, const Shader::Inf
            texel_buffers * device.GetTexelBufferViews() + NumCombinedSamplers(info) -
            NumTableSetCombinedSamplers(info) + Shader::NumDescriptors(info.image_descriptors) +
            (info.runtime_image_write_mask_words != 0 ? 1U : 0U) +
+           (info.write_tracking_slots != 0 ? 1U : 0U) +
            static_cast<size_t>(std::popcount(info.input_attachment_mask));
 }
 
@@ -212,15 +213,19 @@ public:
     vk::PipelineLayout CreatePipelineLayout(
         VkDescriptorSetLayout descriptor_set_layout,
         VkDescriptorSetLayout texture_table_set_layout = VK_NULL_HANDLE) const {
+        using Shader::Backend::SPIRV::MAX_WRITE_TRACK_SLOTS;
         using Shader::Backend::SPIRV::RenderAreaLayout;
         using Shader::Backend::SPIRV::RescalingLayout;
+        using Shader::Backend::SPIRV::WRITE_TRACK_OFFSET;
         const u32 size_offset = is_compute ? sizeof(RescalingLayout::down_factor) : 0u;
+        const u32 compute_size = WRITE_TRACK_OFFSET + MAX_WRITE_TRACK_SLOTS * 2 * sizeof(u32);
         const VkPushConstantRange range{
             .stageFlags = static_cast<VkShaderStageFlags>(
                 is_compute ? VK_SHADER_STAGE_COMPUTE_BIT : VK_SHADER_STAGE_ALL_GRAPHICS),
             .offset = 0,
-            .size = static_cast<u32>(sizeof(RescalingLayout)) - size_offset +
-                    static_cast<u32>(sizeof(RenderAreaLayout)),
+            .size = is_compute ? compute_size
+                               : static_cast<u32>(sizeof(RescalingLayout)) - size_offset +
+                                     static_cast<u32>(sizeof(RenderAreaLayout)),
         };
         const std::array set_layouts{descriptor_set_layout, texture_table_set_layout};
         const u32 num_sets{texture_table_set_layout ? 2U : descriptor_set_layout ? 1U : 0U};
@@ -261,6 +266,10 @@ public:
         if (info.runtime_image_write_mask_words != 0) {
             const std::array mask_descriptor{Shader::StorageBufferDescriptor{.count = 1}};
             Add(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stage, mask_descriptor);
+        }
+        if (info.write_tracking_slots != 0) {
+            const std::array bitmap_descriptor{Shader::StorageBufferDescriptor{.count = 1}};
+            Add(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stage, bitmap_descriptor);
         }
         for (u32 mask = info.input_attachment_mask; mask != 0; mask &= mask - 1) {
             Add(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, stage, 1U);

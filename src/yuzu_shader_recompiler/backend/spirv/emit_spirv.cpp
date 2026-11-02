@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <span>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -13,6 +14,7 @@
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "yuzu_shader_recompiler/backend/spirv/spirv_emit_context.h"
 #include "yuzu_shader_recompiler/frontend/ir/basic_block.h"
+#include "yuzu_shader_recompiler/frontend/ir/modifiers.h"
 #include "yuzu_shader_recompiler/frontend/ir/program.h"
 
 namespace Shader::Backend::SPIRV {
@@ -96,7 +98,105 @@ void Invoke(EmitContext& ctx, IR::Inst* inst) {
     }
 }
 
+/// Bytes a storage buffer instruction writes, or zero when it writes none
+u32 StorageWriteSize(IR::Opcode opcode) {
+    const std::string_view name{IR::NameOf(opcode)};
+    if (!name.starts_with("WriteStorage") && !name.starts_with("StorageAtomic")) {
+        return 0;
+    }
+    if (name.ends_with("128")) {
+        return 16;
+    }
+    if (name.ends_with("64") || name.ends_with("32x2")) {
+        return 8;
+    }
+    if (name.ends_with("U16") || name.ends_with("S16")) {
+        return 2;
+    }
+    if (name.ends_with("U8") || name.ends_with("S8")) {
+        return 1;
+    }
+    return 4;
+}
+
+bool IsImageWrite(IR::Opcode opcode) {
+    const std::string_view name{IR::NameOf(opcode)};
+    return name.starts_with("ImageWrite") || name.starts_with("ImageAtomic");
+}
+
+/// Stores whose destination is not a written storage or image buffer of the shader
+bool IsUntrackedWrite(IR::Opcode opcode) {
+    const std::string_view name{IR::NameOf(opcode)};
+    return name.starts_with("WriteGlobal") || name.starts_with("GlobalAtomic") ||
+           name.starts_with("BindlessImageWrite") || name.starts_with("BindlessImageAtomic") ||
+           name.starts_with("BoundImageWrite") || name.starts_with("BoundImageAtomic");
+}
+
+/// Slots of written buffers in descriptor order, or zero when a store cannot be attributed
+u32 WriteTrackingSlots(const Profile& profile, const IR::Program& program) {
+    const Info& info{program.info};
+    if (!profile.track_storage_writes || !profile.unified_descriptor_binding ||
+        program.stage != Stage::Compute) {
+        return 0;
+    }
+    u32 slots{};
+    for (const auto& desc : info.storage_buffers_descriptors) {
+        slots += desc.is_written ? desc.count : 0U;
+    }
+    for (const auto& desc : info.image_buffer_descriptors) {
+        slots += desc.is_written ? desc.count : 0U;
+    }
+    if (slots == 0 || slots > MAX_WRITE_TRACK_SLOTS) {
+        return 0;
+    }
+    for (IR::Block* const block : program.post_order_blocks) {
+        for (const IR::Inst& inst : block->Instructions()) {
+            const IR::Opcode opcode{inst.GetOpcode()};
+            if (IsUntrackedWrite(opcode)) {
+                return 0;
+            }
+            if (StorageWriteSize(opcode) != 0) {
+                const IR::Value binding{inst.Arg(0)};
+                if (!binding.IsImmediate() ||
+                    binding.U32() >= info.storage_buffers_descriptors.size() ||
+                    !info.storage_buffers_descriptors[binding.U32()].is_written) {
+                    return 0;
+                }
+            } else if (IsImageWrite(opcode)) {
+                const auto flags{inst.Flags<IR::TextureInstInfo>()};
+                if (flags.type == TextureType::Buffer &&
+                    (flags.descriptor_index >= info.image_buffer_descriptors.size() ||
+                     !info.image_buffer_descriptors[flags.descriptor_index].is_written)) {
+                    return 0;
+                }
+            }
+        }
+    }
+    return slots;
+}
+
+void TrackWrite(EmitContext& ctx, IR::Inst* inst) {
+    const IR::Opcode opcode{inst->GetOpcode()};
+    if (const u32 size{StorageWriteSize(opcode)}; size != 0) {
+        const u32 slot{ctx.ssbo_write_slots[inst->Arg(0).U32()]};
+        ctx.OpFunctionCall(ctx.void_id, ctx.track_write_func, ctx.Const(slot),
+                           ctx.Def(inst->Arg(1)), ctx.Const(size));
+    } else if (IsImageWrite(opcode)) {
+        const auto flags{inst->Flags<IR::TextureInstInfo>()};
+        if (flags.type != TextureType::Buffer) {
+            return;
+        }
+        // Texel coordinates, relative to the range the guest bound
+        const u32 slot{ctx.image_buffer_write_slots[flags.descriptor_index]};
+        ctx.OpFunctionCall(ctx.void_id, ctx.track_write_func, ctx.Const(slot),
+                           ctx.Def(inst->Arg(1)), ctx.Const(1U));
+    }
+}
+
 void EmitInst(EmitContext& ctx, IR::Inst* inst) try {
+    if (Sirit::ValidId(ctx.track_write_func)) {
+        TrackWrite(ctx, inst);
+    }
     switch (inst->GetOpcode()) {
 #define OPCODE(name, result_type, ...)                                                             \
     case IR::Opcode::name:                                                                         \
@@ -507,6 +607,7 @@ void PatchPhiNodes(IR::Program& program, EmitContext& ctx) {
 
 std::vector<u32> EmitSPIRV(const Profile& profile, const RuntimeInfo& runtime_info,
                            IR::Program& program, Bindings& bindings) {
+    program.info.write_tracking_slots = WriteTrackingSlots(profile, program);
     EmitContext ctx{profile, runtime_info, program, bindings};
     const Id main{DefineMain(ctx, program)};
     DefineEntryPoint(program, ctx, main);
