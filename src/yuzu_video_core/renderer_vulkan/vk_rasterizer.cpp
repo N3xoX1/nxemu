@@ -7,6 +7,7 @@
 #include <bit>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
 
@@ -524,8 +525,27 @@ void RasterizerVulkan::DrawTexture() {
                                     .y = ScaleSrc(draw_texture_state.src_y1)}};
     Extent3D src_size = {static_cast<u32>(ScaleSrc(texture.size.width)),
                          static_cast<u32>(ScaleSrc(texture.size.height)), texture.size.depth};
+    // DrawTexture follows the same scissor selection and scaling as a regular draw.
+    const auto& regs = maxwell3d->regs;
+    const u32 up_scale = dst_rescaling ? videoSettings.resolution_info.up_scale : 1U;
+    const u32 down_shift = dst_rescaling ? videoSettings.resolution_info.down_shift : 0U;
+    std::optional<VkRect2D> scissor;
+    if (!regs.viewport_scale_offset_enabled) {
+        scissor = SurfaceClipScissor(regs.surface_clip.x, regs.surface_clip.y,
+                                     regs.surface_clip.width, regs.surface_clip.height,
+                                     up_scale, down_shift);
+    } else if (regs.scissor_test[0].enable) {
+        const auto& guest_scissor = regs.scissor_test[0];
+        // Reject empty or reversed bounds before GetScissorState converts the extent to u32.
+        if (guest_scissor.max_x <= guest_scissor.min_x ||
+            guest_scissor.max_y <= guest_scissor.min_y) {
+            scissor = VkRect2D{};
+        } else {
+            scissor = GetScissorState(regs, 0, up_scale, down_shift);
+        }
+    }
     blit_image.BlitColor(framebuffer, texture.RenderTarget(), texture.ImageHandle(),
-                         sampler->Handle(), dst_region, src_region, src_size);
+                         sampler->Handle(), dst_region, src_region, src_size, scissor);
     texture_cache.MarkRenderTargetsWritten(~0U, false);
 }
 

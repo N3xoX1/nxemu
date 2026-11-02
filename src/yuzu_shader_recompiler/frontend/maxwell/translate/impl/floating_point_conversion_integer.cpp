@@ -38,9 +38,9 @@ union F2I {
     BitField<39, 2, Rounding> rounding;
     BitField<41, 1, u64> half;
     BitField<44, 1, u64> ftz;
-    BitField<45, 1, u64> abs;
+    BitField<45, 1, u64> neg;
     BitField<47, 1, u64> cc;
-    BitField<49, 1, u64> neg;
+    BitField<49, 1, u64> abs;
 };
 
 size_t BitSize(DestFormat dest_format) {

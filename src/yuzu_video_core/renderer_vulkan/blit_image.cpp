@@ -658,7 +658,8 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
 void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView src_image_view,
                                 VkImage src_image, VkSampler src_sampler,
                                 const Region2D& dst_region, const Region2D& src_region,
-                                const Extent3D& src_size) {
+                                const Extent3D& src_size,
+                                const std::optional<VkRect2D>& scissor) {
     const u32 color_scratch_mask = dst_framebuffer->ColorScratchMask(1U);
     const bool is_moltenvk = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK;
     const BlitImagePipelineKey key{
@@ -673,10 +674,31 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
     const VkRenderPass render_pass = key.renderpass;
     const VkFramebuffer framebuffer_handle = dst_framebuffer->HandleVariant(color_scratch_mask);
     const VkExtent2D render_area = dst_framebuffer->RenderArea();
+    // Preserve texture coordinates: clip only the scissor, not the destination viewport.
+    std::optional<VkRect2D> clip;
+    if (scissor) {
+        const s64 left = (std::max)({s64{0}, s64{(std::min)(dst_region.start.x, dst_region.end.x)},
+                                     s64{scissor->offset.x}});
+        const s64 top = (std::max)({s64{0}, s64{(std::min)(dst_region.start.y, dst_region.end.y)},
+                                    s64{scissor->offset.y}});
+        const s64 right = (std::min)({s64{render_area.width},
+                                      s64{(std::max)(dst_region.start.x, dst_region.end.x)},
+                                      s64{scissor->offset.x} + scissor->extent.width});
+        const s64 bottom = (std::min)({s64{render_area.height},
+                                       s64{(std::max)(dst_region.start.y, dst_region.end.y)},
+                                       s64{scissor->offset.y} + scissor->extent.height});
+        if (right <= left || bottom <= top) {
+            return;
+        }
+        clip = VkRect2D{
+            .offset = {static_cast<s32>(left), static_cast<s32>(top)},
+            .extent = {static_cast<u32>(right - left), static_cast<u32>(bottom - top)},
+        };
+    }
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([this, render_pass, framebuffer_handle, render_area, src_image_view, src_image,
                       src_sampler, dst_region, src_region, src_size, pipeline,
-                      layout](vk::CommandBuffer cmdbuf) {
+                      layout, clip](vk::CommandBuffer cmdbuf) {
         SynchronizeBlitSource(cmdbuf, src_image);
         BeginRenderPass(cmdbuf, render_pass, framebuffer_handle, render_area);
         const VkDescriptorSet descriptor_set = one_texture_descriptor_allocator.Commit();
@@ -685,6 +707,9 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
         cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, descriptor_set,
                                   nullptr);
         BindBlitState(cmdbuf, layout, dst_region, src_region, src_size);
+        if (clip) {
+            cmdbuf.SetScissor(0, *clip);
+        }
         cmdbuf.Draw(3, 1, 0, 0);
         cmdbuf.EndRenderPass();
     });
