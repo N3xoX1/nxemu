@@ -105,7 +105,7 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
     if (allow_framebuffer_update && !missing_presented_buffer && has_pending_frame) {
         std::stable_sort(composition_stack.begin(), composition_stack.end(),
                          [&](auto& l, auto& r) { return l.z_index < r.z_index; });
-        nvdisp.Composite(composition_stack);
+        nvdisp.Composite(composition_stack, swap_interval.value_or(1), *out_speed_scale);
         for (const auto& layer : display.stack.layers) {
             if (const auto it = m_framebuffers.find(layer->consumer_id);
                 it != m_framebuffers.end()) {

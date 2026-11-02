@@ -142,6 +142,7 @@ endif()
 if(ANDROID)
     target_sources(yuzu_common PRIVATE
         android/java_bridge.cpp
+        android/frame_interval.h
         android/java_bridge.h
         fs/fs_android.cpp
         fs/fs_android.h

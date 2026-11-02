@@ -192,6 +192,7 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     {
         RenderWatermark(*frame);
     }
+    frame->frame_interval_ns = framebuffers.front().frame_interval_ns;
     scheduler.Flush(*frame->render_ready);
     present_manager.Present(frame);
 
