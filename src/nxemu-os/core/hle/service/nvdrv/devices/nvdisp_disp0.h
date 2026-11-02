@@ -35,7 +35,8 @@ public:
     void OnClose(DeviceFD fd) override;
 
     /// Performs a screen flip, compositing each buffer.
-    void Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers);
+    void Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers,
+                   u32 swap_interval, float compose_speed_scale);
     void WaitForComposite();
     void CancelPendingComposite();
 

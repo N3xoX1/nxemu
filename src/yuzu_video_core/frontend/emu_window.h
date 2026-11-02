@@ -71,6 +71,9 @@ public:
     /// Called from GPU thread when a frame is displayed.
     virtual void OnFrameDisplayed() {}
 
+    /// Called on successful native submission (not scanout), on the present thread.
+    virtual void OnFramePresented(void*, u32) {}
+
     /**
      * Returns a GraphicsContext that the frontend provides to be used for rendering.
      */

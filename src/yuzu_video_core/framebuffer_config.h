@@ -23,6 +23,7 @@ struct FramebufferConfig {
     Service::android::BufferTransformFlags transform_flags{};
     Common::Rectangle<int> crop_rect{};
     BlendMode blending{};
+    u32 frame_interval_ns{};
 };
 
 Common::Rectangle<f32> NormalizeCrop(const FramebufferConfig& framebuffer, u32 texture_width,
