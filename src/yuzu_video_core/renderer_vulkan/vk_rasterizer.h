@@ -115,7 +115,13 @@ public:
     void FlushRegion(DAddr addr, u64 size,
                      VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void FlushNativeRegion(DAddr addr, u64 size) override;
-    bool MustFlushSharedPage(DAddr addr, u64 size) override;
+    bool MayFlushSharedPage(DAddr addr, u64 size) override;
+    VideoCore::SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) override;
+    bool AwaitsProtectedDownload(DAddr addr, u64 size) override;
+    bool CommitReadbacksForEarlySignal() override;
+    bool HasPendingResult(DAddr addr, u64 size) override;
+    void GpuWrittenResults(DAddr addr, u64 size,
+                           std::vector<std::pair<DAddr, u64>>& ranges) override;
     void FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheType which, bool native_read);
     bool MustFlushRegion(DAddr addr, u64 size,
                          VideoCommon::CacheType which = VideoCommon::CacheType::All) override;

@@ -57,4 +57,63 @@ private:
     std::array<std::atomic<std::uint64_t>,WordCount> pages{};
     std::atomic<bool> unbounded{};
 };
+
+// Clearable variant: the owner keeps it exact under its own mutex, readers may query it
+// lock-free. Out-of-range addresses are always reported.
+template<unsigned AddressBits = 34, unsigned PageBits = 12>
+class AtomicPageBits {
+    static constexpr std::uint64_t Limit = std::uint64_t{1} << AddressBits;
+    static constexpr size_t WordCount = ((Limit >> PageBits) + 63) / 64;
+
+public:
+    static constexpr std::uint64_t PAGE_SIZE = std::uint64_t{1} << PageBits;
+
+    void Set(std::uint64_t address, std::uint64_t size) noexcept {
+        if (!size) return;
+        if (address >= Limit || size > Limit - address) {
+            unbounded.store(true, std::memory_order_release);
+            return;
+        }
+        Visit(address, size, [&](size_t word, std::uint64_t mask) {
+            if ((pages[word].load(std::memory_order_relaxed) & mask) != mask)
+                pages[word].fetch_or(mask, std::memory_order_release);
+            return false;
+        });
+    }
+
+    void Clear(std::uint64_t address, std::uint64_t size) noexcept {
+        if (!size || address >= Limit || size > Limit - address) return;
+        Visit(address, size, [&](size_t word, std::uint64_t mask) {
+            if (pages[word].load(std::memory_order_relaxed) & mask)
+                pages[word].fetch_and(~mask, std::memory_order_release);
+            return false;
+        });
+    }
+
+    [[nodiscard]] bool Any(std::uint64_t address, std::uint64_t size) const noexcept {
+        if (!size) return false;
+        if (address >= Limit || size > Limit - address || unbounded.load(std::memory_order_acquire))
+            return true;
+        return Visit(address, size, [&](size_t word, std::uint64_t mask) {
+            return (pages[word].load(std::memory_order_acquire) & mask) != 0;
+        });
+    }
+
+private:
+    template<class F> static bool Visit(std::uint64_t address, std::uint64_t size, F&& visit) {
+        const auto first = address >> PageBits, last = (address + size - 1) >> PageBits;
+        for (auto page = first; page <= last;) {
+            const auto word = page >> 6;
+            const unsigned begin = static_cast<unsigned>(page & 63);
+            const unsigned end = static_cast<unsigned>((last >> 6) == word ? (last & 63) + 1 : 64);
+            const std::uint64_t mask = (~std::uint64_t{0} << begin) &
+                (end == 64 ? ~std::uint64_t{0} : (std::uint64_t{1} << end) - 1);
+            if (visit(static_cast<size_t>(word), mask)) return true;
+            page = (word + 1) << 6;
+        }
+        return false;
+    }
+    std::array<std::atomic<std::uint64_t>, WordCount> pages{};
+    std::atomic<bool> unbounded{};
+};
 } // namespace VideoCommon
