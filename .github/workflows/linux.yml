@@ -70,8 +70,8 @@ jobs:
       - name: Test
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
-          cmake --build "${NXEMU_BUILD_DIRECTORY:-build/linux}" --target nxemu_ui_settings_tests test_shader_constant_folding --parallel "$NXEMU_BUILD_JOBS"
-          ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build/linux}" --output-on-failure --no-tests=error -R '^(nxemu_ui_settings|test_shader_constant_folding)$'
+          cmake --build "${NXEMU_BUILD_DIRECTORY:-build/linux}" --target nxemu_ui_settings_tests test_shader_constant_folding test_dynarmic_regalloc --parallel "$NXEMU_BUILD_JOBS"
+          ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build/linux}" --output-on-failure --no-tests=error -R '^(nxemu_ui_settings|test_shader_constant_folding|test_dynarmic_regalloc)$'
       - name: Compiler cache statistics
         if: ${{ always() }}
         run: ccache --show-stats --verbose
