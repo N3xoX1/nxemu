@@ -15,6 +15,7 @@ public:
 
     // EmuWindow
     void OnFrameDisplayed();
+    void OnFramePresented(void * surface, uint32_t frame_interval_ns) override;
     std::unique_ptr<Core::Frontend::GraphicsContext> CreateSharedContext() const;
     bool IsShown() const;
 

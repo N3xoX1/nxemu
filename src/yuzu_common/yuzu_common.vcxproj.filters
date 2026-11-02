@@ -345,6 +345,9 @@
     <ClInclude Include="fs\filesystem_interfaces.h">
       <Filter>Header Files\fs</Filter>
     </ClInclude>
+    <ClInclude Include="android\performance_hint.h">
+      <Filter>Header Files\android</Filter>
+    </ClInclude>
     <ClInclude Include="android\java_bridge.h">
       <Filter>Header Files\android</Filter>
     </ClInclude>
@@ -379,6 +382,9 @@
     </ClCompile>
     <ClCompile Include="address_space.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="android\performance_hint.cpp">
+      <Filter>Source Files\android</Filter>
     </ClCompile>
     <ClCompile Include="dynamic_library.cpp">
       <Filter>Source Files</Filter>
