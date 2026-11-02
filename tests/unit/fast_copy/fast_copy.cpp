@@ -561,6 +561,159 @@ template <typename F> Timing Time(F&& run, unsigned iterations = 101) {
     std::sort(samples.begin(), samples.end());
     return {samples[samples.size() / 2], samples[samples.size() * 95 / 100]};
 }
+void LaunchSingleLineDMA(Tegra::Engines::MaxwellDMA& engine, GPUVAddr source,
+                         GPUVAddr destination, u32 length, bool semaphore = false) {
+    using DMA = Tegra::Engines::MaxwellDMA;
+    engine.CallMethod(0x400 / 4, static_cast<u32>(source >> 32), true);
+    engine.CallMethod(0x404 / 4, static_cast<u32>(source), true);
+    engine.CallMethod(0x408 / 4, static_cast<u32>(destination >> 32), true);
+    engine.CallMethod(0x40C / 4, static_cast<u32>(destination), true);
+    engine.CallMethod(0x418 / 4, length, true);
+    DMA::LaunchDMA launch{};
+    launch.data_transfer_type.Assign(DMA::LaunchDMA::DataTransferType::NON_PIPELINED);
+    launch.semaphore_type.Assign(semaphore ? DMA::LaunchDMA::SemaphoreType::RELEASE_ONE_WORD_SEMAPHORE
+                                          : DMA::LaunchDMA::SemaphoreType::NONE);
+    engine.CallMethod(0x300 / 4, std::bit_cast<u32>(launch), true);
+}
+
+// Coordinate-based GOB oracle, independent of the production address bit permutation.
+size_t GobOffset(size_t offset) {
+    const size_t x = offset % 64;
+    const size_t y = (offset % 512) / 64;
+    return (offset / 512) * 512 + (y / 2) * 64 + (y % 2) * 16 +
+           (x / 32) * 256 + ((x % 32) / 16) * 32 + x % 16;
+}
+
+void GobEngineTests(CopyFixture& f) {
+    struct Observer : TestRasterizer {
+        u64 read_bytes{}, queries{};
+        void FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) override {
+            read_bytes += size;
+            TestRasterizer::FlushRegion(addr, size, which);
+        }
+        void Query(GPUVAddr, VideoCommon::QueryType, VideoCommon::QueryPropertiesFlags,
+                   u32, u32) override {
+            ++queries;
+        }
+    } observer;
+    f.gpu.FlushCaching();
+    f.gpu.BindRasterizer(&observer);
+    f.device.BindInterface(&observer);
+    Tegra::Engines::MaxwellDMA engine{f.gpu};
+    engine.BindRasterizer(&observer);
+    constexpr size_t size = 8192;
+    std::array<u8, size> input{}, initial{}, expected{}, actual{}, source_after{};
+    for (size_t i = 0; i < size; ++i) {
+        input[i] = static_cast<u8>(i * 37 + i / 97 + (i / 256) * 11);
+    }
+    initial.fill(0xCD);
+    std::vector<u32> gob_offsets;
+    for (u32 offset = 0; offset < 32; ++offset) {
+        gob_offsets.push_back(offset);
+    }
+    for (u32 offset : {127U, 255U, 495U, 511U, 512U, 4093U, 4095U, 4096U}) {
+        gob_offsets.push_back(offset);
+    }
+    constexpr std::array lengths{0U, 1U, 2U, 7U, 15U, 16U, 17U, 23U, 31U, 32U, 33U,
+                                 47U, 48U, 49U, 63U, 64U, 65U, 127U, 128U, 129U,
+                                 255U, 256U, 257U, 511U, 512U, 513U};
+    for (bool fragmented : {false, true}) {
+        const GPUVAddr source = fragmented ? 0x6000000 : CopyFixture::Source;
+        const GPUVAddr destination = fragmented ? 0x7000000 : CopyFixture::Destination;
+        for (bool src_pitch : {false, true}) {
+            for (auto pitch_kind : {Tegra::PTEKind::PITCH, Tegra::PTEKind::PITCH_NO_SWIZZLE}) {
+                const auto src_kind = src_pitch ? pitch_kind : Tegra::PTEKind::GENERIC_16BX2;
+                const auto dst_kind = src_pitch ? Tegra::PTEKind::GENERIC_16BX2 : pitch_kind;
+                if (fragmented) {
+                    // Small GPU pages backed by nonadjacent device-memory pages.
+                    for (u32 page = 0; page < 2; ++page) {
+                        f.gpu.Map(source + page * 4096, CopyFixture::Source + page * 8192,
+                                  4096, src_kind, false);
+                        f.gpu.Map(destination + page * 4096,
+                                  CopyFixture::Destination + page * 8192, 4096, dst_kind, false);
+                    }
+                } else {
+                    f.gpu.Map(source, CopyFixture::Source, CopyFixture::RegionSize, src_kind);
+                    f.gpu.Map(destination, CopyFixture::Destination, CopyFixture::RegionSize,
+                              dst_kind);
+                }
+                f.gpu.WriteBlockUnsafe(source, input.data(), size);
+                for (u32 gob_offset : gob_offsets) {
+                    for (u32 pitch_offset : {0U, 1U, 7U, 15U, 31U, 4093U, 4095U}) {
+                        for (u32 length : lengths) {
+                            const u32 src_offset = src_pitch ? pitch_offset : gob_offset;
+                            const u32 dst_offset = src_pitch ? gob_offset : pitch_offset;
+                            expected = initial;
+                            for (u32 i = 0; i < length; ++i) {
+                                const size_t src = src_pitch ? src_offset + i : GobOffset(src_offset + i);
+                                const size_t dst = src_pitch ? GobOffset(dst_offset + i) : dst_offset + i;
+                                expected[dst] = input[src];
+                            }
+                            f.gpu.WriteBlockUnsafe(destination, initial.data(), size);
+                            observer.read_bytes = 0;
+                            observer.queries = 0;
+                            LaunchSingleLineDMA(engine, source + src_offset, destination + dst_offset,
+                                                length, length == 0);
+                            Check(observer.read_bytes == length, "GOB copy reads exactly the requested bytes");
+                            Check(observer.queries == (length == 0 ? 1U : 0U),
+                                  "zero-length GOB copy still releases its semaphore");
+                            f.gpu.FlushCaching();
+                            f.gpu.ReadBlockUnsafe(destination, actual.data(), size);
+                            Check(actual == expected, "GOB copy matches byte oracle and preserves destination guards");
+                            f.gpu.ReadBlockUnsafe(source, source_after.data(), size);
+                            Check(source_after == input, "GOB copy preserves source bytes");
+                        }
+                    }
+                }
+            }
+        }
+        if (fragmented) {
+            f.gpu.Unmap(source, size);
+            f.gpu.Unmap(destination, size);
+        }
+    }
+    f.gpu.BindRasterizer(&f.rasterizer);
+    f.device.BindInterface(&f.rasterizer);
+    f.gpu.Map(CopyFixture::Source, CopyFixture::Source, CopyFixture::RegionSize);
+    f.gpu.Map(CopyFixture::Destination, CopyFixture::Destination, CopyFixture::RegionSize);
+}
+
+void GobBenchmark(CopyFixture& f, bool aligned_only, bool same_kind = false) {
+    Tegra::Engines::MaxwellDMA engine{f.gpu};
+    engine.BindRasterizer(&f.rasterizer);
+    for (size_t i = 0; i < 2 * 1024 * 1024; ++i) {
+        f.physical.bytes[CopyFixture::Source + i] = static_cast<u8>(i * 37 + i / 97);
+    }
+    std::puts("direction,gob_offset,pitch_offset,length,median_us,p95_us");
+    for (bool src_pitch : {false, true}) {
+        f.gpu.Map(CopyFixture::Source, CopyFixture::Source, CopyFixture::RegionSize,
+                  src_pitch ? Tegra::PTEKind::PITCH : Tegra::PTEKind::GENERIC_16BX2);
+        f.gpu.Map(CopyFixture::Destination, CopyFixture::Destination, CopyFixture::RegionSize,
+                  (src_pitch != same_kind) ? Tegra::PTEKind::GENERIC_16BX2 : Tegra::PTEKind::PITCH);
+        for (auto offsets : {std::array<u32, 2>{0, 0}, {1, 7}, {15, 1}, {4095, 4093}}) {
+            if (aligned_only && offsets[0] != 0) {
+                continue;
+            }
+            for (u32 length : {0U, 15U, 16U, 17U, 31U, 33U, 64U, 256U, 4095U, 4096U,
+                               4097U, 65536U, 1048576U}) {
+                if (aligned_only && length % 16 != 0) {
+                    continue;
+                }
+                const GPUVAddr source = CopyFixture::Source + (src_pitch ? offsets[1] : offsets[0]);
+                const GPUVAddr destination = CopyFixture::Destination + (src_pitch ? offsets[0] : offsets[1]);
+                const auto result = Time([&] {
+                    LaunchSingleLineDMA(engine, source, destination, length);
+                    f.gpu.FlushCaching();
+                }, 31);
+                const char* direction = same_kind ? (src_pitch ? "pitch_to_pitch" : "gob_to_gob")
+                                                  : (src_pitch ? "pitch_to_gob" : "gob_to_pitch");
+                std::printf("%s,%u,%u,%u,%.3f,%.3f\n", direction,
+                            offsets[0], offsets[1], length, result.median, result.p95);
+            }
+        }
+    }
+}
+
 void Benchmark(CopyFixture& f) {
     Tegra::Engines::Blitter::SoftwareBlitEngine reference{f.gpu};
     Fermi2D engine{f.gpu};
@@ -712,6 +865,14 @@ int main(int argc, char** argv) {
     CopyFixture fixture;
     if (argc > 1 && std::string_view(argv[1]) == "--benchmark")
         Benchmark(fixture);
+    else if (argc > 1 && std::string_view(argv[1]) == "--benchmark-gob")
+        GobBenchmark(fixture, false);
+    else if (argc > 1 && std::string_view(argv[1]) == "--benchmark-gob-aligned")
+        GobBenchmark(fixture, true);
+    else if (argc > 1 && std::string_view(argv[1]) == "--benchmark-gob-control")
+        GobBenchmark(fixture, true, true);
+    else if (argc > 1 && std::string_view(argv[1]) == "--gob-only")
+        GobEngineTests(fixture);
     else {
         LayoutTests(fixture);
         MappingTests(fixture);
@@ -719,6 +880,7 @@ int main(int argc, char** argv) {
         RemapIdentityTests();
         RemapEngineTests(fixture);
         DmaEngineTests(fixture);
+        GobEngineTests(fixture);
     }
     std::fprintf(stderr, "%u checks, %u failures\n", cases, failures);
     return failures ? EXIT_FAILURE : EXIT_SUCCESS;
