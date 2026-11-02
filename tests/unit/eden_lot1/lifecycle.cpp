@@ -1,48 +1,101 @@
-#include <iostream>
-#include <cassert>
-namespace Core { class System {}; }
-namespace Service::KernelHelpers { class ServiceContext {}; }
-#include "core/hle/service/am/lifecycle_manager.cpp"
-namespace Service {
-Event::Event(KernelHelpers::ServiceContext&):m_event(nullptr){}
-Event::~Event()=default;
-void Event::Signal(){} void Event::Clear(){}
+#include <cstdio>
+#include <cstdlib>
+
+// The production lifecycle only stores references to these in its constructor.
+namespace Core {
+class System {};
 }
+namespace Service::KernelHelpers {
+class ServiceContext {};
+}
+
+#include "core/hle/service/am/lifecycle_manager.cpp"
+
+// Exercise message ordering without creating kernel event handles.
+namespace Service {
+Event::Event(KernelHelpers::ServiceContext&) : m_event(nullptr) {}
+Event::~Event() = default;
+void Event::Signal() {}
+void Event::Clear() {}
+} // namespace Service
+
+namespace {
 using namespace Service::AM;
+
+void Check(bool condition, const char* message) {
+    if (!condition) {
+        std::fprintf(stderr, "FAIL: %s\n", message);
+        std::abort();
+    }
+}
+
+void TestShutdownMessageOrder(Core::System& system, Service::KernelHelpers::ServiceContext& context) {
+    for (bool notifications_enabled : {false, true}) {
+        for (bool exit_requested : {false, true}) {
+            for (bool obscured : {false, true}) {
+                LifecycleManager lifecycle(system, context, true);
+                lifecycle.UpdateRequestedFocusState();
+                AppletMessage message{};
+                lifecycle.PopMessage(&message);
+                lifecycle.GetAndClearFocusState();
+                lifecycle.SetFocusStateChangedNotificationEnabled(notifications_enabled);
+                if (obscured) {
+                    lifecycle.SetActivityState(ActivityState::ForegroundObscured);
+                }
+                lifecycle.SetShutdownFocusState(FocusState::NotInFocus);
+                if (exit_requested) {
+                    lifecycle.RequestExit();
+                }
+                Check(!lifecycle.UpdateRequestedFocusState(), "shutdown focus is preserved");
+                Check(lifecycle.PopMessage(&message), "shutdown message is available");
+                Check(message == AppletMessage::FocusStateChanged, "focus precedes exit");
+                Check(lifecycle.GetAndClearFocusState() == FocusState::NotInFocus,
+                      "guest observes loss of focus");
+                Check(!lifecycle.HasPendingFocusStateChanged(), "focus message was consumed");
+                if (exit_requested) {
+                    Check(lifecycle.PopMessage(&message) && message == AppletMessage::Exit,
+                          "exit remains available after focus");
+                }
+            }
+        }
+    }
+}
+
+void TestShutdownRunnable(Core::System& system, Service::KernelHelpers::ServiceContext& context) {
+    for (auto activity : {ActivityState::ForegroundVisible, ActivityState::ForegroundObscured,
+                          ActivityState::BackgroundVisible, ActivityState::BackgroundObscured}) {
+        for (bool always_suspend : {false, true}) {
+            LifecycleManager lifecycle(system, context, true);
+            lifecycle.SetActivityState(activity);
+            lifecycle.SetOutOfFocusSuspendingEnabled(always_suspend);
+            lifecycle.SetShutdownFocusState(FocusState::NotInFocus);
+            Check(lifecycle.IsRunnable(), "application can process focus before exit is requested");
+            lifecycle.RequestExit();
+            Check(lifecycle.IsRunnable(), "application remains runnable after exit is requested");
+        }
+    }
+}
+
+void TestNormalFocus(Core::System& system, Service::KernelHelpers::ServiceContext& context) {
+    LifecycleManager lifecycle(system, context, true);
+    Check(lifecycle.UpdateRequestedFocusState(), "new session can enter foreground");
+    Check(lifecycle.IsRunnable(), "foreground session is runnable");
+    AppletMessage message{};
+    lifecycle.PopMessage(&message);
+    lifecycle.GetAndClearFocusState();
+    lifecycle.SetFocusStateChangedNotificationEnabled(false);
+    lifecycle.SetFocusState(FocusState::NotInFocus);
+    Check(!lifecycle.PopMessage(&message), "normal notifications can still be disabled");
+    Check(lifecycle.UpdateRequestedFocusState(), "normal foreground updates are not frozen");
+    Check(lifecycle.GetAndClearFocusState() == FocusState::InFocus, "normal focus is restored");
+}
+} // namespace
+
 int main() {
- Core::System s; Service::KernelHelpers::ServiceContext ctx; int cases=0;
- for(bool enabled:{false,true}) for(bool exit:{false,true}) for(bool pause:{false,true}) {
-  LifecycleManager l(s,ctx,true);AppletMessage m{};
-  l.SetActivityState(ActivityState::ForegroundVisible);l.UpdateRequestedFocusState();l.PopMessage(&m);l.GetAndClearFocusState();
-  l.SetFocusStateChangedNotificationEnabled(enabled);
-  if(pause) l.SetActivityState(ActivityState::ForegroundObscured);
-#ifdef PATCHED
-  l.SetShutdownFocusState(FocusState::NotInFocus);
-#else
-  l.SetFocusState(FocusState::NotInFocus);
-#endif
-  if(exit) l.RequestExit();
-  bool updated=l.UpdateRequestedFocusState();l.PopMessage(&m);
-  std::cout<<"enabled="<<enabled<<" exit="<<exit<<" pause="<<pause<<" first="<<int(m)<<" focus="<<int(l.GetAndClearFocusState())<<" overwritten="<<updated<<"\n";
-#ifdef PATCHED
-  assert(m==AppletMessage::FocusStateChanged);assert(!updated);
-  if(exit) { l.PopMessage(&m);assert(m==AppletMessage::Exit); }
-  assert(!l.HasPendingFocusStateChanged());
-#endif
-  cases++;
- }
- LifecycleManager fresh(s,ctx,true);assert(fresh.UpdateRequestedFocusState());assert(fresh.IsRunnable());
- std::cout<<"lifecycle cases="<<cases<<"; new instance foreground OK\n";
-#ifdef PATCHED
- int suspended=0;
- for(auto activity:{ActivityState::ForegroundVisible,ActivityState::ForegroundObscured,ActivityState::BackgroundVisible,ActivityState::BackgroundObscured})
- for(bool always:{false,true}) {
-  LifecycleManager l(s,ctx,true);l.SetActivityState(activity);l.SetOutOfFocusSuspendingEnabled(always);
-  l.SetShutdownFocusState(FocusState::NotInFocus);
-  bool before=l.IsRunnable();l.RequestExit();bool after=l.IsRunnable();
-  std::cout<<"activity="<<int(activity)<<" always_suspend="<<always<<" runnable_during_focus_grace="<<before<<" runnable_after_exit="<<after<<"\n";
-  if(!before)suspended++;
- }
- assert(suspended==0);std::cout<<"shutdown activity cases still suspended="<<suspended<<"/8\n";
-#endif
+    Core::System system;
+    Service::KernelHelpers::ServiceContext context;
+    TestShutdownMessageOrder(system, context);
+    TestShutdownRunnable(system, context);
+    TestNormalFocus(system, context);
+    std::puts("PASS: shutdown focus ordering, runnable state and normal focus notifications");
 }

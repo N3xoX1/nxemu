@@ -13,9 +13,6 @@ nxemu_unit_test(test_lot1_audio)
 add_executable(test_lot1_lifecycle eden_lot1/lifecycle.cpp)
 target_include_directories(test_lot1_lifecycle PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/fmt/include")
-target_compile_definitions(test_lot1_lifecycle PRIVATE PATCHED)
-target_compile_options(test_lot1_lifecycle PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 target_link_libraries(test_lot1_lifecycle PRIVATE nxemu_test_support fmt::fmt)
 nxemu_unit_test(test_lot1_lifecycle)
 
