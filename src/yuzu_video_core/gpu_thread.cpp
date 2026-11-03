@@ -97,6 +97,15 @@ void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Fronte
     thread = std::jthread(RunThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(scheduler), std::ref(*state));
 }
 
+void ThreadManager::StopThread()
+{
+    if (thread.joinable())
+    {
+        thread.request_stop();
+        thread.join();
+    }
+}
+
 void ThreadManager::SubmitList(s32 channel, Tegra::CommandList && entries)
 {
     PushCommand(SubmitListCommand(channel, std::move(entries)));

@@ -120,11 +120,14 @@ struct GPU::Impl :
     {
     }
 
-    ~Impl()
+    // Stops every thread that calls back through GPU. GPU calls it before destroying
+    // this: during ~Impl, GPU::impl is already null.
+    void Shutdown()
     {
         NotifyShutdown();
         cdma_pushers.clear();
         composite_requests.Cancel();
+        gpu_thread.StopThread();
     }
 
     std::shared_ptr<Control::ChannelState> CreateChannel(s32 channel_id)
@@ -696,7 +699,10 @@ GPU::GPU(ISystemModules & modules, Tegra::Host1x::Host1x & host1x, bool is_async
 {
 }
 
-GPU::~GPU() = default;
+GPU::~GPU()
+{
+    impl->Shutdown();
+}
 
 std::shared_ptr<Control::ChannelState> GPU::AllocateChannel()
 {

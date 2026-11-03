@@ -129,7 +129,11 @@ ServerManager::~ServerManager() {
 }
 
 void ServerManager::RunServer(std::unique_ptr<ServerManager>&& server_manager) {
-    server_manager->m_system.RunServer(std::move(server_manager));
+    auto* const manager = server_manager.get();
+    if (!manager->m_system.RunServer(std::move(server_manager))) {
+        // The server never ran: its destructor must not wait for it to stop.
+        manager->m_stopped.Set();
+    }
 }
 
 Result ServerManager::RegisterSession(Kernel::KServerSession* server_session,

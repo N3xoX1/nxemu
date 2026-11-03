@@ -235,9 +235,16 @@ struct System::Impl {
         core_timing.SyncPause(false);
         Network::CancelPendingSocketOperations();
         kernel.SuspendEmulation(true);
+        if (service_manager) {
+            // A host service still starting may wait for a service that will not register.
+            service_manager->Close();
+        }
         kernel.CloseServices();
         applet_manager.StopEventObserver();
         kernel.ShutdownCores();
+        // The cores stop at their next reschedule: wait for them before destroying what the
+        // code they still run uses, such as a service still starting.
+        cpu_manager.Shutdown();
         applet_manager.Reset();
         {
             std::scoped_lock lk{general_channel_mutex};
@@ -250,7 +257,6 @@ struct System::Impl {
         core_timing.ClearPendingEvents();
         audio_core.reset();
         perf_stats.reset();
-        cpu_manager.Shutdown();
         kernel.Shutdown();
         stop_event = {};
         Network::RestartSocketOperations();
@@ -767,7 +773,7 @@ const Network::RoomNetwork & System::GetRoomNetwork() const
     return impl->room_network;
 }
 
-void System::RunServer(std::unique_ptr<Service::ServerManager> && server_manager)
+bool System::RunServer(std::unique_ptr<Service::ServerManager> && server_manager)
 {
     return impl->kernel.RunServer(std::move(server_manager));
 }

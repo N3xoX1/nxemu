@@ -76,9 +76,10 @@ ISelfController::ISelfController(Core::System& system_, std::shared_ptr<Applet> 
 
     RegisterHandlers(functions);
 
+    auto display_services = DisplayLayerManager::OpenDisplayServices(system);
     std::scoped_lock lk{m_applet->lock};
-    m_applet->display_layer_manager.Initialize(system, m_process, m_applet->applet_id,
-                                               m_applet->library_applet_mode);
+    m_applet->display_layer_manager.Initialize(std::move(display_services), m_process,
+                                               m_applet->applet_id, m_applet->library_applet_mode);
 }
 
 ISelfController::~ISelfController() {
