@@ -33,6 +33,7 @@ constexpr const char * ModuleVideo = "nxcore:ModuleVideo";
 constexpr const char * ModuleOs = "nxcore:ModuleOs";
 constexpr const char * ShowLogConsole = "nxcore:ShowLogConsole";
 constexpr const char * LogFilter = "nxcore:LogFilter";
+constexpr const char * DebugSettingsEnabled = "nxcore:DebugSettingsEnabled";
 constexpr const char * EmulationRunning = "nxcore:EmulationRunning";
 constexpr const char * EmulationState = "nxcore:EmulationState";
 constexpr const char * GameLoadResult = "nxcore:GameLoadResult";

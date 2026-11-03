@@ -94,3 +94,13 @@ void ModuleSettings::UnregisterCallback(const char * setting, SettingChangeCallb
 {
     SettingsStore::GetInstance().UnregisterCallback(setting, callback, userData);
 }
+
+void ModuleSettings::SetDebugSetting(const char * setting, bool debug)
+{
+    SettingsStore::GetInstance().SetDebugSetting(setting, debug);
+}
+
+bool ModuleSettings::DebugSettingsEnabled(void) const
+{
+    return SettingsStore::GetInstance().DebugSettingsEnabled();
+}

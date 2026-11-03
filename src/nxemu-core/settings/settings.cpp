@@ -130,6 +130,10 @@ float SettingsStore::GetDefaultFloat(const char * setting) const
 const char * SettingsStore::GetString(const char * setting) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_debugSettingsEnabled && IsDebugSettingLocked(setting))
+    {
+        return LookupDefaultString(setting);
+    }
     SettingsMapString::const_iterator itr = m_settingsString.find(setting);
     if (itr == m_settingsString.end())
     {
@@ -141,6 +145,10 @@ const char * SettingsStore::GetString(const char * setting) const
 bool SettingsStore::GetBool(const char * setting) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_debugSettingsEnabled && IsDebugSettingLocked(setting))
+    {
+        return LookupDefaultBool(setting);
+    }
     SettingsMapBool::const_iterator itr = m_settingsBool.find(setting);
     if (itr == m_settingsBool.end())
     {
@@ -163,6 +171,10 @@ bool SettingsStore::GetChanged(const char * setting) const
 int32_t SettingsStore::GetInt(const char* setting) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_debugSettingsEnabled && IsDebugSettingLocked(setting))
+    {
+        return LookupDefaultInt(setting);
+    }
     SettingsMapInt::const_iterator itr = m_settingsInt.find(setting);
     if (itr == m_settingsInt.end())
     {
@@ -174,12 +186,37 @@ int32_t SettingsStore::GetInt(const char* setting) const
 float SettingsStore::GetFloat(const char * setting) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_debugSettingsEnabled && IsDebugSettingLocked(setting))
+    {
+        return LookupDefaultFloat(setting);
+    }
     SettingsMapFloat::const_iterator itr = m_settingsFloat.find(setting);
     if (itr == m_settingsFloat.end())
     {
         return LookupDefaultFloat(setting);
     }
     return itr->second;
+}
+
+const char * SettingsStore::GetStoredString(const char * setting) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    SettingsMapString::const_iterator itr = m_settingsString.find(setting);
+    return itr == m_settingsString.end() ? LookupDefaultString(setting) : itr->second.c_str();
+}
+
+bool SettingsStore::GetStoredBool(const char * setting) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    SettingsMapBool::const_iterator itr = m_settingsBool.find(setting);
+    return itr == m_settingsBool.end() ? LookupDefaultBool(setting) : itr->second;
+}
+
+int32_t SettingsStore::GetStoredInt(const char * setting) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    SettingsMapInt::const_iterator itr = m_settingsInt.find(setting);
+    return itr == m_settingsInt.end() ? LookupDefaultInt(setting) : itr->second;
 }
 
 void SettingsStore::SetDefaultString(const char * setting, const char * value)
@@ -304,6 +341,39 @@ void SettingsStore::Save(void)
     configFile.Write(jsonStr.c_str(), (uint32_t)jsonStr.length());
 }
 
+void SettingsStore::SetDebugSetting(const char * setting, bool debug)
+{
+    if (setting == nullptr)
+    {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (debug)
+    {
+        m_debugSettings.emplace(setting);
+    }
+    else
+    {
+        m_debugSettings.erase(setting);
+    }
+}
+
+bool SettingsStore::IsDebugSetting(const char * setting) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return IsDebugSettingLocked(setting);
+}
+
+void SettingsStore::SetDebugSettingsEnabled(bool enabled)
+{
+    m_debugSettingsEnabled = enabled;
+}
+
+bool SettingsStore::DebugSettingsEnabled(void) const
+{
+    return m_debugSettingsEnabled;
+}
+
 void SettingsStore::RegisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData)
 {
     if (callback == nullptr)
@@ -372,6 +442,24 @@ void SettingsStore::NotifyChange(const char * setting)
     {
         callItr->callback(setting, callItr->userData);
     }
+}
+
+void SettingsStore::NotifyDebugSettings(void)
+{
+    std::vector<std::string> debugSettings;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        debugSettings.assign(m_debugSettings.begin(), m_debugSettings.end());
+    }
+    for (const std::string & setting : debugSettings)
+    {
+        NotifyChange(setting.c_str());
+    }
+}
+
+bool SettingsStore::IsDebugSettingLocked(const char * setting) const
+{
+    return setting != nullptr && !m_debugSettings.empty() && m_debugSettings.find(setting) != m_debugSettings.end();
 }
 
 const char * SettingsStore::LookupDefaultString(const char * setting) const

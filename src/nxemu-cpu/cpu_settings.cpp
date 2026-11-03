@@ -27,14 +27,15 @@ enum class SettingType
 class CpuSetting
 {
 public:
-    CpuSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue);
-    CpuSetting(const char * id, const char * section, const char * key, CpuBackend * val, CpuBackend defaultValue);
-    CpuSetting(const char * id, const char * section, const char * key, CpuAccuracy * val, CpuAccuracy defaultValue);
+    CpuSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue, bool debugSetting = false);
+    CpuSetting(const char * id, const char * section, const char * key, CpuBackend * val, CpuBackend defaultValue, bool debugSetting = false);
+    CpuSetting(const char * id, const char * section, const char * key, CpuAccuracy * val, CpuAccuracy defaultValue, bool debugSetting = false);
 
     const char * identifier;
     const char * json_section;
     const char * json_key;
     SettingType settingType;
+    bool debugSetting;
     union
     {
         bool boolValue;
@@ -51,11 +52,11 @@ public:
 
 static CpuSetting settings[] = {
 #if defined(NXEMU_HAS_NCE)
-    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Nce},
+    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Nce, true},
 #else
-    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Dynarmic},
+    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Dynarmic, true},
 #endif
-    {NXCpuSetting::CpuAccuracy, "cpu", "cpu_accuracy", &cpuSettings.cpu_accuracy, CpuAccuracy::Auto},
+    {NXCpuSetting::CpuAccuracy, "cpu", "cpu_accuracy", &cpuSettings.cpu_accuracy, CpuAccuracy::Auto, true},
     {NXCpuSetting::CpuDebugMode, "cpu", "cpu_debug_mode", &cpuSettings.cpu_debug_mode, false},
     {NXCpuSetting::CpuoptPageTables, "cpu", "cpuopt_page_tables", &cpuSettings.cpuopt_page_tables, true},
     {NXCpuSetting::CpuoptBlockLinking, "cpu", "cpuopt_block_linking", &cpuSettings.cpuopt_block_linking, true},
@@ -77,31 +78,34 @@ static CpuSetting settings[] = {
     {NXCpuSetting::CpuoptUnsafeIgnoreGlobalMonitor, "cpu", "cpuopt_unsafe_ignore_global_monitor", &cpuSettings.cpuopt_unsafe_ignore_global_monitor, true},
 };
 
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue) :
+CpuSetting::CpuSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::Boolean)
+    settingType(SettingType::Boolean),
+    debugSetting(debugSetting)
 {
     defaults.boolValue = defaultValue;
     value.boolValue = val;
 }
 
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, CpuBackend * val, CpuBackend defaultValue) :
+CpuSetting::CpuSetting(const char * id, const char * section, const char * key, CpuBackend * val, CpuBackend defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::CpuBackend)
+    settingType(SettingType::CpuBackend),
+    debugSetting(debugSetting)
 {
     defaults.cpuBackend = defaultValue;
     value.cpuBackend = val;
 }
 
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, CpuAccuracy * val, CpuAccuracy defaultValue) :
+CpuSetting::CpuSetting(const char * id, const char * section, const char * key, CpuAccuracy * val, CpuAccuracy defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::CpuAccuracy)
+    settingType(SettingType::CpuAccuracy),
+    debugSetting(debugSetting)
 {
     defaults.cpuAccuracy = defaultValue;
     value.cpuAccuracy = val;
@@ -209,24 +213,32 @@ void NceInputChanged(const char * setting, void * /*userData*/)
     }
 }
 
+namespace
+{
+void ApplyDefault(const CpuSetting & cpuSetting)
+{
+    switch (cpuSetting.settingType)
+    {
+    case SettingType::Boolean:
+        *cpuSetting.value.boolValue = cpuSetting.defaults.boolValue;
+        break;
+    case SettingType::CpuBackend:
+        *cpuSetting.value.cpuBackend = cpuSetting.defaults.cpuBackend;
+        break;
+    case SettingType::CpuAccuracy:
+        *cpuSetting.value.cpuAccuracy = cpuSetting.defaults.cpuAccuracy;
+        break;
+    default:
+        UNIMPLEMENTED();
+    }
+}
+} // namespace
+
 void SetupCpuSetting(void)
 {
     for (const CpuSetting & cpuSetting : settings)
     {
-        switch (cpuSetting.settingType)
-        {
-        case SettingType::Boolean:
-            *cpuSetting.value.boolValue = cpuSetting.defaults.boolValue;
-            break;
-        case SettingType::CpuBackend:
-            *cpuSetting.value.cpuBackend = cpuSetting.defaults.cpuBackend;
-            break;
-        case SettingType::CpuAccuracy:
-            *cpuSetting.value.cpuAccuracy = cpuSetting.defaults.cpuAccuracy;
-            break;
-        default:
-            UNIMPLEMENTED();
-        }
+        ApplyDefault(cpuSetting);
     }
 
     JsonValue root;
@@ -297,7 +309,16 @@ void SetupCpuSetting(void)
         default:
             UNIMPLEMENTED();
         }
+        g_settings->SetDebugSetting(cpuSetting.identifier, cpuSetting.debugSetting);
         g_settings->RegisterCallback(cpuSetting.identifier, CpuSettingChanged, nullptr);
+    }
+
+    for (const CpuSetting & cpuSetting : settings)
+    {
+        if (cpuSetting.debugSetting && !g_settings->DebugSettingsEnabled())
+        {
+            ApplyDefault(cpuSetting);
+        }
     }
 
     g_settings->RegisterCallback(NXCoreSetting::Has39BitAddressSpace, NceInputChanged, nullptr);
@@ -324,8 +345,25 @@ void SaveCpuSettings(void)
     typedef std::map<std::string, JsonValue> SectionMap;
     SectionMap sections;
 
+    JsonValue saved;
+    const std::string savedJson = g_settings->GetSectionSettings("nxemu-cpu");
+    JsonReader reader;
+    if (savedJson.empty() || !reader.Parse(savedJson.data(), savedJson.data() + savedJson.size(), saved) || !saved.isObject())
+    {
+        saved = JsonValue();
+    }
+
     for (const CpuSetting & cpuSetting : settings)
     {
+        if (cpuSetting.debugSetting && !g_settings->DebugSettingsEnabled())
+        {
+            const JsonValue & section = saved[cpuSetting.json_section];
+            if (section.isObject() && section.isMember(cpuSetting.json_key))
+            {
+                sections[cpuSetting.json_section][cpuSetting.json_key] = section[cpuSetting.json_key];
+            }
+            continue;
+        }
         switch (cpuSetting.settingType)
         {
         case SettingType::Boolean:

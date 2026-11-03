@@ -5,6 +5,7 @@
 #include "ui_util.h"
 
 #include <nxemu-core/i18n/translation.h>
+#include <nxemu-core/settings/core_settings.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/version.h>
 #include <nxemu-os/os_settings_identifiers.h>
@@ -20,6 +21,8 @@ namespace
 {
     constexpr float kResolutionScales[] = {0.5f, 0.75f, 1, 1.5f, 2, 3, 4, 5, 6, 7, 8};
     constexpr const char * kDot = " \xC2\xB7 ";
+    constexpr int kClicksToEnableDebugSettings = 7;
+    constexpr int kClicksBeforeCountdown = 3;
 
     enum Button
     {
@@ -431,16 +434,59 @@ void UiActivity::RenderHub()
         const std::string firmware = m_host.Request("firmwareVersion");
         AppendLink(Tr("Firmware"), firmware.empty() ? Tr("Not installed") : firmware, [this] { m_host.Request("installFirmware"); });
     }
-    AppendLink(Tr("About"), VER_FILE_VERSION_STR, [this] { Navigate("about"); });
+    if (coreSettings.debugSettingsEnabled)
+    {
+        AppendBool(Tr("Debug settings"), GameIsRunning() ? Tr("Stop the game to disable debug settings.") : "", true, [this] {
+            if (GameIsRunning())
+            {
+                return;
+            }
+            UiUtil::SetBool(NXCoreSetting::DebugSettingsEnabled, false);
+            SaveCoreSetting();
+            RenderCurrentSettings();
+        });
+    }
+    AppendLink(Tr("About"), VER_FILE_VERSION_STR, [this] {
+        m_versionClicks = 0;
+        m_versionNote.clear();
+        Navigate("about");
+    });
     CommitBody();
+}
+
+void UiActivity::VersionClicked()
+{
+    if (coreSettings.debugSettingsEnabled)
+    {
+        m_versionNote = Tr("Debug settings are already enabled.");
+    }
+    else if (GameIsRunning())
+    {
+        m_versionNote = Tr("Stop the game to enable debug settings.");
+    }
+    else if (++m_versionClicks < kClicksToEnableDebugSettings)
+    {
+        if (m_versionClicks >= kClicksBeforeCountdown)
+        {
+            m_versionNote = TrCount("%n more click to enable debug settings.", "%n more clicks to enable debug settings.", kClicksToEnableDebugSettings - m_versionClicks);
+        }
+    }
+    else
+    {
+        UiUtil::SetBool(NXCoreSetting::DebugSettingsEnabled, true);
+        SaveCoreSetting();
+        m_versionNote = Tr("Debug settings are enabled.");
+    }
+    RenderCurrentSettings();
 }
 
 void UiActivity::RenderAbout()
 {
     BeginBody();
     m_body += "<div class=\"about\"><div class=\"about-top\"><img class=\"about-logo\" src=\"images/nxemu-logo.png\"/><div class=\"about-product\">"
-              "<div class=\"about-name\">NXEmu</div><div class=\"about-muted\">" VER_FILE_VERSION_STR "</div>"
-              "<div class=\"about-muted about-small\">" VER_COPYRIGHT_STR "</div></div></div>"
+              "<div class=\"about-name\">NXEmu</div><div class=\"about-muted\"" + Action([this] { VersionClicked(); }) + ">" VER_FILE_VERSION_STR "</div>"
+              "<div class=\"about-muted about-small\">" VER_COPYRIGHT_STR "</div>"
+              "<div class=\"about-muted about-small\">" + UiUtil::Escape(m_versionNote) + "</div></div></div>"
               "<p class=\"about-text\">" + UiUtil::Escape(Tr("NXEmu is an experimental open-source Nintendo Switch emulator.")) + "</p>"
               "<p class=\"about-text about-muted\">" + UiUtil::Escape(Tr("You are responsible for ensuring your use of this software complies with the laws in your jurisdiction.")) + "</p>"
               "<p class=\"about-credits\">" + UiUtil::Escape(Tr("With thanks to")) + "</p>"

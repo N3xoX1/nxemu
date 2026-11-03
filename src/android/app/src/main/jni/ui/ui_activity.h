@@ -174,6 +174,7 @@ private:
 
     void RenderHub();
     void RenderAbout();
+    void VersionClicked();
     void RenderInterfaceSettings();
     void RenderInterfaceLanguage();
     void RenderGameListSettings();
@@ -290,4 +291,7 @@ private:
     int m_controllerPlayer = 0;
     int m_controllerFilter = 0;
     Choices m_choices;
+
+    int m_versionClicks = 0;
+    std::string m_versionNote;
 };

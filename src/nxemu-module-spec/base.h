@@ -91,6 +91,9 @@ nxinterface IModuleSettings
 
     virtual void RegisterCallback(const char * setting, SettingChangeCallback callback, void * userData) = 0;
     virtual void UnregisterCallback(const char * setting, SettingChangeCallback callback, void * userData) = 0;
+
+    virtual void SetDebugSetting(const char * setting, bool debug) = 0;
+    virtual bool DebugSettingsEnabled(void) const = 0;
 };
 
 /// Specifies the severity or level of detail of the log message.

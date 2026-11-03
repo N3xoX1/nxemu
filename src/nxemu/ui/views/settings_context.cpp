@@ -4,17 +4,17 @@
 
 int32_t SettingsContext::GetInt(const char * key) const
 {
-    return SettingsStore::GetInstance().GetInt(key);
+    return SettingsStore::GetInstance().GetStoredInt(key);
 }
 
 bool SettingsContext::GetBool(const char * key) const
 {
-    return SettingsStore::GetInstance().GetBool(key);
+    return SettingsStore::GetInstance().GetStoredBool(key);
 }
 
 const char * SettingsContext::GetString(const char * key) const
 {
-    return SettingsStore::GetInstance().GetString(key);
+    return SettingsStore::GetInstance().GetStoredString(key);
 }
 
 int32_t SettingsContext::GetDefaultInt(const char * key) const

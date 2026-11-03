@@ -25,7 +25,7 @@
           <div id="category-advanced" class="settings-category" data-command="page:advanced"><img src="images/gear.png" />
             <div>Advanced</div>
           </div>
-          <div id="category-debug" class="settings-category" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
+          <div id="category-debug" class="settings-category debug-only" data-command="page:debug"><img src="images/log.png" /><div>Debug</div></div>
         </div>
         <div class="dialog-close" data-command="close">&#xD7;</div>
       </div>
@@ -115,6 +115,13 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">ASTC decoding</div>
+                      <div class="row-text">What decodes the textures of this kind.</div>
+                    </div>
+                    <select id="astc" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">ASTC recompression</div>
                       <div class="row-text">Less graphics memory, for a lesser picture.</div>
                     </div>
@@ -131,6 +138,13 @@
                 <div class="card">
                   <div class="card-title" data-upper=""><img src="images/layers.png" />
                     <div>Shaders</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Shader warmup mode</div>
+                      <div class="row-text">Prepare the first shaders before starting, then the rest in the background. Applies on the next game start.</div>
+                    </div>
+                    <select id="nxshader-mode" />
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -170,6 +184,15 @@
                       <div class="row-text">So that it does not slow its clock. Uses more power.</div>
                     </div>
                     <div id="max-clocks" class="switch" data-command="toggle:max-clocks">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Fast GPU time</div>
+                      <div class="row-text">Most games then draw their highest resolution.</div>
+                    </div>
+                    <div id="fast-gpu-time" class="switch" data-command="toggle:fast-gpu-time" title="Games that lower their resolution when the chip is slow are told it is fast.">
                       <div class="switch-knob" />
                     </div>
                   </div>
@@ -259,6 +282,15 @@
                       <div class="switch-knob" />
                     </div>
                   </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Accurate vibration</div>
+                      <div class="row-text">Every change is sent: some controllers lag.</div>
+                    </div>
+                    <div id="accurate-vibration" class="switch" data-command="toggle:accurate-vibration">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -304,6 +336,15 @@
                       <div class="switch-knob" />
                     </div>
                   </div>
+                  <div class="row debug-only">
+                    <div class="row-texts">
+                      <div class="row-label">Debug settings</div>
+                      <div class="row-text">Off, they act as their defaults; what you set is kept for when they are enabled again.</div>
+                    </div>
+                    <div id="debug-settings" class="switch" data-command="toggle:debug-settings">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -314,13 +355,6 @@
                 <div class="card">
                   <div class="card-title" data-upper=""><img src="images/layers.png" />
                     <div>NXShader</div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Shader warmup mode</div>
-                      <div class="row-text">Prepare the first shaders before starting, then the rest in the background. Applies on the next game start.</div>
-                    </div>
-                    <select id="nxshader-mode" />
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -340,13 +374,6 @@
                 <div class="card">
                   <div class="card-title" data-upper=""><img src="images/view-grid.png" />
                     <div>Textures and video</div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">ASTC decoding</div>
-                      <div class="row-text">What decodes the textures of this kind.</div>
-                    </div>
-                    <select id="astc" />
                   </div>
                   <div class="row">
                     <div class="row-texts">
@@ -411,15 +438,6 @@
                       <div class="row-text">Draws transparent things right in some games.</div>
                     </div>
                     <div id="feedback-loops" class="switch" data-command="toggle:feedback-loops">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Fast GPU time</div>
-                      <div class="row-text">Most games then draw their highest resolution.</div>
-                    </div>
-                    <div id="fast-gpu-time" class="switch" data-command="toggle:fast-gpu-time" title="Games that lower their resolution when the chip is slow are told it is fast.">
                       <div class="switch-knob" />
                     </div>
                   </div>
@@ -488,15 +506,6 @@
                       <div class="row-text">Keeps the processor and the system's answers in order.</div>
                     </div>
                     <div id="cpu-hle" class="switch" data-command="toggle:cpu-hle" title="Needs multicore.">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Accurate vibration</div>
-                      <div class="row-text">Every change is sent: some controllers lag.</div>
-                    </div>
-                    <div id="accurate-vibration" class="switch" data-command="toggle:accurate-vibration">
                       <div class="switch-knob" />
                     </div>
                   </div>

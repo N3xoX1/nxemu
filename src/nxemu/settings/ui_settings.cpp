@@ -42,15 +42,16 @@ namespace
     class UISetting
     {
     public:
-        UISetting(const char * id, const char * key, std::string * value, const char * defaultValue);
-        UISetting(const char * id, const char * key, bool * value, bool defaultValue);
-        UISetting(const char * id, const char * key, int32_t * value, uint32_t defaultValue);
-        UISetting(const char * id, const char * key, Stringlist * value);
-        UISetting(const char * id, const char * key, StringMap * value);
+        UISetting(const char * id, const char * key, std::string * value, const char * defaultValue, bool debugSetting = false);
+        UISetting(const char * id, const char * key, bool * value, bool defaultValue, bool debugSetting = false);
+        UISetting(const char * id, const char * key, int32_t * value, uint32_t defaultValue, bool debugSetting = false);
+        UISetting(const char * id, const char * key, Stringlist * value, bool debugSetting = false);
+        UISetting(const char * id, const char * key, StringMap * value, bool debugSetting = false);
 
         const char * identifier;
         const char * json_key;
         SettingType settingType;
+        bool debugSetting;
         union
         {
             std::string * string;
@@ -88,7 +89,7 @@ namespace
         {nullptr, "GameBrowser\\ShowPlayTime", &uiSettings.showPlayTime, true},
         {nullptr, "GameBrowser\\ShowDetails", &uiSettings.showGameDetails, false},
         {nullptr, "ShowEmulationControls", &uiSettings.showEmulationControls, kShowEmulationControlsDefault},
-        {NXUISetting::ShowCpuBackend, "Debug\\ShowCpuBackend", &uiSettings.showCpuBackend, false},
+        {NXUISetting::ShowCpuBackend, "Debug\\ShowCpuBackend", &uiSettings.showCpuBackend, false, true},
         {nullptr, "Shortcuts", &uiSettings.shortcuts},
         {nullptr, "Performance\\Show", &uiSettings.showPerformance, false},
         {nullptr, "Performance\\History", &uiSettings.performanceHistory, true},
@@ -103,18 +104,7 @@ namespace
         {nullptr, "Performance\\HistoryLength", &uiSettings.performanceHistoryLength, 30},
     };
 
-    void UISettingChanged(const char * setting, void * /*userData*/);
-
-} // namespace
-
-UISettings uiSettings = {};
-
-void SetupUISetting(void)
-{
-    SettingsStore & settingsStore = SettingsStore::GetInstance();
-
-    uiSettings = {};
-    for (const UISetting & setting : settings)
+    void ApplyDefault(const UISetting & setting)
     {
         switch (setting.settingType)
         {
@@ -136,6 +126,22 @@ void SetupUISetting(void)
         default:
             g_notify->BreakPoint(__FILE__, __LINE__);
         }
+    }
+
+    void UISettingChanged(const char * setting, void * /*userData*/);
+
+} // namespace
+
+UISettings uiSettings = {};
+
+void SetupUISetting(void)
+{
+    SettingsStore & settingsStore = SettingsStore::GetInstance();
+
+    uiSettings = {};
+    for (const UISetting & setting : settings)
+    {
+        ApplyDefault(setting);
     }
 
     JsonValue section = SettingsStore::GetInstance().GetSettings("UI");
@@ -216,7 +222,15 @@ void SetupUISetting(void)
                 g_notify->BreakPoint(__FILE__, __LINE__);
             }
 
-            settingsStore.RegisterCallback(setting.identifier, UISettingChanged, nullptr);        
+            settingsStore.SetDebugSetting(setting.identifier, setting.debugSetting);
+            settingsStore.RegisterCallback(setting.identifier, UISettingChanged, nullptr);
+        }
+    }
+    for (const UISetting & setting : settings)
+    {
+        if (setting.debugSetting && !settingsStore.DebugSettingsEnabled())
+        {
+            ApplyDefault(setting);
         }
     }
 }
@@ -228,9 +242,20 @@ void SetUISettingStringList(const char * identifier, const Stringlist & value)
 
 void SaveUISetting(void)
 {
+    SettingsStore & settingstore = SettingsStore::GetInstance();
+    const JsonValue saved = settingstore.GetSettings("UI");
     JsonValue json;
     for (const UISetting & setting : settings)
     {
+        if (setting.debugSetting && !settingstore.DebugSettingsEnabled())
+        {
+            const JsonValue value = JsonGetNestedValue(saved, setting.json_key);
+            if (!value.isNull())
+            {
+                JsonSetNestedValue(json, setting.json_key, value);
+            }
+            continue;
+        }
         switch (setting.settingType)
         {
         case SettingType::StringList:
@@ -278,53 +303,57 @@ void SaveUISetting(void)
         }
     }
     
-    SettingsStore & settingstore = SettingsStore::GetInstance();
     settingstore.SetSettings("UI", json);
     settingstore.Save();
 }
 
 namespace
 {
-    UISetting::UISetting(const char * id, const char * key, std::string * value, const char * defaultValue) :
+    UISetting::UISetting(const char * id, const char * key, std::string * value, const char * defaultValue, bool debugSetting) :
         identifier(id),
         json_key(key),
         settingType(SettingType::String),
+        debugSetting(debugSetting),
         default_string(defaultValue)
     {
         setting.string = value;
     }
 
-    UISetting::UISetting(const char * id, const char * key, int32_t * value, uint32_t defaultValue) :
+    UISetting::UISetting(const char * id, const char * key, int32_t * value, uint32_t defaultValue, bool debugSetting) :
         identifier(id),
         json_key(key),
         settingType(SettingType::int32),
+        debugSetting(debugSetting),
         default_int32(defaultValue)
     {
         setting.int32 = value;
     }
 
-    UISetting::UISetting(const char * id, const char * key, bool * value, bool defaultValue) :
+    UISetting::UISetting(const char * id, const char * key, bool * value, bool defaultValue, bool debugSetting) :
         identifier(id),
         json_key(key),
         settingType(SettingType::Bool),
+        debugSetting(debugSetting),
         default_bool(defaultValue)
     {
         setting.boolean = value;
     }
 
-    UISetting::UISetting(const char * id, const char * key, Stringlist * value) :
+    UISetting::UISetting(const char * id, const char * key, Stringlist * value, bool debugSetting) :
         identifier(id),
         json_key(key),
         settingType(SettingType::StringList),
+        debugSetting(debugSetting),
         default_string(nullptr)
     {
         setting.string_list = value;
     }
 
-    UISetting::UISetting(const char * id, const char * key, StringMap * value) :
+    UISetting::UISetting(const char * id, const char * key, StringMap * value, bool debugSetting) :
         identifier(id),
         json_key(key),
         settingType(SettingType::StringMap),
+        debugSetting(debugSetting),
         default_string(nullptr)
     {
         setting.string_map = value;

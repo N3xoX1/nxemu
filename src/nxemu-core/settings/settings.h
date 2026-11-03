@@ -2,10 +2,12 @@
 #include <nxemu-module-spec/base.h>
 #include <common/json.h>
 #include <functional>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 class SettingsStore
 {
@@ -40,6 +42,9 @@ public:
     bool GetChanged(const char * setting) const;
     int32_t GetInt(const char * setting) const;
     float GetFloat(const char * setting) const;
+    const char * GetStoredString(const char * setting) const;
+    bool GetStoredBool(const char * setting) const;
+    int32_t GetStoredInt(const char * setting) const;
     void SetDefaultString(const char * setting, const char * value);
     void SetDefaultBool(const char * setting, bool value);
     void SetDefaultInt(const char * setting, const int32_t value);
@@ -52,6 +57,12 @@ public:
 
     void Save(void);
 
+    void SetDebugSetting(const char * setting, bool debug);
+    bool IsDebugSetting(const char * setting) const;
+    void SetDebugSettingsEnabled(bool enabled);
+    bool DebugSettingsEnabled(void) const;
+    void NotifyDebugSettings(void);
+
     void RegisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData);
     void UnregisterCallback(const std::string & setting, SettingChangeCallback callback, void * userData);
 
@@ -60,6 +71,7 @@ public:
 
 private:
     void NotifyChange(const char * setting);
+    bool IsDebugSettingLocked(const char * setting) const;
     const char * LookupDefaultString(const char * setting) const;
     bool LookupDefaultBool(const char * setting) const;
     int32_t LookupDefaultInt(const char * setting) const;
@@ -76,6 +88,8 @@ private:
     SettingsMapFloat m_settingsDefaultFloat;
     SettingsMapBool m_settingsChanged;
     NotificationMap m_notification;
+    std::unordered_set<std::string> m_debugSettings;
+    std::atomic<bool> m_debugSettingsEnabled = false;
 
     static std::unique_ptr<SettingsStore> s_instance;
     std::string m_configPath;

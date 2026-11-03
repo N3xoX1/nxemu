@@ -326,3 +326,13 @@ button.inherit-setting:disabled { opacity: 0.4; }
     float: left;
     margin-left: 0;
 }
+
+.settings-dialog .debug-only
+{
+    display: none;
+}
+
+.debug-settings-enabled .settings-dialog .debug-only
+{
+    display: flex;
+}
