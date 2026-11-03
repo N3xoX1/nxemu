@@ -47,6 +47,15 @@ struct TriangleConstants {
     std::array<float, 2> tex_offset{0.0f, 0.0f};
 };
 
+/// A fence reset for a submission that failed would never be signaled.
+vk::Fence CreateSignaledFence(const Device& device) {
+    return device.GetLogical().CreateFence({
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    });
+}
+
 bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat format) {
     const VkFormatProperties props{physical_device.GetFormatProperties(format)};
     return (props.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) != 0;
@@ -271,6 +280,9 @@ void Display::ConsumeDroppedFrame(Frame* frame) {
     std::scoped_lock queue_lock{device.QueueMutex()};
     frame->present_done.Reset();
     const VkResult result = device.GetGraphicsQueue().Submit(submit_info, *frame->present_done);
+    if (result != VK_SUCCESS) {
+        frame->present_done = CreateSignaledFence(device);
+    }
     if (result == VK_ERROR_DEVICE_LOST) {
         // Like a lost present, keep running without a picture.
         device.ReportLoss();
@@ -374,11 +386,9 @@ bool Display::PresentImage(Frame* frame, bool fresh, bool* submitted) {
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     });
+    bool reads_game = false;
     if (composite) {
-        const bool reads_game = RecordComposite(cmdbuf, frame, swapchain.CurrentImage());
-        if (slot && reads_game) {
-            slot->sampled_game_frame = frame;
-        }
+        reads_game = RecordComposite(cmdbuf, frame, swapchain.CurrentImage());
     } else {
         RecordGameOnly(cmdbuf, frame, swapchain.CurrentImage());
     }
@@ -415,10 +425,18 @@ bool Display::PresentImage(Frame* frame, bool fresh, bool* submitted) {
         } else {
             slot->done.Reset();
         }
-        switch (const VkResult result = device.GetGraphicsQueue().Submit(submit_info, done)) {
+        const VkResult result = device.GetGraphicsQueue().Submit(submit_info, done);
+        if (result != VK_SUCCESS) {
+            (fresh ? frame->present_done : slot->done) = CreateSignaledFence(device);
+        }
+        switch (result) {
         case VK_SUCCESS:
             if (submitted) {
                 *submitted = true;
+            }
+            // Only a queued read has to finish before the game frame is reused.
+            if (slot && reads_game) {
+                slot->sampled_game_frame = frame;
             }
             break;
         case VK_ERROR_DEVICE_LOST:

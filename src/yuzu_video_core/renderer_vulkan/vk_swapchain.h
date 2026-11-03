@@ -130,7 +130,13 @@ private:
     u32 image_index{};
     u32 frame_index{};
 
-    VkFormat image_view_format{};
+    // Known before any swapchain exists: frames can be rendered while the
+    // surface cannot hold one yet (for example a window started minimized).
+#ifdef ANDROID
+    VkFormat image_view_format{VK_FORMAT_R8G8B8A8_UNORM};
+#else
+    VkFormat image_view_format{VK_FORMAT_B8G8R8A8_UNORM};
+#endif
     VkExtent2D extent{};
     VkPresentModeKHR present_mode{};
     VkSurfaceFormatKHR surface_format{};
