@@ -1054,8 +1054,8 @@ void BufferCache<P>::BindHostIndexBuffer() {
         // Without uint8 index support each such draw needs a conversion pass, which ends the
         // render pass. Widen small index ranges that only the CPU wrote on the host instead.
         // Direct draws read [first, first + count) only; indirect ones may read the whole binding.
-        constexpr u32 HOST_WIDEN_LIMIT = 64_KiB;
-        constexpr u32 HOST_WIDEN_MAX_BINDING = 4_MiB;
+        constexpr u32 HOST_WIDEN_LIMIT = static_cast<u32>(64_KiB);
+        constexpr u32 HOST_WIDEN_MAX_BINDING = static_cast<u32>(4_MiB);
         const u32 skip = current_draw_indirect ? 0 : std::min(draw_state.index_buffer.first, size);
         const DAddr address = channel_state->index_buffer.device_addr + skip;
         const u32 widen_size =

@@ -770,7 +770,7 @@ void BufferCacheRuntime::BindHostUint8IndexBuffer(std::span<const u8> indices, u
     if (primitive_restart) {
         // Vulkan only restarts on the all-ones value of the index type
         std::ranges::transform(indices, widened,
-                               [](u8 index) -> u16 { return index == 0xFF ? 0xFFFF : index; });
+                               [](u8 index) { return index == 0xFF ? u16{0xFFFF} : u16{index}; });
     } else {
         std::ranges::copy(indices, widened);
     }
