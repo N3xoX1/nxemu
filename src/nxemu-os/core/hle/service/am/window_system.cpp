@@ -144,6 +144,26 @@ void WindowSystem::OnExitRequested() {
     }
 }
 
+bool WindowSystem::OnApplicationBackgrounded() {
+    std::scoped_lock lk{m_lock};
+    if (m_application == nullptr) {
+        return false;
+    }
+    std::scoped_lock applet_lk{m_application->lock};
+    m_application->lifecycle_manager.SetShutdownFocusState(FocusState::NotInFocus);
+    m_application->UpdateSuspensionStateLocked(true);
+    return true;
+}
+
+bool WindowSystem::IsApplicationFocusStateChangedPending() const {
+    std::scoped_lock lk{m_lock};
+    if (m_application == nullptr) {
+        return false;
+    }
+    std::scoped_lock applet_lk{m_application->lock};
+    return m_application->lifecycle_manager.HasPendingFocusStateChanged();
+}
+
 void WindowSystem::OnResumeRequested() {
     std::scoped_lock lk{m_lock};
     for (const auto& [aruid, applet] : m_applets) {

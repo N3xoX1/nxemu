@@ -16,6 +16,13 @@ public:
     {
         return m_CreateOS(modules);
     }
+    void PrepareEmulationStopping() const
+    {
+        if (m_PrepareEmulationStopping)
+        {
+            m_PrepareEmulationStopping();
+        }
+    }
     void DestroyOS(IOperatingSystem * OperatingSystem) const
     {
         m_DestroyOS(OperatingSystem);
@@ -35,4 +42,6 @@ private:
 
     tyCreateOperatingSystem m_CreateOS;
     tyDestroyOperatingSystem m_DestroyOS;
+    using tyPrepareEmulationStopping = void(CALL *)();
+    tyPrepareEmulationStopping m_PrepareEmulationStopping{};
 };

@@ -7,6 +7,8 @@
 #include <intrin.h>
 #endif
 
+#include <array>
+
 #include "yuzu_common/common_types.h"
 
 namespace Common::X64 {
@@ -32,6 +34,16 @@ static inline u64 FencedRDTSC() {
 }
 #endif
 
+// Deliberately broad bounds: reject corrupt measurements without tying this to a CPU model.
+constexpr bool IsValidTSCFrequency(u64 frequency) {
+    return frequency >= 1'000'000 && frequency <= 100'000'000'000ULL;
+}
+
 u64 EstimateRDTSCFrequency();
+
+namespace detail {
+u64 CalculateRDTSCFrequency(u64 ticks, s64 elapsed_ns);
+u64 MedianRDTSCFrequency(std::array<u64, 3> samples);
+}
 
 } // namespace Common::X64

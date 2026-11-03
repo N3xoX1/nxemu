@@ -42,18 +42,21 @@ Result IFile::Read(FileSys::ReadOption option, Out<s64> out_size, s64 offset, co
 Result IFile::Write(const InBuffer<BufferAttr_HipcMapAlias | BufferAttr_HipcMapTransferAllowsNonSecure> buffer, FileSys::WriteOption option, s64 offset, s64 size)
 {
     LOG_DEBUG(Service_FS, "called, option={}, offset=0x{:X}, length={}", option.value, offset, size);
+    NoteFileSystemWrite();
     R_RETURN(backend->Write(offset, buffer.data(), size, option));
 }
 
 Result IFile::Flush()
 {
     LOG_DEBUG(Service_FS, "called");
+    NoteFileSystemWrite();
     R_RETURN(backend->Flush());
 }
 
 Result IFile::SetSize(s64 size)
 {
     LOG_DEBUG(Service_FS, "called, size={}", size);
+    NoteFileSystemWrite();
     R_RETURN(backend->SetSize(size));
 }
 

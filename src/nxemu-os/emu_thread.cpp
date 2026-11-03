@@ -86,7 +86,9 @@ public:
                     return m_should_run.load(std::memory_order_relaxed);
                 });
 
-                if (!stop_token.stop_requested())
+                if (!stop_token.stop_requested() &&
+                    static_cast<EmulationState>(g_settings->GetInt(NXCoreSetting::EmulationState)) !=
+                        EmulationState::Stopping)
                 {
                     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Running);
                 }
@@ -199,4 +201,9 @@ void EmuThread::SetRunning(bool should_run)
 bool EmuThread::IsRunning() const
 {
     return impl->m_should_run.load(std::memory_order_acquire);
+}
+
+bool EmuThread::HasStarted() const
+{
+    return impl->m_started.load(std::memory_order_acquire);
 }

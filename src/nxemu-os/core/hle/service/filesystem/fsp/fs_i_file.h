@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include "core/file_sys/fsa/fs_i_file.h"
 #include "core/hle/service/cmif_types.h"
 #include "core/hle/service/filesystem/filesystem.h"
@@ -11,6 +12,17 @@
 class IVirtualFilePtr;
 
 namespace Service::FileSystem {
+
+// Counts guest changes to files and directories, so shutdown can wait for a save to settle.
+inline std::atomic<u64> g_file_system_write_count{0};
+
+inline void NoteFileSystemWrite() {
+    g_file_system_write_count.fetch_add(1, std::memory_order_relaxed);
+}
+
+inline u64 GetFileSystemWriteCount() {
+    return g_file_system_write_count.load(std::memory_order_relaxed);
+}
 
 class IFile final : public ServiceFramework<IFile>
 {

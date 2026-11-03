@@ -189,8 +189,18 @@ static CPUCaps Detect() {
             caps.tsc_frequency = static_cast<u64>(caps.crystal_frequency) *
                                  caps.tsc_crystal_ratio_numerator /
                                  caps.tsc_crystal_ratio_denominator;
-        } else {
-            caps.tsc_frequency = X64::EstimateRDTSCFrequency();
+        }
+    }
+
+    // AMD CPUs can expose an invariant TSC without implementing CPUID leaf 0x15.
+    // Measuring its frequency once avoids falling back to the OS clock on every guest read.
+    if (!X64::IsValidTSCFrequency(caps.tsc_frequency)) {
+        caps.tsc_frequency = 0;
+    }
+    if (caps.invariant_tsc && caps.tsc_frequency == 0) {
+        caps.tsc_frequency = X64::EstimateRDTSCFrequency();
+        if (!X64::IsValidTSCFrequency(caps.tsc_frequency)) {
+            caps.tsc_frequency = 0;
         }
     }
 
