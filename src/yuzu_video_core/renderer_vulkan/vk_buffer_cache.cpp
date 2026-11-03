@@ -761,12 +761,19 @@ void BufferCacheRuntime::BindIndexBuffer(PrimitiveTopology topology, IndexFormat
     });
 }
 
-void BufferCacheRuntime::BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip) {
+void BufferCacheRuntime::BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip,
+                                                  bool primitive_restart) {
     // The staging pool keeps the allocation until the submission using it retires.
     auto staging =
         staging_pool.Request((skip + indices.size()) * sizeof(u16), MemoryUsage::Upload);
     u16* const widened = reinterpret_cast<u16*>(staging.mapped_span.data()) + skip;
-    std::copy(indices.begin(), indices.end(), widened);
+    if (primitive_restart) {
+        // Vulkan only restarts on the all-ones value of the index type
+        std::ranges::transform(indices, widened,
+                               [](u8 index) -> u16 { return index == 0xFF ? 0xFFFF : index; });
+    } else {
+        std::ranges::copy(indices, widened);
+    }
     scheduler.Record([buffer = staging.buffer, offset = staging.offset](vk::CommandBuffer cmdbuf) {
         cmdbuf.BindIndexBuffer(buffer, offset, VK_INDEX_TYPE_UINT16);
     });

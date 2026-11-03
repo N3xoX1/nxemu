@@ -167,7 +167,7 @@ public:
 
     /// Binds uint8 indices widened to uint16 on the host. indices holds the binding's bytes from
     /// skip onwards; the widened buffer keeps that prefix so firstIndex stays valid.
-    void BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip);
+    void BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip, bool primitive_restart);
 
     void BindVertexBuffer(u32 index, VkBuffer buffer, u32 offset, u32 size, u32 stride);
 

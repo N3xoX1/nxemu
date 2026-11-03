@@ -1050,7 +1050,7 @@ void BufferCache<P>::BindHostIndexBuffer() {
     const u32 offset = buffer.Offset(channel_state->index_buffer.device_addr);
     const u32 size = channel_state->index_buffer.size;
     const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
-    if constexpr (requires { runtime.BindHostUint8IndexBuffer(std::span<const u8>{}, u32{}); }) {
+    if constexpr (requires { runtime.BindHostUint8IndexBuffer(std::span<const u8>{}, u32{}, bool{}); }) {
         // Without uint8 index support each such draw needs a conversion pass, which ends the
         // render pass. Widen small index ranges that only the CPU wrote on the host instead.
         // Direct draws read [first, first + count) only; indirect ones may read the whole binding.
@@ -1058,7 +1058,8 @@ void BufferCache<P>::BindHostIndexBuffer() {
         constexpr u32 HOST_WIDEN_MAX_BINDING = 4_MiB;
         const u32 skip = current_draw_indirect ? 0 : std::min(draw_state.index_buffer.first, size);
         const DAddr address = channel_state->index_buffer.device_addr + skip;
-        const u32 widen_size = size - skip;
+        const u32 widen_size =
+            current_draw_indirect ? size : std::min(draw_state.index_buffer.count, size - skip);
         if (draw_state.index_buffer.format == Maxwell::IndexFormat::UnsignedByte &&
             draw_state.topology != Maxwell::PrimitiveTopology::Quads &&
             draw_state.topology != Maxwell::PrimitiveTopology::QuadStrip &&
@@ -1070,7 +1071,8 @@ void BufferCache<P>::BindHostIndexBuffer() {
             host_uint8_indices.resize_destructive(widen_size);
             device_memory.ReadBlockUnsafe(address, host_uint8_indices.data(), widen_size);
             runtime.BindHostUint8IndexBuffer(
-                std::span<const u8>(host_uint8_indices.data(), widen_size), skip);
+                std::span<const u8>(host_uint8_indices.data(), widen_size), skip,
+                maxwell3d->regs.primitive_restart.enabled != 0);
             return;
         }
     }
