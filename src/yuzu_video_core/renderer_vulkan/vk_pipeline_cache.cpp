@@ -797,7 +797,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                               ? device.GetMaxComputeSharedMemorySize()
                                               : 0,
         .texel_buffer_size_view = device.NeedsTexelBufferPad(),
-        .track_storage_writes = true,
+        // Only measured on Metal: other drivers keep untracked stores and full readbacks
+        .track_storage_writes = device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
     };
     // Vertex and geometry stages running as compute are graphics shaders, which flicker on Metal
     // when the global memory helpers are not inlined

@@ -1434,8 +1434,11 @@ void BufferCache<P>::BindHostComputeTextureBuffers() {
         SynchronizeBuffer(buffer, binding.device_addr, size);
 
         if (is_written) {
-            const bool tracked = SetWriteTrackingSlot(
-                slot, binding.device_addr, VideoCore::Surface::BytesPerBlock(binding.format));
+            // A null or unmapped image buffer has no format to size its texels with
+            const bool tracked =
+                binding.device_addr != 0 && binding.format != PixelFormat::Invalid &&
+                SetWriteTrackingSlot(slot, binding.device_addr,
+                                     VideoCore::Surface::BytesPerBlock(binding.format));
             MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size, tracked);
         }
 
