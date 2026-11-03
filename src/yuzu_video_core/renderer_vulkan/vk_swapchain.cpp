@@ -83,6 +83,10 @@ void Swapchain::Create(VkSurfaceKHR surface_, u32 width_, u32 height_) {
     const auto physical_device = device.GetPhysical();
     const auto capabilities{physical_device.GetSurfaceCapabilitiesKHR(surface)};
     if (capabilities.maxImageExtent.width == 0 || capabilities.maxImageExtent.height == 0) {
+        // The surface is temporarily unusable (for example minimized). Retire
+        // the old swapchain now: it may refer to an about-to-be-released surface.
+        Destroy();
+        is_outdated = true;
         return;
     }
 
@@ -92,9 +96,9 @@ void Swapchain::Create(VkSurfaceKHR surface_, u32 width_, u32 height_) {
     CreateSemaphores();
 }
 
-bool Swapchain::AcquireNextImage() {
+Swapchain::AcquireResult Swapchain::AcquireNextImage(u64 timeout_ns) {
     const VkResult result = device.GetLogical().AcquireNextImageKHR(
-        *swapchain, std::numeric_limits<u64>::max(), *present_semaphores[frame_index],
+        *swapchain, timeout_ns, *present_semaphores[frame_index],
         VK_NULL_HANDLE, &image_index);
     switch (result) {
     case VK_SUCCESS:
@@ -105,7 +109,12 @@ bool Swapchain::AcquireNextImage() {
     case VK_ERROR_OUT_OF_DATE_KHR:
         // No image was acquired, so image_index is not valid for this call.
         is_outdated = true;
-        return true;
+        return AcquireResult::Outdated;
+    case VK_TIMEOUT:
+    case VK_NOT_READY:
+        // The acquire semaphore was not signaled. Retrying on the next frame
+        // is cheaper and safer than rebuilding an otherwise valid swapchain.
+        return AcquireResult::RetryLater;
     case VK_ERROR_SURFACE_LOST_KHR:
         vk::Check(result);
         break;
@@ -117,7 +126,7 @@ bool Swapchain::AcquireNextImage() {
 
     // VK_SUBOPTIMAL_KHR is still a successful acquire. Consume the acquire
     // semaphore and present this image before recreating on the next frame.
-    return false;
+    return AcquireResult::Acquired;
 }
 
 bool Swapchain::Present(VkSemaphore render_semaphore) {
@@ -265,6 +274,12 @@ void Swapchain::CreateSemaphores() {
 void Swapchain::Destroy() {
     frame_index = 0;
     present_semaphores.clear();
+    // Present may have skipped consuming a semaphore on OUT_OF_DATE. Never
+    // carry binary render semaphore state into a different swapchain.
+    render_semaphores.clear();
+    images.clear();
+    // image_count keeps the last value: the presentation resources sized by it
+    // must not be rebuilt for a swapchain that is only gone while minimized.
     swapchain.reset();
 }
 

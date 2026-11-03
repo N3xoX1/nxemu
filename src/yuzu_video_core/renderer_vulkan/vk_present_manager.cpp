@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <exception>
+#include <utility>
+
 #include "yuzu_common/settings.h"
+#include "yuzu_common/logging/log.h"
 #include "video_settings.h"
 #include "yuzu_common/thread.h"
 #include "frontend/emu_window.h"
@@ -54,31 +59,64 @@ PresentManager::PresentManager(Core::Frontend::EmuWindow& render_window_, const 
 }
 
 PresentManager::~PresentManager() {
+    // Scheduler callbacks capture this manager. Drain them before the
+    // presentation thread or its queues can be destroyed.
+    try {
+        scheduler.WaitWorker();
+        WaitPresent();
+    } catch (const std::exception& e) {
+        LOG_ERROR(Render_Vulkan, "Unable to drain presentation jobs: {}", e.what());
+    }
     present_thread.request_stop();
+    frame_cv.notify_all();
     if (present_thread.joinable()) {
         present_thread.join();
     }
     // The display may be keeping one of the frames about to be destroyed.
-    display.ReleaseFrame();
+    try {
+        display.ReleaseFrame();
+    } catch (const std::exception& e) {
+        LOG_ERROR(Render_Vulkan, "Unable to release presentation frame: {}", e.what());
+    }
 }
 
 Frame* PresentManager::GetRenderFrame() {
-    // Wait for free presentation frames
-    std::unique_lock lock{free_mutex};
-    free_cv.wait(lock, [this] { return !free_queue.empty(); });
-
-    // Take the frame from the queue
-    Frame* frame = free_queue.front();
-    free_queue.pop();
-
-    // Wait for the presentation to be finished so all frame resources are free
-    frame->present_done.Wait();
-    frame->present_done.Reset();
-
+    RethrowPresentError();
+    Frame* frame;
+    {
+        // The display hands every frame back, even dropped ones and after a
+        // device loss, so only a failed present thread can leave this empty.
+        std::unique_lock lock{free_mutex};
+        free_cv.wait(lock, [this] {
+            return !free_queue.empty() || present_failed.load(std::memory_order_acquire);
+        });
+        RethrowPresentError();
+        frame = free_queue.front();
+        free_queue.pop();
+    }
+    // Waiting for the GPU must not hold the free-queue mutex: the present
+    // thread needs it to return other frames. The wait is sliced so that a
+    // present thread that failed before submitting cannot block us forever.
+    while (!present_failed.load(std::memory_order_acquire)) {
+        const VkResult result = frame->present_done.Wait(10'000'000ULL);
+        if (result == VK_TIMEOUT) {
+            continue;
+        }
+        if (result == VK_ERROR_DEVICE_LOST) {
+            // Like the rest of the renderer, keep running without a picture
+            // so the user can still stop the emulation.
+            device.ReportLoss();
+        }
+        break;
+    }
+    RethrowPresentError();
+    // The fence is reset just before the next submission that signals it. A
+    // dropped frame either leaves it signaled or submits a semaphore drain.
     return frame;
 }
 
 void PresentManager::Present(Frame* frame) {
+    RethrowPresentError();
     if (!use_present_thread) {
         scheduler.WaitWorker();
         CopyToSwapchain(frame);
@@ -88,8 +126,12 @@ void PresentManager::Present(Frame* frame) {
     scheduler.Record([this, frame](vk::CommandBuffer) {
         std::unique_lock lock{queue_mutex};
         present_queue.push(frame);
-        frame_cv.notify_one();
+        // WaitPresent waits on the same condition variable.
+        frame_cv.notify_all();
     });
+    // Flush() has already dispatched the GPU work. The presentation callback
+    // is in a fresh chunk and must not wait for the next emulated frame.
+    scheduler.DispatchWork();
 }
 
 void PresentManager::RecreateFrame(Frame* frame, u32 width, u32 height, VkFormat image_view_format,
@@ -178,37 +220,52 @@ void PresentManager::WaitPresent() {
     // Wait for the present queue to be empty
     {
         std::unique_lock queue_lock{queue_mutex};
-        frame_cv.wait(queue_lock, [this] { return present_queue.empty(); });
+        frame_cv.wait(queue_lock, [this] {
+            return present_queue.empty() || present_failed.load();
+        });
     }
 
     // The above condition will be satisfied when the last frame is taken from the queue.
     // To ensure that frame has been presented as well take hold of the swapchain
     // mutex.
     std::scoped_lock swapchain_lock{swapchain_mutex};
+    RethrowPresentError();
 }
 
 void PresentManager::PresentThread(std::stop_token token) {
     Common::SetCurrentThreadName("VulkanPresent");
-    while (!token.stop_requested()) {
-        std::unique_lock lock{queue_mutex};
+    try {
+        while (!token.stop_requested()) {
+            std::unique_lock lock{queue_mutex};
 
-        // Wait for presentation frames
-        Common::CondvarWait(frame_cv, lock, token, [this] { return !present_queue.empty(); });
-        if (token.stop_requested()) {
-            return;
+            // Wait for presentation frames
+            Common::CondvarWait(frame_cv, lock, token, [this] { return !present_queue.empty(); });
+            if (token.stop_requested()) {
+                return;
+            }
+
+            // Take the frame and notify anyone waiting
+            Frame* frame = present_queue.front();
+            present_queue.pop();
+            frame_cv.notify_one();
+
+            // Take the swapchain lock before releasing the queue lock, so
+            // WaitPresent cannot finish ahead of this active presentation.
+            std::exchange(lock, std::unique_lock{swapchain_mutex});
+
+            CopyToSwapchain(frame);
         }
+    } catch (...) {
+        present_error = std::current_exception();
+        present_failed.store(true, std::memory_order_release);
+        frame_cv.notify_all();
+        free_cv.notify_all();
+    }
+}
 
-        // Take the frame and notify anyone waiting
-        Frame* frame = present_queue.front();
-        present_queue.pop();
-        frame_cv.notify_one();
-
-        // By exchanging the lock ownership we take the swapchain lock
-        // before the queue lock goes out of scope. This way the swapchain
-        // lock in WaitPresent is guaranteed to occur after here.
-        std::exchange(lock, std::unique_lock{swapchain_mutex});
-
-        CopyToSwapchain(frame);
+void PresentManager::RethrowPresentError() const {
+    if (present_failed.load(std::memory_order_acquire)) {
+        std::rethrow_exception(present_error);
     }
 }
 
@@ -216,7 +273,9 @@ void PresentManager::SetImageCount() {
     // We cannot have more than 7 images in flight at any given time.
     // FRAMES_IN_FLIGHT is 8, and the cache TICKS_TO_DESTROY is 8.
     // Mali drivers will give us 6.
-    image_count = std::min<size_t>(swapchain.GetImageCount(), 7);
+    // The interface retains the last game frame while the next one is rendered.
+    // A single-image surface must not leave the producer without a free frame.
+    image_count = std::clamp<std::size_t>(swapchain.GetImageCount(), 2, 7);
 }
 
 void PresentManager::CopyToSwapchain(Frame* frame) {
@@ -226,7 +285,6 @@ void PresentManager::CopyToSwapchain(Frame* frame) {
     if (presented) {
         render_window.OnFramePresented(window.render_surface, frame->frame_interval_ns);
     }
-    SetImageCount();
     if (reusable != nullptr) {
         std::scoped_lock lock{free_mutex};
         free_queue.push(reusable);

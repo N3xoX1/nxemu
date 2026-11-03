@@ -112,17 +112,21 @@ private:
     struct PresentSlot {
         vk::CommandBuffer cmdbuf;
         vk::Fence done;
+        // Only UI-only presents that sampled a retained game frame need to
+        // complete before that frame can be returned to the producer.
+        Frame* sampled_game_frame{};
     };
 
-    bool PresentLocked(Frame* frame, bool fresh);
-    bool PresentImage(Frame* frame, bool fresh);
+    bool PresentLocked(Frame* frame, bool fresh, bool* submitted = nullptr);
+    bool PresentImage(Frame* frame, bool fresh, bool* submitted = nullptr);
+    void ConsumeDroppedFrame(Frame* frame);
     void RecordGameOnly(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image);
-    void RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image);
-    void RecreateSwapchain(u32 width, u32 height);
+    bool RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image);
+    void RecreateSwapchain(u32 width, u32 height, VkSurfaceKHR replacement_surface = VK_NULL_HANDLE);
     void CreateInterfaceObjects();
     void CreateInterfaceTargets(u32 width, u32 height);
     void CreateCompositePipeline(VkFormat format);
-    void WaitOwnPresents();
+    void WaitFrameReaders(const Frame* frame);
     bool GameIsPresenting() const;
 
     std::shared_ptr<Common::DynamicLibrary> library;

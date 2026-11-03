@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
+#include <exception>
 #include <mutex>
 #include <queue>
 
@@ -25,8 +27,8 @@ class Swapchain;
 
 struct Frame {
     u32 frame_interval_ns{};
-    u32 width;
-    u32 height;
+    u32 width{};
+    u32 height{};
     vk::Image image;
     vk::ImageView image_view;
     vk::Framebuffer framebuffer;
@@ -60,6 +62,7 @@ public:
 
 private:
     void PresentThread(std::stop_token token);
+    void RethrowPresentError() const;
 
     /// Hands a frame to the display, and to the free queue the frame the
     /// display gives back.
@@ -84,6 +87,8 @@ private:
     std::mutex queue_mutex;
     std::mutex free_mutex;
     std::jthread present_thread;
+    std::exception_ptr present_error;
+    std::atomic<bool> present_failed{false};
     bool use_present_thread;
     std::size_t image_count{};
 };
