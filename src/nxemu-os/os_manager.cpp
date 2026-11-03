@@ -8,6 +8,7 @@
 #include "core/hle/service/am/window_system.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/filesystem/filesystem.h"
+#include "core/hle/service/filesystem/fsp/fs_i_file.h"
 #include "core/perf_stats.h"
 #include "os_settings.h"
 #include "os_settings_identifiers.h"
@@ -237,8 +238,33 @@ void OSManager::NotifyApplicationBackgroundedBeforeShutdown()
     {
         std::this_thread::sleep_for(milliseconds(5));
     }
-    // Consumption of the event precedes the game's asynchronous save write.
-    std::this_thread::sleep_for(milliseconds(150));
+    const bool consumed = !windowSystem.IsApplicationFocusStateChangedPending();
+
+    // The game writes its save asynchronously after it consumes the event, and Commit() does not
+    // journal, so stopping mid-write truncates the file. Give the write time to start, then wait
+    // until file system changes have been quiet for a while, bounded so a stop cannot hang.
+    const auto minimumWait = consumed ? milliseconds(150) : milliseconds(0);
+    const auto quietPeriod = milliseconds(100);
+    const auto maximumWait = seconds(2);
+    const auto settleStart = steady_clock::now();
+    uint64_t lastWriteCount = Service::FileSystem::GetFileSystemWriteCount();
+    auto lastWrite = settleStart;
+    for (;;)
+    {
+        const auto now = steady_clock::now();
+        const uint64_t writeCount = Service::FileSystem::GetFileSystemWriteCount();
+        if (writeCount != lastWriteCount)
+        {
+            lastWriteCount = writeCount;
+            lastWrite = now;
+        }
+        if (now - settleStart >= maximumWait ||
+            (now - settleStart >= minimumWait && now - lastWrite >= quietPeriod))
+        {
+            break;
+        }
+        std::this_thread::sleep_for(milliseconds(5));
+    }
 }
 
 bool OSManager::Initialize(void)

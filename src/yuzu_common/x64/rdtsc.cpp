@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <thread>
 
 #include "yuzu_common/steady_clock.h"
@@ -29,26 +30,37 @@ u64 detail::CalculateRDTSCFrequency(u64 ticks, s64 elapsed_ns) {
     return RoundToNearest<100'000>(MultiplyAndDivide64(ticks, 1'000'000'000ULL, timer_diff));
 }
 
-u64 EstimateRDTSCFrequency() {
-    // Discard the first result measuring the rdtsc.
-    FencedRDTSC();
-    std::this_thread::sleep_for(std::chrono::milliseconds{1});
-    FencedRDTSC();
-
-    // Get the current time.
+static u64 MeasureRDTSCFrequency() {
     const auto start_time = SteadyClock::Now();
     const u64 tsc_start = FencedRDTSC();
-    // Wait for 100 milliseconds.
-    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
     const auto end_time = SteadyClock::Now();
     const u64 tsc_end = FencedRDTSC();
-    // Calculate differences.
     const auto elapsed =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
     if (tsc_end <= tsc_start) {
         return 0;
     }
     return detail::CalculateRDTSCFrequency(tsc_end - tsc_start, elapsed);
+}
+
+u64 detail::MedianRDTSCFrequency(std::array<u64, 3> samples) {
+    // Rejected samples are 0 and sort first: take the median of the ones left.
+    std::sort(samples.begin(), samples.end());
+    const auto rejected =
+        static_cast<size_t>(std::count(samples.begin(), samples.end(), u64{0}));
+    return rejected == samples.size() ? 0 : samples[(rejected + samples.size() - 1) / 2];
+}
+
+u64 EstimateRDTSCFrequency() {
+    // Discard the first result measuring the rdtsc.
+    FencedRDTSC();
+    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    FencedRDTSC();
+
+    // A preemption between the clock and TSC reads skews one sample: keep the median.
+    return detail::MedianRDTSCFrequency(
+        {MeasureRDTSCFrequency(), MeasureRDTSCFrequency(), MeasureRDTSCFrequency()});
 }
 
 } // namespace Common::X64

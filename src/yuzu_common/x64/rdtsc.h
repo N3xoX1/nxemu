@@ -7,6 +7,8 @@
 #include <intrin.h>
 #endif
 
+#include <array>
+
 #include "yuzu_common/common_types.h"
 
 namespace Common::X64 {
@@ -41,6 +43,7 @@ u64 EstimateRDTSCFrequency();
 
 namespace detail {
 u64 CalculateRDTSCFrequency(u64 ticks, s64 elapsed_ns);
+u64 MedianRDTSCFrequency(std::array<u64, 3> samples);
 }
 
 } // namespace Common::X64
