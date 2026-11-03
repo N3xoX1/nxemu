@@ -275,6 +275,21 @@ public:
         return runtime.WriteTrackBitmap();
     }
 
+    /// GPU-backed, contiguous compute storage ranges that this dispatch may write.
+    template <typename Func>
+    void ForEachWrittenComputeStorageBuffer(Func&& func) {
+        const u32 written = channel_state->enabled_compute_storage_buffers &
+                            channel_state->written_compute_storage_buffers;
+        ForEachEnabledBit(written, [&](u32 index) {
+            const Binding& binding = channel_state->compute_storage_buffers[index];
+            if (binding.buffer_id == NULL_BUFFER_ID || binding.is_sparse || binding.size == 0) {
+                return;
+            }
+            Buffer& buffer = slot_buffers[binding.buffer_id];
+            func(buffer, buffer.Offset(binding.device_addr), binding.device_addr, binding.size);
+        });
+    }
+
     void SetUniformBuffersState(const std::array<u32, NUM_STAGES>& mask,
                                 const UniformBufferSizes* sizes);
 

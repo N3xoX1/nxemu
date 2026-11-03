@@ -51,8 +51,9 @@ VkRenderPass RenderPassCache::Get(const RenderPassKey& key) {
     if (!is_new) {
         return *pair->second;
     }
-    boost::container::static_vector<VkAttachmentDescription, 9> descriptions;
+    boost::container::static_vector<VkAttachmentDescription, 17> descriptions;
     std::array<VkAttachmentReference, 8> references{};
+    std::array<VkAttachmentReference, 8> resolve_references{};
     u32 num_attachments{};
     u32 num_colors{};
     for (size_t index = 0; index < key.color_formats.size(); ++index) {
@@ -83,6 +84,29 @@ VkRenderPass RenderPassCache::Get(const RenderPassKey& key) {
         };
         descriptions.push_back(AttachmentDescription(*device, key.depth_format, key.samples));
     }
+    if (key.resolve_color) {
+        // Keep the same color-slot ordering, including VK_ATTACHMENT_UNUSED gaps.
+        // Real single-sample targets follow all multisample colors and depth.
+        for (size_t index = 0; index < key.color_formats.size(); ++index) {
+            const PixelFormat format{key.color_formats[index]};
+            const bool valid{format != PixelFormat::Invalid};
+            resolve_references[index] = VkAttachmentReference{
+                .attachment = valid ? static_cast<u32>(descriptions.size())
+                                    : VK_ATTACHMENT_UNUSED,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            };
+            if (!valid) {
+                continue;
+            }
+            auto description = AttachmentDescription(*device, format, VK_SAMPLE_COUNT_1_BIT);
+            description.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            if ((key.color_scratch_mask & (1U << index)) != 0) {
+                description.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+                description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            }
+            descriptions.push_back(description);
+        }
+    }
     // Every color attachment is also an input attachment of the same index, so that any
     // pipeline may read the pixel it shades. Render pass compatibility includes them.
     const bool reads_colors{device->SupportsColorAttachmentFetch() && num_attachments != 0};
@@ -93,7 +117,7 @@ VkRenderPass RenderPassCache::Get(const RenderPassKey& key) {
         .pInputAttachments = reads_colors ? references.data() : nullptr,
         .colorAttachmentCount = num_attachments,
         .pColorAttachments = references.data(),
-        .pResolveAttachments = nullptr,
+        .pResolveAttachments = key.resolve_color ? resolve_references.data() : nullptr,
         .pDepthStencilAttachment = has_depth ? &depth_reference : nullptr,
         .preserveAttachmentCount = 0,
         .pPreserveAttachments = nullptr,

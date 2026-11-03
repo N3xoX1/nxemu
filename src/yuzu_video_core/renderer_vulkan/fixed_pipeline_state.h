@@ -229,6 +229,7 @@ struct FixedPipelineState {
         BitField<17, 3, Tegra::Engines::Maxwell3D::EngineHint> app_stage;
         BitField<20, 1, u32> vertex_stride_workaround;
         BitField<21, 1, u32> alpha_to_coverage_dither;
+        BitField<22, 1, u32> tir_resolve_color;
     };
     std::array<u8, Maxwell::NumRenderTargets> color_formats;
 

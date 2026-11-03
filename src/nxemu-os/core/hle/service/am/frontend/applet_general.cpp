@@ -164,6 +164,26 @@ Result PhotoViewer::RequestExit()
     R_SUCCEED();
 }
 
+Result NetConnect::GetStatus() const { return ResultSuccess; }
+
+void NetConnect::ExecuteInteractive() { Execute(); }
+
+void NetConnect::Execute() {
+    if (complete) {
+        return;
+    }
+    complete = true;
+    // nifmLa expects a status word followed by the connection Result.
+    const std::array<u32, 2> result{0, Result{ErrorModule::NIFM, 1111}.raw};
+    std::vector<u8> data(sizeof(result));
+    std::memcpy(data.data(), result.data(), sizeof(result));
+    PushOutData(std::make_shared<IStorage>(system, std::move(data)));
+    LOG_INFO(Service_AM, "Network connection applet completed with network communication disabled");
+    Exit();
+}
+
+Result NetConnect::RequestExit() { Execute(); return ResultSuccess; }
+
 StubApplet::StubApplet(Core::System & system_, std::shared_ptr<Applet> applet_, AppletId id_,
                        LibraryAppletMode applet_mode_) :
     FrontendApplet{system_, applet_, applet_mode_}, id{id_}

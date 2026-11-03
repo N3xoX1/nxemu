@@ -737,6 +737,13 @@ void RasterizerVulkan::DispatchCompute() {
         buffer_cache.CopySparseWrites();
     };
 
+    const auto update_images_written_by_buffers = [this] {
+        buffer_cache.ForEachWrittenComputeStorageBuffer(
+            [this](auto& buffer, u32 offset, DAddr address, u32 size) {
+                texture_cache.UpdateImagesFromBuffer(address, size, buffer.Handle(), offset);
+            });
+    };
+
     const auto& qmd{kepler_compute->launch_description};
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
     if (indirect_address) {
@@ -759,6 +766,7 @@ void RasterizerVulkan::DispatchCompute() {
             Scheduler::ComputeMemoryBarrier(cmdbuf);
         });
         pipeline->FinishRuntimeImageWrites(scheduler, texture_cache);
+        update_images_written_by_buffers();
         return;
     }
     const std::array<u32, 3> dim{qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z};
@@ -771,6 +779,7 @@ void RasterizerVulkan::DispatchCompute() {
         Scheduler::ComputeMemoryBarrier(cmdbuf);
     });
     pipeline->FinishRuntimeImageWrites(scheduler, texture_cache);
+    update_images_written_by_buffers();
 }
 
 void RasterizerVulkan::ResetCounter(VideoCommon::QueryType type) {

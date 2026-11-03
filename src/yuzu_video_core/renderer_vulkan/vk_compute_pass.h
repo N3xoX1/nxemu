@@ -8,6 +8,8 @@
 #include <span>
 #include <utility>
 
+#include <boost/container/small_vector.hpp>
+
 #include "yuzu_common/common_types.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/renderer_vulkan/vk_descriptor_pool.h"
@@ -180,6 +182,24 @@ private:
     StagingBufferPool& staging_buffer_pool;
     ComputePassDescriptorQueue& compute_pass_descriptor_queue;
     MemoryAllocator& memory_allocator;
+};
+
+class BlockLinearUnswizzle2DBufferPass final : public ComputePass {
+public:
+    BlockLinearUnswizzle2DBufferPass(const Device& device, Scheduler& scheduler,
+                                    DescriptorPool& pool, StagingBufferPool& staging,
+                                    ComputePassDescriptorQueue& queue);
+    ~BlockLinearUnswizzle2DBufferPass();
+
+    static bool IsSupported(const Image& image);
+
+    std::pair<VkBuffer, boost::container::small_vector<VkBufferImageCopy, 16>> Unswizzle(
+        Image& image, VkBuffer source, VkDeviceSize source_offset);
+
+private:
+    Scheduler& scheduler;
+    StagingBufferPool& staging_buffer_pool;
+    ComputePassDescriptorQueue& descriptor_queue;
 };
 
 class MSAACopyPass final : public ComputePass {

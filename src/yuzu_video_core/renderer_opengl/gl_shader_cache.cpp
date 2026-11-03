@@ -52,7 +52,7 @@ using VideoCommon::SerializePipeline;
 using Context = ShaderContext::Context;
 
 // Loop-invariant pointer tracking changes the storage descriptor list.
-constexpr u32 CACHE_VERSION = 13;
+constexpr u32 CACHE_VERSION = 14;
 
 template <typename Container>
 auto MakeSpan(Container& container) {

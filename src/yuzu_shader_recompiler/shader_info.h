@@ -197,6 +197,8 @@ struct TextureHandleSource {
     u32 count;
     u32 stride; ///< Byte stride of the handle field
     u32 handle_or_bits{};
+    u32 mask{~0U};
+    u32 secondary_mask{~0U};
 
     auto operator<=>(const TextureHandleSource&) const = default;
 };
@@ -212,6 +214,8 @@ struct TextureBufferDescriptor {
     u32 count;
     u32 stride; ///< Byte stride of the handle field
     u32 handle_or_bits{};
+    u32 mask{~0U};
+    u32 secondary_mask{~0U};
 
     /// Compact alternatives for a handle selected by a Phi or Select.
     std::vector<TextureHandleSource> sources;
@@ -253,6 +257,13 @@ struct TextureDescriptor {
     bool in_table_set{};
     /// Constant bits combined with the cbuf handle, including an immediate sampler index.
     u32 handle_or_bits{};
+    /// An index read from a guest constant buffer and resolved once per draw.
+    bool has_index_cbuf{};
+    u32 index_cbuf_index{};
+    u32 index_cbuf_offset{};
+    u32 index_shift{};
+    u32 mask{~0U};
+    u32 secondary_mask{~0U};
 
     /// Finite SSA alternatives, bound as a compact array instead of the entire TIC table.
     std::vector<TextureHandleSource> sources;

@@ -1,0 +1,58 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#version 460 core
+
+// GPU-to-GPU conversion of a 2D block-linear image stored in a guest SSBO.
+// Each invocation converts one 32-bit word, preserving arbitrary texel data.
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer InputBuffer {
+    uint swizzled[];
+};
+
+layout(std430, set = 0, binding = 1) writeonly buffer OutputBuffer {
+    uint linear[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint src_word_offset;
+    uint row_words;
+    uint height;
+    uint layer_stride;
+    uint block_size;
+    uint x_shift;
+    uint block_height;
+    uint block_height_mask;
+};
+
+const uint GOB_SIZE_X_SHIFT = 6;
+const uint GOB_SIZE_Y_SHIFT = 3;
+const uint GOB_SIZE_SHIFT = GOB_SIZE_X_SHIFT + GOB_SIZE_Y_SHIFT;
+
+uint SwizzleTable(uint pos) {
+    const uint table[8] = uint[](
+        0x12100200, 0x13110301, 0x16140604, 0x17150705,
+        0x1a180a08, 0x1b190b09, 0x1e1c0e0c, 0x1f1d0f0d
+    );
+    const uint i = pos >> 4;
+    const uint h = (table[i / 4] >> ((i % 4) * 8)) & 0xff;
+    return (h << 4) | (pos & 0xf);
+}
+
+void main() {
+    const uint word = gl_GlobalInvocationID.x;
+    const uint y = gl_GlobalInvocationID.y;
+    const uint layer = gl_GlobalInvocationID.z;
+    if (word >= row_words || y >= height) {
+        return;
+    }
+    const uint x = word * 4;
+    const uint block_y = y >> GOB_SIZE_Y_SHIFT;
+    uint offset = layer * layer_stride;
+    offset += (block_y >> block_height) * block_size;
+    offset += (block_y & block_height_mask) << GOB_SIZE_SHIFT;
+    offset += (x >> GOB_SIZE_X_SHIFT) << x_shift;
+    offset += SwizzleTable((y & 7) * 64 + (x & 63));
+    linear[(layer * height + y) * row_words + word] = swizzled[src_word_offset + offset / 4];
+}

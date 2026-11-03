@@ -84,6 +84,7 @@ set(SHADER_FILES
     vulkan_present.vert
     vulkan_present_scaleforce_fp16.frag
     vulkan_present_scaleforce_fp32.frag
+    vulkan_block_linear_unswizzle_2d_buffer.comp
     vulkan_quad_indexed.comp
     vulkan_readback_delta.comp
     vulkan_tracked_readback.comp

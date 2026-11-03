@@ -188,6 +188,7 @@ RenderPassKey MakeRenderPassKey(const Device& device, const FixedPipelineState& 
         key.depth_format = PixelFormat::Invalid;
     }
     key.samples = device.SupportedSampleCount(MaxwellToVK::MsaaMode(state.msaa_mode));
+    key.resolve_color = state.tir_resolve_color != 0;
     return key;
 }
 
@@ -768,6 +769,19 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         const auto prepare_handle{[&](const auto& desc) {
             ASSERT(cbufs[desc.cbuf_index].enabled);
             const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
+            u32 uniform_offset{};
+            bool invalid_uniform_index{};
+            if constexpr (requires { desc.has_index_cbuf; }) {
+                if (desc.has_index_cbuf) {
+                    ASSERT(cbufs[desc.index_cbuf_index].enabled);
+                    const auto index_buffer = bind_cbuf(desc.index_cbuf_index, 1);
+                    invalid_uniform_index = index_buffer.size < sizeof(u32) ||
+                        desc.index_cbuf_offset > index_buffer.size - sizeof(u32);
+                    if (!invalid_uniform_index) {
+                        uniform_offset = index_buffer.Read(desc.index_cbuf_offset) << desc.index_shift;
+                    }
+                }
+            }
             auto secondary = primary;
             bool has_secondary{};
             u32 secondary_offset{};
@@ -781,9 +795,17 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             }
             return [=](u32 index) {
                 const u32 delta = index * desc.stride;
-                const u32 raw = primary.Read(desc.cbuf_offset + delta);
+                const u32 offset = desc.cbuf_offset + delta + uniform_offset;
+                if constexpr (requires { desc.has_index_cbuf; }) {
+                    if (desc.has_index_cbuf &&
+                        (invalid_uniform_index || primary.size < sizeof(u32) ||
+                         offset > primary.size - sizeof(u32))) {
+                        return TexturePair(0, via_header_index);
+                    }
+                }
+                const u32 raw = primary.Read(offset);
                 return TexturePair(Tegra::Texture::ComposeTextureHandle(
-                                       desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
+                                       desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0),
                                    via_header_index);
             };
         }};
@@ -1082,18 +1104,33 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
         const auto read_handle{[&](const auto& desc, u32 index) {
             ASSERT(cbufs[desc.cbuf_index].enabled);
             const u32 index_offset{index * desc.stride};
-            const u32 offset{desc.cbuf_offset + index_offset};
+            u32 offset{desc.cbuf_offset + index_offset};
+            if constexpr (requires { desc.has_index_cbuf; }) {
+                if (desc.has_index_cbuf) {
+                    ASSERT(cbufs[desc.index_cbuf_index].enabled);
+                    const u32 index_size = cbufs[desc.index_cbuf_index].size;
+                    if (index_size < sizeof(u32) ||
+                        desc.index_cbuf_offset > index_size - sizeof(u32)) {
+                        return TexturePair(0, via_header_index);
+                    }
+                    offset += gpu_memory->Read<u32>(cbufs[desc.index_cbuf_index].address +
+                                                    desc.index_cbuf_offset) << desc.index_shift;
+                    const u32 size = cbufs[desc.cbuf_index].size;
+                    if (size < sizeof(u32) || offset > size - sizeof(u32)) {
+                        return TexturePair(0, via_header_index);
+                    }
+                }
+            }
             const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
             if constexpr (requires { desc.has_secondary; }) {
                 if (desc.has_secondary) {
                     ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
-                    const u32 second_offset{desc.secondary_cbuf_offset + index_offset};
+                    const u32 second_offset{desc.secondary_cbuf_offset};
                     const GPUVAddr separate_addr{cbufs[desc.secondary_cbuf_index].address +
                                                  second_offset};
-                    const u32 lhs_raw{gpu_memory->Read<u32>(addr) << desc.shift_left};
-                    const u32 rhs_raw{gpu_memory->Read<u32>(separate_addr)
-                                      << desc.secondary_shift_left};
-                    return TexturePair(lhs_raw | rhs_raw | desc.handle_or_bits, via_header_index);
+                    return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                           desc, gpu_memory->Read<u32>(addr),
+                                           gpu_memory->Read<u32>(separate_addr)), via_header_index);
                 }
                 return TexturePair(Tegra::Texture::ComposeTextureHandle(
                                        desc, gpu_memory->Read<u32>(addr)), via_header_index);

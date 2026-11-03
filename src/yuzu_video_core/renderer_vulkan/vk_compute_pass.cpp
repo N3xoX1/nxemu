@@ -9,6 +9,7 @@
 
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
 
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/div_ceil.h"
@@ -20,6 +21,7 @@
 #include "yuzu_video_core/host_shaders/queries_prefix_scan_sum_nosubgroups_comp_spv.h"
 #include "yuzu_video_core/host_shaders/resolve_conditional_render_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_quad_indexed_comp_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_block_linear_unswizzle_2d_buffer_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_readback_delta_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_tracked_readback_comp_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_uint8_comp_spv.h"
@@ -32,6 +34,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "yuzu_video_core/texture_cache/accelerated_swizzle.h"
 #include "yuzu_video_core/texture_cache/types.h"
+#include "yuzu_video_core/texture_cache/util.h"
 #include "yuzu_video_core/textures/decoders.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
@@ -716,6 +719,131 @@ ASTCDecoderPass::ASTCDecoderPass(const Device& device_, Scheduler& scheduler_,
                                                                          memory_allocator_} {}
 
 ASTCDecoderPass::~ASTCDecoderPass() = default;
+
+struct BlockLinearUnswizzle2DBufferPushConstants {
+    u32 src_word_offset;
+    u32 row_words;
+    u32 height;
+    u32 layer_stride;
+    u32 block_size;
+    u32 x_shift;
+    u32 block_height;
+    u32 block_height_mask;
+};
+static_assert(sizeof(BlockLinearUnswizzle2DBufferPushConstants) <= 128);
+
+BlockLinearUnswizzle2DBufferPass::BlockLinearUnswizzle2DBufferPass(
+    const Device& device_, Scheduler& scheduler_, DescriptorPool& pool,
+    StagingBufferPool& staging, ComputePassDescriptorQueue& queue)
+    : ComputePass(device_, pool, INPUT_OUTPUT_DESCRIPTOR_SET_BINDINGS,
+                  INPUT_OUTPUT_DESCRIPTOR_UPDATE_TEMPLATE, INPUT_OUTPUT_BANK_INFO,
+                  COMPUTE_PUSH_CONSTANT_RANGE<sizeof(BlockLinearUnswizzle2DBufferPushConstants)>,
+                  VULKAN_BLOCK_LINEAR_UNSWIZZLE_2D_BUFFER_COMP_SPV),
+      scheduler{scheduler_}, staging_buffer_pool{staging}, descriptor_queue{queue} {}
+
+BlockLinearUnswizzle2DBufferPass::~BlockLinearUnswizzle2DBufferPass() = default;
+
+bool BlockLinearUnswizzle2DBufferPass::IsSupported(const Image& image) {
+    const VideoCommon::ImageInfo& info = image.info;
+    if (info.type != VideoCommon::ImageType::e2D || info.num_samples != 1 ||
+        VideoCore::Surface::GetFormatType(info.format) !=
+            VideoCore::Surface::SurfaceType::ColorTexture ||
+        VideoCore::Surface::DefaultBlockWidth(info.format) != 1 ||
+        VideoCore::Surface::DefaultBlockHeight(info.format) != 1 ||
+        True(image.flags & VideoCommon::ImageFlagBits::Converted) ||
+        True(image.flags & VideoCommon::ImageFlagBits::Rescaled)) {
+        return false;
+    }
+    const u32 bytes_per_block = VideoCore::Surface::BytesPerBlock(info.format);
+    for (const auto& swizzle : VideoCommon::FullUploadSwizzles(info)) {
+        if ((swizzle.num_tiles.width * bytes_per_block) % 4 != 0 ||
+            swizzle.num_tiles.depth != 1 || swizzle.num_tiles.height == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::pair<VkBuffer, boost::container::small_vector<VkBufferImageCopy, 16>>
+BlockLinearUnswizzle2DBufferPass::Unswizzle(Image& image, VkBuffer src_buffer,
+                                            VkDeviceSize src_offset) {
+    const auto& info = image.info;
+    const auto swizzles = VideoCommon::FullUploadSwizzles(info);
+    const u32 bytes_per_block = VideoCore::Surface::BytesPerBlock(info.format);
+    const u32 layers = static_cast<u32>(info.resources.layers);
+    const VkDeviceSize alignment = std::max<VkDeviceSize>(device.GetStorageBufferAlignment(), 4);
+
+    VkDeviceSize total_size{};
+    for (const auto& swizzle : swizzles) {
+        total_size = Common::AlignUp(total_size, alignment);
+        total_size += VkDeviceSize{swizzle.num_tiles.width} * bytes_per_block *
+                      swizzle.num_tiles.height * layers;
+    }
+    const auto linear = staging_buffer_pool.Request(total_size, MemoryUsage::DeviceLocal);
+
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([](vk::CommandBuffer cmdbuf) {
+        const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                      VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
+                                      VK_ACCESS_SHADER_READ_BIT};
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, barrier);
+    });
+
+    boost::container::small_vector<VkBufferImageCopy, 16> copies;
+    VkDeviceSize linear_offset{};
+    for (const auto& swizzle : swizzles) {
+        linear_offset = Common::AlignUp(linear_offset, alignment);
+        const auto params = VideoCommon::Accelerated::MakeBlockLinearSwizzle2DParams(swizzle, info);
+        const u32 row_words = swizzle.num_tiles.width * bytes_per_block / 4;
+        const u32 height = swizzle.num_tiles.height;
+        const VkDeviceSize level_size = VkDeviceSize{row_words} * sizeof(u32) * height * layers;
+        const VkDeviceSize level_src = src_offset + swizzle.buffer_offset;
+        const VkDeviceSize aligned_src = level_src & ~(alignment - 1);
+        const VkDeviceSize src_size = image.guest_size_bytes - swizzle.buffer_offset +
+                                      level_src - aligned_src;
+
+        descriptor_queue.Acquire(2);
+        descriptor_queue.AddBuffer(src_buffer, aligned_src, src_size);
+        descriptor_queue.AddBuffer(linear.buffer, linear.offset + linear_offset, level_size);
+        const void* descriptor_data = descriptor_queue.UpdateData();
+        const BlockLinearUnswizzle2DBufferPushConstants push{
+            .src_word_offset = static_cast<u32>((level_src - aligned_src) / sizeof(u32)),
+            .row_words = row_words,
+            .height = height,
+            .layer_stride = params.layer_stride,
+            .block_size = params.block_size,
+            .x_shift = params.x_shift,
+            .block_height = params.block_height,
+            .block_height_mask = params.block_height_mask,
+        };
+        scheduler.Record([this, descriptor_data, push, layers](vk::CommandBuffer cmdbuf) {
+            const VkDescriptorSet set = descriptor_allocator.Commit();
+            device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptor_data);
+            cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+            cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, *layout, 0, set, {});
+            cmdbuf.PushConstants(*layout, VK_SHADER_STAGE_COMPUTE_BIT, push);
+            cmdbuf.Dispatch(Common::DivCeil(push.row_words, 64U), push.height, layers);
+        });
+        copies.push_back(VkBufferImageCopy{
+            .bufferOffset = linear.offset + linear_offset,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageSubresource{VK_IMAGE_ASPECT_COLOR_BIT, static_cast<u32>(swizzle.level), 0, layers},
+            .imageOffset{0, 0, 0},
+            .imageExtent{swizzle.num_tiles.width, height, 1},
+        });
+        linear_offset += level_size;
+    }
+
+    scheduler.Record([](vk::CommandBuffer cmdbuf) {
+        const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+                                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT};
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                               VK_PIPELINE_STAGE_TRANSFER_BIT, 0, barrier);
+    });
+    return {linear.buffer, std::move(copies)};
+}
 
 void ASTCDecoderPass::Assemble(Image& image, const StagingBufferRef& map,
                                std::span<const VideoCommon::SwizzleParameters> swizzles) {

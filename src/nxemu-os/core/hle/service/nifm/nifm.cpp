@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/core.h"
+#include "core/hle/service/am/am_types.h"
 #include "core/hle/kernel/k_event.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/kernel_helpers.h"
@@ -304,15 +305,25 @@ private:
     void GetAppletInfo(HLERequestContext& ctx) {
         LOG_WARNING(Service_NIFM, "(STUBBED) called");
 
-        std::vector<u8> out_buffer(ctx.GetWriteBufferSize());
+        // nifmLa consumes length-prefixed storage blocks, terminated by -1.
+        // Supply the common arguments required by the HLE NetConnect frontend.
+        const std::array<u32, 10> arguments{
+            sizeof(AM::CommonArguments), static_cast<u32>(AM::CommonArgumentVersion::Version3),
+            sizeof(AM::CommonArguments), 0, 0, 0, 0, 0, 0,
+            0xffffffffU};
+        const auto buffer_size = ctx.GetWriteBufferSize();
+        if (buffer_size < sizeof(arguments)) {
+            IPC::ResponseBuilder{ctx, 2}.Push(ResultUnknown);
+            return;
+        }
+        ctx.WriteBuffer(arguments);
 
-        ctx.WriteBuffer(out_buffer);
-
-        IPC::ResponseBuilder rb{ctx, 5};
+        // Match Eden's GetAppletInfo response size, including the trailing IPC word.
+        IPC::ResponseBuilder rb{ctx, 6};
         rb.Push(ResultSuccess);
-        rb.Push<u32>(0);
-        rb.Push<u32>(0);
-        rb.Push<u32>(0);
+        rb.PushEnum(AM::AppletId::NetConnect);
+        rb.PushEnum(AM::LibraryAppletMode::AllForeground);
+        rb.Push<u32>(sizeof(arguments));
     }
 
     void UpdateState(RequestState new_state) {

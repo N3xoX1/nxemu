@@ -65,6 +65,18 @@ private:
     PhotoViewerAppletMode mode = PhotoViewerAppletMode::CurrentApp;
 };
 
+// Based on Eden's NetConnect frontend; headless completion reports an offline result.
+class NetConnect final : public FrontendApplet {
+public:
+    using FrontendApplet::FrontendApplet;
+    Result GetStatus() const override;
+    void ExecuteInteractive() override;
+    void Execute() override;
+    Result RequestExit() override;
+private:
+    bool complete{};
+};
+
 class StubApplet final : public FrontendApplet {
 public:
     explicit StubApplet(Core::System& system_, std::shared_ptr<Applet> applet_, AppletId id_,

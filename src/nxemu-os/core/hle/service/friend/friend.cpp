@@ -141,6 +141,8 @@ private:
     void GetCompletionEvent(HLERequestContext& ctx) {
         LOG_DEBUG(Service_Friend, "called");
 
+        // Match Eden: the stub service is ready without an asynchronous worker.
+        completion_event->Signal();
         IPC::ResponseBuilder rb{ctx, 2, 1};
         rb.Push(ResultSuccess);
         rb.PushCopyObjects(completion_event->GetReadableEvent());

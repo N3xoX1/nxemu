@@ -161,6 +161,19 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     const auto prepare_handle{[&](const auto& desc) {
         ASSERT(((qmd.const_buffer_enable_mask >> desc.cbuf_index) & 1) != 0);
         const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
+        u32 uniform_offset{};
+        bool invalid_uniform_index{};
+        if constexpr (requires { desc.has_index_cbuf; }) {
+            if (desc.has_index_cbuf) {
+                ASSERT(((qmd.const_buffer_enable_mask >> desc.index_cbuf_index) & 1) != 0);
+                const auto index_buffer = bind_cbuf(desc.index_cbuf_index, 1);
+                invalid_uniform_index = index_buffer.size < sizeof(u32) ||
+                    desc.index_cbuf_offset > index_buffer.size - sizeof(u32);
+                if (!invalid_uniform_index) {
+                    uniform_offset = index_buffer.Read(desc.index_cbuf_offset) << desc.index_shift;
+                }
+            }
+        }
         auto secondary = primary;
         bool has_secondary{};
         u32 secondary_offset{};
@@ -174,9 +187,17 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
         }
         return [=](u32 index) {
             const u32 delta = index * desc.stride;
-            const u32 raw = primary.Read(desc.cbuf_offset + delta);
+            const u32 offset = desc.cbuf_offset + delta + uniform_offset;
+            if constexpr (requires { desc.has_index_cbuf; }) {
+                if (desc.has_index_cbuf &&
+                    (invalid_uniform_index || primary.size < sizeof(u32) ||
+                     offset > primary.size - sizeof(u32))) {
+                    return TexturePair(0, via_header_index);
+                }
+            }
+            const u32 raw = primary.Read(offset);
             return TexturePair(Tegra::Texture::ComposeTextureHandle(
-                                   desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
+                                   desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0),
                                via_header_index);
         };
     }};

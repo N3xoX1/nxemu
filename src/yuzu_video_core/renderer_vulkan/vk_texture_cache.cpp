@@ -935,6 +935,8 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
         astc_decoder_pass.emplace(device, scheduler, descriptor_pool, staging_buffer_pool,
                                   compute_pass_descriptor_queue, memory_allocator);
     }
+    bl2d_buffer_unswizzle_pass.emplace(device, scheduler, descriptor_pool,
+                                       staging_buffer_pool, compute_pass_descriptor_queue);
     if (device.IsStorageImageMultisampleSupported()) {
         msaa_copy_pass = std::make_unique<MSAACopyPass>(
             device, scheduler, descriptor_pool, staging_buffer_pool, compute_pass_descriptor_queue);
@@ -1650,6 +1652,100 @@ VkImage TextureCacheRuntime::AcquireMsaaScratchImage(const VkImageCreateInfo& im
     return handle;
 }
 
+VkImageView TextureCacheRuntime::GetOrCreateTirColorScratch(VkImage color_image, VkFormat format,
+                                                            VkExtent2D extent, u32 layers,
+                                                            VkSampleCountFlagBits samples) {
+    TirColorScratch& scratch = tir_color_scratch[color_image];
+    if (scratch.image && scratch.format == format && scratch.samples == samples &&
+        scratch.layers == layers && scratch.extent.width >= extent.width &&
+        scratch.extent.height >= extent.height) {
+        return *scratch.view;
+    }
+    if (scratch.image) {
+        // Older framebuffers may still reference the previous image.
+        scheduler.Finish();
+        extent.width = (std::max)(extent.width, scratch.extent.width);
+        extent.height = (std::max)(extent.height, scratch.extent.height);
+    }
+    scratch.image = memory_allocator.CreateImage(VkImageCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent = {extent.width, extent.height, 1},
+        .mipLevels = 1,
+        .arrayLayers = layers,
+        .samples = samples,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    });
+    const VkImageSubresourceRange range{
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = layers,
+    };
+    scratch.view = device.GetLogical().CreateImageView(VkImageViewCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = *scratch.image,
+        .viewType = layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .components{},
+        .subresourceRange = range,
+    });
+    scratch.format = format;
+    scratch.extent = extent;
+    scratch.layers = layers;
+    scratch.samples = samples;
+    // The render pass loads this image in the general layout; give it defined contents first.
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([image = *scratch.image, range](vk::CommandBuffer cmdbuf) {
+        const VkImageMemoryBarrier to_transfer{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = 0,
+            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = range,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               0, to_transfer);
+        cmdbuf.ClearColorImage(image, VK_IMAGE_LAYOUT_GENERAL, VkClearColorValue{}, range);
+        const VkImageMemoryBarrier to_attachment{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = range,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, to_attachment);
+    });
+    return *scratch.view;
+}
+
+void TextureCacheRuntime::ReleaseTirColorScratch(VkImage color_image) {
+    tir_color_scratch.erase(color_image);
+}
+
 void TextureCacheRuntime::ReleaseMsaaScratchImage(VkImage image) {
     if (msaa_scratch_last < msaa_scratch_images.size() &&
         *msaa_scratch_images[msaa_scratch_last].image == image)
@@ -1726,7 +1822,13 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
 
 Image::Image(const VideoCommon::NullImageParams& params) : VideoCommon::ImageBase{params} {}
 
-Image::~Image() = default;
+Image::~Image() {
+    if (runtime) {
+        // Drop the TIR scratch with its target, also so a reused handle starts clean.
+        runtime->ReleaseTirColorScratch(*original_image);
+        runtime->ReleaseTirColorScratch(*scaled_image);
+    }
+}
 
 void Image::UploadMemory(VkBuffer buffer, VkDeviceSize offset,
                          std::span<const VideoCommon::BufferImageCopy> copies) {
@@ -1834,6 +1936,26 @@ void Image::UploadMemory(VkBuffer buffer, VkDeviceSize offset,
     if (is_rescaled) {
         ScaleUp();
     }
+}
+
+bool Image::UploadSwizzledFromBuffer(VkBuffer buffer, VkDeviceSize offset) {
+    if (!runtime || !runtime->bl2d_buffer_unswizzle_pass || offset % sizeof(u32) != 0 ||
+        guest_size_bytes > runtime->device.GetMaxStorageBufferRange() -
+            std::min<VkDeviceSize>(runtime->device.GetMaxStorageBufferRange(),
+                                   runtime->device.GetStorageBufferAlignment()) ||
+        !BlockLinearUnswizzle2DBufferPass::IsSupported(*this)) {
+        return false;
+    }
+    auto [linear_buffer, copies] =
+        runtime->bl2d_buffer_unswizzle_pass->Unswizzle(*this, buffer, offset);
+    const VkImage vk_image = *original_image;
+    const VkImageAspectFlags vk_aspect_mask = aspect_mask;
+    const bool was_initialized = std::exchange(initialized, true);
+    scheduler->Record([linear_buffer, vk_image, vk_aspect_mask, was_initialized,
+                       copies = std::move(copies)](vk::CommandBuffer cmdbuf) {
+        CopyBufferToImage(cmdbuf, linear_buffer, vk_image, vk_aspect_mask, was_initialized, copies);
+    });
+    return true;
 }
 
 void Image::UploadMemory(const StagingBufferRef& map, std::span<const BufferImageCopy> copies) {
@@ -2472,6 +2594,13 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
     } else {
         renderpass_key.depth_format = PixelFormat::Invalid;
     }
+    // TIR: the raster/depth image has multiple samples, but every color target is 1x.
+    const bool mixed_samples = depth_buffer && depth_buffer->Samples() != VK_SAMPLE_COUNT_1_BIT &&
+        num_colors > 0 &&
+        std::ranges::all_of(color_buffers, [](const ImageView* color) {
+            return !color || color->Samples() == VK_SAMPLE_COUNT_1_BIT;
+        });
+    renderpass_key.resolve_color = mixed_samples;
     renderpass_key.samples = samples;
 
     renderpass = runtime.render_pass_cache.Get(renderpass_key);
@@ -2482,14 +2611,34 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
 
     num_color_buffers = static_cast<u32>(num_colors);
     framebuffer_layers = static_cast<u32>(std::max(num_layers, 1));
-    std::copy(attachments.begin(), attachments.end(), framebuffer_attachments.begin());
+    if (mixed_samples) {
+        // Same order as RenderPassCache: MSAA color, depth, single-sample resolve color.
+        size_t attachment_index{};
+        for (size_t slot = 0; slot < NUM_RT; ++slot) {
+            if (!color_buffers[slot]) {
+                continue;
+            }
+            const VkFormat format = MaxwellToVK::SurfaceFormat(
+                runtime.device, FormatType::Optimal, true, color_buffers[slot]->format).format;
+            framebuffer_attachments[attachment_index++] = runtime.GetOrCreateTirColorScratch(
+                color_buffers[slot]->ImageHandle(), format, render_area, framebuffer_layers,
+                samples);
+        }
+        framebuffer_attachments[attachment_index++] = attachments[num_colors];
+        std::copy_n(attachments.begin(), num_colors,
+                    framebuffer_attachments.begin() + attachment_index);
+    } else {
+        std::copy(attachments.begin(), attachments.end(), framebuffer_attachments.begin());
+    }
+    const u32 attachment_count = static_cast<u32>(attachments.size() +
+                                                  (mixed_samples ? num_colors : 0));
     framebuffer = runtime.device.GetLogical().CreateFramebuffer({
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .renderPass = renderpass,
-        .attachmentCount = static_cast<u32>(attachments.size()),
-        .pAttachments = attachments.data(),
+        .attachmentCount = attachment_count,
+        .pAttachments = framebuffer_attachments.data(),
         .width = render_area.width,
         .height = render_area.height,
         .layers = framebuffer_layers,
@@ -2579,7 +2728,7 @@ void Framebuffer::EnsureScratchColorAttachment(size_t slot) const {
         });
     };
 
-    scratch.image = create_image(samples);
+    scratch.image = create_image(render_pass_key.resolve_color ? VK_SAMPLE_COUNT_1_BIT : samples);
     scratch.view = create_view(*scratch.image);
 }
 
@@ -2601,7 +2750,8 @@ VkFramebuffer Framebuffer::HandleVariant(u32 color_scratch_mask) const {
         }
         EnsureScratchColorAttachment(slot);
         const ScratchColorAttachment& scratch = scratch_color_attachments[slot];
-        attachments[rt_map[slot]] = *scratch.view;
+        attachments[rt_map[slot] + (render_pass_key.resolve_color ? num_images : 0)] =
+            *scratch.view;
     }
 
     vk::Framebuffer variant = runtime_ptr->device.GetLogical().CreateFramebuffer({
@@ -2609,7 +2759,8 @@ VkFramebuffer Framebuffer::HandleVariant(u32 color_scratch_mask) const {
         .pNext = nullptr,
         .flags = 0,
         .renderPass = renderpass,
-        .attachmentCount = num_images,
+        .attachmentCount = num_images +
+            (render_pass_key.resolve_color ? num_color_buffers : 0),
         .pAttachments = attachments.data(),
         .width = render_area.width,
         .height = render_area.height,
