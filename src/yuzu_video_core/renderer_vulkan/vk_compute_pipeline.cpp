@@ -169,7 +169,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
             }
         }
         return [=](u32 index) {
-            const u32 delta = index << desc.size_shift;
+            const u32 delta = index * desc.stride;
             const u32 raw = primary.Read(desc.cbuf_offset + delta);
             return TexturePair(Tegra::Texture::ComposeTextureHandle(
                                    desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),

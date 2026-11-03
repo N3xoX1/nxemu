@@ -10,6 +10,8 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 #include "yuzu_common/nvdata.h"
 #include "yuzu_common/common_types.h"
@@ -112,6 +114,10 @@ public:
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
     void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
+    // Append the ranges of pending query results the GPU already copied into its buffers.
+    void GpuWrittenResults(DAddr address, size_t size, std::vector<std::pair<DAddr, u64>>& ranges);
+    // Whether read-cached pages fault on CPU access in every registered process.
+    bool ProtectsReadCachedPages();
     // Called on the serialized GPU producer, under its execution lock.
     void RegisterNativeRead(DAddr addr, size_t size);
     void InvalidateNativeReadRegion(DAddr addr, size_t size);

@@ -571,6 +571,15 @@ void DeviceMemoryManager<Traits>::WriteBlock(DAddr address, const void* src_poin
 }
 
 template <typename Traits>
+void DeviceMemoryManager<Traits>::GpuWrittenResults(DAddr address, size_t size,
+                                                    std::vector<std::pair<DAddr, u64>>& ranges)
+{
+    if (device_inter) {
+        device_inter->GpuWrittenResults(address, size, ranges);
+    }
+}
+
+template <typename Traits>
 void DeviceMemoryManager<Traits>::ReadBlockUnsafe(DAddr address, void* dest_pointer, size_t size)
 {
     WalkBlock(address, size,[&](size_t copy_amount, DAddr current_vaddr) 
@@ -661,6 +670,20 @@ Asid DeviceMemoryManager<Traits>::RegisterProcess(IMemory * memory_device_inter)
         new_id = registered_processes.size() - 1U;
     }
     return Asid{new_id};
+}
+
+template <typename Traits>
+bool DeviceMemoryManager<Traits>::ProtectsReadCachedPages()
+{
+    std::scoped_lock lk(process_guard);
+    bool any = false;
+    for (IMemory* memory : registered_processes)
+    {
+        if (memory == nullptr) continue;
+        if (!memory->ProtectsReadCachedRegions()) return false;
+        any = true;
+    }
+    return any;
 }
 
 template <typename Traits>

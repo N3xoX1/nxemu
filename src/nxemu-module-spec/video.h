@@ -152,6 +152,12 @@ struct RasterizerDownloadArea
     bool native_read = false;
     // The CPU accessed another guest page of the same host page.
     bool shared_page = false;
+    // Result: the shared page awaits an asynchronous copy and stays inaccessible.
+    bool deferred = false;
+    // Request: report whether a query result the read covers is not written yet.
+    bool pending_result = false;
+    // Request: also make the GPU write it now.
+    bool kick = false;
 };
 
 nxinterface IChannelState

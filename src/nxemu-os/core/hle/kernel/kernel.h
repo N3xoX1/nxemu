@@ -188,8 +188,9 @@ public:
     /// destroyed during the current emulation session.
     void UnregisterInUseObject(KAutoObject* object);
 
-    // Runs the given server manager until shutdown.
-    void RunServer(std::unique_ptr<Service::ServerManager>&& server_manager);
+    // Runs the given server manager until shutdown. Returns false when it was not run
+    // because services are closed.
+    bool RunServer(std::unique_ptr<Service::ServerManager>&& server_manager);
 
     /// Gets the current host_thread/guest_thread pointer.
     KThread* GetCurrentEmuThread() const;

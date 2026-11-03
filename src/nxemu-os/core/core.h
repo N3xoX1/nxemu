@@ -385,7 +385,7 @@ public:
     [[nodiscard]] bool DebuggerEnabled() const override;
 
     /// Runs a server instance until shutdown.
-    void RunServer(std::unique_ptr<Service::ServerManager> && server_manager);
+    bool RunServer(std::unique_ptr<Service::ServerManager> && server_manager);
 
     /**
      * Registers a callback from the frontend for System to re-launch the application using a

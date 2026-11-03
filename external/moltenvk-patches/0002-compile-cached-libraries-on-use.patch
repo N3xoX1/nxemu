@@ -1,0 +1,90 @@
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+index 55f7b731..fee19bc7 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+@@ -146,14 +146,18 @@ protected:
+     MTLFunctionConstant* getFunctionConstant(NSArray<MTLFunctionConstant*>* mtlFCs, NSUInteger mtlFCID);
+ 	void compileLibrary(const std::string& msl,
+ 						const std::vector<std::pair<uint32_t, MVKShaderMacroValue> >* specializationMacroDef = nullptr);
++	id<MTLLibrary> getMTLLibrary();
+ 	void compressMSL(const std::string& msl);
+ 	void decompressMSL(std::string& msl);
+ 	MVKCompressor<std::string>& getCompressedMSL() { return _compressedMSL; }
+ 
+ 	MVKVulkanAPIDeviceObject* _owner;
+-	id<MTLLibrary> _mtlLibrary;
++	id<MTLLibrary> _mtlLibrary = nil;
+ 	MVKCompressor<std::string> _compressedMSL;
+ 	mvk::SPIRVToMSLConversionResultInfo _shaderConversionResultInfo;
++	mutable std::mutex _compileLock;
++	/** True when the library was read from a pipeline cache and is not compiled yet */
++	bool _compilePending = false;
+ 
+ 	/** When true, representing a library created with source, but never specialized */
+ 	bool _maySpecializeWithMacro;
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index 499b56f9..0db32d55 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -73,9 +73,8 @@ MVKMTLFunction MVKShaderLibrary::getMTLFunction(const VkSpecializationInfo* pSpe
+ 												VkPipelineCreationFeedback* pShaderFeedback,
+ 												MVKShaderModule* shaderModule) {
+ 
+-	if ( !_mtlLibrary ) { return MVKMTLFunctionNull; }
+-
+-	id<MTLLibrary> lib = _mtlLibrary;
++	id<MTLLibrary> lib = getMTLLibrary();
++	if ( !lib ) { return MVKMTLFunctionNull; }
+ 
+ 	// If specialization happens on constants mapped to macro, find or compile a library variant
+ 	// with proper macro definition instead of the "generic" library
+@@ -220,11 +219,28 @@ MVKShaderLibrary::MVKShaderLibrary(MVKVulkanAPIDeviceObject* owner,
+ 
+ 	_shaderConversionResultInfo = resultInfo;
+ 	_compressedMSL = compressedMSL;
++	// A pipeline cache can hold thousands of libraries: compile each on first use,
++	// not all of them while vkCreatePipelineCache blocks its caller.
++	if ( !specializationMacroDef ) {
++		_compilePending = true;
++		return;
++	}
+ 	string msl;
+ 	decompressMSL(msl);
+ 	compileLibrary(msl, specializationMacroDef);
+ }
+ 
++id<MTLLibrary> MVKShaderLibrary::getMTLLibrary() {
++	lock_guard<mutex> lock(_compileLock);
++	if (_compilePending) {
++		_compilePending = false;
++		string msl;
++		decompressMSL(msl);
++		compileLibrary(msl);
++	}
++	return _mtlLibrary;
++}
++
+ void MVKShaderLibrary::compileLibrary(const string& msl,
+ 									  const vector<pair<uint32_t, MVKShaderMacroValue> >* specializationMacroDef) {
+ 	MVKShaderLibraryCompiler* slc = new MVKShaderLibraryCompiler(_owner);
+@@ -273,16 +289,20 @@ MVKShaderLibrary::MVKShaderLibrary(const MVKShaderLibrary& other) :
+ 	_maySpecializeWithMacro(other._maySpecializeWithMacro),
+ 	_specializationVariants(other._specializationVariants) {
+ 
++	lock_guard<mutex> lock(other._compileLock);
+ 	_mtlLibrary = [other._mtlLibrary retain];
++	_compilePending = other._compilePending;
+ 	_shaderConversionResultInfo = other._shaderConversionResultInfo;
+ 	_compressedMSL = other._compressedMSL;
+ }
+ 
+ MVKShaderLibrary& MVKShaderLibrary::operator=(const MVKShaderLibrary& other) {
++	lock_guard<mutex> lock(other._compileLock);
+ 	if (_mtlLibrary != other._mtlLibrary) {
+ 		[_mtlLibrary release];
+ 		_mtlLibrary = [other._mtlLibrary retain];
+ 	}
++	_compilePending = other._compilePending;
+ 	_owner = other._owner;
+ 	_shaderConversionResultInfo = other._shaderConversionResultInfo;
+ 	_compressedMSL = other._compressedMSL;

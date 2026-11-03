@@ -5,6 +5,7 @@
 #include <array>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <span>
 #include <vector>
 #include <boost/container/small_vector.hpp>
@@ -1036,34 +1037,33 @@ u64 TextureCacheRuntime::AttachmentBarrierTick() const noexcept {
 
 void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
                                            std::span<const VideoCommon::ImageCopy> copies) {
-    boost::container::small_vector<VkBufferImageCopy, 16> vk_in_copies(copies.size());
-    boost::container::small_vector<VkBufferImageCopy, 16> vk_out_copies(copies.size());
+    if (copies.empty()) {
+        return;
+    }
+    boost::container::small_vector<VkBufferImageCopy, 16> vk_in_copies;
+    boost::container::small_vector<VkBufferImageCopy, 16> vk_out_copies;
+    vk_in_copies.reserve(copies.size());
+    vk_out_copies.reserve(copies.size());
     const VkImageAspectFlags src_aspect_mask = src.AspectMask();
     const VkImageAspectFlags dst_aspect_mask = dst.AspectMask();
-
-    const auto bpp_in = BytesPerBlock(src.info.format) / DefaultBlockWidth(src.info.format);
-    const auto bpp_out = BytesPerBlock(dst.info.format) / DefaultBlockWidth(dst.info.format);
-    std::ranges::transform(copies, vk_in_copies.begin(),
-                           [src_aspect_mask, bpp_in, bpp_out](const auto& copy) {
-                               auto copy2 = copy;
-                               copy2.src_offset.x = (bpp_out * copy.src_offset.x) / bpp_in;
-                               copy2.extent.width = (bpp_out * copy.extent.width) / bpp_in;
-                               return MakeBufferImageCopy(copy2, true, src_aspect_mask);
-                           });
-    std::ranges::transform(copies, vk_out_copies.begin(), [dst_aspect_mask](const auto& copy) {
-        return MakeBufferImageCopy(copy, false, dst_aspect_mask);
-    });
-    const u32 img_bpp = BytesPerBlock(dst.info.format);
-    const size_t alignment = std::max({4U, BytesPerBlock(src.info.format), img_bpp});
+    const u32 src_block_size = BytesPerBlock(src.info.format);
+    const u32 dst_block_size = BytesPerBlock(dst.info.format);
+    const u32 bpp_in = src_block_size / DefaultBlockWidth(src.info.format);
+    const u32 bpp_out = dst_block_size / DefaultBlockWidth(dst.info.format);
+    const size_t alignment = std::max({4U, src_block_size, dst_block_size});
     size_t total_size = 0;
-    for (size_t index = 0; index < copies.size(); ++index) {
-        const auto& copy = copies[index];
+    for (const auto& copy : copies) {
+        auto source = copy;
+        source.src_offset.x = (bpp_out * copy.src_offset.x) / bpp_in;
+        source.extent.width = (bpp_out * copy.extent.width) / bpp_in;
+        auto& in = vk_in_copies.emplace_back(MakeBufferImageCopy(source, true, src_aspect_mask));
+        auto& out = vk_out_copies.emplace_back(MakeBufferImageCopy(copy, false, dst_aspect_mask));
         // Keep scratch ranges separate for each copy region.
         total_size = Common::AlignUp(total_size, alignment);
-        vk_in_copies[index].bufferOffset = total_size;
-        vk_out_copies[index].bufferOffset = total_size;
+        in.bufferOffset = total_size;
+        out.bufferOffset = total_size;
         total_size += static_cast<size_t>(copy.extent.width) * copy.extent.height *
-                      copy.extent.depth * img_bpp * copy.dst_subresource.num_layers;
+                      copy.extent.depth * dst_block_size * copy.dst_subresource.num_layers;
     }
     const VkBuffer copy_buffer = GetTemporaryBuffer(total_size);
     const VkImage dst_image = dst.Handle();
@@ -1079,17 +1079,11 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
         for (const VkBufferImageCopy& copy : vk_out_copies) {
             dst_range.AddLayers(copy.imageSubresource);
         }
-        static constexpr VkMemoryBarrier READ_BARRIER{
-            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
-        };
-        static constexpr VkMemoryBarrier WRITE_BARRIER{
+        static constexpr VkMemoryBarrier TRANSFER_BARRIER{
             .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
             .pNext = nullptr,
             .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
         };
         const std::array pre_barriers{
             VkImageMemoryBarrier{
@@ -1106,22 +1100,6 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
                 .image = src_image,
                 .subresourceRange = src_range.SubresourceRange(src_aspect_mask),
             },
-        };
-        const std::array middle_in_barrier{
-            VkImageMemoryBarrier{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                .pNext = nullptr,
-                .srcAccessMask = 0,
-                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = src_image,
-                .subresourceRange = src_range.SubresourceRange(src_aspect_mask),
-            },
-        };
-        const std::array middle_out_barrier{
             VkImageMemoryBarrier{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .pNext = nullptr,
@@ -1138,6 +1116,18 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
             },
         };
         const std::array post_barriers{
+            VkImageMemoryBarrier{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = src_image,
+                .subresourceRange = src_range.SubresourceRange(src_aspect_mask),
+            },
             VkImageMemoryBarrier{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .pNext = nullptr,
@@ -1161,11 +1151,10 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
 
         cmdbuf.CopyImageToBuffer(src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, copy_buffer,
                                  vk_in_copies);
-        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                               0, WRITE_BARRIER, nullptr, middle_in_barrier);
-
-        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                               0, READ_BARRIER, {}, middle_out_barrier);
+        // Only the scratch write -> read needs visibility between the two transfers.
+        // Restore both image layouts together after the buffer-to-image copy.
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               0, TRANSFER_BARRIER);
         cmdbuf.CopyBufferToImage(copy_buffer, dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                  vk_out_copies);
         cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -1423,19 +1412,89 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
                                     std::span<const VideoCommon::ImageCopy> copies) {
     const u32 src_bpp = BytesPerBlock(src.info.format);
     const u32 dst_bpp = BytesPerBlock(dst.info.format);
-    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
-        src.info.type == ImageType::Linear && dst.info.type == ImageType::Linear &&
-        src_bpp != dst_bpp) {
-        // Copy incompatible linear formats through a buffer.
-        boost::container::small_vector<VideoCommon::ImageCopy, 16> reinterpret_copies(
-            copies.begin(), copies.end());
-        for (auto& copy : reinterpret_copies) {
-            // ReinterpretImage expects widths in destination texels.
+    if (src_bpp != dst_bpp) {
+        // Vulkan image copies require size-compatible texel blocks. Reinterpret through a
+        // buffer when their sizes differ, regardless of the host driver or image tiling.
+        // ReinterpretImage expresses its source X offset in destination-byte units.
+        const u32 src_unit = src_bpp / DefaultBlockWidth(src.info.format);
+        const u32 dst_unit = dst_bpp / DefaultBlockWidth(dst.info.format);
+        if (src_unit == 0 || dst_unit == 0) {
+            return;
+        }
+        const u32 dst_granularity = src_unit / std::gcd(src_unit, dst_unit);
+        const auto host_size = [this](const Image& image) {
+            auto size = image.info.size;
+            if (True(image.flags & ImageFlagBits::Rescaled)) {
+                size.width = resolution.ScaleUp(size.width);
+                if (image.info.type == ImageType::e2D) {
+                    size.height = resolution.ScaleUp(size.height);
+                }
+            }
+            return size;
+        };
+        const auto src_size = host_size(src);
+        const auto dst_size = host_size(dst);
+        boost::container::small_vector<VideoCommon::ImageCopy, 16> reinterpret_copies;
+        reinterpret_copies.reserve(copies.size());
+        for (auto copy : copies) {
+            const auto valid_subresource = [](const auto& sub, const auto& info) {
+                return sub.base_level >= 0 && sub.base_level < info.resources.levels &&
+                       sub.base_level < 32 && sub.base_layer >= 0 &&
+                       sub.base_layer < info.resources.layers && sub.num_layers > 0;
+            };
+            if (!valid_subresource(copy.src_subresource, src.info) ||
+                !valid_subresource(copy.dst_subresource, dst.info)) {
+                continue;
+            }
+            const auto src_mip = VideoCommon::MipSize(src_size, copy.src_subresource.base_level);
+            const auto dst_mip = VideoCommon::MipSize(dst_size, copy.dst_subresource.base_level);
+            if (copy.src_offset.x < 0 || copy.dst_offset.x < 0 ||
+                copy.src_offset.y < 0 || copy.dst_offset.y < 0 ||
+                copy.src_offset.z < 0 || copy.dst_offset.z < 0 ||
+                static_cast<u32>(copy.src_offset.x) >= src_mip.width ||
+                static_cast<u32>(copy.dst_offset.x) >= dst_mip.width ||
+                static_cast<u32>(copy.src_offset.y) >= src_mip.height ||
+                static_cast<u32>(copy.dst_offset.y) >= dst_mip.height ||
+                static_cast<u32>(copy.src_offset.z) >= src_mip.depth ||
+                static_cast<u32>(copy.dst_offset.z) >= dst_mip.depth) {
+                continue;
+            }
+            const u64 src_byte_offset = static_cast<u64>(copy.src_offset.x) * src_unit;
+            if (src_byte_offset % dst_unit != 0) {
+                continue;
+            }
+            const u64 available_src_bytes =
+                static_cast<u64>(src_mip.width - copy.src_offset.x) * src_unit;
+            // Copy widths are destination texels; the source width is rescaled by
+            // ReinterpretImage. Clamp both sides before issuing any Vulkan command.
             copy.extent.width = std::min({
-                copy.extent.width * std::max(src_bpp, dst_bpp) / dst_bpp,
-                src.info.size.width * src_bpp / dst_bpp,
-                dst.info.size.width,
+                copy.extent.width,
+                static_cast<u32>(available_src_bytes / dst_unit),
+                dst_mip.width - static_cast<u32>(copy.dst_offset.x),
             });
+            // Each copied source row must occupy exactly the bytes written to the
+            // destination row. Otherwise the last texel can read uninitialized scratch.
+            copy.extent.width -= copy.extent.width % dst_granularity;
+            copy.extent.height = std::min({copy.extent.height,
+                src_mip.height - static_cast<u32>(copy.src_offset.y),
+                dst_mip.height - static_cast<u32>(copy.dst_offset.y)});
+            copy.extent.depth = std::min({copy.extent.depth,
+                src_mip.depth - static_cast<u32>(copy.src_offset.z),
+                dst_mip.depth - static_cast<u32>(copy.dst_offset.z)});
+            const s32 layers = std::min({copy.src_subresource.num_layers,
+                copy.dst_subresource.num_layers,
+                src.info.resources.layers - copy.src_subresource.base_layer,
+                dst.info.resources.layers - copy.dst_subresource.base_layer});
+            copy.src_subresource.num_layers = layers;
+            copy.dst_subresource.num_layers = layers;
+            copy.src_offset.x = static_cast<s32>(src_byte_offset / dst_unit);
+            if (copy.extent.width == 0 || copy.extent.height == 0 || copy.extent.depth == 0) {
+                continue;
+            }
+            reinterpret_copies.push_back(copy);
+        }
+        if (reinterpret_copies.empty()) {
+            return;
         }
         return ReinterpretImage(dst, src, reinterpret_copies);
     }
