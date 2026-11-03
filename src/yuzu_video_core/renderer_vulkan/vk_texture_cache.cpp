@@ -2023,21 +2023,39 @@ bool Image::BlitScaleHelper(bool scale_up) {
                                        : Tegra::Engines::Fermi2D::Filter::Point;
 
     const bool is_2d = info.type == ImageType::e2D;
+    const bool is_msaa = info.num_samples > 1;
     const auto& resolution = runtime->resolution;
-    const u32 scaled_width = resolution.ScaleUp(info.size.width);
-    const u32 scaled_height = is_2d ? resolution.ScaleUp(info.size.height) : info.size.height;
-    std::unique_ptr<ImageView>& blit_view = scale_up ? scale_view : normal_view;
+    // Host MSAA images hold one texel per pixel, while info.size counts samples.
+    const auto [samples_x, samples_y] = SamplesLog2(info.num_samples);
+    const u32 width = info.size.width >> samples_x;
+    const u32 height = info.size.height >> samples_y;
+    const u32 scaled_width = resolution.ScaleUp(info.size.width) >> samples_x;
+    const u32 scaled_height =
+        (is_2d ? resolution.ScaleUp(info.size.height) : info.size.height) >> samples_y;
+
+    // Views capture the image current at creation, so build each on the image it must view.
+    const auto make_view = [this](VkImage handle) {
+        const VkImage current = std::exchange(current_image, handle);
+        const auto view_info = ImageViewInfo(ImageViewType::e2D, info.format);
+        auto view = std::make_unique<ImageView>(*runtime, view_info, NULL_IMAGE_ID, *this);
+        current_image = current;
+        return view;
+    };
+    if (!normal_view) {
+        normal_view = make_view(*original_image);
+    }
+    if (!scale_view) {
+        scale_view = make_view(*scaled_image);
+    }
+    ImageView& src_view = scale_up ? *normal_view : *scale_view;
+    ImageView& dst_view = scale_up ? *scale_view : *normal_view;
     std::unique_ptr<Framebuffer>& blit_framebuffer =
         scale_up ? scale_framebuffer : normal_framebuffer;
-    if (!blit_view) {
-        const auto view_info = ImageViewInfo(ImageViewType::e2D, info.format);
-        blit_view = std::make_unique<ImageView>(*runtime, view_info, NULL_IMAGE_ID, *this);
-    }
 
-    const u32 src_width = scale_up ? info.size.width : scaled_width;
-    const u32 src_height = scale_up ? info.size.height : scaled_height;
-    const u32 dst_width = scale_up ? scaled_width : info.size.width;
-    const u32 dst_height = scale_up ? scaled_height : info.size.height;
+    const u32 src_width = scale_up ? width : scaled_width;
+    const u32 src_height = scale_up ? height : scaled_height;
+    const u32 dst_width = scale_up ? scaled_width : width;
+    const u32 dst_height = scale_up ? scaled_height : height;
     const Region2D src_region{
         .start = {0, 0},
         .end = {static_cast<s32>(src_width), static_cast<s32>(src_height)},
@@ -2047,28 +2065,37 @@ bool Image::BlitScaleHelper(bool scale_up) {
         .end = {static_cast<s32>(dst_width), static_cast<s32>(dst_height)},
     };
     const VkExtent2D extent{
-        .width = std::max(scaled_width, info.size.width),
-        .height = std::max(scaled_height, info.size.height),
+        .width = dst_width,
+        .height = dst_height,
     };
 
-    auto* view_ptr = blit_view.get();
+    auto& blit_helper = runtime->blit_image_helper;
     if (aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT) {
         if (!blit_framebuffer) {
             blit_framebuffer =
-                std::make_unique<Framebuffer>(*runtime, view_ptr, nullptr, extent, scale_up);
+                std::make_unique<Framebuffer>(*runtime, &dst_view, nullptr, extent, scale_up);
         }
-        const auto color_view = blit_view->Handle(Shader::TextureType::Color2D);
-
-        runtime->blit_image_helper.BlitColor(blit_framebuffer.get(), color_view, dst_region,
-                                             src_region, operation, BLIT_OPERATION);
+        if (is_msaa) {
+            blit_helper.BlitColorMSAA(blit_framebuffer.get(), src_view, dst_region, src_region,
+                                      operation);
+        } else {
+            blit_helper.BlitColor(blit_framebuffer.get(),
+                                  src_view.Handle(Shader::TextureType::Color2D), dst_region,
+                                  src_region, operation, BLIT_OPERATION);
+        }
     } else if (aspect_mask == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) {
         if (!blit_framebuffer) {
             blit_framebuffer =
-                std::make_unique<Framebuffer>(*runtime, nullptr, view_ptr, extent, scale_up);
+                std::make_unique<Framebuffer>(*runtime, nullptr, &dst_view, extent, scale_up);
         }
-        runtime->blit_image_helper.BlitDepthStencil(blit_framebuffer.get(), blit_view->DepthView(),
-                                                    blit_view->StencilView(), dst_region,
-                                                    src_region, operation, BLIT_OPERATION);
+        if (is_msaa) {
+            blit_helper.BlitDepthStencilMSAA(blit_framebuffer.get(), src_view, dst_region,
+                                             src_region);
+        } else {
+            blit_helper.BlitDepthStencil(blit_framebuffer.get(), src_view.DepthView(),
+                                         src_view.StencilView(), dst_region, src_region,
+                                         operation, BLIT_OPERATION);
+        }
     } else {
         // TODO: Use helper blits where applicable
         flags &= ~ImageFlagBits::Rescaled;
