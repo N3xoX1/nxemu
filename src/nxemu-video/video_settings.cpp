@@ -247,7 +247,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Default},
 #else
     {NXVideoSetting::AstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, AstcDecodeMode::Gpu},
-    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, false},
+    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true},
     {NXVideoSetting::EnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, true},
     {NXVideoSetting::AccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, GpuAccuracy::High},
     {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Automatic},
@@ -268,7 +268,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::AntiAliasing, "video", "anti_aliasing", &videoSettings.anti_aliasing, AntiAliasing::None},
     {NXVideoSetting::FSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, 25, 0, 200},
     {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
-    {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, false},
+    {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, true},
     {NXVideoSetting::NXShaderWarmupMode, "video", "nxshader_warmup_mode", &videoSettings.nxshader_warmup_mode, 0, 0, 1},
     {NXVideoSetting::NXShaderInitialMinimum, "video", "nxshader_initial_minimum", &videoSettings.nxshader_initial_minimum, 512, 0, 8192},
     {NXVideoSetting::NXShaderInitialSeconds, "video", "nxshader_initial_seconds", &videoSettings.nxshader_initial_seconds, 60, 0, 600},

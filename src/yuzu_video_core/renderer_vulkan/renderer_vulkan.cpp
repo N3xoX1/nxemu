@@ -191,7 +191,8 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     presented_once = true;
     Frame * frame = present_manager.GetRenderFrame();
     blit_swapchain.DrawToFrame(rasterizer, frame, framebuffers,
-                               render_window.GetFramebufferLayout(), swapchain.GetImageCount(),
+                               render_window.GetFramebufferLayout(),
+                               std::max<std::size_t>(swapchain.GetImageCount(), 1),
                                swapchain.GetImageViewFormat());
     if (wm.show)
     {
