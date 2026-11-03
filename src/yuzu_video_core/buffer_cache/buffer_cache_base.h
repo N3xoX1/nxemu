@@ -167,6 +167,12 @@ class BufferCache : public VideoCommon::ChannelSetupCaches<BufferCacheChannelInf
     /// downloads and a single larger download are not bounded by it.
     static constexpr u64 MAX_INCOMPLETE_DOWNLOAD_BYTES = 512_MiB;
 
+    /// Device pages a tracked copy spans, with one flag each
+    static constexpr u64 TrackedPages(DAddr device_addr, u64 size) {
+        constexpr u64 page_size = 1ULL << WRITE_TRACK_PAGE_BITS;
+        return (device_addr % page_size + size + page_size - 1) / page_size;
+    }
+
     static constexpr bool IS_OPENGL = P::IS_OPENGL;
     static constexpr bool HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS =
         P::HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS;
@@ -247,7 +253,27 @@ public:
     /// Returns the host buffer with the offset and size of the index buffer of the draw
     [[nodiscard]] std::tuple<Buffer*, u32, u32> IndexBufferBinding();
 
+    /// Compute shaders that track their stores mark the device pages they write in a bitmap.
+    /// The written buffers of a dispatch each fill two words of push constants, see SPIR-V.
+    static constexpr u32 MAX_WRITE_TRACK_SLOTS = 12;
+    static constexpr u32 WRITE_TRACK_PAGE_BITS = 12;
+    static constexpr u32 WRITE_TRACK_DISABLED = ~0U;
+
     void BindHostComputeBuffers();
+
+    /// Next compute buffers are bound for a shader with this many write tracking slots
+    void SetComputeWriteTracking(u32 slots);
+
+    /// Push constant words of the write tracking slots of the bound compute buffers
+    [[nodiscard]] std::span<const u32> ComputeWriteTracking() const noexcept {
+        return std::span(compute_write_tracking.data(), compute_write_tracking_slots * 2);
+    }
+
+    [[nodiscard]] auto WriteTrackBitmap()
+        requires(!IS_OPENGL)
+    {
+        return runtime.WriteTrackBitmap();
+    }
 
     void SetUniformBuffersState(const std::array<u32, NUM_STAGES>& mask,
                                 const UniformBufferSizes* sizes);
@@ -443,7 +469,11 @@ private:
 
     void UpdateComputeTextureBuffers();
 
-    void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size);
+    /// A tracked write is one the bitmap of written pages records
+    void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
+
+    /// Write tracking words of a written binding, or disabled ones when it cannot be tracked
+    bool SetWriteTrackingSlot(u32 slot, DAddr device_addr, u32 texel_size);
 
     [[nodiscard]] BufferId FindBuffer(DAddr device_addr, u32 size);
 
@@ -615,6 +645,8 @@ private:
     /// Separate flags keep data staging allocations at their original sizes.
     std::deque<std::optional<Async_Buffer>> pending_readback_flags;
     std::deque<std::vector<u64>> pending_readback_flag_offsets;
+    /// First page flag of each pending copy limited to the pages compute shaders marked
+    std::deque<std::vector<u64>> pending_tracked_flag_offsets;
     std::deque<std::vector<Common::ReadbackCpuCopy>> pending_readback_cpu_copies;
     /// Ranges of each pending download that guest memory did not get newer data for since
     std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
@@ -627,6 +659,10 @@ private:
     VideoCommon::AtomicPageBits<34, 12> protected_download_pages;
     std::deque<std::pair<u64, u64>> incomplete_downloads;
     u64 incomplete_download_bytes = 0;
+    /// GPU writes since their last download that the bitmap of written pages does not record
+    Common::RangeSet<DAddr> untracked_gpu_writes;
+    u32 compute_write_tracking_slots = 0;
+    std::array<u32, MAX_WRITE_TRACK_SLOTS * 2> compute_write_tracking{};
     std::optional<Async_Buffer> current_buffer;
 
     std::deque<Async_Buffer> async_buffers_death_ring;

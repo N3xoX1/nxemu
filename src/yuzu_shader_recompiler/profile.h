@@ -114,6 +114,9 @@ struct Profile {
     /// difference of their element counts is the number of leading elements to skip.
     bool texel_buffer_size_view{};
 
+    /// Compute shaders mark the device pages they write in storage and image buffers
+    bool track_storage_writes{};
+
     bool SupportsUniformBufferDescriptorAliasing() const {
         return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;
     }

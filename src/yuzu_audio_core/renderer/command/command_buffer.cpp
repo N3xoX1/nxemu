@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cstring>
+#include <cmath>
 
 #include "yuzu_audio_core/renderer/behavior/behavior_info.h"
 #include "yuzu_audio_core/renderer/command/command_buffer.h"
@@ -27,6 +28,9 @@ namespace {
 constexpr f32 BiquadParameterFixedScaleQ14 = 16384.0f; // 1 << 14
 
 [[nodiscard]] inline s16 ToQ14Clamped(f32 v) {
+    if (!std::isfinite(v)) {
+        return 0;
+    }
     const f32 scaled = std::clamp(v * BiquadParameterFixedScaleQ14, -32768.0f, 32767.0f);
     return static_cast<s16>(scaled);
 }

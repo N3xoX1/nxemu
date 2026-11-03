@@ -171,6 +171,12 @@ public:
     bool runtime_samplers_linked{};
     Id runtime_image_write_mask{};
     Id runtime_image_write_mask_element{};
+    Id write_track_bitmap{};
+    Id write_track_bitmap_element{};
+    Id track_write_func{};
+    u32 write_track_member_index{};
+    std::array<u32, Info::MAX_SSBOS> ssbo_write_slots{};
+    std::vector<u32> image_buffer_write_slots;
     explicit EmitContext(const Profile& profile, const RuntimeInfo& runtime_info,
                          IR::Program& program, Bindings& binding);
     ~EmitContext();
@@ -421,6 +427,8 @@ private:
     void DefineRescalingInput(const Info& info);
     void DefineRescalingInputPushConstant(const Info& info);
     void DefineRescalingInputUniformConstant();
+    void DefineWriteTrackingBitmap(const Info& info, u32& binding);
+    void DefineWriteTrackingFunction(const Info& info);
     void DefineRenderArea(const Info& info);
     void DefineInputAttachments(const Info& info, u32& binding);
 

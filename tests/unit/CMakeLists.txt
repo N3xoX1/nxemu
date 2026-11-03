@@ -23,6 +23,28 @@ if(NOT MSVC)
 endif()
 nxemu_unit_test(test_macro_interpreter_runtime)
 
+add_executable(test_lot1_audio eden_lot1/audio.cpp)
+target_include_directories(test_lot1_audio PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_lot1_audio PRIVATE FMT_HEADER_ONLY)
+nxemu_unit_test(test_lot1_audio)
+
+add_executable(test_lot1_lifecycle eden_lot1/lifecycle.cpp)
+target_include_directories(test_lot1_lifecycle PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_link_libraries(test_lot1_lifecycle PRIVATE nxemu_test_support fmt::fmt)
+nxemu_unit_test(test_lot1_lifecycle)
+
+if(ARCHITECTURE_x86_64)
+    add_executable(test_lot1_tsc eden_lot1/tsc.cpp
+        "${CMAKE_SOURCE_DIR}/src/yuzu_common/x64/rdtsc.cpp"
+        "${CMAKE_SOURCE_DIR}/src/yuzu_common/steady_clock.cpp")
+    target_include_directories(test_lot1_tsc PRIVATE "${CMAKE_SOURCE_DIR}/src")
+    target_link_libraries(test_lot1_tsc PRIVATE Threads::Threads)
+    nxemu_unit_test(test_lot1_tsc)
+endif()
+
 if(ARCHITECTURE_x86_64)
     # Exercise the JIT objects shipped in the CPU module, including its Release flags.
     add_executable(test_dynarmic_regalloc dynarmic_regalloc/jit.cpp
@@ -167,10 +189,13 @@ target_compile_options(test_spirv_constant_buffers PRIVATE
 nxemu_unit_test(test_spirv_constant_buffers)
 
 # Application control metadata (NACP) parsing.
-add_executable(test_loader_metadata loader_metadata/nacp.cpp)
+add_executable(test_loader_metadata loader_metadata/nacp.cpp
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/control_metadata.cpp"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/vfs/vfs.cpp"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/vfs/vfs_vector.cpp")
 target_include_directories(test_loader_metadata PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-loader" "${CMAKE_SOURCE_DIR}/external/fmt/include")
-target_link_libraries(test_loader_metadata PRIVATE nxemu-loader)
+target_link_libraries(test_loader_metadata PRIVATE nxemu_test_support yuzu_common common fmt::fmt)
 nxemu_unit_test(test_loader_metadata)
 
 add_subdirectory(shader_profile)

@@ -40,6 +40,7 @@ IFileSystem::IFileSystem(Core::System & system_, IVirtualDirectoryPtr && dir_, S
 Result IFileSystem::CreateFile(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path, s32 option, s64 size)
 {
     LOG_DEBUG(Service_FS, "called. file={}, option=0x{:X}, size=0x{:08X}", path->str, option, size);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->CreateFile(FileSys::Path(path->str), size));
 }
@@ -47,6 +48,7 @@ Result IFileSystem::CreateFile(const InLargeData<FileSys::Sf::Path, BufferAttr_H
 Result IFileSystem::DeleteFile(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. file={}", path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->DeleteFile(FileSys::Path(path->str)));
 }
@@ -54,6 +56,7 @@ Result IFileSystem::DeleteFile(const InLargeData<FileSys::Sf::Path, BufferAttr_H
 Result IFileSystem::CreateDirectory(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. directory={}", path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->CreateDirectory(FileSys::Path(path->str)));
 }
@@ -61,6 +64,7 @@ Result IFileSystem::CreateDirectory(const InLargeData<FileSys::Sf::Path, BufferA
 Result IFileSystem::DeleteDirectory(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. directory={}", path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->DeleteDirectory(FileSys::Path(path->str)));
 }
@@ -68,6 +72,7 @@ Result IFileSystem::DeleteDirectory(const InLargeData<FileSys::Sf::Path, BufferA
 Result IFileSystem::DeleteDirectoryRecursively(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. directory={}", path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->DeleteDirectoryRecursively(FileSys::Path(path->str)));
 }
@@ -75,6 +80,7 @@ Result IFileSystem::DeleteDirectoryRecursively(const InLargeData<FileSys::Sf::Pa
 Result IFileSystem::CleanDirectoryRecursively(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> path)
 {
     LOG_DEBUG(Service_FS, "called. Directory: {}", path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->CleanDirectoryRecursively(FileSys::Path(path->str)));
 }
@@ -82,6 +88,7 @@ Result IFileSystem::CleanDirectoryRecursively(const InLargeData<FileSys::Sf::Pat
 Result IFileSystem::RenameFile(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> old_path, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> new_path)
 {
     LOG_DEBUG(Service_FS, "called. file '{}' to file '{}'", old_path->str, new_path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->RenameFile(FileSys::Path(old_path->str), FileSys::Path(new_path->str)));
 }
@@ -89,6 +96,7 @@ Result IFileSystem::RenameFile(const InLargeData<FileSys::Sf::Path, BufferAttr_H
 Result IFileSystem::RenameDirectory(const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> old_path, const InLargeData<FileSys::Sf::Path, BufferAttr_HipcPointer> new_path)
 {
     LOG_DEBUG(Service_FS, "called. directory '{}' to directory '{}'", old_path->str, new_path->str);
+    NoteFileSystemWrite();
 
     R_RETURN(backend->RenameDirectory(FileSys::Path(old_path->str), FileSys::Path(new_path->str)));
 }
@@ -129,6 +137,7 @@ Result IFileSystem::GetEntryType(Out<u32> out_type, const InLargeData<FileSys::S
 Result IFileSystem::Commit()
 {
     LOG_WARNING(Service_FS, "(STUBBED) called");
+    NoteFileSystemWrite();
 
     R_SUCCEED();
 }

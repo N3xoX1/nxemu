@@ -50,6 +50,7 @@ static DescriptorBankInfo MakeBankInfo(std::span<const Shader::Info> infos,
         bank.uniform_buffers += Accumulate(info.constant_buffer_descriptors);
         bank.storage_buffers += Accumulate(info.storage_buffers_descriptors);
         bank.storage_buffers += info.runtime_image_write_mask_words != 0 ? 1U : 0U;
+        bank.storage_buffers += info.write_tracking_slots != 0 ? 1U : 0U;
         bank.texture_buffers += Accumulate(info.texture_buffer_descriptors) * texel_buffer_views;
         bank.image_buffers += Accumulate(info.image_buffer_descriptors) * texel_buffer_views;
         for (const auto& desc : info.texture_descriptors) {

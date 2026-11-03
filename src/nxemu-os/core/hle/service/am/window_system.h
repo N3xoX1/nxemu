@@ -44,6 +44,8 @@ public:
     void NotifyAppletStateChanged();
 
     void OnExitRequested();
+    bool OnApplicationBackgrounded();
+    bool IsApplicationFocusStateChangedPending() const;
     void OnResumeRequested();
     void OnOperationModeChanged();
     void Update();

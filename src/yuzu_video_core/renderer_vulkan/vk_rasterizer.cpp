@@ -110,8 +110,9 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
                           src.swizzle.y == Maxwell::ViewportSwizzle::NegativeY;
 
     if (lower_left) {
-        // Flip by surface clip height
-        y += conv(static_cast<f32>(regs.surface_clip.height));
+        // Flip by surface clip height: the window row is clip_height - y, and the negative
+        // height keeps the viewport pointing up from there, whatever the sign of scale_y.
+        y = conv(static_cast<f32>(regs.surface_clip.height)) - y;
         height = -height;
     }
 
