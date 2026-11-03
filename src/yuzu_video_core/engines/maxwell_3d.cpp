@@ -219,8 +219,10 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
     if (executing_macro == 0)
     {
         // A macro call must begin by writing the macro method's register, not its argument.
-        ASSERT_MSG((method % 2) == 0,
-                   "Can't start macro execution by writing to the ARGS register");
+        if ((method % 2) != 0) [[unlikely]]
+        {
+            ASSERT_MSG(false, "Can't start macro execution by writing to the ARGS register");
+        }
         executing_macro = method;
     }
 
@@ -532,7 +534,8 @@ void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
 {
     // It is an error to write to a register other than the current macro's ARG register before
     // it has finished execution.
-    if (executing_macro != 0)
+    // ASSERT calls a non-inlined lambda; keep it off this per-method path when the check passes.
+    if (executing_macro != 0 && method != executing_macro + 1) [[unlikely]]
     {
         ASSERT(method == executing_macro + 1);
     }
@@ -545,8 +548,8 @@ void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
         return;
     }
 
-    ASSERT_MSG(method < Regs::NUM_REGS,
-               "Invalid Maxwell3D register, increase the size of the Regs structure");
+    static_assert(Regs::NUM_REGS == MacroRegistersStart,
+                  "Every method below the macro range must be a Maxwell3D register");
 
     const u32 argument = ProcessShadowRam(method, method_argument);
     ProcessDirtyRegisters(method, argument);

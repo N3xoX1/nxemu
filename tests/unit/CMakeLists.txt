@@ -3,6 +3,26 @@ function(nxemu_unit_test name)
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
 
+# Standalone MME instruction semantics; includes the ARM64 interpreter shift rules.
+add_executable(test_macro_opcodes macro/macro_opcode.cpp)
+target_include_directories(test_macro_opcodes PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_options(test_macro_opcodes PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+nxemu_unit_test(test_macro_opcodes)
+
+# Execute the production MME interpreter with a fake GPU, including FIFO invalidation on Send.
+add_executable(test_macro_interpreter_runtime macro/macro_interpreter_runtime.cpp)
+target_include_directories(test_macro_interpreter_runtime BEFORE PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/macro/stubs" "${CMAKE_SOURCE_DIR}/src")
+target_compile_options(test_macro_interpreter_runtime PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+if(NOT MSVC)
+    target_compile_options(test_macro_interpreter_runtime PRIVATE
+        -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(test_macro_interpreter_runtime PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_macro_interpreter_runtime)
+
 add_executable(test_lot1_audio eden_lot1/audio.cpp)
 target_include_directories(test_lot1_audio PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/boost"

@@ -75,10 +75,12 @@ private:
     /// Method address to use for the next Send instruction.
     Macro::MethodAddress method_address = {};
 
-    /// Input parameters of the current macro.
-    std::unique_ptr<u32[]> parameters;
+    /// The caller owns the parameters throughout Execute. A snapshot is only needed if the macro
+    /// itself invokes another macro, which may mutate the caller's parameter vector.
+    const u32* parameters = nullptr;
+    std::vector<u32> stable_parameters;
+    bool parameters_snapshotted = false;
     std::size_t num_parameters = 0;
-    std::size_t parameters_capacity = 0;
     /// Index of the next parameter that will be fetched by the 'parm' instruction.
     u32 next_parameter_index = 0;
 
@@ -89,14 +91,13 @@ private:
 void MacroInterpreterImpl::Execute(const std::vector<u32>& params, u32 method) {
     Reset();
 
+    if (params.empty()) [[unlikely]] {
+        ASSERT_MSG(false, "MME macro received an empty parameter FIFO");
+        return;
+    }
     registers[1] = params[0];
     num_parameters = params.size();
-
-    if (num_parameters > parameters_capacity) {
-        parameters_capacity = num_parameters;
-        parameters = std::make_unique<u32[]>(num_parameters);
-    }
-    std::memcpy(parameters.get(), params.data(), num_parameters * sizeof(u32));
+    parameters = params.data();
 
     // Execute the code until we hit an exit condition.
     bool keep_executing = true;
@@ -105,7 +106,9 @@ void MacroInterpreterImpl::Execute(const std::vector<u32>& params, u32 method) {
     }
 
     // Assert the the macro used all the input parameters
-    ASSERT(next_parameter_index == num_parameters);
+    if (next_parameter_index != num_parameters) [[unlikely]] {
+        ASSERT_MSG(false, "MME macro did not consume its parameter FIFO");
+    }
 }
 
 void MacroInterpreterImpl::Reset() {
@@ -113,6 +116,8 @@ void MacroInterpreterImpl::Reset() {
     pc = 0;
     delayed_pc = {};
     method_address.raw = 0;
+    parameters = nullptr;
+    parameters_snapshotted = false;
     num_parameters = 0;
     // The next parameter index starts at 1, because $r1 already has the value of the first
     // parameter.
@@ -156,7 +161,8 @@ bool MacroInterpreterImpl::Step(bool is_delay_slot) {
         break;
     }
     case Macro::Operation::ExtractShiftLeftImmediate: {
-        u32 dst = GetRegister(opcode.src_a);
+        // Maxwell's variable shifts follow the x86 macro JIT's 5-bit shift-count semantics.
+        u32 dst = Macro::MaskShiftCount(GetRegister(opcode.src_a));
         u32 src = GetRegister(opcode.src_b);
 
         u32 result = ((src >> dst) & opcode.GetBitfieldMask()) << opcode.bf_dst_bit;
@@ -165,7 +171,7 @@ bool MacroInterpreterImpl::Step(bool is_delay_slot) {
         break;
     }
     case Macro::Operation::ExtractShiftLeftRegister: {
-        u32 dst = GetRegister(opcode.src_a);
+        u32 dst = Macro::MaskShiftCount(GetRegister(opcode.src_a));
         u32 src = GetRegister(opcode.src_b);
 
         u32 result = ((src >> opcode.bf_src_bit) & opcode.GetBitfieldMask()) << dst;
@@ -309,13 +315,27 @@ bool MacroInterpreterImpl::EvaluateBranchCondition(Macro::BranchCondition cond, 
 }
 
 Macro::Opcode MacroInterpreterImpl::GetOpcode() const {
-    ASSERT((pc % sizeof(u32)) == 0);
-    ASSERT(pc < code.size() * sizeof(u32));
+    // Every PC update is a multiple of four, including branch targets. Avoid a hot-path
+    // assertion call in release builds while retaining the bounds check below.
+    DEBUG_ASSERT((pc % sizeof(u32)) == 0);
+    // ASSERT is implemented as a non-inlined lambda. Check bounds in the hot path, but only
+    // enter the reporting function for an invalid program counter.
+    if (pc >= code.size() * sizeof(u32)) [[unlikely]] {
+        ASSERT_MSG(false, "MME macro program counter is out of bounds");
+        // Asserts may be non-fatal: end the macro instead of reading past its code.
+        Macro::Opcode exit{};
+        exit.operation.Assign(Macro::Operation::AddImmediate);
+        exit.result_operation.Assign(Macro::ResultOperation::Move);
+        exit.is_exit.Assign(1);
+        return exit;
+    }
     return {code[pc / sizeof(u32)]};
 }
 
 u32 MacroInterpreterImpl::GetRegister(u32 register_id) const {
-    return registers.at(register_id);
+    // Opcode register selectors are 3-bit fields, so all values are in [0, 7].
+    static_assert(Macro::NUM_MACRO_REGISTERS == 8);
+    return registers[register_id];
 }
 
 void MacroInterpreterImpl::SetRegister(u32 register_id, u32 value) {
@@ -325,7 +345,7 @@ void MacroInterpreterImpl::SetRegister(u32 register_id, u32 value) {
         return;
     }
 
-    registers.at(register_id) = value;
+    registers[register_id] = value;
 }
 
 void MacroInterpreterImpl::SetMethodAddress(u32 address) {
@@ -333,6 +353,13 @@ void MacroInterpreterImpl::SetMethodAddress(u32 address) {
 }
 
 void MacroInterpreterImpl::Send(u32 value) {
+    // A write to a macro method can recursively invoke ProcessMacro and reallocate or clear the
+    // caller's macro_params vector. Preserve the original FIFO only for this uncommon case.
+    if (method_address.address.Value() >= 0xE00 && !parameters_snapshotted) {
+        stable_parameters.assign(parameters, parameters + num_parameters);
+        parameters = stable_parameters.data();
+        parameters_snapshotted = true;
+    }
     maxwell3d.CallMethod(method_address.address, value, true);
     // Increment the method address by the method increment.
     method_address.address.Assign(method_address.address.Value() +
@@ -344,7 +371,10 @@ u32 MacroInterpreterImpl::Read(u32 method) const {
 }
 
 u32 MacroInterpreterImpl::FetchParameter() {
-    ASSERT(next_parameter_index < num_parameters);
+    if (next_parameter_index >= num_parameters) [[unlikely]] {
+        ASSERT_MSG(false, "MME macro fetched beyond its parameter FIFO");
+        return 0;
+    }
     return parameters[next_parameter_index++];
 }
 } // Anonymous namespace
