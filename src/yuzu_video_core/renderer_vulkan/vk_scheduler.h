@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -65,6 +66,12 @@ public:
 
     [[nodiscard]] bool IsInsideRenderPass() const noexcept {
         return state.renderpass != VK_NULL_HANDLE;
+    }
+
+    /// Pixels the current render pass stores and loads again if it is split.
+    [[nodiscard]] u64 RenderPassSplitCost() const noexcept {
+        return u64{state.render_area.width} * state.render_area.height *
+               std::max<u32>(num_renderpass_images, 1);
     }
 
     /// Update the pipeline to the current execution context.
