@@ -274,6 +274,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::NXShaderInitialSeconds, "video", "nxshader_initial_seconds", &videoSettings.nxshader_initial_seconds, 60, 0, 600},
     {NXVideoSetting::FastGPUTime, "video", "use_fast_gpu_time", &videoSettings.use_fast_gpu_time, true},
     {NXVideoSetting::UseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, true},
+    {NXVideoSetting::VulkanPipelineMode, "video", "vulkan_pipeline_mode", &videoSettings.vulkan_pipeline_mode, 0, 0, 1},
     {NXVideoSetting::SyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, false},
     {NXVideoSetting::BarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, true},
     {NXVideoSetting::ASTCRecompressionMethod, "video", "astc_recompression_method", &videoSettings.astc_recompression, AstcRecompression::Uncompressed},

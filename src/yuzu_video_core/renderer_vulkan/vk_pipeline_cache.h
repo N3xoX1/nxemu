@@ -226,6 +226,9 @@ private:
     bool skipped_unfinished{};
     bool wait_for_current_draw{};
     bool use_vulkan_pipeline_cache{};
+    /// vulkan_pipeline_mode 1 on a device with VK_EXT_graphics_pipeline_library: eligible
+    /// pipelines give the vertex and fragment stages a descriptor set each.
+    bool stage_pipelines{};
 
     GraphicsPipelineCacheKey graphics_key{};
     GraphicsPipeline* current_pipeline{};

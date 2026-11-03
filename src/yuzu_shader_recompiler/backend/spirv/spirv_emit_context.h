@@ -329,6 +329,8 @@ public:
     u32 rescaling_images_member_index{};
     u32 rescaling_downfactor_member_index{};
     u32 rescaling_attachment_reads_member_index{};
+    /// Descriptor set of this stage's set 0 resources (Bindings::descriptor_set)
+    u32 descriptor_set{};
     u32 texture_rescaling_index{};
     u32 image_rescaling_index{};
 

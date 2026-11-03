@@ -300,7 +300,7 @@ void DefineConstBuffers(EmitContext& ctx, const Info& info, Id UniformDefinition
         const Id struct_pointer_type = pointer->second;
         const Id id{ctx.AddGlobalVariable(struct_pointer_type, spv::StorageClass::Uniform)};
         ctx.Decorate(id, spv::Decoration::Binding, binding);
-        ctx.Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        ctx.Decorate(id, spv::Decoration::DescriptorSet, ctx.descriptor_set);
         ctx.Name(id, fmt::format("c{}", desc.index));
         for (size_t i = 0; i < desc.count; ++i) {
             ctx.cbufs[desc.index + i].*member_type = id;
@@ -330,7 +330,7 @@ void DefineSsbos(EmitContext& ctx, StorageTypeDefinition& type_def,
     for (const StorageBufferDescriptor& desc : info.storage_buffers_descriptors) {
         const Id id{ctx.AddGlobalVariable(struct_pointer, spv::StorageClass::StorageBuffer)};
         ctx.Decorate(id, spv::Decoration::Binding, binding);
-        ctx.Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        ctx.Decorate(id, spv::Decoration::DescriptorSet, ctx.descriptor_set);
         ctx.Name(id, fmt::format("ssbo{}", index));
         if (ctx.profile.supported_spirv >= 0x00010400) {
             ctx.interfaces.push_back(id);
@@ -478,7 +478,8 @@ void VectorTypes::Define(Sirit::Module& sirit_ctx, Id base_type, std::string_vie
 EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_info_,
                          IR::Program& program, Bindings& bindings)
     : Sirit::Module(profile_.supported_spirv), profile{profile_}, runtime_info{runtime_info_},
-      stage{program.stage}, texture_rescaling_index{bindings.texture_scaling_index},
+      stage{program.stage}, descriptor_set{bindings.descriptor_set},
+      texture_rescaling_index{bindings.texture_scaling_index},
       image_rescaling_index{bindings.image_scaling_index} {
     // Restrict this to a dedicated counter buffer. Multiple descriptors could alias the same
     // allocation, making a read through another binding observe a partially updated value.
@@ -541,7 +542,7 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
         MemberDecorate(block, 0U, spv::Decoration::Offset, 0U);
         runtime_image_write_mask = AddGlobalVariable(TypePointer(storage, block), storage);
         runtime_image_write_mask_element = TypePointer(storage, U32[1]);
-        Decorate(runtime_image_write_mask, spv::Decoration::DescriptorSet, 0U);
+        Decorate(runtime_image_write_mask, spv::Decoration::DescriptorSet, descriptor_set);
         Decorate(runtime_image_write_mask, spv::Decoration::Binding, storage_binding++);
         Name(runtime_image_write_mask, "runtime_image_write_mask");
         if (profile.supported_spirv >= 0x00010400) {
@@ -1280,7 +1281,7 @@ void EmitContext::DefineInputAttachments(const Info& info, u32& binding) {
         }
         const Id id{AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding++);
-        Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        Decorate(id, spv::Decoration::DescriptorSet, descriptor_set);
         Decorate(id, spv::Decoration::InputAttachmentIndex, index);
         Name(id, fmt::format("attachment{}", index));
         input_attachments[index] = id;
@@ -1535,7 +1536,7 @@ void EmitContext::DefineTextureBuffers(const Info& info, u32& binding) {
         const Id array_type{DescType(*this, image_buffer_type, type, views)};
         const Id id{AddGlobalVariable(array_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
-        Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        Decorate(id, spv::Decoration::DescriptorSet, descriptor_set);
         Name(id, NameOf(stage, desc, "texbuf"));
         texture_buffers.push_back({
             .id = id,
@@ -1579,7 +1580,7 @@ void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
             DescType(*this, image_type, pointer_type, profile.texel_buffer_size_view ? 2U : 1U)};
         const Id id{AddGlobalVariable(variable_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
-        Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        Decorate(id, spv::Decoration::DescriptorSet, descriptor_set);
         Name(id, NameOf(stage, desc, "imgbuf"));
         image_buffers.push_back({
             .id = id,
@@ -1608,7 +1609,7 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
         // Texture tables are kept in their own set, the host reuses it between draws.
         const bool in_table_set{desc.is_direct || desc.in_table_set};
         Decorate(id, spv::Decoration::Binding, in_table_set ? table_binding++ : binding++);
-        Decorate(id, spv::Decoration::DescriptorSet, in_table_set ? 1U : 0U);
+        Decorate(id, spv::Decoration::DescriptorSet, in_table_set ? 1U : descriptor_set);
         Name(id, NameOf(stage, desc, "tex"));
         textures.push_back({
             .id = id,
@@ -1657,7 +1658,7 @@ void EmitContext::DefineImages(const Info& info, u32& binding, u32& scaling_inde
         const Id desc_type{DescType(*this, image_type, pointer_type, desc.count)};
         const Id id{AddGlobalVariable(desc_type, spv::StorageClass::UniformConstant)};
         Decorate(id, spv::Decoration::Binding, binding);
-        Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        Decorate(id, spv::Decoration::DescriptorSet, descriptor_set);
         Name(id, NameOf(stage, desc, "img"));
         images.push_back({
             .id = id,

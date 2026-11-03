@@ -142,7 +142,8 @@ public:
         PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
         const GraphicsPipelineCacheKey& key, std::array<vk::ShaderModule, NUM_STAGES> stages,
         const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines,
-        std::unique_ptr<VtgPipelineInfo> vtg_info = nullptr, bool urgent_build = false);
+        std::unique_ptr<VtgPipelineInfo> vtg_info = nullptr, bool urgent_build = false,
+        bool stage_layout = false);
     ~GraphicsPipeline();
 
     GraphicsPipeline& operator=(GraphicsPipeline&&) noexcept = delete;
@@ -258,7 +259,9 @@ private:
     u32 SelectAttachmentReads(std::span<VideoCommon::ImageViewInOut> views);
 
     VkDescriptorSet WorkerDescriptorSet(const void* data, u64 tick);
+    void BindStageDescriptorSets(vk::CommandBuffer cmdbuf, const void* data);
 
+    void CreateDescriptorLayouts(DescriptorPool& descriptor_pool);
     void MakePipeline(VkRenderPass render_pass);
 
     void Validate();
@@ -309,6 +312,14 @@ private:
 
     vk::DescriptorSetLayout descriptor_set_layout;
     DescriptorAllocator descriptor_allocator;
+
+    // Stage pipelines: set 0 holds the vertex stage's descriptors and set 1 the fragment
+    // stage's. Both templates read the same descriptor data, each at its stage's offsets.
+    const bool stage_layout;
+    bool fragment_uses_push_descriptor{};
+    vk::DescriptorSetLayout fragment_set_layout;
+    DescriptorAllocator fragment_allocator;
+    vk::DescriptorUpdateTemplate fragment_update_template;
 
     // Texture and sampler tables indexed by runtime handles, bound as descriptor set 1.
     // The set is only written again when its contents change or a new tick starts.

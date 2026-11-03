@@ -16,6 +16,9 @@ struct Bindings {
     u32 texture_table{};
     u32 texture_scaling_index{};
     u32 image_scaling_index{};
+    /// Descriptor set the stage's resources go in. Stage pipelines put the fragment stage in
+    /// set 1, so its bindings do not depend on the stages before it.
+    u32 descriptor_set{};
 };
 
 } // namespace Shader::Backend

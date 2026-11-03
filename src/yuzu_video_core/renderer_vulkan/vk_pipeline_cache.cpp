@@ -712,6 +712,15 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
               "VkPipelineBuilder"),
       serialization_thread(1, "VkPipelineSerialization"),
       runtime_builds(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers()) {
+    int pipeline_mode = RequestedVulkanPipelineMode();
+    if (pipeline_mode == 1 && !device.IsExtGraphicsPipelineLibrarySupported()) {
+        LOG_WARNING(Render_Vulkan, "Stage pipelines need VK_EXT_graphics_pipeline_library; "
+                                   "building whole pipelines");
+        pipeline_mode = 0;
+    }
+    stage_pipelines = pipeline_mode == 1;
+    LOG_INFO(Render_Vulkan, "Graphics pipelines: {}",
+             stage_pipelines ? "per-stage descriptor sets" : "whole pipelines");
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     // MoltenVK walks every resource of a descriptor set each time it is bound
@@ -1018,7 +1027,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
 
     if (use_vulkan_pipeline_cache) {
-        vulkan_pipeline_cache_filename = base_dir / "vulkan_pipelines.bin";
+        // The two modes compile different SPIR-V for the same pipelines; each keeps its own driver
+        // cache. vulkan.nxc holds translator inputs only, which both modes share.
+        vulkan_pipeline_cache_filename =
+            base_dir / (stage_pipelines ? "vulkan_stage_pipelines.bin" : "vulkan_pipelines.bin");
         vulkan_pipeline_cache =
             LoadVulkanPipelineCache(vulkan_pipeline_cache_filename, CACHE_VERSION);
     }
@@ -2695,6 +2707,49 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     const bool reads_color_attachments{device.SupportsColorAttachmentFetch() &&
                                        videoSettings.barrier_feedback_loops &&
                                        !vtg_replaces_stages};
+    // Stage pipelines: the fragment shader gets descriptor set 1 and fixed rescaling bit ranges,
+    // so its descriptor bindings no longer depend on the vertex shader it is drawn with. Its
+    // inputs still do: MakeRuntimeInfo passes the vertex shader's outputs as previous_stage_stores,
+    // and inputs the vertex shader does not write are left out. Pipelines whose stages depend on
+    // each other in other ways keep one set.
+    const char* const stage_layout_limit{[&]() -> const char* {
+        if (!stage_pipelines) {
+            return "";
+        }
+        if (uses_vertex_a || !uses_vertex_b || key.unique_hashes[2] != 0 ||
+            key.unique_hashes[3] != 0 || key.unique_hashes[geometry_index] != 0) {
+            return "stages other than vertex and fragment";
+        }
+        if (layer_source_program || forwarded_layer || vtg_info) {
+            return "emulated stages";
+        }
+        if (reads_color_attachments || large_texture_arrays_in_table) {
+            return "attachment reads or texture tables of this driver";
+        }
+        const auto limit{[](const Shader::Info& info) -> const char* {
+            if (info.runtime_sampler_count != 0 ||
+                std::ranges::any_of(info.texture_descriptors,
+                                    [](const auto& desc) { return desc.is_direct; })) {
+                return "a texture table";
+            }
+            if (info.texture_descriptors.size() > STAGE_TEXTURE_SCALING_BITS ||
+                info.image_descriptors.size() > STAGE_IMAGE_SCALING_BITS) {
+                return "too many textures or images in one stage";
+            }
+            return nullptr;
+        }};
+        const size_t fragment_index{static_cast<size_t>(Maxwell::ShaderType::Pixel)};
+        if (const char* vertex_limit{limit(programs[1].info)}) {
+            return vertex_limit;
+        }
+        return key.unique_hashes[fragment_index] == 0 ? nullptr
+                                                      : limit(programs[fragment_index].info);
+    }()};
+    const bool stage_layout{stage_layout_limit == nullptr};
+    if (stage_layout_limit && *stage_layout_limit) {
+        LOG_INFO(Render_Vulkan, "Pipeline 0x{:016x} keeps one descriptor set: {}", hash,
+                 stage_layout_limit);
+    }
     u32 screen_position_generics{};
     for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0; index < Maxwell::MaxShaderProgram;
          ++index) {
@@ -2749,6 +2804,12 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                     Shader::Optimization::FindScreenPositionGenerics(program);
             }
         }
+        if (stage_layout && program.stage == Shader::Stage::Fragment) {
+            binding = Shader::Backend::Bindings{};
+            binding.descriptor_set = 1;
+            binding.texture_scaling_index = STAGE_TEXTURE_SCALING_BITS;
+            binding.image_scaling_index = STAGE_IMAGE_SCALING_BITS;
+        }
         const std::vector<u32> code{Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
             [&] { return EmitSPIRV(profile, runtime_info, program, binding); })};
         VideoCommon::ShaderProfile::Audit::Record(code);
@@ -2785,7 +2846,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
         std::move(modules), infos, rasterizes_lines, std::move(vtg_info),
-        build_in_parallel && urgent_graphics_build);
+        build_in_parallel && urgent_graphics_build, stage_layout);
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();
     size_t env_index{0};
