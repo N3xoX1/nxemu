@@ -161,6 +161,14 @@ public:
 
     void BindQuadIndexBuffer(PrimitiveTopology topology, u32 first, u32 count);
 
+    [[nodiscard]] bool WidensUint8IndicesOnHost() const {
+        return !device.IsExtIndexTypeUint8Supported();
+    }
+
+    /// Binds uint8 indices widened to uint16 on the host. indices holds the binding's bytes from
+    /// skip onwards; the widened buffer keeps that prefix so firstIndex stays valid.
+    void BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip);
+
     void BindVertexBuffer(u32 index, VkBuffer buffer, u32 offset, u32 size, u32 stride);
 
     void BindVertexBuffers(VideoCommon::HostBindings<Buffer>& bindings);

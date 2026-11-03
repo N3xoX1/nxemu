@@ -669,6 +669,7 @@ private:
 
     size_t immediate_buffer_capacity = 0;
     Common::ScratchBuffer<u8> immediate_buffer_alloc;
+    Common::ScratchBuffer<u8> host_uint8_indices;
 
     struct LRUItemParams {
         using ObjectType = BufferId;

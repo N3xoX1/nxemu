@@ -1050,6 +1050,30 @@ void BufferCache<P>::BindHostIndexBuffer() {
     const u32 offset = buffer.Offset(channel_state->index_buffer.device_addr);
     const u32 size = channel_state->index_buffer.size;
     const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
+    if constexpr (requires { runtime.BindHostUint8IndexBuffer(std::span<const u8>{}, u32{}); }) {
+        // Without uint8 index support each such draw needs a conversion pass, which ends the
+        // render pass. Widen small index ranges that only the CPU wrote on the host instead.
+        // Direct draws read [first, first + count) only; indirect ones may read the whole binding.
+        constexpr u32 HOST_WIDEN_LIMIT = 64_KiB;
+        constexpr u32 HOST_WIDEN_MAX_BINDING = 4_MiB;
+        const u32 skip = current_draw_indirect ? 0 : std::min(draw_state.index_buffer.first, size);
+        const DAddr address = channel_state->index_buffer.device_addr + skip;
+        const u32 widen_size = size - skip;
+        if (draw_state.index_buffer.format == Maxwell::IndexFormat::UnsignedByte &&
+            draw_state.topology != Maxwell::PrimitiveTopology::Quads &&
+            draw_state.topology != Maxwell::PrimitiveTopology::QuadStrip &&
+            draw_state.inline_index_draw_indexes.empty() && widen_size != 0 &&
+            widen_size <= HOST_WIDEN_LIMIT && size <= HOST_WIDEN_MAX_BINDING &&
+            runtime.WidensUint8IndicesOnHost() &&
+            !memory_tracker.IsRegionGpuModified(address, widen_size) &&
+            !IsRegionGpuModified(address, widen_size)) {
+            host_uint8_indices.resize_destructive(widen_size);
+            device_memory.ReadBlockUnsafe(address, host_uint8_indices.data(), widen_size);
+            runtime.BindHostUint8IndexBuffer(
+                std::span<const u8>(host_uint8_indices.data(), widen_size), skip);
+            return;
+        }
+    }
     if (!draw_state.inline_index_draw_indexes.empty()) [[unlikely]] {
         if constexpr (USE_MEMORY_MAPS_FOR_UPLOADS) {
             auto upload_staging = runtime.UploadStagingBuffer(size);
