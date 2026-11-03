@@ -351,11 +351,19 @@ void CoreTiming::ThreadLoop() {
                                 compilation_wait_deadline = *next_time;
                                 waiting_for_compilation = blocked;
                             }
-                            bool ok;
+                            bool ok = true;
                             if (blocked) {
                                 ok = windows_timer_wait->WaitForNotification();
+                            } else if (wait_time > timer_resolution_ns) {
+                                // The timer fires on the first system tick after its due time.
+                                // Stop one tick early and finish below the resolution here.
+                                ok = windows_timer_wait->Wait(wait_time - timer_resolution_ns);
                             } else {
-                                ok = windows_timer_wait->Wait(wait_time);
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
+                                Common::X64::MicroSleep();
+#else
+                                std::this_thread::yield();
+#endif
                             }
                             {
                                 std::scoped_lock lock{compilation_wait_guard};
