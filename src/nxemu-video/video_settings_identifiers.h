@@ -28,6 +28,7 @@ namespace NXVideoSetting
     constexpr const char * NXShaderInitialSeconds = "nxvideo:NXShaderInitialSeconds";
     constexpr const char * FastGPUTime = "nxvideo:FastGPUTime";
     constexpr const char * UseVulkanPipelineCache = "nxvideo:UseVulkanPipelineCache";
+    constexpr const char * VulkanPipelineMode = "nxvideo:VulkanPipelineMode";
     constexpr const char * SyncToFramerateOfVideoPlayback = "nxvideo:SyncToFramerateOfVideoPlayback";
     constexpr const char * BarrierFeedbackLoops = "nxvideo:BarrierFeedbackLoops";
     constexpr const char * AccuracyLevel = "nxvideo:AccuracyLevel";

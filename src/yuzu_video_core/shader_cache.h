@@ -34,7 +34,26 @@ struct ShaderInfo {
     u64 unique_hash{};
     size_t size_bytes{};
     std::shared_ptr<const std::vector<u64>> code;
+    /// Graphics programs: one bit per generic input the program header declares
+    u32 generic_inputs{};
 };
+
+/// The generic inputs a vertex, tessellation or geometry program header declares, one bit per
+/// attribute: imap_generic_vector holds four component bits per attribute from byte 0x18.
+[[nodiscard]] inline u32 DeclaredGenericInputs(std::span<const u8> program_header) {
+    constexpr size_t IMAP_GENERIC_VECTOR = 0x18;
+    if (program_header.size() < IMAP_GENERIC_VECTOR + 16) {
+        return ~0U;
+    }
+    u32 mask{};
+    for (u32 attribute = 0; attribute < 32; ++attribute) {
+        const u8 byte{program_header[IMAP_GENERIC_VECTOR + attribute / 2]};
+        if (((byte >> ((attribute % 2) * 4)) & 0xF) != 0) {
+            mask |= 1U << attribute;
+        }
+    }
+    return mask;
+}
 
 class ShaderCache : public VideoCommon::ChannelSetupCaches<VideoCommon::ChannelInfo> {
     static constexpr u64 YUZU_PAGEBITS = 14;

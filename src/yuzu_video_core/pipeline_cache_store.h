@@ -24,6 +24,9 @@ std::vector<Record> Read(const std::filesystem::path& path, u32 shader_abi,
                           const ReadLimits& limits = {}, std::set<std::string>* record_ids = nullptr);
 void Append(const std::filesystem::path& path, u32 shader_abi, const Record& record,
             std::string* record_id = nullptr, std::string_view context = {});
+// Appends several records with one file check and few writes; record_ids receives each id.
+void AppendBatch(const std::filesystem::path& path, u32 shader_abi, std::span<const Record> records,
+                 std::vector<std::string>* record_ids = nullptr, std::string_view context = {});
 // Associate an already verified record without retaining or rehashing its code.
 // Returns false if the record disappeared (for example after cache truncation).
 bool AssociateContext(const std::filesystem::path& path, u32 shader_abi,

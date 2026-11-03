@@ -92,6 +92,10 @@ struct VideoSettings
     int32_t nxshader_initial_seconds;
     bool use_fast_gpu_time;
     bool use_vulkan_driver_pipeline_cache;
+    // 0: one descriptor set per graphics pipeline. 1: the vertex and fragment stages get a
+    // descriptor set each, the layout pipeline libraries need; falls back to 0 without
+    // VK_EXT_graphics_pipeline_library.
+    int32_t vulkan_pipeline_mode;
     bool enable_compute_pipelines;
     bool use_video_framerate;
     bool barrier_feedback_loops;

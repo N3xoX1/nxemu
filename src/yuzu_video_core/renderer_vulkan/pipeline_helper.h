@@ -94,6 +94,11 @@ inline size_t NumDescriptorUpdateEntries(const Device& device, const Shader::Inf
            static_cast<size_t>(std::popcount(info.input_attachment_mask));
 }
 
+/// Stage pipelines split the rescaling words: the vertex stage uses the first half of the
+/// texture and image bits, the fragment stage starts at the second half.
+constexpr u32 STAGE_TEXTURE_SCALING_BITS = Shader::Backend::SPIRV::NUM_TEXTURE_SCALING_WORDS * 32 / 2;
+constexpr u32 STAGE_IMAGE_SCALING_BITS = Shader::Backend::SPIRV::NUM_IMAGE_SCALING_WORDS * 32 / 2;
+
 class DescriptorLayoutBuilder {
 public:
     DescriptorLayoutBuilder(const Device& device_, VkShaderStageFlags storage_buffer_stages_ = 0,
@@ -182,7 +187,8 @@ public:
     vk::DescriptorUpdateTemplate CreateTemplate(VkDescriptorSetLayout descriptor_set_layout,
                                                 VkPipelineLayout pipeline_layout,
                                                 bool use_push_descriptor,
-                                                bool exclude_large_images = false) const {
+                                                bool exclude_large_images = false,
+                                                u32 set = 0) const {
         auto template_entries = entries;
         if (exclude_large_images) {
             template_entries.erase(
@@ -205,7 +211,7 @@ public:
             .descriptorSetLayout = descriptor_set_layout,
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
             .pipelineLayout = pipeline_layout,
-            .set = 0,
+            .set = set,
         });
     }
 
@@ -232,6 +238,27 @@ public:
             .pSetLayouts = num_sets != 0 ? set_layouts.data() : nullptr,
             .pushConstantRangeCount = 1,
             .pPushConstantRanges = &range,
+        });
+    }
+
+    /// Template offsets start here: a stage's entries follow the earlier stages' entries in the
+    /// descriptor data even when the stage has a set of its own.
+    void SetDataOffset(size_t data_offset) noexcept {
+        offset = data_offset;
+    }
+
+    size_t DataOffset() const noexcept {
+        return offset;
+    }
+
+    /// An empty layout, for a stage pipeline whose stage has no descriptors.
+    vk::DescriptorSetLayout CreateEmptySetLayout() const {
+        return device->GetLogical().CreateDescriptorSetLayout({
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .bindingCount = 0,
+            .pBindings = nullptr,
         });
     }
 
@@ -342,6 +369,15 @@ public:
             image_bit = 1u;
             ++image_ptr;
         }
+    }
+
+    /// Stage pipelines: the fragment stage's bits start at the second half of each range.
+    void StartFragmentStage() noexcept {
+        texture_ptr = words.data() + STAGE_TEXTURE_SCALING_BITS / 32;
+        image_ptr = words.data() + Shader::Backend::SPIRV::NUM_TEXTURE_SCALING_WORDS +
+                    STAGE_IMAGE_SCALING_BITS / 32;
+        texture_bit = 1u;
+        image_bit = 1u;
     }
 
     const std::array<u32, NUM_TEXTURE_AND_IMAGE_SCALING_WORDS>& Data() const noexcept {

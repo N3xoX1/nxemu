@@ -91,6 +91,8 @@ public:
     // Banks whose bound sizes were actually queried during shader translation.
     [[nodiscard]] u32 CbufSizeMask() const noexcept;
 
+    [[nodiscard]] u64 AnswersHash() const override;
+
 protected:
     std::span<const u64> Code() const noexcept {
         return shared_code ? std::span<const u64>(*shared_code) : std::span<const u64>(code);
@@ -306,6 +308,8 @@ public:
     [[nodiscard]] std::optional<Shader::TexturePoolInfo> ReadTexturePoolInfo() override;
 
     [[nodiscard]] u32 CbufSizeMask() const noexcept;
+
+    [[nodiscard]] u64 AnswersHash() const override;
 
     [[nodiscard]] Shader::TextureType ReadTextureType(u32 handle) override;
 

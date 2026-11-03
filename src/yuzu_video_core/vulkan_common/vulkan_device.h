@@ -51,6 +51,7 @@ VK_DEFINE_HANDLE(VmaAllocator)
     FEATURE(EXT, ExtendedDynamicState, EXTENDED_DYNAMIC_STATE, extended_dynamic_state)             \
     FEATURE(EXT, ExtendedDynamicState2, EXTENDED_DYNAMIC_STATE_2, extended_dynamic_state2)         \
     FEATURE(EXT, ExtendedDynamicState3, EXTENDED_DYNAMIC_STATE_3, extended_dynamic_state3)         \
+    FEATURE(EXT, GraphicsPipelineLibrary, GRAPHICS_PIPELINE_LIBRARY, graphics_pipeline_library)    \
     FEATURE(EXT, 4444Formats, 4444_FORMATS, format_a4b4g4r4)                                       \
     FEATURE(EXT, IndexTypeUint8, INDEX_TYPE_UINT8, index_type_uint8)                               \
     FEATURE(EXT, LineRasterization, LINE_RASTERIZATION, line_rasterization)                        \
@@ -80,6 +81,7 @@ VK_DEFINE_HANDLE(VmaAllocator)
     EXTENSION(EXT, VERTEX_ATTRIBUTE_DIVISOR, vertex_attribute_divisor)                             \
     EXTENSION(KHR, DRAW_INDIRECT_COUNT, draw_indirect_count)                                       \
     EXTENSION(KHR, DRIVER_PROPERTIES, driver_properties)                                           \
+    EXTENSION(KHR, PIPELINE_LIBRARY, pipeline_library)                                             \
     EXTENSION(KHR, PUSH_DESCRIPTOR, push_descriptor)                                               \
     EXTENSION(KHR, SAMPLER_MIRROR_CLAMP_TO_EDGE, sampler_mirror_clamp_to_edge)                     \
     EXTENSION(KHR, SHADER_FLOAT_CONTROLS, shader_float_controls)                                   \
@@ -192,6 +194,9 @@ enum class NvidiaArchitecture {
     Arch_Turing,
     Arch_AmpereOrNewer,
 };
+
+/// The vulkan_pipeline_mode setting, or NXEMU_VULKAN_PIPELINE_MODE when that is set (A/B runs).
+[[nodiscard]] int RequestedVulkanPipelineMode();
 
 /// Handles data specific to a physical device.
 class Device {
@@ -674,6 +679,17 @@ public:
         return extensions.extended_dynamic_state3;
     }
 
+    /// Returns true if the device supports VK_EXT_graphics_pipeline_library.
+    bool IsExtGraphicsPipelineLibrarySupported() const {
+        return extensions.graphics_pipeline_library;
+    }
+
+    /// Returns true if linking pipeline libraries without link-time optimisation is fast.
+    bool IsGraphicsPipelineLibraryFastLinkingSupported() const {
+        return extensions.graphics_pipeline_library &&
+               properties.graphics_pipeline_library.graphicsPipelineLibraryFastLinking;
+    }
+
     /// Returns true if the device supports VK_EXT_4444_formats.
     bool IsExt4444FormatsSupported() const {
         return features.format_a4b4g4r4.formatA4B4G4R4;
@@ -959,6 +975,7 @@ private:
         VkPhysicalDevicePushDescriptorPropertiesKHR push_descriptor{};
         VkPhysicalDeviceSubgroupSizeControlProperties subgroup_size_control{};
         VkPhysicalDeviceTransformFeedbackPropertiesEXT transform_feedback{};
+        VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT graphics_pipeline_library{};
 
         VkPhysicalDeviceProperties properties{};
     };

@@ -301,6 +301,19 @@ struct FixedPipelineState {
         return offsetof(FixedPipelineState, xfb_state);
     }
 
+    /// With dynamic vertex input the types of enabled attributes are part of the key only for the
+    /// shader's input declarations; inputs the vertex shader does not declare change no code.
+    void MaskVertexInputs(u32 generic_inputs) noexcept {
+        if (dynamic_vertex_input == 0) {
+            return;
+        }
+        for (u32 attribute = 0; attribute < 32; ++attribute) {
+            if ((generic_inputs & (1U << attribute)) == 0) {
+                attribute_types &= ~(u64{3} << (attribute * 2));
+            }
+        }
+    }
+
     u32 DynamicAttributeType(size_t index) const noexcept {
         return (attribute_types >> (index * 2)) & 0b11;
     }

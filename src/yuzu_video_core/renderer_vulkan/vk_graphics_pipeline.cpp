@@ -449,11 +449,11 @@ GraphicsPipeline::GraphicsPipeline(
     PipelineStatistics* pipeline_statistics, RenderPassCache& render_pass_cache,
     const GraphicsPipelineCacheKey& key_, std::array<vk::ShaderModule, NUM_STAGES> stages,
     const std::array<const Shader::Info*, NUM_STAGES>& infos, bool rasterizes_lines_,
-    std::unique_ptr<VtgPipelineInfo> vtg_info, bool urgent_build)
+    std::unique_ptr<VtgPipelineInfo> vtg_info, bool urgent_build, bool stage_layout_)
     : key{key_}, device{device_}, texture_cache{texture_cache_}, buffer_cache{buffer_cache_},
       pipeline_cache(pipeline_cache_), scheduler{scheduler_},
       guest_descriptor_queue{guest_descriptor_queue_}, spv_modules{std::move(stages)},
-      rasterizes_lines{rasterizes_lines_} {
+      stage_layout{stage_layout_}, rasterizes_lines{rasterizes_lines_} {
     if (shader_notify) {
         shader_notify->MarkShaderBuilding();
     }
@@ -576,50 +576,7 @@ GraphicsPipeline::GraphicsPipeline(
         VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         bool success{};
         try {
-            DescriptorLayoutBuilder builder{MakeBuilder(
-                device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
-            uses_push_descriptor = builder.CanUsePushDescriptor();
-            descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
-            if (!uses_push_descriptor) {
-                descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos);
-            }
-            const VkDescriptorSetLayout set_layout{*descriptor_set_layout};
-            if (builder.HasTextureTable()) {
-                const auto table_bindings{builder.TextureTableBindings()};
-                texture_table_bindings.assign(table_bindings.begin(), table_bindings.end());
-                DescriptorBankInfo bank{};
-                for (const auto& binding : table_bindings) {
-                    switch (binding.descriptorType) {
-                    case VK_DESCRIPTOR_TYPE_SAMPLER:
-                        bank.samplers += binding.descriptorCount;
-                        break;
-                    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-                        bank.textures += binding.descriptorCount;
-                        break;
-                    default:
-                        bank.sampled_images += binding.descriptorCount;
-                        break;
-                    }
-                }
-                bank.score = static_cast<s32>(bank.textures + bank.sampled_images + bank.samplers);
-                texture_table_set_layout = builder.CreateTextureTableSetLayout();
-                texture_table_allocator =
-                    descriptor_pool.Allocator(*texture_table_set_layout, bank);
-            }
-            pipeline_layout = builder.CreatePipelineLayout(set_layout, *texture_table_set_layout);
-            descriptor_update_template =
-                builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
-            if (!uses_push_descriptor && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
-                for (const auto& entry : builder.TemplateEntries()) {
-                    if (DescriptorLayoutBuilder::IsLargeImageArray(entry)) {
-                        large_image_entries.push_back(entry);
-                    }
-                }
-                if (!large_image_entries.empty()) {
-                    small_descriptor_update_template =
-                        builder.CreateTemplate(set_layout, *pipeline_layout, false, true);
-                }
-            }
+            CreateDescriptorLayouts(descriptor_pool);
 
             const auto build_compute_stage{[&](VtgState::Stage& stage) {
                 DescriptorLayoutBuilder stage_builder{device};
@@ -692,6 +649,87 @@ GraphicsPipeline::GraphicsPipeline(
         configure_func = [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureVtg(is_indexed); };
     } else {
         configure_func = ConfigureFunc(spv_modules, stage_infos);
+    }
+}
+
+void GraphicsPipeline::CreateDescriptorLayouts(DescriptorPool& descriptor_pool) {
+    if (stage_layout) {
+        // Set 0 holds the vertex stage and is allocated. Set 1 holds the fragment stage and is
+        // pushed when it fits: a layout pushes one set at most, and the fragment stage usually
+        // has the most descriptors.
+        const u32 attachments{static_cast<u32>(NumAttachments(key.state))};
+        DescriptorLayoutBuilder vertex_builder{device, 0, attachments};
+        vertex_builder.Add(stage_infos[0], VK_SHADER_STAGE_VERTEX_BIT);
+        DescriptorLayoutBuilder fragment_builder{device, 0, attachments};
+        fragment_builder.SetDataOffset(vertex_builder.DataOffset());
+        fragment_builder.Add(stage_infos[4], VK_SHADER_STAGE_FRAGMENT_BIT);
+        descriptor_set_layout = vertex_builder.CreateDescriptorSetLayout(false);
+        if (!descriptor_set_layout) {
+            descriptor_set_layout = vertex_builder.CreateEmptySetLayout();
+        }
+        fragment_uses_push_descriptor = fragment_builder.CanUsePushDescriptor();
+        fragment_set_layout = fragment_builder.CreateDescriptorSetLayout(fragment_uses_push_descriptor);
+        if (!fragment_set_layout) {
+            fragment_set_layout = fragment_builder.CreateEmptySetLayout();
+            fragment_uses_push_descriptor = false;
+        }
+        pipeline_layout =
+            vertex_builder.CreatePipelineLayout(*descriptor_set_layout, *fragment_set_layout);
+        descriptor_update_template =
+            vertex_builder.CreateTemplate(*descriptor_set_layout, *pipeline_layout, false);
+        fragment_update_template = fragment_builder.CreateTemplate(
+            *fragment_set_layout, *pipeline_layout, fragment_uses_push_descriptor, false, 1);
+        if (descriptor_update_template) {
+            descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos[0]);
+        }
+        if (fragment_update_template && !fragment_uses_push_descriptor) {
+            fragment_allocator = descriptor_pool.Allocator(*fragment_set_layout, stage_infos[4]);
+        }
+        return;
+    }
+    DescriptorLayoutBuilder builder{MakeBuilder(
+        device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
+    uses_push_descriptor = builder.CanUsePushDescriptor();
+    descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
+    if (!uses_push_descriptor) {
+        descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos);
+    }
+    const VkDescriptorSetLayout set_layout{*descriptor_set_layout};
+    if (builder.HasTextureTable()) {
+        const auto table_bindings{builder.TextureTableBindings()};
+        texture_table_bindings.assign(table_bindings.begin(), table_bindings.end());
+        DescriptorBankInfo bank{};
+        for (const auto& binding : table_bindings) {
+            switch (binding.descriptorType) {
+            case VK_DESCRIPTOR_TYPE_SAMPLER:
+                bank.samplers += binding.descriptorCount;
+                break;
+            case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+                bank.textures += binding.descriptorCount;
+                break;
+            default:
+                bank.sampled_images += binding.descriptorCount;
+                break;
+            }
+        }
+        bank.score = static_cast<s32>(bank.textures + bank.sampled_images + bank.samplers);
+        texture_table_set_layout = builder.CreateTextureTableSetLayout();
+        texture_table_allocator =
+            descriptor_pool.Allocator(*texture_table_set_layout, bank);
+    }
+    pipeline_layout = builder.CreatePipelineLayout(set_layout, *texture_table_set_layout);
+    descriptor_update_template =
+        builder.CreateTemplate(set_layout, *pipeline_layout, uses_push_descriptor);
+    if (!uses_push_descriptor && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
+        for (const auto& entry : builder.TemplateEntries()) {
+            if (DescriptorLayoutBuilder::IsLargeImageArray(entry)) {
+                large_image_entries.push_back(entry);
+            }
+        }
+        if (!large_image_entries.empty()) {
+            small_descriptor_update_template =
+                builder.CreateTemplate(set_layout, *pipeline_layout, false, true);
+        }
     }
 }
 
@@ -962,6 +1000,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         prepare_stage(3);
     }
     if constexpr (Spec::enabled_stages[4]) {
+        if (stage_layout) {
+            rescaling.StartFragmentStage();
+        }
         prepare_stage(4);
         // The fragment stage is the last, its input attachments end the descriptor set
         for (u32 mask = stage_infos[4].input_attachment_mask; mask != 0; mask &= mask - 1) {
@@ -1766,6 +1807,28 @@ VkDescriptorSet GraphicsPipeline::WorkerDescriptorSet(const void* data, u64 tick
     return set;
 }
 
+void GraphicsPipeline::BindStageDescriptorSets(vk::CommandBuffer cmdbuf, const void* data) {
+    // Both templates read the descriptor data of the whole draw, each at its own offsets
+    const auto& dev = device.GetLogical();
+    if (descriptor_update_template) {
+        const VkDescriptorSet set{descriptor_allocator.Commit()};
+        dev.UpdateDescriptorSet(set, *descriptor_update_template, data);
+        cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 0, set,
+                                  nullptr);
+    }
+    if (!fragment_update_template) {
+        return;
+    }
+    if (fragment_uses_push_descriptor) {
+        cmdbuf.PushDescriptorSetWithTemplateKHR(*fragment_update_template, *pipeline_layout, 1,
+                                                data);
+        return;
+    }
+    const VkDescriptorSet set{fragment_allocator.Commit()};
+    dev.UpdateDescriptorSet(set, *fragment_update_template, data);
+    cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline_layout, 1, set, nullptr);
+}
+
 u32 GraphicsPipeline::ColorWriteMask() const {
     u32 color_write_mask{};
     const auto& regs = maxwell3d->regs;
@@ -1856,6 +1919,10 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                 sizeof(rescaling_data) + (update_factor ? sizeof(f32) : 0);
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_ALL_GRAPHICS,
                                  RESCALING_LAYOUT_WORDS_OFFSET, size, &data);
+            if (stage_layout) {
+                BindStageDescriptorSets(cmdbuf, descriptor_data);
+                return;
+            }
             // An empty set 0 has a layout but nothing to update
             if (!descriptor_update_template) {
                 return;

@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <bitset>
 #include <chrono>
+#include <cstdlib>
 #include <optional>
+#include <string_view>
 #include <thread>
 #include <unordered_set>
 #include <utility>
@@ -403,6 +405,15 @@ std::vector<const char *> ExtensionListForVulkan(
 }
 
 } // Anonymous namespace
+
+int RequestedVulkanPipelineMode()
+{
+    if (const char * option = std::getenv("NXEMU_VULKAN_PIPELINE_MODE"); option && *option)
+    {
+        return std::string_view(option) == "1" ? 1 : 0;
+    }
+    return videoSettings.vulkan_pipeline_mode;
+}
 
 void Device::RemoveExtension(bool & extension, const std::string & extension_name)
 {
@@ -1278,6 +1289,11 @@ bool Device::GetSuitability(bool requires_swapchain)
         properties.transform_feedback.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_PROPERTIES_EXT;
         SetNext(next, properties.transform_feedback);
     }
+    if (extensions.graphics_pipeline_library)
+    {
+        properties.graphics_pipeline_library.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_PROPERTIES_EXT;
+        SetNext(next, properties.graphics_pipeline_library);
+    }
     if (extensions.descriptor_indexing || instance_version >= VK_API_VERSION_1_2)
     {
         properties.descriptor_indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
@@ -1355,6 +1371,16 @@ void Device::RemoveUnsuitableExtensions()
     dynamic_state3_blending = dynamic_state3_blending && extensions.extended_dynamic_state3;
     dynamic_state3_enables = dynamic_state3_enables && extensions.extended_dynamic_state3;
     RemoveExtensionFeatureIfUnsuitable(extensions.extended_dynamic_state3, features.extended_dynamic_state3, VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
+
+    // VK_EXT_graphics_pipeline_library, which needs VK_KHR_pipeline_library
+    extensions.graphics_pipeline_library = features.graphics_pipeline_library.graphicsPipelineLibrary && extensions.pipeline_library;
+    RemoveExtensionFeatureIfUnsuitable(extensions.graphics_pipeline_library, features.graphics_pipeline_library, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME);
+    if (RequestedVulkanPipelineMode() != 1)
+    {
+        // Only stage pipelines use it; mode 0 creates the device as it did without it.
+        RemoveExtensionFeature(extensions.graphics_pipeline_library, features.graphics_pipeline_library, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME);
+        RemoveExtension(extensions.pipeline_library, VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+    }
 
     // VK_EXT_provoking_vertex
     extensions.provoking_vertex = features.provoking_vertex.provokingVertexLast && features.provoking_vertex.transformFeedbackPreservesProvokingVertex;

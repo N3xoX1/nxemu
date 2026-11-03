@@ -9,6 +9,8 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <mutex>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -226,8 +228,22 @@ private:
     bool skipped_unfinished{};
     bool wait_for_current_draw{};
     bool use_vulkan_pipeline_cache{};
+    /// vulkan_pipeline_mode 1 on a device with VK_EXT_graphics_pipeline_library: eligible
+    /// pipelines give the vertex and fragment stages a descriptor set each.
+    bool stage_pipelines{};
+
+    /// SPIR-V of stage pipeline stages by StageCodeKey, shared by the pipelines using them
+    std::shared_ptr<const std::vector<u32>> FindStageCode(const std::string& stage_key);
+    std::shared_ptr<const std::vector<u32>> StoreStageCode(
+        std::string stage_key, std::shared_ptr<const std::vector<u32>> code);
+    std::mutex stage_code_mutex;
+    std::unordered_map<std::string, std::shared_ptr<const std::vector<u32>>> stage_code;
+    u64 stage_code_hits{};
+    u64 stage_code_misses{};
 
     GraphicsPipelineCacheKey graphics_key{};
+    /// graphics_key.state.attribute_types before MaskVertexInputs
+    u64 unmasked_attribute_types{};
     GraphicsPipeline* current_pipeline{};
     CbufSizeDependencies cbuf_size_dependencies;
     GraphicsCbufSizeState<5, 18> graphics_cbuf_size_state;

@@ -222,6 +222,211 @@ void FindColorAttachmentReads(Shader::IR::Program& program, const GraphicsPipeli
     program.info.input_attachment_mask = mask;
 }
 
+/// The generic inputs the program header of a serialized environment declares: the code follows
+/// the u64 code size, four u64 counts and seven u32 fields, and starts with the header.
+u32 EnvironmentGenericInputs(const VideoCommon::SharedShaderBytes& environment) {
+    constexpr size_t HEADER = 5 * sizeof(u64) + 7 * sizeof(u32);
+    const std::string bytes{environment.String()};
+    if (bytes.size() < HEADER) {
+        return ~0U;
+    }
+    u64 code_size{};
+    std::memcpy(&code_size, bytes.data(), sizeof(code_size));
+    const size_t available{std::min<size_t>(code_size, bytes.size() - HEADER)};
+    return VideoCommon::DeclaredGenericInputs(
+        std::span(reinterpret_cast<const u8*>(bytes.data() + HEADER), available));
+}
+
+/// One graphics pipeline of a pipeline seed (NXEMU_IMPORT_SEED): guest-state words as
+/// GuestPipelineState::WriteWords writes them and one serialized FileEnvironment per stage.
+struct PipelineSeed {
+    std::vector<u32> guest_words;
+    std::vector<VideoCommon::SharedShaderBytes> environments;
+    std::array<u64, 6> shader_hashes{};
+};
+
+/// Reads a pipeline seed: "NXSEED01", u32 environment count, per environment u32 size and the
+/// bytes, u32 record count, per record 278 guest words, the vertex and the fragment environment
+/// index (0xFFFFFFFF: none). Seeds are written outside the emulator from shader lists and the
+/// user's own game files.
+std::vector<PipelineSeed> ReadPipelineSeed(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    const auto read_u32{[&file] {
+        u32 value{};
+        file.read(reinterpret_cast<char*>(&value), sizeof(value));
+        if (!file) {
+            throw std::runtime_error("Truncated pipeline seed");
+        }
+        return value;
+    }};
+    std::array<char, 8> magic{};
+    file.read(magic.data(), magic.size());
+    if (!file || std::string_view(magic.data(), magic.size()) != "NXSEED01") {
+        throw std::runtime_error("Not a pipeline seed");
+    }
+    struct SeedEnvironment {
+        VideoCommon::SharedShaderBytes bytes;
+        u64 hash{};
+    };
+    std::vector<SeedEnvironment> environments(read_u32());
+    for (auto& environment : environments) {
+        std::string bytes(read_u32(), '\0');
+        file.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        // Header: u64 code size and four u64 counts, seven u32 fields, then the code, which ends
+        // with the self branch the shader hash leaves out (GenericEnvironment::Analyze)
+        constexpr size_t HEADER = 5 * sizeof(u64) + 7 * sizeof(u32);
+        u64 code_size{};
+        if (!file || bytes.size() < HEADER) {
+            throw std::runtime_error("Truncated pipeline seed environment");
+        }
+        std::memcpy(&code_size, bytes.data(), sizeof(code_size));
+        if (code_size < sizeof(u64) || code_size > bytes.size() - HEADER) {
+            throw std::runtime_error("Invalid pipeline seed environment");
+        }
+        environment.hash =
+            Common::CityHash64(bytes.data() + HEADER, static_cast<size_t>(code_size) - sizeof(u64));
+        environment.bytes = VideoCommon::SharedShaderBytes(std::move(bytes));
+    }
+    std::vector<PipelineSeed> seeds(read_u32());
+    for (auto& seed : seeds) {
+        seed.guest_words.resize(GuestPipelineState::WordCount);
+        for (auto& word : seed.guest_words) {
+            word = read_u32();
+        }
+        const u32 vertex{read_u32()};
+        const u32 fragment{read_u32()};
+        for (const auto [index, slot] : {std::pair{vertex, size_t{1}}, std::pair{fragment, size_t{5}}}) {
+            if (index == UINT32_MAX) {
+                continue;
+            }
+            if (index >= environments.size()) {
+                throw std::runtime_error("Invalid pipeline seed environment index");
+            }
+            seed.environments.push_back(environments[index].bytes);
+            seed.shader_hashes[slot] = environments[index].hash;
+        }
+    }
+    return seeds;
+}
+
+/// The runtime info of a stage with the fields its code ignores cleared, so stages that only
+/// differ there share one StageCodeKey.
+Shader::RuntimeInfo StageKeyRuntimeInfo(const Shader::RuntimeInfo& runtime_info,
+                                        const Shader::IR::Program& program,
+                                        const Shader::Profile& profile) {
+    // Inputs the stage does not load change no code: the emitter skips them
+    Shader::RuntimeInfo key_info{runtime_info};
+    if (!program.info.loads_indexed_attributes) {
+        for (size_t generic = 0; generic < Shader::IR::NUM_GENERICS; ++generic) {
+            if (program.info.loads.Generic(generic)) {
+                continue;
+            }
+            key_info.generic_input_types[generic] = {};
+            for (size_t component = 0; component < 4; ++component) {
+                key_info.previous_stage_stores.mask
+                    [static_cast<size_t>(Shader::IR::Attribute::Generic0X) +
+                     generic * 4 + component] = false;
+            }
+        }
+    }
+    // The emitter reads only the generic bits of the previous stage's stores, and the
+    // input topology only for geometry shaders
+    for (size_t bit = 0; bit < key_info.previous_stage_stores.mask.size(); ++bit) {
+        const size_t generic_begin{static_cast<size_t>(Shader::IR::Attribute::Generic0X)};
+        if (bit < generic_begin || bit >= generic_begin + Shader::IR::NUM_GENERICS * 4) {
+            key_info.previous_stage_stores.mask[bit] = false;
+        }
+    }
+    if (program.stage != Shader::Stage::Geometry) {
+        key_info.input_topology = {};
+    }
+    // Early fragment tests are an execution mode of fragment shaders, and 8-bit
+    // normalized targets only change code on devices that round them half up
+    if (program.stage != Shader::Stage::Fragment) {
+        key_info.force_early_z = false;
+    }
+    if (!profile.has_unorm8_round_half_up) {
+        key_info.color_output_unorm8 = {};
+    }
+    // Nor do colour targets it does not write, unless the device declares them all
+    if (program.stage == Shader::Stage::Fragment && !profile.need_declared_frag_colors) {
+        for (size_t target = 0; target < key_info.color_output_types.size(); ++target) {
+            const bool dual_source_output{key_info.dual_source_blend && target <= 1};
+            if (!dual_source_output && !program.info.stores_frag_color[target]) {
+                key_info.color_output_types[target] = {};
+                key_info.color_output_unorm8[target] = false;
+            }
+        }
+    }
+    return key_info;
+}
+
+/// Everything the SPIR-V of one stage depends on besides the profile, which is fixed for the
+/// device: its code, the answers its translation got, the sizes and runtime state it was emitted
+/// for, and where its bindings start.
+std::string StageCodeKey(Shader::Stage stage, u64 code_hash, u64 answers,
+                         const std::array<u32, 18>& cbuf_sizes,
+                         const std::array<u32, 2>& texture_pool,
+                         const Shader::Backend::Bindings& bindings,
+                         const Shader::RuntimeInfo& info) {
+    std::string out;
+    const auto put{[&out](const auto& value) {
+        static_assert(std::is_trivially_copyable_v<std::remove_cvref_t<decltype(value)>>);
+        out.append(reinterpret_cast<const char*>(&value), sizeof(value));
+    }};
+    put(stage);
+    put(code_hash);
+    put(answers);
+    put(cbuf_sizes);
+    put(texture_pool);
+    put(bindings);
+    put(info.generic_input_types);
+    put(info.vertex_input_locations.has_value());
+    if (info.vertex_input_locations) {
+        put(*info.vertex_input_locations);
+    }
+    for (size_t word = 0; word < info.previous_stage_stores.mask.size(); word += 64) {
+        u64 bits{};
+        for (size_t bit = 0; bit < 64; ++bit) {
+            bits |= u64{info.previous_stage_stores.mask[word + bit]} << bit;
+        }
+        put(bits);
+    }
+    put(info.previous_stage_legacy_stores_mapping.size());
+    for (const auto& [from, to] : info.previous_stage_legacy_stores_mapping) {
+        put(from);
+        put(to);
+    }
+    put(info.convert_depth_mode);
+    put(info.force_early_z);
+    put(info.tess_primitive);
+    put(info.tess_spacing);
+    put(info.tess_clockwise);
+    put(info.forwarded_layer_attribute.has_value());
+    if (info.forwarded_layer_attribute) {
+        put(*info.forwarded_layer_attribute);
+    }
+    put(info.input_topology);
+    put(info.fixed_state_point_size.value_or(0.0f));
+    put(info.fixed_state_point_size.has_value());
+    put(info.alpha_test_func.has_value());
+    if (info.alpha_test_func) {
+        put(*info.alpha_test_func);
+    }
+    put(info.alpha_test_reference);
+    put(info.alpha_to_coverage_dither);
+    put(info.y_negate);
+    put(info.glasm_use_storage_buffers);
+    put(info.xfb_count);
+    for (u32 index = 0; index < info.xfb_count && index < info.xfb_varyings.size(); ++index) {
+        put(info.xfb_varyings[index]);
+    }
+    put(info.color_output_types);
+    put(info.color_output_unorm8);
+    put(info.dual_source_blend);
+    return out;
+}
+
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
@@ -712,6 +917,15 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
               "VkPipelineBuilder"),
       serialization_thread(1, "VkPipelineSerialization"),
       runtime_builds(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers()) {
+    int pipeline_mode = RequestedVulkanPipelineMode();
+    if (pipeline_mode == 1 && !device.IsExtGraphicsPipelineLibrarySupported()) {
+        LOG_WARNING(Render_Vulkan, "Stage pipelines need VK_EXT_graphics_pipeline_library; "
+                                   "building whole pipelines");
+        pipeline_mode = 0;
+    }
+    stage_pipelines = pipeline_mode == 1;
+    LOG_INFO(Render_Vulkan, "Graphics pipelines: {}",
+             stage_pipelines ? "per-stage descriptor sets" : "whole pipelines");
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     // MoltenVK walks every resource of a descriptor set each time it is bound
@@ -886,7 +1100,15 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
         current_pipeline = nullptr;
         return nullptr;
     }
+    // Refresh only updates what changed: the vertex input mask of the previous draw comes off first
+    graphics_key.state.attribute_types = unmasked_attribute_types;
     graphics_key.state.Refresh(*maxwell3d, dynamic_features);
+    unmasked_attribute_types = graphics_key.state.attribute_types;
+    // A VertexA program also reads attributes; its inputs are not in the VertexB header
+    const u32 vertex_inputs{stage_pipelines && shader_infos[1] && graphics_key.unique_hashes[0] == 0
+                                ? shader_infos[1]->generic_inputs
+                                : ~0U};
+    graphics_key.state.MaskVertexInputs(vertex_inputs);
     graphics_cbuf_size_state.Refresh(graphics_key.cbuf_sizes, graphics_key.unique_hashes,
         cbuf_size_dependencies, [&](size_t stage, size_t bank) {
             const auto& buffer = maxwell3d->state.shader_stages[stage].const_buffers[bank];
@@ -908,7 +1130,8 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
     GraphicsPipeline* const next{current_pipeline ? current_pipeline->Next(graphics_key, recipe_prefix)
                                                   : nullptr};
     if (guest_recipe_recorder) {
-        guest_recipe_recorder->Observe(*maxwell3d, graphics_key, dynamic_features, recipe_prefix);
+        guest_recipe_recorder->Observe(*maxwell3d, graphics_key, dynamic_features, recipe_prefix,
+                                       vertex_inputs);
     }
     if (next) {
         current_pipeline = next;
@@ -1020,7 +1243,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
 
     if (use_vulkan_pipeline_cache) {
-        vulkan_pipeline_cache_filename = base_dir / "vulkan_pipelines.bin";
+        // The two modes compile different SPIR-V for the same pipelines; each keeps its own driver
+        // cache. vulkan.nxc holds translator inputs only, which both modes share.
+        vulkan_pipeline_cache_filename =
+            base_dir / (stage_pipelines ? "vulkan_stage_pipelines.bin" : "vulkan_pipelines.bin");
         vulkan_pipeline_cache =
             LoadVulkanPipelineCache(vulkan_pipeline_cache_filename, CACHE_VERSION);
     }
@@ -1513,6 +1739,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     key.cbuf_sizes = recipe.cbuf_sizes;
                     key.texture_pool = recipe.texture_pool;
                     key.state = guest->Project(dynamic_features);
+                    // The vertex environment comes first: VertexA pipelines keep one set
+                    if (stage_pipelines && key.unique_hashes[0] == 0 && !recipe.environments.empty()) {
+                        key.state.MaskVertexInputs(EnvironmentGenericInputs(recipe.environments.front()));
+                    }
                     record.key.assign(reinterpret_cast<const char*>(&key), sizeof(key));
 
                 }
@@ -1548,6 +1778,80 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             state.build_stage=VideoCore::LoadCallbackStage::Build;
             LOG_ERROR(Render_Vulkan, "NXShader import failed: {}", error.what());
             callback(VideoCore::LoadCallbackStage::Prepare,0,0);
+        }
+    }
+    // Pipelines seeded from a shader list (NXEMU_IMPORT_SEED). Each is appended to the local
+    // store for this game version, so later starts load it as a cached pipeline.
+    if (const char* seed_path = std::getenv("NXEMU_IMPORT_SEED"); seed_path && *seed_path && !capture_context.empty()) {
+        try {
+            const auto seeds{ReadPipelineSeed(std::filesystem::u8path(seed_path))};
+            // Every start loads the whole local store within one startup input budget, and a store
+            // that does not fit is rejected whole. Seeds take half of it at most, counted as the
+            // loader counts them (AccountStartupInputs), so recordings of play keep room.
+            constexpr size_t SEED_BUDGET =
+                VideoCommon::ShaderProfile::CandidateWarmupBudget::MaxBytes / 2;
+            size_t queued{}, known{}, rejected{}, seed_bytes{};
+            std::unordered_set<const void*> seed_code;
+            std::vector<VideoCommon::CacheStore::Record> records;
+            std::vector<std::vector<FileEnvironment>> record_envs;
+            records.reserve(seeds.size());
+            for (const auto& seed : seeds) {
+                const auto guest{GuestPipelineState::FromWords(seed.guest_words)};
+                if (!guest) {
+                    ++rejected;
+                    continue;
+                }
+                std::vector<FileEnvironment> envs;
+                size_t bytes{};
+                for (const auto& environment : seed.environments) {
+                    envs.push_back(deserialize_environment(environment));
+                    const FileEnvironment& env{envs.back()};
+                    bytes += env.CompilationInputBytes() -
+                             (seed_code.contains(env.CodeIdentity()) ? env.SharedCodeBytes() : 0);
+                }
+                if (bytes > SEED_BUDGET - seed_bytes) {
+                    break;
+                }
+                seed_bytes += bytes;
+                for (const auto& env : envs) {
+                    seed_code.insert(env.CodeIdentity());
+                }
+                GraphicsPipelineCacheKey key{};
+                key.unique_hashes = seed.shader_hashes;
+                key.state = guest->Project(dynamic_features);
+                if (stage_pipelines && !seed.environments.empty()) {
+                    key.state.MaskVertexInputs(EnvironmentGenericInputs(seed.environments.front()));
+                }
+                auto& record{records.emplace_back()};
+                record.environments = seed.environments;
+                record.key.assign(reinterpret_cast<const char*>(&key), sizeof(key));
+                record_envs.push_back(std::move(envs));
+            }
+            std::vector<std::string> ids;
+            VideoCommon::CacheStore::AppendBatch(pipeline_cache_filename, CACHE_VERSION, records, &ids,
+                                                 cache_context);
+            for (size_t index = 0; index < records.size(); ++index) {
+                if (stop_loading.stop_requested()) {
+                    break;
+                }
+                const std::string& id{ids[index]};
+                if (cached_record_ids.contains(id) || !newly_loaded_ids.insert(id).second) {
+                    ++known;
+                    continue;
+                }
+                std::istringstream stream(records[index].key, std::ios::binary);
+                if (load_graphics(stream, std::move(record_envs[index]), false, id)) {
+                    ++queued;
+                } else {
+                    ++rejected;
+                }
+            }
+            LOG_INFO(Render_Vulkan, "Pipeline seed: {} of {} pipelines stored, {} MiB of the startup budget",
+                     records.size(), seeds.size(), seed_bytes >> 20);
+            LOG_INFO(Render_Vulkan, "Pipeline seed: {} pipelines queued, {} already cached, {} rejected",
+                     queued, known, rejected);
+        } catch (const std::exception& error) {
+            LOG_ERROR(Render_Vulkan, "Pipeline seed import failed: {}", error.what());
         }
     }
     // Other-version records from this selected profile remain guarded candidates.
@@ -2021,6 +2325,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             if (!file) LOG_WARNING(Render_Vulkan, "Cannot write NXShader timing report");
         }
     }
+    LOG_INFO(Render_Vulkan, "Pipeline cache loaded: {} graphics and {} compute pipelines",
+             graphics_cache.size(), compute_cache.size());
     if(runtime_report)runtime_report->active=true;
     // All disk-loader workers have drained. The remaining jobs now own their
     // compiler inputs and use only the persistent runtime queue.
@@ -2462,6 +2768,29 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) noexc
     return nullptr;
 }
 
+std::shared_ptr<const std::vector<u32>> PipelineCache::FindStageCode(const std::string& stage_key) {
+    std::scoped_lock lock{stage_code_mutex};
+    const auto it{stage_code.find(stage_key)};
+    if (it == stage_code.end()) {
+        return nullptr;
+    }
+    ++stage_code_hits;
+    return it->second;
+}
+
+std::shared_ptr<const std::vector<u32>> PipelineCache::StoreStageCode(
+    std::string stage_key, std::shared_ptr<const std::vector<u32>> code) {
+    std::scoped_lock lock{stage_code_mutex};
+    // Another worker may have emitted the same stage meanwhile; both codes are equal
+    const auto [it, inserted]{stage_code.try_emplace(std::move(stage_key), std::move(code))};
+    ++stage_code_misses;
+    if ((stage_code_hits + stage_code_misses) % 256 == 0) {
+        LOG_INFO(Render_Vulkan, "Stage code: {} stages emitted, {} reused", stage_code_misses,
+                 stage_code_hits);
+    }
+    return it->second;
+}
+
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     ShaderPools& pools, const GraphicsPipelineCacheKey& key,
     std::span<Shader::Environment* const> envs, PipelineStatistics* statistics,
@@ -2481,6 +2810,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     // Layer passthrough generation for devices without VK_EXT_shader_viewport_index_layer
     Shader::IR::Program* layer_source_program{};
     Shader::Environment* vertex_env{};
+    std::array<Shader::Environment*, Maxwell::MaxShaderProgram> program_envs{};
 
     Timing::Timer translation_timer(Timing::current, Timing::Phase::GuestTranslation);
     for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
@@ -2497,6 +2827,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
+        program_envs[index] = &env;
         if (index == 1) {
             vertex_env = &env;
         }
@@ -2697,6 +3028,49 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     const bool reads_color_attachments{device.SupportsColorAttachmentFetch() &&
                                        videoSettings.barrier_feedback_loops &&
                                        !vtg_replaces_stages};
+    // Stage pipelines: the fragment shader gets descriptor set 1 and fixed rescaling bit ranges,
+    // so its descriptor bindings no longer depend on the vertex shader it is drawn with. Its
+    // inputs still do: MakeRuntimeInfo passes the vertex shader's outputs as previous_stage_stores,
+    // and inputs the vertex shader does not write are left out. Pipelines whose stages depend on
+    // each other in other ways keep one set.
+    const char* const stage_layout_limit{[&]() -> const char* {
+        if (!stage_pipelines) {
+            return "";
+        }
+        if (uses_vertex_a || !uses_vertex_b || key.unique_hashes[2] != 0 ||
+            key.unique_hashes[3] != 0 || key.unique_hashes[geometry_index] != 0) {
+            return "stages other than vertex and fragment";
+        }
+        if (layer_source_program || forwarded_layer || vtg_info) {
+            return "emulated stages";
+        }
+        if (reads_color_attachments || large_texture_arrays_in_table) {
+            return "attachment reads or texture tables of this driver";
+        }
+        const auto limit{[](const Shader::Info& info) -> const char* {
+            if (info.runtime_sampler_count != 0 ||
+                std::ranges::any_of(info.texture_descriptors,
+                                    [](const auto& desc) { return desc.is_direct; })) {
+                return "a texture table";
+            }
+            if (info.texture_descriptors.size() > STAGE_TEXTURE_SCALING_BITS ||
+                info.image_descriptors.size() > STAGE_IMAGE_SCALING_BITS) {
+                return "too many textures or images in one stage";
+            }
+            return nullptr;
+        }};
+        const size_t fragment_index{static_cast<size_t>(Maxwell::ShaderType::Pixel)};
+        if (const char* vertex_limit{limit(programs[1].info)}) {
+            return vertex_limit;
+        }
+        return key.unique_hashes[fragment_index] == 0 ? nullptr
+                                                      : limit(programs[fragment_index].info);
+    }()};
+    const bool stage_layout{stage_layout_limit == nullptr};
+    if (stage_layout_limit && *stage_layout_limit) {
+        LOG_INFO(Render_Vulkan, "Pipeline 0x{:016x} keeps one descriptor set: {}", hash,
+                 stage_layout_limit);
+    }
     u32 screen_position_generics{};
     for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0; index < Maxwell::MaxShaderProgram;
          ++index) {
@@ -2751,8 +3125,35 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                     Shader::Optimization::FindScreenPositionGenerics(program);
             }
         }
-        const std::vector<u32> code{Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
-            [&] { return EmitSPIRV(profile, runtime_info, program, binding); })};
+        if (stage_layout && program.stage == Shader::Stage::Fragment) {
+            binding = Shader::Backend::Bindings{};
+            binding.descriptor_set = 1;
+            binding.texture_scaling_index = STAGE_TEXTURE_SCALING_BITS;
+            binding.image_scaling_index = STAGE_IMAGE_SCALING_BITS;
+        }
+        // Stage pipelines emit each stage once per stage key and share its code
+        std::string stage_key;
+        std::shared_ptr<const std::vector<u32>> stage_code;
+        if (stage_layout && program_envs[index]) {
+            if (const u64 answers{program_envs[index]->AnswersHash()}; answers != 0) {
+                const Shader::RuntimeInfo key_info{StageKeyRuntimeInfo(runtime_info, program, profile)};
+                stage_key = StageCodeKey(program.stage, key.unique_hashes[index], answers,
+                                         key.cbuf_sizes[stage_index], key.texture_pool,
+                                         binding, key_info);
+                stage_code = FindStageCode(stage_key);
+            }
+        }
+        if (!stage_code) {
+            auto emitted{std::make_shared<const std::vector<u32>>(
+                Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
+                                [&] { return EmitSPIRV(profile, runtime_info, program, binding); }))};
+            if (!stage_key.empty()) {
+                stage_code = StoreStageCode(std::move(stage_key), std::move(emitted));
+            } else {
+                stage_code = std::move(emitted);
+            }
+        }
+        const std::vector<u32>& code{*stage_code};
         VideoCommon::ShaderProfile::Audit::Record(code);
         device.SaveShader(code);
         modules[stage_index] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
@@ -2787,7 +3188,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
         descriptor_pool, guest_descriptor_queue, thread_worker, statistics, render_pass_cache, key,
         std::move(modules), infos, rasterizes_lines, std::move(vtg_info),
-        build_in_parallel && urgent_graphics_build);
+        build_in_parallel && urgent_graphics_build, stage_layout);
 } catch (const Shader::Exception& exception) {
     auto hash = key.Hash();
     size_t env_index{0};
@@ -2798,9 +3199,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
 
-        const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
-        Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
-        env.Dump(hash, key.unique_hashes[index]);
+        // The analysis reads the code range the dump writes. It can throw again for the stage that
+        // failed, and an exception leaving this handler would terminate the emulator.
+        try {
+            const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
+            Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
+            env.Dump(hash, key.unique_hashes[index]);
+        } catch (const Shader::Exception&) {
+        }
     }
     LOG_ERROR(Render_Vulkan, "{}", exception.what());
     return nullptr;
