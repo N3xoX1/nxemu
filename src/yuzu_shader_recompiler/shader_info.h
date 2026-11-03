@@ -195,7 +195,7 @@ struct TextureHandleSource {
     u32 secondary_cbuf_offset;
     u32 secondary_shift_left;
     u32 count;
-    u32 size_shift;
+    u32 stride; ///< Byte stride of the handle field
     u32 handle_or_bits{};
 
     auto operator<=>(const TextureHandleSource&) const = default;
@@ -210,7 +210,7 @@ struct TextureBufferDescriptor {
     u32 secondary_cbuf_offset;
     u32 secondary_shift_left;
     u32 count;
-    u32 size_shift;
+    u32 stride; ///< Byte stride of the handle field
     u32 handle_or_bits{};
 
     /// Compact alternatives for a handle selected by a Phi or Select.
@@ -228,7 +228,7 @@ struct ImageBufferDescriptor {
     u32 cbuf_index;
     u32 cbuf_offset;
     u32 count;
-    u32 size_shift;
+    u32 stride; ///< Byte stride of the handle field
 
     auto operator<=>(const ImageBufferDescriptor&) const = default;
 };
@@ -246,7 +246,7 @@ struct TextureDescriptor {
     u32 secondary_cbuf_offset;
     u32 secondary_shift_left;
     u32 count;
-    u32 size_shift;
+    u32 stride; ///< Byte stride of the handle field
     /// Sampler-less array indexed by the TIC index of a runtime handle.
     bool is_direct{};
     /// Bound with the texture tables in descriptor set 1, which the host keeps between draws.
@@ -272,7 +272,7 @@ struct ImageDescriptor {
     u32 cbuf_index;
     u32 cbuf_offset;
     u32 count;
-    u32 size_shift;
+    u32 stride; ///< Byte stride of the handle field
     bool is_direct;
     bool is_signed{};
 

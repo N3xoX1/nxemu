@@ -582,7 +582,9 @@ BlitImageHelper::BlitImageHelper(const Device& device_, Scheduler& scheduler_,
       blit_depth_stencil_msaa_frag(device.IsExtShaderStencilExportSupported()
                                        ? BuildShader(device, BLIT_DEPTH_STENCIL_MSAA_FRAG_SPV)
                                        : vk::ShaderModule{}),
-      blit_depth_stencil_frag(BuildShader(device, VULKAN_BLIT_DEPTH_STENCIL_FRAG_SPV)),
+      blit_depth_stencil_frag(device.IsExtShaderStencilExportSupported()
+                                 ? BuildShader(device, VULKAN_BLIT_DEPTH_STENCIL_FRAG_SPV)
+                                 : vk::ShaderModule{}),
       clear_color_vert(BuildShader(device, VULKAN_COLOR_CLEAR_VERT_SPV)),
       clear_color_frag(BuildShader(device, VULKAN_COLOR_CLEAR_FRAG_SPV)),
       clear_stencil_frag(BuildShader(device, VULKAN_DEPTHSTENCIL_CLEAR_FRAG_SPV)),

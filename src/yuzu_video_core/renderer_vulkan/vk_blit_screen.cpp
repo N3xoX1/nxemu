@@ -23,6 +23,7 @@ BlitScreen::~BlitScreen() = default;
 void BlitScreen::WaitIdle() {
     present_manager.WaitPresent();
     scheduler.Finish();
+    std::scoped_lock lock{device.QueueMutex()};
     device.GetLogical().WaitIdle();
 }
 
