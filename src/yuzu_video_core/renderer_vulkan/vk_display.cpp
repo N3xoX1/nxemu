@@ -122,10 +122,16 @@ Frame* Display::Present(Frame* frame, const WindowSystemInfo& window, bool* pres
         reusable = std::exchange(game_frame, frame);
         if (reusable != nullptr) {
             // Presents that came without a frame of the game may still read it.
-            WaitOwnPresents();
+            WaitFrameReaders(reusable);
         }
     }
-    const bool success = PresentLocked(frame, true);
+    bool submitted = false;
+    const bool success = PresentLocked(frame, true, &submitted);
+    if (!submitted && !device.IsLost()) {
+        // A skipped WSI present still has a binary render_ready semaphore
+        // signaled by the scheduler. Consume it before this frame can be reused.
+        ConsumeDroppedFrame(frame);
+    }
     if (presented) {
         *presented = success;
     }
@@ -136,7 +142,7 @@ Frame* Display::Present(Frame* frame, const WindowSystemInfo& window, bool* pres
 void Display::ReleaseFrame() {
     std::scoped_lock lock{present_mutex};
     if (game_frame != nullptr) {
-        WaitOwnPresents();
+        WaitFrameReaders(game_frame);
         game_frame = nullptr;
     }
 }
@@ -177,7 +183,9 @@ VkCommandBuffer Display::BeginInterfaceFrame(u32 width, u32 height, VkImage& ima
 
 void Display::WaitInterfaceIdle() {
     if (interface_submission_pending) {
-        interface_done.Wait();
+        if (interface_done.Wait() == VK_ERROR_DEVICE_LOST) {
+            device.ReportLoss();
+        }
         interface_submission_pending = false;
     }
 }
@@ -232,13 +240,46 @@ bool Display::GameIsPresenting() const {
            std::chrono::steady_clock::now() - last_game_present < GameFrameTimeout;
 }
 
-void Display::WaitOwnPresents() {
-    for (const PresentSlot& slot : slots) {
-        slot.done.Wait();
+void Display::WaitFrameReaders(const Frame* frame) {
+    for (PresentSlot& slot : slots) {
+        if (slot.sampled_game_frame == frame) {
+            if (slot.done.Wait() == VK_ERROR_DEVICE_LOST) {
+                device.ReportLoss();
+            }
+            slot.sampled_game_frame = nullptr;
+        }
     }
 }
 
-bool Display::PresentLocked(Frame* frame, bool fresh) {
+void Display::ConsumeDroppedFrame(Frame* frame) {
+    // Rendering and presentation use a binary semaphore per frame. If there
+    // is no available surface, a no-op queue submission must consume the
+    // render signal before the producer can signal it for another frame.
+    constexpr VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    const VkSemaphore wait_semaphore = *frame->render_ready;
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &wait_semaphore,
+        .pWaitDstStageMask = &wait_stage,
+        .commandBufferCount = 0,
+        .pCommandBuffers = nullptr,
+        .signalSemaphoreCount = 0,
+        .pSignalSemaphores = nullptr,
+    };
+    std::scoped_lock queue_lock{device.QueueMutex()};
+    frame->present_done.Reset();
+    const VkResult result = device.GetGraphicsQueue().Submit(submit_info, *frame->present_done);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        // Like a lost present, keep running without a picture.
+        device.ReportLoss();
+        return;
+    }
+    vk::Check(result);
+}
+
+bool Display::PresentLocked(Frame* frame, bool fresh, bool* submitted) {
     const void* window = window_info.render_surface;
     if (window == nullptr || device.IsLost()) {
         presented_window = nullptr;
@@ -250,11 +291,14 @@ bool Display::PresentLocked(Frame* frame, bool fresh) {
 
     try {
         if (window != presented_window) {
-            surface = CreateSurface(instance, window_info);
+            // Keep the old surface alive until its swapchain and in-flight
+            // presentations have been retired.
+            auto replacement = CreateSurface(instance, window_info);
+            RecreateSwapchain(swapchain.GetWidth(), swapchain.GetHeight(), *replacement);
+            surface = std::move(replacement);
             presented_window = window;
-            RecreateSwapchain(swapchain.GetWidth(), swapchain.GetHeight());
         }
-        return PresentImage(frame, fresh);
+        return PresentImage(frame, fresh, submitted);
     } catch (const vk::Exception& except) {
         switch (except.GetResult()) {
         case VK_ERROR_SURFACE_LOST_KHR:
@@ -272,7 +316,7 @@ bool Display::PresentLocked(Frame* frame, bool fresh) {
     return false;
 }
 
-bool Display::PresentImage(Frame* frame, bool fresh) {
+bool Display::PresentImage(Frame* frame, bool fresh, bool* submitted) {
     // With an interface the swapchain covers the window; alone, the game is
     // the only thing in it and its frames set the size.
     const bool composite = interface_attached && interface_extent.width != 0;
@@ -283,16 +327,45 @@ bool Display::PresentImage(Frame* frame, bool fresh) {
         swapchain.GetHeight() != height) {
         RecreateSwapchain(width, height);
     }
-    while (swapchain.AcquireNextImage()) {
-        RecreateSwapchain(width, height);
+    if (swapchain.IsOutDated() || !swapchain.IsCreated()) {
+        return false;
+    }
+    // A surface may be minimized or its compositor may stop acquiring for a
+    // while. Never hold the presentation thread in an unbounded WSI wait.
+    // Interface-only presents run on the UI thread at about the refresh rate;
+    // allow a little more than one 60 Hz refresh before dropping one, so a
+    // FIFO compositor does not drop every other interface frame.
+    constexpr u64 GameAcquireTimeoutNs = 50'000'000ULL;
+    constexpr u64 UiAcquireTimeoutNs = 20'000'000ULL;
+    bool acquired = false;
+    for (unsigned attempt = 0; attempt < 3; ++attempt) {
+        switch (swapchain.AcquireNextImage(fresh ? GameAcquireTimeoutNs : UiAcquireTimeoutNs)) {
+        case Swapchain::AcquireResult::Acquired:
+            acquired = true;
+            break;
+        case Swapchain::AcquireResult::RetryLater:
+            return false;
+        case Swapchain::AcquireResult::Outdated:
+            RecreateSwapchain(width, height);
+            if (swapchain.IsOutDated() || !swapchain.IsCreated()) {
+                return false;
+            }
+            break;
+        }
+        if (acquired) {
+            break;
+        }
+    }
+    if (!acquired) {
+        return false;
     }
 
     PresentSlot* slot = nullptr;
     if (!fresh) {
         slot = &slots[next_slot];
         next_slot = (next_slot + 1) % slots.size();
-        slot->done.Wait();
-        slot->done.Reset();
+        vk::Check(slot->done.Wait());
+        slot->sampled_game_frame = nullptr;
     }
     const vk::CommandBuffer cmdbuf{fresh ? frame->cmdbuf : slot->cmdbuf};
     cmdbuf.Begin({
@@ -302,7 +375,10 @@ bool Display::PresentImage(Frame* frame, bool fresh) {
         .pInheritanceInfo = nullptr,
     });
     if (composite) {
-        RecordComposite(cmdbuf, frame, swapchain.CurrentImage());
+        const bool reads_game = RecordComposite(cmdbuf, frame, swapchain.CurrentImage());
+        if (slot && reads_game) {
+            slot->sampled_game_frame = frame;
+        }
     } else {
         RecordGameOnly(cmdbuf, frame, swapchain.CurrentImage());
     }
@@ -331,8 +407,19 @@ bool Display::PresentImage(Frame* frame, bool fresh) {
     {
         std::scoped_lock submit_lock{device.QueueMutex()};
         const VkFence done = fresh ? *frame->present_done : *slot->done;
+        // Do not reset a fence until an actual submission is ready. A missing
+        // surface, failed acquire or rebuild must leave the previous fence
+        // signaled so the producer cannot block on work never queued.
+        if (fresh) {
+            frame->present_done.Reset();
+        } else {
+            slot->done.Reset();
+        }
         switch (const VkResult result = device.GetGraphicsQueue().Submit(submit_info, done)) {
         case VK_SUCCESS:
+            if (submitted) {
+                *submitted = true;
+            }
             break;
         case VK_ERROR_DEVICE_LOST:
             device.ReportLoss();
@@ -398,7 +485,7 @@ void Display::RecordGameOnly(vk::CommandBuffer cmdbuf, Frame* frame, VkImage ima
                            {}, {}, post_barriers);
 }
 
-void Display::RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image) {
+bool Display::RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage image) {
     const VkExtent2D extent = swapchain.GetExtent();
     const s32 right = static_cast<s32>(extent.width);
     const s32 bottom = static_cast<s32>(extent.height);
@@ -498,17 +585,21 @@ void Display::RecordComposite(vk::CommandBuffer cmdbuf, Frame* frame, VkImage im
             Barrier(*frame->image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL));
     }
+    return draw_game;
 }
 
-void Display::RecreateSwapchain(u32 width, u32 height) {
-    if (!swapchain_framebuffers.empty()) {
-        // Earlier presents may still be drawing into the views.
+void Display::RecreateSwapchain(u32 width, u32 height, VkSurfaceKHR replacement_surface) {
+    if (swapchain.IsCreated()) {
+        // Old acquire/render semaphores and swapchain views can still be in
+        // flight even when the game-only path has no framebuffers of its own.
+        // Recreate is infrequent; do not serialize the steady-state presents.
         std::scoped_lock lock{device.QueueMutex()};
-        void(device.GetLogical().WaitIdle());
+        vk::Check(device.GetLogical().WaitIdle());
     }
     swapchain_framebuffers.clear();
     swapchain_views.clear();
-    swapchain.Create(*surface, width, height);
+    swapchain.Create(replacement_surface != VK_NULL_HANDLE ? replacement_surface : *surface, width,
+                     height);
 }
 
 void Display::CreateInterfaceObjects() {

@@ -18,14 +18,15 @@ class Device;
 
 class Swapchain {
 public:
+    enum class AcquireResult { Acquired, Outdated, RetryLater };
     explicit Swapchain(VkSurfaceKHR surface, const Device& device, u32 width, u32 height);
     ~Swapchain();
 
     /// Creates (or recreates) the swapchain with a given size.
     void Create(VkSurfaceKHR surface, u32 width, u32 height);
 
-    /// Acquires the next image in the swapchain, waits as needed.
-    bool AcquireNextImage();
+    /// Acquires an image without blocking the present worker indefinitely.
+    AcquireResult AcquireNextImage(u64 timeout_ns);
 
     /// Presents the rendered image to the swapchain.
     bool Present(VkSemaphore render_semaphore);
@@ -43,6 +44,11 @@ public:
     /// Returns true when the swapchain is suboptimal.
     bool IsSubOptimal() const {
         return is_suboptimal;
+    }
+
+    /// Returns false while the surface cannot hold a swapchain (for example minimized).
+    bool IsCreated() const {
+        return static_cast<bool>(swapchain);
     }
 
     VkExtent2D GetSize() const {
