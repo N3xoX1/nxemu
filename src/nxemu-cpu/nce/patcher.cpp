@@ -67,9 +67,15 @@ Patcher::~Patcher() = default;
 bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint64_t code_offset,
                         uint64_t code_size, uint64_t atomic_table, bool legacy_36bit, bool legacy_36bit_sdk, bool read_thunks, bool all_read_bases, bool float_reads, bool store_thunks) {
     // If we have patched modules but cannot reach the new module, then it needs its own patcher.
-    if (total_program_size + image_size > MaxRelativeBranch && total_program_size > 0) {
+    if (total_program_size + image_size + GetSectionSize() > MaxRelativeBranch &&
+        total_program_size > 0) {
         return false;
     }
+    // Branches between the start of the first module and the end of the patch section
+    // must stay in range. Optional thunks only take the space this leaves.
+    const size_t patch_limit =
+        MaxRelativeBranch - std::min<size_t>(MaxRelativeBranch, total_program_size + image_size +
+                                                                    NceHostPageSize);
 
     // Add a new module patch to our list
     modules.emplace_back();
@@ -163,6 +169,36 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     };
     size_t skipped_svcs = 0, skipped_exclusives = 0;
 
+#if defined(__APPLE__)
+    // The dormant read and store thunks are written after every required patch, as far as
+    // the branch range allows. The original instruction remains the fallback.
+    const auto write_thunks = [&] {
+        for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++) {
+            const u32 inst = text_words[i];
+            const bool basic_read = ReadThunk::Basic(inst);
+            if (read_thunks && atomic_table &&
+                ((basic_read && m_basic_read_bytes + MaxReadHandlerBytes <= 16_MiB) ||
+                 extra_reads[i])) {
+                if (c.offset() + MaxReadHandlerBytes > patch_limit) {
+                    continue;
+                }
+                curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
+                const size_t before = c.offset();
+                WriteReadHandler((i + 1) * sizeof(u32), inst);
+                ASSERT(c.offset() - before <= MaxReadHandlerBytes);
+                (basic_read ? m_basic_read_bytes : m_extra_read_bytes) += c.offset() - before;
+            } else if (store_thunks && atomic_table && extra_stores[i] &&
+                       c.offset() + 256 <= patch_limit) {
+                curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
+                const size_t before = c.offset();
+                WriteStoreHandler((i + 1) * sizeof(u32), inst);
+                ASSERT(c.offset() - before <= 256);
+                m_store_bytes += c.offset() - before;
+            }
+        }
+    };
+#endif
+
     // Loop through instructions, patching as needed.
     for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++) {
         const u32 inst = text_words[i];
@@ -252,33 +288,6 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
         }
 #endif
 
-#if defined(__APPLE__)
-        // Dormant until this instruction encounters an inaccessible host page. Ordinary
-        // identity-mapped loads keep their original instruction and incur no overhead.
-        // Bound extra code independently of guest content and retain the interpreter fallback.
-        const bool basic_read = ReadThunk::Basic(inst);
-        if (read_thunks && atomic_table &&
-            ((basic_read && m_basic_read_bytes + MaxReadHandlerBytes <= 16_MiB) || extra_reads[i])) {
-            curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
-            const size_t before = c.offset();
-            WriteReadHandler((i + 1) * sizeof(u32), inst);
-            ASSERT(c.offset() - before <= MaxReadHandlerBytes);
-            (basic_read ? m_basic_read_bytes : m_extra_read_bytes) += c.offset() - before;
-            continue;
-        }
-#endif
-
-#if defined(__APPLE__)
-        if (store_thunks && atomic_table && extra_stores[i]) {
-            curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
-            const size_t before = c.offset();
-            WriteStoreHandler((i + 1) * sizeof(u32), inst);
-            ASSERT(c.offset() - before <= 256);
-            m_store_bytes += c.offset() - before;
-            continue;
-        }
-#endif
-
         // MSR TPIDR_EL0, Xn
         if (auto msr = MSR{inst}; msr.Verify() && msr.GetSystemReg() == TpidrEl0) {
             WriteMsrHandler(AddRelocations(), oaknut::XReg{static_cast<int>(msr.GetRt())});
@@ -301,6 +310,10 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
             curr_patch->m_exclusives.push_back(i);
         }
     }
+
+#if defined(__APPLE__)
+    write_thunks();
+#endif
 
     if (skipped_svcs || skipped_exclusives) {
         LOG_INFO(Core_ARM, "NCE: left {} SVC and {} exclusive words untouched as data in .text",
