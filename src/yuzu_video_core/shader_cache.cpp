@@ -245,6 +245,10 @@ const ShaderInfo* ShaderCache::MakeShaderInfo(GenericEnvironment& env, VAddr cpu
     const size_t size_bytes{info->size_bytes};
     const ShaderInfo* const result{info.get()};
     info->code = env.ShareCachedCode(info->size_bytes);
+    if (info->code) {
+        info->generic_inputs = DeclaredGenericInputs(
+            std::span(reinterpret_cast<const u8*>(info->code->data()), info->code->size() * sizeof(u64)));
+    }
     Register(std::move(info), cpu_addr, size_bytes);
     return result;
 }

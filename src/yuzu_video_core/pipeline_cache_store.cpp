@@ -106,7 +106,7 @@ ContextIndex ParseContext(const std::filesystem::path& path, std::string_view co
     Check(in.eof());
     return index;
 }
-void AppendContext(const std::filesystem::path& cache, std::string_view context, const std::string& id) {
+void AppendContext(const std::filesystem::path& cache, std::string_view context, std::span<const std::string> ids) {
     const auto path=ContextPath(cache,context,true);
     static std::filesystem::path active;
     static ContextIndex index;
@@ -117,15 +117,21 @@ void AppendContext(const std::filesystem::path& cache, std::string_view context,
         if(index.valid_bytes!=size) std::filesystem::resize_file(path,index.valid_bytes);
         index.tail=ReadTail(path,index.valid_bytes);
     }
-    if(index.ids.contains(id)) return;
-    Check(index.ids.size()<ShaderProfile::MaxVersionPipelines);
+    // One write for all new ids
+    std::string frames;
+    std::set<std::string> added;
+    for(const auto& id:ids) {
+        if(index.ids.contains(id) || !added.insert(id).second) continue;
+        Check(index.ids.size()+added.size()<=ShaderProfile::MaxVersionPipelines);
+        frames+=(index.valid_bytes || !frames.empty()?std::string{}:"NXCTX002"+std::string(context))+id+Digest(std::string(context)+id);
+    }
+    if(frames.empty()) return;
     try {
         std::ofstream out(path,std::ios::binary|std::ios::app);
-        const auto frame=(index.valid_bytes?std::string{}:"NXCTX002"+std::string(context))+id+Digest(std::string(context)+id);
-        out.write(frame.data(),frame.size());out.flush();out.close();Check(bool(out));
-        index.valid_bytes+=frame.size();
-        index.ids.insert(id);
-        KeepTail(index.tail,frame);
+        out.write(frames.data(),frames.size());out.flush();out.close();Check(bool(out));
+        index.valid_bytes+=frames.size();
+        index.ids.insert(added.begin(),added.end());
+        KeepTail(index.tail,frames);
         index.modified=std::filesystem::last_write_time(path);
     } catch(...) { active.clear();index={};throw; }
 }
@@ -367,72 +373,122 @@ std::vector<Record> Read(const std::filesystem::path & path, u32 shader_abi, con
     if(record_ids)*record_ids=std::move(parsed.pipelines);
     return std::move(parsed.records);
 }
+// Adds the frames a record still lacks to pending and returns its pipeline id. Code and
+// environment ids enter the writer index at once, so later records of a batch share them.
+static std::string BuildRecordFrames(const Record & record, std::string & pending)
+{
+    Check(!record.environments.empty() && record.environments.size() <= 6 &&
+          !record.key.empty() && record.key.size() <= 65536);
+    const auto frame = [&](unsigned char type, const std::string & data, auto & table) {
+        Check(data.size() <= MaxFrame);
+        const auto id = Digest(std::string(1, static_cast<char>(type)) + data);
+        if (!table.contains(id)) PutFrame(pending, type, id, data);
+        return id;
+    };
+    // Build all frames before touching the file; validate the complete environment layout first.
+    std::string pipeline;
+    Put(pipeline, record.environments.size(), 4);
+    for (const auto & env : record.environments)
+    {
+        Check(env.size() >= EnvHeader);
+        const auto code_size = static_cast<size_t>(Get(env.substr(0,8), 0, 8));
+        Check(code_size && code_size % 8 == 0 && code_size <= 1024 * 1024 && code_size <= env.size() - EnvHeader);
+        const auto program=env.ProgramStorage();
+        Check(!program || program->size()==code_size);
+        const std::weak_ptr<const std::string> owner(program);
+        const auto known=program ? writer.shared_code_ids.find(owner) : writer.shared_code_ids.end();
+        const auto code_id = known!=writer.shared_code_ids.end() ? known->second :
+            frame(1, env.substr(EnvHeader, code_size), writer.index.code);
+        if(program && known==writer.shared_code_ids.end()) {
+            if(writer.shared_code_ids.size()>=16384)writer.shared_code_ids.clear();
+            writer.shared_code_ids.emplace(owner,code_id);
+        }
+        // Include additions immediately in a temporary index to deduplicate within this record too.
+        if (!writer.index.code.contains(code_id))
+        {
+            writer.index.code.emplace(code_id, nullptr);
+            writer.index.code_sizes.emplace(code_id, code_size);
+        }
+        const auto metadata = env.substr(0, EnvHeader) + code_id + env.substr(EnvHeader + code_size);
+        const auto env_id = frame(2, metadata, writer.index.environments);
+        if (!writer.index.environments.contains(env_id))
+        {
+            writer.index.environments.emplace(env_id, SharedShaderBytes{});
+        }
+        pipeline += env_id;
+    }
+    Put(pipeline, record.key.size(), 4);
+    pipeline += record.key;
+    const auto pipeline_id = frame(3, pipeline, writer.index.pipelines);
+    if (writer.index.code.size()+writer.index.environments.size()+writer.index.pipelines.size()+1>ShaderProfile::MaxLocalCacheObjects ||
+        writer.index.valid_bytes + pending.size() > MaxFile)
+        throw std::runtime_error("Local shader cache reached its 1 GiB limit; new entries were not written");
+    return pipeline_id;
+}
+
+static void WritePending(const std::filesystem::path & path, const std::string & pending)
+{
+    std::ofstream out(path, std::ios::binary | std::ios::app);
+    out.write(pending.data(), static_cast<std::streamsize>(pending.size()));
+    out.flush();
+    Check(bool(out));
+    writer.index.valid_bytes += pending.size();
+    writer.disk_size = writer.index.valid_bytes;
+    writer.modified = std::filesystem::last_write_time(path);
+    KeepTail(writer.tail, pending);
+}
+
 void Append(const std::filesystem::path & path, u32 shader_abi, const Record & record,
             std::string* record_id, std::string_view context)
 {
     std::scoped_lock lock(writer_mutex);
-    Check(!record.environments.empty() && record.environments.size() <= 6 &&
-          !record.key.empty() && record.key.size() <= 65536);
     SyncWriter(path,shader_abi);
     try
     {
         std::string pending;
         if (!writer.index.valid_bytes) pending = Header(shader_abi);
-        const auto frame = [&](unsigned char type, const std::string & data, auto & table) {
-            Check(data.size() <= MaxFrame);
-            const auto id = Digest(std::string(1, static_cast<char>(type)) + data);
-            if (!table.contains(id)) PutFrame(pending, type, id, data);
-            return id;
-        };
-        // Build all frames before touching the file; validate the complete environment layout first.
-        std::string pipeline;
-        Put(pipeline, record.environments.size(), 4);
-        for (const auto & env : record.environments)
-        {
-            Check(env.size() >= EnvHeader);
-            const auto code_size = static_cast<size_t>(Get(env.substr(0,8), 0, 8));
-            Check(code_size && code_size % 8 == 0 && code_size <= 1024 * 1024 && code_size <= env.size() - EnvHeader);
-            const auto program=env.ProgramStorage();
-            Check(!program || program->size()==code_size);
-            const std::weak_ptr<const std::string> owner(program);
-            const auto known=program ? writer.shared_code_ids.find(owner) : writer.shared_code_ids.end();
-            const auto code_id = known!=writer.shared_code_ids.end() ? known->second :
-                frame(1, env.substr(EnvHeader, code_size), writer.index.code);
-            if(program && known==writer.shared_code_ids.end()) {
-                if(writer.shared_code_ids.size()>=16384)writer.shared_code_ids.clear();
-                writer.shared_code_ids.emplace(owner,code_id);
-            }
-            // Include additions immediately in a temporary index to deduplicate within this record too.
-            if (!writer.index.code.contains(code_id))
-            {
-                writer.index.code.emplace(code_id, nullptr);
-                writer.index.code_sizes.emplace(code_id, code_size);
-            }
-            const auto metadata = env.substr(0, EnvHeader) + code_id + env.substr(EnvHeader + code_size);
-            const auto env_id = frame(2, metadata, writer.index.environments);
-            if (!writer.index.environments.contains(env_id))
-            {
-                writer.index.environments.emplace(env_id, SharedShaderBytes{});
-            }
-            pipeline += env_id;
-        }
-        Put(pipeline, record.key.size(), 4);
-        pipeline += record.key;
-        const auto pipeline_id = frame(3, pipeline, writer.index.pipelines);
-        if (writer.index.code.size()+writer.index.environments.size()+writer.index.pipelines.size()+1>ShaderProfile::MaxLocalCacheObjects ||
-            writer.index.valid_bytes + pending.size() > MaxFile)
-            throw std::runtime_error("Local shader cache reached its 1 GiB limit; new entries were not written");
-        std::ofstream out(path, std::ios::binary | std::ios::app);
-        out.write(pending.data(), static_cast<std::streamsize>(pending.size()));
-        out.flush();
-        Check(bool(out));
+        const auto pipeline_id = BuildRecordFrames(record, pending);
+        WritePending(path, pending);
         writer.index.pipelines.insert(pipeline_id);
-        writer.index.valid_bytes += pending.size();
-        writer.disk_size = writer.index.valid_bytes;
-        writer.modified = std::filesystem::last_write_time(path);
-        KeepTail(writer.tail, pending);
-        if (!context.empty()) AppendContext(path,context,pipeline_id);
+        if (!context.empty()) AppendContext(path, context, std::span(&pipeline_id, 1));
         if(record_id)*record_id=pipeline_id;
+    }
+    catch (...)
+    {
+        writer = Writer{};
+        writer_path.clear();
+        throw;
+    }
+}
+
+void AppendBatch(const std::filesystem::path & path, u32 shader_abi, std::span<const Record> records,
+                 std::vector<std::string>* record_ids, std::string_view context)
+{
+    // One file check for the whole batch, and writes of a few MiB instead of one per record
+    constexpr size_t FlushBytes = 8 * 1024 * 1024;
+    std::scoped_lock lock(writer_mutex);
+    SyncWriter(path,shader_abi);
+    try
+    {
+        std::string pending;
+        if (!writer.index.valid_bytes) pending = Header(shader_abi);
+        std::vector<std::string> ids, unwritten;
+        ids.reserve(records.size());
+        const auto flush = [&] {
+            if (!pending.empty()) WritePending(path, pending);
+            pending.clear();
+            for (const auto& id : unwritten) writer.index.pipelines.insert(id);
+            if (!context.empty()) AppendContext(path, context, unwritten);
+            unwritten.clear();
+        };
+        for (const auto & record : records)
+        {
+            ids.push_back(BuildRecordFrames(record, pending));
+            unwritten.push_back(ids.back());
+            if (pending.size() >= FlushBytes) flush();
+        }
+        flush();
+        if(record_ids)*record_ids=std::move(ids);
     }
     catch (...)
     {
@@ -448,7 +504,7 @@ bool AssociateContext(const std::filesystem::path& path,u32 shader_abi,
     Check(record_id.size()==32 && ShaderProfile::ValidContext(context));
     SyncWriter(path,shader_abi);
     if(!writer.index.pipelines.contains(record_id))return false;
-    AppendContext(path,context,record_id);
+    AppendContext(path,context,std::span(&record_id,1));
     return true;
 }
 

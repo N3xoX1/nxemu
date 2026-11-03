@@ -65,6 +65,13 @@ public:
 
     [[nodiscard]] virtual TextureType ReadTextureType(u32 raw_handle) = 0;
 
+    /// Digest of every value this environment answered during translation, with texture handles
+    /// reduced to what they resolved to, so two translations of the same code with equal digests
+    /// produce the same program. 0 when not tracked.
+    [[nodiscard]] virtual u64 AnswersHash() const {
+        return 0;
+    }
+
     [[nodiscard]] virtual TexturePixelFormat ReadTexturePixelFormat(u32 raw_handle) = 0;
 
     [[nodiscard]] virtual bool IsTexturePixelFormatInteger(u32 raw_handle) = 0;

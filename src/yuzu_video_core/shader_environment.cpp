@@ -12,6 +12,7 @@
 #include <optional>
 #include <sstream>
 #include "yuzu_video_core/pipeline_cache_store.h"
+#include <unordered_set>
 #include <utility>
 
 #include "yuzu_common/yuzu_assert.h"
@@ -67,6 +68,80 @@ static u32 CbufSizeQueryMask(const std::unordered_map<u64, u32>& values) {
         }
     }
     return mask;
+}
+
+// The answers in key order, so equal maps digest equally whatever their insertion order.
+template <typename Map>
+static void AppendSorted(std::string& out, const Map& map) {
+    std::vector<std::pair<typename Map::key_type, typename Map::mapped_type>> entries(map.begin(),
+                                                                                    map.end());
+    std::ranges::sort(entries, {}, &decltype(entries)::value_type::first);
+    const u64 count{entries.size()};
+    out.append(reinterpret_cast<const char*>(&count), sizeof(count));
+    for (const auto& [key, value] : entries) {
+        out.append(reinterpret_cast<const char*>(&key), sizeof(key));
+        out.append(reinterpret_cast<const char*>(&value), sizeof(value));
+    }
+}
+
+// Texture handles are indices into the guest texture pool, which change from draw to draw while
+// the translation only depends on what they resolve to. Each handle read from the texture bank is
+// therefore digested as its slot and the type and pixel format it resolved to, not its value.
+template <typename TextureTypes, typename PixelFormats, typename Values, typename Replacements>
+static u64 HashAnswers(const TextureTypes& texture_types, const PixelFormats& pixel_formats,
+                       const Values& cbuf_values, const Replacements& replacements,
+                       u32 texture_bank, std::array<u32, 3> scalars) {
+    const auto put{[](std::string& out, const auto& value) {
+        out.append(reinterpret_cast<const char*>(&value), sizeof(value));
+    }};
+    std::vector<std::pair<u64, u32>> slots;
+    std::unordered_map<u64, u32> other_values;
+    for (const auto& [key, value] : cbuf_values) {
+        if (static_cast<u32>(key >> 32) == texture_bank) {
+            slots.emplace_back(key, value);
+        } else {
+            other_values.emplace(key, value);
+        }
+    }
+    std::ranges::sort(slots);
+    std::string bytes;
+    std::unordered_set<u32> resolved;
+    put(bytes, u64{slots.size()});
+    for (const auto& [key, raw] : slots) {
+        const auto type{texture_types.find(raw)};
+        const auto format{pixel_formats.find(raw)};
+        put(bytes, key);
+        put(bytes, type != texture_types.end() ? static_cast<u32>(type->second) : UINT32_MAX);
+        put(bytes, format != pixel_formats.end() ? static_cast<u32>(format->second) : UINT32_MAX);
+        resolved.insert(raw);
+    }
+    // Handles composed from several reads or immediate bits stay keyed by value
+    const auto unresolved{[&resolved](const auto& map) {
+        std::remove_cvref_t<decltype(map)> out;
+        for (const auto& [raw, value] : map) {
+            if (!resolved.contains(raw)) {
+                out.emplace(raw, value);
+            }
+        }
+        return out;
+    }};
+    AppendSorted(bytes, unresolved(texture_types));
+    AppendSorted(bytes, unresolved(pixel_formats));
+    AppendSorted(bytes, other_values);
+    AppendSorted(bytes, replacements);
+    bytes.append(reinterpret_cast<const char*>(scalars.data()), sizeof(scalars));
+    // Never 0, which means "not tracked"
+    return Common::CityHash64(bytes.data(), bytes.size()) | 1;
+}
+
+u64 GenericEnvironment::AnswersHash() const {
+    return HashAnswers(texture_types, texture_pixel_formats, cbuf_values, cbuf_replacements,
+                       texture_bound, {local_memory_size, texture_bound, viewport_transform_state});
+}
+
+u64 FileEnvironment::AnswersHash() const {
+    return HashAnswers(texture_types, texture_pixel_formats, cbuf_values, cbuf_replacements,
+                       texture_bound, {local_memory_size, texture_bound, viewport_transform_state});
 }
 
 u32 GenericEnvironment::CbufSizeMask() const noexcept {
