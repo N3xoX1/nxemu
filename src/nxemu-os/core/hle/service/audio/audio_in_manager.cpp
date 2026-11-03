@@ -10,7 +10,7 @@ namespace Service::Audio {
 using namespace AudioCore::AudioIn;
 
 IAudioInManager::IAudioInManager(Core::System& system_)
-    : ServiceFramework{system_, "audin:u"}, impl{std::make_unique<AudioCore::AudioIn::Manager>(
+    : ServiceFramework{system_, "audin:u"}, impl{std::make_shared<AudioCore::AudioIn::Manager>(
                                                 system_)} {
     // clang-format off
     static const FunctionInfo functions[] = {
@@ -97,7 +97,7 @@ Result IAudioInManager::OpenAudioInProtocolSpecified(
               impl->num_free_sessions);
 
     const auto device_name = Common::StringFromBuffer(name[0].name);
-    *out_audio_in = std::make_shared<IAudioIn>(system, *impl, new_session_id, device_name,
+    *out_audio_in = std::make_shared<IAudioIn>(system, impl, new_session_id, device_name,
                                                parameter, process_handle.Get(), aruid.pid);
     impl->sessions[new_session_id] = (*out_audio_in)->GetImpl();
     impl->applet_resource_user_ids[new_session_id] = aruid.pid;

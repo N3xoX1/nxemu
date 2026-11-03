@@ -30,6 +30,25 @@ target_include_directories(test_lot1_audio PRIVATE "${CMAKE_SOURCE_DIR}/src"
 target_compile_definitions(test_lot1_audio PRIVATE FMT_HEADER_ONLY)
 nxemu_unit_test(test_lot1_audio)
 
+# Audio callbacks must not outlive their manager; circular sinks own no upsampler.
+add_executable(test_audio_manager_lifetime audio_lifetime/manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/yuzu_audio_core/audio_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/yuzu_audio_core/audio_event.cpp)
+add_executable(test_circular_sink_cleanup audio_lifetime/circular_sink.cpp)
+foreach(_test test_audio_manager_lifetime test_circular_sink_cleanup)
+    target_include_directories(${_test} PRIVATE "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/boost"
+        "${CMAKE_SOURCE_DIR}/external/fmt/include")
+    target_compile_definitions(${_test} PRIVATE FMT_HEADER_ONLY)
+    target_link_libraries(${_test} PRIVATE nxemu_test_support)
+    if(NOT MSVC)
+        target_compile_options(${_test} PRIVATE
+            -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(${_test} PRIVATE -fsanitize=address,undefined)
+    endif()
+    nxemu_unit_test(${_test})
+endforeach()
+
 add_executable(test_lot1_lifecycle eden_lot1/lifecycle.cpp)
 target_include_directories(test_lot1_lifecycle PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/fmt/include")

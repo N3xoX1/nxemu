@@ -11,7 +11,7 @@ namespace AudioCore
 {
 
 AudioCore::AudioCore(Core::System & system) :
-    audio_manager{std::make_unique<AudioManager>()}
+    audio_manager{std::make_shared<AudioManager>()}
 {
     CreateSinks();
     // Must be created after the sinks
@@ -37,6 +37,11 @@ void AudioCore::Shutdown()
 AudioManager & AudioCore::GetAudioManager()
 {
     return *audio_manager;
+}
+
+std::weak_ptr<AudioManager> AudioCore::GetAudioManagerWeak() const
+{
+    return audio_manager;
 }
 
 Sink::Sink & AudioCore::GetOutputSink()

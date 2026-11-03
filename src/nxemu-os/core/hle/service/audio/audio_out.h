@@ -17,7 +17,7 @@ namespace Service::Audio {
 
 class IAudioOut : public ServiceFramework<IAudioOut> {
 public:
-    explicit IAudioOut(Core::System& system_, AudioCore::AudioOut::Manager& manager,
+    explicit IAudioOut(Core::System& system_, std::shared_ptr<AudioCore::AudioOut::Manager> manager,
                        size_t session_id, const std::string& device_name,
                        const AudioCore::AudioOut::AudioOutParameter& in_params,
                        Kernel::KProcess* handle, u64 applet_resource_user_id);
@@ -52,6 +52,7 @@ private:
     KernelHelpers::ServiceContext service_context;
     Kernel::KEvent* event;
     Kernel::KProcess* process;
+    std::shared_ptr<AudioCore::AudioOut::Manager> owner;
     std::shared_ptr<AudioCore::AudioOut::Out> impl;
 };
 

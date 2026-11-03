@@ -47,7 +47,7 @@ public:
      * @param buffer_func - Function to be called on signal.
      * @return Result code.
      */
-    Result SetOutManager(BufferEventFunc buffer_func);
+    Result SetOutManager(BufferEventFunc buffer_func, const void* owner);
 
     /**
      * Register the in manager, keeping a function to be called when the in event is signalled.
@@ -55,7 +55,11 @@ public:
      * @param buffer_func - Function to be called on signal.
      * @return Result code.
      */
-    Result SetInManager(BufferEventFunc buffer_func);
+    Result SetInManager(BufferEventFunc buffer_func, const void* owner);
+
+    /// Remove a callback when its manager is shutting down.
+    void ClearInManager(const void* owner);
+    void ClearOutManager(const void* owner);
 
     /**
      * Set an event to signalled, and signal the thread.
@@ -79,6 +83,8 @@ private:
     Event events{};
     /// Callbacks for each manager
     std::array<BufferEventFunc, 3> buffer_events{};
+    /// Identity only, never dereferenced. Prevents an old manager from removing a replacement.
+    std::array<const void*, 3> buffer_event_owners{};
     /// General lock
     std::mutex lock{};
     /// Main thread for waiting and callbacks

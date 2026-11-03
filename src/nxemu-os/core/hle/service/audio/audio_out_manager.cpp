@@ -11,7 +11,7 @@ namespace Service::Audio {
 using namespace AudioCore::AudioOut;
 
 IAudioOutManager::IAudioOutManager(Core::System& system_)
-    : ServiceFramework{system_, "audout:u"}, impl{std::make_unique<Manager>(system_)} {
+    : ServiceFramework{system_, "audout:u"}, impl{std::make_shared<Manager>(system_)} {
     // clang-format off
     static const FunctionInfo functions[] = {
         {0, D<&IAudioOutManager::ListAudioOuts>, "ListAudioOuts"},
@@ -71,6 +71,8 @@ Result IAudioOutManager::OpenAudioOutAuto(
         R_THROW(ResultUnknown);
     }
 
+    std::scoped_lock l{impl->mutex};
+
     size_t new_session_id{};
     R_TRY(impl->LinkToManager());
     R_TRY(impl->AcquireSessionId(new_session_id));
@@ -79,7 +81,7 @@ Result IAudioOutManager::OpenAudioOutAuto(
     LOG_DEBUG(Service_Audio, "Opening new AudioOut, sessionid={}, free sessions={}", new_session_id,
               impl->num_free_sessions);
 
-    auto audio_out = std::make_shared<IAudioOut>(system, *impl, new_session_id, device_name,
+    auto audio_out = std::make_shared<IAudioOut>(system, impl, new_session_id, device_name,
                                                  parameter, process_handle.Get(), aruid.pid);
     R_TRY(audio_out->GetImpl()->GetSystem().Initialize(device_name, parameter, process_handle.Get(),
                                                        aruid.pid));

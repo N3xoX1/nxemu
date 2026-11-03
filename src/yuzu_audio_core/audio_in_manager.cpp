@@ -21,6 +21,12 @@ Manager::Manager(Core::System & system_) :
     num_free_sessions = MaxInSessions;
 }
 
+Manager::~Manager() {
+    if (auto manager = registered_audio_manager.lock()) {
+        manager->ClearInManager(this);
+    }
+}
+
 Result Manager::AcquireSessionId(size_t & session_id)
 {
     if (num_free_sessions == 0)
@@ -50,8 +56,20 @@ Result Manager::LinkToManager()
     std::scoped_lock l{mutex};
     if (!linked_to_manager)
     {
-        AudioManager & manager{system.AudioCore().GetAudioManager()};
-        manager.SetInManager(std::bind(&Manager::BufferReleaseAndRegister, this));
+        auto manager = system.AudioCore().GetAudioManagerWeak().lock();
+        if (!manager) {
+            return Service::Audio::ResultOperationFailed;
+        }
+        // Keep no raw manager pointer in the audio thread's callback.
+        const Result result = manager->SetInManager([self = weak_from_this()] {
+            if (auto owner = self.lock()) {
+                owner->BufferReleaseAndRegister();
+            }
+        }, this);
+        if (result.IsError()) {
+            return result;
+        }
+        registered_audio_manager = manager;
         linked_to_manager = true;
     }
 

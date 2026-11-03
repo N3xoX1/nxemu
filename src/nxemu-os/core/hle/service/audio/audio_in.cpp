@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <utility>
+
 #include "core/hle/service/audio/audio_in.h"
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/ipc_helpers.h"
@@ -8,13 +10,12 @@
 namespace Service::Audio {
 using namespace AudioCore::AudioIn;
 
-IAudioIn::IAudioIn(Core::System& system_, Manager& manager, size_t session_id,
+IAudioIn::IAudioIn(Core::System& system_, std::shared_ptr<Manager> manager, size_t session_id,
                    const std::string& device_name, const AudioInParameter& in_params,
                    Kernel::KProcess* handle, u64 applet_resource_user_id)
     : ServiceFramework{system_, "IAudioIn"}, process{handle}, service_context{system_, "IAudioIn"},
-      event{service_context.CreateEvent("AudioInEvent")}, impl{std::make_shared<In>(system_,
-                                                                                    manager, event,
-                                                                                    session_id)} {
+      event{service_context.CreateEvent("AudioInEvent")}, owner{std::move(manager)},
+      impl{std::make_shared<In>(system_, *owner, event, session_id)} {
     // clang-format off
     static const FunctionInfo functions[] = {
         {0, D<&IAudioIn::GetAudioInState>, "GetAudioInState"},

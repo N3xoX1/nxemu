@@ -3,7 +3,6 @@
 
 #include "yuzu_audio_core/renderer/memory/pool_mapper.h"
 #include "yuzu_audio_core/renderer/sink/circular_buffer_sink_info.h"
-#include "yuzu_audio_core/renderer/upsampler/upsampler_manager.h"
 
 namespace AudioCore::Renderer {
 
@@ -17,13 +16,7 @@ CircularBufferSinkInfo::CircularBufferSinkInfo() {
 }
 
 void CircularBufferSinkInfo::CleanUp() {
-    auto state_{reinterpret_cast<DeviceState*>(state.data())};
-
-    if (state_->upsampler_info) {
-        state_->upsampler_info->manager->Free(state_->upsampler_info);
-        state_->upsampler_info = nullptr;
-    }
-
+    // The state is a CircularBufferState: there is no upsampler to free.
     parameter.fill(0);
     type = Type::Invalid;
 }
