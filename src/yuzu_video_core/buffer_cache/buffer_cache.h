@@ -455,6 +455,9 @@ std::tuple<typename P::Buffer*, u32, u32> BufferCache<P>::IndexBufferBinding() {
         return {nullptr, 0, 0};
     }
     Buffer& buffer = slot_buffers[binding.buffer_id];
+    // BindHostIndexBuffer may have bound host widened indices without uploading this buffer
+    TouchBuffer(buffer, binding.buffer_id);
+    SynchronizeBuffer(buffer, binding.device_addr, binding.size);
     const u32 offset = buffer.Offset(binding.device_addr);
     buffer.MarkUsage(offset, binding.size);
     return {&buffer, offset, binding.size};
