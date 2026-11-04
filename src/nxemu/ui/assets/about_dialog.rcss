@@ -67,3 +67,9 @@ body.own-window .about-dialog .dialog-header
     margin-bottom: 6dp;
     font-weight: bold;
 }
+
+.about-body #about-debug
+{
+    min-height: 18dp;
+    margin-top: 6dp;
+}

@@ -78,6 +78,7 @@ constexpr Toggle kToggles[] = {
     {"start-ui-hidden", NXUISetting::StartGamesWithUiHidden, Store::Interface, true},
     {"confirm-stop", NXUISetting::ConfirmBeforeStopping, Store::Interface, true},
     {"discord", NXUISetting::EnableDiscordPresence, Store::Interface, true},
+    {"debug-settings", NXCoreSetting::DebugSettingsEnabled, Store::Core, false},
     {"cpu-backend-info", NXUISetting::ShowCpuBackend, Store::Interface, true},
     {"log-console", NXCoreSetting::ShowLogConsole, Store::Core, true},
 };
@@ -262,6 +263,12 @@ constexpr List kLists[] = {
 // In the order the audio engines are numbered.
 constexpr const char * kAudioEngines[] = {TrMark("Automatic"), "Cubeb", "SDL", TrMark("None (no sound)"), "Oboe"};
 
+bool IsDisabledDebugSetting(const char * setting)
+{
+    const SettingsStore & store = SettingsStore::GetInstance();
+    return store.IsDebugSetting(setting) && !store.DebugSettingsEnabled();
+}
+
 bool Get(const Toggle & toggle, const SettingsContext & settings)
 {
     return settings.GetBool(toggle.setting);
@@ -315,7 +322,7 @@ AdvancedDialog::AdvancedDialog(UiWindow & window, EmulatorSession & session, Set
 
 void AdvancedDialog::ShowPage(SettingsPage page)
 {
-    m_debug = page == SettingsPage::Debug;
+    m_debug = page == SettingsPage::Debug && coreSettings.debugSettingsEnabled;
     if (IsVisible())
     {
         m_hotkeyAsked = -1;
@@ -472,9 +479,17 @@ void AdvancedDialog::OnCommand(const std::string & command)
         const std::string id = command.substr(std::string(kTogglePrefix).size());
         const auto toggle = std::find_if(std::begin(kToggles), std::end(kToggles), [&id](const Toggle & candidate) { return id == candidate.id; });
         if (toggle != std::end(kToggles) && (!m_settings.IsGame() || toggle->store == Store::Module) && (toggle->live || !m_running) &&
-            !Inapplicable(*toggle, m_settings))
+            !Inapplicable(*toggle, m_settings) && !IsDisabledDebugSetting(toggle->setting))
         {
+            if (std::string_view(toggle->setting) == NXCoreSetting::DebugSettingsEnabled && Get(*toggle, m_settings))
+            {
+                // Once disabled, saving keeps what was last saved for them.
+                ApplyLogFilter();
+                m_session.FlushSettings();
+                m_unsaved = false;
+            }
             Set(*toggle, !Get(*toggle, m_settings), m_settings);
+            Document()->SetClass("debug-settings-enabled", coreSettings.debugSettingsEnabled);
             m_unsaved = m_unsaved || toggle->store == Store::Module;
             ShowValues();
         }
@@ -510,7 +525,8 @@ void AdvancedDialog::FillLists()
         const Choices choices = list.choices();
         // A value that is no longer offered gives way to the usual one.
         const std::string value = std::to_string(settings.GetInt(list.setting));
-        if (!m_settings.IsGame() && std::none_of(choices.begin(), choices.end(), [&value](const Choice & choice) { return choice.value == value; }))
+        if (!m_settings.IsGame() && !IsDisabledDebugSetting(list.setting) &&
+            std::none_of(choices.begin(), choices.end(), [&value](const Choice & choice) { return choice.value == value; }))
         {
             settings.SetInt(list.setting, settings.GetDefaultInt(list.setting));
             m_unsaved = true;
@@ -893,21 +909,25 @@ void AdvancedDialog::RestoreDefaults()
     // What a running game holds stays as it is.
     for (const Toggle & toggle : kToggles)
     {
-        if (toggle.live || !m_running)
+        if ((toggle.live || !m_running) && !IsDisabledDebugSetting(toggle.setting) &&
+            std::string_view(toggle.setting) != NXCoreSetting::DebugSettingsEnabled)
         {
             Set(toggle, settings.GetDefaultBool(toggle.setting), m_settings);
         }
     }
     for (const List & list : kLists)
     {
-        if (list.live || !m_running)
+        if ((list.live || !m_running) && !IsDisabledDebugSetting(list.setting))
         {
             settings.SetInt(list.setting, settings.GetDefaultInt(list.setting));
         }
     }
     settings.SetInt(NXOsSetting::SpeedLimit, settings.GetDefaultInt(NXOsSetting::SpeedLimit));
     settings.SetInt(NXOsSetting::AudioMode, settings.GetDefaultInt(NXOsSetting::AudioMode));
-    settings.SetString(NXCoreSetting::LogFilter, settings.GetDefaultString(NXCoreSetting::LogFilter));
+    if (!IsDisabledDebugSetting(NXCoreSetting::LogFilter))
+    {
+        settings.SetString(NXCoreSetting::LogFilter, settings.GetDefaultString(NXCoreSetting::LogFilter));
+    }
     Hotkeys::RestoreDefaults();
     m_hotkeyAsked = -1;
     m_hotkeyNote.clear();

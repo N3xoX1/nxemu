@@ -5,6 +5,7 @@
 
 struct CoreSettings
 {
+    bool debugSettingsEnabled;
     bool ShowLogConsole;
     std::string LogFilter;
     Path baseDir;

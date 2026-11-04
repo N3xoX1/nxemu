@@ -168,28 +168,29 @@ enum class SettingType
 class VideoSetting
 {
 public:
-    VideoSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue, int32_t minValue, int32_t maxValue);
-    VideoSetting(const char * id, const char * section, const char * key, RendererBackend * val, RendererBackend defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, ShaderBackend * val, ShaderBackend defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, AstcDecodeMode * val, AstcDecodeMode defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, VSyncMode * val, VSyncMode defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, NvdecEmulation * val, NvdecEmulation defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, FullscreenMode * val, FullscreenMode defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, AspectRatio * val, AspectRatio defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, ResolutionSetup * val, ResolutionSetup defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, ScalingFilter * val, ScalingFilter defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, AntiAliasing * val, AntiAliasing defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, GpuAccuracy * val, GpuAccuracy defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, AnisotropyMode defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, AstcRecompression defaultValue);
-    VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, VramUsageMode defaultValue);
+    VideoSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue, int32_t minValue, int32_t maxValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, RendererBackend * val, RendererBackend defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, ShaderBackend * val, ShaderBackend defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, AstcDecodeMode * val, AstcDecodeMode defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, VSyncMode * val, VSyncMode defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, NvdecEmulation * val, NvdecEmulation defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, FullscreenMode * val, FullscreenMode defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, AspectRatio * val, AspectRatio defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, ResolutionSetup * val, ResolutionSetup defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, ScalingFilter * val, ScalingFilter defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, AntiAliasing * val, AntiAliasing defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, GpuAccuracy * val, GpuAccuracy defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, AnisotropyMode defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, AstcRecompression defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, VramUsageMode defaultValue, bool debugSetting = false);
 
     const char * identifier;
     const char * json_section;
     const char * json_key;
     SettingType settingType;
+    bool debugSetting;
     int32_t minValue{};
     int32_t maxValue{};
     union
@@ -238,25 +239,25 @@ static VideoSetting settings[] = {
     {NXVideoSetting::VulkanDevice, "video", "vulkan_device", &videoSettings.vulkan_device, 0},
     {NXVideoSetting::UseDiskPipelineCache, "video", "use_disk_shader_cache", &videoSettings.use_disk_shader_cache, true},
     {NXVideoSetting::RecordShaderRecipes, "video", "record_shader_recipes", &videoSettings.record_shader_recipes, true},
-    {NXVideoSetting::UseAsynchronousGPUEmulation, "video", "use_asynchronous_gpu_emulation", &videoSettings.use_asynchronous_gpu_emulation, true},
+    {NXVideoSetting::UseAsynchronousGPUEmulation, "video", "use_asynchronous_gpu_emulation", &videoSettings.use_asynchronous_gpu_emulation, true, true},
 #ifdef ANDROID
     {NXVideoSetting::AstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, AstcDecodeMode::Cpu},
-    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true},
+    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true, true},
     {NXVideoSetting::EnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, false},
     {NXVideoSetting::AccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, GpuAccuracy::Normal},
     {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Default},
 #else
     {NXVideoSetting::AstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, AstcDecodeMode::Gpu},
-    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true},
-    {NXVideoSetting::EnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, true},
+    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true, true},
+    {NXVideoSetting::EnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, true, true},
     {NXVideoSetting::AccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, GpuAccuracy::High},
     {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Automatic},
 #endif
-    {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2},
-    {NXVideoSetting::GpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, false},
-    {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, true},
+    {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2, true},
+    {NXVideoSetting::GpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, false, true},
+    {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, true, true},
     {NXVideoSetting::VSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, VSyncMode::Fifo},
-    {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu},
+    {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu, true},
 #ifdef _WIN32
     {NXVideoSetting::FullscreenMode, "video", "fullscreen_mode", &videoSettings.fullscreen_mode, FullscreenMode::Borderless},
 #else
@@ -270,12 +271,12 @@ static VideoSetting settings[] = {
     {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
     {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, true},
     {NXVideoSetting::NXShaderWarmupMode, "video", "nxshader_warmup_mode", &videoSettings.nxshader_warmup_mode, 0, 0, 1},
-    {NXVideoSetting::NXShaderInitialMinimum, "video", "nxshader_initial_minimum", &videoSettings.nxshader_initial_minimum, 512, 0, 8192},
-    {NXVideoSetting::NXShaderInitialSeconds, "video", "nxshader_initial_seconds", &videoSettings.nxshader_initial_seconds, 60, 0, 600},
+    {NXVideoSetting::NXShaderInitialMinimum, "video", "nxshader_initial_minimum", &videoSettings.nxshader_initial_minimum, 512, 0, 8192, true},
+    {NXVideoSetting::NXShaderInitialSeconds, "video", "nxshader_initial_seconds", &videoSettings.nxshader_initial_seconds, 60, 0, 600, true},
     {NXVideoSetting::FastGPUTime, "video", "use_fast_gpu_time", &videoSettings.use_fast_gpu_time, true},
-    {NXVideoSetting::UseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, true},
+    {NXVideoSetting::UseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, true, true},
     {NXVideoSetting::SyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, false},
-    {NXVideoSetting::BarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, true},
+    {NXVideoSetting::BarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, true, true},
     {NXVideoSetting::ASTCRecompressionMethod, "video", "astc_recompression_method", &videoSettings.astc_recompression, AstcRecompression::Uncompressed},
     {NXVideoSetting::VRAMUsageMode, "video", "vram_usage_mode", &videoSettings.vram_usage_mode, VramUsageMode::Conservative},
 };
@@ -374,64 +375,72 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
     Settings::UpdateGPUAccuracy();
 }
 
+namespace
+{
+void ApplyDefault(const VideoSetting & videoSetting)
+{
+    switch (videoSetting.settingType)
+    {
+    case SettingType::Boolean:
+        *videoSetting.value.boolValue = videoSetting.defaults.boolValue;
+        break;
+    case SettingType::IntValue:
+    case SettingType::IntValueRanged:
+        *videoSetting.value.intValue = videoSetting.defaults.intValue;
+        break;
+    case SettingType::RendererBackend:
+        *videoSetting.value.rendererBackend = videoSetting.defaults.rendererBackend;
+        break;
+    case SettingType::ShaderBackend:
+        *videoSetting.value.shaderBackend = videoSetting.defaults.shaderBackend;
+        break;
+    case SettingType::AstcDecodeMode:
+        *videoSetting.value.astcDecodeMode = videoSetting.defaults.astcDecodeMode;
+        break;
+    case SettingType::VSyncMode:
+        *videoSetting.value.vSyncMode = videoSetting.defaults.vSyncMode;
+        break;
+    case SettingType::NvdecEmulation:
+        *videoSetting.value.nvdecEmulation = videoSetting.defaults.nvdecEmulation;
+        break;
+    case SettingType::FullscreenMode:
+        *videoSetting.value.fullscreenMode = videoSetting.defaults.fullscreenMode;
+        break;
+    case SettingType::AspectRatio:
+        *videoSetting.value.aspectRatio = videoSetting.defaults.aspectRatio;
+        break;
+    case SettingType::ResolutionSetup:
+        *videoSetting.value.resolutionSetup = videoSetting.defaults.resolutionSetup;
+        break;
+    case SettingType::ScalingFilter:
+        *videoSetting.value.scalingFilter = videoSetting.defaults.scalingFilter;
+        break;
+    case SettingType::AntiAliasing:
+        *videoSetting.value.antiAliasing = videoSetting.defaults.antiAliasing;
+        break;
+    case SettingType::GpuAccuracy:
+        *videoSetting.value.gpuAccuracy = videoSetting.defaults.gpuAccuracy;
+        break;
+    case SettingType::AnisotropyMode:
+        *videoSetting.value.anisotropyMode = videoSetting.defaults.anisotropyMode;
+        break;
+    case SettingType::AstcRecompression:
+        *videoSetting.value.astcRecompression = videoSetting.defaults.astcRecompression;
+        break;
+    case SettingType::VramUsageMode:
+        *videoSetting.value.vramUsageMode = videoSetting.defaults.vramUsageMode;
+        break;
+    default:
+        UNIMPLEMENTED();
+    }
+}
+} // namespace
+
 void SetupVideoSetting(void)
 {
     for (const VideoSetting & videoSetting : settings)
     {
-        switch (videoSetting.settingType)
-        {
-        case SettingType::Boolean:
-            *videoSetting.value.boolValue = videoSetting.defaults.boolValue;
-            break;
-        case SettingType::IntValue:
-        case SettingType::IntValueRanged:
-            *videoSetting.value.intValue = videoSetting.defaults.intValue;
-            break;
-        case SettingType::RendererBackend:
-            *videoSetting.value.rendererBackend = videoSetting.defaults.rendererBackend;
-            break;
-        case SettingType::ShaderBackend:
-            *videoSetting.value.shaderBackend = videoSetting.defaults.shaderBackend;
-            break;
-        case SettingType::AstcDecodeMode:
-            *videoSetting.value.astcDecodeMode = videoSetting.defaults.astcDecodeMode;
-            break;
-        case SettingType::VSyncMode:
-            *videoSetting.value.vSyncMode = videoSetting.defaults.vSyncMode;
-            break;
-        case SettingType::NvdecEmulation:
-            *videoSetting.value.nvdecEmulation = videoSetting.defaults.nvdecEmulation;
-            break;
-        case SettingType::FullscreenMode:
-            *videoSetting.value.fullscreenMode = videoSetting.defaults.fullscreenMode;
-            break;
-        case SettingType::AspectRatio:
-            *videoSetting.value.aspectRatio = videoSetting.defaults.aspectRatio;
-            break;
-        case SettingType::ResolutionSetup:
-            *videoSetting.value.resolutionSetup = videoSetting.defaults.resolutionSetup;
-            break;
-        case SettingType::ScalingFilter:
-            *videoSetting.value.scalingFilter = videoSetting.defaults.scalingFilter;
-            break;
-        case SettingType::AntiAliasing:
-            *videoSetting.value.antiAliasing = videoSetting.defaults.antiAliasing;
-            break;
-        case SettingType::GpuAccuracy:
-            *videoSetting.value.gpuAccuracy = videoSetting.defaults.gpuAccuracy;
-            break;
-        case SettingType::AnisotropyMode:
-            *videoSetting.value.anisotropyMode = videoSetting.defaults.anisotropyMode;
-            break;
-        case SettingType::AstcRecompression:
-            *videoSetting.value.astcRecompression = videoSetting.defaults.astcRecompression;
-            break;
-        case SettingType::VramUsageMode:
-            *videoSetting.value.vramUsageMode = videoSetting.defaults.vramUsageMode;
-            break;
-        default:
-            UNIMPLEMENTED();
-        }
+        ApplyDefault(videoSetting);
     }
 
     JsonValue root;
@@ -634,7 +643,15 @@ void SetupVideoSetting(void)
         default:
             UNIMPLEMENTED();
         }
+        g_settings->SetDebugSetting(videoSetting.identifier, videoSetting.debugSetting);
         g_settings->RegisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
+    }
+    for (const VideoSetting & videoSetting : settings)
+    {
+        if (videoSetting.debugSetting && !g_settings->DebugSettingsEnabled())
+        {
+            ApplyDefault(videoSetting);
+        }
     }
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
@@ -656,8 +673,25 @@ void SaveVideoSettings(void)
     typedef std::map<std::string, JsonValue> SectionMap;
     SectionMap sections;
 
+    JsonValue saved;
+    const std::string savedJson = g_settings->GetSectionSettings("nxemu-video");
+    JsonReader reader;
+    if (savedJson.empty() || !reader.Parse(savedJson.data(), savedJson.data() + savedJson.size(), saved) || !saved.isObject())
+    {
+        saved = JsonValue();
+    }
+
     for (const VideoSetting & videoSetting : settings)
     {
+        if (videoSetting.debugSetting && !g_settings->DebugSettingsEnabled())
+        {
+            const JsonValue & section = saved[videoSetting.json_section];
+            if (section.isObject() && section.isMember(videoSetting.json_key))
+            {
+                sections[videoSetting.json_section][videoSetting.json_key] = section[videoSetting.json_key];
+            }
+            continue;
+        }
         switch (videoSetting.settingType)
         {
         case SettingType::Boolean:
@@ -775,31 +809,34 @@ void SaveVideoSettings(void)
 
 namespace
 {
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::Boolean)
+    settingType(SettingType::Boolean),
+    debugSetting(debugSetting)
 {
     defaults.boolValue = defaultValue;
     value.boolValue = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::IntValue)
+    settingType(SettingType::IntValue),
+    debugSetting(debugSetting)
 {
     defaults.intValue = defaultValue;
     value.intValue = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue, int32_t minValue, int32_t maxValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, int32_t * val, int32_t defaultValue, int32_t minValue, int32_t maxValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
     settingType(SettingType::IntValueRanged),
+    debugSetting(debugSetting),
     minValue(minValue),
     maxValue(maxValue)
 {
@@ -807,141 +844,155 @@ VideoSetting::VideoSetting(const char * id, const char * section, const char * k
     value.intValue = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, RendererBackend * val, RendererBackend defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, RendererBackend * val, RendererBackend defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::RendererBackend)
+    settingType(SettingType::RendererBackend),
+    debugSetting(debugSetting)
 {
     defaults.rendererBackend = defaultValue;
     value.rendererBackend = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ShaderBackend * val, ShaderBackend defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ShaderBackend * val, ShaderBackend defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::ShaderBackend)
+    settingType(SettingType::ShaderBackend),
+    debugSetting(debugSetting)
 {
     defaults.shaderBackend = defaultValue;
     value.shaderBackend = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AstcDecodeMode * val, AstcDecodeMode defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AstcDecodeMode * val, AstcDecodeMode defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::AstcDecodeMode)
+    settingType(SettingType::AstcDecodeMode),
+    debugSetting(debugSetting)
 {
     defaults.astcDecodeMode = defaultValue;
     value.astcDecodeMode = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, VSyncMode * val, VSyncMode defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, VSyncMode * val, VSyncMode defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::VSyncMode)
+    settingType(SettingType::VSyncMode),
+    debugSetting(debugSetting)
 {
     defaults.vSyncMode = defaultValue;
     value.vSyncMode = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, NvdecEmulation * val, NvdecEmulation defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, NvdecEmulation * val, NvdecEmulation defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::NvdecEmulation)
+    settingType(SettingType::NvdecEmulation),
+    debugSetting(debugSetting)
 {
     defaults.nvdecEmulation = defaultValue;
     value.nvdecEmulation = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, FullscreenMode * val, FullscreenMode defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, FullscreenMode * val, FullscreenMode defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::FullscreenMode)
+    settingType(SettingType::FullscreenMode),
+    debugSetting(debugSetting)
 {
     defaults.fullscreenMode = defaultValue;
     value.fullscreenMode = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AspectRatio * val, AspectRatio defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AspectRatio * val, AspectRatio defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::AspectRatio)
+    settingType(SettingType::AspectRatio),
+    debugSetting(debugSetting)
 {
     defaults.aspectRatio = defaultValue;
     value.aspectRatio = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ResolutionSetup * val, ResolutionSetup defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ResolutionSetup * val, ResolutionSetup defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::ResolutionSetup)
+    settingType(SettingType::ResolutionSetup),
+    debugSetting(debugSetting)
 {
     defaults.resolutionSetup = defaultValue;
     value.resolutionSetup = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ScalingFilter * val, ScalingFilter defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ScalingFilter * val, ScalingFilter defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::ScalingFilter)
+    settingType(SettingType::ScalingFilter),
+    debugSetting(debugSetting)
 {
     defaults.scalingFilter = defaultValue;
     value.scalingFilter = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AntiAliasing * val, AntiAliasing defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AntiAliasing * val, AntiAliasing defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::AntiAliasing)
+    settingType(SettingType::AntiAliasing),
+    debugSetting(debugSetting)
 {
     defaults.antiAliasing = defaultValue;
     value.antiAliasing = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, GpuAccuracy * val, GpuAccuracy defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, GpuAccuracy * val, GpuAccuracy defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::GpuAccuracy)
+    settingType(SettingType::GpuAccuracy),
+    debugSetting(debugSetting)
 {
     defaults.gpuAccuracy = defaultValue;
     value.gpuAccuracy = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, AnisotropyMode defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, AnisotropyMode defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::AnisotropyMode)
+    settingType(SettingType::AnisotropyMode),
+    debugSetting(debugSetting)
 {
     defaults.anisotropyMode = defaultValue;
     value.anisotropyMode = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, AstcRecompression defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, AstcRecompression defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::AstcRecompression)
+    settingType(SettingType::AstcRecompression),
+    debugSetting(debugSetting)
 {
     defaults.astcRecompression = defaultValue;
     value.astcRecompression = val;
 }
 
-VideoSetting::VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, VramUsageMode defaultValue) :
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, VramUsageMode defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::VramUsageMode)
+    settingType(SettingType::VramUsageMode),
+    debugSetting(debugSetting)
 {
     defaults.vramUsageMode = defaultValue;
     value.vramUsageMode = val;

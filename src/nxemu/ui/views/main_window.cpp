@@ -202,7 +202,7 @@ bool MainWindow::Create()
     m_shaderProfileDialog=std::make_unique<ShaderProfileDialog>(m_window,m_assetDir,[this](const std::string& game){OpenGame(game);});
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
-    m_aboutDialog = std::make_unique<AboutDialog>(m_window, m_assetDir);
+    m_aboutDialog = std::make_unique<AboutDialog>(m_window, m_session, m_assetDir);
     m_firmwareDialog = std::make_unique<FirmwareDialog>(m_window, m_session.Modules().Systemloader(), m_assetDir,
                                                         FirmwareDialog::Host{
                                                             [this] {

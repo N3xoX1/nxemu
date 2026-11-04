@@ -4,6 +4,7 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Input.h>
 #include <cmath>
+#include <nxemu-core/settings/core_settings.h>
 #include <nxemu/ui/host/ui_dialog_window.h>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
@@ -74,6 +75,7 @@ void Dialog::Show()
     });
     m_document->SetClass("narrow", WindowWidth() < m_narrowBelow);
     m_document->SetClass("tight", WindowWidth() < kTightBelow);
+    m_document->SetClass("debug-settings-enabled", coreSettings.debugSettingsEnabled);
     OnOpen();
     m_document->Show(Rml::ModalFlag::Modal);
     if (m_inDialogWindow && m_windowHeight <= 0)
@@ -94,6 +96,7 @@ void Dialog::Update()
     }
     m_document->SetClass("narrow", WindowWidth() < m_narrowBelow);
     m_document->SetClass("tight", WindowWidth() < kTightBelow);
+    m_document->SetClass("debug-settings-enabled", coreSettings.debugSettingsEnabled);
     if (m_inDialogWindow && m_dialogWindow->TakeCloseRequest())
     {
         m_commands.push_back(kCloseCommand);

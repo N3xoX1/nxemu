@@ -27,6 +27,8 @@ public:
 
     void RegisterCallback(const char * setting, SettingChangeCallback callback, void * userData) override;
     void UnregisterCallback(const char * setting, SettingChangeCallback callback, void * userData) override;
+    void SetDebugSetting(const char * setting, bool debug) override;
+    bool DebugSettingsEnabled(void) const override;
 
 private:
     mutable std::string m_sectionSetting;

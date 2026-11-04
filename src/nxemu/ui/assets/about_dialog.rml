@@ -16,8 +16,9 @@
           <img class="about-logo" src="images/nxemu-logo.png" />
           <div class="about-product">
             <div class="about-name" translate="no">NXEmu</div>
-            <div id="about-version" class="about-muted" />
+            <div id="about-version" class="about-muted" data-command="version" />
             <div id="about-copyright" class="about-muted about-small" />
+            <div id="about-debug" class="about-muted about-small" />
           </div>
         </div>
         <p>NXEmu is an experimental open-source Nintendo Switch emulator.</p>

@@ -20,18 +20,19 @@ namespace
     class CoreSetting
     {
     public:
-        CoreSetting(const char * id, bool defaultValue);
-        CoreSetting(const char * id, int defaultValue);
-        CoreSetting(const char * id, Path * settingPath);
-        CoreSetting(const char * id, const char * section, const char * key, bool * settingValue, bool defaultValue);
-        CoreSetting(const char * id, const char * section, const char * key, Path * settingPath, std::string * settingPathValue, const char * defaultValue);
-        CoreSetting(const char * id, const char * section, const char * key, std::string * settingStr, const char * defaultValue);
-        CoreSetting(const char * id, const char * section, const char * key, int32_t * settingValue, int32_t defaultValue, const char * const * names, int32_t nameCount);
+        CoreSetting(const char * id, bool defaultValue, bool debugSetting = false);
+        CoreSetting(const char * id, int defaultValue, bool debugSetting = false);
+        CoreSetting(const char * id, Path * settingPath, bool debugSetting = false);
+        CoreSetting(const char * id, const char * section, const char * key, bool * settingValue, bool defaultValue, bool debugSetting = false);
+        CoreSetting(const char * id, const char * section, const char * key, Path * settingPath, std::string * settingPathValue, const char * defaultValue, bool debugSetting = false);
+        CoreSetting(const char * id, const char * section, const char * key, std::string * settingStr, const char * defaultValue, bool debugSetting = false);
+        CoreSetting(const char * id, const char * section, const char * key, int32_t * settingValue, int32_t defaultValue, const char * const * names, int32_t nameCount, bool debugSetting = false);
 
         const char * identifier;
         const char * json_section;
         const char * json_key;
         SettingType settingType;
+        bool debugSetting;
         union
         {
             bool boolValue;
@@ -102,8 +103,9 @@ namespace
         {NXCoreSetting::ModuleVideo, "modules", "video", &coreSettings.moduleVideo, "video/libnxemu-video.so"},
         {NXCoreSetting::ModuleOs, "modules", "os", &coreSettings.moduleOs, "operating_system/libnxemu-os.so"},
 #endif
-        { NXCoreSetting::ShowLogConsole, "", "ShowLogConsole", &coreSettings.ShowLogConsole, false },
-        { NXCoreSetting::LogFilter, "", "LogFilter", &coreSettings.LogFilter, "*:Info" },
+        { NXCoreSetting::DebugSettingsEnabled, "", "DebugSettingsEnabled", &coreSettings.debugSettingsEnabled, false },
+        { NXCoreSetting::ShowLogConsole, "", "ShowLogConsole", &coreSettings.ShowLogConsole, false, true },
+        { NXCoreSetting::LogFilter, "", "LogFilter", &coreSettings.LogFilter, "*:Info", true },
         { NXCoreSetting::EmulationRunning, false },
         { NXCoreSetting::EmulationState, (int)EmulationState::Stopped },
         { NXCoreSetting::GameLoadResult, 0 },
@@ -124,18 +126,7 @@ namespace
         { NXCoreSetting::LanguageIndex, "", "ConsoleLanguage", &coreSettings.languageIndex, LanguageEnglishAmerican, LanguageNames, static_cast<int32_t>(std::size(LanguageNames)) },
     };
 
-    void CoreSettingChanged(const char* setting, void* /*userData*/);
-
-} // namespace
-
-CoreSettings coreSettings = {};
-
-void SetupCoreSetting()
-{
-    SettingsStore & settingsStore = SettingsStore::GetInstance();
-    JsonValue jsonSettings = settingsStore.GetSettings("Core");
-
-    for (CoreSetting & setting : settings)
+    void ApplyDefault(const CoreSetting & setting)
     {
         switch (setting.settingType)
         {
@@ -170,6 +161,22 @@ void SetupCoreSetting()
         default:
             UNIMPLEMENTED();
         }
+    }
+
+    void CoreSettingChanged(const char* setting, void* /*userData*/);
+
+} // namespace
+
+CoreSettings coreSettings = {};
+
+void SetupCoreSetting()
+{
+    SettingsStore & settingsStore = SettingsStore::GetInstance();
+    JsonValue jsonSettings = settingsStore.GetSettings("Core");
+
+    for (CoreSetting & setting : settings)
+    {
+        ApplyDefault(setting);
 
         if (setting.json_key != nullptr)
         {
@@ -249,7 +256,16 @@ void SetupCoreSetting()
             UNIMPLEMENTED();
         }
 
+        settingsStore.SetDebugSetting(setting.identifier, setting.debugSetting);
         settingsStore.RegisterCallback(setting.identifier, CoreSettingChanged, nullptr);
+    }
+    settingsStore.SetDebugSettingsEnabled(coreSettings.debugSettingsEnabled);
+    for (const CoreSetting & setting : settings)
+    {
+        if (setting.debugSetting && !settingsStore.DebugSettingsEnabled())
+        {
+            ApplyDefault(setting);
+        }
     }
 }
 
@@ -257,11 +273,23 @@ void SaveCoreSetting(void)
 {
     typedef std::map<std::string, JsonValue> SectionMap;
     SectionMap sections;
+    SettingsStore & settingsStore = SettingsStore::GetInstance();
+    const JsonValue saved = settingsStore.GetSettings("Core");
 
     for (const CoreSetting & coreSetting : settings)
     {
         if (coreSetting.json_key == nullptr)
         {
+            continue;
+        }
+        if (coreSetting.debugSetting && !settingsStore.DebugSettingsEnabled())
+        {
+            const bool topLevel = coreSetting.json_section == nullptr || coreSetting.json_section[0] == '\0';
+            const JsonValue & section = topLevel || !saved.isObject() ? saved : saved[coreSetting.json_section];
+            if (section.isObject() && section.isMember(coreSetting.json_key))
+            {
+                sections[topLevel ? "" : coreSetting.json_section][coreSetting.json_key] = section[coreSetting.json_key];
+            }
             continue;
         }
         switch (coreSetting.settingType)
@@ -327,84 +355,90 @@ void SaveCoreSetting(void)
         }
     }
 
-    SettingsStore & settingsStore = SettingsStore::GetInstance();
     settingsStore.SetSettings("Core", json);
     settingsStore.Save();
 }
 
 namespace
 {
-CoreSetting::CoreSetting(const char * id, bool defaultValue) :
+CoreSetting::CoreSetting(const char * id, bool defaultValue, bool debugSetting) :
     identifier(id),
     json_section(nullptr),
     json_key(nullptr),
-    settingType(SettingType::Boolean)
+    settingType(SettingType::Boolean),
+    debugSetting(debugSetting)
 {
     defaults.boolValue = defaultValue;
     value.boolValue = nullptr;
     clearValue.strValue = nullptr;
 }
 
-CoreSetting::CoreSetting(const char * id, int defaultValue) :
+CoreSetting::CoreSetting(const char * id, int defaultValue, bool debugSetting) :
     identifier(id),
     json_section(nullptr),
     json_key(nullptr),
-    settingType(SettingType::Interger)
+    settingType(SettingType::Interger),
+    debugSetting(debugSetting)
 {
     defaults.intValue = defaultValue;
     value.intValue = nullptr;
     clearValue.strValue = nullptr;
 }
 
-CoreSetting::CoreSetting(const char * id, Path * settingPath) :
+CoreSetting::CoreSetting(const char * id, Path * settingPath, bool debugSetting) :
     identifier(id),
     json_section(nullptr),
     json_key(nullptr),
-    settingType(SettingType::Path)
+    settingType(SettingType::Path),
+    debugSetting(debugSetting)
 {
     defaults.strValue = "";
     value.path = settingPath;
     clearValue.strValue = nullptr;
 }
 
-CoreSetting::CoreSetting(const char * id, const char * section, const char * key, bool * settingValue, bool defaultValue) :
+CoreSetting::CoreSetting(const char * id, const char * section, const char * key, bool * settingValue, bool defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::Boolean)
+    settingType(SettingType::Boolean),
+    debugSetting(debugSetting)
 {
     defaults.boolValue = defaultValue;
     value.boolValue = settingValue;
     clearValue.strValue = nullptr;
 }
 
-CoreSetting::CoreSetting(const char * id, const char * section, const char * key, Path * settingPath, std::string * settingPathValue, const char * defaultValue) :
+CoreSetting::CoreSetting(const char * id, const char * section, const char * key, Path * settingPath, std::string * settingPathValue, const char * defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::Path)
+    settingType(SettingType::Path),
+    debugSetting(debugSetting)
 {
     defaults.strValue = defaultValue;
     value.path = settingPath;
     clearValue.strValue = settingPathValue;
 }
 
-CoreSetting::CoreSetting(const char * id, const char * section, const char * key, std::string * settingStr, const char * defaultValue) :
+CoreSetting::CoreSetting(const char * id, const char * section, const char * key, std::string * settingStr, const char * defaultValue, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
-    settingType(SettingType::String)
+    settingType(SettingType::String),
+    debugSetting(debugSetting)
 {
     defaults.strValue = defaultValue;
     value.strValue = settingStr;
     clearValue.strValue = nullptr;
 }
 
-CoreSetting::CoreSetting(const char * id, const char * section, const char * key, int32_t * settingValue, int32_t defaultValue, const char * const * names_, int32_t nameCount_) :
+CoreSetting::CoreSetting(const char * id, const char * section, const char * key, int32_t * settingValue, int32_t defaultValue, const char * const * names_, int32_t nameCount_, bool debugSetting) :
     identifier(id),
     json_section(section),
     json_key(key),
     settingType(SettingType::Interger),
+    debugSetting(debugSetting),
     names(names_),
     nameCount(nameCount_)
 {
@@ -457,6 +491,11 @@ void CoreSettingChanged(const char * setting, void* /*userData*/)
             UNIMPLEMENTED();
         }
         break;
+    }
+    if (strcmp(setting, NXCoreSetting::DebugSettingsEnabled) == 0)
+    {
+        settingsStore.SetDebugSettingsEnabled(coreSettings.debugSettingsEnabled);
+        settingsStore.NotifyDebugSettings();
     }
 }
 
