@@ -10,6 +10,8 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 #include "yuzu_common/nvdata.h"
 #include "yuzu_common/common_types.h"
@@ -51,11 +53,9 @@ public:
 
     void Unmap(DAddr address, size_t size);
 
-    void TrackContinuityImpl(DAddr address, VAddr virtual_address, size_t size, Asid asid);
-    void TrackContinuity(DAddr address, VAddr virtual_address, size_t size, Asid asid) {
-        std::scoped_lock lk(mapping_guard);
-        TrackContinuityImpl(address, virtual_address, size, asid);
-    }
+    // Kept for the Host1x interface. Map derives continuity from the physical pages
+    // it installs, including heap mappings that do not request pretracking.
+    void TrackContinuity(DAddr, VAddr, size_t, Asid) {}
 
     // Write / Read
     template <typename T>
@@ -114,6 +114,10 @@ public:
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
     void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
+    // Append the ranges of pending query results the GPU already copied into its buffers.
+    void GpuWrittenResults(DAddr address, size_t size, std::vector<std::pair<DAddr, u64>>& ranges);
+    // Whether read-cached pages fault on CPU access in every registered process.
+    bool ProtectsReadCachedPages();
     // Called on the serialized GPU producer, under its execution lock.
     void RegisterNativeRead(DAddr addr, size_t size);
     void InvalidateNativeReadRegion(DAddr addr, size_t size);
@@ -156,6 +160,13 @@ private:
         return static_cast<PAddr>(reinterpret_cast<uintptr_t>(ptr) - physical_base);
     }
 
+    // A set bit marks a change of physical run (including mapped/unmapped edges).
+    // Higher levels mark nonempty words below, so updates and searches are bounded
+    // by the address-space depth rather than the length of an adjacent run.
+    void SetContinuityBoundary(size_t page, bool boundary);
+    void UpdateContinuityBoundary(size_t page);
+    size_t NextContinuityBoundary(size_t first_page, size_t end_page) const;
+
     void WalkBlock(const DAddr addr, const std::size_t size, auto on_unmapped, auto on_memory,
                    auto increment);
 
@@ -167,7 +178,8 @@ private:
     DeviceInterface* device_inter;
     Common::VirtualBuffer<u32> compressed_physical_ptr;
     Common::VirtualBuffer<u32> compressed_device_addr;
-    Common::VirtualBuffer<u32> continuity_tracker;
+    static constexpr size_t continuity_levels = (device_virtual_bits - page_bits + 5) / 6;
+    std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
 
     // Process memory interfaces
 

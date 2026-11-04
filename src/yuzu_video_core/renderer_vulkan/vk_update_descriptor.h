@@ -72,8 +72,8 @@ public:
     void AddBuffer(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size) {
         payload.Append(VkDescriptorBufferInfo{
             .buffer = buffer,
-            .offset = offset,
-            .range = size,
+            .offset = buffer != VK_NULL_HANDLE ? offset : 0,
+            .range = buffer != VK_NULL_HANDLE ? size : VK_WHOLE_SIZE,
         });
     }
 

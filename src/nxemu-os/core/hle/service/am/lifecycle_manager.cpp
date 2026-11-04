@@ -37,6 +37,12 @@ void LifecycleManager::SetFocusState(FocusState state) {
     SignalSystemEventIfNeeded();
 }
 
+void LifecycleManager::SetShutdownFocusState(FocusState state) {
+    // WindowSystem::Update() must not re-foreground the title before it consumes this message.
+    m_shutdown_focus_override = true;
+    SetFocusState(state);
+}
+
 void LifecycleManager::SetFocusStateChangedNotificationEnabled(bool enabled) {
     m_focus_state_changed_notification_enabled = enabled;
     SignalSystemEventIfNeeded();
@@ -84,6 +90,12 @@ AppletMessage LifecycleManager::PopMessageInOrderOfPriority() {
         m_has_resume = false;
         return AppletMessage::Resume;
     }
+    // During shutdown, let the game observe its last focus change before Exit, even
+    // when normal focus notifications have been disabled.
+    if (m_is_application && m_shutdown_focus_override && m_has_focus_state_changed) {
+        m_has_focus_state_changed = false;
+        return AppletMessage::FocusStateChanged;
+    }
     if (m_has_acknowledged_exit != m_has_requested_exit) {
         m_has_acknowledged_exit = m_has_requested_exit;
         return AppletMessage::Exit;
@@ -119,6 +131,9 @@ AppletMessage LifecycleManager::PopMessageInOrderOfPriority() {
 }
 
 bool LifecycleManager::ShouldSignalSystemEvent() const {
+    if (m_is_application && m_shutdown_focus_override && m_has_focus_state_changed) {
+        return true;
+    }
     if (m_focus_state_changed_notification_enabled) {
         if (!m_is_application) {
             if (m_requested_focus_state != m_acknowledged_focus_state) {
@@ -185,7 +200,7 @@ void LifecycleManager::SetOutOfFocusSuspendingEnabled(bool enabled) {
 }
 
 bool LifecycleManager::IsRunnable() const {
-    if (m_has_requested_exit) {
+    if (m_has_requested_exit || (m_is_application && m_shutdown_focus_override)) {
         return true;
     }
     if (m_activity_state == ActivityState::ForegroundVisible) {
@@ -221,6 +236,9 @@ FocusState LifecycleManager::GetFocusStateWhileBackground(bool is_obscured) cons
 }
 
 bool LifecycleManager::UpdateRequestedFocusState() {
+    if (m_shutdown_focus_override) {
+        return false;
+    }
     FocusState new_state{};
     switch (m_activity_state) {
     case ActivityState::ForegroundVisible:

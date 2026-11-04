@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#version 450
+// Copies the device pages that compute shaders marked as written, one workgroup per page, and
+// reports them to the host. Bits of pages wholly in the copy are cleared: their bytes are read back.
+layout(local_size_x=256) in;
+layout(set=0,binding=0,std430) readonly buffer Source { uint source_data[]; };
+layout(set=0,binding=1,std430) writeonly buffer Destination { uint destination_data[]; };
+layout(set=0,binding=2,std430) writeonly buffer Flags { uint written_pages[]; };
+layout(set=0,binding=3,std430) buffer Bitmap { uint written_bits[]; };
+layout(push_constant) uniform Parameters {
+    uint words;
+    uint source_offset;
+    uint destination_offset;
+    uint flag_offset;
+    uint first_page;
+    uint head_words;
+    uint page_base;
+} params;
+shared uint written;
+void main() {
+    const uint page=params.page_base+gl_WorkGroupID.x;
+    const uint device_page=params.first_page+page;
+    const uint word=device_page>>5u;
+    const uint bit=1u<<(device_page&31u);
+    // Other workgroups clear other bits of this word: read it atomically
+    if(gl_LocalInvocationIndex==0)written=atomicOr(written_bits[word],0u)&bit;
+    barrier();
+    // The first page can start before the copy
+    const int begin=int(page*1024u)-int(params.head_words);
+    if(written!=0) {
+        for(uint i=gl_LocalInvocationIndex;i<1024u;i+=256u) {
+            const int at=begin+int(i);
+            if(at>=0&&uint(at)<params.words) {
+                destination_data[params.destination_offset+uint(at)]=source_data[params.source_offset+uint(at)];
+            }
+        }
+    }
+    if(gl_LocalInvocationIndex==0) {
+        written_pages[params.flag_offset+page]=written!=0?1u:0u;
+        // A page partly outside keeps its bit for the download of its other bytes
+        if(written!=0&&begin>=0&&uint(begin)+1024u<=params.words)atomicAnd(written_bits[word],~bit);
+    }
+}

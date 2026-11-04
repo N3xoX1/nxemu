@@ -115,6 +115,10 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
     }
 }
 
+static_assert(Shader::Backend::SPIRV::MAX_WRITE_TRACK_SLOTS ==
+              BufferCache::MAX_WRITE_TRACK_SLOTS);
+static_assert(Shader::Backend::SPIRV::WRITE_TRACK_PAGE_BITS == BufferCache::WRITE_TRACK_PAGE_BITS);
+
 void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                                 Tegra::MemoryManager& gpu_memory, Scheduler& scheduler,
                                 BufferCache& buffer_cache, TextureCache& texture_cache) {
@@ -169,7 +173,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
             }
         }
         return [=](u32 index) {
-            const u32 delta = index << desc.size_shift;
+            const u32 delta = index * desc.stride;
             const u32 raw = primary.Read(desc.cbuf_offset + delta);
             return TexturePair(Tegra::Texture::ComposeTextureHandle(
                                    desc, raw, has_secondary ? secondary.Read(secondary_offset + delta) : 0),
@@ -258,7 +262,11 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     std::ranges::for_each(info.image_buffer_descriptors, add_buffer);
 
     buffer_cache.UpdateComputeBuffers();
+    buffer_cache.SetComputeWriteTracking(info.write_tracking_slots);
     buffer_cache.BindHostComputeBuffers();
+    std::array<u32, Shader::Backend::SPIRV::MAX_WRITE_TRACK_SLOTS * 2> write_tracking{};
+    const std::span<const u32> tracking_words = buffer_cache.ComputeWriteTracking();
+    std::ranges::copy(tracking_words, write_tracking.begin());
 
     RescalingPushConstant rescaling;
     const VideoCommon::SamplerId* samplers_it{samplers.data()};
@@ -284,6 +292,10 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                 }
             }
         }
+    }
+    if (info.write_tracking_slots != 0) {
+        guest_descriptor_queue.AddBuffer(buffer_cache.WriteTrackBitmap(), 0,
+                                         Shader::Backend::SPIRV::WRITE_TRACK_WORDS * sizeof(u32));
     }
     // Without a bound image the stores are discarded by null descriptors, and the mask
     // cannot mark anything. It stays bound for the shader but is never read back.
@@ -317,8 +329,9 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     }
     const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
     const bool is_rescaling = !info.texture_descriptors.empty() || !info.image_descriptors.empty();
-    scheduler.Record([this, descriptor_data, is_rescaling,
-                      rescaling_data = rescaling.Data()](vk::CommandBuffer cmdbuf) {
+    const u32 tracking_bytes = static_cast<u32>(tracking_words.size_bytes());
+    scheduler.Record([this, descriptor_data, is_rescaling, rescaling_data = rescaling.Data(),
+                      write_tracking, tracking_bytes](vk::CommandBuffer cmdbuf) {
         if (build_failed) {
             return;
         }
@@ -330,6 +343,11 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
             cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                                  RESCALING_LAYOUT_WORDS_OFFSET, sizeof(rescaling_data),
                                  rescaling_data.data());
+        }
+        if (tracking_bytes != 0) {
+            cmdbuf.PushConstants(*pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                                 Shader::Backend::SPIRV::WRITE_TRACK_OFFSET, tracking_bytes,
+                                 write_tracking.data());
         }
         const VkDescriptorSet descriptor_set{descriptor_allocator.Commit()};
         const vk::Device& dev{device.GetLogical()};

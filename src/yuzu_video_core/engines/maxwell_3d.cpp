@@ -219,8 +219,10 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
     if (executing_macro == 0)
     {
         // A macro call must begin by writing the macro method's register, not its argument.
-        ASSERT_MSG((method % 2) == 0,
-                   "Can't start macro execution by writing to the ARGS register");
+        if ((method % 2) != 0) [[unlikely]]
+        {
+            ASSERT_MSG(false, "Can't start macro execution by writing to the ARGS register");
+        }
         executing_macro = method;
     }
 
@@ -342,6 +344,39 @@ u32 Maxwell3D::ProcessShadowRam(u32 method, u32 argument)
         return shadow_state.reg_array[method];
     }
     return argument;
+}
+
+void Maxwell3D::PushMethod(u32 method, u32 argument)
+{
+    ProcessDirtyRegisters(method, ProcessShadowRam(method, argument));
+}
+
+void Maxwell3D::PushMethodRun(u32 method, std::span<const CommandHeader> arguments)
+{
+    // Shadow mode changes are executable methods: the pusher ends the run before them.
+    const auto control = shadow_state.shadow_ram_control;
+    if (control == Regs::ShadowRamControl::Replay)
+    {
+        for (size_t i = 0; i < arguments.size(); ++i, ++method)
+        {
+            ProcessDirtyRegisters(method, shadow_state.reg_array[method]);
+        }
+        return;
+    }
+    if (control == Regs::ShadowRamControl::Track ||
+        control == Regs::ShadowRamControl::TrackWithFilter)
+    {
+        for (const auto& argument : arguments)
+        {
+            shadow_state.reg_array[method] = argument.argument;
+            ProcessDirtyRegisters(method++, argument.argument);
+        }
+        return;
+    }
+    for (const auto& argument : arguments)
+    {
+        ProcessDirtyRegisters(method++, argument.argument);
+    }
 }
 
 void Maxwell3D::ConsumeSinkImpl()
@@ -499,7 +534,8 @@ void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
 {
     // It is an error to write to a register other than the current macro's ARG register before
     // it has finished execution.
-    if (executing_macro != 0)
+    // ASSERT calls a non-inlined lambda; keep it off this per-method path when the check passes.
+    if (executing_macro != 0 && method != executing_macro + 1) [[unlikely]]
     {
         ASSERT(method == executing_macro + 1);
     }
@@ -512,8 +548,8 @@ void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
         return;
     }
 
-    ASSERT_MSG(method < Regs::NUM_REGS,
-               "Invalid Maxwell3D register, increase the size of the Regs structure");
+    static_assert(Regs::NUM_REGS == MacroRegistersStart,
+                  "Every method below the macro range must be a Maxwell3D register");
 
     const u32 argument = ProcessShadowRam(method, method_argument);
     ProcessDirtyRegisters(method, argument);

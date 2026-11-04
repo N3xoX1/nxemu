@@ -61,11 +61,24 @@ void MacroEngine::AddCode(u32 method, u32 data) {
 }
 
 void MacroEngine::ClearCode(u32 method) {
+    if (method < fast_lookup.size()) {
+        fast_lookup[method] = {};
+    }
     macro_cache.erase(method);
     uploaded_macro_code.erase(method);
 }
 
 void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
+    if (method < fast_lookup.size()) {
+        const FastEntry entry = fast_lookup[method];
+        if (entry.program) [[likely]] {
+            if (entry.is_lle) {
+                maxwell3d.RefreshParameters();
+            }
+            entry.program->Execute(parameters, method);
+            return;
+        }
+    }
     auto compiled_macro = macro_cache.find(method);
     if (compiled_macro != macro_cache.end()) {
         const auto& cache_info = compiled_macro->second;
@@ -108,13 +121,23 @@ void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
         }
 
         auto hle_program = hle_macros->GetHLEProgram(cache_info.hash);
-        if (!hle_program || Settings::values.disable_macro_hle) {
-            maxwell3d.RefreshParameters();
-            cache_info.lle_program->Execute(parameters, method);
-        } else {
+        if (hle_program && !Settings::values.disable_macro_hle) {
             cache_info.has_hle_program = true;
             cache_info.hle_program = std::move(hle_program);
+        }
+        if (method < FAST_LOOKUP_SIZE) {
+            if (method >= fast_lookup.size()) {
+                fast_lookup.resize(method + 1);
+            }
+            fast_lookup[method] = cache_info.has_hle_program
+                                      ? FastEntry{cache_info.hle_program.get(), false}
+                                      : FastEntry{cache_info.lle_program.get(), true};
+        }
+        if (cache_info.has_hle_program) {
             cache_info.hle_program->Execute(parameters, method);
+        } else {
+            maxwell3d.RefreshParameters();
+            cache_info.lle_program->Execute(parameters, method);
         }
 
         if (Settings::values.dump_macros) {

@@ -7,6 +7,10 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include "nxemu-module-spec/base.h"
+
+// The parsing tests never query the language setting.
+IModuleSettings* g_settings = nullptr;
 
 void Check(bool value, const char* message) {
     if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::abort(); }

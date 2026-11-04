@@ -106,6 +106,8 @@ nxinterface IMemory
     virtual bool WriteExclusive128(uint64_t addr, uint64_t valueHi, uint64_t valueLow, uint64_t expectedHi, uint64_t expectedLow) = 0;
     // Readback-capable caches need native CPU reads tracked independently of buffer writes.
     virtual void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {}
+    // Whether a CPU access to a read-cached region faults until the cache releases it.
+    virtual bool ProtectsReadCachedRegions() { return false; }
     virtual bool NceTrackReads(uint64_t vaddr) { return false; }
     virtual void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) {}
 

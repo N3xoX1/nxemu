@@ -86,6 +86,7 @@ set(SHADER_FILES
     vulkan_present_scaleforce_fp32.frag
     vulkan_quad_indexed.comp
     vulkan_readback_delta.comp
+    vulkan_tracked_readback.comp
     vulkan_turbo_mode.comp
     vulkan_uint8.comp
     watermark.frag

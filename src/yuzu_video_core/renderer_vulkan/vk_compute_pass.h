@@ -62,6 +62,19 @@ private:
     ComputePassDescriptorQueue& queue;
 };
 
+// Copies the pages of a buffer range that compute shaders marked in the write tracking bitmap
+class TrackedReadbackPass final : public ComputePass {
+public:
+    TrackedReadbackPass(const Device& device, Scheduler& scheduler, DescriptorPool& pool,
+                        ComputePassDescriptorQueue& queue);
+    void Copy(VkBuffer source, VkBuffer destination, VkBuffer flags, VkBuffer bitmap,
+              u64 source_offset, u64 destination_offset, u64 size, u64 flag_offset,
+              u64 flags_size, u64 bitmap_size, u64 device_addr);
+private:
+    Scheduler& scheduler;
+    ComputePassDescriptorQueue& queue;
+};
+
 // Prepares indexed indirect counts on the upload command buffer. The caller
 // must exclude inputs written by the current main command buffer.
 class IndirectCountPass final : public ComputePass {

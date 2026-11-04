@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
 #include <tuple>
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
@@ -11,6 +12,7 @@
 #include "core/hle/kernel/k_port.h"
 #include "core/hle/kernel/k_scoped_resource_reservation.h"
 #include "core/hle/kernel/k_server_port.h"
+#include "core/hle/kernel/k_thread.h"
 #include "core/hle/kernel/svc_results.h"
 #include "core/hle/result.h"
 #include "core/hle/service/ipc_helpers.h"
@@ -27,6 +29,40 @@ constexpr Result ResultNotRegistered(ErrorModule::SM, 7);
 
 ServiceManager::ServiceManager(Kernel::KernelCore& kernel_) : kernel{kernel_} {
     controller_interface = std::make_unique<Controller>(kernel.System());
+}
+
+bool ServiceManager::WaitForRegistration(std::unique_lock<std::mutex>& lk,
+                                         const std::string& name) const {
+    const auto registered = [&] { return registered_services.contains(name); };
+    auto* const thread = Kernel::GetCurrentThreadPointer(kernel);
+    if (thread == nullptr || thread->IsDummyThread()) {
+        // A host thread waits on the host: guest time can stop before the service registers,
+        // and Close must be able to end the wait.
+        ++host_waiters;
+        registration_cv.wait(lk, [&] { return closed || registered(); });
+        if (--host_waiters == 0) {
+            registration_cv.notify_all();
+        }
+        return registered();
+    }
+    // A guest thread must not block its core: sleep, releasing the registry lock so the
+    // registration can proceed.
+    using namespace std::literals::chrono_literals;
+    while (!registered()) {
+        lk.unlock();
+        Kernel::Svc::SleepThread(
+            kernel.System(), std::chrono::duration_cast<std::chrono::nanoseconds>(100ms).count());
+        lk.lock();
+    }
+    return true;
+}
+
+void ServiceManager::Close() {
+    std::unique_lock lk{lock};
+    closed = true;
+    registration_cv.notify_all();
+    // The host threads must have left their wait before what they use goes away.
+    registration_cv.wait(lk, [&] { return host_waiters == 0; });
 }
 
 ServiceManager::~ServiceManager() {
@@ -72,6 +108,7 @@ Result ServiceManager::RegisterService(Kernel::KServerPort** out_server_port, st
 
     service_ports.emplace(name, std::addressof(port->GetClientPort()));
     registered_services.emplace(name, handler);
+    registration_cv.notify_all();
     if (deferral_event) {
         deferral_event->Signal();
     }

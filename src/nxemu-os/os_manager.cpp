@@ -5,8 +5,10 @@
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/am/applet_manager.h"
+#include "core/hle/service/am/window_system.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/filesystem/filesystem.h"
+#include "core/hle/service/filesystem/fsp/fs_i_file.h"
 #include "core/perf_stats.h"
 #include "os_settings.h"
 #include "os_settings_identifiers.h"
@@ -25,6 +27,8 @@
 #endif
 #include <nxemu-core/settings/identifiers.h>
 #include <filesystem>
+#include <chrono>
+#include <thread>
 
 namespace
 {
@@ -155,6 +159,10 @@ OSManager::~OSManager()
 
 void OSManager::EmulationStarting()
 {
+    {
+        std::scoped_lock lock(m_backgroundMutex);
+        m_backgroundNotified = false;
+    }
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
 
     if (m_emuThread && m_emuThread->AwaitingRelease())
@@ -174,6 +182,7 @@ void OSManager::StartEmulationThread(EmulationPrepareCallback prepare, void * us
 
 void OSManager::EmulationStopping(bool wait)
 {
+    NotifyApplicationBackgroundedBeforeShutdown();
     g_settings->SetBool(NXOsSetting::UseSpeedLimit, true);
     g_settings->SetBool(NXCoreSetting::Is64BitProgram, false);
     g_settings->SetBool(NXCoreSetting::Has36BitAddressSpace, false);
@@ -195,6 +204,69 @@ void OSManager::EmulationStopping(bool wait)
     }
 }
 
+void OSManager::NotifyApplicationBackgroundedBeforeShutdown()
+{
+    std::scoped_lock lock(m_backgroundMutex);
+    if (m_backgroundNotified || !m_emuThread || !m_emuThread->HasStarted() ||
+        !m_coreSystem.IsPoweredOn() ||
+        m_coreSystem.IsShuttingDown())
+    {
+        return;
+    }
+    const auto state = static_cast<EmulationState>(g_settings->GetInt(NXCoreSetting::EmulationState));
+    // The module manager has already set Stopping before calling EmulationStopping().
+    if (state != EmulationState::Running && state != EmulationState::Paused &&
+        state != EmulationState::Stopping)
+    {
+        return;
+    }
+    auto & windowSystem = m_coreSystem.GetAppletManager().GetWindowSystem();
+    if (!windowSystem.OnApplicationBackgrounded())
+    {
+        return;
+    }
+    m_backgroundNotified = true;
+
+    // A paused title must be able to consume the notification and commit its save index.
+    if (!m_emuThread->IsRunning())
+    {
+        m_emuThread->SetRunning(true);
+    }
+    using namespace std::chrono;
+    const auto deadline = steady_clock::now() + milliseconds(350);
+    while (windowSystem.IsApplicationFocusStateChangedPending() && steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(milliseconds(5));
+    }
+    const bool consumed = !windowSystem.IsApplicationFocusStateChangedPending();
+
+    // The game writes its save asynchronously after it consumes the event, and Commit() does not
+    // journal, so stopping mid-write truncates the file. Give the write time to start, then wait
+    // until file system changes have been quiet for a while, bounded so a stop cannot hang.
+    const auto minimumWait = consumed ? milliseconds(150) : milliseconds(0);
+    const auto quietPeriod = milliseconds(100);
+    const auto maximumWait = seconds(2);
+    const auto settleStart = steady_clock::now();
+    uint64_t lastWriteCount = Service::FileSystem::GetFileSystemWriteCount();
+    auto lastWrite = settleStart;
+    for (;;)
+    {
+        const auto now = steady_clock::now();
+        const uint64_t writeCount = Service::FileSystem::GetFileSystemWriteCount();
+        if (writeCount != lastWriteCount)
+        {
+            lastWriteCount = writeCount;
+            lastWrite = now;
+        }
+        if (now - settleStart >= maximumWait ||
+            (now - settleStart >= minimumWait && now - lastWrite >= quietPeriod))
+        {
+            break;
+        }
+        std::this_thread::sleep_for(milliseconds(5));
+    }
+}
+
 bool OSManager::Initialize(void)
 {
     SetupOsSetting();
@@ -210,6 +282,7 @@ void OSManager::InitializeInput(void)
 
 void OSManager::ShutDown()
 {
+    NotifyApplicationBackgroundedBeforeShutdown();
     m_coreSystem.SetShuttingDown(true);
     if (m_coreSystem.IsPoweredOn())
     {

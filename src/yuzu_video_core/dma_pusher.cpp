@@ -240,6 +240,29 @@ void DmaPusher::ProcessCommands(std::span<const CommandHeader> commands)
             if (dma_state.method >= non_puller_methods)
             {
                 auto * const subchannel = subchannels[dma_state.subchannel];
+                if (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::Maxwell3D &&
+                    !subchannel->execution_mask[dma_state.method])
+                {
+                    const size_t begin = index;
+                    const u32 first_method = dma_state.method;
+                    const size_t available = dma_increment_once ? 1 :
+                        std::min<size_t>(dma_state.method_count, commands.size() - index);
+                    do
+                    {
+                        ++dma_state.method;
+                        ++index;
+                    } while (index - begin < available &&
+                             !subchannel->execution_mask[dma_state.method]);
+                    const u32 count = static_cast<u32>(index - begin);
+                    subchannel->PushMethodRun(first_method, commands.subspan(begin, count));
+                    dma_state.is_last_call = dma_state.method_count <= count;
+                    dma_state.method_count -= count;
+                    if (dma_increment_once)
+                    {
+                        dma_state.non_incrementing = true;
+                    }
+                    continue;
+                }
                 while (index < commands.size() && dma_state.method_count != 0)
                 {
                     if (subchannel->execution_mask[dma_state.method])
@@ -340,7 +363,14 @@ void DmaPusher::CallMethod(u32 argument) const
         auto subchannel = subchannels[dma_state.subchannel];
         if (!subchannel->execution_mask[dma_state.method]) [[likely]]
         {
-            subchannel->method_sink.emplace_back(dma_state.method, argument);
+            if (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::Maxwell3D)
+            {
+                subchannel->PushMethod(dma_state.method, argument);
+            }
+            else
+            {
+                subchannel->method_sink.emplace_back(dma_state.method, argument);
+            }
             return;
         }
         if (!subchannel->method_sink.empty())

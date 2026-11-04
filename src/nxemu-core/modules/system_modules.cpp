@@ -101,9 +101,14 @@ struct SystemModules::Impl :
         SettingsStore & settings = SettingsStore::GetInstance();
         settings.SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopping);
 
-        for (BaseModules::iterator itr = baseModules.begin(); itr != baseModules.end(); itr++)
+        // Deliver focus while the GPU is alive, then retain the normal module stop order.
+        if (operatingsystemModule)
         {
-            (*itr)->EmulationStopping(wait);
+            operatingsystemModule->PrepareEmulationStopping();
+        }
+        for (ModuleBase * module : baseModules)
+        {
+            module->EmulationStopping(wait);
         }
         if (settings.GetBool(NXCoreSetting::EmulationRunning))
         {

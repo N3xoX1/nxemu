@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <nxemu-module-spec/operating_system.h>
 #include "core/core.h"
 #include "emu_thread.h"
@@ -12,6 +13,7 @@ public:
 
     void EmulationStarting();
     void EmulationStopping(bool wait);
+    void NotifyApplicationBackgroundedBeforeShutdown();
 
     // IOperatingSystem
     bool Initialize() override;
@@ -86,4 +88,6 @@ private:
     int32_t m_programIndex;
     int32_t m_previousProgramIndex;
     ApplicationLaunchType m_launchType;
+    std::mutex m_backgroundMutex;
+    bool m_backgroundNotified{};
 };

@@ -160,6 +160,18 @@ class BufferCache : public VideoCommon::ChannelSetupCaches<BufferCacheChannelInf
     // This is unrelated to the CPU page size and it can be changed as it seems optimal.
     static constexpr u32 CACHING_PAGEBITS = 16;
     static constexpr u64 CACHING_PAGESIZE = u64{1} << CACHING_PAGEBITS;
+    /// Largest download kept unreadable by the CPU instead of delaying the fence signal.
+    static constexpr u64 MAX_PROTECTED_DOWNLOAD_BYTES = 1_MiB;
+    /// Staging bytes of buffer downloads the GPU has not executed yet, above which a commit
+    /// waits for the oldest ones. Copies already executed but not published yet, texture
+    /// downloads and a single larger download are not bounded by it.
+    static constexpr u64 MAX_INCOMPLETE_DOWNLOAD_BYTES = 512_MiB;
+
+    /// Device pages a tracked copy spans, with one flag each
+    static constexpr u64 TrackedPages(DAddr device_addr, u64 size) {
+        constexpr u64 page_size = 1ULL << WRITE_TRACK_PAGE_BITS;
+        return (device_addr % page_size + size + page_size - 1) / page_size;
+    }
 
     static constexpr bool IS_OPENGL = P::IS_OPENGL;
     static constexpr bool HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS =
@@ -241,7 +253,27 @@ public:
     /// Returns the host buffer with the offset and size of the index buffer of the draw
     [[nodiscard]] std::tuple<Buffer*, u32, u32> IndexBufferBinding();
 
+    /// Compute shaders that track their stores mark the device pages they write in a bitmap.
+    /// The written buffers of a dispatch each fill two words of push constants, see SPIR-V.
+    static constexpr u32 MAX_WRITE_TRACK_SLOTS = 12;
+    static constexpr u32 WRITE_TRACK_PAGE_BITS = 12;
+    static constexpr u32 WRITE_TRACK_DISABLED = ~0U;
+
     void BindHostComputeBuffers();
+
+    /// Next compute buffers are bound for a shader with this many write tracking slots
+    void SetComputeWriteTracking(u32 slots);
+
+    /// Push constant words of the write tracking slots of the bound compute buffers
+    [[nodiscard]] std::span<const u32> ComputeWriteTracking() const noexcept {
+        return std::span(compute_write_tracking.data(), compute_write_tracking_slots * 2);
+    }
+
+    [[nodiscard]] auto WriteTrackBitmap()
+        requires(!IS_OPENGL)
+    {
+        return runtime.WriteTrackBitmap();
+    }
 
     void SetUniformBuffersState(const std::array<u32, NUM_STAGES>& mask,
                                 const UniformBufferSizes* sizes);
@@ -300,6 +332,28 @@ public:
 
     /// Return true when a CPU region is modified from the GPU
     [[nodiscard]] bool IsRegionGpuModified(DAddr addr, size_t size);
+
+    /// Lock-free: true when the region may hold a download that keeps it unreadable by the
+    /// CPU until it is published.
+    [[nodiscard]] bool AwaitsProtectedDownload(DAddr addr, size_t size) const noexcept {
+        return protected_download_pages.Any(addr, size);
+    }
+
+    /// Return true when every GPU write in the region waits in a download that keeps it
+    /// unreadable by the CPU until it is published.
+    [[nodiscard]] bool IsGpuModifiedRegionProtected(DAddr addr, size_t size);
+
+    /// The latest committed downloads stay unreadable by the CPU until they are published.
+    [[nodiscard]] bool PendingDownloadsProtected() const noexcept {
+        return pending_downloads_protected;
+    }
+
+    /// Return true when a committed download the CPU can read before its publication is
+    /// still in flight.
+    [[nodiscard]] bool HasUnprotectedDownloads() const noexcept {
+        return unprotected_downloads != 0;
+    }
+
     [[nodiscard]] bool MayHaveGpuWrites(DAddr addr, size_t size) const noexcept {
         return gpu_write_history.MayHaveWrites(addr, size);
     }
@@ -415,7 +469,11 @@ private:
 
     void UpdateComputeTextureBuffers();
 
-    void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size);
+    /// A tracked write is one the bitmap of written pages records
+    void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
+
+    /// Write tracking words of a written binding, or disabled ones when it cannot be tracked
+    bool SetWriteTrackingSlot(u32 slot, DAddr device_addr, u32 texel_size);
 
     [[nodiscard]] BufferId FindBuffer(DAddr device_addr, u32 size);
 
@@ -445,6 +503,9 @@ private:
 
     void ImmediateUploadMemory(Buffer& buffer, u64 largest_copy,
                                std::span<const BufferCopy> copies);
+
+    void SplitAroundGpuWrittenResults(DAddr buffer_addr, const BufferCopy& copy,
+                                      std::vector<BufferCopy>& out) const;
 
     void MappedUploadMemory(Buffer& buffer, u64 total_size_bytes, std::span<BufferCopy> copies);
 
@@ -563,6 +624,8 @@ private:
 
     std::vector<SparseBuffer> sparse_buffers;
     std::vector<std::pair<GPUVAddr, u32>> sparse_writes;
+    std::vector<std::pair<DAddr, u64>> gpu_written_results;
+    std::vector<BufferCopy> split_upload_copies;
     u64 sparse_bind_tick = 0;
     bool has_bound_sparse = false;
     bool has_written_sparse = false;
@@ -582,9 +645,24 @@ private:
     /// Separate flags keep data staging allocations at their original sizes.
     std::deque<std::optional<Async_Buffer>> pending_readback_flags;
     std::deque<std::vector<u64>> pending_readback_flag_offsets;
+    /// First page flag of each pending copy limited to the pages compute shaders marked
+    std::deque<std::vector<u64>> pending_tracked_flag_offsets;
     std::deque<std::vector<Common::ReadbackCpuCopy>> pending_readback_cpu_copies;
     /// Ranges of each pending download that guest memory did not get newer data for since
     std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
+    // Pages kept unreadable by the CPU until their asynchronous download is published.
+    std::deque<boost::container::small_vector<std::pair<DAddr, u64>, 4>> pending_protected_ranges;
+    std::deque<bool> pending_unprotected_downloads;
+    size_t unprotected_downloads = 0;
+    bool pending_downloads_protected = true;
+    Common::OverlapRangeSet<DAddr> protected_downloads;
+    VideoCommon::AtomicPageBits<34, 12> protected_download_pages;
+    std::deque<std::pair<u64, u64>> incomplete_downloads;
+    u64 incomplete_download_bytes = 0;
+    /// GPU writes since their last download that the bitmap of written pages does not record
+    Common::RangeSet<DAddr> untracked_gpu_writes;
+    u32 compute_write_tracking_slots = 0;
+    std::array<u32, MAX_WRITE_TRACK_SLOTS * 2> compute_write_tracking{};
     std::optional<Async_Buffer> current_buffer;
 
     std::deque<Async_Buffer> async_buffers_death_ring;

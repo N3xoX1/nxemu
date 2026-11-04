@@ -859,6 +859,30 @@ void Benchmark(CopyFixture& f) {
                     before.median / after.median);
     }
 }
+void HeapMappingCopyTests() {
+    CopyFixture f;
+    const auto asid = f.device.RegisterProcess(&f.physical);
+    for (DAddr address : {CopyFixture::Source, CopyFixture::Destination}) {
+        f.device.Unmap(address, CopyFixture::RegionSize);
+        f.device.TrackContinuity(address, address, CopyFixture::RegionSize, asid);
+        f.device.Map(address, address, CopyFixture::RegionSize, asid, false);
+    }
+    constexpr size_t size = 1024 * 1024;
+    std::memset(f.physical.bytes.data() + CopyFixture::Source, 0x7e, size);
+    std::memset(f.physical.bytes.data() + CopyFixture::Destination, 0, size);
+    f.rasterizer.dirty = false;
+    Check(Tegra::Engines::TryFastGuestCopy(f.gpu, CopyFixture::Destination,
+                                         CopyFixture::Source, size),
+          "heap Map(track=false) preserves the fast guest-copy path");
+    Check(std::memcmp(f.physical.bytes.data() + CopyFixture::Source,
+                      f.physical.bytes.data() + CopyFixture::Destination, size) == 0,
+          "heap fast copy transfers the expected bytes");
+    f.device.Unmap(CopyFixture::Source + 4096, 4096);
+    Check(!Tegra::Engines::TryFastGuestCopy(f.gpu, CopyFixture::Destination,
+                                          CopyFixture::Source, size),
+          "heap fast copy rejects an unmapped interior page");
+}
+
 int main(int argc, char** argv) {
     std::fill(std::begin(Common::Log::g_classLevel), std::end(Common::Log::g_classLevel),
               LogLevel::Warning);
@@ -874,6 +898,7 @@ int main(int argc, char** argv) {
     else if (argc > 1 && std::string_view(argv[1]) == "--gob-only")
         GobEngineTests(fixture);
     else {
+        HeapMappingCopyTests();
         LayoutTests(fixture);
         MappingTests(fixture);
         DmaTests();

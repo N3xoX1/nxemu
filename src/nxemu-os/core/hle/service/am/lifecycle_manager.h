@@ -44,6 +44,10 @@ public:
     bool GetExitRequested() const { return m_has_requested_exit; }
 
     void SetFocusState(FocusState state);
+    void SetShutdownFocusState(FocusState state);
+    [[nodiscard]] bool HasPendingFocusStateChanged() const {
+        return m_has_focus_state_changed;
+    }
     void SetActivityState(ActivityState state) { m_activity_state = state; }
     void SetFocusHandlingMode(bool suspend);
     void SetOutOfFocusSuspendingEnabled(bool enabled);
@@ -79,6 +83,7 @@ private:
     bool m_resume_notification_enabled{};
     bool m_has_resume{};
     bool m_has_focus_state_changed{true};
+    bool m_shutdown_focus_override{};
     bool m_has_operation_mode_changed{};
     bool m_has_performance_mode_changed{};
     bool m_has_requested_exit{};

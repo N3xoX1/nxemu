@@ -12,10 +12,17 @@
 #include "core/hle/service/audio/hardware_opus_decoder_manager.h"
 #include "core/hle/service/server_manager.h"
 #include "core/hle/service/service.h"
+#include "core/hle/service/set/system_settings_server.h"
+#include "core/hle/service/sm/sm.h"
 
 namespace Service::Audio {
 
 void LoopProcess(Core::System& system) {
+    // The audio controller needs set:sys: stop when it will not register.
+    if (!system.ServiceManager().GetService<Set::ISystemSettingsServer>("set:sys", true)) {
+        return;
+    }
+
     auto server_manager = std::make_unique<ServerManager>(system);
 
     server_manager->RegisterNamedService("audctl", std::make_shared<IAudioController>(system));

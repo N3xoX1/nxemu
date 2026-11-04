@@ -19,12 +19,20 @@ DisplayLayerManager::~DisplayLayerManager() {
     this->Finalize();
 }
 
-void DisplayLayerManager::Initialize(Core::System& system, Kernel::KProcess* process,
-                                     AppletId applet_id, LibraryAppletMode mode) {
+DisplayLayerManager::DisplayServices DisplayLayerManager::OpenDisplayServices(
+    Core::System& system) {
+    DisplayServices services;
     R_ASSERT(system.ServiceManager()
                  .GetService<VI::IManagerRootService>("vi:m", true)
-                 ->GetDisplayService(&m_display_service, VI::Policy::Compositor));
-    R_ASSERT(m_display_service->GetManagerDisplayService(&m_manager_display_service));
+                 ->GetDisplayService(&services.display, VI::Policy::Compositor));
+    R_ASSERT(services.display->GetManagerDisplayService(&services.manager));
+    return services;
+}
+
+void DisplayLayerManager::Initialize(DisplayServices services, Kernel::KProcess* process,
+                                     AppletId applet_id, LibraryAppletMode mode) {
+    m_display_service = std::move(services.display);
+    m_manager_display_service = std::move(services.manager);
 
     m_process = process;
     m_system_shared_buffer_id = 0;

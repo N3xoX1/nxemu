@@ -7,6 +7,7 @@
 #include <bit>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
 
@@ -109,8 +110,9 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
                           src.swizzle.y == Maxwell::ViewportSwizzle::NegativeY;
 
     if (lower_left) {
-        // Flip by surface clip height
-        y += conv(static_cast<f32>(regs.surface_clip.height));
+        // Flip by surface clip height: the window row is clip_height - y, and the negative
+        // height keeps the viewport pointing up from there, whatever the sign of scale_y.
+        y = conv(static_cast<f32>(regs.surface_clip.height)) - y;
         height = -height;
     }
 
@@ -524,8 +526,27 @@ void RasterizerVulkan::DrawTexture() {
                                     .y = ScaleSrc(draw_texture_state.src_y1)}};
     Extent3D src_size = {static_cast<u32>(ScaleSrc(texture.size.width)),
                          static_cast<u32>(ScaleSrc(texture.size.height)), texture.size.depth};
+    // DrawTexture follows the same scissor selection and scaling as a regular draw.
+    const auto& regs = maxwell3d->regs;
+    const u32 up_scale = dst_rescaling ? videoSettings.resolution_info.up_scale : 1U;
+    const u32 down_shift = dst_rescaling ? videoSettings.resolution_info.down_shift : 0U;
+    std::optional<VkRect2D> scissor;
+    if (!regs.viewport_scale_offset_enabled) {
+        scissor = SurfaceClipScissor(regs.surface_clip.x, regs.surface_clip.y,
+                                     regs.surface_clip.width, regs.surface_clip.height,
+                                     up_scale, down_shift);
+    } else if (regs.scissor_test[0].enable) {
+        const auto& guest_scissor = regs.scissor_test[0];
+        // Reject empty or reversed bounds before GetScissorState converts the extent to u32.
+        if (guest_scissor.max_x <= guest_scissor.min_x ||
+            guest_scissor.max_y <= guest_scissor.min_y) {
+            scissor = VkRect2D{};
+        } else {
+            scissor = GetScissorState(regs, 0, up_scale, down_shift);
+        }
+    }
     blit_image.BlitColor(framebuffer, texture.RenderTarget(), texture.ImageHandle(),
-                         sampler->Handle(), dst_region, src_region, src_size);
+                         sampler->Handle(), dst_region, src_region, src_size, scissor);
     texture_cache.MarkRenderTargetsWritten(~0U, false);
 }
 
@@ -809,15 +830,64 @@ void RasterizerVulkan::FlushRegionImpl(DAddr addr, u64 size, VideoCommon::CacheT
     }
 }
 
-bool RasterizerVulkan::MustFlushSharedPage(DAddr addr, u64 size) {
+bool RasterizerVulkan::MayFlushSharedPage(DAddr addr, u64 size) {
+    return buffer_cache.MayHaveGpuWrites(addr, size) ||
+           texture_cache.MayHaveUnpublishedReadImage(addr, size);
+}
+
+bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
+    return buffer_cache.AwaitsProtectedDownload(addr, size) ||
+           query_cache.AwaitsProtectedResult(addr, size);
+}
+
+bool RasterizerVulkan::HasPendingResult(DAddr addr, u64 size) {
+    return query_cache.AwaitsProtectedResult(addr, size) && query_cache.HasPendingResult(addr, size);
+}
+
+void RasterizerVulkan::GpuWrittenResults(DAddr addr, u64 size,
+                                         std::vector<std::pair<DAddr, u64>>& ranges) {
+    // Only results kept unreadable by the CPU can be pending once the guest moved on
+    if (!query_cache.AwaitsProtectedResult(addr, size)) {
+        return;
+    }
+    query_cache.HostSyncedResults(addr, size, ranges);
+}
+
+bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
+    // Without CPU faults on pending readbacks, fast readback accepts stale reads.
+    if (!device_memory.ProtectsReadCachedPages()) {
+        return true;
+    }
+    // Readbacks are protected when they are committed, and the CPU can read them as soon as
+    // the signal is published.
+    bool pending;
+    {
+        std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+        pending = buffer_cache.HasUncommittedFlushes() || texture_cache.HasUncommittedFlushes();
+    }
+    if (pending) {
+        fence_manager.SignalReference();
+    }
+    std::scoped_lock lock{buffer_cache.mutex};
+    return !buffer_cache.HasUnprotectedDownloads();
+}
+
+VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {
+    bool deferred = false;
     {
         std::scoped_lock lock{buffer_cache.mutex};
         if (buffer_cache.IsRegionGpuModified(addr, size)) {
-            return true;
+            if (!buffer_cache.IsGpuModifiedRegionProtected(addr, size)) {
+                return VideoCore::SharedPageAccess::Flush;
+            }
+            deferred = true;
         }
     }
     std::scoped_lock lock{texture_cache.mutex};
-    return texture_cache.HasUnpublishedReadImage(addr, size);
+    if (texture_cache.ObserveReadImages(addr, size)) {
+        return VideoCore::SharedPageAccess::Flush;
+    }
+    return deferred ? VideoCore::SharedPageAccess::Deferred : VideoCore::SharedPageAccess::Current;
 }
 
 bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {

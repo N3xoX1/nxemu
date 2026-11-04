@@ -11,4 +11,13 @@ constexpr u32 BindlessDescriptorCount(u32 buffer_size, u32 base_offset, u32 size
     }
     return 1 + (buffer_size - base_offset - word_size) / (1U << size_shift);
 }
+
+// Handles may be fields inside structures whose byte stride is not a power of two.
+constexpr u32 BindlessDescriptorCountStrided(u32 buffer_size, u32 base_offset, u32 stride) {
+    constexpr u32 word_size = static_cast<u32>(sizeof(u32));
+    if (stride == 0 || base_offset > buffer_size || buffer_size - base_offset < word_size) {
+        return 0;
+    }
+    return 1 + (buffer_size - base_offset - word_size) / stride;
+}
 }

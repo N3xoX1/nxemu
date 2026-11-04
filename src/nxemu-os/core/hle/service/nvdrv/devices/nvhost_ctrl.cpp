@@ -6,6 +6,7 @@
 #include <bit>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 
 #include <fmt/format.h>
 #include "yuzu_common/yuzu_assert.h"
@@ -255,6 +256,12 @@ NvResult nvhost_ctrl::IocCtrlEventWait(IocCtrlEventWaitParams& params, bool is_a
 
     if (!event.registered) {
         return NvResult::BadParameter;
+    }
+
+    // The GPU thread wakes the guest before it leaves the signalling state, so the guest can
+    // come back here first. That state is about to end, not a busy event.
+    while (event.status.load(std::memory_order_acquire) == EventState::Signalling) {
+        std::this_thread::yield();
     }
 
     if (event.IsBeingUsed()) {

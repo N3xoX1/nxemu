@@ -49,6 +49,7 @@ struct Fixture {
  void ProcessQueryCondition();
  void ProcessMethodCall(u32,u32,u32,bool);
  void CallMethod(u32,u32,bool);
+ void PushMethod(u32 m,u32 a){method_sink.emplace_back(m,a);}
  void ProcessDirtyRegisters(u32 m,u32 a){regs.reg_array[m]=a;}
  void ConsumeSink(){for(auto [m,a]:method_sink)ProcessDirtyRegisters(m,ProcessShadowRam(m,a));method_sink.clear();}
  void ProcessMacro(u32,const u32*,u32,bool){}
@@ -58,6 +59,7 @@ struct Fixture {
 struct Dma {
  struct {u32 method{},subchannel{},method_count=1; GPUVAddr dma_get{}; u32 dma_word_offset{};bool is_last_call=true;} dma_state;
  std::array<Fixture*,8> subchannels{};
+ std::array<Engines::EngineTypes,8> subchannel_type{};
  struct {void CallPullerMethod(Engines::Puller::MethodCall) const{}} puller;
  void CallMethod(u32) const;
 };

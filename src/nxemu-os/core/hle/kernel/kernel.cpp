@@ -109,6 +109,8 @@ struct KernelCore::Impl {
         is_shutting_down.store(true, std::memory_order_relaxed);
         SCOPE_EXIT {
             is_shutting_down.store(false, std::memory_order_relaxed);
+            std::scoped_lock lk{server_lock};
+            services_closed = false;
         };
 
         CloseServices();
@@ -185,9 +187,17 @@ struct KernelCore::Impl {
     }
 
     void CloseServices() {
-        // Ensures all servers gracefully shutdown.
-        std::scoped_lock lk{server_lock};
-        server_managers.clear();
+        // Ensures all servers gracefully shutdown. A server still starting must not register
+        // once they are closed: the cores it needs to stop are shut down next.
+        decltype(server_managers) closing;
+        {
+            std::scoped_lock lk{server_lock};
+            services_closed = true;
+            closing.swap(server_managers);
+        }
+        // Stop them without the lock: a server stops on a core that may be registering
+        // another one.
+        closing.clear();
     }
 
     void InitializePhysicalCores() {
@@ -837,6 +847,7 @@ struct KernelCore::Impl {
 
     bool is_multicore{};
     std::atomic_bool is_shutting_down{};
+    bool services_closed{};
     u32 single_core_thread_id{};
 
     KWorkerTaskManager worker_task_manager;
@@ -995,19 +1006,20 @@ void KernelCore::UnregisterInUseObject(KAutoObject* object) {
     impl->registered_in_use_objects.erase(object);
 }
 
-void KernelCore::RunServer(std::unique_ptr<Service::ServerManager>&& server_manager) {
+bool KernelCore::RunServer(std::unique_ptr<Service::ServerManager>&& server_manager) {
     auto* manager = server_manager.get();
 
     {
         std::scoped_lock lk{impl->server_lock};
-        if (impl->is_shutting_down) {
-            return;
+        if (impl->is_shutting_down || impl->services_closed) {
+            return false;
         }
 
         impl->server_managers.emplace_back(std::move(server_manager));
     }
 
     manager->LoopProcess();
+    return true;
 }
 
 u32 KernelCore::CreateNewObjectID() {

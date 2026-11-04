@@ -331,8 +331,10 @@ if(APPLE)
             "${_nxemu_moltenvk_source}/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib")
         # The fork's nxemu branch carries the Ryujinx fixes and ours.
         set(_nxemu_moltenvk_tag "fb1afa9b968226f694efa45625bb7ef90928f4df")
-        set(_nxemu_moltenvk_patch
-            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk-patches/0001-honor-spirv-dontinline.patch")
+        set(_nxemu_moltenvk_patches
+            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk-patches/0001-honor-spirv-dontinline.patch"
+            "${CMAKE_CURRENT_SOURCE_DIR}/moltenvk-patches/0002-compile-cached-libraries-on-use.patch")
+        list(JOIN _nxemu_moltenvk_patches "' '" _nxemu_moltenvk_patch_args)
         ExternalProject_Add(nxemu_moltenvk
             GIT_REPOSITORY "https://github.com/fab918/MoltenVK.git"
             GIT_TAG "${_nxemu_moltenvk_tag}"
@@ -348,15 +350,16 @@ if(APPLE)
             BUILD_IN_SOURCE TRUE
             # Reapply from a clean checkout so an edited patch does not conflict with the old one.
             BUILD_COMMAND /bin/sh -c
-                "git reset --hard --quiet && git clean -fdq -- Scripts && git apply '${_nxemu_moltenvk_patch}' && ./fetchDependencies --macos && make macos"
+                "git reset --hard --quiet && git clean -fdq -- Scripts && git apply '${_nxemu_moltenvk_patch_args}' && ./fetchDependencies --macos && make macos"
             BUILD_BYPRODUCTS "${_nxemu_moltenvk_runtime}"
             INSTALL_COMMAND ""
         )
 
-        ExternalProject_Add_StepDependencies(nxemu_moltenvk build "${_nxemu_moltenvk_patch}")
+        ExternalProject_Add_StepDependencies(nxemu_moltenvk build ${_nxemu_moltenvk_patches})
 
         set(NXEMU_MOLTENVK_RUNTIME "${_nxemu_moltenvk_runtime}" CACHE INTERNAL "" FORCE)
-        unset(_nxemu_moltenvk_patch)
+        unset(_nxemu_moltenvk_patches)
+        unset(_nxemu_moltenvk_patch_args)
         unset(_nxemu_moltenvk_tag)
         unset(_nxemu_moltenvk_root)
         unset(_nxemu_moltenvk_source)
