@@ -735,6 +735,11 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
     const VkPipelineLayout layout = *two_textures_pipeline_layout;
     const VkSampler sampler = *nearest_sampler;
     const VkPipeline pipeline = FindOrEmplaceDepthStencilPipeline(key);
+    if (pipeline == VK_NULL_HANDLE) {
+        // Drawing without a bound pipeline crashes some drivers
+        LOG_ERROR(Render_Vulkan, "Depth-stencil blit skipped, its pipeline is null");
+        return;
+    }
     scheduler.RequestRenderpass(dst_framebuffer);
     scheduler.Record([dst_region, src_region, pipeline, layout, sampler, src_depth_view,
                       src_stencil_view, this](vk::CommandBuffer cmdbuf) {
@@ -749,6 +754,17 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
         cmdbuf.Draw(3, 1, 0, 0);
     });
     scheduler.InvalidateState();
+}
+
+bool BlitImageHelper::CanBlitDepthStencil(const Framebuffer* dst_framebuffer) {
+    if (!device.IsExtShaderStencilExportSupported()) {
+        return false;
+    }
+    const BlitImagePipelineKey key{
+        .renderpass = dst_framebuffer->RenderPass(),
+        .operation = Tegra::Engines::Fermi2D::Operation::SrcCopy,
+    };
+    return FindOrEmplaceDepthStencilPipeline(key) != VK_NULL_HANDLE;
 }
 
 void BlitImageHelper::BlitColorMSAA(const Framebuffer* dst_framebuffer,
@@ -1688,7 +1704,10 @@ VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePip
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
     }));
-    return *blit_depth_stencil_pipelines.back();
+    const VkPipeline pipeline = *blit_depth_stencil_pipelines.back();
+    LOG_INFO(Render_Vulkan, "Created depth-stencil blit pipeline 0x{:x} for render pass 0x{:x}",
+             reinterpret_cast<uintptr_t>(pipeline), reinterpret_cast<uintptr_t>(key.renderpass));
+    return pipeline;
 }
 
 VkPipeline BlitImageHelper::FindOrEmplaceClearColorPipeline(const BlitImagePipelineKey& key) {

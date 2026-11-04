@@ -1962,7 +1962,7 @@ bool Image::ScaleUp(bool ignore) {
     }
     ASSERT(info.type != ImageType::Linear);
     flags |= ImageFlagBits::Rescaled;
-    has_scaled = true;
+    const bool had_scaled = std::exchange(has_scaled, true);
     if (!scaled_image) {
         const bool is_2d = info.type == ImageType::e2D;
         const u32 scaled_width = resolution.ScaleUp(info.size.width);
@@ -1982,7 +1982,12 @@ bool Image::ScaleUp(bool ignore) {
         aspect_mask = ImageAspectMask(info.format);
     }
     if (NeedsScaleHelper()) {
-        return BlitScaleHelper(true);
+        if (!BlitScaleHelper(true)) {
+            // The texture cache only accounts for scaled copies it was told about
+            has_scaled = had_scaled;
+            current_image = *original_image;
+            return false;
+        }
     } else {
         BlitScale(*scheduler, *original_image, *scaled_image, info, aspect_mask, resolution);
     }
@@ -2088,6 +2093,10 @@ bool Image::BlitScaleHelper(bool scale_up) {
             blit_framebuffer =
                 std::make_unique<Framebuffer>(*runtime, nullptr, &dst_view, extent, scale_up);
         }
+        const bool can_blit = is_msaa || blit_helper.CanBlitDepthStencil(blit_framebuffer.get());
+        if (!can_blit || runtime->device.CantScaleDepthStencil()) {
+            return KeepNativeResolution();
+        }
         if (is_msaa) {
             blit_helper.BlitDepthStencilMSAA(blit_framebuffer.get(), src_view, dst_region,
                                              src_region);
@@ -2098,11 +2107,18 @@ bool Image::BlitScaleHelper(bool scale_up) {
         }
     } else {
         // TODO: Use helper blits where applicable
-        flags &= ~ImageFlagBits::Rescaled;
-        LOG_ERROR(Render_Vulkan, "Device does not support scaling format {}", info.format);
-        return false;
+        return KeepNativeResolution();
     }
     return true;
+}
+
+bool Image::KeepNativeResolution() {
+    // Passes drawing to this image stay native too, so their attachments keep matching sizes
+    flags &= ~ImageFlagBits::Rescaled;
+    info.rescaleable = false;
+    LOG_WARNING(Render_Vulkan, "Device cannot scale format {}, keeping native resolution",
+                info.format);
+    return false;
 }
 
 bool Image::NeedsScaleHelper() const {

@@ -98,6 +98,8 @@ public:
                           const Region2D& src_region, Tegra::Engines::Fermi2D::Filter filter,
                           Tegra::Engines::Fermi2D::Operation operation);
 
+    [[nodiscard]] bool CanBlitDepthStencil(const Framebuffer* dst_framebuffer);
+
     /// Blits a multisampled color image with a shader. The destination can have any sample count.
     void BlitColorMSAA(const Framebuffer* dst_framebuffer, const ImageView& src_image_view,
                        const Region2D& dst_region, const Region2D& src_region,

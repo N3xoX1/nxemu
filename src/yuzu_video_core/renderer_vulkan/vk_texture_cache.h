@@ -217,6 +217,8 @@ public:
 private:
     bool BlitScaleHelper(bool scale_up);
 
+    bool KeepNativeResolution();
+
     bool NeedsScaleHelper() const;
 
     Scheduler* scheduler{};
