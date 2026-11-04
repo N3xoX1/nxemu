@@ -30,6 +30,7 @@ if(MSVC)
 endif()
 
 add_custom_target(test_shader_profile)
+add_dependencies(nxemu_unit_tests test_shader_profile)
 function(nxemu_shader_profile_test name)
     set(target "test_shader_profile_${name}")
     add_executable(${target} "${name}.cpp")

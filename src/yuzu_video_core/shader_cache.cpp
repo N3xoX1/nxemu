@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <vector>
 
 #include "yuzu_common/yuzu_assert.h"
@@ -22,6 +23,17 @@ namespace VideoCommon {
 void ShaderCache::InvalidateRegion(VAddr addr, size_t size) {
     std::scoped_lock lock{invalidation_mutex};
     InvalidatePagesInRegion(addr, size);
+    RemovePendingShaders();
+}
+
+void ShaderCache::InvalidateRegions(std::span<const std::pair<DAddr, size_t>> sequences) {
+    if (sequences.empty()) {
+        return;
+    }
+    std::scoped_lock lock{invalidation_mutex};
+    for (const auto& [addr, size] : sequences) {
+        InvalidatePagesInRegion(addr, size);
+    }
     RemovePendingShaders();
 }
 
@@ -215,10 +227,21 @@ void ShaderCache::UnmarkMemory(Entry* entry) {
 }
 
 void ShaderCache::RemoveShadersFromStorage(std::span<ShaderInfo*> removed_shaders) {
-    // Remove them from the cache
-    std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
-        return std::ranges::find(removed_shaders, shader.get()) != removed_shaders.end();
-    });
+    // A linear search is as fast as a binary search for a few pointers. Above that,
+    // the cost of each storage entry grows with the batch, so sort and search instead.
+    // The cost per entry does not depend on the storage size, so the limit is fixed.
+    constexpr size_t linear_limit = 16;
+    if (removed_shaders.size() <= linear_limit) {
+        std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
+            return std::ranges::find(removed_shaders, shader.get()) != removed_shaders.end();
+        });
+    } else {
+        const auto less = std::less<ShaderInfo*>{};
+        std::ranges::sort(removed_shaders, less);
+        std::erase_if(storage, [&removed_shaders, less](const std::unique_ptr<ShaderInfo>& shader) {
+            return std::ranges::binary_search(removed_shaders, shader.get(), less);
+        });
+    }
 }
 
 ShaderCache::Entry* ShaderCache::NewEntry(VAddr addr, VAddr addr_end, ShaderInfo* data) {

@@ -173,7 +173,7 @@ void TextureCache<P>::PollGCReadbacks() {
                     UntrackImage(image, id);
                 }
                 UnregisterImage(id);
-                DeleteImage(id, false, &gc_removed_views);
+                DeleteImage(id, false, &gc_removed_views, true);
             }
             gc_readback_bytes -= readback.map.mapped_span.size_bytes();
             runtime.FreeDeferredStagingBuffer(readback.map);
@@ -303,7 +303,7 @@ void TextureCache<P>::RunGarbageCollector() {
             UntrackImage(image, image_id);
         }
         UnregisterImage(image_id);
-        DeleteImage(image_id, image.scale_tick > frame_tick + 5, &gc_removed_views);
+        DeleteImage(image_id, image.scale_tick > frame_tick + 5, &gc_removed_views, true);
         if (total_used_memory < critical_memory) {
             if (aggressive_mode) {
                 // Sink the aggresiveness.
@@ -333,6 +333,12 @@ void TextureCache<P>::RunGarbageCollector() {
         if (gc_readbacks.size() > queued_before) {
             runtime.SubmitReadbacks();
         }
+    }
+    // GC never reads the descriptor tables. Invalidate each channel's tables once,
+    // even if multiple images were deleted, before rendering can resume.
+    if (gc_descriptor_tables_dirty) {
+        InvalidateImageTables();
+        gc_descriptor_tables_dirty = false;
     }
     // GC never creates image views. Their retired IDs can be invalidated as one
     // batch before any draw or view allocation can reuse them.
@@ -2191,6 +2197,12 @@ void TextureCache<P>::InvalidateScale(Image& image) {
     }
     image.image_view_ids.clear();
     image.image_view_infos.clear();
+    InvalidateImageTables();
+    has_deleted_images = true;
+}
+
+template <class P>
+void TextureCache<P>::InvalidateImageTables() {
     for (size_t c : active_channel_ids) {
         auto& channel_info = channel_storage[c];
         if constexpr (ENABLE_VALIDATION) {
@@ -2200,7 +2212,6 @@ void TextureCache<P>::InvalidateScale(Image& image) {
         channel_info.graphics_image_table.Invalidate();
         channel_info.compute_image_table.Invalidate();
     }
-    has_deleted_images = true;
 }
 
 template <class P>
@@ -3346,7 +3357,8 @@ void TextureCache<P>::UntrackImage(ImageBase& image, ImageId image_id) {
 
 template <class P>
 void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete,
-                                  std::vector<ImageViewId>* deferred_views) {
+                                  std::vector<ImageViewId>* deferred_views,
+                                  bool defer_descriptor_invalidation) {
     // The slot can be reused right away; pending decodes must not upload into it.
     // The first finished decode clears IsDecoding, so check every pending one.
     ImageBase& image = slot_images[image_id];
@@ -3436,14 +3448,10 @@ void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete,
         image_allocs_table.erase(alloc_it);
         slot_image_allocs.erase(alloc_id);
     }
-    for (size_t c : active_channel_ids) {
-        auto& channel_info = channel_storage[c];
-        if constexpr (ENABLE_VALIDATION) {
-            std::ranges::fill(channel_info.graphics_image_view_ids, CORRUPT_ID);
-            std::ranges::fill(channel_info.compute_image_view_ids, CORRUPT_ID);
-        }
-        channel_info.graphics_image_table.Invalidate();
-        channel_info.compute_image_table.Invalidate();
+    if (defer_descriptor_invalidation) {
+        gc_descriptor_tables_dirty = true;
+    } else {
+        InvalidateImageTables();
     }
     has_deleted_images = true;
 }

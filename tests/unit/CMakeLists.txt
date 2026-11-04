@@ -1,4 +1,7 @@
+add_custom_target(nxemu_unit_tests)
+
 function(nxemu_unit_test name)
+    add_dependencies(nxemu_unit_tests ${name})
     add_test(NAME ${name} COMMAND ${name})
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
 endfunction()
@@ -225,8 +228,6 @@ target_compile_options(test_loose_romfs_paths PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 nxemu_unit_test(test_loose_romfs_paths)
 
-add_subdirectory(shader_profile)
-
 add_executable(test_surface_clip surface_clip/surface_clip.cpp)
 target_include_directories(test_surface_clip PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(test_surface_clip PRIVATE Vulkan::Headers)
@@ -378,8 +379,6 @@ target_link_libraries(test_strided_handles PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_strided_handles)
 
-add_subdirectory(android_performance)
-
 # Differential tests execute the production DMA and Maxwell register methods.
 set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
 add_custom_command(
@@ -438,3 +437,11 @@ target_link_libraries(test_mapping_continuity PRIVATE nxemu_test_support
     $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
     fmt bc_decoder stb_dxt)
 nxemu_unit_test(test_mapping_continuity)
+
+# Each test suite owns its build and CTest registration.
+file(GLOB unit_suites RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeLists.txt")
+foreach(suite IN LISTS unit_suites)
+    get_filename_component(suite_directory "${suite}" DIRECTORY)
+    add_subdirectory("${suite_directory}")
+endforeach()

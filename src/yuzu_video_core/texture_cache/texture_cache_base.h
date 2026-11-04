@@ -453,7 +453,10 @@ private:
 
     /// Delete image from the cache
     void DeleteImage(ImageId image, bool immediate_delete = false,
-                     std::vector<ImageViewId>* deferred_views = nullptr);
+                     std::vector<ImageViewId>* deferred_views = nullptr,
+                     bool defer_descriptor_invalidation = false);
+
+    void InvalidateImageTables();
 
     /// Remove image views references from the cache
     void RemoveImageViewReferences(std::span<const ImageViewId> removed_views);
@@ -624,6 +627,7 @@ private:
     u64 modification_tick = 0;
     u64 frame_tick = 0;
     std::vector<ImageViewId> gc_removed_views;
+    bool gc_descriptor_tables_dirty = false;
     struct GCReadback {
         ImageId id;
         u64 modification_tick;
