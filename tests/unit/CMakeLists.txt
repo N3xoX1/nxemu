@@ -1,9 +1,14 @@
 add_custom_target(nxemu_unit_tests)
+add_custom_target(nxemu_linux_unit_tests)
 
 function(nxemu_unit_test name)
     add_dependencies(nxemu_unit_tests ${name})
     add_test(NAME ${name} COMMAND ${name})
     set_tests_properties(${name} PROPERTIES LABELS unit TIMEOUT 120)
+    if("LINUX" IN_LIST ARGN)
+        add_dependencies(nxemu_linux_unit_tests ${name})
+        set_property(TEST ${name} APPEND PROPERTY LABELS linux_ci)
+    endif()
 endfunction()
 
 # Standalone MME instruction semantics; includes the ARM64 interpreter shift rules.
@@ -31,7 +36,7 @@ target_include_directories(test_lot1_audio PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/boost"
     "${CMAKE_SOURCE_DIR}/external/fmt/include")
 target_compile_definitions(test_lot1_audio PRIVATE FMT_HEADER_ONLY)
-nxemu_unit_test(test_lot1_audio)
+nxemu_unit_test(test_lot1_audio LINUX)
 
 # Audio callbacks must not outlive their manager; circular sinks own no upsampler.
 add_executable(test_audio_manager_lifetime audio_lifetime/manager.cpp
@@ -56,7 +61,7 @@ add_executable(test_lot1_lifecycle eden_lot1/lifecycle.cpp)
 target_include_directories(test_lot1_lifecycle PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/fmt/include")
 target_link_libraries(test_lot1_lifecycle PRIVATE nxemu_test_support fmt::fmt)
-nxemu_unit_test(test_lot1_lifecycle)
+nxemu_unit_test(test_lot1_lifecycle LINUX)
 
 if(ARCHITECTURE_x86_64)
     add_executable(test_lot1_tsc eden_lot1/tsc.cpp
@@ -64,7 +69,7 @@ if(ARCHITECTURE_x86_64)
         "${CMAKE_SOURCE_DIR}/src/yuzu_common/steady_clock.cpp")
     target_include_directories(test_lot1_tsc PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(test_lot1_tsc PRIVATE Threads::Threads)
-    nxemu_unit_test(test_lot1_tsc)
+    nxemu_unit_test(test_lot1_tsc LINUX)
 endif()
 
 if(ARCHITECTURE_x86_64)
@@ -73,7 +78,7 @@ if(ARCHITECTURE_x86_64)
         $<TARGET_OBJECTS:nxemu-cpu>)
     target_include_directories(test_dynarmic_regalloc PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu")
     target_link_libraries(test_dynarmic_regalloc PRIVATE common yuzu_common fmt merry::mcl Zydis)
-    nxemu_unit_test(test_dynarmic_regalloc)
+    nxemu_unit_test(test_dynarmic_regalloc LINUX)
 endif()
 
 # Real Fermi2D, software blitter, GPU page tables and device-memory mappings.
@@ -152,7 +157,7 @@ if(NOT MSVC)
     target_compile_options(test_shader_constant_folding PRIVATE -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
     target_link_options(test_shader_constant_folding PRIVATE -fsanitize=address,undefined)
 endif()
-nxemu_unit_test(test_shader_constant_folding)
+nxemu_unit_test(test_shader_constant_folding LINUX)
 
 # Host thread state and Host1x syncpoint cancellation, under ASan and UBSan.
 add_executable(test_session_lifecycle

@@ -13,9 +13,10 @@ ctest --test-dir build -L unit --output-on-failure
 
 Small programs that check one piece of production code and exit non-zero on failure.
 The macOS CI job builds `nxemu_unit_tests` and runs the suite through CTest.
-Linux runs a selected subset. For a new suite, put a `CMakeLists.txt` in its own
-directory directly under `tests/unit/`, define its executable, and register it
-with `nxemu_unit_test(target)`. For suites that register CTest cases directly,
+For a new suite, put a `CMakeLists.txt` in its own directory directly under
+`tests/unit/`, define its executable, and register it with
+`nxemu_unit_test(target)`. Use `nxemu_unit_test(target LINUX)` to also include
+it in the Linux CI subset. For suites that register CTest cases directly,
 add their executable targets as dependencies of `nxemu_unit_tests`.
 
 | Test | Checks |

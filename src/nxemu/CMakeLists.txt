@@ -13,6 +13,7 @@ if(NXEMU_BUILD_UI_SETTINGS_TESTS)
     target_include_directories(nxemu_ui_settings_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(nxemu_ui_settings_tests PRIVATE nxemu_core common yuzu_common)
     add_test(NAME nxemu_ui_settings COMMAND nxemu_ui_settings_tests)
+    set_property(TEST nxemu_ui_settings APPEND PROPERTY LABELS linux_ci)
 endif()
 
 
