@@ -1278,6 +1278,11 @@ void RasterizerVulkan::FlushWork() {
 
     static constexpr u32 DRAWS_TO_SUBMIT_BETWEEN_PASSES = 64;
 
+    // Tile-based GPUs process a pass's geometry before its pixels, so long passes that are
+    // cheap to split (shadow maps and other small targets) are submitted in pieces.
+    static constexpr u32 DRAWS_TO_SUBMIT_CHEAP_PASS = 128;
+    static constexpr u64 CHEAP_PASS_MAX_SPLIT_COST = 300'000;
+
     // Submit the passes already recorded when the guest moves to other render targets, so the
     // host GPU works on them while the next ones are recorded. No render pass is split.
     if (draw_counter >= DRAWS_TO_SUBMIT_BETWEEN_PASSES &&
@@ -1289,6 +1294,13 @@ void RasterizerVulkan::FlushWork() {
     // Only check multiples of 8 draws
     static_assert(DRAWS_TO_DISPATCH % 8 == 0);
     if ((++draw_counter & 7) != 7) {
+        return;
+    }
+    if (draw_counter >= DRAWS_TO_SUBMIT_CHEAP_PASS && draw_counter < DRAWS_TO_DISPATCH &&
+        device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
+        scheduler.RenderPassSplitCost() <= CHEAP_PASS_MAX_SPLIT_COST) {
+        scheduler.Flush();
+        draw_counter = 0;
         return;
     }
     if (draw_counter < DRAWS_TO_DISPATCH) {

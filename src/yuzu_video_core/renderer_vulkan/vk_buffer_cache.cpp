@@ -766,6 +766,31 @@ void BufferCacheRuntime::BindIndexBuffer(PrimitiveTopology topology, IndexFormat
     });
 }
 
+void BufferCacheRuntime::BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip,
+                                                  bool primitive_restart) {
+    // The staging pool keeps the allocation until the submission using it retires. The draw
+    // reads from skip on, so bind before the widened indices rather than staging the prefix.
+    const size_t prefix = size_t{skip} * sizeof(u16);
+    auto staging = staging_pool.Request(indices.size() * sizeof(u16), MemoryUsage::Upload);
+    u16* widened = reinterpret_cast<u16*>(staging.mapped_span.data());
+    if (staging.offset >= prefix) {
+        staging.offset -= prefix;
+    } else {
+        staging = staging_pool.Request(prefix + indices.size() * sizeof(u16), MemoryUsage::Upload);
+        widened = reinterpret_cast<u16*>(staging.mapped_span.data()) + skip;
+    }
+    if (primitive_restart) {
+        // Vulkan only restarts on the all-ones value of the index type
+        std::ranges::transform(indices, widened,
+                               [](u8 index) { return index == 0xFF ? u16{0xFFFF} : u16{index}; });
+    } else {
+        std::ranges::copy(indices, widened);
+    }
+    scheduler.Record([buffer = staging.buffer, offset = staging.offset](vk::CommandBuffer cmdbuf) {
+        cmdbuf.BindIndexBuffer(buffer, offset, VK_INDEX_TYPE_UINT16);
+    });
+}
+
 void BufferCacheRuntime::BindQuadIndexBuffer(PrimitiveTopology topology, u32 first, u32 count) {
     if (count == 0) {
         ReserveNullBuffer();

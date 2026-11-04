@@ -1516,8 +1516,17 @@ void Device::CollectPhysicalMemoryInfo()
 
         return;
     }
+    const u64 heap_budget = device_access_memory;
     const s64 available_memory = static_cast<s64>(device_access_memory - device_initial_usage);
     device_access_memory = static_cast<u64>(std::max<s64>(std::min<s64>(available_memory - 8_GiB, 4_GiB), std::min<s64>(local_memory, 4_GiB)));
+    if (GetDriverID() == VK_DRIVER_ID_MOLTENVK && extensions.memory_budget)
+    {
+        // Apple GPUs share system memory: use the Metal working set rather than the 4 GiB
+        // above, keeping headroom for the system and at most half of it.
+        const u64 reserve = std::clamp<u64>(heap_budget / 8, 2_GiB, 4_GiB);
+        const u64 free_budget = available_memory > static_cast<s64>(reserve) ? static_cast<u64>(available_memory) - reserve : 0;
+        device_access_memory = std::max(device_access_memory, std::min(free_budget, heap_budget / 2));
+    }
 }
 
 void Device::CollectToolingInfo()
