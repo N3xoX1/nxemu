@@ -443,6 +443,29 @@ bool GuestMemoryEquals(Tegra::MemoryManager& gpu_memory, GPUVAddr address, const
     }
     return true;
 }
+
+// A bound constant buffer can extend past the memory mapped behind it. Read only the
+// backed pages and zero the rest, as a synchronous read of those offsets returns zero.
+void ReadBackedBlock(Tegra::MemoryManager& gpu_memory, GPUVAddr address, u8* dest,
+                     size_t size) {
+    constexpr size_t page_size = 4096;
+    size_t offset = 0;
+    while (offset < size) {
+        const bool backed = gpu_memory.GetPointer(address + offset) != nullptr;
+        size_t run = 0;
+        do {
+            const GPUVAddr page_addr = address + offset + run;
+            run += std::min(size - offset - run, page_size - (page_addr & (page_size - 1)));
+        } while (offset + run < size &&
+                 (gpu_memory.GetPointer(address + offset + run) != nullptr) == backed);
+        if (backed) {
+            gpu_memory.ReadBlockUnsafe(address + offset, dest + offset, run);
+        } else {
+            std::memset(dest + offset, 0, run);
+        }
+        offset += run;
+    }
+}
 } // namespace
 
 std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::CaptureSnapshot(
@@ -510,8 +533,8 @@ std::shared_ptr<const GraphicsEnvironment::Snapshot> GraphicsEnvironment::Captur
     const bool textures_dirty = gpu_memory.IsMemoryDirty(texture_address, texture_bytes);
     result->constant_buffer_data.resize(total_cbuf_size);
     for (const auto& copy : copies) {
-        gpu_memory.ReadBlockUnsafe(copy.address,
-                                  result->constant_buffer_data.data() + copy.offset, copy.size);
+        ReadBackedBlock(gpu_memory, copy.address,
+                        result->constant_buffer_data.data() + copy.offset, copy.size);
     }
 
     const auto& regs = maxwell3d.regs;
