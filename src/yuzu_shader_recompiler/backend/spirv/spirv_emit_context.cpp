@@ -552,7 +552,7 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     DefineInputAttachments(program.info, texture_binding);
     DefineAttributeMemAccess(program.info);
     DefineWriteStorageCasLoopFunction(program.info);
-    DefineGlobalMemoryFunctions(program.info);
+    DefineGlobalMemoryFunctions(program);
     DefineRescalingInput(program.info);
     DefineWriteTrackingFunction(program.info);
     DefineRenderArea(program.info);
@@ -1021,7 +1021,8 @@ void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
     write_storage_cas_loop_func = func;
 }
 
-void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
+void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
+    const Info& info{program.info};
     if (!info.uses_global_memory || !profile.support_int64) {
         return;
     }
@@ -1175,6 +1176,64 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         define(&StorageDefinitions::U32x2, storage_types.U32x2, U32[2], sizeof(u32[2]));
     std::tie(load_global_func_u32x4, write_global_func_u32x4) =
         define(&StorageDefinitions::U32x4, storage_types.U32x4, U32[4], sizeof(u32[4]));
+
+    // Atomics left on global memory had a pointer the optimizer could not track. Find their
+    // buffer at runtime like loads and writes. Only define the helpers this shader uses.
+    using AtomicFunc = Id (Sirit::Module::*)(Id, Id, Id, Id, Id);
+    struct GlobalAtomic {
+        IR::Opcode opcode;
+        AtomicFunc atomic_func;
+        Id EmitContext::*func_id;
+    };
+    static constexpr std::array global_atomics{
+        GlobalAtomic{IR::Opcode::GlobalAtomicIAdd32, &Sirit::Module::OpAtomicIAdd,
+                     &EmitContext::global_atomic_iadd_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicSMin32, &Sirit::Module::OpAtomicSMin,
+                     &EmitContext::global_atomic_smin_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicUMin32, &Sirit::Module::OpAtomicUMin,
+                     &EmitContext::global_atomic_umin_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicSMax32, &Sirit::Module::OpAtomicSMax,
+                     &EmitContext::global_atomic_smax_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicUMax32, &Sirit::Module::OpAtomicUMax,
+                     &EmitContext::global_atomic_umax_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicAnd32, &Sirit::Module::OpAtomicAnd,
+                     &EmitContext::global_atomic_and_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicOr32, &Sirit::Module::OpAtomicOr,
+                     &EmitContext::global_atomic_or_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicXor32, &Sirit::Module::OpAtomicXor,
+                     &EmitContext::global_atomic_xor_func_u32},
+        GlobalAtomic{IR::Opcode::GlobalAtomicExchange32, &Sirit::Module::OpAtomicExchange,
+                     &EmitContext::global_atomic_exchange_func_u32},
+    };
+    std::bitset<global_atomics.size()> used_atomics;
+    for (const IR::Block* const block : program.blocks) {
+        for (const IR::Inst& inst : block->Instructions()) {
+            for (size_t i = 0; i < global_atomics.size(); ++i) {
+                if (inst.GetOpcode() == global_atomics[i].opcode) {
+                    used_atomics.set(i);
+                }
+            }
+        }
+    }
+    const Id scope{Const(static_cast<u32>(spv::Scope::Device))};
+    for (size_t i = 0; i < global_atomics.size(); ++i) {
+        if (!used_atomics[i]) {
+            continue;
+        }
+        const Id function_type{TypeFunction(U32[1], U64, U32[1])};
+        const Id func_id{OpFunction(U32[1], function_control, function_type)};
+        const Id addr{OpFunctionParameter(U64)};
+        const Id value{OpFunctionParameter(U32[1])};
+        define_body(&StorageDefinitions::U32, addr, storage_types.U32.element, 2, 1, true,
+                    [&](Id ssbo_pointer, Id, Id) {
+                        OpReturnValue((this->*global_atomics[i].atomic_func)(
+                            U32[1], ssbo_pointer, scope, zero, value));
+                    });
+        // No bound buffer holds the address: the access is dropped like a global write.
+        OpReturnValue(zero);
+        OpFunctionEnd();
+        this->*global_atomics[i].func_id = func_id;
+    }
 }
 
 void EmitContext::DefineRescalingInput(const Info& info) {
