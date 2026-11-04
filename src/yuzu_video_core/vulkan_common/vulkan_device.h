@@ -800,10 +800,6 @@ public:
         return cant_blit_msaa;
     }
 
-    bool CantScaleDepthStencil() const {
-        return cant_scale_depth_stencil;
-    }
-
     bool MustEmulateScaledFormats() const {
         return must_emulate_scaled_formats;
     }
@@ -989,7 +985,6 @@ private:
     bool has_nsight_graphics{};                ///< Has Nsight Graphics attached
     bool supports_d24_depth{};                 ///< Supports D24 depth buffers.
     bool cant_blit_msaa{};                     ///< Does not support MSAA<->MSAA blitting.
-    bool cant_scale_depth_stencil{};           ///< Crashes in the depth-stencil scale helper.
     bool must_emulate_scaled_formats{};        ///< Requires scaled vertex format emulation
     bool must_emulate_bgr565{};                ///< Emulates BGR565 by swizzling RGB565 format.
     bool dynamic_state3_blending{};            ///< Has all blending features of dynamic_state3.

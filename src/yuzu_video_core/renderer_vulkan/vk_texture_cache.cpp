@@ -2094,7 +2094,7 @@ bool Image::BlitScaleHelper(bool scale_up) {
                 std::make_unique<Framebuffer>(*runtime, nullptr, &dst_view, extent, scale_up);
         }
         const bool can_blit = is_msaa || blit_helper.CanBlitDepthStencil(blit_framebuffer.get());
-        if (!can_blit || runtime->device.CantScaleDepthStencil()) {
+        if (!can_blit) {
             return KeepNativeResolution();
         }
         if (is_msaa) {

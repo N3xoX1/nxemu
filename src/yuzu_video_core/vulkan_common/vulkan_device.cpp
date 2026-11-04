@@ -726,9 +726,6 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
     {
         LOG_WARNING(Render_Vulkan, "Intel proprietary drivers do not support MSAA image blits");
         cant_blit_msaa = true;
-        // Gen9 driver 101.2115 crashes in vkCmdDraw when rescaling depth-stencil images
-        LOG_WARNING(Render_Vulkan, "Intel proprietary drivers crash scaling depth-stencil images");
-        cant_scale_depth_stencil = true;
     }
     has_broken_compute = CheckBrokenCompute(properties.driver.driverID, properties.properties.driverVersion) && !videoSettings.enable_compute_pipelines;
     if (is_intel_anv || (is_qualcomm && !is_s8gen2))

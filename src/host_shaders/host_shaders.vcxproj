@@ -309,7 +309,7 @@
       <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_blit_depth_stencil.frag">
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_blit_depth.frag">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
       <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>

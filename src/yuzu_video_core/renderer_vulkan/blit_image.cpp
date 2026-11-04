@@ -31,7 +31,7 @@
 #include "yuzu_video_core/host_shaders/convert_packed_depth_stencil_to_msaa_frag_spv.h"
 #include "yuzu_video_core/host_shaders/convert_s8d24_to_abgr8_frag_spv.h"
 #include "yuzu_video_core/host_shaders/full_screen_triangle_vert_spv.h"
-#include "yuzu_video_core/host_shaders/vulkan_blit_depth_stencil_frag_spv.h"
+#include "yuzu_video_core/host_shaders/vulkan_blit_depth_frag_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_color_clear_frag_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_color_clear_sint_frag_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_color_clear_uint_frag_spv.h"
@@ -582,9 +582,7 @@ BlitImageHelper::BlitImageHelper(const Device& device_, Scheduler& scheduler_,
       blit_depth_stencil_msaa_frag(device.IsExtShaderStencilExportSupported()
                                        ? BuildShader(device, BLIT_DEPTH_STENCIL_MSAA_FRAG_SPV)
                                        : vk::ShaderModule{}),
-      blit_depth_stencil_frag(device.IsExtShaderStencilExportSupported()
-                                 ? BuildShader(device, VULKAN_BLIT_DEPTH_STENCIL_FRAG_SPV)
-                                 : vk::ShaderModule{}),
+      blit_depth_frag(BuildShader(device, VULKAN_BLIT_DEPTH_FRAG_SPV)),
       clear_color_vert(BuildShader(device, VULKAN_COLOR_CLEAR_VERT_SPV)),
       clear_color_frag(BuildShader(device, VULKAN_COLOR_CLEAR_FRAG_SPV)),
       clear_stencil_frag(BuildShader(device, VULKAN_DEPTHSTENCIL_CLEAR_FRAG_SPV)),
@@ -723,9 +721,6 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
                                        const Region2D& dst_region, const Region2D& src_region,
                                        Tegra::Engines::Fermi2D::Filter filter,
                                        Tegra::Engines::Fermi2D::Operation operation) {
-    if (!device.IsExtShaderStencilExportSupported()) {
-        return;
-    }
     ASSERT(filter == Tegra::Engines::Fermi2D::Filter::Point);
     ASSERT(operation == Tegra::Engines::Fermi2D::Operation::SrcCopy);
     const BlitImagePipelineKey key{
@@ -757,9 +752,6 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
 }
 
 bool BlitImageHelper::CanBlitDepthStencil(const Framebuffer* dst_framebuffer) {
-    if (!device.IsExtShaderStencilExportSupported()) {
-        return false;
-    }
     const BlitImagePipelineKey key{
         .renderpass = dst_framebuffer->RenderPass(),
         .operation = Tegra::Engines::Fermi2D::Operation::SrcCopy,
@@ -1682,7 +1674,7 @@ VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePip
         return *blit_depth_stencil_pipelines[std::distance(blit_depth_stencil_keys.begin(), it)];
     }
     blit_depth_stencil_keys.push_back(key);
-    const std::array stages = MakeStages(*full_screen_vert, *blit_depth_stencil_frag);
+    const std::array stages = MakeStages(*full_screen_vert, *blit_depth_frag);
     blit_depth_stencil_pipelines.push_back(device.GetLogical().CreateGraphicsPipeline({
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = nullptr,

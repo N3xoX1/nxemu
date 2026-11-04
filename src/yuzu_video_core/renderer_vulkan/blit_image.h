@@ -240,7 +240,7 @@ private:
     vk::ShaderModule blit_color_msaa_uint_frag;
     vk::ShaderModule blit_depth_msaa_frag;
     vk::ShaderModule blit_depth_stencil_msaa_frag;
-    vk::ShaderModule blit_depth_stencil_frag;
+    vk::ShaderModule blit_depth_frag;
     vk::ShaderModule clear_color_vert;
     vk::ShaderModule clear_color_frag;
     vk::ShaderModule clear_color_sint_frag;

@@ -223,7 +223,7 @@
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_color_clear_uint.frag">
       <Filter>vulkan.frag</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_blit_depth_stencil.frag">
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_blit_depth.frag">
       <Filter>vulkan.frag</Filter>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\opengl_smaa.glsl">
