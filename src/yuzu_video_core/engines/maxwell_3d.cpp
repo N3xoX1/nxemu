@@ -30,6 +30,7 @@ Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     upload_state(memory_manager, regs.upload)
 {
     dirty.flags.flip();
+    InitializePipelineKeyRegisters();
     InitializeRegisterDefaults();
     execution_mask.reset();
     for (size_t i = 0; i < execution_mask.size(); i++)
@@ -48,6 +49,31 @@ void Maxwell3D::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 {
     rasterizer = rasterizer_;
     upload_state.BindRasterizer(rasterizer_);
+}
+
+void Maxwell3D::InitializePipelineKeyRegisters()
+{
+    auto& table = dirty.pipeline_key_registers;
+    table.fill(1);
+    const auto clear = [&table](size_t offset, size_t size) {
+        std::fill_n(table.begin() + offset / sizeof(u32), size / sizeof(u32), u8{0});
+    };
+    // Constant buffer sizes reach the key through ProcessCBBind
+    clear(offsetof(Regs, const_buffer), sizeof(Regs::const_buffer));
+    clear(offsetof(Regs, bind_groups), sizeof(Regs::bind_groups));
+    for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
+        const size_t stream = offsetof(Regs, vertex_streams) + i * sizeof(Regs::VertexStream);
+        clear(stream + offsetof(Regs::VertexStream, address_high), 2 * sizeof(u32));
+    }
+    clear(offsetof(Regs, vertex_stream_limits), sizeof(Regs::vertex_stream_limits));
+    clear(offsetof(Regs, index_buffer), offsetof(Regs::IndexBuffer, format));
+    clear(offsetof(Regs, index_buffer) + offsetof(Regs::IndexBuffer, first), 2 * sizeof(u32));
+    for (size_t i = 0; i < Regs::NumTransformFeedbackBuffers; ++i) {
+        const size_t buffer = offsetof(Regs, transform_feedback) +
+                              offsetof(Regs::TransformFeedback, buffers) +
+                              i * sizeof(Regs::TransformFeedback::Buffer);
+        clear(buffer + offsetof(Regs::TransformFeedback::Buffer, address_high), 4 * sizeof(u32));
+    }
 }
 
 void Maxwell3D::InitializeRegisterDefaults()
@@ -420,6 +446,7 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
     }
     regs.reg_array[method] = argument;
     dirty.MarkShaderProfileRegister(method, old_value, argument);
+    dirty.pipeline_key_changed |= dirty.pipeline_key_registers[method] != 0;
 
     static_assert(std::tuple_size_v<DirtyState::Tables> == 2);
     const auto first = dirty.tables[0][method];
@@ -756,6 +783,10 @@ void Maxwell3D::ProcessCBBind(size_t stage_index)
     // stage.
     const auto & bind_data = regs.bind_groups[stage_index];
     auto & buffer = state.shader_stages[stage_index].const_buffers[bind_data.shader_slot];
+    if (buffer.enabled != (bind_data.valid.Value() != 0) || buffer.size != regs.const_buffer.size)
+    {
+        dirty.pipeline_key_changed = true;
+    }
     buffer.enabled = bind_data.valid.Value() != 0;
     buffer.address = regs.const_buffer.Address();
     buffer.size = regs.const_buffer.size;
