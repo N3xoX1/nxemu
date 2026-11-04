@@ -6,6 +6,7 @@
 #include <atomic>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -61,11 +62,12 @@ struct ImageViewInOut {
 };
 
 struct AsyncDecodeContext {
-    ImageId image_id;
+    ImageId image_id{};
     Common::ScratchBuffer<u8> decoded_data;
     boost::container::small_vector<BufferImageCopy, 16> copies;
-    std::mutex mutex;
-    std::atomic_bool complete;
+    /// The image was deleted and its slot may be reused.
+    std::atomic_bool cancelled{false};
+    std::atomic_bool complete{false};
 };
 
 using TextureCacheGPUMap = std::unordered_map<u64, std::vector<ImageId>, Common::IdentityHash<u64>>;
@@ -494,6 +496,7 @@ private:
     u64 GetScaledImageSizeBytes(const ImageBase& image);
 
     void QueueAsyncDecode(Image& image, ImageId image_id);
+    void CancelAsyncDecode(ImageId image_id);
     void TickAsyncDecode();
     bool QueueGCReadback(ImageId id);
     void PollGCReadbacks();
@@ -632,7 +635,7 @@ private:
     size_t gc_readback_bytes{};
 
     Common::ThreadWorker texture_decode_worker{1, "TextureDecoder"};
-    std::vector<std::unique_ptr<AsyncDecodeContext>> async_decodes;
+    std::vector<std::shared_ptr<AsyncDecodeContext>> async_decodes;
 
     // Join caching
     boost::container::small_vector<ImageId, 4> join_overlap_ids;

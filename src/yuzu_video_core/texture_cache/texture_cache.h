@@ -2176,13 +2176,12 @@ u64 TextureCache<P>::GetScaledImageSizeBytes(const ImageBase& image) {
 template <class P>
 void TextureCache<P>::QueueAsyncDecode(Image& image, ImageId image_id) {
     UNIMPLEMENTED_IF(False(image.flags & ImageFlagBits::Converted));
-    LOG_INFO(HW_GPU, "Queuing async texture decode");
+    LOG_DEBUG(HW_GPU, "Queuing async texture decode");
 
     image.flags |= ImageFlagBits::IsDecoding;
-    auto decode = std::make_unique<AsyncDecodeContext>();
-    auto* decode_ptr = decode.get();
+    auto decode = std::make_shared<AsyncDecodeContext>();
     decode->image_id = image_id;
-    async_decodes.push_back(std::move(decode));
+    async_decodes.push_back(decode);
 
     static Common::ScratchBuffer<u8> local_unswizzle_data_buffer;
     local_unswizzle_data_buffer.resize_destructive(image.unswizzled_size_bytes);
@@ -2192,41 +2191,55 @@ void TextureCache<P>::QueueAsyncDecode(Image& image, ImageId image_id) {
                                  local_unswizzle_data_buffer);
     const size_t out_size = MapSizeBytes(image);
 
-    auto func = [out_size, copies, info = image.info,
+    // The worker owns a reference: the cache may drop the context while it runs.
+    auto func = [out_size, copies = std::move(copies), info = image.info,
                  input = std::move(local_unswizzle_data_buffer),
-                 async_decode = decode_ptr]() mutable {
-        async_decode->decoded_data.resize_destructive(out_size);
-        std::span copies_span{copies.data(), copies.size()};
-        ConvertImage(input, info, async_decode->decoded_data, copies_span);
-
-        // TODO: Do we need this lock?
-        std::unique_lock lock{async_decode->mutex};
-        async_decode->copies = std::move(copies);
-        async_decode->complete = true;
+                 async_decode = std::move(decode)]() mutable {
+        if (!async_decode->cancelled.load(std::memory_order_relaxed)) {
+            async_decode->decoded_data.resize_destructive(out_size);
+            std::span copies_span{copies.data(), copies.size()};
+            ConvertImage(input, info, async_decode->decoded_data, copies_span);
+            async_decode->copies = std::move(copies);
+        }
+        async_decode->complete.store(true, std::memory_order_release);
     };
     texture_decode_worker.QueueWork(std::move(func));
+}
+
+template <class P>
+void TextureCache<P>::CancelAsyncDecode(ImageId image_id) {
+    for (const auto& decode : async_decodes) {
+        if (decode->image_id == image_id) {
+            decode->cancelled.store(true, std::memory_order_relaxed);
+        }
+    }
 }
 
 template <class P>
 void TextureCache<P>::TickAsyncDecode() {
     bool has_uploads{};
     auto i = async_decodes.begin();
-    while (i != async_decodes.end()) {
-        auto* async_decode = i->get();
-        std::unique_lock lock{async_decode->mutex};
-        if (!async_decode->complete) {
-            ++i;
+    for (; i != async_decodes.end(); ++i) {
+        const auto& async_decode = *i;
+        // The single worker completes decodes in queue order. Stopping at the first pending
+        // one keeps an older result of an image from landing after a newer one.
+        if (!async_decode->complete.load(std::memory_order_acquire)) {
+            break;
+        }
+        if (async_decode->cancelled.load(std::memory_order_relaxed)) {
+            // The image is gone and its slot may hold another one.
             continue;
         }
         Image& image = slot_images[async_decode->image_id];
         auto staging = runtime.UploadStagingBuffer(MapSizeBytes(image));
+        ASSERT(staging.mapped_span.size() >= async_decode->decoded_data.size());
         std::memcpy(staging.mapped_span.data(), async_decode->decoded_data.data(),
                     async_decode->decoded_data.size());
         image.UploadMemory(staging, async_decode->copies);
         image.flags &= ~ImageFlagBits::IsDecoding;
         has_uploads = true;
-        i = async_decodes.erase(i);
     }
+    async_decodes.erase(async_decodes.begin(), i);
     if (has_uploads) {
         runtime.InsertUploadMemoryBarrier();
     }
@@ -3272,9 +3285,12 @@ void TextureCache<P>::UntrackImage(ImageBase& image, ImageId image_id) {
 template <class P>
 void TextureCache<P>::DeleteImage(ImageId image_id, bool immediate_delete,
                                   std::vector<ImageViewId>* deferred_views) {
+    // The slot can be reused right away; pending decodes must not upload into it.
+    // The first finished decode clears IsDecoding, so check every pending one.
+    ImageBase& image = slot_images[image_id];
+    CancelAsyncDecode(image_id);
     CancelGCReadback(image_id);
     CancelPendingDownloads(image_id);
-    ImageBase& image = slot_images[image_id];
     if (image.HasScaled()) {
         total_used_memory -= GetScaledImageSizeBytes(image);
     }
