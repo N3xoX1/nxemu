@@ -169,6 +169,9 @@
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_readback_delta.comp">
       <Filter>comp</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_block_linear_unswizzle_2d_buffer.comp">
+      <Filter>comp</Filter>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_tracked_readback.comp">
       <Filter>comp</Filter>
     </CustomBuild>

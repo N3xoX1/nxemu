@@ -455,7 +455,8 @@ void ReadBackedBlock(Tegra::MemoryManager& gpu_memory, GPUVAddr address, u8* des
         size_t run = 0;
         do {
             const GPUVAddr page_addr = address + offset + run;
-            run += std::min(size - offset - run, page_size - (page_addr & (page_size - 1)));
+            run += std::min(size - offset - run,
+                            page_size - static_cast<size_t>(page_addr & (page_size - 1)));
         } while (offset + run < size &&
                  (gpu_memory.GetPointer(address + offset + run) != nullptr) == backed);
         if (backed) {
