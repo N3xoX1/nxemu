@@ -226,6 +226,8 @@ public:
     }
 
     const Profile& profile;
+    /// Rebuild fp16 denormals in conversions because the shader cannot ask the host to keep them.
+    bool emulate_fp16_denormals{};
     const RuntimeInfo& runtime_info;
     Stage stage{};
     /// The stage has no host subgroups; warp operations see a single lane

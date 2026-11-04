@@ -1050,6 +1050,7 @@ void TextureCache<P>::UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t siz
     boost::container::small_vector<ImageId, 16> deleted_images;
     ForEachImageInRegionGPU(as_id, gpu_addr, size,
                             [&](ImageId id, Image&) { deleted_images.push_back(id); });
+    boost::container::small_vector<ImageViewId, 16> remapped_views;
     // Write older aliases first so the most recently modified image wins in guest memory.
     std::ranges::sort(deleted_images, [this](ImageId lhs, ImageId rhs) {
         return slot_images[lhs].modification_tick < slot_images[rhs].modification_tick;
@@ -1109,6 +1110,19 @@ void TextureCache<P>::UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t siz
             continue;
         }
         image.flags |= ImageFlagBits::Remapped;
+        remapped_views.insert(remapped_views.end(), image.image_view_ids.begin(),
+                              image.image_view_ids.end());
+    }
+    if (!remapped_views.empty()) {
+        // Remapping changes the backing memory even when the TIC descriptor bytes are unchanged.
+        // Drop the cached TIC -> view entries of remapped images, then force the next binding
+        // to read the descriptors again so it finds a view against the new mapping.
+        RemoveImageViewReferences(remapped_views);
+        for (size_t c : active_channel_ids) {
+            auto& channel_info = channel_storage[c];
+            channel_info.graphics_image_table.Invalidate();
+            channel_info.compute_image_table.Invalidate();
+        }
     }
 }
 

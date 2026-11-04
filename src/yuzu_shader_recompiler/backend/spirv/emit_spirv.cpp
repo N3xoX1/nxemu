@@ -437,6 +437,44 @@ void DefineEntryPoint(const IR::Program& program, EmitContext& ctx, Id main) {
     ctx.AddEntryPoint(execution_model, main, "main", interfaces);
 }
 
+enum class Fp16DenormMode { Default, Flush, Preserve };
+
+struct Fp16DenormPlan {
+    Fp16DenormMode mode{Fp16DenormMode::Default};
+    bool emulate_conversions{};
+};
+
+// Choose the fp16 denorm execution mode, and whether fp16 <-> fp32 conversions must rebuild
+// denormals themselves because that mode cannot keep them.
+Fp16DenormPlan PlanFp16Denorms(const Profile& profile, const Info& info) {
+    Fp16DenormPlan plan{};
+    const bool modes_usable{profile.support_float_controls &&
+                            profile.support_separate_denorm_behavior &&
+                            !profile.has_broken_fp16_float_controls};
+    if (modes_usable) {
+        const bool wants_preserve{info.uses_fp16_denorms_preserve ||
+                                  info.uses_fp16_denorm_conversions};
+        if (info.uses_fp16_denorms_flush && info.uses_fp16_denorms_preserve) {
+            LOG_DEBUG(Shader_SPIRV, "Fp16 denorm flush and preserve on the same shader");
+        } else if (info.uses_fp16_denorms_flush) {
+            if (profile.support_fp16_denorm_flush) {
+                plan.mode = Fp16DenormMode::Flush;
+            }
+        } else if (wants_preserve) {
+            if (profile.support_fp16_denorm_preserve) {
+                plan.mode = Fp16DenormMode::Preserve;
+            } else if (info.uses_fp16_denorms_preserve) {
+                LOG_DEBUG(Shader_SPIRV, "Fp16 denorm preserve used in shader without host support");
+            }
+        }
+    }
+    // NVIDIA cannot use fp16 float controls, but its hardware always keeps fp16 denormals.
+    plan.emulate_conversions = info.uses_fp16_denorm_conversions &&
+                               plan.mode != Fp16DenormMode::Preserve &&
+                               !profile.has_broken_fp16_float_controls;
+    return plan;
+}
+
 void SetupDenormControl(const Profile& profile, const IR::Program& program, EmitContext& ctx,
                         Id main_func) {
     const Info& info{program.info};
@@ -457,26 +495,17 @@ void SetupDenormControl(const Profile& profile, const IR::Program& program, Emit
             LOG_DEBUG(Shader_SPIRV, "Fp32 denorm preserve used in shader without host support");
         }
     }
-    if (!profile.support_separate_denorm_behavior || profile.has_broken_fp16_float_controls) {
-        // No separate denorm behavior
-        return;
-    }
-    if (info.uses_fp16_denorms_flush && info.uses_fp16_denorms_preserve) {
-        LOG_DEBUG(Shader_SPIRV, "Fp16 denorm flush and preserve on the same shader");
-    } else if (info.uses_fp16_denorms_flush) {
-        if (profile.support_fp16_denorm_flush) {
-            ctx.AddCapability(spv::Capability::DenormFlushToZero);
-            ctx.AddExecutionMode(main_func, spv::ExecutionMode::DenormFlushToZero, 16U);
-        } else {
-            // Same as fp32, no need to warn as most drivers will flush by default
-        }
-    } else if (info.uses_fp16_denorms_preserve) {
-        if (profile.support_fp16_denorm_preserve) {
-            ctx.AddCapability(spv::Capability::DenormPreserve);
-            ctx.AddExecutionMode(main_func, spv::ExecutionMode::DenormPreserve, 16U);
-        } else {
-            LOG_DEBUG(Shader_SPIRV, "Fp16 denorm preserve used in shader without host support");
-        }
+    switch (PlanFp16Denorms(profile, info).mode) {
+    case Fp16DenormMode::Default:
+        break;
+    case Fp16DenormMode::Flush:
+        ctx.AddCapability(spv::Capability::DenormFlushToZero);
+        ctx.AddExecutionMode(main_func, spv::ExecutionMode::DenormFlushToZero, 16U);
+        break;
+    case Fp16DenormMode::Preserve:
+        ctx.AddCapability(spv::Capability::DenormPreserve);
+        ctx.AddExecutionMode(main_func, spv::ExecutionMode::DenormPreserve, 16U);
+        break;
     }
 }
 
@@ -616,6 +645,7 @@ std::vector<u32> EmitSPIRV(const Profile& profile, const RuntimeInfo& runtime_in
                            IR::Program& program, Bindings& bindings) {
     program.info.write_tracking_slots = WriteTrackingSlots(profile, program);
     EmitContext ctx{profile, runtime_info, program, bindings};
+    ctx.emulate_fp16_denormals = PlanFp16Denorms(profile, program.info).emulate_conversions;
     const Id main{DefineMain(ctx, program)};
     DefineEntryPoint(program, ctx, main);
     if (profile.support_float_controls) {

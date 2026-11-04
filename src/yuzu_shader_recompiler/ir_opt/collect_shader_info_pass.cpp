@@ -773,6 +773,18 @@ void VisitUsages(Info& info, IR::Inst& inst) {
 
 void VisitFpModifiers(Info& info, IR::Inst& inst) {
     switch (inst.GetOpcode()) {
+    case IR::Opcode::ConvertF16F32:
+    case IR::Opcode::ConvertF32F16: {
+        const IR::FmzMode fmz_mode{inst.Flags<IR::FpControl>().fmz_mode};
+        if (fmz_mode != IR::FmzMode::FTZ && fmz_mode != IR::FmzMode::FMZ) {
+            info.uses_fp16_denorm_conversions = true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    switch (inst.GetOpcode()) {
     case IR::Opcode::FPAdd16:
     case IR::Opcode::FPFma16:
     case IR::Opcode::FPMul16:
