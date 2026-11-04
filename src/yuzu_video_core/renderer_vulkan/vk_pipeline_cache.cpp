@@ -751,6 +751,11 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_vote = device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_VOTE_BIT),
         .support_subgroup_in_vertex_stages =
             device.IsSubgroupStageSupported(VK_SHADER_STAGE_VERTEX_BIT),
+        .support_subgroup_in_geometry_stage =
+            driver_id != VK_DRIVER_ID_MESA_TURNIP &&
+            device.IsSubgroupStageSupported(VK_SHADER_STAGE_GEOMETRY_BIT) &&
+            device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_BALLOT_BIT) &&
+            device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_SHUFFLE_BIT),
         .support_viewport_index_layer_non_geometry =
             device.IsExtShaderViewportIndexLayerSupported(),
         .support_viewport_mask = device.IsNvViewportArray2Supported(),
@@ -788,6 +793,11 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .ignore_nan_fp_comparisons = false,
         .has_broken_spirv_subgroup_mask_vector_extract_dynamic =
             driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY,
+        .has_broken_spirv_subgroup_shuffle =
+            driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY &&
+            device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_BALLOT_BIT) &&
+            device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_VOTE_BIT),
+        .max_subgroup_size = device.GetMaxSubgroupSize(),
         .has_broken_robust =
             device.IsNvidia() && device.GetNvidiaArch() <= NvidiaArchitecture::Arch_Pascal,
         .min_ssbo_alignment = device.GetStorageBufferAlignment(),

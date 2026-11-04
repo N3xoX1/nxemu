@@ -509,8 +509,10 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
         atomic64_add_reduction_buffers &= ~incompatible_buffers;
     }
     shared_memory_16_to_12_packing = program.shared_memory_16_to_12_packing;
-    single_lane_subgroup = !profile.support_subgroup_in_vertex_stages &&
-                           stage != Stage::Fragment && stage != Stage::Compute;
+    single_lane_subgroup =
+        (stage == Stage::Geometry && !profile.support_subgroup_in_geometry_stage) ||
+        (!profile.support_subgroup_in_vertex_stages && stage != Stage::Fragment &&
+         stage != Stage::Compute);
     const bool is_unified{profile.unified_descriptor_binding};
     u32& uniform_binding{is_unified ? bindings.unified : bindings.uniform_buffer};
     u32& storage_binding{is_unified ? bindings.unified : bindings.storage_buffer};
