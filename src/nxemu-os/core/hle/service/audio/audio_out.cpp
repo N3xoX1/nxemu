@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <utility>
+
 #include "yuzu_audio_core/out/audio_out.h"
 #include "yuzu_audio_core/out/audio_out_system.h"
 #include "core/hle/kernel/k_process.h"
@@ -12,12 +14,13 @@
 namespace Service::Audio {
 using namespace AudioCore::AudioOut;
 
-IAudioOut::IAudioOut(Core::System& system_, Manager& manager, size_t session_id,
+IAudioOut::IAudioOut(Core::System& system_, std::shared_ptr<Manager> manager, size_t session_id,
                      const std::string& device_name, const AudioOutParameter& in_params,
                      Kernel::KProcess* handle, u64 applet_resource_user_id)
     : ServiceFramework{system_, "IAudioOut"}, service_context{system_, "IAudioOut"},
       event{service_context.CreateEvent("AudioOutEvent")}, process{handle},
-      impl{std::make_shared<AudioCore::AudioOut::Out>(system_, manager, event, session_id)} {
+      owner{std::move(manager)},
+      impl{std::make_shared<AudioCore::AudioOut::Out>(system_, *owner, event, session_id)} {
 
     // clang-format off
     static const FunctionInfo functions[] = {

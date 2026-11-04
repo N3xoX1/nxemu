@@ -36,6 +36,9 @@ public:
      */
     AudioManager& GetAudioManager();
 
+    /// Weak handle for callbacks which may outlive the owning HLE service.
+    std::weak_ptr<AudioManager> GetAudioManagerWeak() const;
+
     /**
      * Get the audio output sink currently in use.
      *
@@ -64,7 +67,7 @@ private:
     void CreateSinks();
 
     /// Main audio manager for audio in/out
-    std::unique_ptr<AudioManager> audio_manager;
+    std::shared_ptr<AudioManager> audio_manager;
     /// Sink used for audio renderer and audio out
     std::unique_ptr<Sink::Sink> output_sink;
     /// Sink used for audio input

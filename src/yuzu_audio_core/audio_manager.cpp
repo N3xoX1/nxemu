@@ -8,6 +8,8 @@
 namespace AudioCore {
 
 AudioManager::AudioManager() {
+    // Registration may happen immediately after construction, before the worker runs.
+    running = true;
     thread = std::jthread([this]() { ThreadFunc(); });
 }
 
@@ -17,7 +19,7 @@ void AudioManager::Shutdown() {
     thread.join();
 }
 
-Result AudioManager::SetOutManager(BufferEventFunc buffer_func) {
+Result AudioManager::SetOutManager(BufferEventFunc buffer_func, const void* owner) {
     if (!running) {
         return Service::Audio::ResultOperationFailed;
     }
@@ -25,15 +27,14 @@ Result AudioManager::SetOutManager(BufferEventFunc buffer_func) {
     std::scoped_lock l{lock};
 
     const auto index{events.GetManagerIndex(Event::Type::AudioOutManager)};
-    if (buffer_events[index] == nullptr) {
-        buffer_events[index] = std::move(buffer_func);
-        needs_update = true;
-        events.SetAudioEvent(Event::Type::AudioOutManager, true);
-    }
+    buffer_event_owners[index] = owner;
+    buffer_events[index] = std::move(buffer_func);
+    needs_update = true;
+    events.SetAudioEvent(Event::Type::AudioOutManager, true);
     return ResultSuccess;
 }
 
-Result AudioManager::SetInManager(BufferEventFunc buffer_func) {
+Result AudioManager::SetInManager(BufferEventFunc buffer_func, const void* owner) {
     if (!running) {
         return Service::Audio::ResultOperationFailed;
     }
@@ -41,12 +42,29 @@ Result AudioManager::SetInManager(BufferEventFunc buffer_func) {
     std::scoped_lock l{lock};
 
     const auto index{events.GetManagerIndex(Event::Type::AudioInManager)};
-    if (buffer_events[index] == nullptr) {
-        buffer_events[index] = std::move(buffer_func);
-        needs_update = true;
-        events.SetAudioEvent(Event::Type::AudioInManager, true);
-    }
+    buffer_event_owners[index] = owner;
+    buffer_events[index] = std::move(buffer_func);
+    needs_update = true;
+    events.SetAudioEvent(Event::Type::AudioInManager, true);
     return ResultSuccess;
+}
+
+void AudioManager::ClearInManager(const void* owner) {
+    std::scoped_lock l{lock};
+    const auto index{events.GetManagerIndex(Event::Type::AudioInManager)};
+    if (buffer_event_owners[index] == owner) {
+        buffer_events[index] = {};
+        buffer_event_owners[index] = nullptr;
+    }
+}
+
+void AudioManager::ClearOutManager(const void* owner) {
+    std::scoped_lock l{lock};
+    const auto index{events.GetManagerIndex(Event::Type::AudioOutManager)};
+    if (buffer_event_owners[index] == owner) {
+        buffer_events[index] = {};
+        buffer_event_owners[index] = nullptr;
+    }
 }
 
 void AudioManager::SetEvent(const Event::Type type, const bool signalled) {
@@ -56,7 +74,6 @@ void AudioManager::SetEvent(const Event::Type type, const bool signalled) {
 void AudioManager::ThreadFunc() {
     std::unique_lock l{events.GetAudioEventLock()};
     events.ClearEvents();
-    running = true;
 
     while (running) {
         const auto timed_out{events.Wait(l, std::chrono::seconds(2))};
@@ -69,8 +86,15 @@ void AudioManager::ThreadFunc() {
             const auto event_type = static_cast<Event::Type>(i);
 
             if (events.CheckAudioEventSet(event_type) || timed_out) {
-                if (buffer_events[i]) {
-                    buffer_events[i]();
+                BufferEventFunc callback;
+                {
+                    // Registration/teardown can happen on a service thread.
+                    std::scoped_lock callback_lock{lock};
+                    callback = buffer_events[i];
+                }
+                // Never hold the callback lock while taking a session manager's mutex.
+                if (callback) {
+                    callback();
                 }
             }
             events.SetAudioEvent(event_type, false);

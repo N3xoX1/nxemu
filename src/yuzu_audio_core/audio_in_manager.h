@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -13,6 +14,10 @@ namespace Core {
 class System;
 }
 
+namespace AudioCore {
+class AudioManager;
+}
+
 namespace AudioCore::AudioIn {
 class In;
 
@@ -20,9 +25,10 @@ constexpr size_t MaxInSessions = 4;
 /**
  * Manages all audio in sessions.
  */
-class Manager {
+class Manager : public std::enable_shared_from_this<Manager> {
 public:
     explicit Manager(Core::System& system);
+    ~Manager();
 
     /**
      * Acquire a free session id for opening a new audio in.
@@ -86,6 +92,9 @@ public:
     bool sessions_started{};
     /// Protect state due to audio manager callback
     std::recursive_mutex mutex{};
+
+private:
+    std::weak_ptr<AudioManager> registered_audio_manager;
 };
 
 } // namespace AudioCore::AudioIn

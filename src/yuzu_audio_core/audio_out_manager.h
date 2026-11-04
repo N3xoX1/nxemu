@@ -4,12 +4,17 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <mutex>
 
 #include "yuzu_audio_core/renderer/audio_device.h"
 
 namespace Core {
 class System;
+}
+
+namespace AudioCore {
+class AudioManager;
 }
 
 namespace AudioCore::AudioOut {
@@ -19,9 +24,10 @@ constexpr size_t MaxOutSessions = 12;
 /**
  * Manages all audio out sessions.
  */
-class Manager {
+class Manager : public std::enable_shared_from_this<Manager> {
 public:
     explicit Manager(Core::System& system);
+    ~Manager();
 
     /**
      * Acquire a free session id for opening a new audio out.
@@ -83,6 +89,9 @@ public:
     bool sessions_started{};
     /// Protect state due to audio manager callback
     std::recursive_mutex mutex{};
+
+private:
+    std::weak_ptr<AudioManager> registered_audio_manager;
 };
 
 } // namespace AudioCore::AudioOut
