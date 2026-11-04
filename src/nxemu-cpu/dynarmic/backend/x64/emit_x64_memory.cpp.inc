@@ -178,6 +178,12 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
 
     const auto wrapped_fn = write_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value_idx)];
 
+    std::optional<Xbyak::Reg64> track_page, track_map;
+    if (fastmem_marker && conf.write_track_map) {
+        track_page = ctx.reg_alloc.ScratchGpr();
+        track_map = ctx.reg_alloc.ScratchGpr();
+    }
+
     SharedLabel abort = GenSharedLabel(), end = GenSharedLabel();
 
     if (fastmem_marker) {
@@ -186,6 +192,9 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         const auto dest_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
 
         const auto location = EmitWriteMemoryMov<bitsize>(code, dest_ptr, value_idx, ordered);
+        if (track_page) {
+            EmitWriteTrack(code, ctx, vaddr, *track_page, *track_map);
+        }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
             code.L(*abort);
@@ -433,6 +442,12 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
     const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[1]);
     const Xbyak::Reg32 status = ctx.reg_alloc.ScratchGpr().cvt32();
     const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
+    const auto fastmem_marker = ShouldFastmem(ctx, inst);
+    std::optional<Xbyak::Reg64> track_page, track_map;
+    if (fastmem_marker && conf.write_track_map) {
+        track_page = ctx.reg_alloc.ScratchGpr();
+        track_map = ctx.reg_alloc.ScratchGpr();
+    }
 
     const auto wrapped_fn = exclusive_write_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value.getIdx())];
 
@@ -468,7 +483,6 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
         EmitReadMemoryMov<bitsize>(code, rax.getIdx(), tmp, false);
     }
 
-    const auto fastmem_marker = ShouldFastmem(ctx, inst);
     if (fastmem_marker) {
         SharedLabel abort = GenSharedLabel();
         bool require_abort_handling = false;
@@ -504,6 +518,9 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
         }
 
         code.setnz(status.cvt8());
+        if (track_page) {
+            EmitWriteTrack(code, ctx, vaddr, *track_page, *track_map);
+        }
 
         ctx.deferred_emits.emplace_back([=, this] {
             code.L(*abort);

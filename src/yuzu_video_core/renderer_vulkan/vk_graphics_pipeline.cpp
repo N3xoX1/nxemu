@@ -783,6 +783,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
 
     texture_cache.SynchronizeGraphicsDescriptors();
 
+    sampler_handles.resize(samplers.size());
     if (num_textures > INLINE_IMAGE_ELEMENTS) {
         if (!sampler_lookup) {
             sampler_lookup = std::make_unique<DrawDescriptorCache<VideoCommon::SamplerId>>();
@@ -902,11 +903,8 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 {
                     const auto handle{read_handle(index)};
                     views[view_index++] = {handle.first};
-
-                    const VideoCommon::SamplerId sampler = memoize_samplers
-                                                               ? sampler_lookup->Get(handle.second, lookup_sampler)
-                                                               : lookup_sampler(handle.second);
-                    samplers[sampler_index++] = sampler;
+                    // Resolved below, unless the previous draw had the same handles
+                    sampler_handles[sampler_index++] = handle.second;
                 }
             };
             if (desc.sources.empty())
@@ -940,7 +938,41 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     }
     ASSERT(view_index == views.size());
     ASSERT(sampler_index == samplers.size());
-    texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
+    // Consecutive draws mostly sample the same textures. When the handles and the texture
+    // cache epoch did not change, the views and samplers resolved for the previous draw are
+    // still valid and prepared.
+    const u64 descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
+    bool reuse_descriptors = descriptor_epoch != 0 &&
+                             descriptor_epoch == cached_descriptor_epoch &&
+                             cached_view_indices.size() == views.size() &&
+                             cached_sampler_handles.size() == samplers.size();
+    for (size_t i = 0; reuse_descriptors && i < views.size(); ++i) {
+        reuse_descriptors = views[i].index == cached_view_indices[i];
+    }
+    for (size_t i = 0; reuse_descriptors && i < samplers.size(); ++i) {
+        reuse_descriptors = sampler_handles[i] == cached_sampler_handles[i];
+    }
+    if (reuse_descriptors) {
+        for (size_t i = 0; i < views.size(); ++i) {
+            views[i].id = cached_view_ids[i];
+        }
+        std::ranges::copy(cached_samplers, samplers.begin());
+    } else {
+        for (size_t i = 0; i < samplers.size(); ++i) {
+            samplers[i] = memoize_samplers ? sampler_lookup->Get(sampler_handles[i], lookup_sampler)
+                                           : lookup_sampler(sampler_handles[i]);
+        }
+        texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
+        cached_view_indices.resize(views.size());
+        cached_view_ids.resize(views.size());
+        for (size_t i = 0; i < views.size(); ++i) {
+            cached_view_indices[i] = views[i].index;
+            cached_view_ids[i] = views[i].id;
+        }
+        cached_sampler_handles.assign(sampler_handles.begin(), sampler_handles.end());
+        cached_samplers.assign(samplers.begin(), samplers.end());
+        cached_descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
+    }
     attachment_reads = attachment_read_kinds.empty()
                            ? Shader::Backend::SPIRV::NO_ATTACHMENT_READS
                            : SelectAttachmentReads(std::span(views.data(), views.size()));

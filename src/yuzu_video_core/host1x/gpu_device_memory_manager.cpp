@@ -751,7 +751,6 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
 {
-#if defined(__APPLE__)
     if (size == 0) return;
     Common::ScopedRangeLock lk(counter_guard, addr, size);
     std::atomic_thread_fence(std::memory_order_acquire);
@@ -784,7 +783,6 @@ void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t 
         bytes += DEVICE_PAGESIZE;
     }
     flush();
-#endif
 }
 
 template <typename Traits>

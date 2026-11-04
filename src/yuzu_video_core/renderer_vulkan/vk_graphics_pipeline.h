@@ -314,6 +314,13 @@ private:
     boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
     boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
     std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
+    // Textures and samplers resolved for the last draw, see ConfigureImpl
+    boost::container::small_vector<u32, 64> sampler_handles;
+    boost::container::small_vector<u32, 64> cached_view_indices;
+    boost::container::small_vector<VideoCommon::ImageViewId, 64> cached_view_ids;
+    boost::container::small_vector<u32, 64> cached_sampler_handles;
+    boost::container::small_vector<VideoCommon::SamplerId, 64> cached_samplers;
+    u64 cached_descriptor_epoch{};
 
     // Pixel local texture reads of the fragment stage in selector order, and their views
     boost::container::static_vector<Shader::PixelLocalRead, Shader::MAX_PIXEL_LOCAL_READS>

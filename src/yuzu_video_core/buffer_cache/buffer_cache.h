@@ -1119,9 +1119,12 @@ void BufferCache<P>::BindHostVertexBuffers() {
     auto& flags = maxwell3d->dirty.flags;
     for (u32 index = 0; index < NUM_VERTEX_BUFFERS; ++index) {
         const Binding& binding = channel_state->vertex_buffers[index];
-        Buffer& buffer = slot_buffers[binding.buffer_id];
-        TouchBuffer(buffer, binding.buffer_id);
-        SynchronizeBuffer(buffer, binding.device_addr, binding.size);
+        // Unused slots hold the null binding: nothing to touch or upload
+        if (binding.buffer_id != NULL_BUFFER_ID && binding.size != 0) {
+            Buffer& buffer = slot_buffers[binding.buffer_id];
+            TouchBuffer(buffer, binding.buffer_id);
+            SynchronizeBuffer(buffer, binding.device_addr, binding.size);
+        }
         if (!flags[Dirty::VertexBuffer0 + index]) {
             continue;
         }

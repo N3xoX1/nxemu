@@ -1332,7 +1332,9 @@ void RasterizerVulkan::FlushWork() {
     if (draw_counter < DRAWS_TO_DISPATCH) {
         // Batch opportunistic worker handoffs. Explicit guest flushes/waits
         // and the periodic driver submission below retain their original cadence.
-        if ((draw_counter & 31) == 31) {
+        // Every 128 draws: waking the worker more often costs the GPU thread more than the
+        // worker gains, fewer wakes leave the worker idle too long.
+        if ((draw_counter & 127) == 127) {
             scheduler.DispatchWork();
         }
         return;

@@ -468,6 +468,7 @@ void System::GatherGPUDirtyMemory(ICacheInvalidator * invalidator, bool rearm_na
     if (Kernel::KProcess * process = impl->kernel.ApplicationProcess())
     {
         process->GetCoreMemory().FlushNceWrites(rearm_native_reads);
+        process->GetCoreMemory().HarvestCpuWrites();
     }
     for (auto & manager : impl->gpu_dirty_memory_managers)
     {

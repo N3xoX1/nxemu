@@ -199,6 +199,33 @@ template<>
     }
 }
 
+// Marks the page of a fastmem write in the write tracking map. The upper levels are only
+// written when the page byte was clear, so most writes only load one byte.
+template<typename EmitContext>
+void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, Xbyak::Reg64 map) {
+    const auto& conf = ctx.conf;
+    const u32 l2_offset = conf.write_track_l2_offset;
+    const u32 l1_offset = conf.write_track_l1_offset;
+    SharedLabel mark = GenSharedLabel(), marked = GenSharedLabel();
+
+    code.mov(page, vaddr);
+    code.shr(page, 12);
+    code.mov(map, reinterpret_cast<u64>(conf.write_track_map));
+    code.cmp(code.byte[map + page], 0);
+    code.je(*mark, code.T_NEAR);
+    code.L(*marked);
+
+    ctx.deferred_emits.emplace_back([=, &code] {
+        code.L(*mark);
+        code.mov(code.byte[map + page], 1);
+        code.shr(page, 9);
+        code.mov(code.byte[map + page + l2_offset], 1);
+        code.shr(page, 9);
+        code.mov(code.byte[map + page + l1_offset], 1);
+        code.jmp(*marked, code.T_NEAR);
+    });
+}
+
 template<std::size_t bitsize>
 const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::RegExp& addr, bool ordered) {
     if (ordered) {
