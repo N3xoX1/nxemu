@@ -97,6 +97,14 @@ public:
 
     void ReleaseMsaaScratchImage(VkImage image);
 
+    /// Multisampled stand-in for a 1x color target drawn with a TIR depth buffer. It is kept
+    /// per target so pixels a pass does not draw keep their earlier contents.
+    [[nodiscard]] VkImageView GetOrCreateTirColorScratch(VkImage color_image, VkFormat format,
+                                                         VkExtent2D extent, u32 layers,
+                                                         VkSampleCountFlagBits samples);
+
+    void ReleaseTirColorScratch(VkImage color_image);
+
     void AccelerateImageUpload(Image&, const StagingBufferRef&,
                                std::span<const VideoCommon::SwizzleParameters>);
 
@@ -132,6 +140,7 @@ public:
     BlitImageHelper& blit_image_helper;
     RenderPassCache& render_pass_cache;
     std::optional<ASTCDecoderPass> astc_decoder_pass;
+    std::optional<BlockLinearUnswizzle2DBufferPass> bl2d_buffer_unswizzle_pass;
     std::unique_ptr<MSAACopyPass> msaa_copy_pass;
     const Settings::ResolutionScalingInfo& resolution;
     std::array<std::vector<VkFormat>, VideoCore::Surface::MaxPixelFormat> view_formats;
@@ -158,6 +167,16 @@ public:
     };
 
     std::vector<MsaaScratchImage> msaa_scratch_images;
+
+    struct TirColorScratch {
+        vk::Image image;
+        vk::ImageView view;
+        VkFormat format{};
+        VkExtent2D extent{};
+        u32 layers{};
+        VkSampleCountFlagBits samples{};
+    };
+    std::unordered_map<VkImage, TirColorScratch> tir_color_scratch;
     size_t msaa_scratch_last = static_cast<size_t>(-1);
 
     static constexpr size_t indexing_slots = 8 * sizeof(size_t);
@@ -180,6 +199,10 @@ public:
 
     void UploadMemory(VkBuffer buffer, VkDeviceSize offset,
                       std::span<const VideoCommon::BufferImageCopy> copies);
+
+    /// Upload an image produced by a guest compute shader writing its raw swizzled bytes.
+    /// Unsupported formats return false without modifying the image.
+    bool UploadSwizzledFromBuffer(VkBuffer buffer, VkDeviceSize offset);
 
     void UploadMemory(const StagingBufferRef& map,
                       std::span<const VideoCommon::BufferImageCopy> copies);
@@ -438,7 +461,7 @@ private:
     mutable std::vector<std::pair<u32, vk::Framebuffer>> scratch_framebuffers;
     mutable std::vector<std::pair<u32, VkRenderPass>> scratch_renderpasses;
     TextureCacheRuntime* runtime_ptr{};
-    std::array<VkImageView, NUM_RT + 1> framebuffer_attachments{};
+    std::array<VkImageView, NUM_RT * 2 + 1> framebuffer_attachments{};
     u32 framebuffer_layers{1};
     u32 duplicate_color_attachment_mask{};
     std::array<u32, NUM_RT> color_attachment_alias_masks{};

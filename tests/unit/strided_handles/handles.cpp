@@ -138,9 +138,11 @@ void Case(u32 stride, u32 base, unsigned mode, bool shift = false) {
     const u32 guest_offset = Evaluate(offset, input);
     if (guest_offset > env.size - 4)
       return;
+    // A draw-uniform index is read from its cbuf when the pipeline binds.
+    const u32 uniform = desc.has_index_cbuf ? input << desc.index_shift : 0;
     const u32 selected =
         desc.count == 1 ? 0 : Evaluate(fetch.Inst()->Arg(0), input);
-    const u32 host_offset = desc.cbuf_offset + selected * desc.stride;
+    const u32 host_offset = desc.cbuf_offset + uniform + selected * desc.stride;
     if (host_offset != guest_offset) {
       ++failures;
       std::fprintf(

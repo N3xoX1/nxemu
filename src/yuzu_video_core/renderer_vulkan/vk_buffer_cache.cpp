@@ -516,7 +516,12 @@ bool BufferCacheRuntime::CanReportMemoryUsage() const {
 }
 
 bool BufferCacheRuntime::ShouldStreamUniformBuffer(const Buffer& buffer, u32 offset, u32 size) const {
-    return device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && buffer.IsRegionUsed(offset, size);
+    // Updating constants already used by this frame otherwise ends the render pass
+    // for an ordered upload. Stream a snapshot on drivers that benefit from it.
+    // The caller requires CPU-modified data and excludes GPU-modified ranges.
+    const auto driver = device.GetDriverID();
+    return (driver == VK_DRIVER_ID_MOLTENVK || driver == VK_DRIVER_ID_NVIDIA_PROPRIETARY) &&
+           buffer.IsRegionUsed(offset, size);
 }
 
 u32 BufferCacheRuntime::GetStorageBufferAlignment() const {

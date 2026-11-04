@@ -232,6 +232,7 @@ public:
             {2, nullptr, "ClearDebugResponse"},
             {3, nullptr, "RegisterDebugResponse"},
             {4, &NIM_ECA::IsLargeResourceAvailable, "IsLargeResourceAvailable"},
+            {5, &NIM_ECA::CreateServerInterface, "CreateServerInterface2"}, // 17.0.0+, same response as Eden
         };
         // clang-format on
 

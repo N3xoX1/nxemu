@@ -884,6 +884,35 @@ void TextureCache<P>::WriteMemory(DAddr cpu_addr, size_t size) {
 }
 
 template <class P>
+template <typename BufferHandle>
+void TextureCache<P>::UpdateImagesFromBuffer(DAddr cpu_addr, size_t size, BufferHandle buffer,
+                                             u64 buffer_offset) {
+    if constexpr (requires(Image& image) { image.UploadSwizzledFromBuffer(buffer, buffer_offset); }) {
+        // A GPU compute dispatch can write the bytes of a block-linear image through an SSBO.
+        // Do not infer that a partially overlapping buffer contains the entire image.
+        constexpr size_t MAX_BINDING_PADDING = 64 * 1024;
+        ForEachImageInRegion(cpu_addr, size, [&](ImageId id, Image& image) {
+            if (image.cpu_addr != cpu_addr || image.guest_size_bytes > size ||
+                size - image.guest_size_bytes > MAX_BINDING_PADDING ||
+                True(image.flags & ImageFlagBits::Remapped) ||
+                True(image.flags & ImageFlagBits::Sparse)) {
+                return;
+            }
+            if (!image.UploadSwizzledFromBuffer(buffer, buffer_offset)) {
+                return;
+            }
+            if (True(image.flags & ImageFlagBits::CpuModified)) {
+                image.flags &= ~ImageFlagBits::CpuModified;
+                if (False(image.flags & ImageFlagBits::Tracked)) {
+                    TrackImage(image, id);
+                }
+            }
+            MarkModification(image, id);
+        });
+    }
+}
+
+template <class P>
 void TextureCache<P>::DownloadMemory(DAddr cpu_addr, size_t size, bool native_read) {
     static const bool release_native = std::getenv("NXEMU_NCE_RELEASE_READBACK") != nullptr;
     boost::container::small_vector<ImageId, 16> images;
@@ -2817,7 +2846,26 @@ ImageViewId TextureCache<P>::FindDepthBuffer(u32 clear_layer_count) {
     if (gpu_addr == 0) {
         return ImageViewId{};
     }
-    const ImageInfo info(regs.zeta, regs.zeta_size, regs.anti_alias_samples_mode);
+    auto depth_samples = regs.anti_alias_samples_mode;
+    // TIR is only emulated with single-sample color targets.
+    if (regs.anti_alias_raster != Tegra::Engines::Maxwell3D::Regs::AntiAliasRaster::Mode1x1 &&
+        regs.anti_alias_samples_mode == Tegra::Texture::MsaaMode::Msaa1x1) {
+        const auto raster_mode = static_cast<Tegra::Texture::MsaaMode>(regs.anti_alias_raster);
+        bool use_raster =
+            regs.tir_mode == Tegra::Engines::Maxwell3D::Regs::TIRMode::RasterNTargetM;
+        if (!use_raster) {
+            // Clears can come before tir_mode is enabled. Keep a depth buffer sized for the
+            // raster samples multisampled, or it switches between 1x and MSAA every frame.
+            const auto& rt0 = regs.rt[0];
+            use_raster = rt0.Address() != 0 && rt0.format != Tegra::RenderTargetFormat::NONE &&
+                         regs.zeta_size.width == rt0.width * NumSamplesX(raster_mode) &&
+                         regs.zeta_size.height == rt0.height * NumSamplesY(raster_mode);
+        }
+        if (use_raster) {
+            depth_samples = raster_mode;
+        }
+    }
+    const ImageInfo info(regs.zeta, regs.zeta_size, depth_samples);
     return FindRenderTargetView(info, gpu_addr,
                                 CanDiscardOnClear(info, false, 0, clear_layer_count));
 }

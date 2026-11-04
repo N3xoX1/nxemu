@@ -6,4 +6,6 @@
 
 namespace VideoCommon {
 template class VideoCommon::TextureCache<Vulkan::TextureCacheParams>;
+template void VideoCommon::TextureCache<Vulkan::TextureCacheParams>::UpdateImagesFromBuffer<VkBuffer>(
+    DAddr, size_t, VkBuffer, u64);
 }

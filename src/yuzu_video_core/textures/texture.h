@@ -157,10 +157,18 @@ template <typename Descriptor>
 [[nodiscard]] constexpr u32 ComposeTextureHandle(const Descriptor& desc, u32 primary,
                                                 u32 secondary = 0) {
     if constexpr (requires { desc.has_secondary; }) {
-        const u32 raw = desc.has_secondary
-                            ? (primary << desc.shift_left) |
-                                  (secondary << desc.secondary_shift_left)
-                            : primary;
+        const u32 raw = [&] {
+            if constexpr (requires { desc.mask; }) {
+                const u32 lhs = (primary << desc.shift_left) & desc.mask;
+                return desc.has_secondary
+                           ? lhs | ((secondary << desc.secondary_shift_left) & desc.secondary_mask)
+                           : lhs;
+            } else {
+                return desc.has_secondary
+                           ? (primary << desc.shift_left) | (secondary << desc.secondary_shift_left)
+                           : primary;
+            }
+        }();
         return raw | desc.handle_or_bits;
     } else {
         return primary;

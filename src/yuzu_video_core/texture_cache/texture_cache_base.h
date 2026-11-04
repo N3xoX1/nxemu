@@ -238,6 +238,10 @@ public:
     /// Mark images in a range as modified from the CPU
     void WriteMemory(DAddr cpu_addr, size_t size);
 
+    template <typename BufferHandle>
+    void UpdateImagesFromBuffer(DAddr cpu_addr, size_t size, BufferHandle buffer,
+                                u64 buffer_offset);
+
     /// Download contents of host images to guest memory in a region
     void DownloadMemory(DAddr cpu_addr, size_t size, bool native_read = false);
 
