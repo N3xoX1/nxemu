@@ -7,6 +7,8 @@
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/vfs/vfs_concat.h"
 #include "core/file_sys/vfs/vfs.h"
+#include <algorithm>
+#include <cctype>
 #include <fmt/format.h>
 
 namespace Core {
@@ -44,7 +46,34 @@ FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
     }
 
     if (Common::FS::IsDir(path)) {
-        return vfs->OpenFile(path + "/main", VirtualFileOpenMode::Read);
+        // Both an ExeFS directory and an extracted title root are accepted.
+        // Never touch its (potentially enormous) romfs/ during path resolution.
+        const auto directory = vfs->OpenDirectory(path, VirtualFileOpenMode::Read);
+        if (!directory) {
+            return nullptr;
+        }
+        if (directory->GetFile("main.npdm") != nullptr) {
+            if (auto main = directory->GetFile("main")) {
+                return main;
+            }
+        }
+        auto exefs = directory->GetSubdirectory("exefs");
+        if (!exefs) {
+            for (const auto& child : directory->GetSubdirectories()) {
+                const auto name = child->GetName();
+                if (name.size() == 5 &&
+                    std::equal(name.begin(), name.end(), "exefs", [](unsigned char a, unsigned char b) {
+                        return std::tolower(a) == std::tolower(b);
+                    })) {
+                    exefs = child;
+                    break;
+                }
+            }
+        }
+        if (exefs && exefs->GetFile("main.npdm") != nullptr) {
+            return exefs->GetFile("main");
+        }
+        return nullptr;
     }
 
     return vfs->OpenFile(path, VirtualFileOpenMode::Read);

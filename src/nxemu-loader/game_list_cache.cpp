@@ -9,6 +9,7 @@
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/submission_package.h"
+#include "core/loader/loose_romfs_paths.h"
 #include "core/loader/loader.h"
 #include "nxemu-os/os_settings_identifiers.h"
 #include <nxemu-core/settings/identifiers.h>
@@ -18,6 +19,7 @@
 #include <filesystem>
 #include <fstream>
 #include <yuzu_common/fs/fs.h>
+#include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
 
 extern IModuleSettings * g_settings;
@@ -89,6 +91,75 @@ public:
 private:
     uint64_t m_hash;
 };
+
+// A loose title's metadata is stored in files next to main, not inside it. Track
+// their timestamps too or changing control.nacp/icon/main.npdm would leave the
+// library cache displaying stale metadata until the main executable changes.
+uint64_t LooseSidecarFingerprint(const std::filesystem::path & main_path)
+{
+    // Same folders as the loader: the ExeFS folder, and its parent only when it is
+    // named exefs (the parent of a flat ExeFS folder is the game library).
+    const std::filesystem::path exefs = main_path.parent_path();
+    const std::filesystem::path dirs[] = {exefs, Loader::LooseFS::IsExeFSFolder(exefs) ? exefs.parent_path() : std::filesystem::path{}};
+    Fingerprint fingerprint;
+    for (const std::filesystem::path & dir : dirs)
+    {
+        if (dir.empty())
+        {
+            continue;
+        }
+        struct MetadataStamp
+        {
+            std::string name;
+            uint64_t size;
+            uint64_t modified;
+        };
+        std::vector<MetadataStamp> entries;
+        std::error_code ec;
+        std::filesystem::directory_iterator it{
+            dir, std::filesystem::directory_options::skip_permission_denied, ec};
+        for (const std::filesystem::directory_iterator end; !ec && it != end; it.increment(ec))
+        {
+            const auto & entry = *it;
+            const std::string name = Common::FS::PathToUTF8String(entry.path().filename());
+            const std::string ext = GetLowerExtension(name);
+            const bool metadata = name == "main.npdm" || ext == "nacp" ||
+                                  ext == "png" || ext == "jpg" || ext == "jpeg" ||
+                                  ext == "bmp" || (name.starts_with("icon_") && ext == "dat");
+            if (!metadata)
+            {
+                continue;
+            }
+            std::error_code stat_error;
+            if (!entry.is_regular_file(stat_error) || stat_error)
+            {
+                continue;
+            }
+            const auto size = entry.file_size(stat_error);
+            if (stat_error)
+            {
+                continue;
+            }
+            const auto modified = entry.last_write_time(stat_error);
+            if (stat_error)
+            {
+                continue;
+            }
+            entries.push_back({name, static_cast<uint64_t>(size),
+                               static_cast<uint64_t>(modified.time_since_epoch().count())});
+        }
+        // directory_iterator order is unspecified. A stable fingerprint avoids
+        // unnecessary reparses when files are enumerated in another order.
+        std::ranges::sort(entries, {}, &MetadataStamp::name);
+        for (const auto & entry : entries)
+        {
+            fingerprint.Add(entry.name);
+            fingerprint.Add(entry.size);
+            fingerprint.Add(entry.modified);
+        }
+    }
+    return fingerprint.Value();
+}
 
 class CacheWriter
 {
@@ -532,9 +603,17 @@ bool GameListCache::ScanFiles(const std::vector<ScanFile> & files, IGameListScan
     for (const ScanFile & file : files)
     {
         const std::string ext = GetLowerExtension(file.path);
+        FileStamp stamp{file.size, file.modifiedTime};
         if (IsGameExtension(ext) || IsAddOnExtension(ext))
         {
-            gameFiles.push_back({file.path, FileStamp{file.size, file.modifiedTime}});
+            gameFiles.push_back({file.path, stamp});
+            continue;
+        }
+        const std::filesystem::path path{Common::FS::ToU8String(file.path)};
+        if (Loader::LooseFS::IsExeFSMain(path))
+        {
+            stamp.modifiedTime ^= static_cast<int64_t>(LooseSidecarFingerprint(path));
+            gameFiles.push_back({file.path, stamp});
         }
     }
     bool complete = ScanAddOnDirectories(callback);
@@ -703,33 +782,79 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
     std::vector<DirFile> files;
 
     bool stopped = false;
-    const auto callbackEntry = [&](const std::filesystem::directory_entry & entry) -> bool {
-        if (callback.ScanStopRequested())
+    const auto collectFile = [&](const std::filesystem::directory_entry & entry) {
+        const std::filesystem::path & path = entry.path();
+        std::string name = Common::FS::PathToUTF8String(path);
+        const std::string ext = GetLowerExtension(name);
+        const bool known = IsGameExtension(ext) || IsAddOnExtension(ext);
+        const bool looseMain = !known && Loader::LooseFS::IsExeFSMain(path);
+        if (!known && !looseMain)
         {
-            stopped = true;
-            return false;
-        }
-        std::string path = Common::FS::PathToUTF8String(entry.path());
-        const std::string ext = GetLowerExtension(path);
-        const bool game = IsGameExtension(ext), addOn = IsAddOnExtension(ext);
-        if (!game && !addOn)
-        {
-            return true;
+            return;
         }
         std::error_code ec;
         FileStamp stamp;
         stamp.size = entry.file_size(ec);
         stamp.modifiedTime = (int64_t)entry.last_write_time(ec).time_since_epoch().count();
-        files.push_back({std::move(path), stamp});
-        return true;
+        if (looseMain)
+        {
+            stamp.modifiedTime ^= static_cast<int64_t>(LooseSidecarFingerprint(path));
+        }
+        files.push_back({std::move(name), stamp});
     };
-    if (gameDirectory.scanSubfolders)
+
+    // The generic recursive scanner used to visit every asset in loose romfs/ trees,
+    // even though only ExeFS/main is an executable. Walk directories explicitly so
+    // entire RomFS payloads can be skipped without sacrificing nested game discovery.
+    // Like the old scanner, directory links are followed.
+    std::vector<std::filesystem::path> pending{std::filesystem::path{Common::FS::ToU8String(gameDir)}};
+    while (!pending.empty() && !stopped)
     {
-        Common::FS::IterateDirEntriesRecursively(gameDir, callbackEntry, Common::FS::DirEntryFilter::File);
-    }
-    else
-    {
-        Common::FS::IterateDirEntries(gameDir, callbackEntry, Common::FS::DirEntryFilter::File);
+        const std::filesystem::path directory = std::move(pending.back());
+        pending.pop_back();
+        const size_t firstChild = pending.size();
+        std::error_code ec;
+        std::filesystem::directory_iterator it{directory, std::filesystem::directory_options::skip_permission_denied, ec};
+        for (const std::filesystem::directory_iterator end; !ec && it != end; it.increment(ec))
+        {
+            if (callback.ScanStopRequested())
+            {
+                stopped = true;
+                break;
+            }
+            const std::filesystem::directory_entry & entry = *it;
+            std::error_code typeError;
+            const std::filesystem::file_status status = entry.status(typeError);
+            if (typeError)
+            {
+                continue;
+            }
+            if (std::filesystem::is_regular_file(status))
+            {
+                collectFile(entry);
+                continue;
+            }
+            if (!std::filesystem::is_directory(status))
+            {
+                continue;
+            }
+            if (!gameDirectory.scanSubfolders)
+            {
+                // A selected game folder can contain an exefs/ child even when recursive
+                // scanning is disabled. Inspect only its main, never its RomFS payload.
+                if (Loader::LooseFS::IsExeFSFolder(entry.path()) && Loader::LooseFS::HasMainAndNpdm(entry.path()))
+                {
+                    collectFile(std::filesystem::directory_entry{entry.path() / "main", typeError});
+                }
+                continue;
+            }
+            if (!Loader::LooseFS::CanSkipRomFS(entry.path()))
+            {
+                pending.push_back(entry.path());
+            }
+        }
+        // Visit subfolders in listing order, as the old depth-first scan did.
+        std::reverse(pending.begin() + firstChild, pending.end());
     }
     if (stopped)
     {
@@ -784,7 +909,7 @@ bool GameListCache::ScanGameFiles(const std::vector<DirFile> & files, IGameListS
 void GameListCache::ParseGameFile(const std::string & path, GameFileRecord & record) const
 {
     const std::string ext = GetLowerExtension(path);
-    if (IsGameExtension(ext))
+    if (IsGameExtension(ext) || (!IsAddOnExtension(ext) && Loader::LooseFS::IsExeFSMain(std::filesystem::path{Common::FS::ToU8String(path)})))
     {
         FileSys::VirtualFile file = m_systemloader.GetFilesystem()->OpenFile(path, VirtualFileOpenMode::Read);
         std::shared_ptr<Loader::AppLoader> loader = file ? Loader::GetLoader(m_systemloader, file, 0, 0) : nullptr;

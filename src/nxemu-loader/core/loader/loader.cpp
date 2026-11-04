@@ -8,6 +8,8 @@
 #include "yuzu_common/string_util.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "loader.h"
+#include "core/file_sys/content_archive.h"
+#include "core/loader/deconstructed_rom_directory.h"
 #include "core/loader/nca.h"
 #include "core/loader/nro.h"
 #include "core/loader/nsp.h"
@@ -33,6 +35,17 @@ std::optional<LoaderFileType> IdentifyFileLoader(FileSys::VirtualFile file)
 
 LoaderFileType IdentifyFile(FileSys::VirtualFile file)
 {
+    // A loose, decrypted ExeFS has no container magic. Only recognize its actual
+    // 'main' executable, alongside main.npdm, to avoid mistaking arbitrary files
+    // for deconstructed game images.
+    if (file->GetName() == "main")
+    {
+        const FileSys::VirtualDir parent = file->GetContainingDirectory();
+        if (parent != nullptr && FileSys::IsDirectoryExeFS(parent))
+        {
+            return LoaderFileType::DeconstructedRomDirectory;
+        }
+    }
     if (const auto nro_type = IdentifyFileLoader<AppLoader_NRO>(file))
     {
         return *nro_type;
@@ -96,6 +109,8 @@ std::string GetFileTypeString(LoaderFileType type)
         return "NSP";
     case LoaderFileType::XCI:
         return "XCI";
+    case LoaderFileType::DeconstructedRomDirectory:
+        return "DeconstructedRomDirectory";
     case LoaderFileType::Error:
         return "error";
     case LoaderFileType::Unknown:
@@ -132,6 +147,8 @@ static std::shared_ptr<AppLoader> GetFileLoader(Systemloader & loader, FileSys::
     // NX NSP (Nintendo Submission Package) file format
     case LoaderFileType::NSP:
         return std::make_shared<AppLoader_NSP>(std::move(file), loader.GetFileSystemController(), loader.GetContentProvider(), program_id, program_index);
+    case LoaderFileType::DeconstructedRomDirectory:
+        return std::make_shared<AppLoader_DeconstructedRomDirectory>(std::move(file));
     case LoaderFileType::Error:
     case LoaderFileType::Unknown:
         return nullptr;

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <mutex>
+#include <optional>
 #include <string>
 #include "yuzu_common/common_types.h"
 #include "core/file_sys/program_metadata.h"
@@ -44,6 +46,7 @@ public:
     LoadResult Load(Systemloader & loader, ISystemModules & systemModules) override;
 
     LoaderResultStatus ReadRomFS(FileSys::VirtualFile& out_dir) override;
+    LoaderResultStatus ReadControlData(FileSys::NACP& out_control) override;
     LoaderResultStatus ReadIcon(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadProgramId(uint64_t& out_program_id) override;
     LoaderResultStatus ReadTitle(char * buffer, uint32_t * bufferSize) override;
@@ -52,11 +55,16 @@ public:
     LoaderResultStatus ReadNSOModules(Modules& out_modules) override;
 
 private:
+    const FileSys::VirtualFile& LooseRomFS();
+
     FileSys::ProgramMetadata metadata;
     FileSys::VirtualFile romfs;
+    FileSys::VirtualDir romfs_exefs_dir;
+    std::once_flag romfs_once;
     FileSys::VirtualDir dir;
 
     std::vector<u8> icon_data;
+    std::optional<FileSys::NACP> control;
     std::string name;
     uint64_t title_id{};
     bool override_update;

@@ -55,15 +55,18 @@ static_assert(sizeof(RomFSFileEntry) == 0x20, "RomFSFileEntry has incorrect size
 
 struct RomFSBuildFileContext;
 
+// RomFSBuildContext owns every node through its directories/files vectors. Links between
+// nodes must not own their targets: parent/child shared_ptr cycles would leak the entire
+// tree (including every source file) whenever a RomFS image is constructed.
 struct RomFSBuildDirectoryContext {
     std::string path;
     u32 cur_path_ofs = 0;
     u32 path_len = 0;
     u32 entry_offset = 0;
-    std::shared_ptr<RomFSBuildDirectoryContext> parent;
-    std::shared_ptr<RomFSBuildDirectoryContext> child;
-    std::shared_ptr<RomFSBuildDirectoryContext> sibling;
-    std::shared_ptr<RomFSBuildFileContext> file;
+    RomFSBuildDirectoryContext* parent = nullptr;
+    RomFSBuildDirectoryContext* child = nullptr;
+    RomFSBuildDirectoryContext* sibling = nullptr;
+    RomFSBuildFileContext* file = nullptr;
 };
 
 struct RomFSBuildFileContext {
@@ -73,8 +76,8 @@ struct RomFSBuildFileContext {
     u32 entry_offset = 0;
     uint64_t offset = 0;
     uint64_t size = 0;
-    std::shared_ptr<RomFSBuildDirectoryContext> parent;
-    std::shared_ptr<RomFSBuildFileContext> sibling;
+    RomFSBuildDirectoryContext* parent = nullptr;
+    RomFSBuildFileContext* sibling = nullptr;
     VirtualFile source;
 };
 
@@ -168,7 +171,7 @@ bool RomFSBuildContext::AddDirectory(std::shared_ptr<RomFSBuildDirectoryContext>
     num_dirs++;
     dir_table_size +=
         sizeof(RomFSDirectoryEntry) + Common::AlignUp(dir_ctx->path_len - dir_ctx->cur_path_ofs, 4);
-    dir_ctx->parent = std::move(parent_dir_ctx);
+    dir_ctx->parent = parent_dir_ctx.get();
     directories.emplace_back(std::move(dir_ctx));
 
     return true;
@@ -180,7 +183,7 @@ bool RomFSBuildContext::AddFile(std::shared_ptr<RomFSBuildDirectoryContext> pare
     num_files++;
     file_table_size +=
         sizeof(RomFSFileEntry) + Common::AlignUp(file_ctx->path_len - file_ctx->cur_path_ofs, 4);
-    file_ctx->parent = std::move(parent_dir_ctx);
+    file_ctx->parent = parent_dir_ctx.get();
     files.emplace_back(std::move(file_ctx));
 
     return true;
@@ -234,7 +237,6 @@ std::vector<std::pair<uint64_t, VirtualFile>> RomFSBuildContext::Build() {
 
     // Determine file offsets.
     u32 entry_offset = 0;
-    std::shared_ptr<RomFSBuildFileContext> prev_file = nullptr;
     for (const auto& cur_file : files) {
         file_partition_size = Common::AlignUp(file_partition_size, 16);
         cur_file->offset = file_partition_size;
@@ -243,13 +245,12 @@ std::vector<std::pair<uint64_t, VirtualFile>> RomFSBuildContext::Build() {
         entry_offset +=
             static_cast<u32>(sizeof(RomFSFileEntry) +
                              Common::AlignUp(cur_file->path_len - cur_file->cur_path_ofs, 4));
-        prev_file = cur_file;
     }
-    // Assign deferred parent/sibling ownership.
+    // Link nodes without extending their lifetime beyond this build.
     for (auto it = files.rbegin(); it != files.rend(); ++it) {
         auto& cur_file = *it;
         cur_file->sibling = cur_file->parent->file;
-        cur_file->parent->file = cur_file;
+        cur_file->parent->file = cur_file.get();
     }
 
     // Determine directory offsets.
@@ -260,11 +261,11 @@ std::vector<std::pair<uint64_t, VirtualFile>> RomFSBuildContext::Build() {
             static_cast<u32>(sizeof(RomFSDirectoryEntry) +
                              Common::AlignUp(cur_dir->path_len - cur_dir->cur_path_ofs, 4));
     }
-    // Assign deferred parent/sibling ownership.
+    // Link nodes without extending their lifetime beyond this build.
     for (auto it = directories.rbegin(); (*it) != root; ++it) {
         auto& cur_dir = *it;
         cur_dir->sibling = cur_dir->parent->child;
-        cur_dir->parent->child = cur_dir;
+        cur_dir->parent->child = cur_dir.get();
     }
 
     // Create output map.

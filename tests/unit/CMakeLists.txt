@@ -217,6 +217,14 @@ target_include_directories(test_loader_metadata PRIVATE "${CMAKE_SOURCE_DIR}/src
 target_link_libraries(test_loader_metadata PRIVATE nxemu_test_support yuzu_common common fmt::fmt)
 nxemu_unit_test(test_loader_metadata)
 
+# Loose ExeFS discovery and safe pruning of large extracted RomFS directories.
+add_executable(test_loose_romfs_paths loose_romfs_paths/paths.cpp)
+target_include_directories(test_loose_romfs_paths PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-loader")
+target_compile_features(test_loose_romfs_paths PRIVATE cxx_std_20)
+target_compile_options(test_loose_romfs_paths PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+nxemu_unit_test(test_loose_romfs_paths)
+
 add_subdirectory(shader_profile)
 
 add_executable(test_surface_clip surface_clip/surface_clip.cpp)
