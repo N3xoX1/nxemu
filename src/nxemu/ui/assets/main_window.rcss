@@ -2279,12 +2279,15 @@ body.compact .volume-range
 #popup-menu.graphics-popup .menu-item.submenu-open > .menu-anchor > .menu-popup
 {
     display: inline-block;
+    pointer-events: auto;
 }
 #popup-menu.graphics-popup .menu-item > .menu-anchor
 {
     top: auto;
     bottom: 0;
-    height: auto;
+    height: 0;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .scaling-mode

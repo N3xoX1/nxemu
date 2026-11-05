@@ -2,6 +2,7 @@
 #include "menu_bar.h"
 #include <RmlUi/Core/Types.h>
 #include <functional>
+#include <optional>
 #include <vector>
 
 class PopupMenu
@@ -27,6 +28,9 @@ private:
     Rml::Element * m_origin = nullptr;
     bool m_open = false;
     Rml::Vector2f m_position;
+    std::optional<Rml::Vector2f> m_previousPointer;
+
+    void OpenSubmenu(Rml::Element * item);
 
     Rml::Vector2f Open(const std::vector<MenuItem> & items, Rml::Element * origin);
     void Place(Rml::Vector2f position, Rml::Vector2f size);
