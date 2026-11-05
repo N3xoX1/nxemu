@@ -1955,9 +1955,12 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
         };
         const int aa = store.GetInt(NXVideoSetting::AntiAliasing);
         std::vector<MenuItem> antialiasing;
+        std::string selected_aa;
         const auto add_aa = [&](AntiAliasing value, std::string label) {
+            const bool selected = aa == static_cast<int>(value);
+            if (selected) selected_aa = label;
             antialiasing.push_back(choose(static_cast<int>(Action::AntiAliasingFirst) + static_cast<int>(value),
-                std::move(label), aa == static_cast<int>(value)));
+                std::move(label), selected));
         };
         add_aa(AntiAliasing::None, Tr("None"));
         add_aa(AntiAliasing::Fxaa, "FXAA");
@@ -1975,6 +1978,7 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
         controls[0].tag = "↑ " + ShortScalingFilterLabel(displayed);
         controls[1].tag = "↓ " + ShortScalingFilterLabel(
             store.GetInt(NXVideoSetting::DownscalingFilter) == 1 ? ScalingFilter::Area : ScalingFilter::Bilinear);
+        controls[2].tag = std::move(selected_aa);
         const bool cas = !IsAutomaticScalingFilter(active) &&
             (displayed == ScalingFilter::NearestNeighbor || displayed == ScalingFilter::Bilinear ||
              displayed == ScalingFilter::CatmullRom || displayed == ScalingFilter::CatmullRomFast);
