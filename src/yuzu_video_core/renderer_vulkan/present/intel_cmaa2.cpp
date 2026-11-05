@@ -3,6 +3,7 @@
 // Original Intel CMAA2 HLSL: Copyright (c) Intel 2018; Apache-2.0.
 #include <algorithm>
 #include <array>
+#include <stdint.h>
 #include <limits>
 #include <stdexcept>
 #include <tuple>

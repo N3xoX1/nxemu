@@ -41,7 +41,7 @@ jobs:
           $version = '16.6.0'
           $archive = Join-Path $env:RUNNER_TEMP glslang.zip
           $toolDir = Join-Path $env:RUNNER_TEMP glslang
-          Invoke-WebRequest -Uri "https://github.com/KhronosGroup/glslang/releases/download/$version/glslang-$version-windows-x86_64-release.zip" -OutFile $archive
+          Invoke-WebRequest -Uri "https://github.com/KhronosGroup/glslang/releases/download/$version/glslang-$version-windows-x86_64-release.zip" -OutFile $archive -MaximumRetryCount 3 -RetryIntervalSec 5
           if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '82bf434e69b9bb4829de7e2b4bc2c5e7a7861e53d66cf75e5cc70f5f694a8d9b') {
             throw 'The downloaded glslang archive failed its SHA256 check.'
           }
