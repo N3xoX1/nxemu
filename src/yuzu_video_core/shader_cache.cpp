@@ -245,6 +245,9 @@ const ShaderInfo* ShaderCache::MakeShaderInfo(GenericEnvironment& env, VAddr cpu
     const size_t size_bytes{info->size_bytes};
     const ShaderInfo* const result{info.get()};
     info->code = env.ShareCachedCode(info->size_bytes);
+    if (env.ShaderStage() == Shader::Stage::VertexB) {
+        info->vertex_input_type_mask = DeclaredInputTypeMask(env.SPH());
+    }
     Register(std::move(info), cpu_addr, size_bytes);
     return result;
 }

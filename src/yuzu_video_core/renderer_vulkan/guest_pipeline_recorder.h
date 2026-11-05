@@ -77,11 +77,13 @@ public:
     }
     // prefix_memo: storage that the caller keeps for these exact key prefix words,
     // zero until the recorder fills it; or null when there is none.
+    // vertex_inputs: the mask the key's vertex attribute types went through
+    // (FixedPipelineState::MaskVertexInputs), all bits when it was not masked.
     void Observe(Engine & engine, const GraphicsPipelineCacheKey & key, const DynamicFeatures & features,
-                 u64* prefix_memo = nullptr) noexcept
+                 u64* prefix_memo = nullptr, u64 vertex_inputs = ~0ULL) noexcept
     {
         ObserveState(engine.dirty, engine.regs, engine.draw_manager->GetDrawState().topology,
-                     engine.engine_state, &engine, key, features, prefix_memo);
+                     engine.engine_state, &engine, key, features, prefix_memo, vertex_inputs);
     }
     // Called once per compute pipeline and session; the journal keeps first use.
     void ObserveCompute(std::span<const u32, VideoCommon::ShaderProfile::Journal::ComputeWords> key) noexcept
@@ -107,7 +109,8 @@ public:
     void ObserveState(Engine::DirtyState& dirty, const Engine::Regs& regs,
                       Engine::Regs::PrimitiveTopology topology, Engine::EngineHint hint,
                       const void* source, const GraphicsPipelineCacheKey& key,
-                      const DynamicFeatures& features, u64* prefix_memo = nullptr) noexcept
+                      const DynamicFeatures& features, u64* prefix_memo = nullptr,
+                      u64 vertex_inputs = ~0ULL) noexcept
     {
         // Keep the frequent unchanged draw path small enough to inline. The
         // complete measured observer remains available when diagnostics are on.
@@ -119,13 +122,13 @@ public:
                 (prefix_memo && *prefix_memo ? *prefix_memo == last_prefix_id
                                              : std::memcmp(last_prefix.data(), &key, sizeof(last_prefix)) == 0)) return;
         }
-        ObserveChangedState(dirty,regs,topology,hint,source,key,features,prefix_memo);
+        ObserveChangedState(dirty,regs,topology,hint,source,key,features,prefix_memo,vertex_inputs);
     }
 private:
     void ObserveChangedState(Engine::DirtyState& dirty, const Engine::Regs& regs,
                       Engine::Regs::PrimitiveTopology topology, Engine::EngineHint hint,
                       const void* source, const GraphicsPipelineCacheKey& key,
-                      const DynamicFeatures& features, u64* prefix_memo) noexcept
+                      const DynamicFeatures& features, u64* prefix_memo, u64 vertex_inputs) noexcept
     {
         static_assert(offsetof(GraphicsPipelineCacheKey, state) == 104 * sizeof(u32));
         struct Sample
@@ -208,7 +211,11 @@ private:
                 last_hint = hint;
             }
             if (prefix_changed || full_capture) std::memcpy(last_prefix.data(), &key, sizeof(last_prefix));
-            if (current_state->projected != key.state)
+            if (vertex_inputs == ~0ULL ? current_state->projected != key.state : [&] {
+                    FixedPipelineState expected{current_state->projected};
+                    expected.MaskVertexInputs(vertex_inputs);
+                    return expected != key.state;
+                }())
                 throw std::runtime_error("Automatic guest recipe projection mismatch");
             if (current_state->entry) {
                 if (timing) ++cached_recipe_hits;

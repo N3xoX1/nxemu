@@ -34,6 +34,9 @@ struct ShaderInfo {
     u64 unique_hash{};
     size_t size_bytes{};
     std::shared_ptr<const std::vector<u64>> code;
+    /// Vertex B programs: the attribute types the draw key keeps (DeclaredInputTypeMask), made once
+    /// here so each draw masks with one AND; all bits for other stages, which masks nothing
+    u64 vertex_input_type_mask{~0ULL};
 };
 
 class ShaderCache : public VideoCommon::ChannelSetupCaches<VideoCommon::ChannelInfo> {

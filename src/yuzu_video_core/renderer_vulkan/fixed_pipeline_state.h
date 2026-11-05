@@ -302,6 +302,15 @@ struct FixedPipelineState {
         return offsetof(FixedPipelineState, xfb_state);
     }
 
+    /// With dynamic vertex input, clears the types of the attributes the vertex shader does not
+    /// declare: they compile as disabled inputs, so draws that differ only there share a pipeline.
+    /// type_mask has both type bits of each declared attribute set (VideoCommon::DeclaredInputTypeMask).
+    void MaskVertexInputs(u64 type_mask) noexcept {
+        if (dynamic_vertex_input != 0) {
+            attribute_types &= type_mask;
+        }
+    }
+
     u32 DynamicAttributeType(size_t index) const noexcept {
         return (attribute_types >> (index * 2)) & 0b11;
     }

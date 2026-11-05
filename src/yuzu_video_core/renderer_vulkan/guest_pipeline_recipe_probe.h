@@ -24,7 +24,8 @@ public:
 
     void Observe(const Maxwell& regs, Maxwell::PrimitiveTopology topology,
                  Tegra::Engines::Maxwell3D::EngineHint hint,
-                 const GraphicsPipelineCacheKey& key, const DynamicFeatures& features) noexcept {
+                 const GraphicsPipelineCacheKey& key, const DynamicFeatures& features,
+                 u64 vertex_inputs = ~0ULL) noexcept {
         if (failed) return;
         const auto start = std::chrono::steady_clock::now();
         try {
@@ -36,7 +37,8 @@ public:
                 (features.has_dynamic_vertex_input ? 32U : 0U) |
                 (features.has_vertex_stride_workaround ? 64U : 0U);
             const auto guest = GuestPipelineState::Capture(regs, topology, hint);
-            const auto projected = guest.Project(features);
+            auto projected = guest.Project(features);
+            projected.MaskVertexInputs(vertex_inputs);
             ++observations;
             if (projected != key.state) {
                 ++mismatches;
