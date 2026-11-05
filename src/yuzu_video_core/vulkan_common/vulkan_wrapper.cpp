@@ -3,12 +3,21 @@
 
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <span>
+#include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "yuzu_common/cityhash.h"
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_video_core/vulkan_common/vk_enum_string_helper.h"
 #include "yuzu_video_core/vulkan_common/vma.h"
@@ -263,6 +272,65 @@ void SetObjectName(const DeviceDispatch* dld, VkDevice device, T handle, VkObjec
         Check(dld->vkSetDebugUtilsObjectNameEXT(device, &name_info));
     }
 }
+
+std::mutex trace_mutex;
+std::unordered_map<VkShaderModule, u64> traced_modules;
+
+const std::filesystem::path& TraceDir() {
+    static const std::filesystem::path dir = [] {
+        auto path = Common::FS::GetYuzuPath(Common::FS::YuzuPath::LogDir) / "spirv";
+        std::error_code ec;
+        std::filesystem::create_directories(path, ec);
+        LOG_WARNING(Render_Vulkan, "SPIR-V trace enabled: {}", Common::FS::PathToUTF8String(path));
+        return path;
+    }();
+    return dir;
+}
+
+void TraceShaderModule(VkShaderModule module, const VkShaderModuleCreateInfo& ci) {
+    const u64 hash = Common::CityHash64(reinterpret_cast<const char*>(ci.pCode), ci.codeSize);
+    const auto file = TraceDir() / fmt::format("{:016x}.spv", hash);
+    std::error_code ec;
+    if (!std::filesystem::exists(file, ec)) {
+        std::ofstream out(file, std::ios::binary);
+        out.write(reinterpret_cast<const char*>(ci.pCode), static_cast<std::streamsize>(ci.codeSize));
+    }
+    std::scoped_lock lock{trace_mutex};
+    traced_modules[module] = hash;
+}
+
+// Left behind on disk if the driver crashes inside vkCreate*Pipelines.
+class PipelineBuildMarker {
+public:
+    explicit PipelineBuildMarker(std::span<const VkPipelineShaderStageCreateInfo> stages)
+        : file{TraceDir() / fmt::format("building_{}.txt",
+                                        std::hash<std::thread::id>{}(std::this_thread::get_id()))} {
+        std::string text;
+        {
+            std::scoped_lock lock{trace_mutex};
+            for (const auto& stage : stages) {
+                const auto it = traced_modules.find(stage.module);
+                text += fmt::format("stage {:#x}: {}\n", static_cast<u32>(stage.stage),
+                                    it != traced_modules.end()
+                                        ? fmt::format("{:016x}.spv", it->second)
+                                        : std::string{"unknown"});
+            }
+        }
+        std::ofstream out(file, std::ios::binary | std::ios::trunc);
+        out << text;
+    }
+
+    ~PipelineBuildMarker() {
+        std::error_code ec;
+        std::filesystem::remove(file, ec);
+    }
+
+    PipelineBuildMarker(const PipelineBuildMarker&) = delete;
+    PipelineBuildMarker& operator=(const PipelineBuildMarker&) = delete;
+
+private:
+    std::filesystem::path file;
+};
 
 } // Anonymous namespace
 
@@ -767,6 +835,7 @@ PipelineLayout Device::CreatePipelineLayout(const VkPipelineLayoutCreateInfo& ci
 Pipeline Device::CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& ci,
                                         VkPipelineCache cache) const {
     VkPipeline object;
+    const PipelineBuildMarker marker{std::span(ci.pStages, ci.stageCount)};
     Check(dld->vkCreateGraphicsPipelines(handle, cache, 1, &ci, nullptr, &object));
     return Pipeline(object, handle, *dld);
 }
@@ -774,6 +843,7 @@ Pipeline Device::CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& ci,
 Pipeline Device::CreateComputePipeline(const VkComputePipelineCreateInfo& ci,
                                        VkPipelineCache cache) const {
     VkPipeline object;
+    const PipelineBuildMarker marker{std::span(&ci.stage, 1)};
     Check(dld->vkCreateComputePipelines(handle, cache, 1, &ci, nullptr, &object));
     return Pipeline(object, handle, *dld);
 }
@@ -812,6 +882,7 @@ QueryPool Device::CreateQueryPool(const VkQueryPoolCreateInfo& ci) const {
 ShaderModule Device::CreateShaderModule(const VkShaderModuleCreateInfo& ci) const {
     VkShaderModule object;
     Check(dld->vkCreateShaderModule(handle, &ci, nullptr, &object));
+    TraceShaderModule(object, ci);
     return ShaderModule(object, handle, *dld);
 }
 
