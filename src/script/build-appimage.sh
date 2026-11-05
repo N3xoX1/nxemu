@@ -102,7 +102,8 @@ fetch_tool() {
     fi
     mkdir -p "$(dirname "$dest")"
     echo "Downloading $(basename "$dest")"
-    curl -fL --retry 3 -o "${dest}.partial" "$url"
+    # GitHub's release asset endpoint can temporarily return 5xx responses.
+    curl -fL --retry 6 --retry-max-time 120 -o "${dest}.partial" "$url"
     mv "${dest}.partial" "$dest"
     chmod +x "$dest"
 }
