@@ -107,16 +107,23 @@ struct Context {
         app.pApplicationName = "nxemu FSR A/B";
         app.apiVersion = VK_API_VERSION_1_2;
         const char *layer = "VK_LAYER_KHRONOS_validation";
-        const char *ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+        std::vector<const char*> instance_extensions;
+#ifdef __APPLE__
+        instance_extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
         const bool validate = std::getenv("NXEMU_FSR_VALIDATION") != nullptr;
         VkInstanceCreateInfo ci{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
         ci.pApplicationInfo = &app;
         if (validate) {
             ci.enabledLayerCount = 1;
             ci.ppEnabledLayerNames = &layer;
-            ci.enabledExtensionCount = 1;
-            ci.ppEnabledExtensionNames = &ext;
+            instance_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
+#ifdef __APPLE__
+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
+        ci.enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size());
+        ci.ppEnabledExtensionNames = instance_extensions.data();
         Check(vkCreateInstance(&ci, nullptr, &instance));
         if (validate) {
             VkDebugUtilsMessengerCreateInfoEXT debug{
@@ -179,6 +186,11 @@ struct Context {
         core.shaderInt16 = fp16;
         core.shaderStorageImageExtendedFormats = storage_images && features.features.shaderStorageImageExtendedFormats;
         dc.pEnabledFeatures = &core;
+#ifdef __APPLE__
+        const char* portability = "VK_KHR_portability_subset";
+        dc.enabledExtensionCount = 1;
+        dc.ppEnabledExtensionNames = &portability;
+#endif
         Check(vkCreateDevice(physical, &dc, nullptr, &device));
         vkGetDeviceQueue(device, family, 0, &queue);
         VkCommandPoolCreateInfo pc{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};

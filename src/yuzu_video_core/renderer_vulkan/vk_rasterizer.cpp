@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include "yuzu_video_core/renderer_vulkan/present/scale_trace.h"
+#include "yuzu_video_core/renderer_vulkan/present/scale_capture.h"
 #include <optional>
 
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
@@ -304,6 +305,47 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     }
     texture_cache.MarkRenderTargetsWritten(color_mask,
                                            regs.depth_write_enabled != 0 || regs.stencil_enable != 0);
+    if (std::exchange(ScaleTrace::capture_pending, false)) {
+        // Keep one matching draw per request. Sampled inputs that alias a render target
+        // cannot be read after the draw without confusing them with the output.
+        ScaleTrace::capture_fragment = 0;
+        const auto prefix = ScaleTrace::trace_prefix.string() + "-draw-" +
+                            std::to_string(ScaleTrace::draw);
+        const auto save = [&](VkImageView view, const char* kind, unsigned slot) {
+            const auto capture = ScaleCapture::ReadColor(device, memory_allocator, scheduler, view);
+            if (capture.pixels.empty()) {
+                return;
+            }
+            const auto filename = prefix + "-" + kind + "-" + std::to_string(slot) + "-" +
+                                  std::to_string(capture.width) + "x" +
+                                  std::to_string(capture.height) + ".rgba";
+            std::ofstream file(filename, std::ios::binary);
+            file.write(reinterpret_cast<const char*>(capture.pixels.data()),
+                       static_cast<std::streamsize>(capture.pixels.size()));
+        };
+        const auto* framebuffer = texture_cache.GetFramebuffer();
+        const auto images = framebuffer->Images();
+        const auto targets = std::span{images.data(), framebuffer->NumImages()};
+        for (const auto& input : ScaleTrace::capture_inputs) {
+            if (std::ranges::find(targets, input.image) == targets.end()) {
+                save(input.view, "input", input.slot);
+            }
+        }
+        for (unsigned slot = 0; slot < Maxwell::NumRenderTargets; ++slot) {
+            const auto id = texture_cache.ColorBufferViewId(slot);
+            if (!id || !(color_mask & (1U << slot))) {
+                continue;
+            }
+            const auto& view = texture_cache.GetImageView(id);
+            if (view.Samples() == VK_SAMPLE_COUNT_1_BIT &&
+                !VideoCore::Surface::IsPixelFormatInteger(view.format)) {
+                if (const auto handle = view.Handle(Shader::TextureType::Color2D)) {
+                    save(handle, "output", slot);
+                }
+            }
+        }
+        ScaleTrace::capture_inputs.clear();
+    }
 }
 
 void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {

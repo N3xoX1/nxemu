@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
+#include "yuzu_video_core/vulkan_common/vulkan.h"
 #include <chrono>
+#include <cstdint>
+#include <vector>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -8,6 +11,15 @@ namespace Vulkan::ScaleTrace
 {
 inline std::ofstream output;
 inline unsigned remaining{}, draw{};
+inline std::uint64_t capture_fragment{};
+inline std::filesystem::path trace_prefix;
+struct CaptureInput {
+    unsigned slot;
+    VkImage image;
+    VkImageView view;
+};
+inline std::vector<CaptureInput> capture_inputs;
+inline bool capture_pending{};
 inline const char * Directory()
 {
     static const char * path = std::getenv("NXEMU_SCALE_TRACE");
@@ -32,7 +44,11 @@ inline void FrameEnd()
     previous = stamp;
     if (output.is_open()) output.close();
     const auto id = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    output.open(std::filesystem::path(Directory()) / ("trace-" + std::to_string(id) + ".txt"));
+    trace_prefix = std::filesystem::path(Directory()) / ("trace-" + std::to_string(id));
+    output.open(trace_prefix.string() + ".txt");
+    capture_fragment = 0;
+    std::ifstream selector(std::filesystem::path(Directory()) / "capture-draw.request");
+    selector >> std::hex >> capture_fragment;
     remaining = 2;
     draw = 0;
 }

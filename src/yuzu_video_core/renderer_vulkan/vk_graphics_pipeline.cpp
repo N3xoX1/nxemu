@@ -1018,6 +1018,22 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }
     }
     texture_cache.CheckFeedbackLoop(views);
+    if (ScaleTrace::Active() && ScaleTrace::capture_fragment &&
+        key.unique_hashes[5] == ScaleTrace::capture_fragment && ImageWriteStages() == 0) {
+        ScaleTrace::capture_inputs.clear();
+        for (unsigned slot = 0; slot < views.size(); ++slot) {
+            auto& view = texture_cache.GetImageView(views[slot].id);
+            if (!view.ImageHandle() || view.Samples() != VK_SAMPLE_COUNT_1_BIT ||
+                VideoCore::Surface::GetFormatType(view.format) != VideoCore::Surface::SurfaceType::ColorTexture ||
+                VideoCore::Surface::IsPixelFormatInteger(view.format)) {
+                continue;
+            }
+            if (const auto handle = view.Handle(Shader::TextureType::Color2D)) {
+                ScaleTrace::capture_inputs.push_back({slot, view.ImageHandle(), handle});
+            }
+        }
+        ScaleTrace::capture_pending = true;
+    }
     ConfigureDraw(rescaling, render_area);
 }
 
@@ -1898,6 +1914,16 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     const bool is_rescaling{texture_cache.IsRescaling()};
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
     const bool bind_pipeline{scheduler.UpdateGraphicsPipeline(this)};
+    if (ScaleTrace::Active()) {
+        auto& log = ScaleTrace::output;
+        log << " SCALE_CONSTANTS down_factor=" << std::dec
+            << (is_rescaling ? videoSettings.resolution_info.down_factor : 1.0f)
+            << " words=" << std::hex;
+        for (const u32 word : rescaling.Data()) {
+            log << ' ' << word;
+        }
+        log << std::dec << '\n';
+    }
     const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
     const u64 descriptor_tick{scheduler.CurrentTick()};
     if (uses_texture_table) {

@@ -77,14 +77,15 @@ inline void Write(const char * suffix, std::span<const u8> bytes)
     file.write(reinterpret_cast<const char *>(bytes.data()), bytes.size());
 }
 
-inline void Source(const Device & device, MemoryAllocator & allocator, Scheduler & scheduler,
-                   VkImageView source, u32 reported_width, u32 reported_height,
-                   Common::Rectangle<float> crop, const Layout::FramebufferLayout & screen,
-                   unsigned downscale_filter, unsigned aa)
+struct ColorReadback {
+    u32 width{};
+    u32 height{};
+    std::vector<u8> pixels;
+};
+
+inline ColorReadback ReadColor(const Device & device, MemoryAllocator & allocator,
+                               Scheduler & scheduler, VkImageView source)
 {
-    if (!active || source_written)
-        return;
-    source_written = true;
     scheduler.RequestOutsideRenderPassOperationContext();
     auto descriptor_layout =
         CreateWrappedDescriptorSetLayout(device, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER});
@@ -164,10 +165,26 @@ inline void Source(const Device & device, MemoryAllocator & allocator, Scheduler
         width > device.GetPhysical().GetProperties().limits.maxImageDimension2D ||
         height > device.GetPhysical().GetProperties().limits.maxImageDimension2D)
     {
+        return {};
+    }
+    return {width, height, read(width, height, false)};
+}
+
+inline void Source(const Device & device, MemoryAllocator & allocator, Scheduler & scheduler,
+                   VkImageView source, u32 reported_width, u32 reported_height,
+                   Common::Rectangle<float> crop, const Layout::FramebufferLayout & screen,
+                   unsigned downscale_filter, unsigned aa)
+{
+    if (!active || source_written)
+        return;
+    source_written = true;
+    const auto [width, height, pixels] = ReadColor(device, allocator, scheduler, source);
+    if (pixels.empty())
+    {
         active = false;
         return;
     }
-    Write("-source.rgba", read(width, height, false));
+    Write("-source.rgba", pixels);
     auto metadata = prefix;
     metadata += ".json";
     std::ofstream json(metadata);
