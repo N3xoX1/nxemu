@@ -1925,11 +1925,11 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
             if (active == profile) items.back().tag = PresentationFilterBadge(m_presentationState);
         }
         if (active == ScalingFilter::AutoPerformance) {
-            items.push_back(MenuItem::Slider("CAS", MenuItem::Range{kCasSharpnessRange, 100,
+            items.push_back(MenuItem::Slider(Tr("Contrast (CAS)"), MenuItem::Range{kCasSharpnessRange, 100,
                 store.GetInt(NXVideoSetting::CASSharpness), true,
                 Tr("Makes details stand out. Set to 0% to turn it off.")}));
         } else if (active == ScalingFilter::AutoQuality) {
-            items.push_back(MenuItem::Slider("RCAS", MenuItem::Range{kFilterSharpnessRange, kSharpnessMax,
+            items.push_back(MenuItem::Slider(Tr("Contrast (RCAS)"), MenuItem::Range{kFilterSharpnessRange, kSharpnessMax,
                 FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::FSPSharpness)), true,
                 Tr("Makes the picture sharper when using FSR. Set to 0% to turn it off.")}));
         }
@@ -1941,7 +1941,8 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
             if (filter.value == ScalingFilter::Fsr) {
                 item.range = MenuItem::Range{kFilterSharpnessRange, kSharpnessMax,
                     custom_filter == ScalingFilter::FsrEasu ? 0 : FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::FSPSharpness)),
-                    !IsAutomaticScalingFilter(active) && displayed == ScalingFilter::Fsr, Tr("Makes the picture sharper when using FSR. Set to 0% to turn it off.")};
+                    !IsAutomaticScalingFilter(active) && displayed == ScalingFilter::Fsr, Tr("Contrast (RCAS)") + " · " +
+                        Tr("Makes the picture sharper when using FSR. Set to 0% to turn it off.")};
             }
             upscaling.push_back(std::move(item));
         }
@@ -1982,7 +1983,7 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
         const bool cas = !IsAutomaticScalingFilter(active) &&
             (displayed == ScalingFilter::NearestNeighbor || displayed == ScalingFilter::Bilinear ||
              displayed == ScalingFilter::CatmullRom || displayed == ScalingFilter::CatmullRomFast);
-        controls.push_back(MenuItem::Slider("CAS", MenuItem::Range{kCasSharpnessRange, 100,
+        controls.push_back(MenuItem::Slider(Tr("Contrast (CAS)"), MenuItem::Range{kCasSharpnessRange, 100,
             cas ? store.GetInt(NXVideoSetting::CASSharpness) : 0, cas,
             Tr("Makes details stand out with supported filters. Set to 0% to turn it off.")}));
         auto custom = MenuItem::Submenu(Tr("Custom"), std::move(controls));

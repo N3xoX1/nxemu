@@ -3962,3 +3962,9 @@ msgstr "Réduit une grande image avec très peu de travail pour la puce graphiqu
 
 msgid "Smooths jagged edges when making a large picture smaller."
 msgstr "Lisse les contours dentelés quand une grande image est réduite."
+
+msgid "Contrast (CAS)"
+msgstr "Contraste (CAS)"
+
+msgid "Contrast (RCAS)"
+msgstr "Contraste (RCAS)"
