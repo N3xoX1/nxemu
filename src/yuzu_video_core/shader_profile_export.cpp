@@ -11,6 +11,7 @@
 #include "yuzu_video_core/shader_profile_hash.h"
 #include "yuzu_video_core/shader_profile_journal.h"
 #include "yuzu_video_core/shader_profile_resources.h"
+#include "yuzu_video_core/shader_profile_sph.h"
 #include "yuzu_video_core/shader_profile_text.h"
 #include <algorithm>
 #include <chrono>
@@ -200,7 +201,9 @@ void Put(std::string & bytes, size_t pos, u64 value, size_t count)
         bytes[pos + i] = static_cast<char>(value >> (8 * i));
 }
 using Masks = std::map<u64, u32>;
-std::string Normalize(std::string key, const Masks & dependencies)
+// DeclaredInputTypeMask of each vertex B program, by hash
+using VertexInputs = std::map<u64, u64>;
+std::string Normalize(std::string key, const Masks & dependencies, const VertexInputs & vertex_inputs)
 {
     const auto mask = [&](u64 h) {const auto it=dependencies.find(h);return it==dependencies.end()?0:it->second; };
     auto state2 = At(key, 420, 4);
@@ -217,6 +220,14 @@ std::string Normalize(std::string key, const Masks & dependencies)
     if (!pool) Put(key, 408, 0, 8);
     Vulkan::FixedPipelineState state;
     std::memcpy(&state, key.data() + 416, sizeof(state));
+    // Runtime keys drop the types of undeclared vertex attributes; journal projections and
+    // records stored before that keep them. A vertex A program also reads attributes.
+    if (At(key, 0, 8) == 0)
+        if (const auto inputs = vertex_inputs.find(At(key, 8, 8)); inputs != vertex_inputs.end())
+        {
+            state.MaskVertexInputs(inputs->second);
+            std::memcpy(key.data() + 416, &state, sizeof(state));
+        }
     return key.substr(0, 416 + state.Size());
 }
 // Compute keys keep only the constant buffer sizes their program reads.
@@ -262,6 +273,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
     Require(recording.isMember("feature_bits") && Number(recording["feature_bits"]) <= 127 && Number(recording["guest_state_word_count"]) == 278, "Unsupported guest recording ABI");
     const auto bits = Number(recording["feature_bits"]);
     Masks dependencies;
+    VertexInputs vertex_inputs;
     for (const auto & p : model.pipelines)
         if (p.compute)
         {
@@ -287,6 +299,14 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
                     }
                 }
             Require(stage == p.environments.size(), "Pipeline stage/hash mismatch");
+            // Without vertex A the first environment is the vertex B program
+            if (At(p.key, 0, 8) == 0 && At(p.key, 8, 8) != 0)
+            {
+                const auto & code = model.codes.at(model.profile["environments"][p.environments.front()]["shader"].asString());
+                Shader::ProgramHeader sph;
+                std::memcpy(&sph, code.data(), sizeof(sph));
+                vertex_inputs.emplace(At(p.key, 8, 8), DeclaredInputTypeMask(sph));
+            }
         }
     std::map<std::string, std::vector<std::vector<std::string>>> source, compute_source;
     std::vector<std::string> compute_order;
@@ -302,7 +322,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
             Require(options.allow_partial, "Pipeline has unlocated shaders");
             continue;
         }
-        const auto key = p.compute ? NormalizeCompute(p.key, dependencies) : Normalize(p.key, dependencies);
+        const auto key = p.compute ? NormalizeCompute(p.key, dependencies) : Normalize(p.key, dependencies, vertex_inputs);
         auto & variants = (p.compute ? compute_source : source)[key];
         if (p.compute && variants.empty()) compute_order.push_back(key);
         if (std::find(variants.begin(), variants.end(), p.environments) == variants.end()) variants.push_back(p.environments);
@@ -371,7 +391,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
         for (size_t i = 0; i < 104; ++i)
             Put(key, i * 4, words[278 + i], 4);
         std::memcpy(key.data() + 416, &projected, sizeof(projected));
-        key = Normalize(std::move(key), dependencies);
+        key = Normalize(std::move(key), dependencies, vertex_inputs);
         JsonValue r(JsonValueType::Object);
         r["kind"] = "graphics";
         r["guest_words"] = Array();

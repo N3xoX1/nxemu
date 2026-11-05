@@ -900,7 +900,15 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
         current_pipeline = nullptr;
         return nullptr;
     }
+    // Refresh only updates what changed: the vertex input mask of the previous draw comes off first
+    graphics_key.state.attribute_types = unmasked_attribute_types;
     graphics_key.state.Refresh(*maxwell3d, dynamic_features);
+    unmasked_attribute_types = graphics_key.state.attribute_types;
+    // A vertex A program also reads attributes; its inputs are not in the vertex B header
+    const u64 vertex_inputs{shader_infos[1] && graphics_key.unique_hashes[0] == 0
+                                ? shader_infos[1]->vertex_input_type_mask
+                                : ~0ULL};
+    graphics_key.state.MaskVertexInputs(vertex_inputs);
     graphics_cbuf_size_state.Refresh(graphics_key.cbuf_sizes, graphics_key.unique_hashes,
         cbuf_size_dependencies, [&](size_t stage, size_t bank) {
             const auto& buffer = maxwell3d->state.shader_stages[stage].const_buffers[bank];
@@ -915,14 +923,16 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
 
     if (guest_recipe_probe) {
         guest_recipe_probe->Observe(maxwell3d->regs, maxwell3d->draw_manager->GetDrawState().topology,
-                                    maxwell3d->engine_state, graphics_key, dynamic_features);
+                                    maxwell3d->engine_state, graphics_key, dynamic_features,
+                                    vertex_inputs);
     }
 
     u64* recipe_prefix{};
     GraphicsPipeline* const next{current_pipeline ? current_pipeline->Next(graphics_key, recipe_prefix)
                                                   : nullptr};
     if (guest_recipe_recorder) {
-        guest_recipe_recorder->Observe(*maxwell3d, graphics_key, dynamic_features, recipe_prefix);
+        guest_recipe_recorder->Observe(*maxwell3d, graphics_key, dynamic_features, recipe_prefix,
+                                       vertex_inputs);
     }
     if (next) {
         current_pipeline = next;
@@ -1253,6 +1263,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         if (env_index != envs.size()) {
             LOG_ERROR(Render_Vulkan, "Cached graphics shader environment count mismatch");
             return false;
+        }
+        // Records written before draw keys were masked still hold the types of attributes the
+        // vertex shader does not declare. The vertex B environment comes first without vertex A.
+        if (key.unique_hashes[0] == 0 && key.unique_hashes[1] != 0) {
+            key.state.MaskVertexInputs(VideoCommon::DeclaredInputTypeMask(envs.front().SPH()));
         }
         if ((key.state.extended_dynamic_state != 0) !=
                 dynamic_features.has_extended_dynamic_state ||
@@ -2525,6 +2540,17 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             auto& program_va{programs[0]};
             auto program_vb{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
             programs[index] = MergeDualVertexPrograms(program_va, program_vb, env);
+        }
+        if (index == 1 && !uses_vertex_a && key.state.dynamic_vertex_input != 0) {
+            // The key masks attributes the header does not declare, so such a read gets (0,0,0,1)
+            const u64 declared{VideoCommon::DeclaredInputTypeMask(env.SPH())};
+            for (u32 attribute = 0; attribute < 32; ++attribute) {
+                if (programs[index].info.loads.Generic(attribute) &&
+                    ((declared >> (attribute * 2)) & 3) == 0) {
+                    LOG_DEBUG(Render_Vulkan, "Vertex shader {:016x} reads undeclared attribute {}",
+                              key.unique_hashes[index], attribute);
+                }
+            }
         }
 
         if (Settings::values.dump_shaders) {
