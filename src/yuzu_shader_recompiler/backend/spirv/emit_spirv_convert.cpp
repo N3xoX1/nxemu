@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cmath>
+
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "yuzu_shader_recompiler/backend/spirv/spirv_emit_context.h"
+#include "yuzu_shader_recompiler/frontend/ir/modifiers.h"
 
 namespace Shader::Backend::SPIRV {
 namespace {
@@ -147,12 +150,68 @@ Id EmitConvertU32U64(EmitContext& ctx, Id value) {
     return ctx.OpUConvert(ctx.U32[1], value);
 }
 
-Id EmitConvertF16F32(EmitContext& ctx, Id value) {
-    return ctx.OpFConvert(ctx.F16[1], value);
+namespace {
+// When the shader cannot ask the host to keep fp16 denormals, OpFConvert may flush them.
+// Rebuild them with integer ops, but only when the guest instruction does not ask to flush.
+bool NeedsFp16DenormalEmulation(EmitContext& ctx, IR::Inst* inst) {
+    if (!ctx.emulate_fp16_denormals) {
+        return false;
+    }
+    const IR::FmzMode fmz_mode{inst->Flags<IR::FpControl>().fmz_mode};
+    return fmz_mode != IR::FmzMode::FTZ && fmz_mode != IR::FmzMode::FMZ;
+}
+} // Anonymous namespace
+
+Id EmitConvertF16F32(EmitContext& ctx, IR::Inst* inst, Id value) {
+    const Id result{ctx.OpFConvert(ctx.F16[1], value)};
+    if (!NeedsFp16DenormalEmulation(ctx, inst)) {
+        return result;
+    }
+    if (const IR::Value arg{inst->Arg(0)}; arg.IsImmediate()) {
+        // Constants such as 0.0 are common; skip the extra code when no denormal can appear.
+        const f32 magnitude{std::fabs(arg.F32())};
+        if (!(magnitude > 0.0f && magnitude < 0x1p-14f)) {
+            return result;
+        }
+    }
+
+    // The half subnormal range is sign | round-even(abs(value) * 2^24).
+    // Avoid an out-of-range float-to-unsigned conversion in the unused path,
+    // including for infinities and NaNs (which make the ordered comparison false).
+    const Id magnitude{ctx.OpFAbs(ctx.F32[1], value)};
+    const Id half_min_normal{ctx.Const(0x1p-14f)};
+    const Id is_subnormal{ctx.OpFOrdLessThan(ctx.U1, magnitude, half_min_normal)};
+    const Id bounded{ctx.OpSelect(ctx.F32[1], is_subnormal, magnitude, ctx.f32_zero_value)};
+    const Id mantissa{ctx.OpConvertFToU(
+        ctx.U32[1], ctx.OpRoundEven(ctx.F32[1],
+                                   ctx.OpFMul(ctx.F32[1], bounded, ctx.Const(0x1p24f))))};
+    const Id sign{ctx.OpBitwiseAnd(
+        ctx.U32[1],
+        ctx.OpShiftRightLogical(ctx.U32[1], ctx.OpBitcast(ctx.U32[1], value), ctx.Const(16u)),
+        ctx.Const(0x8000u))};
+    const Id packed{ctx.OpBitwiseOr(ctx.U32[1], sign, mantissa)};
+    const Id encoded{ctx.OpCompositeExtract(ctx.F16[1], ctx.OpBitcast(ctx.F16[2], packed), 0u)};
+    return ctx.OpSelect(ctx.F16[1], is_subnormal, encoded, result);
 }
 
-Id EmitConvertF32F16(EmitContext& ctx, Id value) {
-    return ctx.OpFConvert(ctx.F32[1], value);
+Id EmitConvertF32F16(EmitContext& ctx, IR::Inst* inst, Id value) {
+    const Id result{ctx.OpFConvert(ctx.F32[1], value)};
+    if (!NeedsFp16DenormalEmulation(ctx, inst)) {
+        return result;
+    }
+
+    // All 1024 half subnormal magnitudes are exactly representable in float32.
+    const Id packed{ctx.OpBitcast(ctx.U32[1], ctx.OpCompositeConstruct(ctx.F16[2], value, value))};
+    const Id is_subnormal{ctx.OpIEqual(
+        ctx.U1, ctx.OpBitwiseAnd(ctx.U32[1], packed, ctx.Const(0x7c00u)), ctx.u32_zero_value)};
+    const Id mantissa{ctx.OpBitwiseAnd(ctx.U32[1], packed, ctx.Const(0x3ffu))};
+    const Id magnitude{ctx.OpFMul(ctx.F32[1], ctx.OpConvertUToF(ctx.F32[1], mantissa),
+                                  ctx.Const(0x1p-24f))};
+    const Id negative{ctx.OpINotEqual(
+        ctx.U1, ctx.OpBitwiseAnd(ctx.U32[1], packed, ctx.Const(0x8000u)), ctx.u32_zero_value)};
+    const Id signed_magnitude{ctx.OpSelect(ctx.F32[1], negative,
+                                           ctx.OpFNegate(ctx.F32[1], magnitude), magnitude)};
+    return ctx.OpSelect(ctx.F32[1], is_subnormal, signed_magnitude, result);
 }
 
 Id EmitConvertF32F64(EmitContext& ctx, Id value) {

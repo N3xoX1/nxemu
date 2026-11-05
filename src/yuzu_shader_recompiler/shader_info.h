@@ -343,6 +343,8 @@ struct Info {
     bool uses_fp64{};
     bool uses_fp16_denorms_flush{};
     bool uses_fp16_denorms_preserve{};
+    /// fp16 <-> fp32 conversions that must keep fp16 denormals (no FTZ requested).
+    bool uses_fp16_denorm_conversions{};
     bool uses_fp32_denorms_flush{};
     bool uses_fp32_denorms_preserve{};
     bool uses_int8{};
