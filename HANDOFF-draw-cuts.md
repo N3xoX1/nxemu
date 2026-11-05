@@ -18,7 +18,20 @@ The video card is not the limit. The CPU-side emulation is:
 
 Work on the GPU thread maps about 1 to 1 onto frame time. A causal test (+300 ns per draw, about 4,600 draws per frame) gave +1.46 ms per frame. Gains on the GPU thread alone cap near +25 %, at the point where the guest cores become the limit, around 125-130 fps.
 
-## What this branch does (compiles, NOT yet run in game)
+## Results (2026-11-05, TOTK, non-PGO, one run each, kit variant G-tmp)
+
+| Run | Mean fps | p5 | Rendering |
+|---|---|---|---|
+| Base b66c1fba19 (`pipe-01`) | 105.1 | 103.0 | OK |
+| Cuts, no worker spin (`cuts-01`) | 107.0 | 102.8 | Link looked orange (see the caution below) |
+| Cuts, no worker spin (`cuts-02`) | 107.7 | 104.2 | OK on 3 screenshots |
+| Cuts + `NXEMU_WORKER_SPIN_US=300` (`cuts-spin300`) | 109.3 | 107.6 | OK |
+
+The cuts give about +2.5 %; with the 300 µs worker spin, about +4 % (p5 +4.5 %). The spin keeps the Vulkan worker core busy during play. Decide whether to keep it, maybe as a setting, and try 100 µs.
+
+**Caution about screenshots:** an orange Link with darker stairs also appears in correct builds. It is most likely cloud and sun lighting, not a bug: `cuts-01` showed it and `cuts-02` (same DLL) did not. Both "broken" screenshots so far (`cuts-01` and `direct-ubo-01`) also had the window cut off on the right. Always take several screenshots (`-Shots '120,135,145'`) before calling rendering wrong. This means the direct-UBO and stream-reuse "bugs" below may not be real. Re-test them with several screenshots before ruling them out for good. The host-sync explanation is still a real ordering risk for direct UBOs.
+
+## What this branch does
 
 1. **HLE replacement table** (`engines/maxwell_3d.h`): `replace_table` is now a fixed array of 8 entries, with the same interface (emplace, clear, size, find, begin, end). Before, it was an `unordered_map` filled and cleared on every HLE draw, which cost about 1.5-2 % of the GPU thread.
 2. **Vulkan worker wake** (`renderer_vulkan/vk_scheduler.*`):
@@ -31,10 +44,7 @@ Work on the GPU thread maps about 1 to 1 onto frame time. A causal test (+300 ns
 
 ## Next steps
 
-1. **Measure and check rendering.**
-   - Copy `modules\x64\video\Release\nxemu-video.dll` into the kit variant `G-tmp`, then run.
-   - Compare against a baseline built from b66c1fba19 (about 104.5-105.6 fps, p5 about 102-104).
-   - Look at the screenshot: Link must have normal colours, and the floor shadows on the stairs must be visible.
+1. **Decide on the worker spin** (see Results): 0, 100 or 300 µs.
 2. **Next cut: skip buffer sync when nothing changed** (about 5 %).
    - `SynchronizeBuffer` runs on every draw for every vertex buffer, storage buffer, index buffer and texture buffer, even when nothing was written.
    - Idea: keep an epoch counter per 2 MiB region, bumped wherever pages become CPU-modified (`MarkRegionAsCpuModified` / harvest of the G2 write map).
