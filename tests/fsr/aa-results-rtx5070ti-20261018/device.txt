@@ -1,3 +1,0 @@
-NVIDIA GeForce RTX 5070 Ti
-validation=0
-timestamp_period_ns=1
