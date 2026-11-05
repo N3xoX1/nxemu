@@ -14,7 +14,7 @@ public:
     }
     // Compatibility adapter for the historical RCAS configuration key.
     static constexpr SharpeningStrength FromLegacyRcas(int attenuation) {
-        return FromPercent((200 - std::clamp(attenuation, 0, 200)) * 0.5f);
+        return FromPercent(static_cast<float>(200 - std::clamp(attenuation, 0, 200)) * 0.5f);
     }
     constexpr float Percent() const { return percent; }
     constexpr bool IsOff() const { return percent == 0.0f; }

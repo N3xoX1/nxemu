@@ -121,8 +121,8 @@ PresentScaleSelection Layer::ConfigureDraw(PresentPushConstants* out_push_consta
 
     auto crop_rect = Tegra::NormalizeCrop(framebuffer, texture_width, texture_height);
     VideoCore::NotePresentInput(scaled_width, scaled_height,
-        static_cast<unsigned>(std::lround(std::abs(crop_rect.right - crop_rect.left) * scaled_width)),
-        static_cast<unsigned>(std::lround(std::abs(crop_rect.bottom - crop_rect.top) * scaled_height)));
+        static_cast<unsigned>(std::lround(std::abs(crop_rect.right - crop_rect.left) * static_cast<float>(scaled_width))),
+        static_cast<unsigned>(std::lround(std::abs(crop_rect.bottom - crop_rect.top) * static_cast<float>(scaled_height))));
     const VkExtent2D render_extent{
         .width = scaled_width,
         .height = scaled_height,

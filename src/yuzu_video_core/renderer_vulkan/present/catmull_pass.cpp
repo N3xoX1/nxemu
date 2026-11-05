@@ -56,7 +56,8 @@ CatmullPass::CatmullPass(const Device &device_, MemoryAllocator &allocator, size
 }
 
 Common::Rectangle<f32> CatmullPass::OutputCrop() const {
-    const float u = float(padding) / extent.width, v = float(padding) / extent.height;
+    const float u = static_cast<float>(padding) / static_cast<float>(extent.width);
+    const float v = static_cast<float>(padding) / static_cast<float>(extent.height);
     return {u, v, 1.f - u, 1.f - v};
 }
 
@@ -80,8 +81,10 @@ VkImageView CatmullPass::Draw(Scheduler &scheduler, size_t image_index, VkImage 
     device.GetLogical().UpdateDescriptorSets(write, {});
     PresentPushConstants pc{};
     pc.transform = MakeOrthographicTransform(float(extent.width), float(extent.height));
-    const float du = padding * (crop.right - crop.left) / (extent.width - 2 * padding);
-    const float dv = padding * (crop.bottom - crop.top) / (extent.height - 2 * padding);
+    const float du = static_cast<float>(padding) * (crop.right - crop.left) /
+                     static_cast<float>(extent.width - 2 * padding);
+    const float dv = static_cast<float>(padding) * (crop.bottom - crop.top) /
+                     static_cast<float>(extent.height - 2 * padding);
     const float w = float(extent.width), h = float(extent.height);
     pc.vertices = {ScreenRectVertex(0, 0, crop.left - du, crop.top - dv),
                    ScreenRectVertex(w, 0, crop.right + du, crop.top - dv),

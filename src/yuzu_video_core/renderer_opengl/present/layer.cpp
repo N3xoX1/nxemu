@@ -46,8 +46,8 @@ GLuint Layer::ConfigureDraw(std::array<GLfloat, 3 * 2>& out_matrix,
     FramebufferTextureInfo info = PrepareRenderTarget(framebuffer);
     auto crop = Tegra::NormalizeCrop(framebuffer, info.width, info.height);
     VideoCore::NotePresentInput(info.scaled_width, info.scaled_height,
-        static_cast<unsigned>(std::lround(std::abs(crop.right - crop.left) * info.scaled_width)),
-        static_cast<unsigned>(std::lround(std::abs(crop.bottom - crop.top) * info.scaled_height)));
+        static_cast<unsigned>(std::lround(std::abs(crop.right - crop.left) * static_cast<float>(info.scaled_width))),
+        static_cast<unsigned>(std::lround(std::abs(crop.bottom - crop.top) * static_cast<float>(info.scaled_height))));
     GLuint texture = info.display_texture;
 
     auto anti_aliasing = filters.get_anti_aliasing();
