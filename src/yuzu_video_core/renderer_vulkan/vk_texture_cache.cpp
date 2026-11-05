@@ -13,6 +13,7 @@
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/bit_util.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 
@@ -932,16 +933,22 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
     : device{device_}, scheduler{scheduler_}, memory_allocator{memory_allocator_},
       staging_buffer_pool{staging_buffer_pool_}, blit_image_helper{blit_image_helper_},
       render_pass_cache{render_pass_cache_}, resolution{videoSettings.resolution_info} {
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] TextureCacheRuntime: begin, ASTC mode={}, storage_msaa={}",
+             static_cast<int>(videoSettings.accelerate_astc), device.IsStorageImageMultisampleSupported());
     if (videoSettings.accelerate_astc == AstcDecodeMode::Gpu) {
+        LOG_INFO(Render_Vulkan, "[VK-STARTUP] TextureCacheRuntime: creating GPU ASTC decoder");
         astc_decoder_pass.emplace(device, scheduler, descriptor_pool, staging_buffer_pool,
                                   compute_pass_descriptor_queue, memory_allocator);
     }
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] TextureCacheRuntime: creating block-linear unswizzle pass");
     bl2d_buffer_unswizzle_pass.emplace(device, scheduler, descriptor_pool,
                                        staging_buffer_pool, compute_pass_descriptor_queue);
     if (device.IsStorageImageMultisampleSupported()) {
+        LOG_INFO(Render_Vulkan, "[VK-STARTUP] TextureCacheRuntime: creating MSAA copy pass");
         msaa_copy_pass = std::make_unique<MSAACopyPass>(
             device, scheduler, descriptor_pool, staging_buffer_pool, compute_pass_descriptor_queue);
     }
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] TextureCacheRuntime: GPU passes ready");
     if (!device.IsKhrImageFormatListSupported()) {
         return;
     }
@@ -960,6 +967,7 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
             }
         }
     }
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] TextureCacheRuntime: view formats ready");
 }
 
 void TextureCacheRuntime::Finish() {

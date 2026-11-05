@@ -51,6 +51,14 @@ using VideoCommon::ImageViewId;
 using VideoCommon::ImageViewType;
 
 namespace {
+// Diagnostic only: mark each initializer before Vulkan objects are created.
+// No work is added to draw/dispatch paths.
+template <typename T>
+T& TraceRasterizerInit(T& dependency, const char* stage) {
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Rasterizer: initializing {}", stage);
+    return dependency;
+}
+
 struct DrawParams {
     u32 base_instance;
     u32 num_instances;
@@ -215,26 +223,33 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
     : gpu{gpu_}, device_memory{device_memory_}, device{device_},
       has_dynamic_vertex_input{SupportsDirectVertexInput(device)},
       memory_allocator{memory_allocator_}, state_tracker{state_tracker_}, scheduler{scheduler_},
-      staging_pool(device, memory_allocator, scheduler),
-      indirect_scratch(device, scheduler, staging_pool), descriptor_pool(device, scheduler),
-      guest_descriptor_queue(device, scheduler), compute_pass_descriptor_queue(device, scheduler),
-      blit_image(device, scheduler, state_tracker, descriptor_pool), render_pass_cache(device),
+      staging_pool(TraceRasterizerInit(device, "staging pool"), memory_allocator, scheduler),
+      indirect_scratch(TraceRasterizerInit(device, "indirect scratch"), scheduler, staging_pool),
+      descriptor_pool(TraceRasterizerInit(device, "descriptor pool"), scheduler),
+      guest_descriptor_queue(TraceRasterizerInit(device, "guest descriptors"), scheduler),
+      compute_pass_descriptor_queue(TraceRasterizerInit(device, "compute descriptors"), scheduler),
+      blit_image(TraceRasterizerInit(device, "blit helper / host shader modules"),
+                 scheduler, state_tracker, descriptor_pool),
+      render_pass_cache(TraceRasterizerInit(device, "render pass cache")),
       texture_cache_runtime{
-          device,     scheduler,         memory_allocator, staging_pool,
+          TraceRasterizerInit(device, "texture cache runtime"), scheduler, memory_allocator, staging_pool,
           blit_image, render_pass_cache, descriptor_pool,  compute_pass_descriptor_queue},
-      texture_cache(texture_cache_runtime, device_memory),
-      buffer_cache_runtime(device, memory_allocator, scheduler, staging_pool,
+      texture_cache(TraceRasterizerInit(texture_cache_runtime, "texture cache"), device_memory),
+      buffer_cache_runtime(TraceRasterizerInit(device, "buffer cache runtime"), memory_allocator, scheduler, staging_pool,
                            guest_descriptor_queue, compute_pass_descriptor_queue, descriptor_pool),
-      buffer_cache(device_memory, buffer_cache_runtime),
-      query_cache_runtime(this, device_memory, buffer_cache, device, memory_allocator, scheduler,
+      buffer_cache(TraceRasterizerInit(device_memory, "buffer cache"), buffer_cache_runtime),
+      query_cache_runtime(this, device_memory, buffer_cache,
+                          TraceRasterizerInit(device, "query cache runtime"), memory_allocator, scheduler,
                           staging_pool, compute_pass_descriptor_queue, descriptor_pool),
-      query_cache(gpu, *this, device_memory, query_cache_runtime),
-      pipeline_cache(device_memory, device, scheduler, descriptor_pool, guest_descriptor_queue,
+      query_cache(TraceRasterizerInit(gpu, "query cache"), *this, device_memory, query_cache_runtime),
+      pipeline_cache(TraceRasterizerInit(device_memory, "pipeline cache"), device, scheduler, descriptor_pool, guest_descriptor_queue,
                      render_pass_cache, buffer_cache, texture_cache, gpu.ShaderNotify(),
                      staging_pool),
-      accelerate_dma(buffer_cache, texture_cache, scheduler),
-      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler) {
+      accelerate_dma(TraceRasterizerInit(buffer_cache, "accelerated DMA"), texture_cache, scheduler),
+      fence_manager(TraceRasterizerInit(*this, "fence manager"), gpu, texture_cache, buffer_cache, query_cache, device, scheduler) {
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Rasterizer: all members constructed");
     scheduler.SetQueryCache(query_cache);
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Rasterizer: ready");
 }
 
 RasterizerVulkan::~RasterizerVulkan() {
