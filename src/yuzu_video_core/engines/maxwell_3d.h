@@ -10,6 +10,7 @@
 #include <limits>
 #include <optional>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "yuzu_common/yuzu_assert.h"
@@ -3054,7 +3055,46 @@ public:
 
     void SetHLEReplacementAttributeType(u32 bank, u32 offset, HLEReplacementAttributeType name);
 
-    std::unordered_map<u64, HLEReplacementAttributeType> replace_table;
+    /// Small map of the constant buffer words that HLE macros replace. It holds at most a few
+    /// entries and is set and cleared on every HLE draw, so a hash map costs too much.
+    class ReplaceTable {
+    public:
+        using value_type = std::pair<u64, HLEReplacementAttributeType>;
+
+        void emplace(u64 key, HLEReplacementAttributeType value) {
+            if (find(key) != end()) {
+                return;
+            }
+            ASSERT(count < entries.size());
+            entries[count++] = value_type{key, value};
+        }
+        void clear() noexcept {
+            count = 0;
+        }
+        [[nodiscard]] size_t size() const noexcept {
+            return count;
+        }
+        [[nodiscard]] const value_type* begin() const noexcept {
+            return entries.data();
+        }
+        [[nodiscard]] const value_type* end() const noexcept {
+            return entries.data() + count;
+        }
+        [[nodiscard]] const value_type* find(u64 key) const noexcept {
+            for (size_t i = 0; i < count; ++i) {
+                if (entries[i].first == key) {
+                    return &entries[i];
+                }
+            }
+            return end();
+        }
+
+    private:
+        std::array<value_type, 8> entries{};
+        size_t count = 0;
+    };
+
+    ReplaceTable replace_table;
 
     static_assert(sizeof(Regs) == Regs::NUM_REGS * sizeof(u32), "Maxwell3D Regs has wrong size");
     static_assert(std::is_trivially_copyable_v<Regs>, "Maxwell3D Regs must be trivially copyable");

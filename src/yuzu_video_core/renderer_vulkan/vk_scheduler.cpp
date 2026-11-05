@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <immintrin.h>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -86,11 +89,17 @@ void Scheduler::DispatchWork() {
     if (chunk->Empty()) {
         return;
     }
+    bool wake_worker;
     {
         std::scoped_lock ql{queue_mutex};
         work_queue.push(std::move(chunk));
+        pending_chunks.fetch_add(1, std::memory_order_release);
+        wake_worker = worker_sleeping;
     }
-    event_cv.notify_all();
+    // Waking a sleeping thread costs microseconds; a busy or spinning worker needs no signal
+    if (wake_worker) {
+        event_cv.notify_all();
+    }
     AcquireNewChunk();
 }
 
@@ -171,7 +180,11 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
 
         work = std::move(work_queue.front());
         work_queue.pop();
-        event_cv.notify_all();
+        pending_chunks.fetch_sub(1, std::memory_order_relaxed);
+        if (work_queue.empty()) {
+            // WaitWorker waits for an empty queue
+            event_cv.notify_all();
+        }
         return true;
     }};
 
@@ -181,11 +194,32 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
         std::optional<std::chrono::nanoseconds> frame_budget;
 #endif
 
+        // Chunks come every few hundred microseconds while a frame is drawn. Spin a while
+        // before sleeping, so the GPU thread does not pay a thread wake per chunk.
+        static const u32 temp_spin_us = [] { // TEMP
+            const char* v = std::getenv("NXEMU_WORKER_SPIN_US");
+            return v ? static_cast<u32>(std::atoi(v)) : 0U;
+        }();
+        if (temp_spin_us != 0 && pending_chunks.load(std::memory_order_acquire) == 0) {
+            const auto spin_end =
+                std::chrono::steady_clock::now() + std::chrono::microseconds{temp_spin_us};
+            u32 iterations = 0;
+            while (pending_chunks.load(std::memory_order_acquire) == 0 &&
+                   !stop_token.stop_requested()) {
+                _mm_pause();
+                if ((++iterations & 63) == 0 && std::chrono::steady_clock::now() >= spin_end) {
+                    break;
+                }
+            }
+        }
+
         {
             std::unique_lock lk{queue_mutex};
 
             // Wait for work.
+            worker_sleeping = true;
             Common::CondvarWait(event_cv, lk, stop_token, [&] { return TryPopQueue(work); });
+            worker_sleeping = false;
 
             // If we've been asked to stop, we're done.
             if (stop_token.stop_requested()) {

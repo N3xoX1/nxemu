@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -291,6 +292,10 @@ private:
     std::mutex reserve_mutex;
     std::mutex queue_mutex;
     std::condition_variable_any event_cv;
+    /// Chunks in work_queue, readable without queue_mutex
+    std::atomic<u32> pending_chunks{0};
+    /// The worker sleeps on event_cv. Guarded by queue_mutex.
+    bool worker_sleeping = false;
     std::jthread worker_thread;
 };
 

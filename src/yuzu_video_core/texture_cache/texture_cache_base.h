@@ -18,6 +18,7 @@
 #include <queue>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/hash.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
@@ -322,7 +323,7 @@ public:
     /// Prepare an image to be used
     void PrepareImage(ImageId image_id, bool is_modification, bool invalidate);
 
-    std::recursive_mutex mutex;
+    Common::RecursiveMutex mutex;
 
 private:
     void DeduplicateDownloads();
@@ -536,6 +537,10 @@ private:
     RenderTargets render_targets;
 
     std::unordered_map<RenderTargets, FramebufferId> framebuffers;
+    /// Last framebuffer found by GetFramebuffer. Draws mostly keep their render targets,
+    /// so this skips the hash lookup. Cleared when framebuffers are removed.
+    RenderTargets last_framebuffer_key{};
+    FramebufferId last_framebuffer_id{};
 
     std::unordered_map<u64, std::vector<ImageMapId>, Common::IdentityHash<u64>> page_table;
     std::unordered_map<ImageId, boost::container::small_vector<ImageViewId, 16>> sparse_views;

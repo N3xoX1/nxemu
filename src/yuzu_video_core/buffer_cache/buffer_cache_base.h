@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
@@ -397,7 +398,7 @@ public:
         } while (channel_state->has_deleted_buffers);
     }
 
-    std::recursive_mutex mutex;
+    Common::RecursiveMutex mutex;
     Runtime& runtime;
 
 private:
