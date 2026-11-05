@@ -73,13 +73,47 @@ Id GetMaxThreadId(EmitContext& ctx, Id thread_id, Id clamp, Id segmentation_mask
     return ComputeMaxThreadId(ctx, min_thread_id, clamp, not_seg_mask);
 }
 
+Id ShuffleAbsolute(EmitContext& ctx, Id value, Id src_thread_id) {
+    if (!ctx.profile.has_broken_spirv_subgroup_shuffle) {
+        return ctx.OpGroupNonUniformShuffle(ctx.U32[1], SubgroupScope(ctx), value, src_thread_id);
+    }
+
+    // Dynamic shuffle is miscompiled by some Qualcomm drivers. Broadcast uses a constant
+    // source lane and remains valid when the guest's requested lane is nonuniform.
+    Id result{ctx.u32_zero_value};
+    for (u32 lane = 0; lane < ctx.profile.max_subgroup_size; ++lane) {
+        const Id broadcast{ctx.OpGroupNonUniformBroadcast(ctx.U32[1], SubgroupScope(ctx),
+                                                         value, ctx.Const(lane))};
+        const Id selected{ctx.OpIEqual(ctx.U1, src_thread_id, ctx.Const(lane))};
+        result = ctx.OpSelect(ctx.U32[1], selected, broadcast, result);
+    }
+    return result;
+}
+
+// Reads a constant guest lane. When the host subgroup holds several 32-lane guest warps,
+// each partition reads the lane from its own warp.
+Id BroadcastGuestLane(EmitContext& ctx, Id value, u32 lane) {
+    Id result{
+        ctx.OpGroupNonUniformBroadcast(ctx.U32[1], SubgroupScope(ctx), value, ctx.Const(lane))};
+    if (!ctx.profile.warp_size_potentially_larger_than_guest) {
+        return result;
+    }
+    const Id partition_idx{ctx.OpShiftRightLogical(ctx.U32[1], GetThreadId(ctx), ctx.Const(5u))};
+    for (u32 base = 32; base < ctx.profile.max_subgroup_size; base += 32) {
+        const Id broadcast{ctx.OpGroupNonUniformBroadcast(ctx.U32[1], SubgroupScope(ctx), value,
+                                                          ctx.Const(base + lane))};
+        const Id selected{ctx.OpIEqual(ctx.U1, partition_idx, ctx.Const(base >> 5))};
+        result = ctx.OpSelect(ctx.U32[1], selected, broadcast, result);
+    }
+    return result;
+}
+
 Id SelectValue(EmitContext& ctx, Id in_range, Id value, Id src_thread_id) {
     if (ctx.single_lane_subgroup) {
         return value;
     }
     return ctx.OpSelect(
-        ctx.U32[1], in_range,
-        ctx.OpGroupNonUniformShuffle(ctx.U32[1], SubgroupScope(ctx), value, src_thread_id), value);
+        ctx.U32[1], in_range, ShuffleAbsolute(ctx, value, src_thread_id), value);
 }
 
 Id AddPartitionBase(EmitContext& ctx, Id thread_id) {
@@ -193,6 +227,16 @@ Id EmitShuffleIndex(EmitContext& ctx, IR::Inst* inst, Id value, Id index, Id cla
     }
 
     SetInBoundsFlag(inst, in_range);
+    // A constant guest lane can be broadcast directly. This avoids the expensive
+    // dynamic-index workaround on Qualcomm for the common unsegmented case.
+    if (ctx.profile.has_broken_spirv_subgroup_shuffle && !ctx.single_lane_subgroup) {
+        const IR::Value lane{inst->Arg(1).Resolve()};
+        const IR::Value segment{inst->Arg(3).Resolve()};
+        if (lane.IsImmediate() && segment.IsImmediate() && segment.U32() == 0) {
+            return ctx.OpSelect(ctx.U32[1], in_range,
+                                BroadcastGuestLane(ctx, value, lane.U32() & 31u), value);
+        }
+    }
     return SelectValue(ctx, in_range, value, src_thread_id);
 }
 

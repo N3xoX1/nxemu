@@ -34,7 +34,7 @@
             android:theme="@style/Theme.NxEmu.Settings" />
         <activity
             android:name="org.nxemu.ui.emulation.EmulationActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|touchscreen|colorMode|keyboard|navigation|uiMode"
             android:exported="false"
             android:launchMode="singleTop"
             android:screenOrientation="sensorLandscape"

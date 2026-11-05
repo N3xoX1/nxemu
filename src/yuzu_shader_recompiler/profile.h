@@ -34,6 +34,8 @@ struct Profile {
     bool support_vote{};
     /// Subgroup built-ins and operations are usable before the fragment stage
     bool support_subgroup_in_vertex_stages{true};
+    /// Geometry shader subgroup operations can be unavailable even when vertex stages support them.
+    bool support_subgroup_in_geometry_stage{true};
     bool support_viewport_index_layer_non_geometry{};
     bool support_viewport_mask{};
     bool support_typeless_image_loads{};
@@ -94,6 +96,9 @@ struct Profile {
     bool ignore_nan_fp_comparisons{};
     /// Some drivers have broken support for OpVectorExtractDynamic on subgroup mask inputs
     bool has_broken_spirv_subgroup_mask_vector_extract_dynamic{};
+    /// Some Qualcomm drivers miscompile SPIR-V's subgroup shuffle with a nonuniform lane index.
+    bool has_broken_spirv_subgroup_shuffle{};
+    u32 max_subgroup_size{};
 
     u32 gl_max_compute_smem_size{};
 

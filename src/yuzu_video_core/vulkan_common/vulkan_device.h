@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <set>
@@ -419,6 +420,12 @@ public:
     /// Returns true if subgroup operations are supported in the provided stage.
     bool IsSubgroupStageSupported(VkShaderStageFlagBits stage) const {
         return properties.subgroup_properties.supportedStages & stage;
+    }
+
+    /// Returns the largest subgroup size a shader can run with, including varying sizes.
+    u32 GetMaxSubgroupSize() const {
+        return (std::max)(properties.subgroup_properties.subgroupSize,
+                          properties.subgroup_size_control.maxSubgroupSize);
     }
 
     /// Returns true if the device supports the provided subgroup feature.
