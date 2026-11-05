@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "yuzu_common/bit_cast.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/cityhash.h"
 #include "yuzu_common/fs/fs.h"
 #include "yuzu_common/fs/path_util.h"
@@ -713,6 +714,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
               "VkPipelineBuilder"),
       serialization_thread(1, "VkPipelineSerialization"),
       runtime_builds(device.HasBrokenParallelShaderCompiling() ? 1ULL : GetTotalPipelineWorkers()) {
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PipelineCache: creating shader profile; "
+             "async={}, driver_cache={}, parallel_builds={}",
+             use_asynchronous_shaders, use_vulkan_pipeline_cache,
+             !device.HasBrokenParallelShaderCompiling());
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
     // MoltenVK walks every resource of a descriptor set each time it is bound
@@ -856,6 +861,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_vertex_stride_workaround = device.NeedsVertexAttributeStrideWorkaround(),
     };
     guest_recipe_probe = GuestPipelineRecipeProbe::FromEnvironment();
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PipelineCache: ready (disk resources NOT loaded yet)");
 }
 
 void PipelineCache::WaitForBuilds() {

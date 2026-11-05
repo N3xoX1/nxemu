@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <span>
 #include <type_traits>
 #include <utility>
@@ -113,30 +114,38 @@ class Exception final : public std::exception {
 public:
     /// Construct the exception with a result.
     /// @pre result != VK_SUCCESS
-    explicit Exception(VkResult result_) : result{result_} {}
+    explicit Exception(VkResult result_,
+                       std::source_location location_ = std::source_location::current())
+        : result{result_}, location{location_} {}
     virtual ~Exception() = default;
 
     const char* what() const noexcept override;
     VkResult GetResult() const noexcept {
         return result;
     }
+    const std::source_location& GetSourceLocation() const noexcept {
+        return location;
+    }
 
 private:
     VkResult result;
+    std::source_location location;
 };
 
 /// Throws a Vulkan exception if result is not success.
-inline void Check(VkResult result) {
+inline void Check(VkResult result,
+                  std::source_location location = std::source_location::current()) {
     if (result != VK_SUCCESS) {
-        throw Exception(result);
+        throw Exception(result, location);
     }
 }
 
 /// Throws a Vulkan exception if result is an error.
 /// @return result
-inline VkResult Filter(VkResult result) {
+inline VkResult Filter(VkResult result,
+                       std::source_location location = std::source_location::current()) {
     if (result < 0) {
-        throw Exception(result);
+        throw Exception(result, location);
     }
     return result;
 }
