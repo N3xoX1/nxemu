@@ -503,6 +503,9 @@
     <ClInclude Include="core\loader\deconstructed_rom_directory.h">
       <Filter>Header Files\core\loader</Filter>
     </ClInclude>
+    <ClInclude Include="core\loader\loose_romfs_paths.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
     <ClInclude Include="core\file_sys\fssystem\fs_i_storage.h">
       <Filter>Header Files\core\file_sys\fssystem</Filter>
     </ClInclude>

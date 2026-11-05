@@ -125,6 +125,7 @@
     <ClInclude Include="core\hle\service\set\settings_types.h" />
     <ClInclude Include="core\loader\deconstructed_rom_directory.h" />
     <ClInclude Include="core\loader\loader.h" />
+    <ClInclude Include="core\loader\loose_romfs_paths.h" />
     <ClInclude Include="core\loader\nca.h" />
     <ClInclude Include="core\loader\nro.h" />
     <ClInclude Include="core\loader\nso.h" />

@@ -345,11 +345,20 @@ bool Systemloader::StartPreparedRom()
 
 IRomInfo * Systemloader::RomInfo(const char * fileName, uint64_t programId, uint64_t programIndex)
 {
-    if (!HasSupportedFileExtension(fileName))
+    if (fileName == nullptr || fileName[0] == '\0')
     {
         return nullptr;
     }
-    const FileSys::VirtualFile file = impl->m_virtualFilesystem->OpenFile(fileName, VirtualFileOpenMode::Read);
+    // Loose titles can be opened as exefs/main, the ExeFS directory, or the title root.
+    if (!HasSupportedFileExtension(fileName))
+    {
+        const std::filesystem::path path{Common::FS::ToU8String(fileName)};
+        if (path.filename() != "main" && !Common::FS::IsDir(path))
+        {
+            return nullptr;
+        }
+    }
+    const FileSys::VirtualFile file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
     if (!file)
     {
         return nullptr;

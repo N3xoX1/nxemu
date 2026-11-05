@@ -21,6 +21,7 @@ The macOS CI job runs the unit suite. Linux also runs `test_shader_constant_fold
 | `test_spirv_constant_buffers` | SPIR-V declarations of constant buffers |
 | `test_shader_constant_folding` | Integer bitfields and AND/OR/XOR with Zero/Sign flags, algebraic identities, SSA aliases, runtime operands and unsupported flags (ASan, UBSan) |
 | `test_loader_metadata` | Application control metadata (NACP) parsing |
+| `test_loose_romfs_paths` | Decrypted ExeFS identification, case-insensitive folder layouts and skipping loose RomFS payloads during game-list scans |
 | `test_shader_profile_*` | NXShader codec, validation, native cache/journal recovery, recorder, content selection, cross-version reuse and progressive warmup |
 
 ## Shader profiles
