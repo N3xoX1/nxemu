@@ -98,7 +98,19 @@ enum class ScalingFilter : uint32_t
     Gaussian,
     ScaleForce,
     Fsr,
+    FsrEasu,
+    CatmullRom,
+    CatmullRomFast,
+    ScaleForceFast,
+    AutoPerformance,
+    AutoQuality,
     MaxEnum,
+    // Presentation pipelines only, not persisted as filter choices.
+    CasNearest = 16,
+    CasBilinear,
+    CasCatmullRom,
+    CasCatmullRomFast,
+    Area, // Downscaling pipeline; selected by the separate downscale setting.
 };
 
 enum class AntiAliasing : uint32_t
@@ -106,6 +118,8 @@ enum class AntiAliasing : uint32_t
     None = 0,
     Fxaa,
     Smaa,
+    Cmaa2Intel,
+    SmaaHigh, // Keep the existing Smaa value/settings as Ultra.
     MaxEnum,
 };
 
@@ -175,6 +189,12 @@ struct VideoInterfaceDevice
     void * instance;            // VkInstance
     void * physicalDevice;      // VkPhysicalDevice
     void * device;              // VkDevice
+};
+
+enum class VideoPresentationMode : uint32_t { Unknown, Native, Upscaling, Downscaling };
+struct VideoPresentationState {
+    VideoPresentationMode mode{VideoPresentationMode::Unknown};
+    uint32_t input_width{}, input_height{}, output_width{}, output_height{}, layers{};
 };
 
 struct VideoInterfaceFrame
@@ -289,6 +309,8 @@ nxinterface IVideo
     // Synchronous offline task. The caller keeps this module alive until return.
     virtual bool ProcessShaderProfile(const ShaderProfileTask & task, IShaderProfileProgress & progress,
                                       ShaderProfileResult & result, char * error, uint32_t error_size) = 0;
+    // Latest display composition geometry; no GPU wait and no applet-capture state.
+    virtual VideoPresentationState GetPresentationState() = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

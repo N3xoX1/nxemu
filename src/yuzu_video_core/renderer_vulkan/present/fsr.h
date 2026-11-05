@@ -15,7 +15,7 @@ class Scheduler;
 class FSR {
 public:
     explicit FSR(const Device& device, MemoryAllocator& memory_allocator, size_t image_count,
-                 VkExtent2D extent);
+                 VkExtent2D extent, bool easu_only);
     VkImageView Draw(Scheduler& scheduler, size_t image_index, VkImage source_image,
                      VkImageView source_image_view, VkExtent2D input_image_extent,
                      const Common::Rectangle<f32>& crop_rect);
@@ -32,12 +32,13 @@ private:
     void CreatePipelines();
 
     void UploadImages(Scheduler& scheduler);
-    void UpdateDescriptorSets(VkImageView image_view, size_t image_index);
+    void UpdateDescriptorSets(VkImageView image_view, size_t image_index, bool native_rcas);
 
     const Device& m_device;
     MemoryAllocator& m_memory_allocator;
     const size_t m_image_count;
     const VkExtent2D m_extent;
+    const bool m_easu_only;
 
     enum FsrStage {
         Easu,

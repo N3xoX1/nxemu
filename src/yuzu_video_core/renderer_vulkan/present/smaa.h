@@ -17,7 +17,7 @@ class StagingBufferPool;
 class SMAA final : public AntiAliasPass {
 public:
     explicit SMAA(const Device& device, MemoryAllocator& allocator, size_t image_count,
-                  VkExtent2D extent);
+                  VkExtent2D extent, bool ultra = true);
     ~SMAA() override;
 
     void Draw(Scheduler& scheduler, size_t image_index, VkImage* inout_image,
@@ -60,6 +60,7 @@ private:
     MemoryAllocator& m_allocator;
     const VkExtent2D m_extent;
     const u32 m_image_count;
+    const bool m_ultra;
 
     vk::DescriptorPool m_descriptor_pool{};
     std::array<vk::DescriptorSetLayout, MaxSMAAStage> m_descriptor_set_layouts{};

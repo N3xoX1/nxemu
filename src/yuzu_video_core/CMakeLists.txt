@@ -3,10 +3,89 @@
 
 add_subdirectory(host_shaders)
 
+option(NXEMU_BUILD_FSR_BENCHMARK "Build the offscreen FSR GPU A/B benchmarks" OFF)
+
 if(LIBVA_FOUND)
     set_source_files_properties(host1x/ffmpeg/ffmpeg.cpp
         PROPERTIES COMPILE_DEFINITIONS LIBVA_FOUND=1)
     list(APPEND FFmpeg_LIBRARIES ${LIBVA_LIBRARIES})
+endif()
+
+if(NXEMU_BUILD_FSR_BENCHMARK)
+    add_executable(nxemu_upscaler_contract_tests ../../tests/fsr/upscaler_contract_tests.cpp)
+    target_include_directories(nxemu_upscaler_contract_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(nxemu_upscaler_contract_tests PRIVATE Vulkan::Headers yuzu_common)
+    add_test(NAME nxemu_upscaler_contract COMMAND nxemu_upscaler_contract_tests)
+    foreach(_profile_variant IN ITEMS enabled disabled)
+        add_executable(nxemu_profile_${_profile_variant}_tests
+            ../../tests/fsr/profile_tests.cpp ../nxemu-video/video_enum_strings.cpp)
+        target_include_directories(nxemu_profile_${_profile_variant}_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+        target_link_libraries(nxemu_profile_${_profile_variant}_tests PRIVATE yuzu_common)
+        if(_profile_variant STREQUAL "disabled")
+            target_compile_definitions(nxemu_profile_${_profile_variant}_tests PRIVATE NXEMU_TEST_DISABLE_CMAA2=1)
+        endif()
+        add_test(NAME nxemu_profile_${_profile_variant} COMMAND nxemu_profile_${_profile_variant}_tests)
+    endforeach()
+    add_executable(nxemu_reconstruction_tests ../../tests/fsr/reconstruction_tests.cpp)
+    target_include_directories(nxemu_reconstruction_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(nxemu_reconstruction_tests PRIVATE shader_recompiler yuzu_common)
+    add_test(NAME nxemu_reconstruction COMMAND nxemu_reconstruction_tests)
+    add_test(NAME nxemu_reconstruction_disabled COMMAND nxemu_reconstruction_tests --disabled)
+    set_tests_properties(nxemu_reconstruction_disabled PROPERTIES
+        ENVIRONMENT "NXEMU_HALF_RATE_RECONSTRUCTION=0")
+    add_executable(nxemu_fsr_diagnostics_tests ../../tests/fsr/diagnostics_tests.cpp)
+    target_include_directories(nxemu_fsr_diagnostics_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME nxemu_fsr_diagnostics COMMAND nxemu_fsr_diagnostics_tests)
+    get_filename_component(_fsr_glslang_bin "${GLSLANGVALIDATOR}" DIRECTORY)
+    find_library(NXEMU_FSR_VULKAN_LOADER NAMES vulkan-1 vulkan
+        HINTS "${_fsr_glslang_bin}/../Lib" "$ENV{VULKAN_SDK}/Lib")
+    if(NXEMU_FSR_VULKAN_LOADER)
+        add_executable(nxemu-downscale-sharpen-tests ../../tests/fsr/downscale_sharpen_tests.cpp fsr.cpp)
+        add_dependencies(nxemu-downscale-sharpen-tests host_shaders)
+        target_include_directories(nxemu-downscale-sharpen-tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE})
+        target_link_libraries(nxemu-downscale-sharpen-tests PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER} yuzu_common)
+        add_test(NAME nxemu_downscale_sharpen COMMAND nxemu-downscale-sharpen-tests)
+        add_executable(nxemu-fsr-vulkan-benchmark ../../tests/fsr/vulkan_benchmark.cpp fsr.cpp)
+        add_dependencies(nxemu-fsr-vulkan-benchmark host_shaders)
+        target_include_directories(nxemu-fsr-vulkan-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE})
+        target_link_libraries(nxemu-fsr-vulkan-benchmark PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER} yuzu_common)
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/catmull_reference_spv.h"
+            COMMAND ${GLSLANGVALIDATOR} -V --target-env spirv1.3
+                --variable-name CATMULL_REFERENCE_SPV
+                -o "${CMAKE_CURRENT_BINARY_DIR}/catmull_reference_spv.h"
+                "${PROJECT_SOURCE_DIR}/tests/fsr/catmull_reference.frag"
+            DEPENDS "${PROJECT_SOURCE_DIR}/tests/fsr/catmull_reference.frag"
+            VERBATIM)
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/scaleforce_reference_spv.h"
+            COMMAND ${GLSLANGVALIDATOR} -V --target-env spirv1.3
+                --variable-name SCALEFORCE_REFERENCE_SPV
+                -o "${CMAKE_CURRENT_BINARY_DIR}/scaleforce_reference_spv.h"
+                "${PROJECT_SOURCE_DIR}/tests/fsr/scaleforce_reference.frag"
+            DEPENDS "${PROJECT_SOURCE_DIR}/tests/fsr/scaleforce_reference.frag" VERBATIM)
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/area_bundle_reference_spv.h"
+            COMMAND ${GLSLANGVALIDATOR} -V --target-env spirv1.3
+                --variable-name AREA_BUNDLE_REFERENCE_SPV
+                -o "${CMAKE_CURRENT_BINARY_DIR}/area_bundle_reference_spv.h"
+                "${PROJECT_SOURCE_DIR}/tests/fsr/area_bundle_reference.frag"
+            DEPENDS "${PROJECT_SOURCE_DIR}/tests/fsr/area_bundle_reference.frag" VERBATIM)
+        add_executable(nxemu-area-vulkan-benchmark ../../tests/fsr/area_benchmark.cpp
+            "${CMAKE_CURRENT_BINARY_DIR}/area_bundle_reference_spv.h")
+        add_dependencies(nxemu-area-vulkan-benchmark host_shaders)
+        target_include_directories(nxemu-area-vulkan-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE} "${CMAKE_CURRENT_BINARY_DIR}")
+        target_link_libraries(nxemu-area-vulkan-benchmark PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER})
+        add_executable(nxemu-scaleforce-vulkan-benchmark ../../tests/fsr/scaleforce_benchmark.cpp
+            "${CMAKE_CURRENT_BINARY_DIR}/scaleforce_reference_spv.h")
+        add_dependencies(nxemu-scaleforce-vulkan-benchmark host_shaders)
+        target_include_directories(nxemu-scaleforce-vulkan-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE} "${CMAKE_CURRENT_BINARY_DIR}")
+        target_link_libraries(nxemu-scaleforce-vulkan-benchmark PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER})
+        add_executable(nxemu-scaling-vulkan-benchmark ../../tests/fsr/scaling_benchmark.cpp
+            "${CMAKE_CURRENT_BINARY_DIR}/catmull_reference_spv.h")
+        add_dependencies(nxemu-scaling-vulkan-benchmark host_shaders)
+        target_include_directories(nxemu-scaling-vulkan-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE})
+        target_link_libraries(nxemu-scaling-vulkan-benchmark PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER})
+        target_compile_definitions(nxemu-scaling-vulkan-benchmark PRIVATE NXEMU_SCALING_TEST_SOURCE="${PROJECT_SOURCE_DIR}/tests/fsr")
+        target_include_directories(nxemu-scaling-vulkan-benchmark PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    endif()
 endif()
 
 add_library(video_core STATIC
@@ -151,6 +230,8 @@ add_library(video_core STATIC
     memory_manager.h
     precompiled_headers.h
     present.h
+    present_sharpening.h
+    area_sampling.h
     pte_kind.h
     query_cache/bank_base.h
     query_cache/query_bank_operations.h
@@ -224,12 +305,19 @@ add_library(video_core STATIC
     renderer_vulkan/present/anti_alias_pass.h
     renderer_vulkan/present/filters.cpp
     renderer_vulkan/present/filters.h
+    renderer_vulkan/present/upscaler.cpp
+    renderer_vulkan/present/upscaler.h
+    upscaler.h
     renderer_vulkan/present/fsr.cpp
     renderer_vulkan/present/fsr.h
+    renderer_vulkan/present/catmull_pass.cpp
+    renderer_vulkan/present/catmull_pass.h
     renderer_vulkan/present/fxaa.cpp
     renderer_vulkan/present/fxaa.h
     renderer_vulkan/present/layer.cpp
     renderer_vulkan/present/layer.h
+    renderer_vulkan/present/scale_capture.h
+    renderer_vulkan/present/scale_trace.h
     renderer_vulkan/present/present_push_constants.h
     renderer_vulkan/present/smaa.cpp
     renderer_vulkan/present/smaa.h
@@ -499,6 +587,31 @@ endif()
 # SYSTEM: the FFmpeg headers do not pass the conversion checks below.
 target_include_directories(video_core SYSTEM PRIVATE ${FFmpeg_INCLUDE_DIR})
 target_link_libraries(video_core PRIVATE ${FFmpeg_LIBRARIES})
+option(NXEMU_ENABLE_METALFX "Build experimental, CPU-synchronized MetalFX Spatial interop" OFF)
+if(NXEMU_ENABLE_METALFX)
+    if(NOT APPLE)
+        message(FATAL_ERROR "NXEMU_ENABLE_METALFX requires macOS and a macOS 13+ SDK")
+    endif()
+    find_library(NXEMU_METAL_FRAMEWORK Metal REQUIRED)
+    find_library(NXEMU_METALFX_FRAMEWORK MetalFX REQUIRED)
+    find_library(NXEMU_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    target_sources(video_core PRIVATE renderer_vulkan/present/metalfx_spatial.mm)
+    set_source_files_properties(renderer_vulkan/present/metalfx_spatial.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    set_property(TARGET video_core PROPERTY OBJCXX_STANDARD 23)
+    target_compile_definitions(video_core PRIVATE NXEMU_ENABLE_METALFX=1)
+    target_link_libraries(video_core PRIVATE ${NXEMU_METAL_FRAMEWORK} ${NXEMU_FOUNDATION_FRAMEWORK}
+        "-Wl,-weak_framework,MetalFX")
+    if(NXEMU_BUILD_FSR_BENCHMARK)
+        add_executable(nxemu_metalfx_smoke ../../tests/fsr/metalfx_smoke.mm)
+        set_property(TARGET nxemu_metalfx_smoke PROPERTY OBJCXX_STANDARD 23)
+        target_compile_options(nxemu_metalfx_smoke PRIVATE -fobjc-arc)
+        target_link_libraries(nxemu_metalfx_smoke PRIVATE ${NXEMU_METAL_FRAMEWORK}
+            ${NXEMU_FOUNDATION_FRAMEWORK} "-Wl,-weak_framework,MetalFX")
+        add_test(NAME nxemu_metalfx_smoke COMMAND nxemu_metalfx_smoke)
+        set_tests_properties(nxemu_metalfx_smoke PROPERTIES SKIP_RETURN_CODE 77 LABELS platform)
+    endif()
+endif()
+
 if(APPLE)
     foreach(framework CoreFoundation CoreMedia CoreVideo VideoToolbox)
         find_library(NXEMU_${framework}_FRAMEWORK ${framework} REQUIRED)
@@ -573,3 +686,58 @@ if(ANDROID)
 endif()
 
 create_target_directory_groups(video_core)
+
+if (NXEMU_ENABLE_INTEL_CMAA2)
+    target_sources(video_core PRIVATE
+        renderer_vulkan/present/intel_cmaa2.cpp
+        renderer_vulkan/present/intel_cmaa2.h)
+    if(NXEMU_BUILD_FSR_BENCHMARK AND NXEMU_FSR_VULKAN_LOADER)
+        add_executable(nxemu-cmaa2-vulkan-benchmark ../../tests/fsr/cmaa2_benchmark.cpp)
+        add_dependencies(nxemu-cmaa2-vulkan-benchmark host_shaders)
+        target_include_directories(nxemu-cmaa2-vulkan-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE})
+        target_link_libraries(nxemu-cmaa2-vulkan-benchmark PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER})
+        add_executable(nxemu-aa-vulkan-benchmark ../../tests/fsr/aa_benchmark.cpp)
+        add_dependencies(nxemu-aa-vulkan-benchmark host_shaders)
+        target_include_directories(nxemu-aa-vulkan-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE})
+        target_link_libraries(nxemu-aa-vulkan-benchmark PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER})
+        find_package(Python3 COMPONENTS Interpreter REQUIRED)
+        target_include_directories(nxemu-aa-vulkan-benchmark PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/smaa_variants")
+        foreach(_preset IN ITEMS ultra high medium)
+            set(_source "${CMAKE_CURRENT_SOURCE_DIR}/host_shaders/smaa_edge_detection.frag")
+            set(_header "${CMAKE_CURRENT_BINARY_DIR}/smaa_variants/smaa_zero_${_preset}_edge_detection_frag_spv.h")
+            string(TOUPPER "SMAA_ZERO_${_preset}_EDGE_DETECTION_FRAG_SPV" _symbol)
+            add_custom_command(OUTPUT "${_header}"
+                COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/fsr/prepare_smaa_variant.py"
+                    "${_source}" "${_header}" "${_preset}" "${_symbol}"
+                    "${GLSLANGVALIDATOR}" "${INTEL_CMAA2_SPIRV_VAL}" --zero-edges
+                DEPENDS "${_source}" "${CMAKE_CURRENT_SOURCE_DIR}/host_shaders/opengl_smaa.glsl"
+                    "${PROJECT_SOURCE_DIR}/tests/fsr/prepare_smaa_variant.py"
+                    "${PROJECT_SOURCE_DIR}/tools/cmaa2/spirv_to_header.py" VERBATIM)
+            target_sources(nxemu-aa-vulkan-benchmark PRIVATE "${_header}")
+        endforeach()
+        foreach(_preset IN ITEMS high medium)
+            foreach(_stage IN ITEMS edge_detection blending_weight_calculation neighborhood_blending)
+                foreach(_extension IN ITEMS vert frag)
+                    set(_source "${CMAKE_CURRENT_SOURCE_DIR}/host_shaders/smaa_${_stage}.${_extension}")
+                    set(_header "${CMAKE_CURRENT_BINARY_DIR}/smaa_variants/smaa_${_preset}_${_stage}_${_extension}_spv.h")
+                    string(TOUPPER "SMAA_${_preset}_${_stage}_${_extension}_SPV" _symbol)
+                    add_custom_command(OUTPUT "${_header}"
+                        COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/fsr/prepare_smaa_variant.py"
+                            "${_source}" "${_header}" "${_preset}" "${_symbol}"
+                            "${GLSLANGVALIDATOR}" "${INTEL_CMAA2_SPIRV_VAL}"
+                        DEPENDS "${_source}" "${CMAKE_CURRENT_SOURCE_DIR}/host_shaders/opengl_smaa.glsl"
+                            "${PROJECT_SOURCE_DIR}/tests/fsr/prepare_smaa_variant.py"
+                            "${PROJECT_SOURCE_DIR}/tools/cmaa2/spirv_to_header.py" VERBATIM)
+                    target_sources(nxemu-aa-vulkan-benchmark PRIVATE "${_header}")
+                endforeach()
+            endforeach()
+        endforeach()
+    endif()
+endif()
+
+if(NXEMU_BUILD_FSR_BENCHMARK AND TARGET SDL2::SDL2)
+    add_executable(nxemu-fsr-benchmark ../../tests/fsr/benchmark.cpp fsr.cpp)
+    target_include_directories(nxemu-fsr-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(nxemu-fsr-benchmark PRIVATE glad SDL2::SDL2 yuzu_common)
+    target_compile_definitions(nxemu-fsr-benchmark PRIVATE SDL_MAIN_HANDLED)
+endif()

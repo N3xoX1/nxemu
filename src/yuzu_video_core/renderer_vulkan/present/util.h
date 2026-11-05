@@ -13,7 +13,7 @@ namespace Vulkan {
 
 vk::Buffer CreateWrappedBuffer(MemoryAllocator& allocator, VkDeviceSize size, MemoryUsage usage);
 
-vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format);
+vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format, const void* image_next = nullptr);
 void TransitionImageLayout(vk::CommandBuffer& cmdbuf, VkImage image, VkImageLayout target_layout,
                            VkImageLayout source_layout = VK_IMAGE_LAYOUT_GENERAL);
 void UploadImage(const Device& device, MemoryAllocator& allocator, Scheduler& scheduler,
@@ -53,7 +53,7 @@ vk::Pipeline CreateWrappedCoverageBlendingPipeline(
 VkWriteDescriptorSet CreateWriteDescriptorSet(std::vector<VkDescriptorImageInfo>& images,
                                               VkSampler sampler, VkImageView view,
                                               VkDescriptorSet set, u32 binding);
-vk::Sampler CreateBilinearSampler(const Device& device);
+vk::Sampler CreateBilinearSampler(const Device& device, VkSamplerAddressMode address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
 vk::Sampler CreateNearestNeighborSampler(const Device& device);
 
 void BeginRenderPass(vk::CommandBuffer& cmdbuf, VkRenderPass render_pass, VkFramebuffer framebuffer,

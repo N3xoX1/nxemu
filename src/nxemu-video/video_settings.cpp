@@ -5,6 +5,7 @@
 #include <atomic>
 #include <common/json.h>
 #include <cstring>
+#include <cstdlib>
 #include <nxemu-module-spec/base.h>
 #include <yuzu_common/yuzu_assert.h>
 
@@ -18,10 +19,16 @@ namespace
 std::atomic<int32_t> runtime_dma_accuracy{0};
 std::atomic<bool> runtime_gpu_command_synchronization{false};
 std::atomic<bool> runtime_fast_gpu_readback{true};
+std::atomic<bool> runtime_fsr_legacy{false};
 }
 
 namespace Settings
 {
+
+bool IsLegacyFsrEnabled()
+{
+    return runtime_fsr_legacy.load(std::memory_order_relaxed);
+}
 
 void UpdateGPUAccuracy()
 {
@@ -266,8 +273,12 @@ static VideoSetting settings[] = {
     {NXVideoSetting::AspectRatio, "video", "aspect_ratio", &videoSettings.aspect_ratio, AspectRatio::R16_9},
     {NXVideoSetting::ResolutionSetup, "video", "resolution_setup", &videoSettings.resolution_setup, ResolutionSetup::Res1X},
     {NXVideoSetting::ScalingFilter, "video", "scaling_filter", &videoSettings.scaling_filter, ScalingFilter::Bilinear},
+    {NXVideoSetting::CustomScalingFilter, "video", "custom_scaling_filter", &videoSettings.custom_scaling_filter, static_cast<int32_t>(ScalingFilter::Bilinear), 0, static_cast<int32_t>(ScalingFilter::ScaleForceFast)},
     {NXVideoSetting::AntiAliasing, "video", "anti_aliasing", &videoSettings.anti_aliasing, AntiAliasing::None},
     {NXVideoSetting::FSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, 25, 0, 200},
+    {NXVideoSetting::DownscalingFilter, "video", "downscaling_filter", &videoSettings.downscaling_filter, 0, 0, 1},
+    {NXVideoSetting::CASSharpness, "video", "cas_sharpening_slider", &videoSettings.cas_sharpening_slider, 0, 0, 100},
+    {NXVideoSetting::FsrLegacyBenchmark, "video", "fsr_legacy_benchmark", &videoSettings.fsr_legacy_benchmark, false},
     {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
     {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, true},
     {NXVideoSetting::NXShaderWarmupMode, "video", "nxshader_warmup_mode", &videoSettings.nxshader_warmup_mode, 0, 0, 1},
@@ -358,6 +369,11 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
         if (strcmp(setting, NXVideoSetting::DMAAccuracy) == 0)
         {
             runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
+            return;
+        }
+        if (strcmp(setting, NXVideoSetting::FsrLegacyBenchmark) == 0)
+        {
+            runtime_fsr_legacy.store(videoSettings.fsr_legacy_benchmark, std::memory_order_relaxed);
             return;
         }
         if (strcmp(setting, NXVideoSetting::GpuCommandSynchronization) == 0)

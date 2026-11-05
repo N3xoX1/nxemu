@@ -233,6 +233,10 @@ public:
         return dld;
     }
 
+    bool IsMetalObjectsEnabled() const {
+        return loaded_extensions.contains("VK_EXT_metal_objects");
+    }
+
     /// Returns the VMA allocator.
     VmaAllocator GetAllocator() const {
         return allocator;

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <array>
+#include <cstddef>
+
 #include "yuzu_common/common_types.h"
 
 namespace Vulkan {
@@ -15,20 +18,19 @@ struct ScreenRectVertex {
     std::array<f32, 2> tex_coord;
 };
 
-static inline std::array<f32, 4 * 4> MakeOrthographicMatrix(f32 width, f32 height) {
-    // clang-format off
-    return { 2.f / width, 0.f,          0.f, 0.f,
-             0.f,         2.f / height, 0.f, 0.f,
-             0.f,         0.f,          1.f, 0.f,
-            -1.f,        -1.f,          0.f, 1.f};
-    // clang-format on
+static inline std::array<f32, 4> MakeOrthographicTransform(f32 width, f32 height) {
+    return {2.f / width, 2.f / height, -1.f, -1.f};
 }
 
 struct PresentPushConstants {
-    std::array<f32, 4 * 4> modelview_matrix;
+    std::array<f32, 4> transform;
     std::array<ScreenRectVertex, 4> vertices;
+    std::array<u32, 12> filter_constants{};
 };
 
+static_assert(sizeof(PresentPushConstants) == 128);
+static_assert(offsetof(PresentPushConstants, vertices) == 16);
+static_assert(offsetof(PresentPushConstants, filter_constants) == 80);
 static_assert(sizeof(PresentPushConstants) <= 128, "Push constants are too large");
 
 } // namespace Vulkan

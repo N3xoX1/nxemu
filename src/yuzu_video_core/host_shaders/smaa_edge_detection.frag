@@ -18,6 +18,7 @@ vec4 metrics = vec4(1.0 / textureSize(input_tex, 0), textureSize(input_tex, 0));
 #define SMAA_PRESET_ULTRA
 #define SMAA_INCLUDE_VS 0
 #define SMAA_INCLUDE_PS 1
+#define SMAA_WRITE_ZERO_EDGES
 
 #include "opengl_smaa.glsl"
 

@@ -179,9 +179,10 @@
       </div>
       <div id="resolution" class="status-item" title="The resolution games are drawn at" />
       <div class="status-separator" />
-      <div id="scaling-filter" class="select" title="Window filter: only applies when the game's resolution is lower than the window size">
+      <div id="scaling-filter" class="select" title="Graphics profile">
         <img class="select-icon" src="images/picture.png" />
         <div id="scaling-filter-text" />
+        <div id="scaling-mode" class="scaling-mode absent" />
         <img class="select-arrow" src="images/chevron-down.png" />
       </div>
       <div class="status-separator" />

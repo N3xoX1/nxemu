@@ -1,0 +1,11 @@
+variant,case,different_channels,max_error_255,mae_255
+smaa-compact-performance,1080p-native-SMAA,0,0,0.0
+smaa-compact-performance,4k-1080p-area-SMAA,246,5,8.407278806584362e-05
+smaa-compact-performance,4k-native-SMAA,257,18,8.202321244855968e-05
+smaa-compact-performance,720p-1080p-catmull-SMAA,0,0,0.0
+smaa-compact-performance,720p-native-SMAA,0,0,0.0
+smaa-compact8-performance,1080p-native-SMAA,494,14,8.310828189300412e-05
+smaa-compact8-performance,4k-1080p-area-SMAA,592,5,0.00013921039094650205
+smaa-compact8-performance,4k-native-SMAA,1400,18,0.00012775688014403293
+smaa-compact8-performance,720p-1080p-catmull-SMAA,655,13,0.00011332947530864197
+smaa-compact8-performance,720p-native-SMAA,235,14,9.367766203703704e-05

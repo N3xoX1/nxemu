@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdlib>
+#include <string_view>
 #include "yuzu_common/settings.h"
+#include "yuzu_shader_recompiler/scale_trace.h"
 #include "nxemu-video/video_settings.h"
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
@@ -9,6 +12,7 @@
 #include "yuzu_shader_recompiler/frontend/ir/program.h"
 #include "yuzu_shader_recompiler/frontend/ir/value.h"
 #include "yuzu_shader_recompiler/ir_opt/passes.h"
+#include "yuzu_shader_recompiler/ir_opt/reconstruction_pass.h"
 #include "yuzu_shader_recompiler/shader_info.h"
 
 namespace Shader::Optimization {
@@ -78,12 +82,16 @@ void VisitMark(IR::Block& block, IR::Inst& inst) {
     }
 }
 
-void PatchFragCoord(IR::Block& block, IR::Inst& inst) {
+void PatchFragCoord(IR::Block& block, IR::Inst& inst, const IR::U1& physical_reconstruction) {
     IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
     const IR::F32 down_factor{ir.ResolutionDownFactor()};
     const IR::F32 frag_coord{ir.GetAttribute(inst.Arg(0).Attribute())};
     const IR::F32 downscaled_frag_coord{ir.FPMul(frag_coord, down_factor)};
-    inst.ReplaceUsesWith(downscaled_frag_coord);
+    if (physical_reconstruction.IsEmpty()) {
+        inst.ReplaceUsesWith(downscaled_frag_coord);
+    } else {
+        inst.ReplaceUsesWith(ir.Select(physical_reconstruction, frag_coord, downscaled_frag_coord));
+    }
 }
 
 void PatchPointSize(IR::Block& block, IR::Inst& inst) {
@@ -284,7 +292,8 @@ void PatchImageRead(IR::Block& block, IR::Inst& inst) {
     ScaleIntegerComposite(ir, inst, is_scaled, 1);
 }
 
-void Visit(const IR::Program& program, IR::Block& block, IR::Inst& inst) {
+void Visit(const IR::Program& program, IR::Block& block, IR::Inst& inst,
+           const IR::U1& physical_reconstruction) {
     const bool is_fragment_shader{program.stage == Stage::Fragment};
     switch (inst.GetOpcode()) {
     case IR::Opcode::GetAttribute: {
@@ -293,7 +302,7 @@ void Visit(const IR::Program& program, IR::Block& block, IR::Inst& inst) {
         case IR::Attribute::PositionX:
         case IR::Attribute::PositionY:
             if (is_fragment_shader && inst.Flags<u32>() != 0xDEADBEEF) {
-                PatchFragCoord(block, inst);
+                PatchFragCoord(block, inst, physical_reconstruction);
             }
             break;
         default:
@@ -339,6 +348,25 @@ void Visit(const IR::Program& program, IR::Block& block, IR::Inst& inst) {
 
 void RescalingPass(IR::Program& program) {
     const bool is_fragment_shader{program.stage == Stage::Fragment};
+    static const bool enabled = [] {
+        const char* value = std::getenv("NXEMU_HALF_RATE_RECONSTRUCTION");
+        return !value || std::string_view(value) != "0";
+    }();
+    ReconstructionSteps steps;
+    if (is_fragment_shader && enabled && videoSettings.renderer_backend == RendererBackend::Vulkan &&
+        videoSettings.resolution_info.up_factor > 1.0f) {
+        // Remove dead register bookkeeping before examining actual coordinate uses.
+        DeadCodeEliminationPass(program);
+        steps = FindReconstructionSteps(program);
+    }
+    const IR::U1 physical_reconstruction = steps.loads.empty() ? IR::U1{} :
+        ScaleReconstructionSteps(program, steps);
+    if (is_fragment_shader && ScaleTrace::Directory()) {
+        ScaleTrace::Text(ScaleTrace::shader_hash, "-reconstruction.txt",
+            !physical_reconstruction.IsEmpty() ? "normalized half-rate reconstruction\n" : "generic rescaling\n");
+    }
+    if (is_fragment_shader && ScaleTrace::Directory())
+        ScaleTrace::Text(ScaleTrace::shader_hash,"-before.ir",IR::DumpProgram(program));
     if (is_fragment_shader) {
         for (IR::Block* const block : program.post_order_blocks) {
             for (IR::Inst& inst : block->Instructions()) {
@@ -348,9 +376,11 @@ void RescalingPass(IR::Program& program) {
     }
     for (IR::Block* const block : program.post_order_blocks) {
         for (IR::Inst& inst : block->Instructions()) {
-            Visit(program, *block, inst);
+            Visit(program, *block, inst, physical_reconstruction);
         }
     }
+    if (is_fragment_shader && ScaleTrace::Directory())
+        ScaleTrace::Text(ScaleTrace::shader_hash,"-rescaled.ir",IR::DumpProgram(program));
 }
 
 } // namespace Shader::Optimization

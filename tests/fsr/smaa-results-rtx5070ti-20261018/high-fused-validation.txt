@@ -1,0 +1,35 @@
+NVIDIA GeForce RTX 5070 Ti
+720p-native None AA=3.2e-05 present=0.010496 total=0.01056 ms
+720p-native FXAA AA=0.021536 present=0.010304 total=0.03184 ms
+720p-native SMAA AA=0.050688 present=0 total=0.050688 ms
+720p-native CMAA2 AA=0.030144 present=0.010336 total=0.04048 ms
+1080p-native None AA=3.2e-05 present=0.015232 total=0.015264 ms
+1080p-native FXAA AA=0.03904 present=0.015008 total=0.05408 ms
+1080p-native SMAA AA=0.084096 present=0 total=0.084096 ms
+1080p-native CMAA2 AA=0.046304 present=0.014976 total=0.061248 ms
+SMAA history dependence: 0 RGB channels, max=0
+4k-native None AA=3.2e-05 present=0.060288 total=0.060352 ms
+4k-native FXAA AA=0.155584 present=0.045088 total=0.200704 ms
+4k-native SMAA AA=0.265696 present=0 total=0.265696 ms
+4k-native CMAA2 AA=0.135232 present=0.045088 total=0.18032 ms
+720p-1080p-catmull None AA=3.2e-05 present=0.036768 total=0.036832 ms
+720p-1080p-catmull FXAA AA=0.021472 present=0.036256 total=0.057696 ms
+720p-1080p-catmull SMAA AA=0.053056 present=0.036416 total=0.089472 ms
+720p-1080p-catmull CMAA2 AA=0.030336 present=0.03648 total=0.06688 ms
+4k-1080p-area None AA=3.2e-05 present=0.046592 total=0.046656 ms
+4k-1080p-area FXAA AA=0.151168 present=0.02336 total=0.17456 ms
+4k-1080p-area SMAA AA=0.28432 present=0.023392 total=0.307744 ms
+4k-1080p-area CMAA2 AA=0.144352 present=0.023872 total=0.16816 ms
+1080p-noise None AA=3.2e-05 present=0.0152 total=0.015232 ms
+1080p-noise FXAA AA=0.039968 present=0.015616 total=0.055584 ms
+1080p-noise SMAA AA=0.151264 present=0 total=0.151296 ms
+1080p-noise CMAA2 AA=0.107712 present=0.015872 total=0.123616 ms
+4k-noise None AA=3.2e-05 present=0.081216 total=0.081248 ms
+4k-noise FXAA AA=0.190624 present=0.114688 total=0.305408 ms
+4k-noise SMAA AA=0.67456 present=0 total=0.67456 ms
+4k-noise CMAA2 AA=0.476768 present=0.124224 total=0.601152 ms
+1080p-flat None AA=3.2e-05 present=0.014656 total=0.014688 ms
+1080p-flat FXAA AA=0.038624 present=0.015008 total=0.053632 ms
+1080p-flat SMAA AA=0.055648 present=0 total=0.05568 ms
+1080p-flat CMAA2 AA=0.040896 present=0.01504 total=0.055968 ms
+PASS; validation=enabled

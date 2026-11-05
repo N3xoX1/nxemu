@@ -120,6 +120,12 @@ private:
         OpenSelectedCacheDirectory,
         OpenSelectedModDirectory,
         CopyVersion,
+        FsrBenchmarkLegacy,
+        FsrBenchmarkOptimized,
+        DownscaleBilinear,
+        DownscaleArea,
+        SelectCustomPresentation,
+        AntiAliasingFirst = 860,    // one per AntiAliasing value
         ProfileFirst = 880,         // one per profile, to play as it
         ResolutionScaleFirst = 900, // one per ResolutionSetup value
         GameSortFirst = 920,        // one per way of sorting the games
@@ -135,6 +141,8 @@ private:
         Pause,
         Renderer,
     };
+
+    VideoPresentationState m_presentationState{};
 
     // EmulatorSession::Listener
     void OnModulesReleasing() override;

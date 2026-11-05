@@ -61,18 +61,33 @@ lvec4 ColorDist(lvec4 ref, lvec4 A, lvec4 B, lvec4 C, lvec4 D) {
 }
 
 vec4 Scaleforce(sampler2D tex, vec2 tex_coord) {
+#ifndef SCALEFORCE_FAST
     lvec4 bl = lvec4(textureOffset(tex, tex_coord, ivec2(-1, -1)));
+#endif
     lvec4 bc = lvec4(textureOffset(tex, tex_coord, ivec2(0, -1)));
+#ifndef SCALEFORCE_FAST
     lvec4 br = lvec4(textureOffset(tex, tex_coord, ivec2(1, -1)));
+#endif
     lvec4 cl = lvec4(textureOffset(tex, tex_coord, ivec2(-1, 0)));
     lvec4 cc = lvec4(texture(tex, tex_coord));
     lvec4 cr = lvec4(textureOffset(tex, tex_coord, ivec2(1, 0)));
+#ifndef SCALEFORCE_FAST
     lvec4 tl = lvec4(textureOffset(tex, tex_coord, ivec2(-1, 1)));
+#endif
     lvec4 tc = lvec4(textureOffset(tex, tex_coord, ivec2(0, 1)));
+#ifndef SCALEFORCE_FAST
     lvec4 tr = lvec4(textureOffset(tex, tex_coord, ivec2(1, 1)));
+#endif
 
+#ifdef SCALEFORCE_FAST
+    // Four cardinal neighbors retain the original color distance and displacement
+    // limiter. Diagonal contributions are omitted: this is a separate approximation.
+    lvec4 offset_tl = lvec4(0.0, ColorDist1(cc, tc), 0.0, ColorDist1(cc, cr));
+    lvec4 offset_br = lvec4(0.0, ColorDist1(cc, bc), 0.0, ColorDist1(cc, cl));
+#else
     lvec4 offset_tl = ColorDist(cc, tl, tc, tr, cr);
     lvec4 offset_br = ColorDist(cc, br, bc, bl, cl);
+#endif
 
     // Calculate how different cc is from the texels around it
     const lfloat plus_weight = lfloat(1.5);

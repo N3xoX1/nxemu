@@ -116,6 +116,7 @@ void Load(VkDevice device, DeviceDispatch& dld) noexcept {
     X(vkCmdDrawIndirectByteCountEXT);
     X(vkCmdEndConditionalRenderingEXT);
     X(vkCmdEndQuery);
+    X(vkCmdWriteTimestamp);
     X(vkCmdEndRenderPass);
     X(vkCmdEndTransformFeedbackEXT);
     X(vkCmdEndDebugUtilsLabelEXT);

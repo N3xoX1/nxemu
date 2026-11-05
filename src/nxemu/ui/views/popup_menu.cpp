@@ -31,6 +31,43 @@ PopupMenu::PopupMenu(Rml::Element * anchor, std::function<void(int)> onAction, s
             m_onAction(item->GetAttribute<int>("data-action", 0));
         }
     });
+    UiEvents::Listen(m_anchor, "mouseover", [this](Rml::Event& event) {
+        if (!m_open || !m_anchor->IsClassSet("graphics-popup")) return;
+        Rml::Element* item = UiEvents::ClosestWithClass(event.GetTargetElement(), "menu-item");
+        if (!item) return;
+        // Keep the selected branch open while crossing the edge of a panel.
+        // :hover alone can disappear for a frame between the parent row and
+        // its absolutely positioned child, making the third panel unreachable.
+        auto* parent = item->GetParentNode();
+        for (int i = 0; i < parent->GetNumChildren(); ++i) {
+            auto* sibling = parent->GetChild(i);
+            sibling->SetClass("submenu-open", sibling == item && item->IsClassSet("has-submenu"));
+        }
+        if (!item->IsClassSet("has-submenu")) return;
+        Rml::Element* childAnchor = item->GetLastChild();
+        if (!childAnchor || !childAnchor->IsClassSet("menu-anchor")) return;
+        Rml::Element* popup = childAnchor->GetFirstChild();
+        if (!popup) return;
+        auto* document = m_anchor->GetOwnerDocument();
+        document->UpdateDocument();
+        const float width = popup->GetOffsetWidth();
+        const float height = popup->GetOffsetHeight();
+        if (width <= 0 || height <= 0) return;
+        // The generic anchor reserves 640dp for measuring menus. Once visible,
+        // its empty area must not intercept hover over neighbouring submenus.
+        childAnchor->SetProperty(Rml::PropertyId::Width, Rml::Property(width, Rml::Unit::PX));
+        const float margin = kMargin * document->GetContext()->GetDensityIndependentPixelRatio();
+        const float parentLeft = item->GetAbsoluteLeft();
+        const float parentTop = item->GetAbsoluteTop();
+        float left = parentLeft + item->GetOffsetWidth();
+        if (left + width > document->GetOffsetWidth() - margin) left = parentLeft - width;
+        left = std::max(margin, std::min(left, document->GetOffsetWidth() - width - margin));
+        const float top = std::max(margin, std::min(parentTop + item->GetOffsetHeight() - height,
+            document->GetOffsetHeight() - height - margin));
+        childAnchor->RemoveProperty(Rml::PropertyId::Bottom);
+        childAnchor->SetProperty(Rml::PropertyId::Left, Rml::Property(left - parentLeft, Rml::Unit::PX));
+        childAnchor->SetProperty(Rml::PropertyId::Top, Rml::Property(top - parentTop, Rml::Unit::PX));
+    });
     UiEvents::Listen(m_anchor, "change", [this](Rml::Event & event) {
         int id = 0;
         int value = 0;

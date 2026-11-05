@@ -29,12 +29,14 @@ class RasterizerVulkan;
 class Scheduler;
 class PresentManager;
 class WindowAdaptPass;
+class PresentTimer;
 
 struct Frame;
 
 struct FramebufferTextureInfo {
     VkImage image{};
     VkImageView image_view{};
+    bool sampled_as_linear{}; // Sampling an sRGB view decodes to linear color.
     u32 width{};
     u32 height{};
     u32 scaled_width{};
@@ -72,10 +74,13 @@ private:
     std::size_t image_count{};
     std::size_t image_index{};
     VkFormat swapchain_view_format{};
+    VkExtent2D layer_output_size{};
 
     ScalingFilter scaling_filter{};
+    bool legacy_fsr{};
     std::unique_ptr<WindowAdaptPass> window_adapt{};
     std::list<Layer> layers{};
+    std::unique_ptr<PresentTimer> timer;
 };
 
 } // namespace Vulkan

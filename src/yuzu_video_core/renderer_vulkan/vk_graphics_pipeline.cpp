@@ -8,6 +8,7 @@
 #include <bit>
 #include <cstring>
 #include <span>
+#include "yuzu_video_core/renderer_vulkan/present/scale_trace.h"
 
 #include <boost/container/static_vector.hpp>
 
@@ -995,6 +996,27 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }
     }
     texture_cache.UpdateRenderTargets(false);
+    if (ScaleTrace::Active())
+    {
+        auto & log = ScaleTrace::output;
+        const auto * fb = texture_cache.GetFramebuffer();
+        const auto extent = fb->RenderArea();
+        log << "DRAW " << std::dec << ++ScaleTrace::draw << " frame=" << (2 - ScaleTrace::remaining)
+            << " frag=" << std::hex << key.unique_hashes[5] << " pipeline=" << key.Hash()
+            << std::dec << " extent=" << extent.width << 'x' << extent.height
+            << " scaled=" << fb->IsRescaled() << " depth=" << maxwell3d->regs.depth_test_enable
+            << '\n';
+        const auto images = fb->Images();
+        for (u32 i = 0; i < fb->NumImages(); ++i)
+            log << " RT " << i << ' ' << images[i] << '\n';
+        for (size_t i = 0; i < views.size(); ++i)
+        {
+            auto & view = texture_cache.GetImageView(views[i].id);
+            log << " TEX " << i << ' ' << view.ImageHandle() << " guest=" << std::hex << view.GpuAddr()
+                << std::dec << " size=" << view.size.width << 'x' << view.size.height
+                << " scaled=" << view.IsRescaled() << '\n';
+        }
+    }
     texture_cache.CheckFeedbackLoop(views);
     ConfigureDraw(rescaling, render_area);
 }
@@ -1544,6 +1566,27 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                              static_cast<float>(regs.surface_clip.height)};
     }
     texture_cache.UpdateRenderTargets(false);
+    if (ScaleTrace::Active())
+    {
+        auto & log = ScaleTrace::output;
+        const auto * fb = texture_cache.GetFramebuffer();
+        const auto extent = fb->RenderArea();
+        log << "DRAW " << std::dec << ++ScaleTrace::draw << " frame=" << (2 - ScaleTrace::remaining)
+            << " frag=" << std::hex << key.unique_hashes[5] << " pipeline=" << key.Hash()
+            << std::dec << " extent=" << extent.width << 'x' << extent.height
+            << " scaled=" << fb->IsRescaled() << " depth=" << maxwell3d->regs.depth_test_enable
+            << '\n';
+        const auto images = fb->Images();
+        for (u32 i = 0; i < fb->NumImages(); ++i)
+            log << " RT " << i << ' ' << images[i] << '\n';
+        for (size_t i = 0; i < views.size(); ++i)
+        {
+            auto & view = texture_cache.GetImageView(views[i].id);
+            log << " TEX " << i << ' ' << view.ImageHandle() << " guest=" << std::hex << view.GpuAddr()
+                << std::dec << " size=" << view.size.width << 'x' << view.size.height
+                << " scaled=" << view.IsRescaled() << '\n';
+        }
+    }
     texture_cache.CheckFeedbackLoop(views);
     ConfigureDraw(rescaling, render_area);
 

@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <array>
 
 #include "yuzu_common/math_util.h"
+#include "nxemu-module-spec/video.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -12,6 +14,8 @@ struct FramebufferLayout;
 }
 
 struct PresentFilters;
+struct PresentScaleSelection;
+enum class PresentSharpening;
 
 namespace Tegra {
 struct FramebufferConfig;
@@ -24,8 +28,10 @@ enum class PixelFormat : u32;
 namespace Vulkan {
 
 class AntiAliasPass;
+class CatmullPass;
 class Device;
 class FSR;
+class Upscaler;
 class MemoryAllocator;
 struct PresentPushConstants;
 class RasterizerVulkan;
@@ -39,18 +45,18 @@ public:
                    const PresentFilters& filters);
     ~Layer();
 
-    void ConfigureDraw(PresentPushConstants* out_push_constants,
+    PresentScaleSelection ConfigureDraw(PresentPushConstants* out_push_constants,
                        VkDescriptorSet* out_descriptor_set, RasterizerVulkan& rasterizer,
-                       VkSampler sampler, size_t image_index,
+                       VkSampler sampler, VkSampler bilinear_sampler, VkSampler area_sampler, ScalingFilter requested_filter, PresentSharpening sharpening, size_t image_index,
                        const Tegra::FramebufferConfig& framebuffer,
-                       const Layout::FramebufferLayout& layout);
+                       const Layout::FramebufferLayout& layout, bool allow_native_upscale);
 
 private:
     void CreateDescriptorPool();
     void CreateDescriptorSets(VkDescriptorSetLayout layout);
     void CreateStagingBuffer(const Tegra::FramebufferConfig& framebuffer);
     void CreateRawImages(const Tegra::FramebufferConfig& framebuffer);
-    void CreateFSR(VkExtent2D output_size);
+    void CreateFSR(VkExtent2D output_size, bool easu_only);
 
     void RefreshResources(const Tegra::FramebufferConfig& framebuffer);
     void SetAntiAliasPass();
@@ -72,6 +78,8 @@ private:
     Tegra::MaxwellDeviceMemoryManager& device_memory;
     const PresentFilters& filters;
     const size_t image_count{};
+    const u32 max_image_dimension;
+    const bool supports_catmull_intermediate;
     vk::DescriptorPool descriptor_pool{};
     vk::DescriptorSets descriptor_sets{};
 
@@ -86,6 +94,10 @@ private:
     std::unique_ptr<AntiAliasPass> anti_alias{};
 
     std::unique_ptr<FSR> fsr{};
+    std::unique_ptr<Upscaler> native_upscaler;
+    bool native_upscaler_attempted{};
+    std::unique_ptr<CatmullPass> catmull_pass{};
+    std::array<std::unique_ptr<CatmullPass>, 2> downscale_passes{};
     std::vector<u64> resource_ticks{};
 };
 

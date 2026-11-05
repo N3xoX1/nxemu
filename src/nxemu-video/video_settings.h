@@ -43,6 +43,7 @@ bool IsDMALevelSafe();
 bool UseSafeDMAReads();
 bool IsGpuCommandSynchronizationEnabled();
 bool IsGpuReadbackExact();
+bool IsLegacyFsrEnabled();
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info);
 void UpdateRescalingInfo();
 
@@ -66,8 +67,12 @@ struct VideoSettings
     Settings::ResolutionScalingInfo resolution_info;
     ResolutionSetup resolution_setup;
     ScalingFilter scaling_filter;
+    int32_t custom_scaling_filter; // Last manual upscaler, retained while a preset is active.
+    int32_t downscaling_filter; // 0: Bilinear, 1: Area; independent of the upscaler.
     AntiAliasing anti_aliasing;
     int32_t fsr_sharpening_slider;
+    int32_t cas_sharpening_slider;
+    bool fsr_legacy_benchmark;
 
     u8 bg_red;
     u8 bg_green;

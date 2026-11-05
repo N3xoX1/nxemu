@@ -1140,6 +1140,11 @@ bool Device::GetSuitability(bool requires_swapchain)
 
     FOR_EACH_VK_FEATURE_EXT(FEATURE_EXTENSION);
     FOR_EACH_VK_EXTENSION(EXTENSION);
+#ifdef NXEMU_ENABLE_METALFX
+    if (supported_extensions.contains(VK_EXT_METAL_OBJECTS_EXTENSION_NAME))
+        loaded_extensions.insert(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
+#endif
+
 
 #undef FEATURE_EXTENSION
 #undef EXTENSION

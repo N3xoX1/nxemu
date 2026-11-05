@@ -7,6 +7,7 @@
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <common/path.h>
 #include <common/std_string.h>
 #include <nxemu-core/notification.h>
@@ -38,6 +39,22 @@
 
 namespace
 {
+const char* PresentationModeLabel(VideoPresentationMode mode) {
+    switch (mode) {
+    case VideoPresentationMode::Upscaling: return TrMark("Upscaling");
+    case VideoPresentationMode::Downscaling: return TrMark("Downscaling");
+    case VideoPresentationMode::Native: return "1:1";
+    default: return "";
+    }
+}
+const char* PresentationModeSymbol(VideoPresentationMode mode) {
+    switch (mode) {
+    case VideoPresentationMode::Upscaling: return "↑";
+    case VideoPresentationMode::Downscaling: return "↓";
+    case VideoPresentationMode::Native: return "1:1";
+    default: return "";
+    }
+}
 constexpr const char * kDiscordUrl = "https://discord.gg/hEa4hNyFWU";
 constexpr const char * kReportUrl = "https://report.nxemu.com/";
 constexpr float kNarrowWidth = 800.0f;
@@ -59,6 +76,7 @@ constexpr int kCoverTitleDelayMs = 1200; // a cover names its game to a mouse th
 constexpr int kScrollbarWidth = 12;
 constexpr uint64_t kIconSizeSaveDelayMs = 400;
 constexpr int kFilterSharpnessRange = 1;
+constexpr int kCasSharpnessRange = 5;
 constexpr float kScanStepShare = 0.85f;
 constexpr float kScanEaseSeconds = 0.7f;
 constexpr uint64_t kScanIndicatorDelayMs = 250;
@@ -526,6 +544,11 @@ void MainWindow::OnModulesReleasing()
 
 void MainWindow::OnModulesReady(bool gameStarting)
 {
+    // A launch-time default; the A/B menu can still switch it during the session.
+    const char * legacy = std::getenv("NXEMU_FSR_LEGACY");
+    if (legacy != nullptr && (legacy[0] == '0' || legacy[0] == '1') && legacy[1] == '\0')
+        SettingsStore::GetInstance().SetBool(NXVideoSetting::FsrLegacyBenchmark, legacy[0] == '1');
+
     m_firmwareDialog->SetLoader(m_session.Modules().Systemloader());
     if (gameStarting)
     {
@@ -622,8 +645,31 @@ void MainWindow::RunPendingWork()
 
 void MainWindow::Run(Action action)
 {
+    SettingsStore & settings = SettingsStore::GetInstance();
     switch (action)
     {
+    case Action::SelectCustomPresentation:
+        ActivateCustomPresentation(settings);
+        m_session.FlushSettings();
+        UpdateStatusWidgets();
+        break;
+    case Action::DownscaleBilinear:
+    case Action::DownscaleArea:
+        ActivateCustomPresentation(settings);
+        settings.SetInt(NXVideoSetting::DownscalingFilter, action == Action::DownscaleArea ? 1 : 0);
+        m_session.FlushSettings();
+        UpdateStatusWidgets();
+        break;
+    case Action::FsrBenchmarkLegacy:
+    case Action::FsrBenchmarkOptimized:
+        if (settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::Fsr) &&
+            settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::FsrEasu))
+            settings.SetInt(NXVideoSetting::ScalingFilter, static_cast<int>(ScalingFilter::Fsr));
+        settings.SetBool(NXVideoSetting::FsrLegacyBenchmark, action == Action::FsrBenchmarkLegacy);
+        m_session.FlushSettings();
+        UpdateStatusWidgets();
+        break;
+
     case Action::LoadFile: LoadFile(); break;
     case Action::OpenAbout: m_aboutDialog->Show(); break;
     case Action::InstallFirmware:
@@ -878,10 +924,22 @@ void MainWindow::Run(Action action)
             }
             break;
         }
-        const int filter = static_cast<int>(action) - static_cast<int>(Action::ScalingFilterFirst);
-        if (filter >= 0 && static_cast<int>(action) < static_cast<int>(Action::AddOnFirst) && FindScalingFilter(filter) != nullptr)
+        const int aa = static_cast<int>(action) - static_cast<int>(Action::AntiAliasingFirst);
+        if (aa >= 0 && aa < static_cast<int>(AntiAliasing::MaxEnum))
         {
-            SettingsStore::GetInstance().SetInt(NXVideoSetting::ScalingFilter, filter);
+            ActivateCustomPresentation(settings);
+            SettingsStore::GetInstance().SetInt(NXVideoSetting::AntiAliasing, aa);
+            m_session.FlushSettings();
+            UpdateStatusWidgets();
+            break;
+        }
+        const int filter = static_cast<int>(action) - static_cast<int>(Action::ScalingFilterFirst);
+        if (filter >= 0 && static_cast<int>(action) < static_cast<int>(Action::AddOnFirst) && (IsManualScalingFilter(static_cast<ScalingFilter>(filter)) || IsAutomaticScalingFilter(static_cast<ScalingFilter>(filter))))
+        {
+            const bool migrate_easu = filter == static_cast<int>(ScalingFilter::Fsr) &&
+                settings.GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
+            SelectPresentationFilter(settings, static_cast<ScalingFilter>(filter));
+            if (migrate_easu) settings.SetInt(NXVideoSetting::FSPSharpness, FsrSharpness::StoredMaximum);
             m_session.FlushSettings();
             UpdateStatusWidgets();
             break;
@@ -1638,6 +1696,19 @@ void MainWindow::FitWindowToCards()
 
 void MainWindow::SetMenuRange(int id, int value)
 {
+    if (id == kCasSharpnessRange) {
+        const auto& settings = SettingsStore::GetInstance();
+        const int filter = settings.GetInt(NXVideoSetting::ScalingFilter);
+        if (filter != static_cast<int>(ScalingFilter::NearestNeighbor) &&
+            filter != static_cast<int>(ScalingFilter::Bilinear) &&
+            filter != static_cast<int>(ScalingFilter::CatmullRom) && filter != static_cast<int>(ScalingFilter::CatmullRomFast)) return;
+        if (value == settings.GetInt(NXVideoSetting::CASSharpness)) return;
+        SettingsStore::GetInstance().SetInt(NXVideoSetting::CASSharpness, std::clamp(value, 0, 100));
+        m_session.FlushSettings();
+        UpdateStatusWidgets();
+        return;
+    }
+
     if (id == kPerformanceSizeRange)
     {
         m_performance->SetSize(value);
@@ -1650,9 +1721,11 @@ void MainWindow::SetMenuRange(int id, int value)
     {
         m_performance->SetLength(value);
     }
-    if (id == kFilterSharpnessRange && value != SettingsStore::GetInstance().GetInt(NXVideoSetting::FSPSharpness))
+    if (id == kFilterSharpnessRange && value != (SettingsStore::GetInstance().GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu) ? 0 : FsrSharpness::ToDisplay(SettingsStore::GetInstance().GetInt(NXVideoSetting::FSPSharpness))))
     {
-        SettingsStore::GetInstance().SetInt(NXVideoSetting::FSPSharpness, value);
+        if (SettingsStore::GetInstance().GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu))
+            SettingsStore::GetInstance().SetInt(NXVideoSetting::ScalingFilter, static_cast<int>(ScalingFilter::Fsr));
+        SettingsStore::GetInstance().SetInt(NXVideoSetting::FSPSharpness, FsrSharpness::ToStored(value));
         m_session.FlushSettings();
         UpdateStatusWidgets();
     }
@@ -1685,8 +1758,24 @@ void MainWindow::UpdateStatusWidgets()
             icon->SetAttribute("src", image);
         }
     }
-    const ScalingFilterChoice * filter = FindScalingFilter(settings.GetInt(NXVideoSetting::ScalingFilter));
-    SetText("scaling-filter-text", filter != nullptr ? Tr(filter->label) : Tr("Gaussian"));
+    const auto selected = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+    SetText("scaling-filter-text", selected == ScalingFilter::AutoPerformance ? Tr("Performance") :
+        selected == ScalingFilter::AutoQuality ? Tr("Quality") : Tr("Custom"));
+    m_presentationState = m_session.IsValid() && m_session.IsRunning()
+        ? m_session.Modules().Video().GetPresentationState() : VideoPresentationState{};
+    SetText("scaling-mode", PresentationModeSymbol(m_presentationState.mode));
+    if (auto* mode = m_document->GetElementById("scaling-mode")) {
+        mode->SetClass("absent", m_presentationState.mode == VideoPresentationMode::Unknown);
+        std::string detail;
+        if (m_presentationState.mode != VideoPresentationMode::Unknown) {
+            detail = Tr(PresentationModeLabel(m_presentationState.mode)) + " · " +
+                std::to_string(m_presentationState.input_width) + " × " + std::to_string(m_presentationState.input_height) +
+                " → " + std::to_string(m_presentationState.output_width) + " × " + std::to_string(m_presentationState.output_height);
+            if (m_presentationState.layers > 1) detail += " (" + Tr("First layer") + ")";
+        }
+        mode->SetAttribute("title", detail);
+    }
+
     SetText("resolution-scale-text", scale.label);
     SetText("resolution", std::to_string(static_cast<int>(std::lround((docked ? kDockedHeight : kHandheldHeight) * scale.factor))) + "p");
     if (Rml::Element * select = m_document->GetElementById("resolution-scale"))
@@ -1763,6 +1852,7 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
 void MainWindow::ShowSelectMenu(Rml::Element * origin)
 {
     std::vector<MenuItem> items;
+    m_document->GetElementById("popup-menu")->SetClass("graphics-popup", origin->GetId() == "scaling-filter");
     if (origin->GetId() == "games-sort")
     {
         const int current = GameSort();
@@ -1789,20 +1879,71 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
     }
     else if (origin->GetId() == "scaling-filter")
     {
-        const SettingsStore & store = SettingsStore::GetInstance();
-        const int current = store.GetInt(NXVideoSetting::ScalingFilter);
-        for (const ScalingFilterChoice & filter : kScalingFilters)
-        {
-            const int value = static_cast<int>(filter.value);
-            items.push_back(MenuItem::Check(static_cast<int>(Action::ScalingFilterFirst) + value, Tr(filter.label), value == current));
-            MenuItem & item = items.back();
-            item.hint = Tr(filter.hint);
-            if (filter.value == ScalingFilter::Fsr)
-            {
-                item.range = MenuItem::Range{kFilterSharpnessRange, kSharpnessMax, std::clamp(store.GetInt(NXVideoSetting::FSPSharpness), 0, kSharpnessMax),
-                                             value == current, value == current ? Tr("Sharpness of the FSR filter") : Tr("Sharpness: once FSR is the filter")};
-            }
+        const SettingsStore& store = SettingsStore::GetInstance();
+        const auto active = static_cast<ScalingFilter>(store.GetInt(NXVideoSetting::ScalingFilter));
+        const auto custom_filter = CustomScalingFilter(store);
+        const auto displayed = custom_filter == ScalingFilter::FsrEasu ? ScalingFilter::Fsr : custom_filter;
+        const auto choose = [](int id, std::string label, bool checked, std::string hint = {}) {
+            auto item = MenuItem::Choice(id, std::move(label), checked);
+            item.hint = std::move(hint);
+            item.stays = true;
+            return item;
+        };
+        for (const auto profile : {ScalingFilter::AutoPerformance, ScalingFilter::AutoQuality}) {
+            const auto* description = FindScalingFilter(static_cast<int>(profile));
+            items.push_back(choose(static_cast<int>(Action::ScalingFilterFirst) + static_cast<int>(profile),
+                Tr(description->label), active == profile, Tr(description->hint)));
+            if (active == profile) items.back().tag = Tr(PresentationModeLabel(m_presentationState.mode));
         }
+        std::vector<MenuItem> upscaling;
+        for (const auto& filter : kScalingFilters) {
+            if (!IsManualScalingFilter(filter.value)) continue;
+            auto item = choose(static_cast<int>(Action::ScalingFilterFirst) + static_cast<int>(filter.value),
+                Tr(filter.label), displayed == filter.value, Tr(filter.hint));
+            if (filter.value == ScalingFilter::Fsr) {
+                item.range = MenuItem::Range{kFilterSharpnessRange, kSharpnessMax,
+                    custom_filter == ScalingFilter::FsrEasu ? 0 : FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::FSPSharpness)),
+                    !IsAutomaticScalingFilter(active) && displayed == ScalingFilter::Fsr, Tr("Sharpness of the FSR filter")};
+            }
+            upscaling.push_back(std::move(item));
+        }
+        if (custom_filter == ScalingFilter::Gaussian)
+            upscaling.push_back(choose(static_cast<int>(Action::ScalingFilterFirst) + static_cast<int>(ScalingFilter::Gaussian), Tr("Gaussian"), true));
+        std::vector<MenuItem> downscaling{
+            choose(static_cast<int>(Action::DownscaleBilinear), Tr("Bilinear"), store.GetInt(NXVideoSetting::DownscalingFilter) == 0),
+            choose(static_cast<int>(Action::DownscaleArea), "Area", store.GetInt(NXVideoSetting::DownscalingFilter) == 1),
+        };
+        const int aa = store.GetInt(NXVideoSetting::AntiAliasing);
+        std::vector<MenuItem> antialiasing;
+        const auto add_aa = [&](AntiAliasing value, std::string label) {
+            antialiasing.push_back(choose(static_cast<int>(Action::AntiAliasingFirst) + static_cast<int>(value),
+                std::move(label), aa == static_cast<int>(value)));
+        };
+        add_aa(AntiAliasing::None, Tr("None"));
+        add_aa(AntiAliasing::Fxaa, "FXAA");
+        add_aa(AntiAliasing::SmaaHigh, "SMAA High");
+        add_aa(AntiAliasing::Smaa, "SMAA Ultra");
+#ifdef NXEMU_ENABLE_INTEL_CMAA2
+        if (store.GetInt(NXVideoSetting::GraphicsAPI) == static_cast<int>(RendererBackend::Vulkan))
+            add_aa(AntiAliasing::Cmaa2Intel, "CMAA2");
+#endif
+        std::vector<MenuItem> controls{
+            MenuItem::Submenu(Tr("Upscaling filter"), std::move(upscaling)),
+            MenuItem::Submenu(Tr("Downscaling filter"), std::move(downscaling)),
+            MenuItem::Submenu(Tr("Anti-aliasing"), std::move(antialiasing)),
+        };
+        const bool cas = !IsAutomaticScalingFilter(active) &&
+            (displayed == ScalingFilter::NearestNeighbor || displayed == ScalingFilter::Bilinear ||
+             displayed == ScalingFilter::CatmullRom || displayed == ScalingFilter::CatmullRomFast);
+        controls.push_back(MenuItem::Slider("CAS", MenuItem::Range{kCasSharpnessRange, 100,
+            cas ? store.GetInt(NXVideoSetting::CASSharpness) : 0, cas,
+            Tr("Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%.")}));
+        auto custom = MenuItem::Submenu(Tr("Custom"), std::move(controls));
+        custom.id = static_cast<int>(Action::SelectCustomPresentation);
+        custom.stays = true;
+        custom.checked = !IsAutomaticScalingFilter(active);
+        if (custom.checked) custom.tag = Tr(PresentationModeLabel(m_presentationState.mode));
+        items.push_back(std::move(custom));
     }
     else if (origin->GetId() == "resolution-scale")
     {

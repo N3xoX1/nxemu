@@ -2084,7 +2084,7 @@ body.compact .volume-range
     display: none;
 }
 
-#scaling-filter-text { max-width: 144dp; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#scaling-filter-text { max-width: 220dp; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* What hides the interface says how to get it back, over the game for a
    moment. */
@@ -2270,3 +2270,27 @@ body.compact .volume-range
 {
     display: none;
 }
+
+/* Status-bar graphics controls expand upward so nested filter lists stay in the window. */
+#popup-menu.graphics-popup .menu-item.has-submenu > .menu-anchor > .menu-popup
+{
+    display: none;
+}
+#popup-menu.graphics-popup .menu-item.submenu-open > .menu-anchor > .menu-popup
+{
+    display: inline-block;
+}
+#popup-menu.graphics-popup .menu-item > .menu-anchor
+{
+    top: auto;
+    bottom: 0;
+    height: auto;
+}
+
+.scaling-mode
+{
+    margin-left: 6dp;
+    font-size: 11dp;
+    color: var(--text-muted);
+}
+.scaling-mode.absent { display: none; }

@@ -1,0 +1,27 @@
+Test project D:/Emulation/switch/NXDev/nxemu/build/windows-x64
+      Start  1: nxemu_reconstruction
+ 1/11 Test  #1: nxemu_reconstruction .............   Passed    0.18 sec
+      Start  2: nxemu_reconstruction_disabled
+ 2/11 Test  #2: nxemu_reconstruction_disabled ....   Passed    0.14 sec
+      Start  3: nxemu_fsr_diagnostics
+ 3/11 Test  #3: nxemu_fsr_diagnostics ............   Passed    0.01 sec
+      Start  4: nxemu_downscale_sharpen
+ 4/11 Test  #4: nxemu_downscale_sharpen ..........   Passed    0.22 sec
+      Start  5: nxemu_game_settings
+ 5/11 Test  #5: nxemu_game_settings ..............   Passed    0.08 sec
+      Start  6: nxemu_translations
+ 6/11 Test  #6: nxemu_translations ...............   Passed    3.12 sec
+      Start  7: nxemu_translation_template
+ 7/11 Test  #7: nxemu_translation_template .......   Passed    0.08 sec
+      Start  8: nxemu_translation_catalogues
+ 8/11 Test  #8: nxemu_translation_catalogues .....   Passed    0.15 sec
+      Start  9: nxemu_game_library_cache
+ 9/11 Test  #9: nxemu_game_library_cache .........   Passed    0.07 sec
+      Start 10: nxemu_game_library_scan
+10/11 Test #10: nxemu_game_library_scan ..........   Passed    5.52 sec
+      Start 11: nxemu_game_content_loader
+11/11 Test #11: nxemu_game_content_loader ........   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 11
+
+Total Test time (real) =   9.84 sec

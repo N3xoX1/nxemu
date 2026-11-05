@@ -1,0 +1,11 @@
+variant,case,history_dependent_rgb_channels,max_rgb_difference
+ultra,1080p-native,26763,84
+high,1080p-native,26831,84
+medium,1080p-native,24985,87
+high-compact,1080p-native,0,0
+medium-compact,1080p-native,0,0
+ultra-zero,1080p-native,0,0
+high-zero,1080p-native,0,0
+medium-zero,1080p-native,0,0
+high-fused,1080p-native,0,0
+medium-fused,1080p-native,0,0

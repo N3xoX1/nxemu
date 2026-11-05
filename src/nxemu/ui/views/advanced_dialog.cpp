@@ -2,6 +2,7 @@
 #include "hotkeys.h"
 #include "rml_events.h"
 #include "settings_controls.h"
+#include "scaling_filters.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/Elements/ElementFormControlSelect.h>
@@ -97,7 +98,11 @@ Choices AntiAliasings()
     return {
         Numbered(Tr("None"), static_cast<int>(AntiAliasing::None), Tr("The picture as the game draws it.")),
         Numbered("FXAA", static_cast<int>(AntiAliasing::Fxaa), Tr("Light work, a little blur. The steadier picture at low resolutions.")),
-        Numbered("SMAA", static_cast<int>(AntiAliasing::Smaa), Tr("The best picture, for more work.")),
+        Numbered("SMAA High", static_cast<int>(AntiAliasing::SmaaHigh), Tr("Morphological anti-aliasing with three graphics passes.")),
+        Numbered("SMAA Ultra", static_cast<int>(AntiAliasing::Smaa), Tr("The best picture, for more work.")),
+#ifdef NXEMU_ENABLE_INTEL_CMAA2
+        Numbered("Intel CMAA2 (Vulkan, experimental)", static_cast<int>(AntiAliasing::Cmaa2Intel), Tr("Intel CMAA2 compute anti-aliasing. Vulkan only.")),
+#endif
     };
 }
 
@@ -769,7 +774,13 @@ void AdvancedDialog::ShowValues()
     }
     for (const List & list : kLists)
     {
-        Choose(Select(Document(), list.id), std::to_string(settings.GetInt(list.setting)));
+        const int selected = std::string_view{list.setting} == NXVideoSetting::AntiAliasing
+            ? static_cast<int>(EffectiveProfileAntiAliasing(
+                static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter)),
+                static_cast<RendererBackend>(settings.GetInt(NXVideoSetting::GraphicsAPI)),
+                static_cast<AntiAliasing>(settings.GetInt(list.setting))))
+            : settings.GetInt(list.setting);
+        Choose(Select(Document(), list.id), std::to_string(selected));
         SetDisabled(Document(), list.id, m_running && !list.live);
     }
     const int speed = std::clamp(settings.GetInt(NXOsSetting::SpeedLimit), kSpeedMin, kSpeedMax);
@@ -867,6 +878,21 @@ void AdvancedDialog::ApplyChange(const std::string & id)
             return;
         }
         setting = list->setting;
+    }
+    if (std::string_view{setting} == NXVideoSetting::AntiAliasing) {
+        const auto profile = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+        if (IsAutomaticScalingFilter(profile)) {
+            const auto effective = EffectiveProfileAntiAliasing(profile,
+                static_cast<RendererBackend>(settings.GetInt(NXVideoSetting::GraphicsAPI)),
+                static_cast<AntiAliasing>(settings.GetInt(setting)));
+            // Ignore change events generated when showing the effective preset.
+            if (value == static_cast<int>(effective)) return;
+            ActivateCustomPresentation(settings);
+            settings.SetInt(setting, value);
+            m_unsaved = true;
+            ShowValues();
+            return;
+        }
     }
     if (settings.GetInt(setting) != value)
     {

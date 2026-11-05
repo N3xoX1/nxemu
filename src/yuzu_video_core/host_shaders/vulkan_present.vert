@@ -11,7 +11,7 @@ struct ScreenRectVertex {
 };
 
 layout (push_constant) uniform PushConstants {
-    mat4 modelview_matrix;
+    vec4 transform;
     ScreenRectVertex vertices[4];
 };
 
@@ -32,6 +32,6 @@ ScreenRectVertex GetVertex(int index) {
 
 void main() {
     ScreenRectVertex vertex = GetVertex(gl_VertexIndex);
-    gl_Position = modelview_matrix * vec4(vertex.position, 0.0, 1.0);
+    gl_Position = vec4(vertex.position * transform.xy + transform.zw, 0.0, 1.0);
     frag_tex_coord = vertex.tex_coord;
 }

@@ -3773,3 +3773,99 @@ msgstr "NXShader のコンパイル"
 
 msgid "Open NXShader folder"
 msgstr "NXShader フォルダーを開く"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "1:1表示と縮小時の任意のシャープ化。最近傍、バイリニア、Catmull-Romによる拡大にも適用。0%で無効。"
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution：輪郭に適応する拡大処理と調整可能なシャープネス。0%でシャープ化を無効にします。"
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "5サンプルによる近似。高速ですが、斜めの輪郭にわずかな違いが生じます。"
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce 高速"
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "拡大・縮小フィルター：画像と表示領域の大きさに応じて自動選択"
+
+msgid "CAS sharpness"
+msgstr "CASシャープネス"
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom 高速"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "細部をより鮮明に復元します。強い輪郭の周囲にハローが生じる場合があります。"
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "元画像が表示領域より大きい場合に自動使用します。最も低負荷です。"
+
+msgid "Downscaling filter"
+msgstr "縮小フィルター"
+
+msgid "Downscale: Area"
+msgstr "縮小：Area"
+
+msgid "Downscale: Bilinear"
+msgstr "縮小：バイリニア"
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "面積で重み付けした縮小。元画像の対応範囲全体をフィルタリングし、ジャギーを軽減します。"
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "隣接する4点による輪郭推定。高速ですが、斜めの輪郭が変わる場合があります。"
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "アンチエイリアス：ゲーム中に変更可能"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "GPU演算によるIntel CMAA2アンチエイリアス。Vulkan専用。"
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "3回の描画パスによる形態学的アンチエイリアス。"
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Intelの保守的な形態学的アンチエイリアス。実験的機能、Vulkan専用。"
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "品質"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "バイキュービック拡大、Area縮小、CMAA2アンチエイリアス。CMAA2が利用できない場合はFXAAを使用します。"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "FSR拡大、Area縮小、SMAA Highアンチエイリアス。"
+
+
+msgid "Custom"
+msgstr "カスタム"
+
+msgid "Upscaling filter"
+msgstr "拡大フィルター"
+
+msgid "Graphics profile"
+msgstr "グラフィックプロファイル"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "バイキュービック拡大、Area縮小、アンチエイリアスなし。"
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "FSR拡大、Area縮小、CMAA2アンチエイリアス。CMAA2が利用できない場合はFXAAを使用します。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "アップスケール"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "ダウンスケール"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "最初のレイヤー"

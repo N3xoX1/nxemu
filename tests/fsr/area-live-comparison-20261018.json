@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-18",
+  "scene": "Super Mario Odyssey, Cap Kingdom, stationary camera, handheld internal 3x",
+  "backend": "Vulkan",
+  "source": [
+    3840,
+    2160
+  ],
+  "output": [
+    1150,
+    647
+  ],
+  "sharpening": "off",
+  "sequence": "Bilinear / Area / Bilinear",
+  "samples": [
+    {
+      "mode": "Bilinear before",
+      "segment": 5,
+      "window_s": [
+        290,
+        305
+      ],
+      "frames": 3706,
+      "gpu_median_ms": 0.009824,
+      "gpu_p95_ms": 0.010112,
+      "cpu_median_ms": 0.0004,
+      "cadence_submissions_per_s": 247.04633145963643
+    },
+    {
+      "mode": "Area",
+      "segment": 6,
+      "window_s": [
+        332,
+        347
+      ],
+      "frames": 3737,
+      "gpu_median_ms": 0.026496,
+      "gpu_p95_ms": 0.027072,
+      "cpu_median_ms": 0.0006,
+      "cadence_submissions_per_s": 249.08243582839617
+    },
+    {
+      "mode": "Bilinear after",
+      "segment": 7,
+      "window_s": [
+        382,
+        397
+      ],
+      "frames": 3745,
+      "gpu_median_ms": 0.010016,
+      "gpu_p95_ms": 0.010144,
+      "cpu_median_ms": 0.0004,
+      "cadence_submissions_per_s": 249.6942112674256
+    }
+  ],
+  "extra_area_ms": 0.016576,
+  "area_gpu_cost_ratio": 2.670967741935484
+}

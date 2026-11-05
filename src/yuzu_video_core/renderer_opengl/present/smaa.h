@@ -11,7 +11,7 @@ class ProgramManager;
 
 class SMAA {
 public:
-    explicit SMAA(u32 width, u32 height);
+    explicit SMAA(u32 width, u32 height, bool ultra = true);
     ~SMAA();
 
     GLuint Draw(ProgramManager& program_manager, GLuint input_texture);

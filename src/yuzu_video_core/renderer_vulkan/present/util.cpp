@@ -21,10 +21,10 @@ vk::Buffer CreateWrappedBuffer(MemoryAllocator& allocator, VkDeviceSize size, Me
     return allocator.CreateBuffer(dst_buffer_info, usage);
 }
 
-vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format) {
+vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format, const void* image_next) {
     const VkImageCreateInfo image_ci{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = image_next,
         .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
@@ -573,7 +573,7 @@ VkWriteDescriptorSet CreateWriteDescriptorSet(std::vector<VkDescriptorImageInfo>
     };
 }
 
-vk::Sampler CreateBilinearSampler(const Device& device) {
+vk::Sampler CreateBilinearSampler(const Device& device, VkSamplerAddressMode address_mode) {
     const VkSamplerCreateInfo ci{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .pNext = nullptr,
@@ -581,9 +581,9 @@ vk::Sampler CreateBilinearSampler(const Device& device) {
         .magFilter = VK_FILTER_LINEAR,
         .minFilter = VK_FILTER_LINEAR,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .addressModeU = address_mode,
+        .addressModeV = address_mode,
+        .addressModeW = address_mode,
         .mipLodBias = 0.0f,
         .anisotropyEnable = VK_FALSE,
         .maxAnisotropy = 0.0f,

@@ -3812,3 +3812,99 @@ msgstr "Préchauffage complet (par défaut)"
 
 msgid "Progressive (experimental)"
 msgstr "Progressif (expérimental)"
+
+msgid "CAS sharpness"
+msgstr "Netteté CAS"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "Reconstruction plus nette des détails fins. Peut créer des halos sur les contours marqués."
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom rapide"
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "Approximation à cinq lectures. Plus rapide, avec de légères différences sur les diagonales."
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce rapide"
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "Estimation des contours sur quatre voisins. Plus rapide, mais les diagonales peuvent différer."
+
+msgid "Downscale: Bilinear"
+msgstr "Réduction : Bilinear"
+
+msgid "Downscale: Area"
+msgstr "Réduction : Area"
+
+msgid "Downscaling filter"
+msgstr "Filtre de réduction"
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "Utilisé automatiquement quand l’image source est plus grande que sa zone d’affichage. Coût minimal."
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "Réduction pondérée par la surface. Filtre toute la zone source couverte pour réduire le crénelage."
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "Filtres d’agrandissement et de réduction : choisis automatiquement selon les dimensions de l’image et de l’affichage"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "Netteté facultative en 1:1 et en réduction ; aussi en agrandissement avec Nearest, Bilinear ou Catmull-Rom. Désactivée à 0 %."
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution : agrandissement adapté aux contours avec une netteté réglable. À 0 %, la netteté est désactivée."
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "Anticrénelage : modifiable pendant le jeu"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "Anticrénelage Intel CMAA2 par calcul GPU. Vulkan uniquement."
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "Anticrénelage morphologique en trois passes graphiques."
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Anticrénelage morphologique conservateur Intel. Expérimental ; Vulkan uniquement."
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "Qualité"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Agrandissement bicubique, réduction Area et anticrénelage CMAA2 avec repli FXAA."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "Agrandissement FSR, réduction Area et anticrénelage SMAA High."
+
+
+msgid "Custom"
+msgstr "Personnalisé"
+
+msgid "Upscaling filter"
+msgstr "Filtre d’agrandissement"
+
+msgid "Graphics profile"
+msgstr "Profil graphique"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "Agrandissement bicubique, réduction Area et aucun anticrénelage."
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Agrandissement FSR, réduction Area et anticrénelage CMAA2 avec repli FXAA."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "Agrandissement"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "Réduction"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "Première couche"
