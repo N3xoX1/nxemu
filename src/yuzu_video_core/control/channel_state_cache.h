@@ -96,6 +96,7 @@ protected:
     mutable std::mutex config_mutex;
 
     virtual void OnGPUASRegister([[maybe_unused]] size_t map_id) {}
+    virtual void OnChannelErase([[maybe_unused]] size_t storage_id) {}
 };
 
 } // namespace VideoCommon

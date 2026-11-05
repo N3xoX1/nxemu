@@ -31,6 +31,7 @@
 #include "yuzu_video_core/engines/fermi_2d.h"
 #include "yuzu_video_core/surface.h"
 #include "yuzu_video_core/texture_cache/descriptor_table.h"
+#include "yuzu_video_core/texture_cache/image_view_descriptor_index.h"
 #include "yuzu_video_core/texture_cache/image_base.h"
 #include "yuzu_video_core/texture_cache/image_info.h"
 #include "yuzu_video_core/texture_cache/image_view_base.h"
@@ -352,6 +353,8 @@ private:
 
     void OnGPUASRegister(size_t map_id) final override;
 
+    void OnChannelErase(size_t storage_id) final override;
+
     /// Runs the Garbage Collector.
     void RunGarbageCollector();
 
@@ -460,6 +463,8 @@ private:
 
     /// Remove image views references from the cache
     void RemoveImageViewReferences(std::span<const ImageViewId> removed_views);
+
+    ImageViewDescriptorIndex<ImageViewId, TICEntry> image_view_descriptors;
 
     /// Remove framebuffers using the given image views from the cache
     void RemoveFramebuffers(std::span<const ImageViewId> removed_views);

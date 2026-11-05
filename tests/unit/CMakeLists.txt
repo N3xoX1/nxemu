@@ -309,7 +309,7 @@ nxemu_unit_test(test_alpha_to_coverage_dither)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(_vertex_input_generated "${CMAKE_CURRENT_BINARY_DIR}/vertex_input")
 set(_vertex_input_includes)
-foreach(_part update notify format states)
+foreach(_part update notify format)
     list(APPEND _vertex_input_includes "${_vertex_input_generated}/${_part}.inc")
 endforeach()
 add_custom_command(
@@ -320,7 +320,6 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_rasterizer.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_buffer_cache.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_graphics_pipeline.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/maxwell_to_vk.cpp"
     VERBATIM)
 add_executable(test_vertex_input vertex_input/vertex_input.cpp ${_vertex_input_includes})

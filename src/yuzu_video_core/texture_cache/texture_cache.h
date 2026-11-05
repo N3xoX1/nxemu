@@ -2054,6 +2054,9 @@ ImageViewId TextureCache<P>::FindImageView(const TICEntry& config) {
     ImageViewId& image_view_id = pair->second;
     if (is_new) {
         image_view_id = CreateImageView(config);
+        if (image_view_id != NULL_IMAGE_VIEW_ID) {
+            image_view_descriptors.Register(image_view_id, current_channel_id, config);
+        }
     }
     return image_view_id;
 }
@@ -3461,18 +3464,38 @@ void TextureCache<P>::RemoveImageViewReferences(std::span<const ImageViewId> rem
     if (removed_views.empty()) {
         return;
     }
-    const ImageViewInvalidation invalidation{removed_views};
-    for (size_t c : active_channel_ids) {
-        auto& channel_info = channel_storage[c];
-        auto it = channel_info.image_views.begin();
-        while (it != channel_info.image_views.end()) {
-            if (invalidation.Contains(it->second)) {
-                it = channel_info.image_views.erase(it);
-            } else {
-                ++it;
+    size_t total_entries = 0;
+    for (size_t channel : active_channel_ids) {
+        total_entries += channel_storage[channel].image_views.size();
+    }
+    // Hash lookups for every reference lose to one map walk when most descriptors disappear.
+    // Keep the existing batched scan for that dense case; reverse references win on sparse GC.
+    if (image_view_descriptors.HasDenseViews(removed_views) ||
+        (total_entries >= 64 &&
+         image_view_descriptors.CountReferences(removed_views) > total_entries / 8)) {
+        const ImageViewInvalidation invalidation{removed_views};
+        for (size_t channel : active_channel_ids) {
+            auto& entries = channel_storage[channel].image_views;
+            for (auto it = entries.begin(); it != entries.end();) {
+                if (invalidation.Contains(it->second)) {
+                    it = entries.erase(it);
+                } else {
+                    ++it;
+                }
             }
         }
+        image_view_descriptors.ForgetViews(removed_views);
+        return;
     }
+    image_view_descriptors.Invalidate(removed_views,
+        [this](size_t channel, const TICEntry& descriptor, ImageViewId removed) {
+            auto& entries = channel_storage[channel].image_views;
+            const auto it = entries.find(descriptor);
+            // Guard against a descriptor being rebound to a different image view.
+            if (it != entries.end() && it->second == removed) {
+                entries.erase(it);
+            }
+        });
 }
 
 template <class P>
@@ -3798,6 +3821,11 @@ void TextureCache<P>::CreateChannel(struct Tegra::Control::ChannelState& channel
 }
 
 /// Bind a channel for execution.
+template <class P>
+void TextureCache<P>::OnChannelErase(size_t storage_id) {
+    image_view_descriptors.ForgetChannel(storage_id, channel_storage[storage_id].image_views);
+}
+
 template <class P>
 void TextureCache<P>::OnGPUASRegister([[maybe_unused]] size_t map_id) {
     gpu_page_table_storage.emplace_back();
