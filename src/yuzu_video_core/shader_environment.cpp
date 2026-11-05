@@ -1012,7 +1012,7 @@ u32 FileEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
     if(reuse_hle.has_value())semantic_textures.Strict(0,MakeCbufKey(cbuf_index,cbuf_offset));
     const auto it{cbuf_values.find(MakeCbufKey(cbuf_index, cbuf_offset))};
     if (it == cbuf_values.end()) {
-        throw Shader::LogicError("Uncached read texture type");
+        throw Shader::LogicError("Uncached constant buffer read c{}[0x{:x}]", cbuf_index, cbuf_offset);
     }
     return it->second;
 }
@@ -1021,7 +1021,7 @@ Shader::TextureType FileEnvironment::ReadTextureType(u32 handle) {
     if(reuse_hle.has_value())semantic_textures.Strict(1,handle);
     const auto it{texture_types.find(handle)};
     if (it == texture_types.end()) {
-        throw Shader::LogicError("Uncached read texture type");
+        throw Shader::LogicError("Uncached texture type of handle 0x{:x}", handle);
     }
     return it->second;
 }
@@ -1030,7 +1030,7 @@ Shader::TexturePixelFormat FileEnvironment::ReadTexturePixelFormat(u32 handle) {
     if(reuse_hle.has_value())semantic_textures.Strict(2,handle);
     const auto it{texture_pixel_formats.find(handle)};
     if (it == texture_pixel_formats.end()) {
-        throw Shader::LogicError("Uncached read texture pixel format");
+        throw Shader::LogicError("Uncached texture pixel format of handle 0x{:x}", handle);
     }
     return it->second;
 }

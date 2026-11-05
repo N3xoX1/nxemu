@@ -2802,11 +2802,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
 
-        const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
-        Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
-        env.Dump(hash, key.unique_hashes[index]);
+        try {
+            const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
+            Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
+            env.Dump(hash, key.unique_hashes[index]);
+        } catch (const Shader::Exception&) {
+        }
     }
-    LOG_ERROR(Render_Vulkan, "{}", exception.what());
+    LOG_ERROR(Render_Vulkan, "Graphics pipeline {:016x} translation failed: {}", hash, exception.what());
     return nullptr;
 } catch (const vk::Exception& exception) {
     LOG_ERROR(Render_Vulkan, "Graphics pipeline {:016x} shader creation failed: {}", key.Hash(),
