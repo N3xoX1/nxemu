@@ -16,7 +16,6 @@ enum class PresentSharpening
 constexpr PresentSharpening GetPresentSharpening(ScalingFilter requested, int cas, int fsr)
 {
     if (requested == ScalingFilter::AutoQuality) requested = ScalingFilter::Fsr;
-    if (requested == ScalingFilter::AutoPerformance) return PresentSharpening::None;
     if (requested == ScalingFilter::FsrEasu) return PresentSharpening::None;
     if (requested == ScalingFilter::Fsr)
     {

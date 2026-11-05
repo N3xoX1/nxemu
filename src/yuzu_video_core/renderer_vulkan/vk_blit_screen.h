@@ -36,7 +36,6 @@ struct Frame;
 struct FramebufferTextureInfo {
     VkImage image{};
     VkImageView image_view{};
-    bool sampled_as_linear{}; // Sampling an sRGB view decodes to linear color.
     u32 width{};
     u32 height{};
     u32 scaled_width{};

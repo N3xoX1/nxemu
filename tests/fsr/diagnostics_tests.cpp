@@ -63,13 +63,15 @@ int main() {
     VideoCore::PublishPresentationStatus(false, 1920, 1080, 2);
     auto status = VideoCore::presentation_status.Read();
     Require(status.mode == VideoPresentationMode::Downscaling && status.input_width == 3840 && status.layers == 2);
+    Require(status.filter == ScalingFilter::Area);
     VideoCore::BeginFsrFrame();
     VideoCore::PublishPresentationStatus(true, 320, 240, 1);
     Require(VideoCore::presentation_status.Read().input_width == 3840);
     VideoCore::NotePresentInput(1280, 720, 1280, 720);
     VideoCore::NotePresentSelection(5, 1);
     VideoCore::PublishPresentationStatus(false, 1920, 1080, 1);
-    Require(VideoCore::presentation_status.Read().mode == VideoPresentationMode::Upscaling);
+    status = VideoCore::presentation_status.Read();
+    Require(status.mode == VideoPresentationMode::Upscaling && status.filter == ScalingFilter::Fsr);
     VideoCore::PublishPresentationStatus(false, 0, 0, 0);
     Require(VideoCore::presentation_status.Read().mode == VideoPresentationMode::Unknown);
     VideoCore::presentation_status.Reset();

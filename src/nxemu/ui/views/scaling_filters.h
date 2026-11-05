@@ -13,17 +13,17 @@ struct ScalingFilterChoice
 };
 inline constexpr ScalingFilterChoice kScalingFilters[] = {
     {ScalingFilter::AutoPerformance, TrMark("Performance"),
-     TrMark("Bicubic upscaling, Area downscaling and no anti-aliasing.")},
-    {ScalingFilter::AutoQuality, TrMark("Quality"),
-     TrMark("FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback.")},
-    {ScalingFilter::NearestNeighbor, TrMark("Nearest neighbour"), TrMark("Sharp squares, for pixel art. The lightest.")},
-    {ScalingFilter::Bilinear, TrMark("Bilinear"), TrMark("Smooth. The usual choice, and light.")},
-    {ScalingFilter::CatmullRom, "Catmull-Rom", TrMark("Sharper reconstruction with fine detail. May add halos around strong edges.")},
-    {ScalingFilter::CatmullRomFast, TrMark("Catmull-Rom fast"), TrMark("Five-sample approximation. Faster, with small changes around diagonal edges.")},
-    {ScalingFilter::Bicubic, TrMark("Bicubic"), TrMark("A little sharper than bilinear, for slightly more work.")},
-    {ScalingFilter::ScaleForce, "ScaleForce", TrMark("Sharp edges, best for 2D games and drawings. Heavier.")},
-    {ScalingFilter::ScaleForceFast, TrMark("ScaleForce fast"), TrMark("Four-neighbor edge estimate. Faster, but diagonal contours may differ.")},
-    {ScalingFilter::Fsr, "FSR", TrMark("AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off.")},
+     TrMark("Favors smoother gameplay. Edges may look more jagged.")},
+    {ScalingFilter::AutoQuality, TrMark("Balanced"),
+     TrMark("Keeps the picture sharp and smooths jagged edges, with some extra graphics work.")},
+    {ScalingFilter::NearestNeighbor, TrMark("Nearest neighbour"), TrMark("Keeps pixels square and crisp. Best for pixel art.")},
+    {ScalingFilter::Bilinear, TrMark("Bilinear"), TrMark("Smooths the picture quickly, but fine details can look softer.")},
+    {ScalingFilter::CatmullRom, "Catmull-Rom", TrMark("Keeps fine details sharp. Strong edges may show a faint outline.")},
+    {ScalingFilter::CatmullRomFast, TrMark("Catmull-Rom fast"), TrMark("A faster version of Catmull-Rom. Diagonal lines may look slightly different.")},
+    {ScalingFilter::Bicubic, TrMark("Bicubic"), TrMark("Keeps more detail than Bilinear and uses a little more graphics power.")},
+    {ScalingFilter::ScaleForce, "ScaleForce", TrMark("Keeps outlines sharp in 2D games and drawings. Uses more graphics power.")},
+    {ScalingFilter::ScaleForceFast, TrMark("ScaleForce fast"), TrMark("A faster version of ScaleForce. Diagonal lines may look slightly different.")},
+    {ScalingFilter::Fsr, "FSR", TrMark("Keeps edges clear when making the picture larger. You can adjust how sharp it looks.")},
 };
 inline const ScalingFilterChoice * FindScalingFilter(int value)
 {

@@ -15,7 +15,6 @@
 #include "video_settings.h"
 #include "yuzu_video_core/framebuffer_config.h"
 #include "yuzu_video_core/renderer_vulkan/present/fsr.h"
-#include "yuzu_video_core/renderer_vulkan/present/upscaler.h"
 #include "yuzu_video_core/renderer_vulkan/present/catmull_pass.h"
 #include "yuzu_video_core/renderer_vulkan/present/fxaa.h"
 #ifdef NXEMU_ENABLE_INTEL_CMAA2
@@ -85,7 +84,7 @@ PresentScaleSelection Layer::ConfigureDraw(PresentPushConstants* out_push_consta
                           VkDescriptorSet* out_descriptor_set, RasterizerVulkan& rasterizer,
                           VkSampler sampler, VkSampler bilinear_sampler, VkSampler area_sampler, ScalingFilter requested_filter, PresentSharpening sharpening, size_t image_index,
                           const Tegra::FramebufferConfig& framebuffer,
-                          const Layout::FramebufferLayout& layout, bool allow_native_upscale) {
+                          const Layout::FramebufferLayout& layout) {
     const auto texture_info = rasterizer.AccelerateDisplay(
         framebuffer, framebuffer.address + framebuffer.offset, framebuffer.stride);
     const u32 texture_width = texture_info ? texture_info->width : framebuffer.width;
@@ -95,7 +94,7 @@ PresentScaleSelection Layer::ConfigureDraw(PresentPushConstants* out_push_consta
     const bool use_accelerated = texture_info.has_value();
 
     RefreshResources(framebuffer);
-    SetAntiAliasPass();
+    SetAntiAliasPass({scaled_width, scaled_height});
 
     // Finish any pending renderpass
     scheduler.RequestOutsideRenderPassOperationContext();
@@ -135,47 +134,6 @@ PresentScaleSelection Layer::ConfigureDraw(PresentPushConstants* out_push_consta
     const ScalingFilter scaling_filter = selection.filter;
     VideoCore::NotePresentSelection(static_cast<unsigned>(scaling_filter),
                                    static_cast<unsigned>(selection.mode));
-    // Native upscalers consume a final color image today. Future temporal adapters
-    // must supply and validate real depth/motion resources through UpscaleFrame.
-    if (allow_native_upscale && !filters.is_applet_capture && selection.mode == PresentScaleMode::Upscale &&
-        VideoCore::fsr_frame_state.selected_filter == static_cast<unsigned>(ScalingFilter::AutoQuality) &&
-        RequestMetalFxQuality() && framebuffer.blending == Tegra::BlendMode::Opaque &&
-        std::isfinite(crop_rect.left) && std::isfinite(crop_rect.right) &&
-        std::isfinite(crop_rect.top) && std::isfinite(crop_rect.bottom) &&
-        std::min(crop_rect.left, crop_rect.right) >= 0 && std::max(crop_rect.left, crop_rect.right) <= 1 &&
-        std::min(crop_rect.top, crop_rect.bottom) >= 0 && std::max(crop_rect.top, crop_rect.bottom) <= 1) {
-        if (!native_upscaler_attempted) {
-            native_upscaler_attempted = true;
-            native_upscaler = CreateSpatialUpscaler(VideoCore::Upscaling::Backend::MetalFxSpatial,
-                device, memory_allocator, image_count, {layout.screen.GetWidth(), layout.screen.GetHeight()});
-            if (!native_upscaler)
-                LOG_WARNING(Render_Vulkan, "MetalFX comparison unavailable; continuing with FSR");
-        }
-        if (native_upscaler) {
-            UpscaleFrame frame;
-            frame.parameters.input = {
-                static_cast<u32>(std::lround(std::abs(crop_rect.right - crop_rect.left) * scaled_width)),
-                static_cast<u32>(std::lround(std::abs(crop_rect.bottom - crop_rect.top) * scaled_height))};
-            frame.parameters.output = {layout.screen.GetWidth(), layout.screen.GetHeight()};
-            frame.parameters.encoding = texture_info && texture_info->sampled_as_linear
-                ? VideoCore::Upscaling::ColorEncoding::Linear : VideoCore::Upscaling::ColorEncoding::DisplayReferred;
-            frame.color = source_image;
-            frame.color_view = source_image_view;
-            frame.color_extent = render_extent;
-            frame.crop = crop_rect;
-            frame.image_index = image_index;
-            if (const auto result = native_upscaler->Draw(scheduler, frame)) {
-                SetMatrixData(*out_push_constants, layout);
-                SetVertexData(*out_push_constants, layout, result->crop);
-                UpdateDescriptorSet(result->view, bilinear_sampler, image_index);
-                *out_descriptor_set = descriptor_sets[image_index];
-                // MetalFX produced final-size color. Select the copy pipeline, without RCAS.
-                VideoCore::NotePresentSelection(static_cast<unsigned>(ScalingFilter::Bilinear),
-                                                static_cast<unsigned>(selection.mode));
-                return {ScalingFilter::Bilinear, selection.mode};
-            }
-        }
-    }
     if (selection.mode != PresentScaleMode::Upscale) {
         sampler = scaling_filter == ScalingFilter::Area ? area_sampler : bilinear_sampler;
     }
@@ -330,49 +288,52 @@ void Layer::RefreshResources(const Tegra::FramebufferConfig& framebuffer) {
         return;
     }
 
+    for (const u64 tick : resource_ticks) {
+        scheduler.Wait(tick);
+    }
+
     raw_width = framebuffer.width;
     raw_height = framebuffer.height;
     pixel_format = framebuffer.pixel_format;
     ReleaseRawImages();
-    anti_alias.reset();
     CreateStagingBuffer(framebuffer);
     CreateRawImages(framebuffer);
 }
 
-void Layer::SetAntiAliasPass() {
-    if (anti_alias && anti_alias_setting == filters.get_anti_aliasing()) {
+void Layer::SetAntiAliasPass(VkExtent2D source_extent) {
+    const auto setting = filters.get_anti_aliasing();
+    if (anti_alias && anti_alias_setting == setting &&
+        (setting == AntiAliasing::None ||
+         (anti_alias_extent.width == source_extent.width &&
+          anti_alias_extent.height == source_extent.height))) {
         return;
     }
 
-    anti_alias_setting = filters.get_anti_aliasing();
+    anti_alias_setting = setting;
+    anti_alias_extent = source_extent;
 
     // All slots may still reference the old pass, including recorded commands.
     for (const u64 tick : resource_ticks) {
         scheduler.Wait(tick);
     }
 
-    const VkExtent2D render_area{
-        .width = videoSettings.resolution_info.ScaleUp(raw_width),
-        .height = videoSettings.resolution_info.ScaleUp(raw_height),
-    };
-
     switch (anti_alias_setting) {
 #ifdef NXEMU_ENABLE_INTEL_CMAA2
     case AntiAliasing::Cmaa2Intel:
         try {
-            anti_alias = std::make_unique<IntelCMAA2>(device, memory_allocator, image_count, render_area);
+            anti_alias = std::make_unique<IntelCMAA2>(device, memory_allocator, image_count, source_extent);
         } catch (const std::exception& e) {
             LOG_ERROR(Render_Vulkan, "CMAA2 unavailable: {}. Falling back to FXAA.", e.what());
-            anti_alias = std::make_unique<FXAA>(device, memory_allocator, image_count, render_area);
+            anti_alias = std::make_unique<FXAA>(device, memory_allocator, image_count, source_extent);
         }
         break;
 #endif
     case AntiAliasing::Fxaa:
-        anti_alias = std::make_unique<FXAA>(device, memory_allocator, image_count, render_area);
+        anti_alias = std::make_unique<FXAA>(device, memory_allocator, image_count, source_extent);
         break;
     case AntiAliasing::Smaa:
     case AntiAliasing::SmaaHigh:
-        anti_alias = std::make_unique<SMAA>(device, memory_allocator, image_count, render_area,
+        anti_alias = std::make_unique<SMAA>(device, memory_allocator, image_count, source_extent,
                                           anti_alias_setting == AntiAliasing::Smaa);
         break;
     default:

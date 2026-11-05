@@ -3870,8 +3870,8 @@ msgstr "Anticrénelage morphologique conservateur Intel. Expérimental ; Vulkan 
 
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Quality"
-msgstr "Qualité"
+msgid "Balanced"
+msgstr "Équilibré"
 
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
@@ -3908,3 +3908,57 @@ msgstr "Réduction"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Première couche"
+
+msgid "Nearest"
+msgstr "Au plus proche"
+
+msgid "Catmull fast"
+msgstr "Catmull rapide"
+
+msgid "Area"
+msgstr "Surface"
+
+msgid "Favors smoother gameplay. Edges may look more jagged."
+msgstr "Privilégie la fluidité du jeu. Les contours peuvent paraître plus dentelés."
+
+msgid "Keeps the picture sharp and smooths jagged edges, with some extra graphics work."
+msgstr "Garde une image nette et lisse les contours, avec un peu plus de travail pour la puce graphique."
+
+msgid "Keeps pixels square and crisp. Best for pixel art."
+msgstr "Garde les pixels carrés et nets. Idéal pour le pixel art."
+
+msgid "Smooths the picture quickly, but fine details can look softer."
+msgstr "Lisse rapidement l’image, mais les petits détails peuvent paraître plus flous."
+
+msgid "Keeps fine details sharp. Strong edges may show a faint outline."
+msgstr "Préserve les petits détails. Un léger halo peut apparaître sur les contours marqués."
+
+msgid "A faster version of Catmull-Rom. Diagonal lines may look slightly different."
+msgstr "Une version plus rapide de Catmull-Rom. Les lignes diagonales peuvent paraître légèrement différentes."
+
+msgid "Keeps more detail than Bilinear and uses a little more graphics power."
+msgstr "Préserve plus de détails que le filtre bilinéaire et demande un peu plus de puissance graphique."
+
+msgid "Keeps outlines sharp in 2D games and drawings. Uses more graphics power."
+msgstr "Garde les contours nets dans les jeux et dessins en 2D. Demande plus de puissance graphique."
+
+msgid "A faster version of ScaleForce. Diagonal lines may look slightly different."
+msgstr "Une version plus rapide de ScaleForce. Les lignes diagonales peuvent paraître légèrement différentes."
+
+msgid "Keeps edges clear when making the picture larger. You can adjust how sharp it looks."
+msgstr "Préserve la netteté des contours en agrandissant l’image. La netteté est réglable."
+
+msgid "Makes details stand out. Set to 0% to turn it off."
+msgstr "Fait ressortir les détails. Réglez à 0 % pour désactiver l’effet."
+
+msgid "Makes the picture sharper when using FSR. Set to 0% to turn it off."
+msgstr "Rend l’image plus nette avec FSR. Réglez à 0 % pour désactiver l’effet."
+
+msgid "Makes details stand out with supported filters. Set to 0% to turn it off."
+msgstr "Fait ressortir les détails avec les filtres compatibles. Réglez à 0 % pour désactiver l’effet."
+
+msgid "Makes a large picture smaller with very little graphics work."
+msgstr "Réduit une grande image avec très peu de travail pour la puce graphique."
+
+msgid "Smooths jagged edges when making a large picture smaller."
+msgstr "Lisse les contours dentelés quand une grande image est réduite."

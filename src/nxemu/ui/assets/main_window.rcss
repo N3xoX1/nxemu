@@ -2077,6 +2077,16 @@ body.speed-unlocked #status-unlocked
     text-overflow: ellipsis;
 }
 
+#resolution
+{
+    margin-left: 5dp;
+    border-color: var(--border);
+    background-color: var(--surface);
+    font-size: 11dp;
+    white-space: nowrap;
+}
+
+#resolution.absent,
 body.compact #resolution,
 body.compact #status-bar .status-separator,
 body.compact .volume-range

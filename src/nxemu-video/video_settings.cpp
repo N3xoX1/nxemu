@@ -1,4 +1,5 @@
 #include "video_settings.h"
+#include "presentation_settings.h"
 #include "video_enum_strings.h"
 #include "video_settings_identifiers.h"
 #include <algorithm>
@@ -7,6 +8,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/fsr_sharpness.h>
 #include <yuzu_common/yuzu_assert.h>
 
 extern IModuleSettings * g_settings;
@@ -275,9 +277,9 @@ static VideoSetting settings[] = {
     {NXVideoSetting::ScalingFilter, "video", "scaling_filter", &videoSettings.scaling_filter, ScalingFilter::Bilinear},
     {NXVideoSetting::CustomScalingFilter, "video", "custom_scaling_filter", &videoSettings.custom_scaling_filter, static_cast<int32_t>(ScalingFilter::Bilinear), 0, static_cast<int32_t>(ScalingFilter::ScaleForceFast)},
     {NXVideoSetting::AntiAliasing, "video", "anti_aliasing", &videoSettings.anti_aliasing, AntiAliasing::None},
-    {NXVideoSetting::FSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, 25, 0, 200},
+    {NXVideoSetting::FSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, FsrSharpness::ToStored(80), 0, FsrSharpness::StoredMaximum},
     {NXVideoSetting::DownscalingFilter, "video", "downscaling_filter", &videoSettings.downscaling_filter, 0, 0, 1},
-    {NXVideoSetting::CASSharpness, "video", "cas_sharpening_slider", &videoSettings.cas_sharpening_slider, 0, 0, 100},
+    {NXVideoSetting::CASSharpness, "video", "cas_sharpening_slider", &videoSettings.cas_sharpening_slider, 80, 0, 100},
     {NXVideoSetting::FsrLegacyBenchmark, "video", "fsr_legacy_benchmark", &videoSettings.fsr_legacy_benchmark, false},
     {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
     {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, true},
@@ -297,6 +299,11 @@ namespace
 {
 void ApplyRangedInt(VideoSetting & videoSetting, int32_t value)
 {
+    if (value == static_cast<int32_t>(RetiredMetalFxFilter) &&
+        strcmp(videoSetting.identifier, NXVideoSetting::CustomScalingFilter) == 0)
+    {
+        value = static_cast<int32_t>(ScalingFilter::Fsr);
+    }
     *videoSetting.value.intValue = std::clamp(value, videoSetting.minValue, videoSetting.maxValue);
 }
 

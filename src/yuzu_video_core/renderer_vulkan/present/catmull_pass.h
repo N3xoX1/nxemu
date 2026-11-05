@@ -15,13 +15,11 @@ struct PresentPushConstants;
 class CatmullPass {
   public:
     CatmullPass(const Device &device, MemoryAllocator &allocator, size_t image_count,
-                VkExtent2D output_extent, ScalingFilter filter = ScalingFilter::CatmullRom,
-                VkFormat format_override = VK_FORMAT_UNDEFINED, const void* image_next = nullptr);
+                VkExtent2D output_extent, ScalingFilter filter = ScalingFilter::CatmullRom);
     VkImageView Draw(Scheduler &scheduler, size_t image_index, VkImage source,
                      VkImageView source_view, const Common::Rectangle<f32> &crop, bool fast,
                      const PresentPushConstants* constants = nullptr);
     Common::Rectangle<f32> OutputCrop() const;
-    VkImage ImageAt(size_t index) const { return *images.at(index).image; }
 
   private:
     const Device &device;

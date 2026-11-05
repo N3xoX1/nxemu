@@ -13,7 +13,7 @@ namespace Vulkan {
 
 vk::Buffer CreateWrappedBuffer(MemoryAllocator& allocator, VkDeviceSize size, MemoryUsage usage);
 
-vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format, const void* image_next = nullptr);
+vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format);
 void TransitionImageLayout(vk::CommandBuffer& cmdbuf, VkImage image, VkImageLayout target_layout,
                            VkImageLayout source_layout = VK_IMAGE_LAYOUT_GENERAL);
 void UploadImage(const Device& device, MemoryAllocator& allocator, Scheduler& scheduler,

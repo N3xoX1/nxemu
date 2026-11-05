@@ -198,15 +198,6 @@ vk::Instance CreateInstance(const Common::DynamicLibrary& library, vk::InstanceD
         next = &layer_settings_ci;
     }
 #endif
-#ifdef NXEMU_ENABLE_METALFX
-    const VkExportMetalObjectCreateInfoEXT export_queue{
-        VK_STRUCTURE_TYPE_EXPORT_METAL_OBJECT_CREATE_INFO_EXT, next,
-        VK_EXPORT_METAL_OBJECT_TYPE_METAL_COMMAND_QUEUE_BIT_EXT};
-    const VkExportMetalObjectCreateInfoEXT export_device{
-        VK_STRUCTURE_TYPE_EXPORT_METAL_OBJECT_CREATE_INFO_EXT, &export_queue,
-        VK_EXPORT_METAL_OBJECT_TYPE_METAL_DEVICE_BIT_EXT};
-    next = &export_device;
-#endif
     vk::Instance instance =
         std::async([&] {
             return vk::Instance::Create(available_version, layers, extensions, dld, next);

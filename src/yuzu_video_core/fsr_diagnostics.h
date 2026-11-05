@@ -68,6 +68,7 @@ inline void PublishPresentationStatus(bool applet, unsigned output_width, unsign
             state.output_width = output_width;
             state.output_height = output_height;
             state.layers = layers;
+            state.filter = static_cast<ScalingFilter>(fsr_frame_state.effective_filter);
         }
     }
     presentation_status.Publish(state);

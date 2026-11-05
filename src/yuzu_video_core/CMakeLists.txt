@@ -12,10 +12,6 @@ if(LIBVA_FOUND)
 endif()
 
 if(NXEMU_BUILD_FSR_BENCHMARK)
-    add_executable(nxemu_upscaler_contract_tests ../../tests/fsr/upscaler_contract_tests.cpp)
-    target_include_directories(nxemu_upscaler_contract_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_link_libraries(nxemu_upscaler_contract_tests PRIVATE Vulkan::Headers yuzu_common)
-    add_test(NAME nxemu_upscaler_contract COMMAND nxemu_upscaler_contract_tests)
     foreach(_profile_variant IN ITEMS enabled disabled)
         add_executable(nxemu_profile_${_profile_variant}_tests
             ../../tests/fsr/profile_tests.cpp ../nxemu-video/video_enum_strings.cpp)
@@ -305,9 +301,6 @@ add_library(video_core STATIC
     renderer_vulkan/present/anti_alias_pass.h
     renderer_vulkan/present/filters.cpp
     renderer_vulkan/present/filters.h
-    renderer_vulkan/present/upscaler.cpp
-    renderer_vulkan/present/upscaler.h
-    upscaler.h
     renderer_vulkan/present/fsr.cpp
     renderer_vulkan/present/fsr.h
     renderer_vulkan/present/catmull_pass.cpp
@@ -587,31 +580,6 @@ endif()
 # SYSTEM: the FFmpeg headers do not pass the conversion checks below.
 target_include_directories(video_core SYSTEM PRIVATE ${FFmpeg_INCLUDE_DIR})
 target_link_libraries(video_core PRIVATE ${FFmpeg_LIBRARIES})
-option(NXEMU_ENABLE_METALFX "Build experimental, CPU-synchronized MetalFX Spatial interop" OFF)
-if(NXEMU_ENABLE_METALFX)
-    if(NOT APPLE)
-        message(FATAL_ERROR "NXEMU_ENABLE_METALFX requires macOS and a macOS 13+ SDK")
-    endif()
-    find_library(NXEMU_METAL_FRAMEWORK Metal REQUIRED)
-    find_library(NXEMU_METALFX_FRAMEWORK MetalFX REQUIRED)
-    find_library(NXEMU_FOUNDATION_FRAMEWORK Foundation REQUIRED)
-    target_sources(video_core PRIVATE renderer_vulkan/present/metalfx_spatial.mm)
-    set_source_files_properties(renderer_vulkan/present/metalfx_spatial.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-    set_property(TARGET video_core PROPERTY OBJCXX_STANDARD 23)
-    target_compile_definitions(video_core PRIVATE NXEMU_ENABLE_METALFX=1)
-    target_link_libraries(video_core PRIVATE ${NXEMU_METAL_FRAMEWORK} ${NXEMU_FOUNDATION_FRAMEWORK}
-        "-Wl,-weak_framework,MetalFX")
-    if(NXEMU_BUILD_FSR_BENCHMARK)
-        add_executable(nxemu_metalfx_smoke ../../tests/fsr/metalfx_smoke.mm)
-        set_property(TARGET nxemu_metalfx_smoke PROPERTY OBJCXX_STANDARD 23)
-        target_compile_options(nxemu_metalfx_smoke PRIVATE -fobjc-arc)
-        target_link_libraries(nxemu_metalfx_smoke PRIVATE ${NXEMU_METAL_FRAMEWORK}
-            ${NXEMU_FOUNDATION_FRAMEWORK} "-Wl,-weak_framework,MetalFX")
-        add_test(NAME nxemu_metalfx_smoke COMMAND nxemu_metalfx_smoke)
-        set_tests_properties(nxemu_metalfx_smoke PROPERTIES SKIP_RETURN_CODE 77 LABELS platform)
-    endif()
-endif()
-
 if(APPLE)
     foreach(framework CoreFoundation CoreMedia CoreVideo VideoToolbox)
         find_library(NXEMU_${framework}_FRAMEWORK ${framework} REQUIRED)

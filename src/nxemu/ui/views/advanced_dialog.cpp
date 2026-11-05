@@ -98,11 +98,11 @@ Choices AntiAliasings()
     return {
         Numbered(Tr("None"), static_cast<int>(AntiAliasing::None), Tr("The picture as the game draws it.")),
         Numbered("FXAA", static_cast<int>(AntiAliasing::Fxaa), Tr("Light work, a little blur. The steadier picture at low resolutions.")),
-        Numbered("SMAA High", static_cast<int>(AntiAliasing::SmaaHigh), Tr("Morphological anti-aliasing with three graphics passes.")),
-        Numbered("SMAA Ultra", static_cast<int>(AntiAliasing::Smaa), Tr("The best picture, for more work.")),
 #ifdef NXEMU_ENABLE_INTEL_CMAA2
         Numbered("Intel CMAA2 (Vulkan, experimental)", static_cast<int>(AntiAliasing::Cmaa2Intel), Tr("Intel CMAA2 compute anti-aliasing. Vulkan only.")),
 #endif
+        Numbered("SMAA High", static_cast<int>(AntiAliasing::SmaaHigh), Tr("Morphological anti-aliasing with three graphics passes.")),
+        Numbered("SMAA Ultra", static_cast<int>(AntiAliasing::Smaa), Tr("The best picture, for more work.")),
     };
 }
 

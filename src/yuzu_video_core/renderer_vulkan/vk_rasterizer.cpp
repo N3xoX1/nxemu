@@ -1301,7 +1301,6 @@ std::optional<FramebufferTextureInfo> RasterizerVulkan::AccelerateDisplay(
     info.image = image_view->ImageHandle();
     if (ScaleTrace::Active()) ScaleTrace::output << "PRESENT " << info.image << '\n';
     info.image_view = image_view->Handle(Shader::TextureType::Color2D);
-    info.sampled_as_linear = VideoCore::Surface::IsPixelFormatSRGB(image_view->format);
     info.width = image_view->size.width;
     info.height = image_view->size.height;
     info.scaled_width = scaled ? resolution.ScaleUp(info.width) : info.width;

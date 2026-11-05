@@ -99,7 +99,7 @@ void WindowAdaptPass::Draw(RasterizerVulkan& rasterizer, Scheduler& scheduler, s
 
         const auto effective = layer_it->ConfigureDraw(&prepared[i].constants, &prepared[i].descriptor,
             rasterizer, *sampler, *bilinear_fallback.sampler, *area_fallback.sampler,
-            requested_filter, sharpening, image_index, configs[i], layout, layer_count == 1);
+            requested_filter, sharpening, image_index, configs[i], layout);
         const bool sharpen_only = effective.mode != PresentScaleMode::Upscale &&
                                   sharpening != PresentSharpening::None;
         const auto final_filter = sharpen_only

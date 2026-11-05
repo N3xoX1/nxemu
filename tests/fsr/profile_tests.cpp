@@ -42,6 +42,12 @@ int main() {
     SelectPresentationFilter(settings, ScalingFilter::Area);
     Require(settings.active == static_cast<int>(ScalingFilter::Bilinear));
 
+    Require(ScalingFilterFromString("MetalFxSpatial") == ScalingFilter::Fsr);
+    settings.active = static_cast<int>(ScalingFilter::AutoQuality);
+    settings.saved = 12; // MetalFX Spatial in experimental builds.
+    ActivateCustomPresentation(settings);
+    Require(settings.active == static_cast<int>(ScalingFilter::Fsr));
+
     // Existing persisted numeric choices must retain their meanings.
     static_assert(static_cast<int>(ScalingFilter::Fsr) == 5);
     static_assert(static_cast<int>(ScalingFilter::ScaleForceFast) == 9);
@@ -72,8 +78,9 @@ int main() {
     videoSettings.cas_sharpening_slider = 0;
     Require(GetScalingFilter() == ManualFilterForProfile(ScalingFilter::AutoPerformance));
     videoSettings.cas_sharpening_slider = 35;
-    Require(GetScalingFilter() == ScalingFilter::Bicubic);
-    Require(GetPresentSharpening(ScalingFilter::AutoPerformance, 100, 25) == PresentSharpening::None);
+    Require(GetScalingFilter() == ScalingFilter::CasCatmullRomFast);
+    Require(GetPresentSharpening(ScalingFilter::AutoPerformance, 0, 25) == PresentSharpening::None);
+    Require(GetPresentSharpening(ScalingFilter::AutoPerformance, 100, 25) == PresentSharpening::Cas);
     videoSettings.scaling_filter = ScalingFilter::AutoQuality;
     videoSettings.fsr_sharpening_slider = 25;
     Require(GetScalingFilter() == ScalingFilter::Fsr);

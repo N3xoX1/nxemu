@@ -21,10 +21,10 @@ vk::Buffer CreateWrappedBuffer(MemoryAllocator& allocator, VkDeviceSize size, Me
     return allocator.CreateBuffer(dst_buffer_info, usage);
 }
 
-vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format, const void* image_next) {
+vk::Image CreateWrappedImage(MemoryAllocator& allocator, VkExtent2D dimensions, VkFormat format) {
     const VkImageCreateInfo image_ci{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = image_next,
+        .pNext = nullptr,
         .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,

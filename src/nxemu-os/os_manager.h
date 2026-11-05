@@ -79,6 +79,7 @@ private:
     OSManager(const OSManager &) = delete;
     OSManager & operator=(const OSManager &) = delete;
 
+    static void DockedModeChanged(const char * setting, void * userData);
     bool CreateApplicationProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl);
 
     Core::System m_coreSystem;

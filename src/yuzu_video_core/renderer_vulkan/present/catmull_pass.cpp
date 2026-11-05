@@ -11,7 +11,7 @@
 
 namespace Vulkan {
 CatmullPass::CatmullPass(const Device &device_, MemoryAllocator &allocator, size_t image_count,
-                         VkExtent2D output_extent, ScalingFilter filter, VkFormat format_override, const void* image_next)
+                         VkExtent2D output_extent, ScalingFilter filter)
     : device(device_), extent(output_extent),
       padding(filter == ScalingFilter::CatmullRom ? 1U : 0U) {
     extent.width += 2 * padding;
@@ -39,7 +39,7 @@ CatmullPass::CatmullPass(const Device &device_, MemoryAllocator &allocator, size
     // FP32 arithmetic; UNORM16 storage preserves SDR precision at eight bytes per pixel.
     constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
         VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
-    const auto format = format_override != VK_FORMAT_UNDEFINED ? format_override :
+    const auto format =
         (device.GetPhysical().GetFormatProperties(VK_FORMAT_R16G16B16A16_UNORM).optimalTilingFeatures & required) == required
             ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
     renderpass = CreateWrappedRenderPass(device, format);
@@ -48,7 +48,7 @@ CatmullPass::CatmullPass(const Device &device_, MemoryAllocator &allocator, size
     images.reserve(image_count);
     for (size_t i = 0; i < image_count; ++i) {
         auto &image = images.emplace_back();
-        image.image = CreateWrappedImage(allocator, extent, format, image_next);
+        image.image = CreateWrappedImage(allocator, extent, format);
         image.view = CreateWrappedImageView(device, image.image, format);
         image.framebuffer = CreateWrappedFramebuffer(device, renderpass, image.view, extent);
         image.sets = CreateWrappedDescriptorSets(descriptor_pool, {*descriptor_layout});

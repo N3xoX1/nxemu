@@ -195,6 +195,7 @@ enum class VideoPresentationMode : uint32_t { Unknown, Native, Upscaling, Downsc
 struct VideoPresentationState {
     VideoPresentationMode mode{VideoPresentationMode::Unknown};
     uint32_t input_width{}, input_height{}, output_width{}, output_height{}, layers{};
+    ScalingFilter filter{ScalingFilter::MaxEnum};
 };
 
 struct VideoInterfaceFrame

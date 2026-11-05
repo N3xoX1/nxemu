@@ -31,7 +31,6 @@ class AntiAliasPass;
 class CatmullPass;
 class Device;
 class FSR;
-class Upscaler;
 class MemoryAllocator;
 struct PresentPushConstants;
 class RasterizerVulkan;
@@ -49,7 +48,7 @@ public:
                        VkDescriptorSet* out_descriptor_set, RasterizerVulkan& rasterizer,
                        VkSampler sampler, VkSampler bilinear_sampler, VkSampler area_sampler, ScalingFilter requested_filter, PresentSharpening sharpening, size_t image_index,
                        const Tegra::FramebufferConfig& framebuffer,
-                       const Layout::FramebufferLayout& layout, bool allow_native_upscale);
+                       const Layout::FramebufferLayout& layout);
 
 private:
     void CreateDescriptorPool();
@@ -59,7 +58,7 @@ private:
     void CreateFSR(VkExtent2D output_size, bool easu_only);
 
     void RefreshResources(const Tegra::FramebufferConfig& framebuffer);
-    void SetAntiAliasPass();
+    void SetAntiAliasPass(VkExtent2D source_extent);
     void ReleaseRawImages();
 
     u64 CalculateBufferSize(const Tegra::FramebufferConfig& framebuffer) const;
@@ -91,11 +90,10 @@ private:
     Service::android::PixelFormat pixel_format{};
 
     AntiAliasing anti_alias_setting{};
+    VkExtent2D anti_alias_extent{};
     std::unique_ptr<AntiAliasPass> anti_alias{};
 
     std::unique_ptr<FSR> fsr{};
-    std::unique_ptr<Upscaler> native_upscaler;
-    bool native_upscaler_attempted{};
     std::unique_ptr<CatmullPass> catmull_pass{};
     std::array<std::unique_ptr<CatmullPass>, 2> downscale_passes{};
     std::vector<u64> resource_ticks{};

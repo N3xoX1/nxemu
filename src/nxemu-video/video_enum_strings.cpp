@@ -251,6 +251,7 @@ ScalingFilter ScalingFilterFromString(std::string_view str)
     if (str == "Gaussian") return ScalingFilter::Gaussian;
     if (str == "ScaleForce") return ScalingFilter::ScaleForce;
     if (str == "ScaleForceFast") return ScalingFilter::ScaleForceFast;
+    if (str == "MetalFxSpatial") return ScalingFilter::Fsr; // Saved by experimental builds.
     if (str == "Fsr") return ScalingFilter::Fsr;
     if (str == "FsrEasu") return ScalingFilter::FsrEasu;
     if (str == "CatmullRom") return ScalingFilter::CatmullRom;

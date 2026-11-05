@@ -21,6 +21,19 @@ Rml::Element * RowInPanel(Rml::Element * element)
     return nullptr;
 }
 
+Rml::Element * SubmenuRow(Rml::Element * panel, int index)
+{
+    for (int i = 0; i < panel->GetNumChildren(); ++i)
+    {
+        auto * row = panel->GetChild(i);
+        if (row->IsClassSet("has-submenu") && index-- == 0)
+        {
+            return row;
+        }
+    }
+    return nullptr;
+}
+
 bool MovingTowardPanel(Rml::Element * row, Rml::Vector2f previous, Rml::Vector2f current)
 {
     auto* panel = row->GetLastChild()->GetFirstChild();
@@ -165,12 +178,43 @@ void PopupMenu::Update(const std::vector<MenuItem> & items)
     {
         return;
     }
+    // Count only submenu rows. Profile changes can insert or remove slider rows.
+    std::vector<int> openPath;
+    if (m_anchor->IsClassSet("graphics-popup"))
+    {
+        auto * panel = m_anchor->GetFirstChild();
+        while (panel)
+        {
+            int index = 0;
+            auto * row = SubmenuRow(panel, index);
+            while (row && !row->IsClassSet("submenu-open"))
+            {
+                row = SubmenuRow(panel, ++index);
+            }
+            if (!row)
+            {
+                break;
+            }
+            openPath.push_back(index);
+            panel = row->GetLastChild()->GetFirstChild();
+        }
+    }
     m_previousPointer.reset();
     m_anchor->RemoveProperty(Rml::PropertyId::Width);
     m_anchor->SetInnerRML(MenuPopupRml(items));
     m_anchor->GetOwnerDocument()->UpdateDocument();
     Rml::Element * popup = m_anchor->GetFirstChild();
     Place(m_position, {popup->GetOffsetWidth(), popup->GetOffsetHeight()});
+    for (const int index : openPath)
+    {
+        auto * row = SubmenuRow(popup, index);
+        if (!row)
+        {
+            break;
+        }
+        OpenSubmenu(row);
+        popup = row->GetLastChild()->GetFirstChild();
+    }
 }
 
 Rml::Vector2f PopupMenu::Open(const std::vector<MenuItem> & items, Rml::Element * origin)

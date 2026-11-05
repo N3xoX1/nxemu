@@ -6,7 +6,10 @@
 inline constexpr bool IsManualScalingFilter(ScalingFilter filter) {
     return static_cast<unsigned>(filter) <= static_cast<unsigned>(ScalingFilter::ScaleForceFast);
 }
+inline constexpr auto RetiredMetalFxFilter = static_cast<ScalingFilter>(12);
+
 inline constexpr ScalingFilter ValidCustomScalingFilter(ScalingFilter filter) {
+    if (filter == RetiredMetalFxFilter) return ScalingFilter::Fsr;
     return IsManualScalingFilter(filter) ? filter : ScalingFilter::Bilinear;
 }
 template <typename Settings>

@@ -15,6 +15,10 @@
 static inline ScalingFilter GetScalingFilter() {
     const ScalingFilter upscaler = ManualFilterForProfile(videoSettings.scaling_filter);
     if (videoSettings.cas_sharpening_slider > 0) {
+        // The performance preset uses the fast fused reconstruction when CAS is enabled.
+        if (videoSettings.scaling_filter == ScalingFilter::AutoPerformance) {
+            return ScalingFilter::CasCatmullRomFast;
+        }
         switch (upscaler) {
         case ScalingFilter::NearestNeighbor: return ScalingFilter::CasNearest;
         case ScalingFilter::Bilinear: return ScalingFilter::CasBilinear;
