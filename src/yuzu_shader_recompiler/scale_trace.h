@@ -30,6 +30,7 @@ inline void Spirv(std::uint64_t hash, std::span<const std::uint32_t> code)
 {
     if (!Directory()) return;
     std::ofstream file(File(hash, ".spv"), std::ios::binary);
-    file.write(reinterpret_cast<const char *>(code.data()), code.size_bytes());
+    file.write(reinterpret_cast<const char *>(code.data()),
+                static_cast<std::streamsize>(code.size_bytes()));
 }
 } // namespace Shader::ScaleTrace
