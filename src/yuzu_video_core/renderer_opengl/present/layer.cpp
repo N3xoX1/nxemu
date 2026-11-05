@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "yuzu_video_core/fsr.h"
+#include <bit>
+#include "yuzu_video_core/area_sampling.h"
 #include "yuzu_video_core/framebuffer_config.h"
 #include "yuzu_video_core/present.h"
 #include "yuzu_video_core/renderer_opengl/gl_blit_screen.h"
@@ -37,9 +40,14 @@ GLuint Layer::ConfigureDraw(std::array<GLfloat, 3 * 2>& out_matrix,
                             std::array<ScreenRectVertex, 4>& out_vertices,
                             ProgramManager& program_manager,
                             const Tegra::FramebufferConfig& framebuffer,
-                            const Layout::FramebufferLayout& layout, bool invert_y) {
+                            const Layout::FramebufferLayout& layout, bool invert_y,
+                            std::array<u32, 16>& easu_constants, ScalingFilter& effective_filter, ScalingFilter requested_filter) {
+    easu_constants.fill(0);
     FramebufferTextureInfo info = PrepareRenderTarget(framebuffer);
     auto crop = Tegra::NormalizeCrop(framebuffer, info.width, info.height);
+    VideoCore::NotePresentInput(info.scaled_width, info.scaled_height,
+        static_cast<unsigned>(std::lround(std::abs(crop.right - crop.left) * static_cast<float>(info.scaled_width))),
+        static_cast<unsigned>(std::lround(std::abs(crop.bottom - crop.top) * static_cast<float>(info.scaled_height))));
     GLuint texture = info.display_texture;
 
     auto anti_aliasing = filters.get_anti_aliasing();
@@ -57,9 +65,13 @@ GLuint Layer::ConfigureDraw(std::array<GLfloat, 3 * 2>& out_matrix,
             CreateFXAA();
             texture = fxaa->Draw(program_manager, info.display_texture);
             break;
+        case AntiAliasing::Cmaa2Intel:
+            // Never misrepresent the OpenGL fallback as Intel CMAA2.
+            break;
         case AntiAliasing::Smaa:
+        case AntiAliasing::SmaaHigh:
         default:
-            CreateSMAA();
+            CreateSMAA(anti_aliasing != AntiAliasing::SmaaHigh);
             texture = smaa->Draw(program_manager, info.display_texture);
             break;
         }
@@ -67,13 +79,55 @@ GLuint Layer::ConfigureDraw(std::array<GLfloat, 3 * 2>& out_matrix,
 
     glDisablei(GL_SCISSOR_TEST, 0);
 
-    if (filters.get_scaling_filter() == ScalingFilter::Fsr) {
-        if (!fsr || fsr->NeedsRecreation(layout.screen)) {
-            fsr = std::make_unique<FSR>(layout.screen.GetWidth(), layout.screen.GetHeight());
+    const auto selection = ResolvePresentScale(requested_filter,
+        !filters.is_applet_capture && VideoCore::fsr_frame_state.downscale_filter == 1,
+        info.scaled_width, info.scaled_height, crop, layout.screen.GetWidth(), layout.screen.GetHeight());
+    const ScalingFilter scaling_filter = effective_filter = selection.filter;
+    VideoCore::NotePresentSelection(static_cast<unsigned>(scaling_filter), static_cast<unsigned>(selection.mode));
+    if (scaling_filter == ScalingFilter::Area) {
+        const std::array<float, 4> area{
+            std::abs(crop.right - crop.left) * info.scaled_width / layout.screen.GetWidth(),
+            std::abs(crop.bottom - crop.top) * info.scaled_height / layout.screen.GetHeight(),
+            1.0f / info.scaled_width, 1.0f / info.scaled_height};
+        for (size_t i = 0; i < area.size(); ++i) easu_constants[i] = std::bit_cast<u32>(area[i]);
+        easu_constants[4] = VideoCore::AreaSamplingGrid(info.scaled_width, info.scaled_height,
+            crop.left, crop.top, crop.right, crop.bottom,
+            layout.screen.GetWidth(), layout.screen.GetHeight());
+    }
+    const bool use_fsr = scaling_filter == ScalingFilter::Fsr ||
+                         scaling_filter == ScalingFilter::FsrEasu;
+    if (scaling_filter == ScalingFilter::CatmullRom || scaling_filter == ScalingFilter::CasCatmullRom ||
+        scaling_filter == ScalingFilter::CatmullRomFast || scaling_filter == ScalingFilter::CasCatmullRomFast) {
+        easu_constants[0] = CanUseNativeRcas(info.scaled_width, info.scaled_height, crop,
+            layout.screen.GetWidth(), layout.screen.GetHeight()) ? 1U : 0U;
+        if (scaling_filter == ScalingFilter::CatmullRomFast || scaling_filter == ScalingFilter::CasCatmullRomFast)
+            easu_constants[0] |= 2U;
+    }
+    const bool skip_easu = !VideoCore::LegacyFsr() && use_fsr && CanUseNativeRcas(
+        info.scaled_width, info.scaled_height, crop, layout.screen.GetWidth(),
+        layout.screen.GetHeight());
+    if (use_fsr) VideoCore::NoteFsrInput(info.scaled_width, info.scaled_height,
+        VideoCore::LegacyFsr() ? 2U : (scaling_filter == ScalingFilter::Fsr && !skip_easu ? 1U : 0U));
+    if (scaling_filter == ScalingFilter::Fsr && !skip_easu) {
+        if (!fsr || fsr->NeedsRecreation(layout.screen, !VideoCore::LegacyFsr())) {
+            fsr = std::make_unique<FSR>(layout.screen.GetWidth(), layout.screen.GetHeight(),
+                                        !VideoCore::LegacyFsr());
         }
-
         texture = fsr->Draw(program_manager, texture, info.scaled_width, info.scaled_height, crop);
         crop = {0, 0, 1, 1};
+    }
+
+    if (scaling_filter == ScalingFilter::FsrEasu && !skip_easu) {
+        const float input_width = static_cast<float>(info.scaled_width);
+        const float input_height = static_cast<float>(info.scaled_height);
+        ::FSR::FsrEasuConOffset(easu_constants.data(), easu_constants.data() + 4,
+                                easu_constants.data() + 8, easu_constants.data() + 12,
+                                (crop.right - crop.left) * input_width,
+                                (crop.bottom - crop.top) * input_height,
+                                input_width, input_height,
+                                static_cast<float>(layout.screen.GetWidth()),
+                                static_cast<float>(layout.screen.GetHeight()),
+                                crop.left * input_width, crop.top * input_height);
     }
 
     out_matrix =
@@ -213,12 +267,13 @@ void Layer::CreateFXAA() {
     }
 }
 
-void Layer::CreateSMAA() {
+void Layer::CreateSMAA(bool ultra) {
     fxaa.reset();
-    if (!smaa) {
+    if (!smaa || smaa_ultra != ultra) {
+        smaa_ultra = ultra;
         smaa = std::make_unique<SMAA>(
             videoSettings.resolution_info.ScaleUp(framebuffer_texture.width),
-            videoSettings.resolution_info.ScaleUp(framebuffer_texture.height));
+            videoSettings.resolution_info.ScaleUp(framebuffer_texture.height), ultra);
     }
 }
 

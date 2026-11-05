@@ -3788,3 +3788,99 @@ msgstr "NXShader kompilieren"
 
 msgid "Open NXShader folder"
 msgstr "NXShader-Ordner öffnen"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "Optionale Schärfung bei 1:1 und beim Verkleinern; auch beim Hochskalieren mit Nächster Nachbar, Bilinear oder Catmull-Rom. Bei 0 % aus."
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution: kantenerhaltende Hochskalierung mit einstellbarer Schärfe. Bei 0 % ist die Schärfung aus."
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "Näherung mit fünf Abtastungen. Schneller, mit kleinen Abweichungen an diagonalen Kanten."
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce schnell"
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "Vergrößerungs- und Verkleinerungsfilter: automatische Auswahl anhand der Bild- und Anzeigegröße"
+
+msgid "CAS sharpness"
+msgstr "CAS-Schärfe"
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom schnell"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "Schärfere Rekonstruktion feiner Details. Kann Säume an starken Kanten erzeugen."
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "Wird automatisch verwendet, wenn das Quellbild größer als sein Anzeigebereich ist. Geringster Aufwand."
+
+msgid "Downscaling filter"
+msgstr "Verkleinerungsfilter"
+
+msgid "Downscale: Area"
+msgstr "Verkleinerung: Area"
+
+msgid "Downscale: Bilinear"
+msgstr "Verkleinerung: Bilinear"
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "Flächengewichtete Verkleinerung. Filtert die gesamte abgedeckte Quellfläche, um Treppeneffekte zu verringern."
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "Kantenschätzung mit vier Nachbarn. Schneller, aber diagonale Konturen können abweichen."
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "Kantenglättung: während des Spiels ändern"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "Intel CMAA2-Kantenglättung per Compute-Shader. Nur Vulkan."
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "Morphologische Kantenglättung mit drei Grafikdurchläufen."
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Konservative morphologische Kantenglättung von Intel. Experimentell; nur Vulkan."
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "Qualität"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Bikubische Hochskalierung, Area-Verkleinerung und CMAA2-Kantenglättung mit FXAA als Ersatz."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "FSR-Hochskalierung, Area-Verkleinerung und SMAA-High-Kantenglättung."
+
+
+msgid "Custom"
+msgstr "Benutzerdefiniert"
+
+msgid "Upscaling filter"
+msgstr "Hochskalierungsfilter"
+
+msgid "Graphics profile"
+msgstr "Grafikprofil"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "Bikubische Hochskalierung, Area-Verkleinerung und keine Kantenglättung."
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "FSR-Hochskalierung, Area-Verkleinerung und CMAA2-Kantenglättung mit FXAA als Ersatz."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "Hochskalierung"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "Herunterskalierung"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "Erste Ebene"

@@ -50,7 +50,7 @@ layout(set=0,binding=0) uniform sampler2D InputTexture;
     #endif
     #if USE_RCAS
         #define FSR_RCAS_F 1
-        AF4 FsrRcasLoadF(ASU2 p) { return texelFetch(InputTexture, ASU2(p), 0); }
+        AF4 FsrRcasLoadF(ASU2 p) { return texelFetch(InputTexture, clamp(ivec2(p), ivec2(0), textureSize(InputTexture, 0) - 1), 0); }
         void FsrRcasInputF(inout AF1 r, inout AF1 g, inout AF1 b) {}
     #endif
 #else
@@ -65,7 +65,7 @@ layout(set=0,binding=0) uniform sampler2D InputTexture;
     #endif
     #if USE_RCAS
         #define FSR_RCAS_H 1
-        AH4 FsrRcasLoadH(ASW2 p) { return AH4(texelFetch(InputTexture, ASU2(p), 0)); }
+        AH4 FsrRcasLoadH(ASW2 p) { return AH4(texelFetch(InputTexture, clamp(ivec2(p), ivec2(0), textureSize(InputTexture, 0) - 1), 0)); }
         void FsrRcasInputH(inout AH1 r,inout AH1 g,inout AH1 b){}
     #endif
 #endif
@@ -80,11 +80,14 @@ void CurrFilter(AU2 pos) {
     #ifndef YUZU_USE_FP16
         AF3 c;
         FsrEasuF(c, pos, Const0, Const1, Const2, Const3);
-        frag_color = AF4(c, texture(InputTexture, frag_texcoord).a);
+        // Include the crop and flip when sampling alpha, just as EASU does for RGB.
+        AF2 alpha_uv = (AF2(pos) * AF2_AU2(Const0.xy) + AF2_AU2(Const0.zw) + AF2(0.5)) * AF2_AU2(Const1.xy);
+        frag_color = AF4(c, texture(InputTexture, alpha_uv).a);
     #else
         AH3 c;
         FsrEasuH(c, pos, Const0, Const1, Const2, Const3);
-        frag_color = AH4(c, texture(InputTexture, frag_texcoord).a);
+        AF2 alpha_uv = (AF2(pos) * AF2_AU2(Const0.xy) + AF2_AU2(Const0.zw) + AF2(0.5)) * AF2_AU2(Const1.xy);
+        frag_color = AH4(c, texture(InputTexture, alpha_uv).a);
     #endif
 #endif
 #if USE_RCAS

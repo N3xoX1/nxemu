@@ -29,6 +29,7 @@ class RasterizerVulkan;
 class Scheduler;
 class PresentManager;
 class WindowAdaptPass;
+class PresentTimer;
 
 struct Frame;
 
@@ -72,10 +73,13 @@ private:
     std::size_t image_count{};
     std::size_t image_index{};
     VkFormat swapchain_view_format{};
+    VkExtent2D layer_output_size{};
 
     ScalingFilter scaling_filter{};
+    bool legacy_fsr{};
     std::unique_ptr<WindowAdaptPass> window_adapt{};
     std::list<Layer> layers{};
+    std::unique_ptr<PresentTimer> timer;
 };
 
 } // namespace Vulkan

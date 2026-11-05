@@ -36,7 +36,7 @@ void AppendItem(std::string & rml, const MenuItem & item)
     rml += "<div class=\"menu-item";
     rml += submenu ? " has-submenu" : "";
     rml += item.enabled ? "\"" : " disabled\"";
-    if (!submenu && item.enabled && item.id != 0)
+    if (item.enabled && item.id != 0)
     {
         rml += " data-action=\"" + std::to_string(item.id) + "\"";
         rml += item.kind == MenuItem::Kind::Check ? " data-check=\"\"" : "";
@@ -48,7 +48,8 @@ void AppendItem(std::string & rml, const MenuItem & item)
     }
     rml += "><div class=\"menu-check";
     rml += item.kind == MenuItem::Kind::Check ? (item.checked ? " checkbox checked" : " checkbox") : "";
-    rml += item.kind == MenuItem::Kind::Choice ? (item.checked ? " choice checked" : " choice") : "";
+    const bool choice = item.kind == MenuItem::Kind::Choice || (submenu && item.id != 0);
+    rml += choice ? (item.checked ? " choice checked" : " choice") : "";
     rml += "\"/><div class=\"menu-label\">" + LabelRml(item.label) + "</div>";
     if (!item.tag.empty())
     {
@@ -81,7 +82,8 @@ std::string MenuPopupRml(const std::vector<MenuItem> & items)
     bool checks = false;
     for (const MenuItem & item : items)
     {
-        checks = checks || item.kind == MenuItem::Kind::Check || item.kind == MenuItem::Kind::Choice;
+        checks = checks || item.kind == MenuItem::Kind::Check || item.kind == MenuItem::Kind::Choice ||
+            (item.kind == MenuItem::Kind::Submenu && item.id != 0);
     }
     std::string rml = checks ? "<div class=\"menu-popup has-checks\">" : "<div class=\"menu-popup\">";
     for (const MenuItem & item : items)

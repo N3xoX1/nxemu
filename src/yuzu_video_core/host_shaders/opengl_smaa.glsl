@@ -754,7 +754,12 @@ float2 SMAAColorEdgeDetectionPS(float2 texcoord,
 
     // Then discard if there is no edge:
     if (dot(edges, float2(1.0, 1.0)) == 0.0)
+    #ifdef SMAA_WRITE_ZERO_EDGES
+        // NXEmu has no stencil mask. Always overwrite old contours on reuse.
+        return float2(0.0, 0.0);
+    #else
         discard;
+    #endif
 
     // Calculate right and bottom deltas:
     float3 Cright = SMAASamplePoint(colorTex, offset[1].xy).rgb;

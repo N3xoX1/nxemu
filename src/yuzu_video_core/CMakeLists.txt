@@ -3,10 +3,45 @@
 
 add_subdirectory(host_shaders)
 
+option(NXEMU_BUILD_FSR_TESTS "Build scaling and graphics profile regression tests" OFF)
+
 if(LIBVA_FOUND)
     set_source_files_properties(host1x/ffmpeg/ffmpeg.cpp
         PROPERTIES COMPILE_DEFINITIONS LIBVA_FOUND=1)
     list(APPEND FFmpeg_LIBRARIES ${LIBVA_LIBRARIES})
+endif()
+
+if(NXEMU_BUILD_FSR_TESTS)
+    foreach(_profile_variant IN ITEMS enabled disabled)
+        add_executable(nxemu_profile_${_profile_variant}_tests
+            ../../tests/fsr/profile_tests.cpp ../nxemu-video/video_enum_strings.cpp)
+        target_include_directories(nxemu_profile_${_profile_variant}_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+        target_link_libraries(nxemu_profile_${_profile_variant}_tests PRIVATE yuzu_common)
+        if(_profile_variant STREQUAL "disabled")
+            target_compile_definitions(nxemu_profile_${_profile_variant}_tests PRIVATE NXEMU_TEST_DISABLE_CMAA2=1)
+        endif()
+        add_test(NAME nxemu_profile_${_profile_variant} COMMAND nxemu_profile_${_profile_variant}_tests)
+    endforeach()
+    add_executable(nxemu_reconstruction_tests ../../tests/fsr/reconstruction_tests.cpp)
+    target_include_directories(nxemu_reconstruction_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(nxemu_reconstruction_tests PRIVATE shader_recompiler yuzu_common)
+    add_test(NAME nxemu_reconstruction COMMAND nxemu_reconstruction_tests)
+    add_test(NAME nxemu_reconstruction_disabled COMMAND nxemu_reconstruction_tests --disabled)
+    set_tests_properties(nxemu_reconstruction_disabled PROPERTIES
+        ENVIRONMENT "NXEMU_HALF_RATE_RECONSTRUCTION=0")
+    add_executable(nxemu_fsr_diagnostics_tests ../../tests/fsr/diagnostics_tests.cpp)
+    target_include_directories(nxemu_fsr_diagnostics_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME nxemu_fsr_diagnostics COMMAND nxemu_fsr_diagnostics_tests)
+    get_filename_component(_fsr_glslang_bin "${GLSLANGVALIDATOR}" DIRECTORY)
+    find_library(NXEMU_FSR_VULKAN_LOADER NAMES vulkan-1 vulkan
+        HINTS "${_fsr_glslang_bin}/../Lib" "$ENV{VULKAN_SDK}/Lib")
+    if(NXEMU_FSR_VULKAN_LOADER)
+        add_executable(nxemu-downscale-sharpen-tests ../../tests/fsr/downscale_sharpen_tests.cpp fsr.cpp)
+        add_dependencies(nxemu-downscale-sharpen-tests host_shaders)
+        target_include_directories(nxemu-downscale-sharpen-tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${HOST_SHADERS_INCLUDE})
+        target_link_libraries(nxemu-downscale-sharpen-tests PRIVATE Vulkan::Headers ${NXEMU_FSR_VULKAN_LOADER} yuzu_common)
+        add_test(NAME nxemu_downscale_sharpen COMMAND nxemu-downscale-sharpen-tests)
+    endif()
 endif()
 
 add_library(video_core STATIC
@@ -151,6 +186,8 @@ add_library(video_core STATIC
     memory_manager.h
     precompiled_headers.h
     present.h
+    present_sharpening.h
+    area_sampling.h
     pte_kind.h
     query_cache/bank_base.h
     query_cache/query_bank_operations.h
@@ -226,10 +263,14 @@ add_library(video_core STATIC
     renderer_vulkan/present/filters.h
     renderer_vulkan/present/fsr.cpp
     renderer_vulkan/present/fsr.h
+    renderer_vulkan/present/catmull_pass.cpp
+    renderer_vulkan/present/catmull_pass.h
     renderer_vulkan/present/fxaa.cpp
     renderer_vulkan/present/fxaa.h
     renderer_vulkan/present/layer.cpp
     renderer_vulkan/present/layer.h
+    renderer_vulkan/present/scale_capture.h
+    renderer_vulkan/present/scale_trace.h
     renderer_vulkan/present/present_push_constants.h
     renderer_vulkan/present/smaa.cpp
     renderer_vulkan/present/smaa.h
@@ -573,3 +614,9 @@ if(ANDROID)
 endif()
 
 create_target_directory_groups(video_core)
+
+if (NXEMU_ENABLE_INTEL_CMAA2)
+    target_sources(video_core PRIVATE
+        renderer_vulkan/present/intel_cmaa2.cpp
+        renderer_vulkan/present/intel_cmaa2.h)
+endif()

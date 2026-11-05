@@ -4125,3 +4125,118 @@ msgstr ""
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
 msgstr ""
+
+#: assets/general_dialog.rml
+msgid "Downscaling filter"
+msgstr ""
+
+#: assets/general_dialog.rml
+msgid "CAS sharpness"
+msgstr ""
+
+#: assets/general_dialog.rml
+#: views/main_window.cpp
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr ""
+
+#: assets/main_window.rml
+msgid "Anti-aliasing: change while a game is running"
+msgstr ""
+
+#: views/advanced_dialog.cpp
+#: views/main_window.cpp
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr ""
+
+#: views/advanced_dialog.cpp
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Downscale: Bilinear"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Downscale: Area"
+msgstr ""
+
+#: views/main_window.cpp
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Catmull-Rom fast"
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "ScaleForce fast"
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr ""
+
+#: views/scaling_filters.h
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr ""
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr ""
+
+
+msgid "Custom"
+msgstr ""
+
+msgid "Upscaling filter"
+msgstr ""
+
+msgid "Graphics profile"
+msgstr ""
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr ""
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr ""

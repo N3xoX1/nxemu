@@ -29,6 +29,7 @@ class ProgramManager;
 class RasterizerOpenGL;
 class StateTracker;
 class WindowAdaptPass;
+class PresentTimer;
 
 /// Structure used for storing information about the display target for the Switch screen
 struct FramebufferTextureInfo {
@@ -62,9 +63,11 @@ private:
     const PresentFilters& filters;
 
     ScalingFilter current_window_adapt{};
+    bool legacy_fsr{};
     std::unique_ptr<WindowAdaptPass> window_adapt;
 
     std::list<Layer> layers;
+    std::unique_ptr<PresentTimer> timer;
 };
 
 } // namespace OpenGL

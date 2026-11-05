@@ -17,9 +17,14 @@
 
 namespace OpenGL {
 
-SMAA::SMAA(u32 width, u32 height) {
+SMAA::SMAA(u32 width, u32 height, bool ultra) {
     const auto SmaaShader = [&](std::string_view specialized_source, GLenum stage) {
         std::string shader_source{specialized_source};
+        if (!ultra) {
+            const auto preset = shader_source.find("#define SMAA_PRESET_ULTRA");
+            shader_source.replace(preset, std::string_view{"#define SMAA_PRESET_ULTRA"}.size(),
+                                  "#define SMAA_PRESET_HIGH");
+        }
         ReplaceInclude(shader_source, "opengl_smaa.glsl", HostShaders::OPENGL_SMAA_GLSL);
         return CreateProgram(shader_source, stage);
     };

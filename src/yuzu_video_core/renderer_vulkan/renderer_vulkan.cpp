@@ -26,6 +26,7 @@
 #include "yuzu_video_core/present.h"
 #include "yuzu_video_core/renderer_vulkan/present/util.h"
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
+#include "yuzu_video_core/renderer_vulkan/present/scale_trace.h"
 #include "yuzu_video_core/renderer_vulkan/vk_blit_screen.h"
 #include "yuzu_video_core/renderer_vulkan/vk_rasterizer.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -168,6 +169,7 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
         render_window.OnFrameDisplayed();
     };
 
+    ScaleTrace::FrameEnd();
     RenderAppletCaptureLayer(framebuffers);
 
     if (!render_window.IsShown())

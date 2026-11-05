@@ -226,7 +226,18 @@ const char* ScalingFilterToString(ScalingFilter value)
     case ScalingFilter::Bicubic: return "Bicubic";
     case ScalingFilter::Gaussian: return "Gaussian";
     case ScalingFilter::ScaleForce: return "ScaleForce";
+    case ScalingFilter::ScaleForceFast: return "ScaleForceFast";
     case ScalingFilter::Fsr: return "Fsr";
+    case ScalingFilter::FsrEasu: return "FsrEasu";
+    case ScalingFilter::CatmullRom: return "CatmullRom";
+    case ScalingFilter::CatmullRomFast: return "CatmullRomFast";
+    case ScalingFilter::AutoPerformance: return "AutoPerformance";
+    case ScalingFilter::AutoQuality: return "AutoQuality";
+    case ScalingFilter::Area: return "Area";
+    case ScalingFilter::CasNearest:
+    case ScalingFilter::CasBilinear:
+    case ScalingFilter::CasCatmullRom:
+    case ScalingFilter::CasCatmullRomFast: return "Bilinear";
     case ScalingFilter::MaxEnum: return "MaxEnum";
     }
     return "NearestNeighbor";
@@ -239,7 +250,14 @@ ScalingFilter ScalingFilterFromString(std::string_view str)
     if (str == "Bicubic") return ScalingFilter::Bicubic;
     if (str == "Gaussian") return ScalingFilter::Gaussian;
     if (str == "ScaleForce") return ScalingFilter::ScaleForce;
+    if (str == "ScaleForceFast") return ScalingFilter::ScaleForceFast;
+    if (str == "MetalFxSpatial") return ScalingFilter::Fsr; // Saved by experimental builds.
     if (str == "Fsr") return ScalingFilter::Fsr;
+    if (str == "FsrEasu") return ScalingFilter::FsrEasu;
+    if (str == "CatmullRom") return ScalingFilter::CatmullRom;
+    if (str == "CatmullRomFast") return ScalingFilter::CatmullRomFast;
+    if (str == "AutoPerformance") return ScalingFilter::AutoPerformance;
+    if (str == "AutoQuality") return ScalingFilter::AutoQuality;
     if (str == "MaxEnum") return ScalingFilter::MaxEnum;
     return ScalingFilter::NearestNeighbor;
 }
@@ -250,6 +268,8 @@ const char* AntiAliasingToString(AntiAliasing value)
     case AntiAliasing::None: return "None";
     case AntiAliasing::Fxaa: return "Fxaa";
     case AntiAliasing::Smaa: return "Smaa";
+    case AntiAliasing::SmaaHigh: return "SmaaHigh";
+    case AntiAliasing::Cmaa2Intel: return "Cmaa2Intel";
     case AntiAliasing::MaxEnum: return "MaxEnum";
     }
     return "None";
@@ -260,6 +280,11 @@ AntiAliasing AntiAliasingFromString(std::string_view str)
     if (str == "None") return AntiAliasing::None;
     if (str == "Fxaa") return AntiAliasing::Fxaa;
     if (str == "Smaa") return AntiAliasing::Smaa;
+    if (str == "SmaaUltra") return AntiAliasing::Smaa;
+    if (str == "SmaaHigh") return AntiAliasing::SmaaHigh;
+#ifdef NXEMU_ENABLE_INTEL_CMAA2
+    if (str == "Cmaa2Intel") return AntiAliasing::Cmaa2Intel;
+#endif
     if (str == "MaxEnum") return AntiAliasing::MaxEnum;
     return AntiAliasing::None;
 }

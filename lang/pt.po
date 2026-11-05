@@ -3788,3 +3788,99 @@ msgstr "Compilando NXShader"
 
 msgid "Open NXShader folder"
 msgstr "Abrir pasta NXShader"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "Nitidez opcional em 1:1 e na redução; também na ampliação com Vizinho mais próximo, Bilinear ou Catmull-Rom. Desativada a 0%."
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution: ampliação adaptada às bordas com nitidez ajustável. A 0%, a nitidez é desativada."
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "Aproximação com cinco amostras. Mais rápida, com pequenas diferenças nas bordas diagonais."
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce rápido"
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "Filtros de ampliação e redução: selecionados automaticamente pelas dimensões da imagem e da área de exibição"
+
+msgid "CAS sharpness"
+msgstr "Nitidez CAS"
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom rápido"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "Reconstrução mais nítida dos detalhes finos. Pode adicionar halos em bordas fortes."
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "Usado automaticamente quando a imagem original é maior que a sua área de exibição. Custo mínimo."
+
+msgid "Downscaling filter"
+msgstr "Filtro de redução"
+
+msgid "Downscale: Area"
+msgstr "Redução: Area"
+
+msgid "Downscale: Bilinear"
+msgstr "Redução: Bilinear"
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "Redução ponderada por área. Filtra toda a área coberta da imagem original para reduzir o serrilhado."
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "Estimativa de bordas com quatro vizinhos. Mais rápida, mas os contornos diagonais podem diferir."
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "Antisserrilhamento: alterável durante o jogo"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "Antisserrilhamento Intel CMAA2 por computação na GPU. Apenas Vulkan."
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "Antisserrilhamento morfológico com três passes gráficos."
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Antisserrilhamento morfológico conservador da Intel. Experimental; apenas Vulkan."
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "Qualidade"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Ampliação bicúbica, redução Area e antisserrilhamento CMAA2 com FXAA como alternativa."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "Ampliação FSR, redução Area e antisserrilhamento SMAA High."
+
+
+msgid "Custom"
+msgstr "Personalizado"
+
+msgid "Upscaling filter"
+msgstr "Filtro de ampliação"
+
+msgid "Graphics profile"
+msgstr "Perfil gráfico"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "Ampliação bicúbica, redução Area e sem antisserrilhamento."
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Ampliação FSR, redução Area e antisserrilhamento CMAA2 com FXAA como alternativa."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "Ampliação"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "Redução"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "Primeira camada"

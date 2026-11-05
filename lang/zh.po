@@ -3773,3 +3773,99 @@ msgstr "编译 NXShader"
 
 msgid "Open NXShader folder"
 msgstr "打开 NXShader 文件夹"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "可选锐化，适用于 1:1 显示和缩小；也适用于最近邻、双线性或 Catmull-Rom 放大。设为 0% 时关闭。"
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution：感知边缘的放大，锐度可调。设为 0% 时关闭锐化。"
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "五次采样近似。速度更快，斜向边缘会有细微差异。"
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce 快速"
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "放大和缩小滤镜：根据图像与显示区域的尺寸自动选择"
+
+msgid "CAS sharpness"
+msgstr "CAS 锐度"
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom 快速"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "更清晰地重建精细细节。强边缘周围可能出现光晕。"
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "源图像大于显示区域时自动使用。开销最低。"
+
+msgid "Downscaling filter"
+msgstr "缩小滤镜"
+
+msgid "Downscale: Area"
+msgstr "缩小：Area"
+
+msgid "Downscale: Bilinear"
+msgstr "缩小：双线性"
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "按面积加权缩小。对源图像覆盖区域进行完整过滤，以减少锯齿。"
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "通过四个相邻像素估算边缘。速度更快，但斜向轮廓可能不同。"
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "抗锯齿：可在游戏运行时更改"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "使用 GPU 计算的 Intel CMAA2 抗锯齿。仅限 Vulkan。"
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "使用三个图形通道的形态抗锯齿。"
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Intel 保守形态抗锯齿。实验性功能，仅限 Vulkan。"
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "画质"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "双三次放大、Area 缩小和 CMAA2 抗锯齿；CMAA2 不可用时使用 FXAA。"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "FSR 放大、Area 缩小和 SMAA High 抗锯齿。"
+
+
+msgid "Custom"
+msgstr "自定义"
+
+msgid "Upscaling filter"
+msgstr "放大滤镜"
+
+msgid "Graphics profile"
+msgstr "图形配置"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "双三次放大、Area 缩小，不使用抗锯齿。"
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "FSR 放大、Area 缩小和 CMAA2 抗锯齿；CMAA2 不可用时使用 FXAA。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "放大"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "缩小"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "第一图层"

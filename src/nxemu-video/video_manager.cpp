@@ -13,6 +13,7 @@
 #include "yuzu_video_core/dma_pusher.h"
 #include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/video_core.h"
+#include "yuzu_video_core/presentation_status.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/renderer_base.h"
 #include "yuzu_video_core/rasterizer_interface.h"
@@ -296,6 +297,7 @@ VideoManager::~VideoManager() = default;
 void VideoManager::EmulationStarting()
 {
     impl->EmulationStarting();
+    VideoCore::presentation_status.Reset();
 }
 
 void VideoManager::EmulationStopping(bool wait)
@@ -306,12 +308,14 @@ void VideoManager::EmulationStopping(bool wait)
 bool VideoManager::Initialize()
 {
     SetupVideoSetting();
+    VideoCore::presentation_status.Reset();
     return impl->Initialize();
 }
 
 void VideoManager::Shutdown()
 {
     impl->Shutdown();
+    VideoCore::presentation_status.Reset();
 };
 
 uint32_t VideoManager::AllocAsEx(uint64_t addressSpaceBits, uint64_t splitAddress, uint64_t bigPageBits, uint64_t pageBits)
@@ -648,6 +652,10 @@ bool VideoManager::WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std:
     return impl->m_host1x->GetSyncpointManager().WaitHost(syncpoint_id, expected_value, stop);
 }
 
+
+VideoPresentationState VideoManager::GetPresentationState() {
+    return VideoCore::presentation_status.Read();
+}
 
 uint32_t VideoManager::ShadersBuilding()
 {

@@ -48,7 +48,7 @@ layout (location = 0) uniform uvec4 constants[4];
     #endif
     #if USE_RCAS
         #define FSR_RCAS_F
-        AF4 FsrRcasLoadF(ASU2 p) { return texelFetch(InputTexture, ASU2(p), 0); }
+        AF4 FsrRcasLoadF(ASU2 p) { return texelFetch(InputTexture, clamp(ivec2(p), ivec2(0), textureSize(InputTexture, 0) - 1), 0); }
         void FsrRcasInputF(inout AF1 r, inout AF1 g, inout AF1 b) {}
     #endif
 #else
@@ -61,7 +61,7 @@ layout (location = 0) uniform uvec4 constants[4];
     #endif
     #if USE_RCAS
         #define FSR_RCAS_H
-        AH4 FsrRcasLoadH(ASW2 p) { return AH4(texelFetch(InputTexture, ASU2(p), 0)); }
+        AH4 FsrRcasLoadH(ASW2 p) { return AH4(texelFetch(InputTexture, clamp(ivec2(p), ivec2(0), textureSize(InputTexture, 0) - 1), 0)); }
         void FsrRcasInputH(inout AH1 r,inout AH1 g,inout AH1 b){}
     #endif
 #endif
@@ -77,11 +77,13 @@ void CurrFilter(AU2 pos)
     #ifndef YUZU_USE_FP16
         AF3 c;
         FsrEasuF(c, pos, constants[0], constants[1], constants[2], constants[3]);
-        frag_color = AF4(c, texture(InputTexture, frag_texcoord).a);
+        AF2 alpha_uv = (AF2(pos) * AF2_AU2(constants[0].xy) + AF2_AU2(constants[0].zw) + AF2(0.5)) * AF2_AU2(constants[1].xy);
+        frag_color = AF4(c, texture(InputTexture, alpha_uv).a);
     #else
         AH3 c;
         FsrEasuH(c, pos, constants[0], constants[1], constants[2], constants[3]);
-        frag_color = AH4(c, texture(InputTexture, frag_texcoord).a);
+        AF2 alpha_uv = (AF2(pos) * AF2_AU2(constants[0].xy) + AF2_AU2(constants[0].zw) + AF2(0.5)) * AF2_AU2(constants[1].xy);
+        frag_color = AH4(c, texture(InputTexture, alpha_uv).a);
     #endif
 #endif
 #if USE_RCAS
@@ -90,18 +92,34 @@ void CurrFilter(AU2 pos)
         FsrRcasF(c.r, c.g, c.b, c.a, pos, constants[0]);
         frag_color = c;
     #else
-        AH3 c;
+        AH4 c;
         FsrRcasH(c.r, c.g, c.b, c.a, pos, constants[0]);
         frag_color = c;
     #endif
 #endif
 }
 
+#ifdef YUZU_PRESENT_EASU
+layout(location = 4) uniform vec4 present_rect;
+layout(location = 5) uniform int easu_enabled;
+#endif
+
 void main()
 {
+#ifdef YUZU_PRESENT_EASU
+    if (easu_enabled == 0) {
+        frag_color = texture(InputTexture, frag_texcoord);
+        return;
+    }
+    vec2 pixel = vec2(gl_FragCoord.x - present_rect.x,
+                      present_rect.w > 0.5 ? gl_FragCoord.y - present_rect.y
+                                           : present_rect.z - gl_FragCoord.y);
+    CurrFilter(AU2(max(pixel, vec2(0.0))));
+#else
 #if USE_RCAS
     CurrFilter(AU2(frag_texcoord * vec2(textureSize(InputTexture, 0))));
 #else
     CurrFilter(AU2(gl_FragCoord.xy));
+#endif
 #endif
 }

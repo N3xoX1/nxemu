@@ -216,6 +216,7 @@ struct DeviceDispatch : InstanceDispatch {
     PFN_vkCmdEndConditionalRenderingEXT vkCmdEndConditionalRenderingEXT{};
     PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{};
     PFN_vkCmdEndQuery vkCmdEndQuery{};
+    PFN_vkCmdWriteTimestamp vkCmdWriteTimestamp{};
     PFN_vkCmdEndRenderPass vkCmdEndRenderPass{};
     PFN_vkCmdEndTransformFeedbackEXT vkCmdEndTransformFeedbackEXT{};
     PFN_vkCmdFillBuffer vkCmdFillBuffer{};
@@ -1127,6 +1128,10 @@ public:
 
     void BeginQuery(VkQueryPool query_pool, u32 query, VkQueryControlFlags flags) const noexcept {
         dld->vkCmdBeginQuery(handle, query_pool, query, flags);
+    }
+
+    void WriteTimestamp(VkPipelineStageFlagBits stage, VkQueryPool pool, u32 query) const noexcept {
+        dld->vkCmdWriteTimestamp(handle, stage, pool, query);
     }
 
     void EndQuery(VkQueryPool query_pool, u32 query) const noexcept {

@@ -53,7 +53,7 @@ vk::Pipeline CreateWrappedCoverageBlendingPipeline(
 VkWriteDescriptorSet CreateWriteDescriptorSet(std::vector<VkDescriptorImageInfo>& images,
                                               VkSampler sampler, VkImageView view,
                                               VkDescriptorSet set, u32 binding);
-vk::Sampler CreateBilinearSampler(const Device& device);
+vk::Sampler CreateBilinearSampler(const Device& device, VkSamplerAddressMode address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
 vk::Sampler CreateNearestNeighborSampler(const Device& device);
 
 void BeginRenderPass(vk::CommandBuffer& cmdbuf, VkRenderPass render_pass, VkFramebuffer framebuffer,

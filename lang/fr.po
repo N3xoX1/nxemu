@@ -3812,3 +3812,159 @@ msgstr "Préchauffage complet (par défaut)"
 
 msgid "Progressive (experimental)"
 msgstr "Progressif (expérimental)"
+
+msgid "CAS sharpness"
+msgstr "Netteté CAS"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "Reconstruction plus nette des détails fins. Peut créer des halos sur les contours marqués."
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom rapide"
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "Approximation à cinq lectures. Plus rapide, avec de légères différences sur les diagonales."
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce rapide"
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "Estimation des contours sur quatre voisins. Plus rapide, mais les diagonales peuvent différer."
+
+msgid "Downscale: Bilinear"
+msgstr "Réduction : Bilinear"
+
+msgid "Downscale: Area"
+msgstr "Réduction : Area"
+
+msgid "Downscaling filter"
+msgstr "Filtre de réduction"
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "Utilisé automatiquement quand l’image source est plus grande que sa zone d’affichage. Coût minimal."
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "Réduction pondérée par la surface. Filtre toute la zone source couverte pour réduire le crénelage."
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "Filtres d’agrandissement et de réduction : choisis automatiquement selon les dimensions de l’image et de l’affichage"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "Netteté facultative en 1:1 et en réduction ; aussi en agrandissement avec Nearest, Bilinear ou Catmull-Rom. Désactivée à 0 %."
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution : agrandissement adapté aux contours avec une netteté réglable. À 0 %, la netteté est désactivée."
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "Anticrénelage : modifiable pendant le jeu"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "Anticrénelage Intel CMAA2 par calcul GPU. Vulkan uniquement."
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "Anticrénelage morphologique en trois passes graphiques."
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Anticrénelage morphologique conservateur Intel. Expérimental ; Vulkan uniquement."
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Balanced"
+msgstr "Équilibré"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Agrandissement bicubique, réduction Area et anticrénelage CMAA2 avec repli FXAA."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "Agrandissement FSR, réduction Area et anticrénelage SMAA High."
+
+
+msgid "Custom"
+msgstr "Personnalisé"
+
+msgid "Upscaling filter"
+msgstr "Filtre d’agrandissement"
+
+msgid "Graphics profile"
+msgstr "Profil graphique"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "Agrandissement bicubique, réduction Area et aucun anticrénelage."
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Agrandissement FSR, réduction Area et anticrénelage CMAA2 avec repli FXAA."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "Agrandissement"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "Réduction"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "Première couche"
+
+msgid "Nearest"
+msgstr "Au plus proche"
+
+msgid "Catmull fast"
+msgstr "Catmull rapide"
+
+msgid "Area"
+msgstr "Surface"
+
+msgid "Favors smoother gameplay. Edges may look more jagged."
+msgstr "Privilégie la fluidité du jeu. Les contours peuvent paraître plus dentelés."
+
+msgid "Keeps the picture sharp and smooths jagged edges, with some extra graphics work."
+msgstr "Garde une image nette et lisse les contours, avec un peu plus de travail pour la puce graphique."
+
+msgid "Keeps pixels square and crisp. Best for pixel art."
+msgstr "Garde les pixels carrés et nets. Idéal pour le pixel art."
+
+msgid "Smooths the picture quickly, but fine details can look softer."
+msgstr "Lisse rapidement l’image, mais les petits détails peuvent paraître plus flous."
+
+msgid "Keeps fine details sharp. Strong edges may show a faint outline."
+msgstr "Préserve les petits détails. Un léger halo peut apparaître sur les contours marqués."
+
+msgid "A faster version of Catmull-Rom. Diagonal lines may look slightly different."
+msgstr "Une version plus rapide de Catmull-Rom. Les lignes diagonales peuvent paraître légèrement différentes."
+
+msgid "Keeps more detail than Bilinear and uses a little more graphics power."
+msgstr "Préserve plus de détails que le filtre bilinéaire et demande un peu plus de puissance graphique."
+
+msgid "Keeps outlines sharp in 2D games and drawings. Uses more graphics power."
+msgstr "Garde les contours nets dans les jeux et dessins en 2D. Demande plus de puissance graphique."
+
+msgid "A faster version of ScaleForce. Diagonal lines may look slightly different."
+msgstr "Une version plus rapide de ScaleForce. Les lignes diagonales peuvent paraître légèrement différentes."
+
+msgid "Keeps edges clear when making the picture larger. You can adjust how sharp it looks."
+msgstr "Préserve la netteté des contours en agrandissant l’image. La netteté est réglable."
+
+msgid "Makes details stand out. Set to 0% to turn it off."
+msgstr "Fait ressortir les détails. Réglez à 0 % pour désactiver l’effet."
+
+msgid "Makes the picture sharper when using FSR. Set to 0% to turn it off."
+msgstr "Rend l’image plus nette avec FSR. Réglez à 0 % pour désactiver l’effet."
+
+msgid "Makes details stand out with supported filters. Set to 0% to turn it off."
+msgstr "Fait ressortir les détails avec les filtres compatibles. Réglez à 0 % pour désactiver l’effet."
+
+msgid "Makes a large picture smaller with very little graphics work."
+msgstr "Réduit une grande image avec très peu de travail pour la puce graphique."
+
+msgid "Smooths jagged edges when making a large picture smaller."
+msgstr "Lisse les contours dentelés quand une grande image est réduite."
+
+msgid "Contrast (CAS)"
+msgstr "Contraste (CAS)"
+
+msgid "Contrast (RCAS)"
+msgstr "Contraste (RCAS)"

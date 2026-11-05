@@ -146,14 +146,25 @@ OSManager::OSManager(ISystemModules & modules) :
     m_previousProgramIndex(-1),
     m_launchType(ApplicationLaunchType::FrontendInitiated)
 {
+    g_settings->RegisterCallback(NXOsSetting::DockedMode, DockedModeChanged, this);
 }
 
 OSManager::~OSManager()
 {
+    g_settings->UnregisterCallback(NXOsSetting::DockedMode, DockedModeChanged, this);
     if (m_applicationProcess != nullptr)
     {
         m_applicationProcess->Close();
         m_applicationProcess = nullptr;
+    }
+}
+
+void OSManager::DockedModeChanged(const char *, void * userData)
+{
+    auto & system = static_cast<OSManager *>(userData)->m_coreSystem;
+    if (system.IsPoweredOn() && !system.IsShuttingDown())
+    {
+        system.GetAppletManager().OperationModeChanged();
     }
 }
 

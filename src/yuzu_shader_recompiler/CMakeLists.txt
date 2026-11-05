@@ -232,6 +232,8 @@ add_library(shader_recompiler STATIC
     ir_opt/pixel_local_read_pass.cpp
     ir_opt/position_pass.cpp
     ir_opt/rescaling_pass.cpp
+    ir_opt/reconstruction_pass.cpp
+    ir_opt/reconstruction_pass.h
     ir_opt/geometry_layer_forwarding_pass.cpp
     ir_opt/shared_memory_packing_pass.cpp
     ir_opt/ssa_rewrite_pass.cpp
@@ -244,6 +246,7 @@ add_library(shader_recompiler STATIC
     profile.h
     program_header.h
     runtime_info.h
+    scale_trace.h
     shader_info.h
     varying_state.h
     vtg_as_compute.h

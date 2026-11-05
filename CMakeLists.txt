@@ -16,6 +16,11 @@ endif()
 
 project(nxemu)
 
+option(NXEMU_ENABLE_INTEL_CMAA2 "Build Intel CMAA2 Vulkan AA" ON)
+if (NXEMU_ENABLE_INTEL_CMAA2)
+    add_compile_definitions(NXEMU_ENABLE_INTEL_CMAA2=1)
+endif()
+
 # Make opt-in tests in subdirectories discoverable from the build root.
 enable_testing()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

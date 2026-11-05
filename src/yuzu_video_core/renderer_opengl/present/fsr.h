@@ -16,17 +16,18 @@ class ProgramManager;
 
 class FSR {
 public:
-    explicit FSR(u32 output_width, u32 output_height);
+    explicit FSR(u32 output_width, u32 output_height, bool easu_only);
     ~FSR();
 
     GLuint Draw(ProgramManager& program_manager, GLuint texture, u32 input_image_width,
                 u32 input_image_height, const Common::Rectangle<f32>& crop_rect);
 
-    bool NeedsRecreation(const Common::Rectangle<u32>& screen);
+    bool NeedsRecreation(const Common::Rectangle<u32>& screen, bool easu_only) const;
 
 private:
     const u32 width;
     const u32 height;
+    const bool m_easu_only;
     OGLFramebuffer framebuffer;
     OGLSampler sampler;
     OGLProgram vert;

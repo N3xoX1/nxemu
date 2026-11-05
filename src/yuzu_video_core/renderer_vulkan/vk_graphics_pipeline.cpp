@@ -8,6 +8,7 @@
 #include <bit>
 #include <cstring>
 #include <span>
+#include "yuzu_video_core/renderer_vulkan/present/scale_trace.h"
 
 #include <boost/container/static_vector.hpp>
 
@@ -995,7 +996,44 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }
     }
     texture_cache.UpdateRenderTargets(false);
+    if (ScaleTrace::Active())
+    {
+        auto & log = ScaleTrace::output;
+        const auto * fb = texture_cache.GetFramebuffer();
+        const auto extent = fb->RenderArea();
+        log << "DRAW " << std::dec << ++ScaleTrace::draw << " frame=" << (2 - ScaleTrace::remaining)
+            << " frag=" << std::hex << key.unique_hashes[5] << " pipeline=" << key.Hash()
+            << std::dec << " extent=" << extent.width << 'x' << extent.height
+            << " scaled=" << fb->IsRescaled() << " depth=" << maxwell3d->regs.depth_test_enable
+            << '\n';
+        const auto images = fb->Images();
+        for (u32 i = 0; i < fb->NumImages(); ++i)
+            log << " RT " << i << ' ' << images[i] << '\n';
+        for (size_t i = 0; i < views.size(); ++i)
+        {
+            auto & view = texture_cache.GetImageView(views[i].id);
+            log << " TEX " << i << ' ' << view.ImageHandle() << " guest=" << std::hex << view.GpuAddr()
+                << std::dec << " size=" << view.size.width << 'x' << view.size.height
+                << " scaled=" << view.IsRescaled() << '\n';
+        }
+    }
     texture_cache.CheckFeedbackLoop(views);
+    if (ScaleTrace::Active() && ScaleTrace::capture_fragment &&
+        key.unique_hashes[5] == ScaleTrace::capture_fragment && ImageWriteStages() == 0) {
+        ScaleTrace::capture_inputs.clear();
+        for (unsigned slot = 0; slot < views.size(); ++slot) {
+            auto& view = texture_cache.GetImageView(views[slot].id);
+            if (!view.ImageHandle() || view.Samples() != VK_SAMPLE_COUNT_1_BIT ||
+                VideoCore::Surface::GetFormatType(view.format) != VideoCore::Surface::SurfaceType::ColorTexture ||
+                VideoCore::Surface::IsPixelFormatInteger(view.format)) {
+                continue;
+            }
+            if (const auto handle = view.Handle(Shader::TextureType::Color2D)) {
+                ScaleTrace::capture_inputs.push_back({slot, view.ImageHandle(), handle});
+            }
+        }
+        ScaleTrace::capture_pending = true;
+    }
     ConfigureDraw(rescaling, render_area);
 }
 
@@ -1544,6 +1582,27 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
                              static_cast<float>(regs.surface_clip.height)};
     }
     texture_cache.UpdateRenderTargets(false);
+    if (ScaleTrace::Active())
+    {
+        auto & log = ScaleTrace::output;
+        const auto * fb = texture_cache.GetFramebuffer();
+        const auto extent = fb->RenderArea();
+        log << "DRAW " << std::dec << ++ScaleTrace::draw << " frame=" << (2 - ScaleTrace::remaining)
+            << " frag=" << std::hex << key.unique_hashes[5] << " pipeline=" << key.Hash()
+            << std::dec << " extent=" << extent.width << 'x' << extent.height
+            << " scaled=" << fb->IsRescaled() << " depth=" << maxwell3d->regs.depth_test_enable
+            << '\n';
+        const auto images = fb->Images();
+        for (u32 i = 0; i < fb->NumImages(); ++i)
+            log << " RT " << i << ' ' << images[i] << '\n';
+        for (size_t i = 0; i < views.size(); ++i)
+        {
+            auto & view = texture_cache.GetImageView(views[i].id);
+            log << " TEX " << i << ' ' << view.ImageHandle() << " guest=" << std::hex << view.GpuAddr()
+                << std::dec << " size=" << view.size.width << 'x' << view.size.height
+                << " scaled=" << view.IsRescaled() << '\n';
+        }
+    }
     texture_cache.CheckFeedbackLoop(views);
     ConfigureDraw(rescaling, render_area);
 
@@ -1855,6 +1914,16 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
     const bool is_rescaling{texture_cache.IsRescaling()};
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
     const bool bind_pipeline{scheduler.UpdateGraphicsPipeline(this)};
+    if (ScaleTrace::Active()) {
+        auto& log = ScaleTrace::output;
+        log << " SCALE_CONSTANTS down_factor=" << std::dec
+            << (is_rescaling ? videoSettings.resolution_info.down_factor : 1.0f)
+            << " words=" << std::hex;
+        for (const u32 word : rescaling.Data()) {
+            log << ' ' << word;
+        }
+        log << std::dec << '\n';
+    }
     const void* const descriptor_data{guest_descriptor_queue.UpdateData()};
     const u64 descriptor_tick{scheduler.CurrentTick()};
     if (uses_texture_table) {

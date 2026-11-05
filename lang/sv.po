@@ -4151,3 +4151,99 @@ msgstr "Kunde inte nå GitHub"
 #~ msgstr ""
 #~ "Ingen fast programvara är installerad ännu och de flesta spel behöver "
 #~ "den. NXEmu kan installera spelets fasta programvara innan spelet startas."
+
+
+msgid "Downscaling filter"
+msgstr "Nedskalningsfilter"
+
+msgid "CAS sharpness"
+msgstr "CAS-skärpa"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "Valfri skärpning vid 1:1 och nedskalning, samt vid uppskalning med Nearest, Bilinear eller Catmull-Rom. Av vid 0 %."
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "Uppskalnings- och nedskalningsfilter: väljs automatiskt utifrån bildens och visningsytans mått"
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "Kantutjämning: ändra medan ett spel körs"
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "Morfologisk kantutjämning med tre grafikpass."
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "Intel CMAA2-kantutjämning med beräkningsshader. Endast Vulkan."
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Intels konservativa morfologiska kantutjämning. Experimentell, endast Vulkan."
+
+msgid "Downscale: Bilinear"
+msgstr "Nedskalning: Bilinjär"
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "Används automatiskt när källbilden är större än visningsytan. Lägst kostnad."
+
+msgid "Downscale: Area"
+msgstr "Nedskalning: Area"
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "Areaviktad förminskning. Filtrerar hela källområdet för att minska kantartefakter."
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "Skarpare rekonstruktion med fina detaljer. Kan ge ljusa konturer runt skarpa kanter."
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom snabb"
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "Approximation med fem samplingar. Snabbare, med små skillnader runt diagonala kanter."
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce snabb"
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "Kantuppskattning med fyra grannar. Snabbare, men diagonala konturer kan skilja sig."
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution: kantanpassad uppskalning med justerbar skärpa. Vid 0 % är skärpningen av."
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "Kvalitet"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "Bikubisk uppskalning, Area-nedskalning och CMAA2-kantutjämning med FXAA som reserv."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "FSR-uppskalning, Area-nedskalning och SMAA High-kantutjämning."
+
+
+msgid "Custom"
+msgstr "Anpassat"
+
+msgid "Upscaling filter"
+msgstr "Uppskalningsfilter"
+
+msgid "Graphics profile"
+msgstr "Grafikprofil"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "Bikubisk uppskalning, Area-nedskalning och ingen kantutjämning."
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "FSR-uppskalning, Area-nedskalning och CMAA2-kantutjämning med FXAA som reserv."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "Uppskalning"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "Nedskalning"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "Första lagret"

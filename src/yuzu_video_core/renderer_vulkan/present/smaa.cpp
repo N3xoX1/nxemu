@@ -20,12 +20,18 @@
 #include "yuzu_video_core/host_shaders/smaa_edge_detection_vert_spv.h"
 #include "yuzu_video_core/host_shaders/smaa_neighborhood_blending_frag_spv.h"
 #include "yuzu_video_core/host_shaders/smaa_neighborhood_blending_vert_spv.h"
+#include "yuzu_video_core/host_shaders/smaa_high_edge_detection_vert_spv.h"
+#include "yuzu_video_core/host_shaders/smaa_high_edge_detection_frag_spv.h"
+#include "yuzu_video_core/host_shaders/smaa_high_blending_weight_calculation_vert_spv.h"
+#include "yuzu_video_core/host_shaders/smaa_high_blending_weight_calculation_frag_spv.h"
+#include "yuzu_video_core/host_shaders/smaa_high_neighborhood_blending_vert_spv.h"
+#include "yuzu_video_core/host_shaders/smaa_high_neighborhood_blending_frag_spv.h"
 
 namespace Vulkan {
 
-SMAA::SMAA(const Device& device, MemoryAllocator& allocator, size_t image_count, VkExtent2D extent)
+SMAA::SMAA(const Device& device, MemoryAllocator& allocator, size_t image_count, VkExtent2D extent, bool ultra)
     : m_device(device), m_allocator(allocator), m_extent(extent),
-      m_image_count(static_cast<u32>(image_count)) {
+      m_image_count(static_cast<u32>(image_count)), m_ultra(ultra) {
     CreateImages();
     CreateRenderPasses();
     CreateSampler();
@@ -70,11 +76,13 @@ void SMAA::CreateImages() {
 }
 
 void SMAA::CreateRenderPasses() {
-    m_renderpasses[EdgeDetection] = CreateWrappedRenderPass(m_device, VK_FORMAT_R16G16_SFLOAT);
+    // Every pass writes all pixels, including explicit zero edges. No old
+    // attachment contents are needed when this slot is reused.
+    m_renderpasses[EdgeDetection] = CreateWrappedRenderPass(m_device, VK_FORMAT_R16G16_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED);
     m_renderpasses[BlendingWeightCalculation] =
-        CreateWrappedRenderPass(m_device, VK_FORMAT_R16G16B16A16_SFLOAT);
+        CreateWrappedRenderPass(m_device, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED);
     m_renderpasses[NeighborhoodBlending] =
-        CreateWrappedRenderPass(m_device, VK_FORMAT_R16G16B16A16_SFLOAT);
+        CreateWrappedRenderPass(m_device, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED);
 
     for (auto& images : m_dynamic_images) {
         images.framebuffers[EdgeDetection] = CreateWrappedFramebuffer(
@@ -95,15 +103,15 @@ void SMAA::CreateSampler() {
 
 void SMAA::CreateShaders() {
     // These match the order of the SMAAStage enum
-    static constexpr std::array vert_shader_sources{
-        ARRAY_TO_SPAN(SMAA_EDGE_DETECTION_VERT_SPV),
-        ARRAY_TO_SPAN(SMAA_BLENDING_WEIGHT_CALCULATION_VERT_SPV),
-        ARRAY_TO_SPAN(SMAA_NEIGHBORHOOD_BLENDING_VERT_SPV),
+    const std::array vert_shader_sources{
+        m_ultra ? ARRAY_TO_SPAN(SMAA_EDGE_DETECTION_VERT_SPV) : ARRAY_TO_SPAN(SMAA_HIGH_EDGE_DETECTION_VERT_SPV),
+        m_ultra ? ARRAY_TO_SPAN(SMAA_BLENDING_WEIGHT_CALCULATION_VERT_SPV) : ARRAY_TO_SPAN(SMAA_HIGH_BLENDING_WEIGHT_CALCULATION_VERT_SPV),
+        m_ultra ? ARRAY_TO_SPAN(SMAA_NEIGHBORHOOD_BLENDING_VERT_SPV) : ARRAY_TO_SPAN(SMAA_HIGH_NEIGHBORHOOD_BLENDING_VERT_SPV),
     };
-    static constexpr std::array frag_shader_sources{
-        ARRAY_TO_SPAN(SMAA_EDGE_DETECTION_FRAG_SPV),
-        ARRAY_TO_SPAN(SMAA_BLENDING_WEIGHT_CALCULATION_FRAG_SPV),
-        ARRAY_TO_SPAN(SMAA_NEIGHBORHOOD_BLENDING_FRAG_SPV),
+    const std::array frag_shader_sources{
+        m_ultra ? ARRAY_TO_SPAN(SMAA_EDGE_DETECTION_FRAG_SPV) : ARRAY_TO_SPAN(SMAA_HIGH_EDGE_DETECTION_FRAG_SPV),
+        m_ultra ? ARRAY_TO_SPAN(SMAA_BLENDING_WEIGHT_CALCULATION_FRAG_SPV) : ARRAY_TO_SPAN(SMAA_HIGH_BLENDING_WEIGHT_CALCULATION_FRAG_SPV),
+        m_ultra ? ARRAY_TO_SPAN(SMAA_NEIGHBORHOOD_BLENDING_FRAG_SPV) : ARRAY_TO_SPAN(SMAA_HIGH_NEIGHBORHOOD_BLENDING_FRAG_SPV),
     };
 
     for (size_t i = 0; i < MaxSMAAStage; i++) {

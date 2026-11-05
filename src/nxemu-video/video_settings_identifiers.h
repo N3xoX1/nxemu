@@ -15,8 +15,12 @@ namespace NXVideoSetting
     constexpr const char * AspectRatio = "nxvideo:AspectRatio";
     constexpr const char * ResolutionSetup = "nxvideo:ResolutionSetup";
     constexpr const char * ScalingFilter = "nxvideo:ScalingFilter";
+    constexpr const char * CustomScalingFilter = "nxvideo:CustomScalingFilter";
     constexpr const char * AntiAliasing = "nxvideo:AntiAliasing";
     constexpr const char * FSPSharpness = "nxvideo:FSPSharpness";
+    constexpr const char * DownscalingFilter = "nxvideo:DownscalingFilter";
+    constexpr const char * CASSharpness = "nxvideo:CASSharpness";
+    constexpr const char * FsrLegacyBenchmark = "nxvideo:FsrLegacyBenchmark";
     constexpr const char * EnableAsynchronousPresentation = "nxvideo:EnableAsynchronousPresentation";
     constexpr const char * ForceMaximumClocks = "nxvideo:ForceMaximumClocks";
     constexpr const char * EnableReactiveFlushing = "nxvideo:EnableReactiveFlushing";

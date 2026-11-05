@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "yuzu_common/settings.h"
+#include "frontend/framebuffer_layout.h"
 #include "yuzu_video_core/present.h"
 #include "yuzu_video_core/renderer_opengl/gl_blit_screen.h"
 #include "yuzu_video_core/renderer_opengl/gl_state_tracker.h"
 #include "yuzu_video_core/renderer_opengl/present/filters.h"
+#include "yuzu_video_core/renderer_opengl/present/diagnostics.h"
 #include "yuzu_video_core/renderer_opengl/present/layer.h"
 #include "yuzu_video_core/renderer_opengl/present/window_adapt_pass.h"
 
@@ -22,6 +24,8 @@ BlitScreen::~BlitScreen() = default;
 
 void BlitScreen::DrawScreen(std::span<const Tegra::FramebufferConfig> framebuffers,
                             const Layout::FramebufferLayout& layout, bool invert_y) {
+    VideoCore::BeginFsrFrame(videoSettings.fsr_sharpening_slider, videoSettings.cas_sharpening_slider,
+                            static_cast<unsigned>(videoSettings.scaling_filter), GetDownscalingFilter());
     // TODO: Signal state tracker about these changes
     state_tracker.NotifyScreenDrawVertexArray();
     state_tracker.NotifyPolygonModes();
@@ -56,24 +60,52 @@ void BlitScreen::DrawScreen(std::span<const Tegra::FramebufferConfig> framebuffe
     glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDepthRangeIndexed(0, 0.0, 0.0);
 
+    CreateWindowAdapt();
     while (layers.size() < framebuffers.size()) {
         layers.emplace_back(rasterizer, device_memory, filters);
     }
 
-    CreateWindowAdapt();
-    window_adapt->DrawToFramebuffer(program_manager, layers, framebuffers, layout, invert_y);
+    const bool measure = VideoCore::PresentDiagnostics::Enabled();
+    VideoCore::PresentDiagnostics::Clock::time_point start;
+    if (measure) {
+        if (!timer) timer = std::make_unique<PresentTimer>();
+        timer->Begin();
+        start = VideoCore::PresentDiagnostics::Clock::now();
+    }
+    window_adapt->DrawToFramebuffer(program_manager, layers, framebuffers, layout, invert_y, current_window_adapt);
+    VideoCore::PublishPresentationStatus(filters.is_applet_capture, layout.screen.GetWidth(), layout.screen.GetHeight(),
+                                        static_cast<unsigned>(framebuffers.size()));
+    if (measure) {
+        auto sample = VideoCore::PresentDiagnostics::Begin(layout.screen.GetWidth(), layout.screen.GetHeight(),
+            static_cast<unsigned>(framebuffers.size()), static_cast<unsigned>(current_window_adapt));
+        sample.is_applet = filters.is_applet_capture;
+        sample.cpu_ms = std::chrono::duration<double, std::milli>(VideoCore::PresentDiagnostics::Clock::now() - start).count();
+        timer->End(sample);
+    }
 
     // TODO
     // program_manager.RestoreGuestPipeline();
 }
 
 void BlitScreen::CreateWindowAdapt() {
-    if (window_adapt && filters.get_scaling_filter() == current_window_adapt) {
+    if (window_adapt && filters.get_scaling_filter() == current_window_adapt && legacy_fsr == VideoCore::LegacyFsr()) {
         return;
     }
 
     current_window_adapt = filters.get_scaling_filter();
+    legacy_fsr = VideoCore::LegacyFsr();
+    layers.clear();
     switch (current_window_adapt) {
+    case ScalingFilter::CatmullRom:
+    case ScalingFilter::CatmullRomFast:
+        window_adapt = MakeCatmullRom(device);
+        break;
+    case ScalingFilter::CasNearest:
+    case ScalingFilter::CasBilinear:
+    case ScalingFilter::CasCatmullRom:
+    case ScalingFilter::CasCatmullRomFast:
+        window_adapt = MakeCas(device, current_window_adapt);
+        break;
     case ScalingFilter::NearestNeighbor:
         window_adapt = MakeNearestNeighbor(device);
         break;
@@ -83,10 +115,18 @@ void BlitScreen::CreateWindowAdapt() {
     case ScalingFilter::Gaussian:
         window_adapt = MakeGaussian(device);
         break;
+    case ScalingFilter::ScaleForceFast:
+        window_adapt = MakeScaleForceFast(device);
+        break;
     case ScalingFilter::ScaleForce:
         window_adapt = MakeScaleForce(device);
         break;
     case ScalingFilter::Fsr:
+        window_adapt = VideoCore::LegacyFsr() ? MakeBilinear(device) : MakeFsrRcas(device);
+        break;
+    case ScalingFilter::FsrEasu:
+        window_adapt = MakeFsrEasu(device);
+        break;
     case ScalingFilter::Bilinear:
     default:
         window_adapt = MakeBilinear(device);

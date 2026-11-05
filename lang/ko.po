@@ -3773,3 +3773,99 @@ msgstr "NXShader 컴파일"
 
 msgid "Open NXShader folder"
 msgstr "NXShader 폴더 열기"
+
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
+msgstr "1:1 및 축소 시 선택적 선명도 향상. 최근접 이웃, 이중선형 또는 Catmull-Rom 확대에도 적용됩니다. 0%에서 꺼집니다."
+
+msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
+msgstr "AMD FidelityFX Super Resolution: 윤곽을 고려한 확대와 조절 가능한 선명도. 0%에서는 선명도 향상이 꺼집니다."
+
+msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
+msgstr "5개 샘플을 사용하는 근사 방식. 더 빠르지만 대각선 경계에 작은 차이가 생깁니다."
+
+msgid "ScaleForce fast"
+msgstr "ScaleForce 고속"
+
+msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
+msgstr "확대 및 축소 필터: 이미지와 표시 영역의 크기에 따라 자동 선택"
+
+msgid "CAS sharpness"
+msgstr "CAS 선명도"
+
+msgid "Catmull-Rom fast"
+msgstr "Catmull-Rom 고속"
+
+msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
+msgstr "미세한 디테일을 더 선명하게 복원합니다. 뚜렷한 경계 주변에 테두리 번짐이 생길 수 있습니다."
+
+msgid "Used automatically when the source image is larger than its display area. Lowest cost."
+msgstr "원본 이미지가 표시 영역보다 크면 자동으로 사용합니다. 비용이 가장 낮습니다."
+
+msgid "Downscaling filter"
+msgstr "축소 필터"
+
+msgid "Downscale: Area"
+msgstr "축소: Area"
+
+msgid "Downscale: Bilinear"
+msgstr "축소: 이중선형"
+
+msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
+msgstr "면적 가중 축소. 원본에서 해당하는 영역 전체를 필터링하여 계단 현상을 줄입니다."
+
+msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
+msgstr "네 이웃으로 경계를 추정합니다. 더 빠르지만 대각선 윤곽이 달라질 수 있습니다."
+
+msgid "Anti-aliasing: change while a game is running"
+msgstr "안티앨리어싱: 게임 실행 중 변경 가능"
+
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr "GPU 연산을 사용하는 Intel CMAA2 안티앨리어싱. Vulkan 전용."
+
+msgid "Morphological anti-aliasing with three graphics passes."
+msgstr "세 번의 그래픽 패스를 사용하는 형태학적 안티앨리어싱."
+
+msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
+msgstr "Intel의 보수적 형태학적 안티앨리어싱. 실험적 기능이며 Vulkan 전용입니다."
+
+
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Quality"
+msgstr "품질"
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "바이큐빅 업스케일링, Area 다운스케일링 및 CMAA2 안티앨리어싱. CMAA2를 사용할 수 없으면 FXAA를 사용합니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
+msgstr "FSR 업스케일링, Area 다운스케일링 및 SMAA High 안티앨리어싱."
+
+
+msgid "Custom"
+msgstr "사용자 지정"
+
+msgid "Upscaling filter"
+msgstr "업스케일링 필터"
+
+msgid "Graphics profile"
+msgstr "그래픽 프로필"
+
+msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
+msgstr "바이큐빅 업스케일링, Area 다운스케일링, 안티앨리어싱 없음."
+
+msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
+msgstr "FSR 업스케일링, Area 다운스케일링 및 CMAA2 안티앨리어싱. CMAA2를 사용할 수 없으면 FXAA를 사용합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr "업스케일링"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr "다운스케일링"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr "첫 번째 레이어"

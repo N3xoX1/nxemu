@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include "nxemu-module-spec/video.h"
 #include <vector>
 
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
@@ -54,7 +55,8 @@ public:
                          std::array<ScreenRectVertex, 4>& out_vertices,
                          ProgramManager& program_manager,
                          const Tegra::FramebufferConfig& framebuffer,
-                         const Layout::FramebufferLayout& layout, bool invert_y);
+                         const Layout::FramebufferLayout& layout, bool invert_y,
+                         std::array<u32, 16>& easu_constants, ScalingFilter& effective_filter, ScalingFilter requested_filter);
 
 private:
     /// Loads framebuffer from emulated memory into the active OpenGL texture.
@@ -63,7 +65,7 @@ private:
     void ConfigureFramebufferTexture(const Tegra::FramebufferConfig& framebuffer);
 
     void CreateFXAA();
-    void CreateSMAA();
+    void CreateSMAA(bool ultra);
 
 private:
     RasterizerOpenGL& rasterizer;
@@ -79,6 +81,7 @@ private:
     std::unique_ptr<FSR> fsr;
     std::unique_ptr<FXAA> fxaa;
     std::unique_ptr<SMAA> smaa;
+    bool smaa_ultra{true};
 };
 
 } // namespace OpenGL
