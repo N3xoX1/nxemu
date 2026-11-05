@@ -16,9 +16,7 @@ endif()
 
 project(nxemu)
 
-# Intel reference CMAA2 is an optional Vulkan compute backend requiring DXC.
-# Keep OFF until shader compilation and GPU validation have been completed.
-option(NXEMU_ENABLE_INTEL_CMAA2 "Build Intel CMAA2 Vulkan AA (requires DXC)" OFF)
+option(NXEMU_ENABLE_INTEL_CMAA2 "Build Intel CMAA2 Vulkan AA" ON)
 if (NXEMU_ENABLE_INTEL_CMAA2)
     add_compile_definitions(NXEMU_ENABLE_INTEL_CMAA2=1)
 endif()

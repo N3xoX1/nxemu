@@ -251,10 +251,10 @@ add_custom_target(host_shaders
         ${SHADER_SOURCES}
 )
 
-# Intel CMAA2 uses the original Intel HLSL compute kernels for detection and
-# candidates; the fullscreen fragment shader resolves the result without a copy.
-# Opt-in avoids affecting ordinary builds.
-if (NXEMU_ENABLE_INTEL_CMAA2)
+# Ordinary builds use the validated CMAA2 compute shaders in the source tree.
+option(NXEMU_REGENERATE_CMAA2_SHADERS "Enable the CMAA2 shader regeneration target" OFF)
+if (NXEMU_REGENERATE_CMAA2_SHADERS)
+    set(INTEL_CMAA2_HEADER_DIR "${CMAKE_SOURCE_DIR}/src/3rd_party/intel_cmaa2/spirv")
     find_program(INTEL_CMAA2_DXC dxc HINTS "$ENV{VULKAN_SDK}/Bin" REQUIRED)
     find_program(INTEL_CMAA2_SPIRV_VAL spirv-val HINTS "$ENV{VULKAN_SDK}/Bin" REQUIRED)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -279,7 +279,7 @@ if (NXEMU_ENABLE_INTEL_CMAA2)
             set(_entry "ProcessCandidatesCS")
         endif()
         set(_spv "${CMAKE_CURRENT_BINARY_DIR}/intel_cmaa2_${_stage}.spv")
-        set(_hdr "${SHADER_DIR}/intel_cmaa2_${_stage}_spv.h")
+        set(_hdr "${CMAKE_CURRENT_BINARY_DIR}/intel_cmaa2_${_stage}_spv.h")
         string(TOUPPER "INTEL_CMAA2_${_stage}_SPV" _var)
         add_custom_command(
             OUTPUT "${_hdr}"
@@ -303,6 +303,10 @@ if (NXEMU_ENABLE_INTEL_CMAA2)
             VERBATIM)
         list(APPEND INTEL_CMAA2_SHADER_HEADERS "${_hdr}")
     endforeach()
-    add_custom_target(intel_cmaa2_shaders DEPENDS ${INTEL_CMAA2_SHADER_HEADERS})
-    add_dependencies(host_shaders intel_cmaa2_shaders)
+    add_custom_target(regenerate_cmaa2_shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${INTEL_CMAA2_HEADER_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${INTEL_CMAA2_SHADER_HEADERS} "${INTEL_CMAA2_HEADER_DIR}"
+        DEPENDS ${INTEL_CMAA2_SHADER_HEADERS}
+        VERBATIM)
 endif()

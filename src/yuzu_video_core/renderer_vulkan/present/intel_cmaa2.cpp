@@ -8,9 +8,9 @@
 #include <tuple>
 #include "yuzu_video_core/host_shaders/intel_cmaa2_apply_vert_spv.h"
 #include "yuzu_video_core/host_shaders/intel_cmaa2_apply_frag_spv.h"
-#include "yuzu_video_core/host_shaders/intel_cmaa2_edges_spv.h"
-#include "yuzu_video_core/host_shaders/intel_cmaa2_args_spv.h"
-#include "yuzu_video_core/host_shaders/intel_cmaa2_candidates_spv.h"
+#include "3rd_party/intel_cmaa2/spirv/intel_cmaa2_edges_spv.h"
+#include "3rd_party/intel_cmaa2/spirv/intel_cmaa2_args_spv.h"
+#include "3rd_party/intel_cmaa2/spirv/intel_cmaa2_candidates_spv.h"
 #include "yuzu_video_core/renderer_vulkan/present/intel_cmaa2.h"
 #include "yuzu_video_core/renderer_vulkan/present/util.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"

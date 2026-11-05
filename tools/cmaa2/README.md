@@ -1,8 +1,16 @@
 # Intel CMAA2 in NxEmu
 
-Enable the optional Vulkan anti-aliasing backend with `-DNXEMU_ENABLE_INTEL_CMAA2=ON`.
-The build requires DXC, Python 3, and the SPIR-V tools. It adapts the Intel source
-and generates shader headers at build time.
+Vulkan builds include CMAA2 by default and use the validated SPIR-V headers
+in `src/3rd_party/intel_cmaa2/spirv`. Disable it with
+`-DNXEMU_ENABLE_INTEL_CMAA2=OFF`.
 
-The original source and license are in `src/3rd_party/intel_cmaa2`.
-The original source is also available from [Intel CMAA2](https://github.com/GameTechDev/CMAA2).
+When changing the Intel HLSL source or its Vulkan adaptation, install DXC,
+`spirv-val` and Python 3, then regenerate the headers from the repository root.
+
+```sh
+cmake -S . -B build -DNXEMU_REGENERATE_CMAA2_SHADERS=ON
+cmake --build build --target regenerate_cmaa2_shaders
+```
+
+Commit the updated inputs and generated headers together. The source and
+license are in `src/3rd_party/intel_cmaa2`. See the [Intel CMAA2 project](https://github.com/GameTechDev/CMAA2).
