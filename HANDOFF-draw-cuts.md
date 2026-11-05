@@ -4,6 +4,8 @@ Branch `perf/draw-cuts`, on top of `perf/gpu-thread-write-tracking` (b66c1fba19)
 Worktree: `D:\Emulation\switch\NXDev\nxemu-pr2-gpu-cache`.
 Delete this file before the branch is merged or a PR is opened.
 
+**The plan going forward is in `PLAN-ambitious.md`** (measure what can run in parallel, sync buffers at harvest points, prepare workers, read-only lookups on workers with fallback, JIT). This file holds the context, the tools and the rules.
+
 ## Goal
 
 The aim is +30-40 % fps in Tears of the Kingdom (TOTK) on an RTX 5070 Ti. The baseline is about 104-105 fps without PGO.
