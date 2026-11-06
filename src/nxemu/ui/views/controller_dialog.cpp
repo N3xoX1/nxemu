@@ -363,6 +363,10 @@ void ControllerDialog::SetConnected(int player, bool connected)
 
 void ControllerDialog::Finish(bool save)
 {
+    if (save)
+    {
+        ApplyChanges();
+    }
     StopListening();
     IOperatingSystem & os = Os();
     std::vector<IEmulatedController *> pads = {&os.GetEmulatedController(NpadIdType::Handheld)};
@@ -433,12 +437,7 @@ void ControllerDialog::OnOpen()
 
 void ControllerDialog::OnUpdate()
 {
-    std::vector<std::string> changes;
-    changes.swap(m_changes);
-    for (const std::string & id : changes)
-    {
-        ApplyChange(id);
-    }
+    ApplyChanges();
     if (SDL_GetTicks() - m_devicesRead >= kDevicesEveryMs && !Listening())
     {
         const std::vector<InputParams> before = std::move(m_devices);
@@ -1020,6 +1019,16 @@ void ControllerDialog::ShowHint()
                             : info.kind == SlotKind::Motion       ? Tr("Shake a controller that has a gyroscope, or press a key that will stand for a shake.")
                                                                   : Tr("Press a key or a button.");
     SetText("hint", Tr("%1 Esc cancels. (%2)", {how, std::to_string(seconds)}));
+}
+
+void ControllerDialog::ApplyChanges()
+{
+    std::vector<std::string> changes;
+    changes.swap(m_changes);
+    for (const std::string & id : changes)
+    {
+        ApplyChange(id);
+    }
 }
 
 void ControllerDialog::ApplyChange(const std::string & id)
