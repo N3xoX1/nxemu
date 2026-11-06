@@ -1,0 +1,492 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <optional>
+#include <sstream>
+#include <unordered_map>
+
+#include "core/file_sys/patch_sets.h"
+#include "core/file_sys/vfs/vfs.h"
+#include "yuzu_common/logging/log.h"
+
+namespace FileSys {
+
+namespace {
+
+// A64 encodings the loader moves into caves (Arm ARM C4.1)
+bool IsB(uint32_t w) { return (w & 0x7C000000) == 0x14000000; } // b, bl
+bool IsBCond(uint32_t w) { return (w & 0xFF000010) == 0x54000000; }
+bool IsCb(uint32_t w) { return (w & 0x7E000000) == 0x34000000; } // cbz, cbnz
+bool IsTb(uint32_t w) { return (w & 0x7E000000) == 0x36000000; } // tbz, tbnz
+bool IsBrReg(uint32_t w) { return (w & 0xFF9FFC1F) == 0xD61F0000; } // br, blr, ret
+bool IsAdr(uint32_t w) { return (w & 0x1F000000) == 0x10000000; } // adr, adrp
+bool IsLdrLiteral(uint32_t w) { return (w & 0x3B000000) == 0x18000000; }
+
+bool IsBranch(uint32_t w)
+{
+    return IsB(w) || IsBCond(w) || IsCb(w) || IsTb(w) || IsBrReg(w);
+}
+
+bool IsConditional(uint32_t w)
+{
+    return (IsBCond(w) && (w & 0xE) != 0xE) || IsCb(w) || IsTb(w);
+}
+
+int64_t SignExtend(uint64_t value, int bits)
+{
+    const uint64_t sign = uint64_t{1} << (bits - 1);
+    return static_cast<int64_t>((value ^ sign) - sign);
+}
+
+bool Fits(int64_t value, int bits)
+{
+    return value >= -(int64_t{1} << (bits - 1)) && value < (int64_t{1} << (bits - 1));
+}
+
+std::optional<uint32_t> EncodeB(uint64_t from, uint64_t to, bool link = false)
+{
+    const int64_t delta = static_cast<int64_t>(to - from);
+    if ((delta & 3) != 0 || !Fits(delta >> 2, 26))
+    {
+        return std::nullopt;
+    }
+    return (link ? 0x94000000U : 0x14000000U) | (static_cast<uint32_t>(delta >> 2) & 0x3FFFFFF);
+}
+
+std::optional<uint32_t> EncodeAdrp(uint64_t pc, uint64_t target, uint32_t rd)
+{
+    const int64_t pages = static_cast<int64_t>((target >> 12) - (pc >> 12));
+    if (!Fits(pages, 21))
+    {
+        return std::nullopt;
+    }
+    const uint32_t imm = static_cast<uint32_t>(pages) & 0x1FFFFF;
+    return 0x90000000U | (imm & 3) << 29 | (imm >> 2) << 5 | rd;
+}
+
+// The branch target of a b, b.cond, cbz or tbz encoded at pc
+uint64_t BranchTarget(uint32_t w, uint64_t pc)
+{
+    if (IsB(w))
+    {
+        return pc + (SignExtend(w & 0x3FFFFFF, 26) << 2);
+    }
+    if (IsTb(w))
+    {
+        return pc + (SignExtend((w >> 5) & 0x3FFF, 14) << 2);
+    }
+    return pc + (SignExtend((w >> 5) & 0x7FFFF, 19) << 2);
+}
+
+// The word encoded at from re-encoded at to, so it reaches the same target; nullopt when out of range. Words that
+// are not PC-relative are returned as they are.
+std::optional<uint32_t> Relocate(uint32_t w, uint64_t from, uint64_t to)
+{
+    if (IsB(w))
+    {
+        return EncodeB(to, BranchTarget(w, from), (w & 0x80000000) != 0);
+    }
+    if (IsAdr(w))
+    {
+        const int64_t imm = SignExtend(((w >> 5) & 0x7FFFF) << 2 | ((w >> 29) & 3), 21);
+        if ((w & 0x80000000) != 0)
+        {
+            return EncodeAdrp(to, (from & ~uint64_t{0xFFF}) + (imm << 12), w & 0x1F);
+        }
+        const int64_t delta = static_cast<int64_t>(from + imm - to);
+        if (!Fits(delta, 21))
+        {
+            return std::nullopt;
+        }
+        const uint32_t value = static_cast<uint32_t>(delta) & 0x1FFFFF;
+        return (w & 0x9F00001F) | (value & 3) << 29 | (value >> 2) << 5;
+    }
+    if (IsLdrLiteral(w))
+    {
+        const int64_t delta = static_cast<int64_t>(from + (SignExtend((w >> 5) & 0x7FFFF, 19) << 2) - to);
+        if (!Fits(delta >> 2, 19))
+        {
+            return std::nullopt;
+        }
+        return (w & 0xFF00001F) | (static_cast<uint32_t>(delta >> 2) & 0x7FFFF) << 5;
+    }
+    return w;
+}
+
+// A conditional branch inverted to skip the next word (b.cond / cbz / tbz to pc + 8)
+uint32_t InvertToSkipNext(uint32_t w)
+{
+    if (IsBCond(w))
+    {
+        return (w & 0xFF000010) | ((w & 0xF) ^ 1) | 2 << 5;
+    }
+    if (IsTb(w))
+    {
+        return ((w & 0xFFF8001F) ^ 0x01000000) | 2 << 5;
+    }
+    return ((w & 0xFF00001F) ^ 0x01000000) | 2 << 5;
+}
+
+// The cave bytes a site of these words takes: the words, the branch back and, for a conditional last word, the
+// long branch it becomes
+uint32_t CaveBytes(const std::vector<uint32_t> & words)
+{
+    return static_cast<uint32_t>(words.size() + 1 + (IsConditional(words.back()) ? 1 : 0)) * 4;
+}
+
+bool ParseHex(const std::string & text, uint32_t & out)
+{
+    if (text.empty() || text.size() > 8)
+    {
+        return false;
+    }
+    char * end = nullptr;
+    const unsigned long value = std::strtoul(text.c_str(), &end, 16);
+    if (end == nullptr || *end != '\0')
+    {
+        return false;
+    }
+    out = static_cast<uint32_t>(value);
+    return true;
+}
+
+std::string LowerHex(std::string text)
+{
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+    return text;
+}
+
+uint32_t ReadWord(std::span<const uint8_t> image, uint32_t offset)
+{
+    uint32_t word;
+    std::memcpy(&word, image.data() + offset, sizeof(word));
+    return word;
+}
+
+void WriteWord(std::span<uint8_t> image, uint32_t offset, uint32_t word)
+{
+    std::memcpy(image.data() + offset, &word, sizeof(word));
+}
+
+} // namespace
+
+PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, bool page_written)
+{
+    for (const VirtualFile & file : files)
+    {
+        Parse(file, build_id, module_name);
+    }
+    for (Set & set : m_sets)
+    {
+        if (!set.enabled)
+        {
+            continue;
+        }
+        const bool reads_page = std::any_of(set.sites.begin(), set.sites.end(), [](const Site & site) {
+            return std::any_of(site.words.begin(), site.words.end(), [](const Word & word) { return word.page_reg >= 0; });
+        });
+        if (reads_page && !page_written)
+        {
+            m_problems.push_back(fmt::format("Patch set {} of {} left out: it reads the patch page, which this build does not write", set.name, set.file));
+            set.enabled = false;
+            continue;
+        }
+        for (const Site & site : set.sites)
+        {
+            std::vector<uint32_t> values;
+            for (const Word & word : site.words)
+            {
+                values.push_back(word.value);
+                m_uses_page |= word.page_reg >= 0;
+            }
+            if (values.size() > 1)
+            {
+                m_cave_bytes += CaveBytes(values);
+            }
+        }
+    }
+}
+
+void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, const std::string & module_name)
+{
+    if (file == nullptr)
+    {
+        return;
+    }
+    const std::vector<uint8_t> bytes = file->ReadAllBytes();
+    std::istringstream text(std::string(bytes.begin(), bytes.end()));
+    const std::string want_id = LowerHex(build_id).append(64, '0').substr(0, 64);
+    const std::string name = file->GetName();
+
+    bool matches = false;
+    std::unordered_map<std::string, size_t> sets;
+    int line_number = 0;
+    for (std::string line; std::getline(text, line);)
+    {
+        ++line_number;
+        line = line.substr(0, line.find('#'));
+        std::istringstream tokens(line);
+        std::vector<std::string> parts;
+        for (std::string part; tokens >> part;)
+        {
+            parts.push_back(part);
+        }
+        if (parts.empty())
+        {
+            continue;
+        }
+        if (parts[0].starts_with("@nsobid-"))
+        {
+            matches = LowerHex(parts[0].substr(8)).append(64, '0').substr(0, 64) == want_id;
+            if (!matches)
+            {
+                return;
+            }
+            continue;
+        }
+        if (!matches)
+        {
+            m_problems.push_back(fmt::format("Patch sets {}:{}: no @nsobid line before the sets; file ignored", name, line_number));
+            return;
+        }
+        if (parts[0] == "set")
+        {
+            if (parts.size() != 4 || sets.contains(parts[1]))
+            {
+                m_problems.push_back(fmt::format("Patch sets {}:{}: expected \"set <name> <env> <default>\" with a new name", name, line_number));
+                continue;
+            }
+            bool enabled = parts[3] == "1";
+            if (const char * value = std::getenv(parts[2].c_str()); value != nullptr && *value != '\0')
+            {
+                enabled = std::strcmp(value, "0") != 0;
+            }
+            sets.emplace(parts[1], m_sets.size());
+            m_sets.push_back({.name = parts[1], .file = name, .enabled = enabled});
+        }
+        else if (parts[0] == "site")
+        {
+            const auto set = parts.size() >= 6 ? sets.find(parts[1]) : sets.end();
+            if (set == sets.end())
+            {
+                m_problems.push_back(fmt::format("Patch sets {}:{}: expected \"site <set> <module> <offset> <original> <word>...\" of a set named before", name, line_number));
+                continue;
+            }
+            if (LowerHex(parts[2]) != LowerHex(module_name))
+            {
+                continue;
+            }
+            Site site{.set = set->second, .line = line_number};
+            bool valid = ParseHex(parts[3], site.offset) && (site.offset & 3) == 0 && ParseHex(parts[4], site.original);
+            for (size_t i = 5; valid && i < parts.size(); i++)
+            {
+                Word word;
+                if (parts[i].starts_with("@page:x"))
+                {
+                    word.page_reg = std::atoi(parts[i].c_str() + 7);
+                    valid = word.page_reg >= 0 && word.page_reg <= 30 && parts[i].size() <= 9;
+                    word.value = 0x90000000U | static_cast<uint32_t>(word.page_reg);
+                }
+                else
+                {
+                    valid = ParseHex(parts[i], word.value);
+                }
+                // Only the last word may leave the cave
+                valid = valid && (i + 1 == parts.size() || !IsBranch(word.value));
+                site.words.push_back(word);
+            }
+            if (!valid)
+            {
+                m_problems.push_back(fmt::format("Patch sets {}:{}: invalid site, set {} left out", name, line_number, parts[1]));
+                m_sets[set->second].enabled = false;
+                continue;
+            }
+            m_sets[set->second].sites.push_back(std::move(site));
+        }
+        else if (parts[0] != "spin")
+        {
+            m_problems.push_back(fmt::format("Patch sets {}:{}: unknown line \"{}\" ignored", name, line_number, parts[0]));
+        }
+    }
+}
+
+bool PatchSets::Empty() const
+{
+    return std::none_of(m_sets.begin(), m_sets.end(), [](const Set & set) { return set.enabled && !set.sites.empty(); });
+}
+
+uint32_t PatchSets::ReservedSize() const
+{
+    if (!m_uses_page && m_cave_bytes == 0)
+    {
+        return 0;
+    }
+    return PageSize + (m_cave_bytes + PageSize - 1) / PageSize * PageSize;
+}
+
+std::optional<std::vector<uint32_t>> PatchSets::CaveWords(const Site & site, uint32_t cave, uint32_t page_offset)
+{
+    // The words are encoded as if each were at the site; each is encoded again for where it lands
+    std::vector<uint32_t> out;
+    uint32_t pc = cave;
+    for (size_t i = 0; i < site.words.size(); i++)
+    {
+        const Word & word = site.words[i];
+        const bool last = i + 1 == site.words.size();
+        std::optional<uint32_t> value;
+        if (word.page_reg >= 0)
+        {
+            value = EncodeAdrp(pc, page_offset, word.page_reg);
+        }
+        else if (last && IsBCond(word.value) && !IsConditional(word.value))
+        {
+            // b.al and b.nv are always taken
+            value = EncodeB(pc, BranchTarget(word.value, site.offset));
+        }
+        else if (last && IsConditional(word.value))
+        {
+            // Out of a cave a conditional branch may not reach its target: skip a long branch to it instead
+            out.push_back(InvertToSkipNext(word.value));
+            pc += 4;
+            value = EncodeB(pc, BranchTarget(word.value, site.offset));
+        }
+        else
+        {
+            value = Relocate(word.value, site.offset, pc);
+        }
+        if (!value)
+        {
+            return std::nullopt;
+        }
+        out.push_back(*value);
+        pc += 4;
+    }
+    const std::optional<uint32_t> back = EncodeB(pc, site.offset + 4);
+    if (!back)
+    {
+        return std::nullopt;
+    }
+    out.push_back(*back);
+    return out;
+}
+
+void PatchSets::LogProblems() const
+{
+    for (const std::string & problem : m_problems)
+    {
+        LOG_WARNING(Loader, "{}", problem);
+    }
+}
+
+bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset)
+{
+    const uint32_t reserved = ReservedSize();
+    if (page_offset + static_cast<uint64_t>(reserved) > image.size())
+    {
+        return false;
+    }
+    const uint32_t cave_end = page_offset + reserved;
+    uint32_t cave = page_offset + PageSize;
+    std::unordered_map<uint32_t, const Set *> claimed;
+    bool page_used = false;
+
+    for (const Set & set : m_sets)
+    {
+        if (set.sites.empty())
+        {
+            // Its sites are for other modules
+            continue;
+        }
+        if (!set.enabled)
+        {
+            LOG_INFO(Loader, "Patch set {} of {} is off", set.name, set.file);
+            continue;
+        }
+
+        // Every word is checked and encoded before any is written, so a set applies whole or not at all
+        std::vector<std::pair<uint32_t, uint32_t>> writes;
+        std::vector<uint32_t> sites;
+        std::string problem;
+        uint32_t set_cave = cave;
+        size_t in_caves = 0, shared = 0;
+        bool set_page = false;
+        for (const Site & site : set.sites)
+        {
+            if (const auto owner = claimed.find(site.offset); owner != claimed.end())
+            {
+                LOG_DEBUG(Loader, "Patch set {}: module offset {:#x} stays with set {}", set.name, site.offset, owner->second->name);
+                ++shared;
+                continue;
+            }
+            const std::string where = fmt::format("module offset {:#x} ({}:{})", site.offset, set.file, site.line);
+            if (site.offset + uint64_t{4} > page_offset || std::find(sites.begin(), sites.end(), site.offset) != sites.end())
+            {
+                problem = where + " is outside the module or listed twice";
+                break;
+            }
+            if (const uint32_t word = ReadWord(image, site.offset); word != site.original)
+            {
+                problem = fmt::format("{} holds {:08x}, not {:08x}", where, word, site.original);
+                break;
+            }
+            for (const Word & word : site.words)
+            {
+                set_page |= word.page_reg >= 0;
+            }
+            sites.push_back(site.offset);
+            if (site.words.size() == 1)
+            {
+                // In place: only an adrp to the patch page needs a reach check
+                const Word & word = site.words[0];
+                const std::optional<uint32_t> value =
+                    word.page_reg >= 0 ? EncodeAdrp(site.offset, page_offset, word.page_reg) : std::optional<uint32_t>(word.value);
+                if (!value)
+                {
+                    problem = where + ": the patch page is out of adrp range";
+                    break;
+                }
+                writes.emplace_back(site.offset, *value);
+                continue;
+            }
+
+            // The words run in a cave, then branch back after the site
+            const std::optional<uint32_t> branch = EncodeB(site.offset, set_cave);
+            const std::optional<std::vector<uint32_t>> words = CaveWords(site, set_cave, page_offset);
+            if (!branch || !words || set_cave + words->size() * 4 > cave_end)
+            {
+                problem = where + (!branch ? ": the caves are out of branch range" : ": a word cannot run from a cave, its target is out of range");
+                break;
+            }
+            writes.emplace_back(site.offset, *branch);
+            for (const uint32_t word : *words)
+            {
+                writes.emplace_back(set_cave, word);
+                set_cave += 4;
+            }
+            ++in_caves;
+        }
+        if (!problem.empty())
+        {
+            LOG_WARNING(Loader, "Patch set {} of {} left out: {}", set.name, set.file, problem);
+            continue;
+        }
+
+        for (const auto & [offset, word] : writes)
+        {
+            WriteWord(image, offset, word);
+        }
+        for (const uint32_t offset : sites)
+        {
+            claimed.emplace(offset, &set);
+        }
+        cave = set_cave;
+        page_used |= set_page;
+        LOG_INFO(Loader, "Patch set {} of {}: {} sites patched ({} in caves){}", set.name, set.file, sites.size(), in_caves,
+                 shared != 0 ? fmt::format(", {} left to an earlier set", shared) : std::string{});
+    }
+    return page_used;
+}
+
+} // namespace FileSys

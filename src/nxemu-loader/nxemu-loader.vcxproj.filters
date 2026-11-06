@@ -120,6 +120,9 @@
     <ClCompile Include="core\file_sys\patch_manager.cpp">
       <Filter>Source Files\core\file_sys</Filter>
     </ClCompile>
+    <ClCompile Include="core\file_sys\patch_sets.cpp">
+      <Filter>Source Files\core\file_sys</Filter>
+    </ClCompile>
     <ClCompile Include="core\file_sys\program_metadata.cpp">
       <Filter>Source Files\core\file_sys</Filter>
     </ClCompile>
@@ -345,6 +348,9 @@
       <Filter>Header Files\core\file_sys</Filter>
     </ClInclude>
     <ClInclude Include="core\file_sys\patch_manager.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
+    <ClInclude Include="core\file_sys\patch_sets.h">
       <Filter>Header Files\core\file_sys</Filter>
     </ClInclude>
     <ClInclude Include="core\file_sys\program_metadata.h">
