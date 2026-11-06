@@ -17,6 +17,7 @@ foreach(name test_android_adpf test_android_refresh)
     target_compile_options(${name} PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 endforeach()
+add_dependencies(nxemu_unit_tests test_android_refresh)
 foreach(mode strategy legacy missing rejected)
     add_test(NAME test_android_refresh_${mode} COMMAND test_android_refresh ${mode})
     set_tests_properties(test_android_refresh_${mode} PROPERTIES LABELS unit TIMEOUT 30)

@@ -529,9 +529,7 @@ u32 BufferCacheRuntime::GetStorageBufferAlignment() const {
 }
 
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept {
-    for (auto it = slot_buffers.begin(); it != slot_buffers.end(); it++) {
-        it->ResetUsageTracking();
-    }
+    slot_buffers.ForEachOccupied([](Buffer& buffer) { buffer.ResetUsageTracking(); });
 }
 
 void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {

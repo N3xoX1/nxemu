@@ -129,13 +129,28 @@ public:
         if (it == stored_bitset.end()) {
             return end();
         }
-        const u32 word_index = static_cast<u32>(std::distance(it, stored_bitset.begin()));
+        const u32 word_index = static_cast<u32>(std::distance(stored_bitset.begin(), it));
         const SlotId first_id{word_index * 64 + static_cast<u32>(std::countr_zero(*it))};
         return Iterator(this, first_id);
     }
 
     [[nodiscard]] Iterator end() noexcept {
         return Iterator(this, SlotId{SlotId::INVALID_INDEX});
+    }
+
+    /// Visit all occupied slots in index order, skipping empty words of the bitset.
+    /// This is faster than the iterator for both dense and sparse vectors.
+    /// Callbacks must not insert or erase elements during the traversal.
+    template <typename Visitor>
+    void ForEachOccupied(Visitor&& visitor) {
+        for (size_t word_index = 0; word_index < stored_bitset.size(); ++word_index) {
+            u64 remaining = stored_bitset[word_index];
+            while (remaining != 0) {
+                const size_t index = word_index * 64 + std::countr_zero(remaining);
+                visitor(values[index].object);
+                remaining &= remaining - 1;
+            }
+        }
     }
 
     [[nodiscard]] size_t size() const noexcept {
