@@ -100,6 +100,11 @@ UiWindow::~UiWindow()
 bool UiWindow::Create(const char * title, int width, int height, const std::filesystem::path & assetDir, int32_t deviceIndex)
 {
     SDL_SetMainReady();
+#if defined(__linux__)
+    // Wayland associates windows with their .desktop entry using the application ID.
+    // Keep this in sync with the AppImage desktop file and icon name.
+    SDL_SetAppMetadata("NxEmu", nullptr, "io.github.N3xoX1.nxemu");
+#endif
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
     // A hidden dialog window would otherwise stop closing the main window
     // from quitting; that close is handled as a quit request instead.

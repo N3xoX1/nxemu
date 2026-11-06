@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=NxEmu
+Comment=Nintendo Switch emulator
+Exec=nxemu
+Icon=io.github.N3xoX1.nxemu
+Categories=Game;
+Terminal=false
