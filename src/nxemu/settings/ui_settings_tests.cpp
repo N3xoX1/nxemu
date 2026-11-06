@@ -34,6 +34,8 @@ int main()
         preferences["GameDirectories"].Append(JsonValue("games"));
         preferences["GameDirectoriesRecursive"].Append(JsonValue("games"));
         preferences["Shortcuts"]["LoadFile"] = "Ctrl+O";
+        preferences["Controllers"]["InputDevices"].Append(JsonValue("engine:[any]"));
+        preferences["Controllers"]["InputDevices"].Append(JsonValue("engine:[keyboard]"));
         store.SetSettings("UI", preferences);
         SetupUISetting();
         Check(uiSettings.interfaceLanguage == "fr" && uiSettings.interfaceTheme == "light", "Keep RmlUi language and theme");
@@ -41,6 +43,7 @@ int main()
         Check(uiSettings.gameDirectories == Stringlist{"games"} &&
               uiSettings.gameDirectoriesRecursive == Stringlist{"games"}, "Keep scan preferences");
         Check(uiSettings.shortcuts.at("LoadFile") == "Ctrl+O", "Keep RmlUi shortcuts");
+        Check(uiSettings.controllerInputDevices == Stringlist{"engine:[any]", "engine:[keyboard]"}, "Keep controller input devices");
         SetUISettingStringList(NXUISetting::GameDirectories, {"new-games"});
         Check(uiSettings.gameDirectories == Stringlist{"new-games"}, "Keep settings callbacks");
         SaveUISetting();
@@ -48,6 +51,8 @@ int main()
         Check(!saved.isMember("UseRmlUI") && !saved.isMember("SciterConsole") &&
               !saved.isMember("Language"), "Do not save removed frontend settings");
         Check(saved["InterfaceLanguage"].asString() == "fr", "Save RmlUi preferences");
+        Check(saved["Controllers"]["InputDevices"].size() == 2 &&
+              saved["Controllers"]["InputDevices"][1].asString() == "engine:[keyboard]", "Save controller input devices");
         std::filesystem::remove(file);
     }
     catch (const std::exception & error)

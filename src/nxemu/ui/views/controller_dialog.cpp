@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-os/os_settings_identifiers.h>
+#include <nxemu/settings/ui_settings.h>
 #include <nxemu/ui/emulation/emulator_session.h>
 #include <nxemu/ui/host/sdl_input.h>
 #include <nxemu/ui/host/ui_window.h>
@@ -201,7 +202,8 @@ std::string Escaped(const std::string & text)
 bool SameDevice(const IParamPackage & a, const IParamPackage & b)
 {
     return std::string(a.GetString("engine", "")) == b.GetString("engine", "") && std::string(a.GetString("guid", "")) == b.GetString("guid", "") &&
-           a.GetInt("port", 0) == b.GetInt("port", 0) && a.GetInt("pad", 0) == b.GetInt("pad", 0);
+           a.GetInt("port", 0) == b.GetInt("port", 0) && a.GetInt("pad", 0) == b.GetInt("pad", 0) &&
+           std::string(a.GetString("guid2", "")) == b.GetString("guid2", "");
 }
 
 bool Alone(const Slot & slot)
@@ -381,6 +383,16 @@ void ControllerDialog::Finish(bool save)
             SettingsStore::GetInstance().SetBool(VibrationEnabledSetting(player), m_vibration[player]);
             SettingsStore::GetInstance().SetInt(VibrationStrengthSetting(player), m_strength[player]);
         }
+        Stringlist choices;
+        for (const InputParams & device : m_deviceChoice)
+        {
+            choices.push_back(device.Text());
+        }
+        if (choices != uiSettings.controllerInputDevices)
+        {
+            uiSettings.controllerInputDevices = std::move(choices);
+            SaveUISetting();
+        }
         m_session.FlushSettings();
     }
     else if (m_changed)
@@ -413,9 +425,19 @@ void ControllerDialog::OnOpen()
     Document()->SetClass("stacked", WindowWidth() < kStackedBelow);
     BuildRows();
     ReadDevices();
+    const Stringlist & choices = uiSettings.controllerInputDevices;
     for (int player = 0; player < kPlayers; ++player)
     {
-        m_device[player] = MappedDevice(player);
+        m_deviceChoice[player] = player < static_cast<int>(choices.size()) ? InputParams(choices[player]) : InputParams();
+        if (m_deviceChoice[player].Unset())
+        {
+            const int mapped = MappedDevice(player);
+            if (mapped < static_cast<int>(m_devices.size()))
+            {
+                m_deviceChoice[player] = m_devices[mapped];
+            }
+        }
+        m_device[player] = SelectedDevice(player);
     }
     FillDevices();
 
@@ -449,7 +471,7 @@ void ControllerDialog::OnUpdate()
         {
             for (int player = 0; player < kPlayers; ++player)
             {
-                m_device[player] = MappedDevice(player);
+                m_device[player] = SelectedDevice(player);
             }
             FillDevices();
         }
@@ -620,6 +642,18 @@ void ControllerDialog::FillTypes()
             ++index;
         }
     }
+}
+
+int ControllerDialog::SelectedDevice(int player) const
+{
+    for (size_t i = 0; i < m_devices.size(); ++i)
+    {
+        if (SameDevice(m_devices[i], m_deviceChoice[player]))
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return 0;
 }
 
 int ControllerDialog::MappedDevice(int player) const
@@ -1049,6 +1083,7 @@ void ControllerDialog::ApplyChange(const std::string & id)
         {
             StopListening();
             m_device[m_player] = device;
+            m_deviceChoice[m_player] = m_devices[device];
             if (device != 0)
             {
                 ApplyDevice(m_player, device);
