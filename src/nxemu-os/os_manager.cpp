@@ -423,7 +423,10 @@ void OSManager::KeyboardKeyPress(int modifier, int keyIndex, int keyCode)
     std::shared_ptr<InputCommon::InputSubsystem> & input_subsystem = m_coreSystem.InputSubsystem();
     input_subsystem->GetKeyboard()->SetKeyboardModifiers(modifier);
     input_subsystem->GetKeyboard()->PressKeyboardKey(keyIndex);
-    input_subsystem->GetKeyboard()->PressKey(keyCode);
+    if (keyCode != 0)
+    {
+        input_subsystem->GetKeyboard()->PressKey(keyCode);
+    }
     input_subsystem->PumpEvents();
 }
 
@@ -432,7 +435,10 @@ void OSManager::KeyboardKeyRelease(int modifier, int keyIndex, int keyCode)
     std::shared_ptr<InputCommon::InputSubsystem> & input_subsystem = m_coreSystem.InputSubsystem();
     input_subsystem->GetKeyboard()->SetKeyboardModifiers(modifier);
     input_subsystem->GetKeyboard()->ReleaseKeyboardKey(keyIndex);
-    input_subsystem->GetKeyboard()->ReleaseKey(keyCode);
+    if (keyCode != 0)
+    {
+        input_subsystem->GetKeyboard()->ReleaseKey(keyCode);
+    }
     input_subsystem->PumpEvents();
 }
 
