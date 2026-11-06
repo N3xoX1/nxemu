@@ -45,6 +45,7 @@ private:
     void FillDevices();
     void FillTypes();
     int MappedDevice(int player) const;
+    int SelectedDevice(int player) const;
     void ApplyDevice(int player, int device);
     void ShowPlayers();
     void ShowPlayer();
@@ -78,6 +79,7 @@ private:
     bool m_changed = false;
     std::vector<InputParams> m_devices;
     std::array<int, kPlayers> m_device{};
+    std::array<InputParams, kPlayers> m_deviceChoice{};
     std::array<bool, kPlayers> m_vibration{};
     std::array<int, kPlayers> m_strength{};
     uint64_t m_devicesRead = 0;
