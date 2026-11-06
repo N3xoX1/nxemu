@@ -220,11 +220,25 @@ public:
         emulated_xfb_enabled = enabled;
     }
 
+    struct StreamUniformRef {
+        VkBuffer buffer{};
+        u32 offset{};
+    };
+
     std::span<u8> BindMappedUniformBuffer([[maybe_unused]] size_t stage,
                                           [[maybe_unused]] u32 binding_index, u32 size) {
         const StagingBufferRef ref = staging_pool.Request(size, MemoryUsage::Upload);
-        BindBuffer(ref.buffer, static_cast<u32>(ref.offset), size);
+        last_stream_uniform = {ref.buffer, static_cast<u32>(ref.offset)};
+        RebindStreamUniform(last_stream_uniform, size);
         return ref.mapped_span;
+    }
+
+    [[nodiscard]] StreamUniformRef LastStreamUniformRef() const noexcept {
+        return last_stream_uniform;
+    }
+
+    void RebindStreamUniform(const StreamUniformRef& ref, u32 size) {
+        BindBuffer(ref.buffer, ref.offset, size);
     }
 
     void BindUniformBuffer(VkBuffer buffer, u32 offset, u32 size) {
@@ -257,6 +271,7 @@ private:
     Scheduler& scheduler;
     StagingBufferPool& staging_pool;
     GuestDescriptorQueue& guest_descriptor_queue;
+    StreamUniformRef last_stream_uniform{};
 
     std::shared_ptr<QuadArrayIndexBuffer> quad_array_index_buffer;
     std::shared_ptr<QuadStripIndexBuffer> quad_strip_index_buffer;

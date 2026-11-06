@@ -25,6 +25,7 @@
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_video_core/buffer_cache/buffer_base.h"
 #include "yuzu_video_core/buffer_cache/empty_storage_buffer_warning.h"
+#include "yuzu_video_core/buffer_cache/uniform_stream_reuse.h"
 #include "yuzu_video_core/control/channel_state_cache.h"
 #include "yuzu_video_core/delayed_destruction_ring.h"
 #include "yuzu_video_core/dirty_flags.h"
@@ -548,6 +549,9 @@ private:
                                     std::span<const u8> inlined_buffer);
 
     Tegra::MaxwellDeviceMemoryManager& device_memory;
+
+    // Owned by this cache: a new renderer/scheduler must never reuse retired staging offsets.
+    UniformStreamReuse<Runtime> uniform_stream_reuse;
 
     Common::SlotVector<Buffer> slot_buffers;
     DelayedDestructionRing<Buffer, 8> delayed_destruction_ring;

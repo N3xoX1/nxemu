@@ -69,6 +69,7 @@ void ChannelSetupCaches<P>::EraseChannel(s32 id) {
     const auto it = channel_map.find(id);
     ASSERT(it != channel_map.end() && id >= 0);
     const auto this_id = it->second;
+    OnChannelErase(this_id);
     free_channel_ids.push_back(this_id);
     channel_map.erase(it);
     if (this_id == current_channel_id) {

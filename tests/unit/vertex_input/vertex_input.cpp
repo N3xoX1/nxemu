@@ -10,6 +10,7 @@
 #include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan.h>
 #include "yuzu_video_core/engines/maxwell_3d.h"
+#include "yuzu_video_core/renderer_vulkan/graphics_dynamic_states.h"
 #include "yuzu_video_core/renderer_vulkan/vk_state_tracker.h"
 #include "yuzu_video_core/renderer_vulkan/vertex_input_mapping.h"
 
@@ -189,19 +190,14 @@ void PipelineStates() {
     for (bool extended : {false, true}) {
         for (bool dynamic : {false, true}) {
             for (bool depth : {false, true}) {
-                struct State {
-                    bool extended_dynamic_state;
-                    bool extended_dynamic_state_2;
-                    bool extended_dynamic_state_2_extra;
-                    bool extended_dynamic_state_3_blend;
-                    bool extended_dynamic_state_3_enables;
-                    bool dynamic_vertex_input;
-                };
-                struct Key { State state; } key{{extended, extended, extended, extended,
-                                                 extended, dynamic}};
-                Device device;
-                device.depth_bounds = depth;
-#include "states.inc"
+                Vulkan::FixedPipelineState state{};
+                state.extended_dynamic_state.Assign(extended);
+                state.extended_dynamic_state_2.Assign(extended);
+                state.extended_dynamic_state_2_extra.Assign(extended);
+                state.extended_dynamic_state_3_blend.Assign(extended);
+                state.extended_dynamic_state_3_enables.Assign(extended);
+                state.dynamic_vertex_input.Assign(dynamic);
+                const auto dynamic_states = Vulkan::BuildGraphicsDynamicStates(state, depth, extended);
                 Require(std::count(dynamic_states.begin(), dynamic_states.end(),
                                    VK_DYNAMIC_STATE_VERTEX_INPUT_EXT) == (dynamic ? 1 : 0),
                         "vertex input declaration independent of extended state");

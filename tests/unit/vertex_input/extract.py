@@ -26,10 +26,6 @@ def main():
                                             'BufferCacheRuntime::NotifyVertexBufferStride'))
     (output / 'format.inc').write_text(method(read('renderer_vulkan/maxwell_to_vk.cpp'),
                                             'VertexFormat'))
-    source = read('renderer_vulkan/vk_graphics_pipeline.cpp')
-    start = source.index('    static_vector<VkDynamicState, 28> dynamic_states{')
-    end = source.index('    const VkPipelineDynamicStateCreateInfo', start)
-    (output / 'states.inc').write_text(source[start:end])
 
 if __name__ == '__main__':
     main()
