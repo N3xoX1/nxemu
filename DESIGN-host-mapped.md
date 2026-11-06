@@ -31,3 +31,10 @@ At about 130 fps on TOTK the GPU thread is the limit. Uniform buffer binds cost 
 
 - 80 % of uniform binds go in place (about 420,000 vs 106,000 per 600 frames). Correct rendering at 100 and 125 s.
 - Fps (same DLL, interleaved, mean from 75 s): off 136.6 / 133.7, on 140.1 / 137.9. **+2.8 %.**
+
+## Flicker found (2026-11-06)
+
+- A window move flickers once on release. Not on master; it goes away with the in-place binds off (same DLL). So the "guest CPU writes a range that queued GPU work still reads" hazard is real.
+- Off on the main branch: TOTK 134.6 fps (2 runs), against 140.8 with it on (3 runs, earlier the same evening).
+- Likely path, not checked yet: during the move the present and submit side stalls, guest syncpoint waits time out, the game rewrites its uniform data, and the delayed draws read the new data.
+- A correct fix needs to know, when the guest writes a page, whether queued GPU work reads it in place (write protect those pages until their fence, and wait on a fault), or keep the guest from running ahead of the host GPU.
