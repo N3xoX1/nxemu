@@ -202,6 +202,20 @@ public:
         return [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureImpl<Spec>(is_indexed); };
     }
 
+    /// Whether a pipeline of this key takes its topology from the draw: list and strip topologies
+    /// of the same class then translate to the same pipeline, so a draw can use the pipeline of
+    /// its twin key (TopologyTwin)
+    [[nodiscard]] static bool UsesDynamicTopology(const GraphicsPipelineCacheKey& key) noexcept;
+
+    /// The key of the same draw with the other topology of its class (list for strip and strip for
+    /// list), for a key that UsesDynamicTopology
+    [[nodiscard]] static GraphicsPipelineCacheKey TopologyTwin(GraphicsPipelineCacheKey key) noexcept;
+
+    /// Returns true when the pipeline takes its topology from the draw
+    [[nodiscard]] bool HasDynamicTopology() const noexcept {
+        return dynamic_topology;
+    }
+
     /// Returns true when the vertex and geometry stages run as compute before the draw
     [[nodiscard]] bool IsVtgAsCompute() const noexcept {
         return vtg != nullptr;
@@ -340,6 +354,9 @@ private:
     NativePipelineBuildQueue::Handle queued_build;
     bool uses_push_descriptor{false};
     const bool rasterizes_lines;
+    bool dynamic_topology{};
+    // Used only by the GPU thread: the topology the last draw set while this pipeline was bound
+    VkPrimitiveTopology bound_topology{};
 
     struct VtgState;
     std::unique_ptr<VtgState> vtg;

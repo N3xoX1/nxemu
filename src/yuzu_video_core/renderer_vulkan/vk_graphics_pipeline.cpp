@@ -443,6 +443,38 @@ std::optional<std::pair<VkBuffer, VkDeviceSize>> GraphicsPipeline::VtgIndirectDr
                      vtg->indirect_commands->offset + 6 * sizeof(u32)};
 }
 
+bool GraphicsPipeline::UsesDynamicTopology(const GraphicsPipelineCacheKey& key) noexcept {
+    using Topology = Maxwell::PrimitiveTopology;
+    const Topology topology{key.state.topology.Value()};
+    // Primitive restart has to be dynamic too, since strips use it and lists may not
+    return key.state.extended_dynamic_state != 0 && key.state.extended_dynamic_state_2 != 0 &&
+           key.state.xfb_enabled == 0 && key.unique_hashes[2] == 0 && key.unique_hashes[3] == 0 &&
+           key.unique_hashes[4] == 0 &&
+           (topology == Topology::Triangles || topology == Topology::TriangleStrip ||
+            topology == Topology::Lines || topology == Topology::LineStrip);
+}
+
+GraphicsPipelineCacheKey GraphicsPipeline::TopologyTwin(GraphicsPipelineCacheKey key) noexcept {
+    using Topology = Maxwell::PrimitiveTopology;
+    switch (key.state.topology.Value()) {
+    case Topology::Triangles:
+        key.state.topology.Assign(Topology::TriangleStrip);
+        break;
+    case Topology::TriangleStrip:
+        key.state.topology.Assign(Topology::Triangles);
+        break;
+    case Topology::Lines:
+        key.state.topology.Assign(Topology::LineStrip);
+        break;
+    case Topology::LineStrip:
+        key.state.topology.Assign(Topology::Lines);
+        break;
+    default:
+        break;
+    }
+    return key;
+}
+
 GraphicsPipeline::GraphicsPipeline(
     Scheduler& scheduler_, BufferCache& buffer_cache_, TextureCache& texture_cache_,
     vk::PipelineCache& pipeline_cache_, VideoCore::ShaderNotify* shader_notify,
@@ -549,6 +581,7 @@ GraphicsPipeline::GraphicsPipeline(
         vtg->staging_pool = vtg_info->staging_pool;
         vtg->indirect_pass = vtg_info->indirect_pass;
     }
+    dynamic_topology = !vtg && UsesDynamicTopology(key);
     descriptor_views.resize(num_image_elements);
     descriptor_samplers.resize(num_textures);
     // Number of leading components the vertex shader may read from each attribute. Used to keep
@@ -2056,6 +2089,17 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
             }
         });
     }
+    if (dynamic_topology) {
+        // Binding a pipeline with a static topology leaves the dynamic one undefined
+        const VkPrimitiveTopology topology{MaxwellToVK::PrimitiveTopology(
+            device, maxwell3d->draw_manager->GetDrawState().topology)};
+        if (bind_pipeline || topology != bound_topology) {
+            bound_topology = topology;
+            scheduler.Record([topology](vk::CommandBuffer cmdbuf) {
+                cmdbuf.SetPrimitiveTopologyEXT(topology);
+            });
+        }
+    }
     if (bind_pipeline && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK &&
         key.state.extended_dynamic_state_3_blend != 0) {
         std::array<VkBool32, Maxwell::NumRenderTargets> setup_enables{};
@@ -2378,7 +2422,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         .pAttachments = cb_attachments.data(),
         .blendConstants = {},
     };
-    static_vector<VkDynamicState, 28> dynamic_states{
+    static_vector<VkDynamicState, 29> dynamic_states{
         VK_DYNAMIC_STATE_VIEWPORT,           VK_DYNAMIC_STATE_SCISSOR,
         VK_DYNAMIC_STATE_DEPTH_BIAS,         VK_DYNAMIC_STATE_BLEND_CONSTANTS,
         VK_DYNAMIC_STATE_DEPTH_BOUNDS,       VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
@@ -2432,6 +2476,9 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
                        state == VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT;
             }),
             dynamic_states.end());
+    }
+    if (dynamic_topology) {
+        dynamic_states.push_back(VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT);
     }
     // Vertex-input dynamic state is independent of extended dynamic state.
     if (key.state.dynamic_vertex_input) {

@@ -2410,6 +2410,23 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
                 pipeline->SetSharedKey(graphics_key);
             }
         }
+        // A list draw and a strip draw of the same class use one pipeline when it takes its
+        // topology from the draw (GraphicsPipeline::UsesDynamicTopology)
+        if (!pipeline && GraphicsPipeline::UsesDynamicTopology(graphics_key)) {
+            GraphicsPipelineCacheKey twin_key{GraphicsPipeline::TopologyTwin(graphics_key)};
+            auto twin{graphics_cache.find(twin_key)};
+            if (twin == graphics_cache.end() || !twin->second) {
+                NormalizeCbufSizes(twin_key);
+                twin = graphics_cache.find(twin_key);
+            }
+            if (twin != graphics_cache.end() && twin->second && twin->second->HasDynamicTopology() &&
+                !twin->second->IsFailed()) {
+                pipeline = twin->second;
+                pipeline->SetSharedKey(graphics_key);
+                LOG_DEBUG(Render_Vulkan, "Pipeline {:016x} reuses the pipeline of its topology twin",
+                          graphics_key.Hash());
+            }
+        }
         if (!pipeline) {
             if (use_asynchronous_shaders && !ShouldWaitForAsyncPipeline() &&
                 graphics_key.state.app_stage != EngineHint::OnHLEMacro &&
