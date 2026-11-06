@@ -147,6 +147,50 @@ So the gains must be general code quality, not HLE of a few functions.
 3. **UBO streaming in one copy per draw:** gather all small UBOs of a draw into one stream allocation and one `ReadBlockUnsafe` per contiguous guest range. About 2 %.
 4. **Direct UBO from imported guest memory:** re-test with several screenshots. The earlier "bug" may have been lighting. It is correct with host-synced fences (`patches/direct_ubo_full.patch` in `perf/experiments-archive`), but the gain was small.
 
+## Track 5: the GPU / guest sync model (all games)
+
+**Problem:** guest-visible fences (semaphores, syncpoints) are signalled when the GPU thread reaches them, not when the host GPU has run the work. Two things follow:
+- Anything that needs the real GPU result stalls the whole pipeline: CPU reads of GPU-written memory, queries, conditional rendering, `WaitForIdle`. The GPU thread waits for the host GPU, then the guest waits for the GPU thread.
+- Optimizations that depend on correct ordering are blocked. Direct UBO reads from guest memory are one example: they broke because the game recycled its UBO ring too early.
+
+**Direction:**
+- Timeline semaphores mapped to guest syncpoints, signalled when the host GPU finishes.
+- Queries and conditional rendering resolved on the GPU (`VK_EXT_conditional_rendering`) instead of read back.
+- Async readback of GPU-written buffers, with predictive flush of ranges the CPU read in earlier frames.
+
+**First step:** count, per game, the GPU thread waits on the host GPU and the guest waits on GPU fences. Use timers like track 0.
+
+## Track 6: host thread scheduling (all games)
+
+From `ARCHITECTURE-PERF.md` (kit folder) C1-C3, not done yet:
+- **Thread placement:** the GPU thread, the main guest core and the Vulkan worker each get their own physical core.
+- **CoreTiming:** no core spinning on `mwaitx`.
+- **Kernel scheduler lock:** today one global lock, 8-13 % of guest core time. Move to per-core run queues.
+
+These matter most in games with many guest threads. `Placement.ps1` in the kit is a start for placement.
+
+## Track 7: texture cache and copies on the GPU (games heavy on render-to-texture)
+
+- Swizzle and unswizzle, format conversion and overlap resolution run on the CPU or on the GPU thread in many paths.
+- Moving them to compute shaders and async copies takes them off the critical thread.
+- Measure first on texture-heavy games. TOTK is light here.
+
+## Track 8: shader and pipeline compilation (stutter, all games)
+
+- This does not change the mean fps, but it is the first thing users notice.
+- Use `VK_EXT_graphics_pipeline_library`: fast-linked pipelines first, optimized ones built in the background.
+- Keep the disk cache shared across driver updates.
+
+## Benchmark set (to avoid tuning only for TOTK)
+
+- Every architecture step is measured on at least 4 games with different profiles:
+  - TOTK: many draws, heavy GPU thread.
+  - Super Mario Odyssey: light, very high fps, front-end overhead.
+  - One game with many guest threads or heavy CPU, such as Civilization VII.
+  - One game heavy on render-to-texture or readback.
+- The track 0 timers become a permanent, off-by-default profiling option, so the same breakdown works for any game.
+- Only SMO and TOTK have been measured in the kit so far.
+
 ## Order of work and rules
 
 Order:
