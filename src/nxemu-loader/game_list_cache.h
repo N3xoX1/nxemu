@@ -12,6 +12,8 @@ struct GameDirectory
 {
     std::string path;
     bool scanSubfolders = false;
+
+    bool operator==(const GameDirectory &) const = default;
 };
 
 struct CachedGameMetadata
@@ -134,11 +136,13 @@ private:
     void ReportProgram(const std::string & path, ProgramRecord & program, bool changed, IGameListScanCallback & callback);
 
     void Load();
-    void Save() const;
+    bool Save() const;
 
     Systemloader & m_systemloader;
     std::mutex m_scanMutex;
     bool m_loaded;
+    bool m_dirty;           // what is cached differs from what was last written
+    bool m_listingComplete; // every directory of this scan could be read, so what it did not see is gone
     AddOnFiles m_addOnFiles;
     GameFiles m_gameFiles;
     std::vector<GameDirectory> m_gameDirectories;
