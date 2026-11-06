@@ -27,6 +27,7 @@
 #include "yuzu_common/scope_exit.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include "nxemu-video/video_settings_identifiers.h"
+#include "os_settings.h"
 #include "yuzu_common/swap.h"
 #include "core/core.h"
 #include "core/device_memory.h"
@@ -618,7 +619,7 @@ struct Memory::Impl {
         if (current_page_table->fastmem_arena)
         {
             Common::MemoryPermission perm{};
-            bool deny_reads = cached && g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+            bool deny_reads = cached && osSettings.use_reactive_flushing;
 #if defined(__APPLE__)
             // Buffer caches only need write tracking. Texture readback protection is applied
             // separately below, including when a texture overlaps an already cached buffer.
@@ -938,7 +939,7 @@ struct Memory::Impl {
     {
         const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
         u64 cursor = Common::AlignDown(vaddr, YUZU_PAGESIZE);
-        if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing))
+        if (!osSettings.use_reactive_flushing)
         {
             buffer->ProtectAccess(cursor, end - cursor, Common::MemoryPermission::Read);
             return;
@@ -987,7 +988,7 @@ struct Memory::Impl {
         if (!buffer->UsesNce() || size == 0 || !AddressSpaceContains(*current_page_table, vaddr, size))
             return;
         std::scoped_lock lk{nce_write_mutex};
-        const bool reactive = g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+        const bool reactive = osSettings.use_reactive_flushing;
         u64 run_begin{}, run_end{};
         Common::MemoryPermission run_perm{};
         const auto flush = [&] {
@@ -1068,7 +1069,7 @@ struct Memory::Impl {
     void RearmNceReads()
     {
         if (nce_open_read_pages.empty()) return;
-        if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing))
+        if (!osSettings.use_reactive_flushing)
         {
             nce_open_read_pages.clear();
             return;
@@ -1115,7 +1116,7 @@ struct Memory::Impl {
         const u64 host_page = vaddr & ~(NceHostPageSize - 1);
         {
             std::scoped_lock lk{nce_write_mutex};
-            if (!g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing)) return;
+            if (!osSettings.use_reactive_flushing) return;
             for (auto it = nce_read_cached.lower_bound(host_page);
                  it != nce_read_cached.end() && it->first < host_page + NceHostPageSize; ++it)
             {
@@ -1193,7 +1194,7 @@ struct Memory::Impl {
         }
         // A host page containing texture data must retain reactive read protection. Other
         // cached pages keep the snapshot path; opening them cannot expose a stale texture.
-        if (g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing))
+        if (osSettings.use_reactive_flushing)
         {
             const auto it = nce_read_cached.lower_bound(host_page);
             if (it != nce_read_cached.end() && it->first < host_page + NceHostPageSize)
@@ -1632,7 +1633,7 @@ void Memory::RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32
 
 bool Memory::ProtectsReadCachedRegions() {
 #if defined(__APPLE__)
-    return impl->buffer->UsesNce() && g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+    return impl->buffer->UsesNce() && osSettings.use_reactive_flushing;
 #else
     return false;
 #endif

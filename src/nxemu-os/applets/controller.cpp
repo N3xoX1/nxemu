@@ -54,7 +54,7 @@ void DefaultControllerApplet::ReconfigureControllers(void * user_data, Controlle
 
     auto * handheld = hid_core.GetEmulatedController(NpadIdType::Handheld);
     const bool handheld_allowed = parameters->allow_handheld &&
-        g_settings->GetInt(NXOsSetting::DockedMode) != static_cast<int32_t>(DockedMode::Docked);
+        osSettings.use_docked_mode != DockedMode::Docked;
     if (!parameters->keep_controllers_connected || !handheld_allowed) {
         handheld->Disconnect();
     }
@@ -133,7 +133,7 @@ void DefaultControllerApplet::ReconfigureControllers(void * user_data, Controlle
             controller->SetNpadStyleIndex(NpadStyleIndex::GameCube);
             controller->Connect(true);
         }
-        else if (index == 0 && parameters->enable_single_mode && parameters->allow_handheld && g_settings->GetInt(NXOsSetting::DockedMode) != static_cast<int32_t>(DockedMode::Docked))
+        else if (index == 0 && parameters->enable_single_mode && parameters->allow_handheld && osSettings.use_docked_mode != DockedMode::Docked)
         {
             // We should *never* reach here under any normal circumstances.
             handheld->SetNpadStyleIndex(NpadStyleIndex::Handheld);

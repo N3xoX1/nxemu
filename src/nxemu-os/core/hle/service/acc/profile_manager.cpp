@@ -12,6 +12,7 @@
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/string_util.h"
 #include <nxemu-module-spec/base.h>
+#include "os_settings.h"
 #include "os_settings_identifiers.h"
 #include "profile_image_writer.h"
 #include "core/hle/service/acc/profile_manager.h"
@@ -63,7 +64,7 @@ ProfileManager::ProfileManager() {
         WriteUserSaveFile();
     }
 
-    auto current = std::clamp<int>(static_cast<s32>(g_settings->GetInt(NXOsSetting::CurrentUser)), 0,
+    auto current = std::clamp<int>(static_cast<s32>(osSettings.current_user), 0,
                                    MAX_USERS - 1);
 
     // If user index don't exist. Load the first user and change the active user

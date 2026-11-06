@@ -146,7 +146,6 @@ OSManager::OSManager(ISystemModules & modules) :
     m_previousProgramIndex(-1),
     m_launchType(ApplicationLaunchType::FrontendInitiated)
 {
-    g_settings->RegisterCallback(NXOsSetting::DockedMode, DockedModeChanged, this);
 }
 
 OSManager::~OSManager()
@@ -283,6 +282,7 @@ void OSManager::NotifyApplicationBackgroundedBeforeShutdown()
 bool OSManager::Initialize(void)
 {
     SetupOsSetting();
+    g_settings->RegisterCallback(NXOsSetting::DockedMode, DockedModeChanged, this);
     m_coreSystem.Initialize();
     return true;
 }

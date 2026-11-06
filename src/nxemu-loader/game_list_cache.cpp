@@ -1243,7 +1243,7 @@ void GameListCache::Load()
     {
         return;
     }
-    if (reader.U32() != (uint32_t)g_settings->GetInt(NXCoreSetting::LanguageIndex))
+    if (reader.U32() != (uint32_t)loaderSettings.languageIndex)
     {
         return;
     }
@@ -1320,7 +1320,7 @@ bool GameListCache::Save() const
     CacheWriter writer;
     writer.U32(CacheMagic);
     writer.U32(CacheVersion);
-    writer.U32((uint32_t)g_settings->GetInt(NXCoreSetting::LanguageIndex));
+    writer.U32((uint32_t)loaderSettings.languageIndex);
 
     const auto writeAddOns = [&writer](const AddOnEntries & entries) {
         writer.U32((uint32_t)entries.size());

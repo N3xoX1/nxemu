@@ -964,7 +964,7 @@ PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
     }
 
     // Get language code from settings
-    const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)g_settings->GetInt(NXCoreSetting::LanguageIndex));
+    const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)loaderSettings.languageIndex);
 
     // Convert to application language and get priority list
     const auto application_language = Service::NS::ConvertToApplicationLanguage(language_code).value_or(Service::NS::ApplicationLanguage::AmericanEnglish);
