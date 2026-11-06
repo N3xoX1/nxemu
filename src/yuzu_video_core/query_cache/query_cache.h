@@ -515,28 +515,28 @@ bool QueryCacheBase<Traits>::AccelerateHostConditionalRendering() {
                 .found_query = nullptr,
             };
         }
-        VAddr cpu_addr = *cpu_addr_opt;
+        const VAddr cpu_addr = *cpu_addr_opt;
         std::scoped_lock lock(cache_mutex);
-        auto it1 = cached_queries.find(cpu_addr >> Core::DEVICE_PAGEBITS);
-        if (it1 == cached_queries.end()) {
-            return VideoCommon::LookupData{
-                .address = cpu_addr,
-                .found_query = nullptr,
-            };
-        }
-        auto& sub_container = it1->second;
-        auto it_current = sub_container.find(cpu_addr & Core::DEVICE_PAGEMASK);
+        const auto find_query = [this](VAddr query_addr) -> QueryBase* {
+            const auto page = cached_queries.find(query_addr >> Core::DEVICE_PAGEBITS);
+            if (page == cached_queries.end()) {
+                return nullptr;
+            }
+            const auto entry = page->second.find(query_addr & Core::DEVICE_PAGEMASK);
+            return entry == page->second.end() ? nullptr : impl->ObtainQuery(entry->second);
+        };
 
-        if (it_current == sub_container.end()) {
-            auto it_current_2 = sub_container.find((cpu_addr & Core::DEVICE_PAGEMASK) + 4);
-            if (it_current_2 == sub_container.end()) {
-                return VideoCommon::LookupData{
-                    .address = cpu_addr,
-                    .found_query = nullptr,
-                };
+        auto* query = find_query(cpu_addr);
+        if (!query) {
+            // The report can start at the second word of the comparison value.
+            // Translate it independently in case it lies on another GPU page.
+            if (const auto second_word = gpu_memory->GpuToCpuAddress(address + sizeof(u32))) {
+                query = find_query(*second_word);
             }
         }
-        auto* query = impl->ObtainQuery(it_current->second);
+        if (!query) {
+            return VideoCommon::LookupData{.address = cpu_addr, .found_query = nullptr};
+        }
         qc_dirty |= True(query->flags & QueryFlagBits::IsHostManaged) &&
                     False(query->flags & QueryFlagBits::IsGuestSynced);
         return VideoCommon::LookupData{
