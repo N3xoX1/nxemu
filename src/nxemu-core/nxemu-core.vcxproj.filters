@@ -93,6 +93,9 @@
     <ClInclude Include="settings\identifiers.h">
       <Filter>Header Files\settings</Filter>
     </ClInclude>
+    <ClInclude Include="settings\module_setting_table.h">
+      <Filter>Header Files\settings</Filter>
+    </ClInclude>
     <ClInclude Include="modules\loader_module.h">
       <Filter>Header Files\modules</Filter>
     </ClInclude>

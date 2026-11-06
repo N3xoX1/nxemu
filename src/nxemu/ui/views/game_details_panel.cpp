@@ -74,9 +74,10 @@ void GameDetailsPanel::ShowGame(const std::string & title, const std::string & i
     SetRml("details-facts", rml);
 }
 
-void GameDetailsPanel::ShowDetails(const GameDetails * details, bool locked)
+void GameDetailsPanel::ShowDetails(const GameDetails * details, bool locked, bool canConfigure)
 {
     const bool known = details != nullptr;
+    SetLocked("details-configure", !known || !canConfigure, known ? Tr("Only the running game can be configured") : Tr("Reading game information"), Tr("Settings for this game only"));
     SetLocked("details-save", !known || details->saveDirectory.empty(), known ? Tr("This game has not saved anything yet") : std::string(), Tr("Opens the folder this game saves in"));
     SetLocked("details-cache", !known || details->cacheDirectory.empty(), known ? Tr("This game has no shader cache yet") : std::string(), Tr("Opens the folder of this game's shader cache"));
     SetLocked("details-mods", !known || details->modDirectory.empty(), {}, Tr("Opens the folder this game's mods go in"));

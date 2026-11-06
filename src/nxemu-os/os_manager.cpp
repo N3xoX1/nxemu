@@ -150,7 +150,7 @@ OSManager::OSManager(ISystemModules & modules) :
 
 OSManager::~OSManager()
 {
-    g_settings->UnregisterCallback(NXOsSetting::DockedMode, DockedModeChanged, this);
+    g_settings->UnregisterCallback(NXOsSetting::GameDockedMode, DockedModeChanged, this);
     if (m_applicationProcess != nullptr)
     {
         m_applicationProcess->Close();
@@ -282,7 +282,7 @@ void OSManager::NotifyApplicationBackgroundedBeforeShutdown()
 bool OSManager::Initialize(void)
 {
     SetupOsSetting();
-    g_settings->RegisterCallback(NXOsSetting::DockedMode, DockedModeChanged, this);
+    g_settings->RegisterCallback(NXOsSetting::GameDockedMode, DockedModeChanged, this);
     m_coreSystem.Initialize();
     return true;
 }

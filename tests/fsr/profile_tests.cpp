@@ -20,8 +20,8 @@ void Require(bool value) {
 struct SavedSettings {
     int active = static_cast<int>(ScalingFilter::NearestNeighbor);
     int saved = static_cast<int>(ScalingFilter::Bilinear);
-    int GetInt(const char* key) const { return std::string_view(key) == NXVideoSetting::ScalingFilter ? active : saved; }
-    void SetInt(const char* key, int value) { (std::string_view(key) == NXVideoSetting::ScalingFilter ? active : saved) = value; }
+    int GetInt(const char* key) const { return std::string_view(key) == NXVideoSetting::SystemScalingFilter ? active : saved; }
+    void SetInt(const char* key, int value) { (std::string_view(key) == NXVideoSetting::SystemScalingFilter ? active : saved) = value; }
 };
 int main() {
     SavedSettings settings;

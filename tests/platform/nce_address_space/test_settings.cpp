@@ -38,6 +38,10 @@ struct TestSettings final : IModuleSettings {
     void SetDefaultString(const char*, const char*) override {}
     const char* GetSectionSettings(const char*) const override { return ""; }
     void SetSectionSettings(const char*, const char*) override {}
+    void SetDebugSetting(const char*, bool) override {}
+    bool DebugSettingsEnabled() const override { return false; }
+    const char* GetGameSectionSettings(const char*) const override { return ""; }
+    void SetGameSectionSettings(const char*, const char*) override {}
     void RegisterCallback(const char* id, SettingChangeCallback call, void* user) override {
         callbacks.push_back({id, call, user});
     }
@@ -55,7 +59,7 @@ void Check(bool value, const char* label) {
 bool Enabled() { return settings.GetBool(NXCpuSetting::NceEnabled); }
 int main(int argc, char**) {
     SetupCpuSetting();
-    Check(settings.GetInt(NXCpuSetting::CpuBackend) == static_cast<int>(CpuBackend::Nce),
+    Check(settings.GetInt(NXCpuSetting::SystemCpuBackend) == static_cast<int>(CpuBackend::Nce),
           "NCE selected by default on a supported build");
     Check(!Enabled(), "metadata absent: Dynarmic");
     settings.SetBool(NXCoreSetting::Has39BitAddressSpace, true);
@@ -84,7 +88,7 @@ int main(int argc, char**) {
     Check(!Enabled(), "fastmem disabled: Dynarmic");
     settings.SetBool(NXCpuSetting::CpuoptFastmem, true);
     Check(Enabled(), "fastmem restored: NCE");
-    settings.SetInt(NXCpuSetting::CpuBackend, static_cast<int>(CpuBackend::Dynarmic));
+    settings.SetInt(NXCpuSetting::SystemCpuBackend, static_cast<int>(CpuBackend::Dynarmic));
     Check(!Enabled(), "explicit Dynarmic selection respected");
     settings.SetBool(NXCoreSetting::Is64BitProgram, false);
     settings.SetBool(NXCoreSetting::Has36BitAddressSpace, false);

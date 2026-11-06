@@ -37,6 +37,7 @@ private:
     void ApplyChange(const std::string & id);
     void Changed();
     bool RegionChosen() const;
+    bool CanChange(const char * setting) const;
     int LanguageRegion() const;
 
     UiWindow & m_window;
@@ -47,4 +48,5 @@ private:
     size_t m_profileCount = 0;
     std::vector<std::string> m_changes;
     bool m_unsaved = false;
+    bool m_running = false;
 };

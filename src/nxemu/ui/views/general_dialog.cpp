@@ -76,6 +76,7 @@ void GeneralDialog::RefreshLanguage()
         return;
     }
     RefreshTranslation();
+    SetTitle(m_settings.Title());
     FillLists();
     ShowValues();
     ShowRunning();
@@ -93,6 +94,7 @@ GeneralDialog::GeneralDialog(UiWindow & window, EmulatorSession & session, Setti
 
 void GeneralDialog::OnOpen()
 {
+    SetTitle(m_settings.Title());
     FillLists();
     ShowValues();
     ShowRunning();
@@ -114,7 +116,7 @@ void GeneralDialog::OnUpdate()
 void GeneralDialog::OnCommand(const std::string & command)
 {
     SettingsContext & settings = m_settings;
-    if (m_settings.InheritCommand(command))
+    if (m_settings.InheritCommand(command, [this](const char * setting) { return CanChange(setting); }))
     {
         FillLists();
         m_changes.clear();
@@ -131,12 +133,12 @@ void GeneralDialog::OnCommand(const std::string & command)
     }
     else if (command == "mode-docked" || command == "mode-handheld")
     {
-        settings.SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(command == "mode-docked" ? DockedMode::Docked : DockedMode::Handheld));
+        settings.SetInt(NXOsSetting::SystemDockedMode, static_cast<int32_t>(command == "mode-docked" ? DockedMode::Docked : DockedMode::Handheld));
         Changed();
     }
     else if (command == "toggle-region")
     {
-        settings.SetInt(NXOsSetting::Region, RegionChosen() ? kRegionOfLanguage : LanguageRegion());
+        settings.SetInt(NXOsSetting::SystemRegion, RegionChosen() ? kRegionOfLanguage : LanguageRegion());
         Changed();
     }
     else if (command == "toggle-interface-language" && !m_settings.IsGame())
@@ -151,7 +153,7 @@ void GeneralDialog::OnCloseRequested()
     if (m_unsaved)
     {
         m_unsaved = false;
-        if (!m_settings.IsGame()) m_session.FlushSettings();
+        m_session.FlushSettings();
     }
     Close();
 }
@@ -190,17 +192,17 @@ void GeneralDialog::FillLists()
                                                  : Tr("More than the console draws: sharper, and more work for the graphics device.");
         choices.push_back({native ? Tr("%1 (native)", {kResolutionScales[scale].label}) : std::string(kResolutionScales[scale].label), std::to_string(scale), hint});
     }
-    Fill(Select(Document(), "resolution"), choices, std::to_string(settings.GetInt(NXVideoSetting::ResolutionSetup)));
+    Fill(Select(Document(), "resolution"), choices, std::to_string(settings.GetInt(NXVideoSetting::SystemResolutionSetup)));
     choices.clear();
     for (const ScalingFilterChoice & filter : kScalingFilters)
     {
         choices.push_back(Numbered(Tr(filter.label), static_cast<int>(filter.value), Tr(filter.hint)));
     }
-    if (FindScalingFilter(settings.GetInt(NXVideoSetting::ScalingFilter)) == nullptr)
+    if (FindScalingFilter(settings.GetInt(NXVideoSetting::SystemScalingFilter)) == nullptr)
     {
-        choices.push_back(Numbered(Tr("Gaussian"), settings.GetInt(NXVideoSetting::ScalingFilter), {}));
+        choices.push_back(Numbered(Tr("Gaussian"), settings.GetInt(NXVideoSetting::SystemScalingFilter), {}));
     }
-    const int chosen_filter = settings.GetInt(NXVideoSetting::ScalingFilter);
+    const int chosen_filter = settings.GetInt(NXVideoSetting::SystemScalingFilter);
     Fill(Select(Document(), "filter"), choices,
          std::to_string(chosen_filter == static_cast<int>(ScalingFilter::FsrEasu)
                             ? static_cast<int>(ScalingFilter::Fsr) : chosen_filter));
@@ -209,8 +211,8 @@ void GeneralDialog::FillLists()
          std::to_string(chosen_filter == static_cast<int>(ScalingFilter::AutoPerformance) ||
                         chosen_filter == static_cast<int>(ScalingFilter::AutoQuality) ? 1
                             : settings.GetInt(NXVideoSetting::DownscalingFilter)));
-    Fill(Select(Document(), "aspect"), Aspects(), std::to_string(settings.GetInt(NXVideoSetting::AspectRatio)));
-    Fill(Select(Document(), "vsync"), VSyncs(), std::to_string(settings.GetInt(NXVideoSetting::VSyncMode)));
+    Fill(Select(Document(), "aspect"), Aspects(), std::to_string(settings.GetInt(NXVideoSetting::SystemAspectRatio)));
+    Fill(Select(Document(), "vsync"), VSyncs(), std::to_string(settings.GetInt(NXVideoSetting::SystemVSyncMode)));
 
     choices.clear();
     if (m_session.IsValid())
@@ -223,7 +225,7 @@ void GeneralDialog::FillLists()
     m_profileCount = choices.size();
     Fill(Select(Document(), "profile"), choices, std::to_string(UserProfiles::Active(m_profileCount)));
 
-    Fill(Select(Document(), "language"), Sorted(Translation::ConsoleLanguages, false), std::to_string(settings.GetInt(NXCoreSetting::LanguageIndex)));
+    Fill(Select(Document(), "language"), Sorted(Translation::ConsoleLanguages, false), std::to_string(settings.GetInt(NXCoreSetting::SystemLanguageIndex)));
     Fill(Select(Document(), "region"), Sorted(kRegions), {});
     choices.clear();
     for (const Translation::LanguageInfo & language : Translation::Languages)
@@ -236,17 +238,17 @@ void GeneralDialog::FillLists()
 void GeneralDialog::ShowValues()
 {
     SettingsContext & settings = m_settings;
-    const bool docked = settings.GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    const bool docked = settings.GetInt(NXOsSetting::SystemDockedMode) == static_cast<int32_t>(DockedMode::Docked);
     SetClass(Document(), "mode-docked", "selected", docked);
     SetClass(Document(), "mode-handheld", "selected", !docked);
     SetText("mode-text", docked ? Tr("Docked: games run at 1080p and expect a TV.") : Tr("Handheld: games run at 720p, as on the console's own screen."));
 
-    const int scale = std::clamp(settings.GetInt(NXVideoSetting::ResolutionSetup), 0, kResolutionScaleCount - 1);
+    const int scale = std::clamp(settings.GetInt(NXVideoSetting::SystemResolutionSetup), 0, kResolutionScaleCount - 1);
     const int height = static_cast<int>(std::lround((docked ? kDockedHeight : kHandheldHeight) * kResolutionScales[scale].factor));
     SetText("resolution-text", Tr("Games are drawn in %1p.", {std::to_string(height)}));
 
     const bool regionChosen = RegionChosen();
-    Choose(Select(Document(), "region"), std::to_string(regionChosen ? settings.GetInt(NXOsSetting::Region) : LanguageRegion()));
+    Choose(Select(Document(), "region"), std::to_string(regionChosen ? settings.GetInt(NXOsSetting::SystemRegion) : LanguageRegion()));
     SetDisabled(Document(), "region", !regionChosen);
     SetClass(Document(), "region-chosen", "on", regionChosen);
     SetText("region-text", regionChosen ? Tr("Chosen here, whatever the language.") : Tr("Follows the console language."));
@@ -258,15 +260,15 @@ void GeneralDialog::ShowValues()
     SetText("interface-language-text", interfaceChosen ? Tr("Chosen here, whatever the language.") : Tr("Follows the console language."));
 
     // Only FSR has a sharpness.
-    const int sharpness = FsrSharpness::ToDisplay(settings.GetInt(NXVideoSetting::FSPSharpness));
-    const bool legacy_easu = settings.GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
+    const int sharpness = FsrSharpness::ToDisplay(settings.GetInt(NXVideoSetting::SystemFSPSharpness));
+    const bool legacy_easu = settings.GetInt(NXVideoSetting::SystemScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
     SetClass(Document(), "sharpness", "absent",
-             settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::Fsr) &&
-             settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::AutoQuality) &&
+             settings.GetInt(NXVideoSetting::SystemScalingFilter) != static_cast<int>(ScalingFilter::Fsr) &&
+             settings.GetInt(NXVideoSetting::SystemScalingFilter) != static_cast<int>(ScalingFilter::AutoQuality) &&
              !legacy_easu);
     SetRange(Document(), "sharpness-range", legacy_easu ? 0 : sharpness);
     SetText("sharpness-text", legacy_easu || sharpness == 0 ? Tr("Off") : std::to_string(sharpness) + "%");
-    const int selected = settings.GetInt(NXVideoSetting::ScalingFilter);
+    const int selected = settings.GetInt(NXVideoSetting::SystemScalingFilter);
     const bool supports_cas = selected == static_cast<int>(ScalingFilter::NearestNeighbor) ||
         selected == static_cast<int>(ScalingFilter::Bilinear) || selected == static_cast<int>(ScalingFilter::CatmullRom) ||
         selected == static_cast<int>(ScalingFilter::CatmullRomFast) ||
@@ -279,7 +281,7 @@ void GeneralDialog::ShowValues()
     SetText("cas-sharpness-text", cas_strength == 0 ? Tr("Off") : std::to_string(cas_strength) + "%");
 
     ShowDevice();
-    m_settings.Decorate(Document());
+    m_settings.Decorate(Document(), [this](const char * setting) { return CanChange(setting); });
     Choose(Select(Document(), "downscale-filter"), std::to_string(ProfileDownscalingFilter(
         static_cast<ScalingFilter>(selected), settings.GetInt(NXVideoSetting::DownscalingFilter))));
     SetDisabled(Document(), "downscale-filter", IsAutomaticScalingFilter(static_cast<ScalingFilter>(selected)));
@@ -308,7 +310,12 @@ void GeneralDialog::ShowDevice()
 
 void GeneralDialog::ShowRunning()
 {
-    const bool running = m_session.IsRunning() && !m_settings.IsGame();
+    const bool running = m_session.IsRunning();
+    if (running != m_running)
+    {
+        m_running = running;
+        m_settings.Decorate(Document(), [this](const char * setting) { return CanChange(setting); });
+    }
     Document()->SetClass("game-running", running);
     SetDisabled(Document(), "device", running || m_devices.empty());
     SetDisabled(Document(), "resolution", running);
@@ -368,11 +375,11 @@ void GeneralDialog::ApplyChange(const std::string & id)
     }
     if (id == "device" || id == "resolution")
     {
-        if ((m_session.IsRunning() && !m_settings.IsGame()) || (id == "device" && m_devices.empty()))
+        if (m_session.IsRunning() || (id == "device" && m_devices.empty()))
         {
             return;
         }
-        setting = id == "device" ? NXVideoSetting::VulkanDevice : NXVideoSetting::ResolutionSetup;
+        setting = id == "device" ? NXVideoSetting::VulkanDevice : NXVideoSetting::SystemResolutionSetup;
     }
     else if (id == "downscale-filter")
     {
@@ -380,14 +387,14 @@ void GeneralDialog::ApplyChange(const std::string & id)
     }
     else if (id == "filter")
     {
-        setting = NXVideoSetting::ScalingFilter;
+        setting = NXVideoSetting::SystemScalingFilter;
     }
     else if (id == "sharpness-range")
     {
-        setting = NXVideoSetting::FSPSharpness;
+        setting = NXVideoSetting::SystemFSPSharpness;
     }
     else if (id == "cas-sharpness-range") {
-        const int filter = settings.GetInt(NXVideoSetting::ScalingFilter);
+        const int filter = settings.GetInt(NXVideoSetting::SystemScalingFilter);
         if (filter != static_cast<int>(ScalingFilter::NearestNeighbor) &&
             filter != static_cast<int>(ScalingFilter::Bilinear) &&
             filter != static_cast<int>(ScalingFilter::CatmullRom) && filter != static_cast<int>(ScalingFilter::CatmullRomFast)) return;
@@ -396,15 +403,15 @@ void GeneralDialog::ApplyChange(const std::string & id)
     }
     else if (id == "aspect")
     {
-        setting = NXVideoSetting::AspectRatio;
+        setting = NXVideoSetting::SystemAspectRatio;
     }
     else if (id == "vsync")
     {
-        setting = NXVideoSetting::VSyncMode;
+        setting = NXVideoSetting::SystemVSyncMode;
     }
     else if (id == "language")
     {
-        setting = NXCoreSetting::LanguageIndex;
+        setting = NXCoreSetting::SystemLanguageIndex;
     }
     else if (id == "region")
     {
@@ -412,51 +419,56 @@ void GeneralDialog::ApplyChange(const std::string & id)
         {
             return;
         }
-        setting = NXOsSetting::Region;
+        setting = NXOsSetting::SystemRegion;
     }
     bool migrate_easu_slider = false;
-    if (setting == NXVideoSetting::FSPSharpness) {
+    if (setting == NXVideoSetting::SystemFSPSharpness) {
         // Ignore events caused by displaying a rounded, existing value.
-        const bool easu = settings.GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
+        const bool easu = settings.GetInt(NXVideoSetting::SystemScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
         if (value == (easu ? 0 : FsrSharpness::ToDisplay(settings.GetInt(setting)))) return;
         if (easu) {
-            settings.SetInt(NXVideoSetting::ScalingFilter, static_cast<int>(ScalingFilter::Fsr));
+            settings.SetInt(NXVideoSetting::SystemScalingFilter, static_cast<int>(ScalingFilter::Fsr));
             migrate_easu_slider = true;
         }
         value = FsrSharpness::ToStored(value);
     }
     if (setting != nullptr && std::string_view{setting} == NXVideoSetting::DownscalingFilter &&
-        IsAutomaticScalingFilter(static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter))) && value == 1)
+        IsAutomaticScalingFilter(static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::SystemScalingFilter))) && value == 1)
         return; // A programmatic update of the Area selection, not a manual override.
     if (setting != nullptr && (migrate_easu_slider || settings.GetInt(setting) != value))
     {
         if (std::string_view{setting} == NXVideoSetting::DownscalingFilter && value == 0)
         {
-            const auto profile = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+            const auto profile = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::SystemScalingFilter));
             if (IsAutomaticScalingFilter(profile))
                 ActivateCustomPresentation(settings);
         }
-        const bool migrate_easu_filter = setting == NXVideoSetting::ScalingFilter &&
+        const bool migrate_easu_filter = setting == NXVideoSetting::SystemScalingFilter &&
             value == static_cast<int>(ScalingFilter::Fsr) &&
             settings.GetInt(setting) == static_cast<int>(ScalingFilter::FsrEasu);
-        if (std::string_view{setting} == NXVideoSetting::ScalingFilter)
+        if (std::string_view{setting} == NXVideoSetting::SystemScalingFilter)
             SelectPresentationFilter(settings, static_cast<ScalingFilter>(value));
         else
             settings.SetInt(setting, value);
-        if (migrate_easu_filter) settings.SetInt(NXVideoSetting::FSPSharpness, FsrSharpness::StoredMaximum);
+        if (migrate_easu_filter) settings.SetInt(NXVideoSetting::SystemFSPSharpness, FsrSharpness::StoredMaximum);
         Changed();
     }
 }
 
+bool GeneralDialog::CanChange(const char * setting) const
+{
+    return !m_session.IsRunning() || std::string_view(setting) != NXVideoSetting::SystemResolutionSetup;
+}
+
 bool GeneralDialog::RegionChosen() const
 {
-    const int region = m_settings.GetInt(NXOsSetting::Region);
+    const int region = m_settings.GetInt(NXOsSetting::SystemRegion);
     return region >= 0 && region < static_cast<int>(std::size(kRegions));
 }
 
 int GeneralDialog::LanguageRegion() const
 {
-    const int language = std::clamp(m_settings.GetInt(NXCoreSetting::LanguageIndex), 0, static_cast<int>(std::size(Translation::ConsoleLanguages)) - 1);
+    const int language = std::clamp(m_settings.GetInt(NXCoreSetting::SystemLanguageIndex), 0, static_cast<int>(std::size(Translation::ConsoleLanguages)) - 1);
     return static_cast<int>(RegionOfLanguage(static_cast<Language>(language)));
 }
 

@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "identifiers.h"
 #include <common/file.h>
 #include <common/json.h>
 #include <common/path.h>
@@ -7,6 +8,7 @@ std::unique_ptr<SettingsStore> SettingsStore::s_instance;
 
 SettingsStore::SettingsStore()
 {
+    RegisterCallback(NXCoreSetting::GameTitleId, GameTitleIdChanged, this);
 }
 
 bool SettingsStore::Initialize(const char * configPath, const char * baseDirectory)
@@ -101,6 +103,107 @@ void SettingsStore::SetSettings(const char * section, JsonValue & json)
     {
         m_details[section] = json;
     }
+}
+
+JsonValue SettingsStore::GetGameSettings(const char * section) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const JsonValue * value = m_gameDetails.Find(section);
+    if (value != nullptr)
+    {
+        return *value;
+    }
+    return JsonValue();
+}
+
+void SettingsStore::SetGameSettings(const char * section, JsonValue & json)
+{
+    std::string gameFile;
+    std::string jsonStr;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_gameFile.empty() || !m_gameReadable)
+        {
+            return;
+        }
+        if (json.empty())
+        {
+            m_gameDetails.removeMember(section);
+        }
+        else
+        {
+            m_gameDetails[section] = json;
+        }
+        gameFile = m_gameFile;
+        if (!m_gameDetails.empty())
+        {
+            jsonStr = JsonStyledWriter().write(m_gameDetails);
+        }
+    }
+    Path gamePath(gameFile);
+    if (jsonStr.empty())
+    {
+        if (gamePath.FileExists())
+        {
+            gamePath.FileDelete();
+        }
+        return;
+    }
+    gamePath.DirectoryCreate();
+    File file;
+    if (file.Open(gameFile.c_str(), IFile::modeWrite | IFile::modeCreate))
+    {
+        file.Write(jsonStr.c_str(), (uint32_t)jsonStr.length());
+    }
+}
+
+void SettingsStore::LoadGameSettings(void)
+{
+    const std::string titleId = GetString(NXCoreSetting::GameTitleId);
+    std::string gameFile;
+    JsonValue details;
+    bool readable = true;
+    if (!titleId.empty())
+    {
+        Path gamePath(GetConfigFile());
+        gamePath.AppendDirectory("GameSettings");
+        gamePath.SetNameExtension((titleId + ".json").c_str());
+        gameFile = (const char *)gamePath;
+
+        File file;
+        if (gamePath.FileExists())
+        {
+            readable = false;
+            if (file.Open(gameFile.c_str(), IFile::modeRead))
+            {
+                uint32_t fileLen = (uint32_t)file.GetLength();
+                std::unique_ptr<char[]> data = std::make_unique<char[]>(fileLen + 1);
+                JsonReader reader;
+                if (fileLen == 0)
+                {
+                    readable = true;
+                }
+                else if (file.Read(data.get(), fileLen) == fileLen && reader.Parse(data.get(), data.get() + fileLen, details) && details.isObject())
+                {
+                    readable = true;
+                }
+                else
+                {
+                    details = JsonValue();
+                }
+            }
+        }
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_gameFile = gameFile;
+    m_gameDetails = std::move(details);
+    m_gameReadable = readable;
+}
+
+void SettingsStore::GameTitleIdChanged(const char * /*setting*/, void * userData)
+{
+    static_cast<SettingsStore *>(userData)->LoadGameSettings();
 }
 
 const char * SettingsStore::GetDefaultString(const char * setting) const

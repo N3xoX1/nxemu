@@ -3,6 +3,7 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Input.h>
+#include <RmlUi/Core/StringUtilities.h>
 #include <cmath>
 #include <nxemu-core/settings/core_settings.h>
 #include <nxemu/ui/host/ui_dialog_window.h>
@@ -128,6 +129,22 @@ void Dialog::Update()
 void Dialog::RefreshTranslation()
 {
     if (m_document != nullptr) Translation::RefreshDocument(*m_document);
+}
+
+void Dialog::SetTitle(const std::string & title)
+{
+    if (m_document == nullptr)
+    {
+        return;
+    }
+    if (Rml::Element * element = m_document->QuerySelector(".dialog-title"))
+    {
+        element->SetInnerRML(Rml::StringUtilities::EncodeRml(title));
+    }
+    if (m_inDialogWindow)
+    {
+        m_dialogWindow->SetTitle(title);
+    }
 }
 
 float Dialog::WindowWidth() const

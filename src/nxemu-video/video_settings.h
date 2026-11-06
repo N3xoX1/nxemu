@@ -56,21 +56,30 @@ struct VideoSettings
     int32_t vulkan_device;
 
     bool use_disk_shader_cache;
+    bool global_use_disk_shader_cache;
     // Records which pipelines a game uses, so they can be exported as a .nxshader profile.
     bool record_shader_recipes;
     bool use_asynchronous_gpu_emulation;
+    bool global_use_asynchronous_gpu_emulation;
     VSyncMode vsync_mode;
+    VSyncMode global_vsync_mode;
     NvdecEmulation nvdec_emulation;
+    NvdecEmulation global_nvdec_emulation;
     FullscreenMode fullscreen_mode;
     AspectRatio aspect_ratio;
+    AspectRatio global_aspect_ratio;
 
     Settings::ResolutionScalingInfo resolution_info;
     ResolutionSetup resolution_setup;
+    ResolutionSetup global_resolution_setup;
     ScalingFilter scaling_filter;
+    ScalingFilter global_scaling_filter;
     int32_t custom_scaling_filter; // Last manual upscaler, retained while a preset is active.
     int32_t downscaling_filter; // 0: Bilinear, 1: Area; independent of the upscaler.
     AntiAliasing anti_aliasing;
+    AntiAliasing global_anti_aliasing;
     int32_t fsr_sharpening_slider;
+    int32_t global_fsr_sharpening_slider;
     int32_t cas_sharpening_slider;
     bool fsr_legacy_benchmark;
 
@@ -80,26 +89,41 @@ struct VideoSettings
 
     GpuAccuracy current_gpu_accuracy;
     AstcRecompression astc_recompression;
+    AstcRecompression global_astc_recompression;
     VramUsageMode vram_usage_mode;
+    VramUsageMode global_vram_usage_mode;
     bool renderer_force_max_clock;
+    bool global_renderer_force_max_clock;
     AstcDecodeMode accelerate_astc;
+    AstcDecodeMode global_accelerate_astc;
     GpuAccuracy gpu_accuracy;
+    GpuAccuracy global_gpu_accuracy;
     int32_t dma_accuracy;
+    int32_t global_dma_accuracy;
     AnisotropyMode max_anisotropy;
+    AnisotropyMode global_max_anisotropy;
     bool async_presentation;
+    bool global_async_presentation;
     bool use_reactive_flushing;
+    bool global_use_reactive_flushing;
     bool gpu_command_synchronization;
+    bool global_gpu_command_synchronization;
     bool fast_gpu_readback;
 
     bool use_asynchronous_shaders;
+    bool global_use_asynchronous_shaders;
     int32_t nxshader_warmup_mode;
     int32_t nxshader_initial_minimum;
     int32_t nxshader_initial_seconds;
     bool use_fast_gpu_time;
+    bool global_use_fast_gpu_time;
     bool use_vulkan_driver_pipeline_cache;
+    bool global_use_vulkan_driver_pipeline_cache;
     bool enable_compute_pipelines;
     bool use_video_framerate;
+    bool global_use_video_framerate;
     bool barrier_feedback_loops;
+    bool global_barrier_feedback_loops;
 
     bool renderer_debug;
     bool renderer_shader_feedback;

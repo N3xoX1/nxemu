@@ -52,6 +52,7 @@ public:
     bool IsRunning() const;
     bool IsLaunching() const;
     bool ReleasePending() const { return m_releasePending; }
+    bool OwnsGameTitle() const { return m_ownsGameTitle; }
     bool IsPaused();
     Phase CurrentPhase() const;
 
@@ -127,6 +128,7 @@ private:
     uint32_t m_viewportWidth = 0;
     uint32_t m_viewportHeight = 0;
     bool m_releasePending = false;
+    bool m_ownsGameTitle = false;
 #ifdef __APPLE__
     uint64_t m_idleTrimAt = 0;
 #endif

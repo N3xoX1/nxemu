@@ -13,7 +13,7 @@ std::string InterfaceLanguage::Choice()
 
 std::string InterfaceLanguage::Code()
 {
-    return Translation::ResolveLanguage(SettingsStore::GetInstance().GetInt(NXCoreSetting::LanguageIndex), Choice());
+    return Translation::ResolveLanguage(SettingsStore::GetInstance().GetInt(NXCoreSetting::SystemLanguageIndex), Choice());
 }
 
 void InterfaceLanguage::SetChoice(const std::string & code)
@@ -36,9 +36,9 @@ void InterfaceLanguage::AdoptSystemLanguage()
     }
     SettingsStore & settings = SettingsStore::GetInstance();
     Language language{};
-    if (settings.GetInt(NXCoreSetting::LanguageIndex) == settings.GetDefaultInt(NXCoreSetting::LanguageIndex) && SystemConsoleLanguage(language))
+    if (settings.GetInt(NXCoreSetting::SystemLanguageIndex) == settings.GetDefaultInt(NXCoreSetting::SystemLanguageIndex) && SystemConsoleLanguage(language))
     {
-        settings.SetInt(NXCoreSetting::LanguageIndex, static_cast<int32_t>(language));
+        settings.SetInt(NXCoreSetting::SystemLanguageIndex, static_cast<int32_t>(language));
         SaveCoreSetting();
     }
     uiSettings.consoleLanguageSet = true;

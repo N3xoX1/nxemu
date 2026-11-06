@@ -1,5 +1,6 @@
 #include "emulator_session.h"
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
@@ -212,11 +213,20 @@ bool EmulatorSession::LoadProgram(const std::string & path, int32_t programIndex
         }
     }
     ReleaseModules();
+    if (programId != 0)
+    {
+        char titleId[17];
+        std::snprintf(titleId, sizeof(titleId), "%016llX", (unsigned long long)programId);
+        SettingsStore::GetInstance().SetString(NXCoreSetting::GameTitleId, titleId);
+    }
+    m_ownsGameTitle = true;
     m_pendingLaunch = PendingLaunch{path, programId, programIndex, previousProgramIndex, launchType, userChannel, started};
     m_launchCancelled = false;
     m_notification.BindWindow(m_window);
     if (!m_modules.StartLaunch(m_renderWindow, PrepareLaunch, this))
     {
+        SettingsStore::GetInstance().SetString(NXCoreSetting::GameTitleId, "");
+        m_ownsGameTitle = false;
         ReportError(Tr("Required modules failed to load."));
         return false;
     }
@@ -317,6 +327,8 @@ void EmulatorSession::ReleaseModules()
     m_notification.Close();
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     m_modules.ShutDown();
+    SettingsStore::GetInstance().SetString(NXCoreSetting::GameTitleId, "");
+    m_ownsGameTitle = false;
     m_callbackContext.reset();
     ++m_moduleGeneration;
     {

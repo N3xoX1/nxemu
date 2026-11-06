@@ -25,10 +25,10 @@
 
 enum
 {
-    MODULE_LOADER_SPECS_VERSION = 0x0139,
-    MODULE_VIDEO_SPECS_VERSION = 0x012B,
-    MODULE_CPU_SPECS_VERSION = 0x0120,
-    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x012A,
+    MODULE_LOADER_SPECS_VERSION = 0x013A,
+    MODULE_VIDEO_SPECS_VERSION = 0x012C,
+    MODULE_CPU_SPECS_VERSION = 0x0121,
+    MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x012B,
 };
 
 enum MODULE_TYPE : uint16_t
@@ -94,6 +94,9 @@ nxinterface IModuleSettings
 
     virtual void SetDebugSetting(const char * setting, bool debug) = 0;
     virtual bool DebugSettingsEnabled(void) const = 0;
+
+    virtual const char * GetGameSectionSettings(const char * section) const = 0;
+    virtual void SetGameSectionSettings(const char * section, const char * json) = 0;
 };
 
 /// Specifies the severity or level of detail of the log message.

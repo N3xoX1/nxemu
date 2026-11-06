@@ -126,6 +126,10 @@
                 </div>
               </div>
               <div class="details-buttons">
+                <div id="details-configure" class="select locked" title="Reading game information">
+                  <img class="select-icon" src="images/gear.png" />
+                  <div>Configure</div>
+                </div>
                 <div id="details-play" class="select primary">
                   <img class="select-icon" src="images/play.png" />
                   <div>Play</div>

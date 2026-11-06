@@ -28,6 +28,7 @@ public:
     // Present/Dismiss are counted; Update hides the window once none remain.
     // A height of 0 waits for FitHeight before showing.
     void Present(const std::string & title, int width, int height);
+    void SetTitle(const std::string & title);
     void FitHeight(int height);
     void Dismiss();
     bool TakeCloseRequest();

@@ -137,6 +137,11 @@ void UiDialogWindow::Present(const std::string & title, int width, int height)
     m_fitWidth = width;
 }
 
+void UiDialogWindow::SetTitle(const std::string & title)
+{
+    SDL_SetWindowTitle(m_window, title.c_str());
+}
+
 void UiDialogWindow::FitHeight(int height)
 {
     if (!m_fitting)

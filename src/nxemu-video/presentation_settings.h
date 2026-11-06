@@ -14,7 +14,7 @@ inline constexpr ScalingFilter ValidCustomScalingFilter(ScalingFilter filter) {
 }
 template <typename Settings>
 ScalingFilter CustomScalingFilter(const Settings& settings) {
-    const auto active = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+    const auto active = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::SystemScalingFilter));
     return ValidCustomScalingFilter(IsAutomaticScalingFilter(active)
         ? static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::CustomScalingFilter)) : active);
 }
@@ -22,12 +22,12 @@ ScalingFilter CustomScalingFilter(const Settings& settings) {
 template <typename Settings>
 void SelectPresentationFilter(Settings& settings, ScalingFilter next) {
     if (!IsAutomaticScalingFilter(next) && !IsManualScalingFilter(next)) return;
-    const auto active = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+    const auto active = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::SystemScalingFilter));
     if (IsManualScalingFilter(next))
         settings.SetInt(NXVideoSetting::CustomScalingFilter, static_cast<int>(next));
     else if (IsManualScalingFilter(active))
         settings.SetInt(NXVideoSetting::CustomScalingFilter, static_cast<int>(active));
-    settings.SetInt(NXVideoSetting::ScalingFilter, static_cast<int>(next));
+    settings.SetInt(NXVideoSetting::SystemScalingFilter, static_cast<int>(next));
 }
 template <typename Settings>
 void ActivateCustomPresentation(Settings& settings) {

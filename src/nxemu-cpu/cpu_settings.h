@@ -6,6 +6,8 @@ struct CpuSettings
 {
     CpuBackend cpu_backend;
     CpuAccuracy cpu_accuracy;
+    CpuBackend global_cpu_backend;
+    CpuAccuracy global_cpu_accuracy;
     bool cpu_debug_mode;
 
     bool cpuopt_page_tables;

@@ -138,12 +138,12 @@ int GameIconSize()
 
 bool IsDocked()
 {
-    return SettingsStore::GetInstance().GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    return RunningGameSettings().GetInt(NXOsSetting::GameDockedMode) == static_cast<int32_t>(DockedMode::Docked);
 }
 
 int ResolutionScale()
 {
-    const int scale = SettingsStore::GetInstance().GetInt(NXVideoSetting::ResolutionSetup);
+    const int scale = RunningGameSettings().GetInt(NXVideoSetting::GameResolutionSetup);
     return scale >= 0 && scale < kResolutionScaleCount ? scale : static_cast<int>(ResolutionSetup::Res1X);
 }
 
@@ -241,6 +241,7 @@ MainWindow::MainWindow(UiWindow & window, EmulatorSession & session, GameLibrary
     m_session(session),
     m_library(library),
     m_assetDir(std::move(assetDir)),
+    m_settingsContext(session),
     m_playTime(Common::FS::GetYuzuPath(Common::FS::YuzuPath::PlayTimeDir) / "play_time.json"),
     m_hotkeyRevision(Hotkeys::Revision())
 {
@@ -454,6 +455,10 @@ void MainWindow::Update()
     m_controllerDialog->Update();
     m_generalDialog->Update();
     m_advancedDialog->Update();
+    if (m_settingsContext.IsGame() && !m_generalDialog->IsVisible() && !m_advancedDialog->IsVisible())
+    {
+        m_settingsContext.Global();
+    }
     m_directoriesDialog->Update();
     m_profilesDialog->Update();
     SyncInterfaceLanguage();
@@ -696,7 +701,7 @@ void MainWindow::RunPendingWork()
 
 void MainWindow::Run(Action action)
 {
-    SettingsStore & settings = SettingsStore::GetInstance();
+    RunningGameSettings settings;
     switch (action)
     {
     case Action::SelectCustomPresentation:
@@ -713,9 +718,9 @@ void MainWindow::Run(Action action)
         break;
     case Action::FsrBenchmarkLegacy:
     case Action::FsrBenchmarkOptimized:
-        if (settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::Fsr) &&
-            settings.GetInt(NXVideoSetting::ScalingFilter) != static_cast<int>(ScalingFilter::FsrEasu))
-            settings.SetInt(NXVideoSetting::ScalingFilter, static_cast<int>(ScalingFilter::Fsr));
+        if (settings.GetInt(NXVideoSetting::GameScalingFilter) != static_cast<int>(ScalingFilter::Fsr) &&
+            settings.GetInt(NXVideoSetting::GameScalingFilter) != static_cast<int>(ScalingFilter::FsrEasu))
+            settings.SetInt(NXVideoSetting::GameScalingFilter, static_cast<int>(ScalingFilter::Fsr));
         settings.SetBool(NXVideoSetting::FsrLegacyBenchmark, action == Action::FsrBenchmarkLegacy);
         m_session.FlushSettings();
         UpdateStatusWidgets();
@@ -815,6 +820,7 @@ void MainWindow::Run(Action action)
         OpenDirectory(Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.parent_path()));
         break;
     case Action::CopyMenuGamePath: SDL_SetClipboardText(m_menuGame.c_str()); break;
+    case Action::ConfigureMenuGame:
     case Action::OpenMenuGameSaves:
     case Action::OpenMenuGameCache:
     case Action::ClearMenuGameCache:
@@ -825,7 +831,14 @@ void MainWindow::Run(Action action)
             break;
         }
         const std::filesystem::path cacheRoot = Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir);
-        if (action == Action::OpenMenuGameSaves)
+        if (action == Action::ConfigureMenuGame)
+        {
+            if (m_settingsContext.Game(game->programId, game->title))
+            {
+                ShowSettingsPage(SettingsPage::General);
+            }
+        }
+        else if (action == Action::OpenMenuGameSaves)
         {
             const std::string directory = GameDetailsReader::SaveDirectory(game->programId);
             if (!directory.empty())
@@ -946,6 +959,12 @@ void MainWindow::Run(Action action)
         m_settingsContext.Global();
         ShowSettingsPage(SettingsPage::General);
         break;
+    case Action::ConfigureSelectedGame:
+        if (const GameEntry * game = SelectedGame(); game != nullptr && m_settingsContext.Game(game->programId, game->title))
+        {
+            ShowSettingsPage(SettingsPage::General);
+        }
+        break;
     case Action::OpenProfiles: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Profiles); break;
     case Action::OpenGameDirectories: m_settingsContext.Global(); ShowSettingsPage(SettingsPage::Directories); break;
     case Action::ConfigureControllers:
@@ -966,7 +985,7 @@ void MainWindow::Run(Action action)
         {
             if (!m_session.IsRunning())
             {
-                SettingsStore::GetInstance().SetInt(NXVideoSetting::ResolutionSetup, scale);
+                settings.SetInt(NXVideoSetting::GameResolutionSetup, scale);
                 m_session.FlushSettings();
                 UpdateStatusWidgets();
             }
@@ -987,7 +1006,7 @@ void MainWindow::Run(Action action)
         if (aa >= 0 && aa < static_cast<int>(AntiAliasing::MaxEnum))
         {
             ActivateCustomPresentation(settings);
-            SettingsStore::GetInstance().SetInt(NXVideoSetting::AntiAliasing, aa);
+            settings.SetInt(NXVideoSetting::GameAntiAliasing, aa);
             m_session.FlushSettings();
             UpdateStatusWidgets();
             break;
@@ -996,9 +1015,9 @@ void MainWindow::Run(Action action)
         if (filter >= 0 && static_cast<int>(action) < static_cast<int>(Action::AddOnFirst) && (IsManualScalingFilter(static_cast<ScalingFilter>(filter)) || IsAutomaticScalingFilter(static_cast<ScalingFilter>(filter))))
         {
             const bool migrate_easu = filter == static_cast<int>(ScalingFilter::Fsr) &&
-                settings.GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
+                settings.GetInt(NXVideoSetting::GameScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu);
             SelectPresentationFilter(settings, static_cast<ScalingFilter>(filter));
-            if (migrate_easu) settings.SetInt(NXVideoSetting::FSPSharpness, FsrSharpness::StoredMaximum);
+            if (migrate_easu) settings.SetInt(NXVideoSetting::GameFSPSharpness, FsrSharpness::StoredMaximum);
             m_session.FlushSettings();
             UpdateStatusWidgets();
             break;
@@ -1046,7 +1065,7 @@ void MainWindow::BindEvents()
         UiEvents::Listen(m_document->GetElementById(id), "click", [this, action](Rml::Event &) { Post(action); });
     };
     onClick("games-details-toggle", Action::ToggleGameDetails);
-    for (const auto & [id, action] : {std::pair{"details-play", Action::PlaySelectedGame}, std::pair{"details-save", Action::OpenSelectedSaveDirectory},
+    for (const auto & [id, action] : {std::pair{"details-configure", Action::ConfigureSelectedGame}, std::pair{"details-play", Action::PlaySelectedGame}, std::pair{"details-save", Action::OpenSelectedSaveDirectory},
                                       std::pair{"details-cache", Action::OpenSelectedCacheDirectory}, std::pair{"details-mods", Action::OpenSelectedModDirectory}})
     {
         Rml::Element * button = m_document->GetElementById(id);
@@ -1766,15 +1785,15 @@ void MainWindow::FitWindowToCards()
 
 void MainWindow::SetMenuRange(int id, int value)
 {
+    RunningGameSettings settings;
     if (id == kCasSharpnessRange) {
-        const auto& settings = SettingsStore::GetInstance();
-        const int filter = settings.GetInt(NXVideoSetting::ScalingFilter);
+        const int filter = settings.GetInt(NXVideoSetting::GameScalingFilter);
         if (filter != static_cast<int>(ScalingFilter::AutoPerformance) &&
             filter != static_cast<int>(ScalingFilter::NearestNeighbor) &&
             filter != static_cast<int>(ScalingFilter::Bilinear) &&
             filter != static_cast<int>(ScalingFilter::CatmullRom) && filter != static_cast<int>(ScalingFilter::CatmullRomFast)) return;
         if (value == settings.GetInt(NXVideoSetting::CASSharpness)) return;
-        SettingsStore::GetInstance().SetInt(NXVideoSetting::CASSharpness, std::clamp(value, 0, 100));
+        settings.SetInt(NXVideoSetting::CASSharpness, std::clamp(value, 0, 100));
         m_session.FlushSettings();
         UpdateStatusWidgets();
         return;
@@ -1792,11 +1811,11 @@ void MainWindow::SetMenuRange(int id, int value)
     {
         m_performance->SetLength(value);
     }
-    if (id == kFilterSharpnessRange && value != (SettingsStore::GetInstance().GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu) ? 0 : FsrSharpness::ToDisplay(SettingsStore::GetInstance().GetInt(NXVideoSetting::FSPSharpness))))
+    if (id == kFilterSharpnessRange && value != (settings.GetInt(NXVideoSetting::GameScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu) ? 0 : FsrSharpness::ToDisplay(settings.GetInt(NXVideoSetting::GameFSPSharpness))))
     {
-        if (SettingsStore::GetInstance().GetInt(NXVideoSetting::ScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu))
-            SettingsStore::GetInstance().SetInt(NXVideoSetting::ScalingFilter, static_cast<int>(ScalingFilter::Fsr));
-        SettingsStore::GetInstance().SetInt(NXVideoSetting::FSPSharpness, FsrSharpness::ToStored(value));
+        if (settings.GetInt(NXVideoSetting::GameScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu))
+            settings.SetInt(NXVideoSetting::GameScalingFilter, static_cast<int>(ScalingFilter::Fsr));
+        settings.SetInt(NXVideoSetting::GameFSPSharpness, FsrSharpness::ToStored(value));
         m_session.FlushSettings();
         UpdateStatusWidgets();
     }
@@ -1804,7 +1823,7 @@ void MainWindow::SetMenuRange(int id, int value)
 
 void MainWindow::SetDockedMode(bool docked)
 {
-    SettingsStore::GetInstance().SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(docked ? DockedMode::Docked : DockedMode::Handheld));
+    RunningGameSettings().SetInt(NXOsSetting::GameDockedMode, static_cast<int32_t>(docked ? DockedMode::Docked : DockedMode::Handheld));
     m_session.FlushSettings();
     UpdateStatusWidgets();
 }
@@ -1817,7 +1836,7 @@ void MainWindow::RefreshProfiles()
 
 void MainWindow::UpdateStatusWidgets()
 {
-    SettingsStore & settings = SettingsStore::GetInstance();
+    const RunningGameSettings settings;
     const bool docked = IsDocked();
     const auto & scale = kResolutionScales[ResolutionScale()];
     SetText("docked-text", docked ? Tr("Docked") : Tr("Handheld"));
@@ -1829,7 +1848,7 @@ void MainWindow::UpdateStatusWidgets()
             icon->SetAttribute("src", image);
         }
     }
-    const auto selected = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+    const auto selected = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::GameScalingFilter));
     SetText("scaling-filter-text", selected == ScalingFilter::AutoPerformance ? Tr("Performance") :
         selected == ScalingFilter::AutoQuality ? Tr("Balanced") : Tr("Custom"));
     m_presentationState = m_session.IsValid() && m_session.IsRunning()
@@ -1899,6 +1918,7 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
     const bool cacheExists = id != 0 && std::filesystem::is_directory(GameCache::Directory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir), id), error);
     const std::vector<MenuItem> items = {
         MenuItem::Action(static_cast<int>(Action::StartMenuGame), Tr("Start Game"),{},!m_shaderProfileDialog->Busy()),
+        MenuItem::Action(static_cast<int>(Action::ConfigureMenuGame), Tr("Game settings"), {}, m_settingsContext.CanConfigure(id)),
         MenuItem::Submenu(Tr("Shader profile"),{
             MenuItem::Action(static_cast<int>(Action::OpenShaderProfileDirectory),Tr("Open NXShader folder")),
             MenuItem::Action(static_cast<int>(Action::ExportMenuGameShaders),Tr("Export shader profile"),{},cacheExists && !m_session.IsRunning() && !m_shaderProfileDialog->Busy()),
@@ -1953,8 +1973,8 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
     }
     else if (origin->GetId() == "scaling-filter")
     {
-        const SettingsStore& store = SettingsStore::GetInstance();
-        const auto active = static_cast<ScalingFilter>(store.GetInt(NXVideoSetting::ScalingFilter));
+        const RunningGameSettings store;
+        const auto active = static_cast<ScalingFilter>(store.GetInt(NXVideoSetting::GameScalingFilter));
         const auto custom_filter = CustomScalingFilter(store);
         const auto displayed = custom_filter == ScalingFilter::FsrEasu ? ScalingFilter::Fsr : custom_filter;
         const auto choose = [](int id, std::string label, bool checked, std::string hint = {}) {
@@ -1975,7 +1995,7 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
                 Tr("Makes details stand out. Set to 0% to turn it off.")}));
         } else if (active == ScalingFilter::AutoQuality) {
             items.push_back(MenuItem::Slider(Tr("Contrast (RCAS)"), MenuItem::Range{kFilterSharpnessRange, kSharpnessMax,
-                FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::FSPSharpness)), true,
+                FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::GameFSPSharpness)), true,
                 Tr("Makes the picture sharper when using FSR. Set to 0% to turn it off.")}));
         }
         std::vector<MenuItem> upscaling;
@@ -1985,7 +2005,7 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
                 Tr(filter.label), displayed == filter.value, Tr(filter.hint));
             if (filter.value == ScalingFilter::Fsr) {
                 item.range = MenuItem::Range{kFilterSharpnessRange, kSharpnessMax,
-                    custom_filter == ScalingFilter::FsrEasu ? 0 : FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::FSPSharpness)),
+                    custom_filter == ScalingFilter::FsrEasu ? 0 : FsrSharpness::ToDisplay(store.GetInt(NXVideoSetting::GameFSPSharpness)),
                     !IsAutomaticScalingFilter(active) && displayed == ScalingFilter::Fsr, Tr("Contrast (RCAS)") + " · " +
                         Tr("Makes the picture sharper when using FSR. Set to 0% to turn it off.")};
             }
@@ -1999,7 +2019,7 @@ void MainWindow::ShowSelectMenu(Rml::Element * origin)
             choose(static_cast<int>(Action::DownscaleArea), Tr("Area"), store.GetInt(NXVideoSetting::DownscalingFilter) == 1,
                 Tr("Smooths jagged edges when making a large picture smaller.")),
         };
-        const int aa = store.GetInt(NXVideoSetting::AntiAliasing);
+        const int aa = store.GetInt(NXVideoSetting::GameAntiAliasing);
         std::vector<MenuItem> antialiasing;
         std::string selected_aa;
         const auto add_aa = [&](AntiAliasing value, std::string label) {
@@ -2129,7 +2149,8 @@ void MainWindow::RenderDetails()
                                  {Tr("Play time"), PlayTime::Duration(played.seconds)},
                                  {Tr("Title ID"), game->programId != 0 ? std::string(stdstr_f("%016llX", static_cast<unsigned long long>(game->programId))) : std::string()},
                              });
-    m_detailsPanel->ShowDetails(m_details.path == m_selectedPath && m_details.programId != 0 ? &m_details : nullptr, m_session.IsRunning());
+    m_detailsPanel->ShowDetails(m_details.path == m_selectedPath && m_details.programId != 0 ? &m_details : nullptr, m_session.IsRunning(),
+                                m_settingsContext.CanConfigure(m_details.programId));
 }
 
 void MainWindow::ToggleAddOn(size_t index)
@@ -2298,6 +2319,7 @@ void MainWindow::SyncPhase()
     {
         m_phase = phase;
         m_menuDirty = true;
+        m_detailsDirty = true;
         m_lastMeasure = 0;
         m_lastStatusUpdate = 0;
         UpdateDiscord();

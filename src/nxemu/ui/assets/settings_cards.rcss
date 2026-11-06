@@ -83,6 +83,7 @@
 
 .row.setting-overridden .row-label { color: var(--warning); font-weight: bold; }
 .row.setting-overridden .row-text { color: var(--text-muted); }
+.per-game .row.game-locked { opacity: 0.45; pointer-events: none; }
 
 .row-text
 {

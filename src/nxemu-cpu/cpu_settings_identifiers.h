@@ -2,8 +2,10 @@
 
 namespace NXCpuSetting
 {
-    constexpr const char * CpuBackend = "nxcpu:CpuBackend";
-    constexpr const char * CpuAccuracy = "nxcpu:CpuAccuracy";
+    constexpr const char * SystemCpuBackend = "nxcpu:SystemCpuBackend";
+    constexpr const char * SystemCpuAccuracy = "nxcpu:SystemCpuAccuracy";
+    constexpr const char * GameCpuBackend = "nxcpu:GameCpuBackend";
+    constexpr const char * GameCpuAccuracy = "nxcpu:GameCpuAccuracy";
     constexpr const char * CpuDebugMode = "nxcpu:CpuDebugMode";
     constexpr const char * CpuoptPageTables = "nxcpu:CpuoptPageTables";
     constexpr const char * CpuoptBlockLinking = "nxcpu:CpuoptBlockLinking";

@@ -214,7 +214,7 @@ void LoaderSettingChanged(const char * setting, void * /*userData*/)
 
 void LanguageChanged(const char * /*setting*/, void * /*userData*/)
 {
-    loaderSettings.languageIndex = g_settings->GetInt(NXCoreSetting::LanguageIndex);
+    loaderSettings.languageIndex = g_settings->GetInt(NXCoreSetting::SystemLanguageIndex);
 }
 
 void SetupLoaderSetting(void)
@@ -319,12 +319,12 @@ void SetupLoaderSetting(void)
         g_settings->RegisterCallback(loaderSetting.identifier, LoaderSettingChanged, nullptr);
     }
     LanguageChanged(nullptr, nullptr);
-    g_settings->RegisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
+    g_settings->RegisterCallback(NXCoreSetting::SystemLanguageIndex, LanguageChanged, nullptr);
 }
 
 void CleanupLoaderSetting(void)
 {
-    g_settings->UnregisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
+    g_settings->UnregisterCallback(NXCoreSetting::SystemLanguageIndex, LanguageChanged, nullptr);
     for (const LoaderSetting & loaderSetting : settings)
     {
         if (loaderSetting.identifier == nullptr)

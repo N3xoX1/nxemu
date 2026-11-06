@@ -67,7 +67,7 @@ namespace
 
     bool Docked()
     {
-        return UiUtil::ReadInt(NXOsSetting::DockedMode) == 1;
+        return UiUtil::ReadInt(NXOsSetting::SystemDockedMode) == 1;
     }
 
     int ThemeMode()
@@ -89,7 +89,7 @@ namespace
 
     bool ResolutionKnown()
     {
-        const int value = UiUtil::ReadInt(NXVideoSetting::ResolutionSetup);
+        const int value = UiUtil::ReadInt(NXVideoSetting::SystemResolutionSetup);
         return value >= 0 && value < static_cast<int>(std::size(kResolutionScales));
     }
 
@@ -100,7 +100,7 @@ namespace
         {
             return docked + kDot + Tr("Unlimited speed");
         }
-        const int limit = UiUtil::ReadInt(NXOsSetting::SpeedLimit);
+        const int limit = UiUtil::ReadInt(NXOsSetting::SystemSpeedLimit);
         return limit == 100 ? docked : docked + kDot + Tr("Speed limit %1%", {std::to_string(limit)});
     }
 
@@ -318,17 +318,17 @@ void UiActivity::AppendSelectSetting(const Select & select)
 void UiActivity::BuildSelects()
 {
     m_selects = {
-        {TrMark("Speed limit"), NXOsSetting::SpeedLimit,
+        {TrMark("Speed limit"), NXOsSetting::SystemSpeedLimit,
          {{"25%", 25, ""}, {"50%", 50, TrMark("Half speed")}, {"75%", 75, ""}, {"100%", 100, TrMark("Normal speed")}, {"125%", 125, ""}, {"150%", 150, ""},
           {"200%", 200, TrMark("Double speed")}, {"300%", 300, ""}, {"400%", 400, ""}},
-         [] { return std::to_string(UiUtil::ReadInt(NXOsSetting::SpeedLimit)) + "%"; },
+         [] { return std::to_string(UiUtil::ReadInt(NXOsSetting::SystemSpeedLimit)) + "%"; },
          nullptr},
-        {TrMark("Accuracy"), NXVideoSetting::AccuracyLevel,
+        {TrMark("Accuracy"), NXVideoSetting::SystemAccuracyLevel,
          {{TrMark("Normal"), 0, TrMark("Fastest. Works well for most games")},
           {TrMark("High"), 1, TrMark("Fixes some graphical glitches. Slower")},
           {TrMark("Extreme"), 2, TrMark("Most accurate. Much slower, for troubleshooting")}},
          nullptr, nullptr},
-        {TrMark("Resolution"), NXVideoSetting::ResolutionSetup,
+        {TrMark("Resolution"), NXVideoSetting::SystemResolutionSetup,
          {{"0.5x", 0, ""}, {"0.75x", 1, ""}, {"1x", 2, ""}, {"1.5x", 3, ""}, {"2x", 4, ""}, {"3x", 5, ""}, {"4x", 6, ""}, {"5x", 7, ""},
           {"6x", 8, ""}, {"7x", 9, ""}, {"8x", 10, ""}},
          [this] {
@@ -336,21 +336,21 @@ void UiActivity::BuildSelects()
              {
                  return std::string();
              }
-             const int value = UiUtil::ReadInt(NXVideoSetting::ResolutionSetup);
+             const int value = UiUtil::ReadInt(NXVideoSetting::SystemResolutionSetup);
              const bool docked = Docked();
-             return std::string(SelectFor(NXVideoSetting::ResolutionSetup).options[value].label) + kDot +
+             return std::string(SelectFor(NXVideoSetting::SystemResolutionSetup).options[value].label) + kDot +
                     (docked ? Tr("%1 docked", {ResolutionHeight(value, true)}) : Tr("%1 handheld", {ResolutionHeight(value, false)}));
          },
          [](const Option & option) {
              return Tr("%1 handheld", {ResolutionHeight(option.value, false)}) + kDot + Tr("%1 docked", {ResolutionHeight(option.value, true)});
          }},
-        {"VSync", NXVideoSetting::VSyncMode,
+        {"VSync", NXVideoSetting::SystemVSyncMode,
          {{TrMark("Immediate"), 0, TrMark("Lowest latency. The picture may tear")},
           {TrMark("Mailbox"), 1, TrMark("Low latency without tearing. Uses more power")},
           {"FIFO", 2, TrMark("No tearing. Recommended")},
           {TrMark("FIFO Relaxed"), 3, TrMark("Like FIFO, but tears briefly instead of stuttering when a frame is late")}},
          nullptr, nullptr},
-        {TrMark("Window adapting filter"), NXVideoSetting::ScalingFilter,
+        {TrMark("Window adapting filter"), NXVideoSetting::SystemScalingFilter,
          {{TrMark("Nearest neighbor"), 0, TrMark("Crisp pixels. Can look blocky")},
           {TrMark("Bilinear"), 1, TrMark("Smooth and slightly soft")},
           {TrMark("Bicubic"), 2, TrMark("Smooth and a little sharper than bilinear")},
@@ -358,12 +358,12 @@ void UiActivity::BuildSelects()
           {"ScaleForce", 4, TrMark("Sharp upscaling, good for low resolutions")},
           {"FSR", 5, TrMark("AMD FidelityFX upscaling. Sharpest, costs a little performance")}},
          nullptr, nullptr},
-        {TrMark("Anti-aliasing"), NXVideoSetting::AntiAliasing,
+        {TrMark("Anti-aliasing"), NXVideoSetting::SystemAntiAliasing,
          {{TrMark("None"), 0, TrMark("Fastest")},
           {"FXAA", 1, TrMark("Smooths jagged edges cheaply. Slightly blurry")},
           {"SMAA", 2, TrMark("Smoother edges than FXAA. Costs a little more")}},
          nullptr, nullptr},
-        {TrMark("Anisotropic filtering"), NXVideoSetting::AnisotropicFiltering,
+        {TrMark("Anisotropic filtering"), NXVideoSetting::SystemAnisotropicFiltering,
          {{TrMark("Automatic"), 0, TrMark("Picks a level to match the resolution")},
           {TrMark("Default"), 1, TrMark("What the game asks for. Fastest")},
           {"2x", 2, TrMark("Slightly sharper textures on floors and walls")},
@@ -371,7 +371,7 @@ void UiActivity::BuildSelects()
           {"8x", 4, TrMark("Sharper still. Costs more on slower phones")},
           {"16x", 5, TrMark("Sharpest. Costs the most")}},
          nullptr, nullptr},
-        {TrMark("Aspect ratio"), NXVideoSetting::AspectRatio,
+        {TrMark("Aspect ratio"), NXVideoSetting::SystemAspectRatio,
          {{"16:9", 0, TrMark("Same as the Switch. Recommended")},
           {"4:3", 1, TrMark("Stretches the picture to 4:3")},
           {"21:9", 2, TrMark("Stretches the picture to ultrawide")},
@@ -385,7 +385,7 @@ void UiActivity::BuildSelects()
         languages.push_back({Translation::ConsoleLanguages[index], static_cast<int>(index), ""});
     }
     std::sort(languages.begin(), languages.end(), [](const Option & a, const Option & b) { return std::strcmp(a.label, b.label) < 0; });
-    m_selects.push_back({TrMark("Console language"), NXCoreSetting::LanguageIndex, std::move(languages), nullptr, nullptr});
+    m_selects.push_back({TrMark("Console language"), NXCoreSetting::SystemLanguageIndex, std::move(languages), nullptr, nullptr});
 }
 
 const UiActivity::Select & UiActivity::SelectFor(const char * key) const
@@ -415,8 +415,8 @@ void UiActivity::RenderSettingsHome()
     std::string graphics;
     if (ResolutionKnown())
     {
-        const int value = UiUtil::ReadInt(NXVideoSetting::ResolutionSetup);
-        graphics = Tr("Resolution %1 (%2)", {SelectFor(NXVideoSetting::ResolutionSetup).options[value].label, ResolutionHeight(value, Docked())});
+        const int value = UiUtil::ReadInt(NXVideoSetting::SystemResolutionSetup);
+        graphics = Tr("Resolution %1 (%2)", {SelectFor(NXVideoSetting::SystemResolutionSetup).options[value].label, ResolutionHeight(value, Docked())});
     }
     AppendLink(Tr("Graphics"), graphics, [this] { Navigate("graphicsSettings"); });
     CommitBody();
@@ -512,7 +512,7 @@ void UiActivity::RenderInterfaceLanguage()
 {
     BeginBody();
     const std::string choice = UiLanguage::Choice();
-    const char * console = Translation::LanguageOfConsole(UiUtil::ReadInt(NXCoreSetting::LanguageIndex));
+    const char * console = Translation::LanguageOfConsole(UiUtil::ReadInt(NXCoreSetting::SystemLanguageIndex));
     AppendCheck(Translation::LanguageName(console), Tr("Follows the console language."), choice.empty(), [this] {
         UiLanguage::SetChoice("");
         RenderCurrentSettings();
@@ -840,9 +840,9 @@ void UiActivity::RenderSystemSettings()
     {
         AppendBoolSetting(Tr("Limit speed"), NXOsSetting::UseSpeedLimit, Tr("Off runs as fast as possible. This session only"), false, false);
     }
-    AppendSelectSetting(SelectFor(NXOsSetting::SpeedLimit));
-    AppendBoolSetting(Tr("Docked mode"), NXOsSetting::DockedMode, Tr("Higher resolution, lower performance"), true);
-    AppendSelectSetting(SelectFor(NXCoreSetting::LanguageIndex));
+    AppendSelectSetting(SelectFor(NXOsSetting::SystemSpeedLimit));
+    AppendBoolSetting(Tr("Docked mode"), NXOsSetting::SystemDockedMode, Tr("Higher resolution, lower performance"), true);
+    AppendSelectSetting(SelectFor(NXCoreSetting::SystemLanguageIndex));
     CommitBody();
 }
 
@@ -858,26 +858,26 @@ void UiActivity::RenderGraphicsSettings()
     {
         AppendLink(Tr("GPU driver"), GpuDriverLabel(), [this] { Navigate("gpuDrivers"); });
     }
-    AppendSelectSetting(SelectFor(NXVideoSetting::AccuracyLevel));
+    AppendSelectSetting(SelectFor(NXVideoSetting::SystemAccuracyLevel));
     if (!running)
     {
-        AppendSelectSetting(SelectFor(NXVideoSetting::ResolutionSetup));
+        AppendSelectSetting(SelectFor(NXVideoSetting::SystemResolutionSetup));
     }
-    AppendSelectSetting(SelectFor(NXVideoSetting::VSyncMode));
-    AppendSelectSetting(SelectFor(NXVideoSetting::ScalingFilter));
-    if (UiUtil::ReadInt(NXVideoSetting::ScalingFilter) == 5)
+    AppendSelectSetting(SelectFor(NXVideoSetting::SystemVSyncMode));
+    AppendSelectSetting(SelectFor(NXVideoSetting::SystemScalingFilter));
+    if (UiUtil::ReadInt(NXVideoSetting::SystemScalingFilter) == 5)
     {
-        AppendIntSetting(Tr("FSR sharpness"), NXVideoSetting::FSPSharpness, 0, 200, "%");
+        AppendIntSetting(Tr("FSR sharpness"), NXVideoSetting::SystemFSPSharpness, 0, 200, "%");
     }
-    AppendSelectSetting(SelectFor(NXVideoSetting::AntiAliasing));
-    AppendSelectSetting(SelectFor(NXVideoSetting::AnisotropicFiltering));
-    AppendSelectSetting(SelectFor(NXVideoSetting::AspectRatio));
+    AppendSelectSetting(SelectFor(NXVideoSetting::SystemAntiAliasing));
+    AppendSelectSetting(SelectFor(NXVideoSetting::SystemAnisotropicFiltering));
+    AppendSelectSetting(SelectFor(NXVideoSetting::SystemAspectRatio));
     if (!running)
     {
-        AppendBoolSetting(Tr("Force maximum clocks"), NXVideoSetting::ForceMaximumClocks, Tr("Adreno GPUs. Can overheat the device"));
-        AppendBoolSetting(Tr("Asynchronous shaders"), NXVideoSetting::UseAsynchronousShaderBuilding, Tr("Reduces stutter, but can glitch"));
-        AppendBoolSetting(Tr("Reactive flushing"), NXVideoSetting::EnableReactiveFlushing, Tr("More accurate, costs performance"));
-        AppendBoolSetting(Tr("Disk shader cache"), NXVideoSetting::UseDiskPipelineCache, Tr("Games load faster after the first run"));
+        AppendBoolSetting(Tr("Force maximum clocks"), NXVideoSetting::SystemForceMaximumClocks, Tr("Adreno GPUs. Can overheat the device"));
+        AppendBoolSetting(Tr("Asynchronous shaders"), NXVideoSetting::SystemUseAsynchronousShaderBuilding, Tr("Reduces stutter, but can glitch"));
+        AppendBoolSetting(Tr("Reactive flushing"), NXVideoSetting::SystemEnableReactiveFlushing, Tr("More accurate, costs performance"));
+        AppendBoolSetting(Tr("Disk shader cache"), NXVideoSetting::SystemUseDiskPipelineCache, Tr("Games load faster after the first run"));
         AppendBoolSetting(Tr("Record shader recipes"), NXVideoSetting::RecordShaderRecipes, Tr("Needed to export a shader profile of what you played"));
     }
     CommitBody();
