@@ -324,7 +324,7 @@ void MacroJITx64Impl::Compile_Read(Macro::Opcode opcode) {
         }
     }
 
-    // Equivalent to Engines::Maxwell3D::GetRegisterValue:
+    // Equivalent to Engines::Maxwell3D::GetFrontRegisterValue:
     if (optimizer.enable_asserts) {
         Xbyak::Label pass_range_check;
         cmp(RESULT, static_cast<u32>(Engines::Maxwell3D::Regs::NUM_REGS));
@@ -334,7 +334,7 @@ void MacroJITx64Impl::Compile_Read(Macro::Opcode opcode) {
     }
     mov(rax, qword[STATE]);
     mov(RESULT,
-        dword[rax + offsetof(Engines::Maxwell3D, regs) +
+        dword[rax + offsetof(Engines::Maxwell3D, front_regs) +
               offsetof(Engines::Maxwell3D::Regs, reg_array) + RESULT.cvt64() * sizeof(u32)]);
 
     Compile_ProcessResult(opcode.result_operation, opcode.dst);

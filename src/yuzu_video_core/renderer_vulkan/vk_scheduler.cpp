@@ -3,8 +3,9 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
+#if defined(_M_X64) || defined(__x86_64__)
 #include <immintrin.h>
+#endif
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -196,17 +197,17 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
 
         // Chunks come every few hundred microseconds while a frame is drawn. Spin a while
         // before sleeping, so the GPU thread does not pay a thread wake per chunk.
-        static const u32 temp_spin_us = [] { // TEMP
-            const char* v = std::getenv("NXEMU_WORKER_SPIN_US");
-            return v ? static_cast<u32>(std::atoi(v)) : 0U;
-        }();
-        if (temp_spin_us != 0 && pending_chunks.load(std::memory_order_acquire) == 0) {
-            const auto spin_end =
-                std::chrono::steady_clock::now() + std::chrono::microseconds{temp_spin_us};
+        constexpr auto spin_time = std::chrono::microseconds{300};
+        if (pending_chunks.load(std::memory_order_acquire) == 0) {
+            const auto spin_end = std::chrono::steady_clock::now() + spin_time;
             u32 iterations = 0;
             while (pending_chunks.load(std::memory_order_acquire) == 0 &&
                    !stop_token.stop_requested()) {
+#if defined(_M_X64) || defined(__x86_64__)
                 _mm_pause();
+#else
+                std::this_thread::yield();
+#endif
                 if ((++iterations & 63) == 0 && std::chrono::steady_clock::now() >= spin_end) {
                     break;
                 }

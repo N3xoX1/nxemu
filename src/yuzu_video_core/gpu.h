@@ -18,6 +18,10 @@ namespace Core {
 class System;
 } // namespace Core
 
+namespace VideoCommon::GPUThread {
+class BackQueue;
+}
+
 namespace VideoCore {
 class RendererBase;
 class ShaderNotify;
@@ -133,6 +137,12 @@ class Host1x;
 } // namespace Host1x
 
 class MemoryManager;
+
+/// Locks of the decode thread and of the GPU thread, see GPU::LockExecution
+struct ExecutionLock {
+    std::unique_lock<std::recursive_mutex> decode;
+    std::unique_lock<std::recursive_mutex> execution;
+};
 
 class GPU final {
 public:
@@ -279,7 +289,10 @@ public:
 
     /// Excludes command recording/compositing while guest GPU mappings change.
     /// Never hold this lock while enqueueing and waiting for a GPU-thread request.
-    std::unique_lock<std::recursive_mutex> LockExecution();
+    ExecutionLock LockExecution();
+
+    /// Work queue to the GPU thread, see DESIGN-gpu-split.md
+    VideoCommon::GPUThread::BackQueue& BackQueue();
 
     /// Register a host thread as an auxiliary thread.
     void RegisterHostThread();

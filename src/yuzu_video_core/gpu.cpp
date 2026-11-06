@@ -901,8 +901,12 @@ void GPU::ReleaseContext()
     impl->ReleaseContext();
 }
 
-std::unique_lock<std::recursive_mutex> GPU::LockExecution() {
+ExecutionLock GPU::LockExecution() {
     return impl->gpu_thread.LockExecution();
+}
+
+VideoCommon::GPUThread::BackQueue& GPU::BackQueue() {
+    return impl->gpu_thread.Back();
 }
 
 void GPU::PushGPUEntries(s32 channel, Tegra::CommandList && entries)

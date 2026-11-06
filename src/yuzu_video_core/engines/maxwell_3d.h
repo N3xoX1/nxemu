@@ -8,6 +8,8 @@
 #include <bitset>
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -3034,7 +3036,13 @@ public:
     };
     // clang-format on
 
+    /// Registers of the execute side. The rasterizer, the draw manager and the HLE macros read
+    /// these.
     Regs regs{};
+
+    /// Registers of the decode side. Shadow RAM and the macro engine read these. Method calls
+    /// write them at once, and write `regs` later when the method stream is drained.
+    Regs front_regs{};
 
     /// Store temporary hw register values, used by some calls to restore state after a operation
     Regs shadow_state;
@@ -3190,19 +3198,75 @@ public:
     std::unique_ptr<DrawManager> draw_manager;
     friend class DrawManager;
 
+    /// Macro parameter state of an HLE macro call. The decode side records it, the execute side
+    /// runs the macro with it.
+    struct HLECall {
+        CachedMacro* program{};
+        u32 method{};
+        std::vector<u32> params;
+        std::vector<std::pair<GPUVAddr, size_t>> segments;
+        std::vector<GPUVAddr> addresses;
+        bool dirty{};
+        /// The execute side checks the dirty state again and reads the parameters again,
+        /// the decode side fetched them before the queued work ran
+        bool recheck{};
+    };
+
+    /// Queued methods handed to the GPU thread
+    struct StreamBlock {
+        std::vector<u32> words;
+        std::vector<HLECall> hle;
+        size_t hle_count{};
+        /// Decode side registers at the end of the block, for the verify mode
+        std::unique_ptr<Regs> front;
+    };
+
+    // The three functions below are for HLE macros, they run on the execute side.
     GPUVAddr GetMacroAddress(size_t index) const {
-        return macro_addresses[index];
+        return back_hle->addresses[index];
     }
 
     void RefreshParameters() {
-        if (!current_macro_dirty) {
+        if (!back_hle->dirty) {
             return;
         }
-        RefreshParametersImpl();
+        RefreshParametersImpl(back_hle->segments, back_hle->params);
     }
 
     bool AnyParametersDirty() const {
-        return current_macro_dirty;
+        return back_hle->dirty;
+    }
+
+    /// Decode side: refreshes the parameters of a low level macro before it runs.
+    void FrontRefreshParameters();
+
+    void SetBackQueue(VideoCommon::GPUThread::BackQueue* queue) {
+        back_queue = queue;
+    }
+
+    /// Decode side: hands the queued methods to the GPU thread, or runs them at once without
+    /// a decode thread.
+    void Publish(bool verify = true);
+
+    /// Decode side: register value read by the macro engine.
+    u32 GetFrontRegisterValue(u32 method) const {
+        return front_regs.reg_array[method];
+    }
+
+    /// Decode side: queues an HLE macro call for the execute side.
+    void FrontHLEMacro(CachedMacro* program, const std::vector<u32>& parameters, u32 method);
+
+    /// Execute side: method calls made by HLE macros.
+    void BackCallMethod(u32 method, u32 argument, bool is_last_call);
+    void BackCallMultiMethod(u32 method, const u32* base_start, u32 amount);
+
+    /// Runs the queued methods on the execute side. Call it before anything that needs the
+    /// execute side to be up to date: other engines, the puller, memory the stream writes.
+    void DrainStream(bool verify = true);
+
+    /// True when queued methods may write guest memory once they run.
+    bool HasPendingMemoryWrites() const {
+        return stream_writes_memory;
     }
 
     u32 GetMaxCurrentVertices();
@@ -3275,9 +3339,82 @@ private:
     /// Handles writes to syncing register.
     void ProcessSyncPoint();
 
-    void RefreshParametersImpl();
+    void RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>>& segments,
+                               std::vector<u32>& params);
 
     bool IsMethodExecutable(u32 method);
+
+    /// Kinds of entries in the method stream. An entry is a header word `kind | count << 8`
+    /// followed by its words.
+    enum StreamKind : u32 {
+        StreamRegs = 0,     ///< method, then `count` values for consecutive registers
+        StreamCall = 1,     ///< method, argument, argument before shadow RAM; count is is_last_call
+        StreamCBData = 2,   ///< `count` words of inline constant buffer data
+        StreamInline = 3,   ///< `count` words of inline_data
+        StreamHLE = 4,      ///< count is the index in hle_calls
+        StreamDeferred = 5, ///< end of a macro, runs the deferred instanced draw
+    };
+
+    /// Decode side: writes a plain register.
+    void FrontWrite(u32 method, u32 value) {
+        // The execute side file equals front_regs at this stream position, and
+        // ProcessDirtyRegisters ignores writes of the same value: skip them here.
+        if (skip_same_writes && front_regs.reg_array[method] == value) {
+            return;
+        }
+        front_regs.reg_array[method] = value;
+        if (stream_run_open && method == stream_run_next) {
+            stream.push_back(value);
+            stream[stream_run_pos] += 1U << 8;
+            ++stream_run_next;
+            return;
+        }
+        stream_run_pos = stream.size();
+        stream.push_back(StreamRegs | (1U << 8));
+        stream.push_back(method);
+        stream.push_back(value);
+        stream_run_open = true;
+        stream_run_next = method + 1;
+    }
+
+    void StreamHeader(StreamKind kind, u32 count) {
+        stream_run_open = false;
+        stream.push_back(kind | (count << 8));
+    }
+
+    /// Decode side: side effects of an executable method that belong to the decode side.
+    void FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument);
+
+    void VerifyRegisters();
+
+    /// Queued methods for the execute side, see DESIGN-gpu-split.md
+    std::vector<u32> stream;
+    size_t stream_run_pos{};
+    u32 stream_run_next{};
+    bool stream_run_open{};
+    bool stream_writes_memory{};
+    bool stream_draining{};
+    bool skip_same_writes{true};
+    std::vector<HLECall> hle_calls;
+    size_t hle_count{};
+    /// HLE macro call that the execute side is running
+    HLECall* back_hle{};
+    u64 stream_drains{};
+
+    bool IsThreaded() const;
+    bool AnySegmentDirty(const std::vector<std::pair<GPUVAddr, size_t>>& segments) const;
+    /// Decode side: waits until the GPU thread has run every queued method
+    void SyncBack();
+    /// Execute side: runs stream words
+    void RunWords(const u32* words, size_t size, std::vector<HLECall>& calls);
+    void RunBlock(StreamBlock* block);
+    void VerifyAgainst(const Regs& front);
+
+    VideoCommon::GPUThread::BackQueue* back_queue{};
+    bool current_macro_payload{};
+    std::vector<std::unique_ptr<StreamBlock>> block_storage;
+    std::mutex block_mutex;
+    std::vector<StreamBlock*> free_blocks;
 
     MemoryManager& memory_manager;
 

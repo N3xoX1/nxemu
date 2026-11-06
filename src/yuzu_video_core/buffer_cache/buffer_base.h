@@ -117,6 +117,16 @@ public:
         lru_id = lru_id_;
     }
 
+    /// Copy of the LRU entry's tick, so a buffer touched again in the same frame
+    /// skips the LRU pool, which is slow to reach
+    u64 LRUTick() const noexcept {
+        return lru_tick;
+    }
+
+    void SetLRUTick(u64 tick) noexcept {
+        lru_tick = tick;
+    }
+
     size_t SizeBytes() const {
         return size_bytes;
     }
@@ -126,6 +136,7 @@ private:
     BufferFlagBits flags{};
     int stream_score = 0;
     size_t lru_id = SIZE_MAX;
+    u64 lru_tick = 0;
     size_t size_bytes = 0;
 };
 

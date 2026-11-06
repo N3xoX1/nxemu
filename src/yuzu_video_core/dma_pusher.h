@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include <array>
 #include <atomic>
 #include <span>
@@ -121,6 +123,9 @@ public:
                         Engines::EngineTypes engine_type) {
         subchannels[subchannel_id] = engine;
         subchannel_type[subchannel_id] = engine_type;
+        if (engine_type == Engines::EngineTypes::Maxwell3D) {
+            maxwell3d_engine = engine;
+        }
     }
 
     void BindRasterizer(VideoCore::RasterizerInterface* rasterizer);
@@ -142,6 +147,16 @@ private:
     void ProcessCommands(std::span<const CommandHeader> commands);
 
     void SetState(const CommandHeader& command_header);
+
+    /// Runs the methods Maxwell3D queued, see DESIGN-gpu-split.md
+    void DrainMaxwell3D() const;
+    void DrainMaxwell3DMemoryWrites() const;
+
+    /// True when a decode thread runs this pusher
+    bool IsThreaded() const;
+    /// Runs `work` on the GPU thread after the queued Maxwell3D methods
+    void PostBack(std::function<void()>&& work) const;
+    std::vector<std::pair<u32, u32>>& SinkFor(u32 subchannel_id) const;
 
     void CallMethod(u32 argument) const;
     void CallMultiMethod(const u32* base_start, u32 num_methods) const;
@@ -172,6 +187,11 @@ private:
 
     std::array<Engines::EngineInterface*, max_subchannels> subchannels{};
     std::array<Engines::EngineTypes, max_subchannels> subchannel_type;
+    Engines::EngineInterface* maxwell3d_engine{};
+    /// Register writes for engines that run on the GPU thread, see SinkFor
+    mutable std::array<std::vector<std::pair<u32, u32>>, max_subchannels> front_sinks;
+    /// Puller methods that only write a register, sent with the next puller method that acts
+    mutable std::vector<Engines::Puller::MethodCall> pending_puller;
 
     GPU& gpu;
     MemoryManager& memory_manager;
