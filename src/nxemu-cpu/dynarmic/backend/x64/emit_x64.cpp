@@ -221,6 +221,9 @@ void EmitX64::EmitGetNZCVFromOp(EmitContext& ctx, IR::Inst* inst) {
     code.lahf();
     code.mov(al, 0);
     ctx.reg_alloc.DefineValue(inst, nzcv);
+    // test clears CF and OF, as the guest C and V of this value
+    ctx.host_flags_nzcv = inst;
+    ctx.host_flags_are_cpsr = false;
 }
 
 void EmitX64::EmitGetCFlagFromNZCV(EmitContext& ctx, IR::Inst* inst) {

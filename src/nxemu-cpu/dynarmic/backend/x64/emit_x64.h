@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -23,6 +24,7 @@
 #include "dynarmic/backend/x64/reg_alloc.h"
 #include "dynarmic/common/fp/fpcr.h"
 #include "dynarmic/ir/location_descriptor.h"
+#include "dynarmic/ir/opcodes.h"
 #include "dynarmic/ir/terminal.h"
 
 namespace Dynarmic::IR {
@@ -63,12 +65,76 @@ struct EmitContext {
     IR::Block& block;
 
     std::vector<std::function<void()>> deferred_emits;
+
+    /// NZCV value that the host flags hold right now (SF, ZF, CF = guest C, OF), or null
+    const IR::Inst* host_flags_nzcv = nullptr;
+    /// The host flags hold the same NZCV as cpsr_nzcv, so a condition needs no reload
+    bool host_flags_are_cpsr = false;
+    /// IsZero whose only use is the side exit right after it: ZF holds the result, the
+    /// value itself is never written
+    const IR::Inst* zero_flag_for = nullptr;
+
+    /// Fastmem writes whose write tracking mark is done by a later write of the same group
+    tsl::robin_set<const IR::Inst*> write_track_skip;
+    /// Last write of a group -> offsets from its address to the lowest and highest address
+    /// of the group, both marked by that write
+    tsl::robin_map<const IR::Inst*, std::pair<s32, s32>> write_track_group;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;
 
 inline SharedLabel GenSharedLabel() {
     return std::make_shared<Xbyak::Label>();
+}
+
+/// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:
+/// the loads below and the zero extensions clear them in an XMM, and a GPR value moved to an
+/// XMM later goes through movd/movq, which clears them too.
+inline bool UpperLanesClear(const IR::Value& value, size_t kept_bits) {
+    if (value.IsImmediate()) {
+        return false;
+    }
+    switch (value.GetInstRecursive()->GetOpcode()) {
+    case IR::Opcode::A64GetS:
+    case IR::Opcode::ZeroExtendWordToLong:
+        return kept_bits >= 32;
+    case IR::Opcode::A64GetD:
+    case IR::Opcode::ZeroExtendLongToQuad:
+        return kept_bits >= 64;
+    default:
+        return false;
+    }
+}
+
+/// True when the value, held in a GPR, already has its upper 32 bits clear: the instruction
+/// that produced it writes a 32-bit register, which zero extends on x64.
+inline bool GprZeroExtended32(const IR::Value& value) {
+    if (value.IsImmediate()) {
+        return false;
+    }
+    switch (value.GetInstRecursive()->GetOpcode()) {
+    case IR::Opcode::A64GetW:
+    case IR::Opcode::A64ReadMemory32:
+    case IR::Opcode::A64ExclusiveReadMemory32:
+    case IR::Opcode::A64ExclusiveWriteMemory8:
+    case IR::Opcode::A64ExclusiveWriteMemory16:
+    case IR::Opcode::A64ExclusiveWriteMemory32:
+    case IR::Opcode::A64ExclusiveWriteMemory64:
+    case IR::Opcode::A64ExclusiveWriteMemory128:
+    case IR::Opcode::ZeroExtendByteToWord:
+    case IR::Opcode::ZeroExtendHalfToWord:
+    case IR::Opcode::SignExtendByteToWord:
+    case IR::Opcode::SignExtendHalfToWord:
+    case IR::Opcode::ConditionalSelect32:
+    case IR::Opcode::Add32:
+    case IR::Opcode::Sub32:
+    case IR::Opcode::And32:
+    case IR::Opcode::AndNot32:
+    case IR::Opcode::Or32:
+        return true;
+    default:
+        return false;
+    }
 }
 
 class EmitX64 {

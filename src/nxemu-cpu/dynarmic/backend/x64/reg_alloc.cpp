@@ -6,6 +6,7 @@
 #include "dynarmic/backend/x64/reg_alloc.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <bit>
 #include <boost/container/small_vector.hpp>
 #include <numeric>
@@ -603,7 +604,9 @@ HostLoc RegAlloc::LoadImmediate(IR::Value imm, HostLoc host_loc) {
     if (HostLocIsGPR(host_loc)) {
         const Xbyak::Reg64 reg = HostLocToReg64(host_loc);
         const u64 imm_value = imm.GetImmediateAsU64();
-        if (imm_value == 0) {
+        if (imm_value == 0 && preserve_host_flags) {
+            code.mov(reg.cvt32(), 0);
+        } else if (imm_value == 0) {
             code.xor_(reg.cvt32(), reg.cvt32());
         } else {
             code.mov(reg, imm_value);
@@ -668,9 +671,24 @@ void RegAlloc::Exchange(HostLoc a, HostLoc b) {
 
 void RegAlloc::MoveOutOfTheWay(HostLoc reg) {
     ASSERT(!LocInfo(reg).IsLocked());
-    if (!LocInfo(reg).IsEmpty()) {
-        SpillRegister(reg);
+    if (LocInfo(reg).IsEmpty()) {
+        return;
     }
+    // A free callee-saved GPR is cheaper than the stack, and host calls do not clobber it.
+    // Not done for XMM values: moving them to xmm6-15 breaks TOTK rendering (cause not found yet).
+    if (HostLocIsGPR(reg)) {
+        for (const HostLoc loc : gpr_order) {
+            if (loc == reg || std::find(ABI_ALL_CALLEE_SAVE.begin(), ABI_ALL_CALLEE_SAVE.end(), loc) == ABI_ALL_CALLEE_SAVE.end()) {
+                continue;
+            }
+            const HostLocInfo& info = LocInfo(loc);
+            if (info.IsEmpty() && !info.IsLocked()) {
+                Move(loc, reg);
+                return;
+            }
+        }
+    }
+    SpillRegister(reg);
 }
 
 void RegAlloc::SpillRegister(HostLoc loc) {

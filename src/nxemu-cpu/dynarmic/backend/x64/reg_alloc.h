@@ -148,7 +148,15 @@ public:
 
     void AssertNoMoreUses();
 
+    /// Where a value is right now. Used by side exits, which store values in their cold
+    /// stub from the place they are at the jump.
+    std::optional<HostLoc> CurrentLocation(const IR::Inst* value) const { return ValueLocation(value); }
+    Xbyak::Address SpillAddress(HostLoc loc) { return SpillToOpArg(loc); }
+
     void EmitVerboseDebuggingOutput();
+
+    /// When set, loading a zero immediate uses mov instead of xor, so the host flags stay
+    bool preserve_host_flags = false;
 
 private:
     friend struct Argument;

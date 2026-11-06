@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cstdlib>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -21,6 +22,8 @@
 #include "dynarmic/backend/x64/abi.h"
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/constants.h"
+#include <cstdlib>
+
 #include "dynarmic/backend/x64/emit_x64.h"
 #include "dynarmic/common/cast_util.h"
 #include "dynarmic/common/fp/fpcr.h"
@@ -1088,6 +1091,43 @@ static void EmitFPRound(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, siz
         return;
     }
 
+    // FRINTA: trunc(x), plus one away from zero when the dropped part is at least one half.
+    // x - trunc(x) is exact, and the blend keeps the sign of zero results.
+    if (fsize != 16 && code.HasHostFeature(HostFeature::SSE41) && rounding_mode == FP::RoundingMode::ToNearest_TieAwayFromZero && !exact) {
+        const Xbyak::Xmm truncated = ctx.reg_alloc.ScratchXmm();
+        const Xbyak::Xmm mask = ctx.reg_alloc.ScratchXmm();
+        if (fsize == 64) {
+            FPTwoOp<64>(code, ctx, inst, [&](Xbyak::Xmm result) {
+                code.roundsd(truncated, result, 0b1011);
+                code.movaps(mask, result);
+                code.subsd(mask, truncated);
+                code.andpd(mask, code.Const(xword, 0x7FFF'FFFF'FFFF'FFFF, 0));
+                code.cmpnltsd(mask, code.Const(xword, 0x3FE0'0000'0000'0000, 0));
+                code.andpd(result, code.Const(xword, 0x8000'0000'0000'0000, 0));
+                code.orpd(result, code.Const(xword, 0x3FF0'0000'0000'0000, 0));
+                code.addsd(result, truncated);
+                code.andpd(result, mask);
+                code.andnpd(mask, truncated);
+                code.orpd(result, mask);
+            });
+        } else {
+            FPTwoOp<32>(code, ctx, inst, [&](Xbyak::Xmm result) {
+                code.roundss(truncated, result, 0b1011);
+                code.movaps(mask, result);
+                code.subss(mask, truncated);
+                code.andps(mask, code.Const(xword, 0x7FFF'FFFF, 0));
+                code.cmpnltss(mask, code.Const(xword, 0x3F00'0000, 0));
+                code.andps(result, code.Const(xword, 0x8000'0000, 0));
+                code.orps(result, code.Const(xword, 0x3F80'0000, 0));
+                code.addss(result, truncated);
+                code.andps(result, mask);
+                code.andnps(mask, truncated);
+                code.orps(result, mask);
+            });
+        }
+        return;
+    }
+
     using fsize_list = mp::list<mp::lift_value<size_t(16)>,
                                 mp::lift_value<size_t(32)>,
                                 mp::lift_value<size_t(64)>>;
@@ -1449,7 +1489,9 @@ static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx) {
 
     code.mov(nzcv, 0x0101'4100'8000'0100);
     code.sete(cl);
-    code.rcl(cl, 5);  // cl = ZF:CF:0000
+    // rcl with a count above 1 is microcoded; adc + shl are simple ops.
+    code.adc(cl, cl);  // cl = ZF:CF
+    code.shl(cl, 4);   // cl = ZF:CF:0000
     code.shr(nzcv, cl);
 
     return nzcv;

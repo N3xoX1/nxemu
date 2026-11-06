@@ -4,6 +4,8 @@
  */
 
 #include <cstddef>
+#include <cstdlib>
+#include <iterator>
 #include <type_traits>
 
 #include <mcl/assert.hpp>
@@ -104,8 +106,26 @@ void EmitX64::EmitMostSignificantBit(EmitContext& ctx, IR::Inst* inst) {
     ctx.reg_alloc.DefineValue(inst, result);
 }
 
+// True when the only use of this IsZero is the side exit right after it, which can then
+// jump on the flags of a test instead of a materialized bit.
+static bool FuseIsZeroWithSideExit(EmitContext& ctx, IR::Inst* inst) {
+    if (inst->UseCount() != 1 || inst->GetArg(0).IsImmediate()) {
+        return false;
+    }
+    auto next = std::next(IR::Block::iterator(inst));
+    return next != ctx.block.end() && next->GetOpcode() == IR::Opcode::A64SideExit &&
+           !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
+}
+
 void EmitX64::EmitIsZero32(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    if (FuseIsZeroWithSideExit(ctx, inst)) {
+        const Xbyak::Reg32 value = ctx.reg_alloc.UseGpr(args[0]).cvt32();
+        code.test(value, value);
+        ctx.reg_alloc.DefineValue(inst, value);  // never read
+        ctx.zero_flag_for = inst;
+        return;
+    }
     const Xbyak::Reg32 result = ctx.reg_alloc.UseScratchGpr(args[0]).cvt32();
     // TODO: Flag optimization
     code.test(result, result);
@@ -116,6 +136,13 @@ void EmitX64::EmitIsZero32(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitIsZero64(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    if (FuseIsZeroWithSideExit(ctx, inst)) {
+        const Xbyak::Reg64 value = ctx.reg_alloc.UseGpr(args[0]);
+        code.test(value, value);
+        ctx.reg_alloc.DefineValue(inst, value);  // never read
+        ctx.zero_flag_for = inst;
+        return;
+    }
     const Xbyak::Reg64 result = ctx.reg_alloc.UseScratchGpr(args[0]);
     // TODO: Flag optimization
     code.test(result, result);
@@ -136,6 +163,42 @@ void EmitX64::EmitTestBit(EmitContext& ctx, IR::Inst* inst) {
 
 static void EmitConditionalSelect(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bitsize) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    const IR::Cond cond = args[0].GetImmediateCond();
+    if (ctx.host_flags_are_cpsr) {
+        // The host flags already hold the guest NZCV: no reload. Keep them while the
+        // operands are loaded.
+        ctx.reg_alloc.preserve_host_flags = true;
+        const Xbyak::Reg then_reg = ctx.reg_alloc.UseGpr(args[1]).changeBit(bitsize);
+        const Xbyak::Reg else_reg = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
+        ctx.reg_alloc.preserve_host_flags = false;
+        if (cond == IR::Cond::HI || cond == IR::Cond::LS) {
+            code.cmc();
+            ctx.host_flags_are_cpsr = false;
+            ctx.host_flags_nzcv = nullptr;
+        }
+        switch (cond) {
+        case IR::Cond::EQ: code.cmovz(else_reg, then_reg); break;
+        case IR::Cond::NE: code.cmovnz(else_reg, then_reg); break;
+        case IR::Cond::CS: code.cmovc(else_reg, then_reg); break;
+        case IR::Cond::CC: code.cmovnc(else_reg, then_reg); break;
+        case IR::Cond::MI: code.cmovs(else_reg, then_reg); break;
+        case IR::Cond::PL: code.cmovns(else_reg, then_reg); break;
+        case IR::Cond::VS: code.cmovo(else_reg, then_reg); break;
+        case IR::Cond::VC: code.cmovno(else_reg, then_reg); break;
+        case IR::Cond::HI: code.cmova(else_reg, then_reg); break;
+        case IR::Cond::LS: code.cmovna(else_reg, then_reg); break;
+        case IR::Cond::GE: code.cmovge(else_reg, then_reg); break;
+        case IR::Cond::LT: code.cmovl(else_reg, then_reg); break;
+        case IR::Cond::GT: code.cmovg(else_reg, then_reg); break;
+        case IR::Cond::LE: code.cmovle(else_reg, then_reg); break;
+        case IR::Cond::AL:
+        case IR::Cond::NV: code.mov(else_reg, then_reg); break;
+        default: ASSERT_MSG(false, "Invalid cond {}", static_cast<size_t>(cond));
+        }
+        ctx.reg_alloc.DefineValue(inst, else_reg);
+        return;
+    }
+
     const Xbyak::Reg32 nzcv = ctx.reg_alloc.ScratchGpr(HostLoc::RAX).cvt32();
     const Xbyak::Reg then_ = ctx.reg_alloc.UseGpr(args[1]).changeBit(bitsize);
     const Xbyak::Reg else_ = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
@@ -983,6 +1046,7 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         code.lahf();
         code.seto(code.al);
         ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
+        ctx.host_flags_nzcv = nzcv_inst;
     }
     if (carry_inst) {
         code.setc(carry);
@@ -1080,6 +1144,7 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         code.lahf();
         code.seto(code.al);
         ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
+        ctx.host_flags_nzcv = nzcv_inst;
     }
     if (carry_inst) {
         if (invert_output_carry) {
@@ -1522,6 +1587,11 @@ void EmitX64::EmitZeroExtendWordToLong(EmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.DefineValue(inst, result);
         return;
     }
+    // Only in place in a register: a spill slot may hold just the low 32 bits
+    if (args[0].IsInGpr() && GprZeroExtended32(inst->GetArg(0))) {
+        ctx.reg_alloc.DefineValue(inst, args[0]);
+        return;
+    }
     const Xbyak::Reg64 result = ctx.reg_alloc.UseScratchGpr(args[0]);
     code.mov(result.cvt32(), result.cvt32());  // x64 zeros upper 32 bits on a 32-bit move
     ctx.reg_alloc.DefineValue(inst, result);
@@ -1534,6 +1604,8 @@ void EmitX64::EmitZeroExtendLongToQuad(EmitContext& ctx, IR::Inst* inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
         code.movq(result, source);
         ctx.reg_alloc.DefineValue(inst, result);
+    } else if (args[0].IsInXmm() && UpperLanesClear(inst->GetArg(0), 64)) {  // a spill slot holds 64 bits only
+        ctx.reg_alloc.DefineValue(inst, args[0]);
     } else {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         code.movq(result, result);

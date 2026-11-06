@@ -78,6 +78,9 @@ protected:
 
     const void* terminal_handler_pop_rsb_hint;
     const void* terminal_handler_fast_dispatch_hint = nullptr;
+    const void* terminal_handler_rsb_miss = nullptr;            // expects the location descriptor in rbx
+    const void* terminal_handler_fast_dispatch_miss = nullptr;  // expects rbx and the table entry in rbp
+    void EmitInlineLocationDescriptor();
     FastDispatchEntry& (*fast_dispatch_table_lookup)(u64) = nullptr;
     void GenTerminalHandlers();
 
@@ -105,6 +108,7 @@ protected:
     tsl::robin_map<u64, FastmemPatchInfo> fastmem_patch_info;
     std::set<DoNotFastmemMarker> do_not_fastmem;
     std::optional<DoNotFastmemMarker> ShouldFastmem(A64EmitContext& ctx, IR::Inst* inst) const;
+    void PlanWriteTracking(A64EmitContext& ctx) const;
     FakeCall FastmemCallback(u64 rip);
 
     // Memory access helpers

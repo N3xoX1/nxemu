@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cstdlib>
+
 #include <mcl/bit_cast.hpp>
 #include <xbyak/xbyak.h>
 
@@ -201,34 +203,63 @@ template<>
 
 // Marks the page of a fastmem write in the write tracking map. The upper levels are only
 // written when the page byte was clear, so most writes only load one byte.
+// True when the whole map fits below 2 GiB, so it is addressed with a 32-bit displacement
+// and needs no base register
+template<typename Config>
+bool WriteTrackMapIsLow(const Config& conf) {
+    const u64 end = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20);
+    return end < (u64{1} << 31);
+}
+
+// `map` is only needed when the map is not low. `offset` is added to vaddr first.
 template<typename EmitContext>
-void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, Xbyak::Reg64 map) {
+void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 offset = 0) {
     const auto& conf = ctx.conf;
     const u32 l2_offset = conf.write_track_l2_offset;
     const u32 l1_offset = conf.write_track_l1_offset;
+    const u32 low_base = map ? 0 : static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map));
     SharedLabel mark = GenSharedLabel(), marked = GenSharedLabel();
 
-    code.mov(page, vaddr);
+    if (offset != 0) {
+        code.lea(page, code.ptr[vaddr + offset]);
+    } else {
+        code.mov(page, vaddr);
+    }
     code.shr(page, 12);
-    code.mov(map, reinterpret_cast<u64>(conf.write_track_map));
-    code.cmp(code.byte[map + page], 0);
+    if (map) {
+        code.mov(*map, reinterpret_cast<u64>(conf.write_track_map));
+        code.cmp(code.byte[*map + page], 0);
+    } else {
+        code.cmp(code.byte[page + low_base], 0);
+    }
     code.je(*mark, code.T_NEAR);
     code.L(*marked);
 
     ctx.deferred_emits.emplace_back([=, &code] {
         code.L(*mark);
-        code.mov(code.byte[map + page], 1);
-        code.shr(page, 9);
-        code.mov(code.byte[map + page + l2_offset], 1);
-        code.shr(page, 9);
-        code.mov(code.byte[map + page + l1_offset], 1);
+        if (map) {
+            code.mov(code.byte[*map + page], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[*map + page + l2_offset], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[*map + page + l1_offset], 1);
+        } else {
+            code.mov(code.byte[page + low_base], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[page + (low_base + l2_offset)], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[page + (low_base + l1_offset)], 1);
+        }
         code.jmp(*marked, code.T_NEAR);
     });
 }
 
 template<std::size_t bitsize>
 const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::RegExp& addr, bool ordered) {
-    if (ordered) {
+    // An ordered read up to 64 bits is a plain load. x64 never moves a load before an earlier
+    // load or a later access, and ordered writes use xchg, a full barrier, so a release store
+    // followed by an acquire load stays in order. 128 bits still need cmpxchg16b to be atomic.
+    if (ordered && bitsize == 128) {
         if constexpr (bitsize != 128) {
             code.xor_(Xbyak::Reg32{value_idx}, Xbyak::Reg32{value_idx});
         } else {
