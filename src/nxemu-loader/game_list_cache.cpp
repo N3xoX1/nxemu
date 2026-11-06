@@ -40,7 +40,7 @@ std::string GetLowerExtension(const std::string & path)
 
 bool IsGameExtension(const std::string & ext)
 {
-    return ext == "dxci" || ext == "dnsp" || ext == "nro";
+    return ext == "dxci" || ext == "dnsp" || ext == "nx" || ext == "nro";
 }
 
 bool IsAddOnExtension(const std::string & ext)

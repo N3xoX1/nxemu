@@ -2,6 +2,7 @@
 #include "yuzu_video_core/shader_profile_validation.h"
 #include "yuzu_video_core/shader_profile_discovery.h"
 #include "yuzu_video_core/shader_profile_container.h"
+#include "yuzu_video_core/shader_profile_nx.h"
 #include "yuzu_video_core/shader_profile_context.h"
 #include <utility>
 #include <algorithm>
@@ -144,6 +145,86 @@ struct Physical final : Storage
         return result;
     }
 };
+// The NCAs an .nx starts the game with, shown as a plaintext PFS0 so the rest
+// of discovery reads them as it reads an NSP. Their spans name the NCAs.
+struct NxView final : Storage
+{
+    std::string name;
+    std::shared_ptr<NxGame> game;
+    std::string header;
+    std::vector<NxGame::Nca> files;
+    std::vector<u64> starts;
+    NxView(const std::filesystem::path & path, std::string name_, u64 title) :
+        name(std::move(name_)), game(std::make_shared<NxGame>(path)), files(game->PlayedContents(title))
+    {
+        Check(!files.empty(), "The NX file does not hold this game");
+        std::string strings;
+        for (const auto & file : files)
+            strings += file.name + '\0';
+        while (strings.size() % 16) strings += '\0';
+        const auto put = [this](u64 value, size_t count) {
+            for (size_t i = 0; i < count; ++i) header += static_cast<char>((value >> (8 * i)) & 0xff);
+        };
+        header = "PFS0";
+        put(files.size(), 4);
+        put(strings.size(), 4);
+        put(0, 4);
+        u64 data{}, name_offset{};
+        for (const auto & file : files)
+        {
+            starts.push_back(data);
+            put(data, 8);
+            put(file.size, 8);
+            put(name_offset, 4);
+            put(0, 4);
+            data += file.size;
+            name_offset += file.name.size() + 1;
+        }
+        header += strings;
+        size = header.size() + data;
+    }
+    std::string Read(u64 off, u64 length) override
+    {
+        Bounds(off, length, size);
+        Check(length <= MaxDecodedResource, "Discovery read limit");
+        std::string bytes(static_cast<size_t>(length), '\0');
+        u64 done{};
+        if (off < header.size())
+        {
+            done = std::min<u64>(length, header.size() - off);
+            std::copy_n(header.data() + off, done, bytes.data());
+        }
+        while (done < length)
+        {
+            const auto at = off + done - header.size();
+            const auto index = static_cast<size_t>(std::upper_bound(starts.begin(), starts.end(), at) - starts.begin() - 1);
+            const auto within = at - starts[index];
+            const auto count = std::min<u64>(length - done, files[index].size - within);
+            game->Read(files[index].file, within, std::span(bytes).subspan(static_cast<size_t>(done), static_cast<size_t>(count)));
+            done += count;
+        }
+        return bytes;
+    }
+    JsonValue Spans(u64 off, u64 length) override
+    {
+        Bounds(off, length, size);
+        JsonValue result = Array();
+        if (length)
+        {
+            JsonValue s;
+            s["file"] = name;
+            s["offset"] = Jnum(off);
+            s["size"] = Jnum(length);
+            result.Append(std::move(s));
+        }
+        return result;
+    }
+};
+Store OpenContainer(const std::filesystem::path & path, const std::string & name, u64 title)
+{
+    if (IsNxName(name)) return std::make_shared<NxView>(path, name, title);
+    return std::make_shared<Physical>(path, name);
+}
 struct Slice final : Storage
 {
     Store source;
@@ -448,7 +529,7 @@ void ResolveRecordedSources(ExportOptions & options)
 {
     Check(ValidContext(options.context), "No identified shader capture. Play and stop this version before exporting.");
     Check(options.title_id && !options.base.empty(), "Missing game identity");
-    const auto base = std::make_shared<Physical>(Local(options.game_root, options.base), options.base);
+    const auto base = OpenContainer(Local(options.game_root, options.base), options.base, options.title_id);
     const auto base_part = ProgramPart(base, options.title_id);
     Check(!base_part.empty(), "Recorded base game is unavailable");
     options.update.clear();
@@ -469,7 +550,7 @@ void ResolveRecordedSources(ExportOptions & options)
         auto extension = entry.path().extension().string();
         std::transform(extension.begin(), extension.end(), extension.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (extension != ".dnsp" && extension != ".nsp" && extension != ".dxci" && extension != ".xci") continue;
+        if (extension != ".dnsp" && extension != ".nsp" && extension != ".dxci" && extension != ".xci" && extension != ".nx") continue;
         const auto filename = entry.path().filename().u8string();
         candidates.emplace_back(filename.begin(), filename.end());
     }
@@ -479,7 +560,7 @@ void ResolveRecordedSources(ExportOptions & options)
         if (options.progress) Check(options.progress("identify-content", i, candidates.size()), "Shader profile operation cancelled");
         try
         {
-            const auto source = std::make_shared<Physical>(Local(options.game_root, candidates[i]), candidates[i]);
+            const auto source = OpenContainer(Local(options.game_root, candidates[i]), candidates[i], options.title_id);
             const auto part = ProgramPart(source, options.title_id | 0x800);
             if (!part.empty() && ContentContext(options.title_id, base_part, part) == options.context)
             {
@@ -506,7 +587,7 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
         if (!name.empty() && !containers.contains(name))
         {
             const auto path = Local(options.game_root, name);
-            const auto container = containers[name] = std::make_shared<Physical>(path, name);
+            const auto container = containers[name] = OpenContainer(path, name, options.title_id);
             JsonValue c;
             c["name"] = name;
             c["size"] = Jnum(container->size);

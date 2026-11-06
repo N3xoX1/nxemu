@@ -131,6 +131,14 @@ msgid "A game is running: what is greyed out cannot change until it stops."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Applets"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Log"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Picture"
 msgstr ""
 
@@ -178,6 +186,14 @@ msgid "Textures and video"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "ASTC recompression"
 msgstr ""
 
@@ -195,6 +211,14 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -236,6 +260,18 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "So that it does not slow its clock. Uses more power."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -325,6 +361,14 @@ msgid "For every player. Each has a switch of their own."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Behaviour"
 msgstr ""
 
@@ -355,15 +399,16 @@ msgid "Shows what you play in Discord when it runs."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "NXShader"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Shader warmup mode"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -383,23 +428,11 @@ msgid "Default: 60. Continue preparing shaders for this long, then compile the r
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Emulation diagnostics"
+msgid "Video decoding"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Processor engine"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "How the game's code is run."
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Processor accuracy"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "For the engine that translates the code."
+msgid "What decodes the videos of games."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -408,6 +441,10 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders load faster with some drivers."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Rendering"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -464,31 +501,24 @@ msgid "Draws transparent things right in some games."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Fast GPU time"
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Processor"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Most games then draw their highest resolution."
+msgid "Processor engine"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgid "How the game's code is run."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "ASTC decoding"
+msgid "Processor accuracy"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "What decodes the textures of this kind."
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Video decoding"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "What decodes the videos of games."
+msgid "For the engine that translates the code."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -536,15 +566,67 @@ msgid "Needs multicore."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Accurate vibration"
+msgid "Amiibo editor"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Every change is sent: some controllers lag."
+msgid "Controller configuration"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Log"
+msgid "Data erase"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Error"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Net connect"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Player select"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Software keyboard"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Mii Edit"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What a game opens of the console's own: NXEmu's version of it, or the real one from the installed firmware. Applies on the next game start."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Online web"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shop"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Photo viewer"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Offline web"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Login share"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Wifi web auth"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "My page"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -611,6 +693,8 @@ msgstr ""
 #: src/nxemu/ui/assets/firmware_dialog.rml
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
@@ -683,6 +767,8 @@ msgstr ""
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
@@ -981,6 +1067,8 @@ msgid "Cover"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Game"
 msgstr ""
 
@@ -1049,6 +1137,7 @@ msgid "Scanning games..."
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/startup.rml
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Loading"
 msgstr ""
@@ -1076,6 +1165,113 @@ msgstr ""
 
 #: src/nxemu/ui/assets/message_dialog.rml
 msgid "No"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "NX contents"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The game, its updates and DLC in this file. The most recent update is used unless it is turned off in the game properties. Adding or removing never rewrites the game itself."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The file stays as it was until the change is complete. Cancelling leaves it as it was."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Add an update or DLC"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Keep it"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/views/directories_dialog.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Remove"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Convert to NX"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Each game, with its updates and DLC, becomes one .nx file that NXEmu reads directly. Drop files or folders on this window, or add them below."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Add files"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Add a folder"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Clear the list"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Compression"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Quickest to convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Fast"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "A little smaller, slower to convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Smaller"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Smallest file, slowest to convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Smallest"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Save to"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Beside the games"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Change"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Keep the rebuild data"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "A few KB, kept inside the NX. It recreates the original DXCI or DNSP byte for byte."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "The original files are only read. Cancelling leaves no partial file."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Convert other games"
 msgstr ""
 
 #: src/nxemu/ui/assets/profiles_dialog.rml
@@ -1197,6 +1393,10 @@ msgid "Stop the current game before opening another one."
 msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to reload after stopping the game."
 msgstr ""
 
@@ -1208,10 +1408,6 @@ msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to load."
-msgstr ""
-
-#: src/nxemu/ui/emulation/emulator_session.cpp
-msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
 msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
@@ -1460,6 +1656,27 @@ msgid_plural "%n years ago"
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are already enabled."
+msgstr ""
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to enable debug settings."
+msgstr ""
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n more click to enable debug settings."
+msgid_plural "%n more clicks to enable debug settings."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/about_dialog.cpp
+msgid "Debug settings are enabled, under Debug in the settings."
+msgstr ""
+
 #: src/nxemu/ui/views/advanced_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None"
@@ -1547,10 +1764,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Steadier: it fixes some games."
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Processor"
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -1675,6 +1888,22 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Custom frontend"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "NXEmu's own version of the applet."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Real applet"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The console's applet, from the installed firmware."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -1904,10 +2133,6 @@ msgid "Scan subfolders"
 msgstr ""
 
 #: src/nxemu/ui/views/directories_dialog.cpp
-msgid "Remove"
-msgstr ""
-
-#: src/nxemu/ui/views/directories_dialog.cpp
 msgid "No game directory yet. Add the folders your games are in."
 msgstr ""
 
@@ -1917,6 +2142,8 @@ msgstr ""
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -2020,6 +2247,8 @@ msgstr ""
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "All files"
 msgstr ""
 
@@ -2073,6 +2302,8 @@ msgid "Updates"
 msgstr ""
 
 #: src/nxemu/ui/views/game_details_panel.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "DLC"
 msgstr ""
@@ -2102,6 +2333,7 @@ msgid "Add-ons cannot change while a game is running"
 msgstr ""
 
 #: src/nxemu/ui/views/game_details_panel.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-on content"
 msgstr ""
@@ -2341,6 +2573,8 @@ msgid "Recent"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%1 GB"
@@ -2391,6 +2625,10 @@ msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Install &Firmware"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Convert games to &NX..."
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2548,6 +2786,14 @@ msgid "Copy File Path"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Updates and DLC in this NX..."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Convert to NX..."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Manage profiles"
 msgstr ""
 
@@ -2565,6 +2811,7 @@ msgid "Resume emulation (F2)"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Switch games"
 msgstr ""
 
@@ -2603,6 +2850,165 @@ msgid ""
 "Are you sure you want to stop the emulation?\n"
 "\n"
 "Any unsaved progress will be lost."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Update"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Reading the file..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 written"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Added."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Added; the rest was already in the file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Already in the file: nothing changed."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Removed. The space it used is reclaimed by a later change or when it grows large."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: the file was left as it was."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Nothing changed: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Adding to %1..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Updates and DLC"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Remove %1 %2?"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The game then starts with the next most recent update in the file, or without one. Its saves are not touched."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The game no longer sees this DLC. Its saves are not touched."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Removing %1 %2..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Used"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Nothing could be read from this file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1 (%2, the files were %3)"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Cancelled: nothing was written"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add the game itself (its base file): an NX holds the game with its updates and DLC."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Two files hold the game itself: keep only one of them."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 already exists. Open it from the game list to add updates or DLC."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose a folder of games"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose where the NX files go"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Beside each game's files"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Files"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Not a decrypted DXCI or DNSP file: it cannot be converted."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Reading the files..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add the game's files: the game itself, its updates and its DLC. They can be in several files; each game becomes one .nx file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert %1 games"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Converting %1 (%2 of %3)..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Converting %1..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 games converted"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Game converted"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 of %2 games converted"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "The NX files appear in the game list once their folder is one of the game directories. The original files were left as they were."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "The original files were left as they were."
 msgstr ""
 
 #: src/nxemu/ui/views/performance_overlay.h
@@ -3041,7 +3447,7 @@ msgid "No games found"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
@@ -3353,6 +3759,14 @@ msgid "Not installed"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to disable debug settings."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are enabled."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Small cards"
 msgstr ""
 
@@ -3414,10 +3828,6 @@ msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%1 h %2 min"
-msgstr ""
-
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Version %1"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -3618,7 +4028,7 @@ msgid "No folders yet"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -3646,7 +4056,7 @@ msgid "Add another folder"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4239,4 +4649,29 @@ msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
+msgid "Rebuilt, identical to the original file."
+msgstr ""
+
+msgid "Cancelled: nothing was kept."
+msgstr ""
+
+msgid "Not rebuilt: %1"
+msgstr ""
+
+msgid "Choose where the original file goes"
+msgstr ""
+
+msgid "Rebuilding %1..."
+msgstr ""
+
+msgid "Original files that can be rebuilt"
+msgstr ""
+
+msgid "Original"
+msgstr ""
+
+msgid "Rebuild"
+msgstr ""
+
+msgid "Newest"
 msgstr ""

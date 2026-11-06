@@ -1,4 +1,5 @@
 #include "system_loader.h"
+#include "core/loader/nx.h"
 #include "core/file_sys/vfs/backing_read_traffic.h"
 #include <nxemu-module-spec/application_control_data.h>
 #include "core/core.h"
@@ -63,6 +64,7 @@ StorageId GetStorageIdForFrontendSlot(std::optional<FileSys::ContentProviderUnio
 const char * const kSupportedGameExtensions[] = {
     "dxci",
     "dnsp",
+    "nx",
     "nro",
 };
 constexpr uint32_t kSupportedGameExtensionCount = (uint32_t)(sizeof(kSupportedGameExtensions) / sizeof(kSupportedGameExtensions[0]));
@@ -214,7 +216,7 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::LoadingRom);
     impl->m_file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
-    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, program_id, program_index);
+    impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, program_id, program_index,fileName);
     if (!impl->m_appLoader)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
@@ -300,7 +302,8 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     impl->m_preparedRom->fileName = fileName;
     impl->m_preparedRom->title = std::move(title);
     impl->m_preparedRom->nacpData = std::move(nacp_data);
-    impl->m_preparedRom->version = pm.GetGameVersion().value_or(0);
+    impl->m_preparedRom->version = app_loader->GetFileType()==LoaderFileType::NX ?
+        static_cast<Loader::AppLoader_NX*>(app_loader)->SelectedVersion() : pm.GetGameVersion().value_or(0);
     impl->m_preparedRom->mainThreadPriority = load_parameters->main_thread_priority;
     impl->m_preparedRom->mainThreadStackSize = load_parameters->main_thread_stack_size;
     return true;
@@ -337,6 +340,11 @@ bool Systemloader::StartPreparedRom()
     // current_process_game_card use correct StorageId
     StorageId baseGameStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(impl->m_titleID, LoaderContentRecordType::Program));
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
+    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
+        const auto& selected=*static_cast<Loader::AppLoader_NX*>(impl->m_appLoader.get());
+        baseGameStorageId=StorageId::Host;
+        updateStorageId=selected.UpdateSelected() ? StorageId::Host : StorageId::None;
+    }
 
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::Success);
     impl->m_modules.OperatingSystem().StartApplicationProcess(prepared->mainThreadPriority, prepared->mainThreadStackSize, prepared->version, baseGameStorageId, updateStorageId, prepared->nacpData.data(), (uint32_t)prepared->nacpData.size());
@@ -364,7 +372,7 @@ IRomInfo * Systemloader::RomInfo(const char * fileName, uint64_t programId, uint
         return nullptr;
     }
 
-    std::shared_ptr<Loader::AppLoader> app_loader = Loader::GetLoader(*this, file, programId, programIndex);
+    std::shared_ptr<Loader::AppLoader> app_loader = Loader::GetLoader(*this, file, programId, programIndex,fileName);
     if (!app_loader)
     {
         return nullptr;
@@ -450,6 +458,10 @@ FileSystemController & Systemloader::GetFileSystemController()
 
 FileSys::ContentProvider & Systemloader::GetContentProvider()
 {
+    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
+        auto& nx_loader=*static_cast<Loader::AppLoader_NX*>(impl->m_appLoader.get());
+        if (nx_loader.GetStatus()==LoaderResultStatus::Success) return nx_loader.ContentProvider(*impl->m_contentProvider);
+    }
     return *impl->m_contentProvider;
 }
 
@@ -551,6 +563,8 @@ bool Systemloader::GetActiveProgramContent(uint64_t program_id, ActiveProgramCon
     if (!impl->m_appLoader) return false;
     u64 loaded_id{};
     if (impl->m_appLoader->ReadProgramId(loaded_id) != LoaderResultStatus::Success || loaded_id != program_id) return false;
+    if (impl->m_appLoader->GetFileType()==LoaderFileType::NX)
+        return static_cast<Loader::AppLoader_NX*>(impl->m_appLoader.get())->ActiveContent(out);
     auto & provider = GetContentProvider();
     const FileSys::PatchManager pm(program_id, GetFileSystemController(), provider);
     const auto patches = pm.GetPatches();
@@ -613,6 +627,11 @@ IFileSysNACP * Systemloader::ReadControlData()
 
 IFileSysNACP * Systemloader::GetPMControlMetadata(uint64_t programID)
 {
+    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
+        uint64_t active=0;
+        if (impl->m_appLoader->ReadProgramId(active)!=LoaderResultStatus::Success || active!=programID) return nullptr;
+        return ReadControlData();
+    }
     const FileSys::PatchManager pm(programID, GetFileSystemController(), GetContentProvider());
     FileSys::PatchManager::Metadata metadata = pm.GetControlMetadata();
     if (metadata.first == nullptr)
@@ -626,6 +645,16 @@ LoaderResultStatus Systemloader::GetPMControlData(uint64_t program_id, uint8_t *
                                                  uint32_t buffer_size, uint32_t & actual_size)
 {
     actual_size = 0;
+    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
+        uint64_t active=0; FileSys::NACP nacp;
+        if (impl->m_appLoader->ReadProgramId(active)!=LoaderResultStatus::Success || active!=program_id ||
+            impl->m_appLoader->ReadControlData(nacp)!=LoaderResultStatus::Success) return LoaderResultStatus::ErrorNoControl;
+        uint32_t icon_size=0;
+        impl->m_appLoader->ReadIcon(nullptr,&icon_size);
+        return ApplicationControlData::Read(nacp.GetRawBytes(),icon_size,
+            [&](uint8_t* output,uint64_t size) { uint32_t capacity=static_cast<uint32_t>(size); return impl->m_appLoader->ReadIcon(output,&capacity)==LoaderResultStatus::Success ? uint64_t(capacity) : uint64_t(0); },
+            buffer,buffer_size,actual_size);
+    }
     const FileSys::PatchManager pm(program_id, GetFileSystemController(), GetContentProvider());
     const auto metadata = pm.GetControlMetadata();
     if (metadata.first == nullptr || !metadata.first->IsValid())

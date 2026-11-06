@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -93,5 +94,8 @@ private:
 };
 
 [[nodiscard]] PatchManager::Metadata ParseControlRomFS(VirtualFile romfs);
+
+/// Native NACP language names, ordered by the configured system language.
+[[nodiscard]] std::array<const char*, 16> GetApplicationLanguagePriorityNames();
 
 } // namespace FileSys
