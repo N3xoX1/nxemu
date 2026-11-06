@@ -53,6 +53,7 @@ private:
     void ShowPicture();
     void ShowState();
     void ShowHint();
+    void ApplyChanges();
     void ApplyChange(const std::string & id);
 
     InputParams SlotParams(int slot) const;
