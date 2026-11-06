@@ -9,10 +9,26 @@ cmake --build build
 ctest --test-dir build -L unit --output-on-failure
 ```
 
+## Fast unit tests
+
+The macOS fast test job uses a standalone CMake project. It only builds test
+executables and does not require the emulator or its submodules.
+
+```sh
+cmake -S tests/fast -B build/fast-tests -DCMAKE_BUILD_TYPE=Release
+cmake --build build/fast-tests --target nxemu_fast_tests
+ctest --test-dir build/fast-tests -L '^fast$' --output-on-failure
+```
+
+Add a self-contained suite in a directory under `tests/fast/` and register its
+targets with `nxemu_fast_test(target)`. The normal local test build includes
+these tests by default.
+
 ## unit
 
 Small programs that check one piece of production code and exit non-zero on failure.
-The macOS CI job builds `nxemu_unit_tests` and runs the suite through CTest.
+The macOS build job runs the remaining unit tests against the same build tree
+used for the emulator.
 For a new suite, put a `CMakeLists.txt` in its own directory directly under
 `tests/unit/`, define its executable, and register it with
 `nxemu_unit_test(target)`. Use `nxemu_unit_test(target LINUX)` to also include

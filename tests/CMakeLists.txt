@@ -9,6 +9,12 @@ target_compile_definitions(nxemu_test_support PRIVATE FMT_HEADER_ONLY)
 
 add_subdirectory(unit)
 
+option(NXEMU_BUILD_FAST_TESTS "Include the standalone suite in the full test build" ON)
+if(NXEMU_BUILD_FAST_TESTS)
+    add_subdirectory(fast)
+    add_dependencies(nxemu_unit_tests nxemu_fast_tests)
+endif()
+
 include(CMakeDependentOption)
 cmake_dependent_option(NXEMU_BUILD_PLATFORM_TESTS "Build the native code execution tests" ON
     "APPLE;ARCHITECTURE_arm64" OFF)
