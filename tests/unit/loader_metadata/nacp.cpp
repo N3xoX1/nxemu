@@ -8,9 +8,11 @@
 #include <fstream>
 #include <iterator>
 #include "nxemu-module-spec/base.h"
+#include "loader_settings.h"
 
 // The parsing tests never query the language setting.
 IModuleSettings* g_settings = nullptr;
+LoaderSettings loaderSettings{};
 
 void Check(bool value, const char* message) {
     if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::abort(); }
