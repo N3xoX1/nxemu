@@ -24,6 +24,7 @@ public:
     {
         Inputs inputs;
         bool ambiguous{};
+        bool withheld{};
     };
     template <class Equal>
     void Observe(const Key & key, Inputs inputs, Equal equal)
@@ -38,6 +39,11 @@ public:
         }
         else if (!it->second.ambiguous && !equal(it->second.inputs, inputs))
             it->second.ambiguous = true;
+    }
+    void Withhold(const Key & key)
+    {
+        if (const auto it = entries.find(key); it != entries.end())
+            it->second.withheld = true;
     }
     template <class F, class Rejected>
     size_t ConsumeSafe(F consume, Rejected reject)
@@ -59,7 +65,7 @@ public:
                 ++rejected;
                 reject(key);
             }
-            else
+            else if (!candidate.withheld)
                 consume(key, std::move(candidate.inputs));
         }
         return rejected;
