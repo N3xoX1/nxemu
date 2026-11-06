@@ -21,6 +21,7 @@
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
+#include <yuzu_common/logging/log.h>
 
 extern IModuleSettings * g_settings;
 
@@ -570,11 +571,67 @@ std::filesystem::path CacheFilePath()
     return Common::FS::GetYuzuPath(Common::FS::YuzuPath::CacheDir) / CacheFileName;
 }
 
+enum class Listing
+{
+    Complete,
+    Incomplete, // a directory or entry could not be read, so what was not seen may still be there
+    Stopped,
+};
+
+template <typename OnFile, typename Enter>
+Listing ListDirectory(const std::filesystem::path & root, IGameListScanCallback & callback, OnFile && onFile, Enter && enter)
+{
+    Listing listing = Listing::Complete;
+    std::vector<std::filesystem::path> pending{root};
+    while (!pending.empty())
+    {
+        const std::filesystem::path directory = std::move(pending.back());
+        pending.pop_back();
+        const size_t firstChild = pending.size();
+        std::error_code ec;
+        std::filesystem::directory_iterator it{directory, std::filesystem::directory_options::skip_permission_denied, ec};
+        for (const std::filesystem::directory_iterator end; !ec && it != end; it.increment(ec))
+        {
+            if (callback.ScanStopRequested())
+            {
+                return Listing::Stopped;
+            }
+            const std::filesystem::directory_entry & entry = *it;
+            std::error_code typeError;
+            const std::filesystem::file_status status = entry.status(typeError);
+            if (typeError)
+            {
+                if (status.type() != std::filesystem::file_type::not_found)
+                {
+                    listing = Listing::Incomplete;
+                }
+                continue;
+            }
+            if (std::filesystem::is_regular_file(status))
+            {
+                onFile(entry);
+            }
+            else if (std::filesystem::is_directory(status) && enter(entry))
+            {
+                pending.push_back(entry.path());
+            }
+        }
+        if (ec)
+        {
+            listing = Listing::Incomplete;
+        }
+        std::reverse(pending.begin() + firstChild, pending.end());
+    }
+    return listing;
+}
+
 } // namespace
 
 GameListCache::GameListCache(Systemloader & systemloader) :
     m_systemloader(systemloader),
-    m_loaded(false)
+    m_loaded(false),
+    m_dirty(false),
+    m_listingComplete(true)
 {
 }
 
@@ -585,8 +642,12 @@ GameListCache::~GameListCache()
 bool GameListCache::Scan(const std::vector<GameDirectory> & gameDirs, IGameListScanCallback & callback)
 {
     std::lock_guard<std::mutex> lock(m_scanMutex);
-    m_gameDirectories = gameDirs;
     BeginScan();
+    if (m_gameDirectories != gameDirs)
+    {
+        m_gameDirectories = gameDirs;
+        m_dirty = true;
+    }
     bool complete = ScanAddOnDirectories(callback);
     for (size_t i = 0; complete && i < gameDirs.size(); i++)
     {
@@ -632,6 +693,7 @@ void GameListCache::BeginScan()
         m_loaded = true;
     }
     m_disabledAddOns = loaderSettings.disabled_addons;
+    m_listingComplete = true;
     for (GameFiles::value_type & game : m_gameFiles)
     {
         game.second.seen = false;
@@ -645,6 +707,10 @@ bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
         UpdateIndex addOnIndex;
         for (const AddOnFiles::value_type & addOnFile : m_addOnFiles)
         {
+            if (!addOnFile.second.seen)
+            {
+                continue;
+            }
             for (const AddOnEntry & entry : addOnFile.second.entries)
             {
                 if (entry.titleType == LoaderTitleType::Update && entry.contentType == LoaderContentRecordType::Control)
@@ -654,14 +720,27 @@ bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
             }
         }
 
-        for (GameFiles::iterator itr = m_gameFiles.begin(); itr != m_gameFiles.end();)
+        if (m_listingComplete)
         {
-            itr = itr->second.seen ? std::next(itr) : m_gameFiles.erase(itr);
+            for (GameFiles::iterator itr = m_gameFiles.begin(); itr != m_gameFiles.end();)
+            {
+                if (itr->second.seen)
+                {
+                    ++itr;
+                    continue;
+                }
+                itr = m_gameFiles.erase(itr);
+                m_dirty = true;
+            }
         }
 
         UpdateIndex gameDirIndex;
         for (const GameFiles::value_type & game : m_gameFiles)
         {
+            if (!game.second.seen)
+            {
+                continue;
+            }
             for (const AddOnEntry & entry : game.second.addOns)
             {
                 if (entry.titleType == LoaderTitleType::Update && entry.contentType == LoaderContentRecordType::Control)
@@ -672,7 +751,7 @@ bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
         }
         for (GameFiles::value_type & game : m_gameFiles)
         {
-            if (!game.second.isGame)
+            if (!game.second.isGame || !game.second.seen)
             {
                 continue;
             }
@@ -680,12 +759,16 @@ bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
             {
                 if (RefreshUpdate(program, addOnIndex, gameDirIndex))
                 {
+                    m_dirty = true;
                     ReportProgram(game.first, program, true, callback);
                 }
             }
         }
     }
-    Save();
+    if (m_dirty && Save())
+    {
+        m_dirty = false;
+    }
     return complete;
 }
 
@@ -729,23 +812,18 @@ bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback)
         addOnFile.second.seen = false;
     }
 
-    bool stopped = false;
+    bool listingComplete = true;
     for (const std::string & dir : loaderSettings.addOnDirectories)
     {
         if (dir.empty())
         {
             continue;
         }
-        const auto callbackEntry = [&](const std::filesystem::directory_entry & entry) -> bool {
-            if (callback.ScanStopRequested())
-            {
-                stopped = true;
-                return false;
-            }
+        const auto addOnFile = [&](const std::filesystem::directory_entry & entry) {
             const std::string path = Common::FS::PathToUTF8String(entry.path());
             if (!IsAddOnExtension(GetLowerExtension(path)))
             {
-                return true;
+                return;
             }
             std::error_code ec;
             FileStamp stamp;
@@ -758,20 +836,35 @@ bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback)
             {
                 record.entries = ReadAddOnEntries(path);
                 record.stamp = stamp;
+                m_dirty = true;
             }
             record.seen = true;
-            return true;
         };
-        Common::FS::IterateDirEntriesRecursively(dir, callbackEntry, Common::FS::DirEntryFilter::File);
-        if (stopped)
+        const Listing listing = ListDirectory(std::filesystem::path{Common::FS::ToU8String(dir)}, callback, addOnFile,
+                                              [](const std::filesystem::directory_entry &) { return true; });
+        if (listing == Listing::Stopped)
         {
             return false;
         }
+        if (listing == Listing::Incomplete)
+        {
+            LOG_WARNING(Loader, "Add-on directory {} could not be fully read, keeping its cached add-ons", dir);
+            listingComplete = false;
+        }
     }
 
-    for (AddOnFiles::iterator itr = m_addOnFiles.begin(); itr != m_addOnFiles.end();)
+    if (listingComplete)
     {
-        itr = itr->second.seen ? std::next(itr) : m_addOnFiles.erase(itr);
+        for (AddOnFiles::iterator itr = m_addOnFiles.begin(); itr != m_addOnFiles.end();)
+        {
+            if (itr->second.seen)
+            {
+                ++itr;
+                continue;
+            }
+            itr = m_addOnFiles.erase(itr);
+            m_dirty = true;
+        }
     }
     return true;
 }
@@ -781,7 +874,6 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
     const std::string & gameDir = gameDirectory.path;
     std::vector<DirFile> files;
 
-    bool stopped = false;
     const auto collectFile = [&](const std::filesystem::directory_entry & entry) {
         const std::filesystem::path & path = entry.path();
         std::string name = Common::FS::PathToUTF8String(path);
@@ -806,59 +898,29 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
     // The generic recursive scanner used to visit every asset in loose romfs/ trees,
     // even though only ExeFS/main is an executable. Walk directories explicitly so
     // entire RomFS payloads can be skipped without sacrificing nested game discovery.
-    // Like the old scanner, directory links are followed.
-    std::vector<std::filesystem::path> pending{std::filesystem::path{Common::FS::ToU8String(gameDir)}};
-    while (!pending.empty() && !stopped)
-    {
-        const std::filesystem::path directory = std::move(pending.back());
-        pending.pop_back();
-        const size_t firstChild = pending.size();
-        std::error_code ec;
-        std::filesystem::directory_iterator it{directory, std::filesystem::directory_options::skip_permission_denied, ec};
-        for (const std::filesystem::directory_iterator end; !ec && it != end; it.increment(ec))
+    const auto enterDirectory = [&](const std::filesystem::directory_entry & entry) {
+        if (!gameDirectory.scanSubfolders)
         {
-            if (callback.ScanStopRequested())
+            // A selected game folder can contain an exefs/ child even when recursive
+            // scanning is disabled. Inspect only its main, never its RomFS payload.
+            if (Loader::LooseFS::IsExeFSFolder(entry.path()) && Loader::LooseFS::HasMainAndNpdm(entry.path()))
             {
-                stopped = true;
-                break;
+                std::error_code mainError;
+                collectFile(std::filesystem::directory_entry{entry.path() / "main", mainError});
             }
-            const std::filesystem::directory_entry & entry = *it;
-            std::error_code typeError;
-            const std::filesystem::file_status status = entry.status(typeError);
-            if (typeError)
-            {
-                continue;
-            }
-            if (std::filesystem::is_regular_file(status))
-            {
-                collectFile(entry);
-                continue;
-            }
-            if (!std::filesystem::is_directory(status))
-            {
-                continue;
-            }
-            if (!gameDirectory.scanSubfolders)
-            {
-                // A selected game folder can contain an exefs/ child even when recursive
-                // scanning is disabled. Inspect only its main, never its RomFS payload.
-                if (Loader::LooseFS::IsExeFSFolder(entry.path()) && Loader::LooseFS::HasMainAndNpdm(entry.path()))
-                {
-                    collectFile(std::filesystem::directory_entry{entry.path() / "main", typeError});
-                }
-                continue;
-            }
-            if (!Loader::LooseFS::CanSkipRomFS(entry.path()))
-            {
-                pending.push_back(entry.path());
-            }
+            return false;
         }
-        // Visit subfolders in listing order, as the old depth-first scan did.
-        std::reverse(pending.begin() + firstChild, pending.end());
-    }
-    if (stopped)
+        return !Loader::LooseFS::CanSkipRomFS(entry.path());
+    };
+    const Listing listing = ListDirectory(std::filesystem::path{Common::FS::ToU8String(gameDir)}, callback, collectFile, enterDirectory);
+    if (listing == Listing::Stopped)
     {
         return false;
+    }
+    if (listing == Listing::Incomplete)
+    {
+        LOG_WARNING(Loader, "Game directory {} could not be fully read, keeping its cached games", gameDir);
+        m_listingComplete = false;
     }
     return ScanGameFiles(files, callback);
 }
@@ -869,7 +931,7 @@ bool GameListCache::ScanGameFiles(const std::vector<DirFile> & files, IGameListS
     for (size_t i = 0; i < files.size(); i++)
     {
         GameFiles::iterator itr = m_gameFiles.find(files[i].path);
-        parse[i] = itr == m_gameFiles.end() || !(itr->second.stamp == files[i].stamp);
+        parse[i] = itr == m_gameFiles.end() || (!itr->second.seen && !(itr->second.stamp == files[i].stamp));
     }
 
     const uint32_t parseTotal = static_cast<uint32_t>(std::count(parse.begin(), parse.end(), true));
@@ -883,6 +945,10 @@ bool GameListCache::ScanGameFiles(const std::vector<DirFile> & files, IGameListS
         }
         GameFiles::value_type & game = *m_gameFiles.try_emplace(files[i].path).first;
         GameFileRecord & record = game.second;
+        if (record.seen)
+        {
+            continue;
+        }
         record.seen = true;
 
         if (parse[i])
@@ -892,6 +958,7 @@ bool GameListCache::ScanGameFiles(const std::vector<DirFile> & files, IGameListS
             record.seen = true;
             record.stamp = files[i].stamp;
             ParseGameFile(game.first, record);
+            m_dirty = true;
         }
         if (record.isGame)
         {
@@ -1248,7 +1315,7 @@ void GameListCache::Load()
     m_gameDirectories = std::move(gameDirectories);
 }
 
-void GameListCache::Save() const
+bool GameListCache::Save() const
 {
     CacheWriter writer;
     writer.U32(CacheMagic);
@@ -1312,14 +1379,15 @@ void GameListCache::Save() const
         std::ofstream stream(tempFile, std::ios::binary | std::ios::trunc);
         if (!stream)
         {
-            return;
+            return false;
         }
         const std::vector<uint8_t> & data = writer.Data();
         stream.write((const char *)data.data(), (std::streamsize)data.size());
         if (!stream)
         {
-            return;
+            return false;
         }
     }
     std::filesystem::rename(tempFile, cacheFile, ec);
+    return !ec;
 }
