@@ -4,6 +4,7 @@
 #pragma once
 
 #include <set>
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -134,6 +135,43 @@ public:
 
     static constexpr size_t AS_BITS = Traits::device_virtual_bits;
 
+    /// Host pointer and size of the guest RAM backing that every device page points into
+    const u8* PhysicalBase() const noexcept {
+        return reinterpret_cast<const u8*>(physical_base);
+    }
+    size_t PhysicalSize() const noexcept {
+        return compressed_device_addr.size() << page_bits;
+    }
+
+    /// Marks pages written by a GPU engine (inline constant buffer data, I2M, DMA). Their
+    /// contents are ordered in the GPU timeline, so queued GPU work can't read them in place.
+    /// Sticky: a page stays marked.
+    void MarkTimelineWrite(DAddr addr, size_t size) noexcept {
+        if (size == 0 || addr >= device_as_size) return;
+        const size_t first = addr >> page_bits;
+        const size_t last = std::min<size_t>((addr + size - 1) >> page_bits, (device_as_size >> page_bits) - 1);
+        for (size_t page = first; page <= last; ++page) {
+            std::atomic_ref<u64> word{timeline_pages[page >> 6]};
+            const u64 bit = u64{1} << (page & 63);
+            if ((word.load(std::memory_order_relaxed) & bit) == 0) {
+                word.fetch_or(bit, std::memory_order_relaxed);
+            }
+        }
+    }
+    bool HasTimelineWrite(DAddr addr, size_t size) const noexcept {
+        if (size == 0) return false;
+        if (addr >= device_as_size) return true;
+        const size_t first = addr >> page_bits;
+        const size_t last = std::min<size_t>((addr + size - 1) >> page_bits, (device_as_size >> page_bits) - 1);
+        for (size_t page = first; page <= last; ++page) {
+            if (std::atomic_ref<u64>{const_cast<u64&>(timeline_pages[page >> 6])}.load(std::memory_order_relaxed) &
+                (u64{1} << (page & 63))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 private:
     static constexpr size_t device_virtual_bits = Traits::device_virtual_bits;
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
@@ -180,6 +218,8 @@ private:
     Common::VirtualBuffer<u32> compressed_device_addr;
     static constexpr size_t continuity_levels = (device_virtual_bits - page_bits + 5) / 6;
     std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
+    /// One bit per device page, see MarkTimelineWrite
+    Common::VirtualBuffer<u64> timeline_pages{(device_as_size >> page_bits) / 64};
 
     // Process memory interfaces
 

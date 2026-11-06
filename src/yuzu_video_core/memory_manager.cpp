@@ -631,6 +631,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
+        memory.MarkTimelineWrite(dev_addr_base, copy_amount);
         // A delayed readback can complete after the guest memory was unmapped at shutdown.
         if (u8 * physical = memory.GetPointer<u8>(dev_addr_base))
         {
@@ -645,6 +646,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
+        memory.MarkTimelineWrite(dev_addr_base, copy_amount);
         if (!IsBigPageContinuous(page_index)) [[unlikely]]
         {
             memory.WriteBlockUnsafe(dev_addr_base, src_buffer, copy_amount);

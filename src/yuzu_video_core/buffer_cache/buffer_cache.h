@@ -1191,6 +1191,24 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
+    if constexpr (!IS_OPENGL) {
+        // The guest RAM is device memory: a range that no GPU engine wrote (inline data,
+        // I2M, DMA, shader writes) is read by the GPU in place, as on the console.
+        if (!host_mapped_tried) [[unlikely]] {
+            host_mapped_tried = true;
+            host_mapped_ready = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
+                                                                  device_memory.PhysicalSize());
+        }
+        if (host_mapped_ready && binding.buffer_id != NULL_BUFFER_ID && size != 0) {
+            if (!device_memory.HasTimelineWrite(device_addr, size) &&
+                !memory_tracker.IsRegionGpuModified(device_addr, size)) {
+                if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
+                    pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
+                    return;
+                }
+            }
+        }
+    }
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
     bool stream_modified_uniform{};

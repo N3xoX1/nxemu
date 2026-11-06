@@ -697,6 +697,9 @@ private:
     };
     Common::LeastRecentlyUsedCache<LRUItemParams> lru_cache;
     u64 frame_tick = 0;
+    /// Guest RAM imported as device memory (Vulkan): uniform buffers that only the CPU wrote bind in place
+    bool host_mapped_tried = false;
+    bool host_mapped_ready = false;
     u64 total_used_memory = 0;
     u64 minimum_memory = 0;
     u64 critical_memory = 0;

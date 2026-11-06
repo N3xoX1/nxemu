@@ -116,6 +116,31 @@ public:
 
     bool ShouldStreamUniformBuffer(const Buffer& buffer, u32 offset, u32 size) const;
 
+    /// Imports the guest RAM backing as device memory (VK_EXT_external_memory_host), so
+    /// buffers that only the guest CPU writes can be bound in place, without a copy.
+    /// Returns false when the device can't, and the cache keeps copying.
+    bool InitHostMappedGuestMemory(const u8* base, size_t size);
+
+    /// Binds `size` bytes at `pointer` (inside the guest RAM backing) as a uniform buffer.
+    /// Returns false when the range can't be bound in place.
+    bool BindHostMappedUniformBuffer(const u8* pointer, u32 size) {
+        const size_t offset = static_cast<size_t>(pointer - host_mapped_base);
+        if (offset >= host_mapped_size || host_mapped_size - offset < size ||
+            (offset & (host_mapped_ubo_alignment - 1)) != 0) {
+            return false;
+        }
+        const size_t window = offset >> HostMappedWindowBits;
+        BindBuffer(host_mapped_windows[window],
+                   static_cast<u32>(offset - (window << HostMappedWindowBits)), size);
+        return true;
+    }
+
+    bool HasHostMappedGuestMemory() const noexcept {
+        return host_mapped_size != 0;
+    }
+
+    ~BufferCacheRuntime();
+
     u32 GetStorageBufferAlignment() const;
 
     [[nodiscard]] StagingBufferRef UploadStagingBuffer(size_t size);
@@ -277,6 +302,17 @@ private:
     std::shared_ptr<QuadStripIndexBuffer> quad_strip_index_buffer;
 
     vk::Buffer null_buffer;
+
+    /// Guest RAM imported as device memory. Each window buffer starts at a multiple of
+    /// 1 GiB and spans 64 KiB more, so a uniform range fits in one with a 32-bit offset.
+    static constexpr size_t HostMappedWindowBits = 30;
+    static constexpr size_t HostMappedWindowTail = 64 * 1024;
+    VkDeviceMemory host_mapped_memory{};
+    std::vector<VkBuffer> host_mapped_windows;
+    const u8* host_mapped_base{};
+    size_t host_mapped_size{};
+    size_t host_mapped_ubo_alignment{256};
+
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;
     bool compact_vertex_bindings{};
     bool track_vertex_input_strides{};
