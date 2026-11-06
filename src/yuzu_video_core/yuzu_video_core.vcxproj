@@ -57,6 +57,17 @@
     <ClInclude Include="shader_profile_validation.h" />
     <ClInclude Include="renderer_vulkan\startup_pipeline_variants.h" />
     <ClInclude Include="shader_profile.h" />
+    <ClInclude Include="area_sampling.h" />
+    <ClInclude Include="command_header.h" />
+    <ClInclude Include="present_sharpening.h" />
+    <ClInclude Include="shader_profile_hash.h" />
+    <ClInclude Include="shader_profile_layout.h" />
+    <ClInclude Include="shader_profile_limits.h" />
+    <ClInclude Include="shader_profile_metrics.h" />
+    <ClInclude Include="shader_profile_resources.h" />
+    <ClInclude Include="shader_profile_search.h" />
+    <ClInclude Include="shader_profile_versions.h" />
+    <ClInclude Include="snapshot_memory_budget.h" />
     <ClInclude Include="shader_profile_codec.h" />
     <ClInclude Include="renderer_vulkan\guest_pipeline_recipe_probe.h" />
     <ClInclude Include="buffer_cache\buffer_cache.h" />
@@ -79,6 +90,7 @@
     <ClInclude Include="engines\const_buffer_info.h" />
     <ClInclude Include="engines\draw_manager.h" />
     <ClInclude Include="engines\engine_interface.h" />
+    <ClInclude Include="engines\fast_copy.h" />
     <ClInclude Include="engines\engine_upload.h" />
     <ClInclude Include="engines\fermi_2d.h" />
     <ClInclude Include="engines\kepler_compute.h" />
@@ -170,12 +182,16 @@
     <ClInclude Include="renderer_vulkan\present\filters.h" />
     <ClInclude Include="renderer_vulkan\present\fsr.h" />
     <ClInclude Include="renderer_vulkan\present\fxaa.h" />
+    <ClInclude Include="renderer_vulkan\present\catmull_pass.h" />
+    <ClInclude Include="renderer_vulkan\present\scale_capture.h" />
+    <ClInclude Include="renderer_vulkan\present\scale_trace.h" />
     <ClInclude Include="renderer_vulkan\present\layer.h" />
     <ClInclude Include="renderer_vulkan\present\present_push_constants.h" />
     <ClInclude Include="renderer_vulkan\present\smaa.h" />
     <ClInclude Include="renderer_vulkan\present\util.h" />
     <ClInclude Include="renderer_vulkan\present\window_adapt_pass.h" />
     <ClInclude Include="renderer_vulkan\renderer_vulkan.h" />
+    <ClInclude Include="renderer_vulkan\descriptor_copy_cache.h" />
     <ClInclude Include="renderer_vulkan\vk_blit_screen.h" />
     <ClInclude Include="renderer_vulkan\vk_buffer_cache.h" />
     <ClInclude Include="renderer_vulkan\vk_command_pool.h" />
@@ -344,6 +360,9 @@
     </ClCompile>
     <ClCompile Include="renderer_vulkan\present\fxaa.cpp">
       <ObjectFileName>$(IntDir)/renderer_vulkan/present/fxaa.cpp.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\catmull_pass.cpp">
+      <ObjectFileName>$(IntDir)/renderer_vulkan/present/catmull_pass.cpp.obj</ObjectFileName>
     </ClCompile>
     <ClCompile Include="renderer_vulkan\present\layer.cpp">
       <ObjectFileName>$(IntDir)/renderer_vulkan/present/layer.cpp.obj</ObjectFileName>
