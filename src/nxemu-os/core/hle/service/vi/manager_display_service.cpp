@@ -130,7 +130,7 @@ Result IManagerDisplayService::GetDisplayResolution(Out<s64> out_width, Out<s64>
     LOG_DEBUG(Service_VI, "called. display_id={}", display_id);
 
     const bool is_docked =
-        g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+        osSettings.use_docked_mode == DockedMode::Docked;
     *out_width = static_cast<s64>(is_docked ? DisplayResolution::DockedWidth
                                              : DisplayResolution::UndockedWidth);
     *out_height = static_cast<s64>(is_docked ? DisplayResolution::DockedHeight

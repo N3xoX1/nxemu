@@ -4,6 +4,7 @@
 #include "applets/profile_select.h"
 #include "core/hle/service/acc/profile_manager.h"
 #include <nxemu-module-spec/base.h>
+#include "os_settings.h"
 #include "os_settings_identifiers.h"
 
 extern IModuleSettings * g_settings;
@@ -17,7 +18,7 @@ void DefaultProfileSelectApplet::SelectProfile(void * user_data, ProfileSelectFi
     (void)parameters;
 
     Service::Account::ProfileManager manager;
-    const std::optional<Common::UUID> user = manager.GetUser(g_settings->GetInt(NXOsSetting::CurrentUser));
+    const std::optional<Common::UUID> user = manager.GetUser(osSettings.current_user);
 
     uint8_t uuid_bytes[16]{};
     bool has_uuid = false;

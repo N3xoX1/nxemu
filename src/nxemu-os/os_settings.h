@@ -62,6 +62,10 @@ struct OSSettings
     bool uncapped_present;
     u16 speed_limit;
 
+    // Video
+    bool use_reactive_flushing;
+    bool use_video_framerate;
+
     // Linux
     bool enable_gamemode;
 

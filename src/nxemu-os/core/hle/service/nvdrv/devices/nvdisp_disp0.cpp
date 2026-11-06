@@ -73,7 +73,7 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
                             ? (osSettings.speed_limit / 100.f) * compose_speed_scale
                             : 0.f;
     if (system.GetNVDECActive() &&
-        g_settings->GetBool(NXVideoSetting::SyncToFramerateOfVideoPlayback)) {
+        osSettings.use_video_framerate) {
         speed_scale = 1.f;
     }
     frame_interval_ns = Common::Android::FrameIntervalNs(swap_interval, speed_scale);

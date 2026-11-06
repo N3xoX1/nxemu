@@ -2,6 +2,7 @@
 #include "loader_settings_identifiers.h"
 #include <common/json_util.h>
 #include <cstring>
+#include <nxemu-core/settings/identifiers.h>
 #include <nxemu-module-spec/base.h>
 #include <yuzu_common/yuzu_assert.h>
 
@@ -211,6 +212,11 @@ void LoaderSettingChanged(const char * setting, void * /*userData*/)
     }
 }
 
+void LanguageChanged(const char * /*setting*/, void * /*userData*/)
+{
+    loaderSettings.languageIndex = g_settings->GetInt(NXCoreSetting::LanguageIndex);
+}
+
 void SetupLoaderSetting(void)
 {
     for (const LoaderSetting & loaderSetting : settings)
@@ -312,10 +318,13 @@ void SetupLoaderSetting(void)
         }
         g_settings->RegisterCallback(loaderSetting.identifier, LoaderSettingChanged, nullptr);
     }
+    LanguageChanged(nullptr, nullptr);
+    g_settings->RegisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
 }
 
 void CleanupLoaderSetting(void)
 {
+    g_settings->UnregisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
     for (const LoaderSetting & loaderSetting : settings)
     {
         if (loaderSetting.identifier == nullptr)

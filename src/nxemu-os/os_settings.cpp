@@ -7,6 +7,7 @@
 #include <cstring>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-video/video_settings_identifiers.h>
 #include <yuzu_common/yuzu_assert.h>
 
 extern IModuleSettings * g_settings;
@@ -545,6 +546,12 @@ void LanguageChanged(const char * /*setting*/, void * /*userData*/)
     osSettings.language_index = static_cast<Language>(g_settings->GetInt(NXCoreSetting::LanguageIndex));
 }
 
+void VideoSettingsChanged(const char * /*setting*/, void * /*userData*/)
+{
+    osSettings.use_reactive_flushing = g_settings->GetBool(NXVideoSetting::EnableReactiveFlushing);
+    osSettings.use_video_framerate = g_settings->GetBool(NXVideoSetting::SyncToFramerateOfVideoPlayback);
+}
+
 void OsSettingChanged(const char * setting, void * /*userData*/)
 {
     for (const OsSetting & osSetting : settings)
@@ -922,11 +929,16 @@ void SetupOsSetting(void)
     }
     LanguageChanged(nullptr, nullptr);
     g_settings->RegisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
+    VideoSettingsChanged(nullptr, nullptr);
+    g_settings->RegisterCallback(NXVideoSetting::EnableReactiveFlushing, VideoSettingsChanged, nullptr);
+    g_settings->RegisterCallback(NXVideoSetting::SyncToFramerateOfVideoPlayback, VideoSettingsChanged, nullptr);
 }
 
 void CleanupOsSetting(void)
 {
     g_settings->UnregisterCallback(NXCoreSetting::LanguageIndex, LanguageChanged, nullptr);
+    g_settings->UnregisterCallback(NXVideoSetting::EnableReactiveFlushing, VideoSettingsChanged, nullptr);
+    g_settings->UnregisterCallback(NXVideoSetting::SyncToFramerateOfVideoPlayback, VideoSettingsChanged, nullptr);
     for (const OsSetting & osSetting : settings)
     {
         if (osSetting.identifier == nullptr)

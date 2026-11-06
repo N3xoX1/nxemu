@@ -132,7 +132,7 @@ s64 Conductor::GetNextTicks() const
     // Adjust by speed limit determined during composition.
     speed_scale /= m_compose_speed_scale.load(std::memory_order_relaxed);
 
-    if (m_system.GetNVDECActive() && g_settings->GetBool(NXVideoSetting::SyncToFramerateOfVideoPlayback))
+    if (m_system.GetNVDECActive() && osSettings.use_video_framerate)
     {
         // Run at intended presentation rate during video playback.
         speed_scale = 1.f;

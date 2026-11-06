@@ -134,7 +134,7 @@ Result ISystemDisplayService::GetDisplayMode(Out<DisplayMode> out_display_mode, 
 {
     LOG_WARNING(Service_VI, "(STUBBED) called, display_id={}", display_id);
 
-    const bool is_docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    const bool is_docked = osSettings.use_docked_mode == DockedMode::Docked;
     if (is_docked)
     {
         out_display_mode->width = static_cast<u32>(DisplayResolution::DockedWidth);

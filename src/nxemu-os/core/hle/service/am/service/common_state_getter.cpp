@@ -205,7 +205,7 @@ Result ICommonStateGetter::GetDefaultDisplayResolutionChangeEvent(
 
 Result ICommonStateGetter::GetOperationMode(Out<OperationMode> out_operation_mode)
 {
-    const bool use_docked_mode = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    const bool use_docked_mode = osSettings.use_docked_mode == DockedMode::Docked;
     LOG_DEBUG(Service_AM, "called, use_docked_mode={}", use_docked_mode);
     *out_operation_mode = use_docked_mode ? OperationMode::Docked : OperationMode::Handheld;
     R_SUCCEED();
@@ -277,7 +277,7 @@ Result ICommonStateGetter::GetDefaultDisplayResolution(Out<s32> out_width, Out<s
 {
     LOG_DEBUG(Service_AM, "called");
 
-    const bool docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    const bool docked = osSettings.use_docked_mode == DockedMode::Docked;
     if (docked)
     {
         *out_width = static_cast<u32>(Service::VI::DisplayResolution::DockedWidth);

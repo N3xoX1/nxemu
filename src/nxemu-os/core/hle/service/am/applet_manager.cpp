@@ -3,6 +3,7 @@
 
 #include "yuzu_common/uuid.h"
 #include <nxemu-module-spec/base.h>
+#include "os_settings.h"
 #include "os_settings_identifiers.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -204,7 +205,7 @@ void AppletManager::CreateAndInsertByFrontendAppletParameters(
 
         Account::ProfileManager profile_manager{};
         const auto uuid = profile_manager.GetUser(static_cast<std::size_t>(
-            g_settings->GetInt(NXOsSetting::CurrentUser)));
+            osSettings.current_user));
         ASSERT(uuid.has_value() && uuid->IsValid());
         lp.current_user = *uuid;
 

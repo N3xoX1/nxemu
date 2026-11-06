@@ -11,6 +11,7 @@ using StringList = std::vector<std::string>;
 struct LoaderSettings
 {
     bool checkForUpdatedFirmware;
+    int32_t languageIndex;
 
     // Add-Ons
     StringList addOnDirectories;
