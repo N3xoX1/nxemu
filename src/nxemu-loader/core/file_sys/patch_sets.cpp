@@ -172,7 +172,7 @@ void WriteWord(std::span<uint8_t> image, uint32_t offset, uint32_t word)
 
 } // namespace
 
-PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, bool page_written)
+PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, Support support)
 {
     for (const VirtualFile & file : files)
     {
@@ -180,33 +180,63 @@ PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string &
     }
     for (Set & set : m_sets)
     {
-        if (!set.enabled)
+        if (!set.enabled || set.sites.empty())
         {
             continue;
         }
-        const bool reads_page = std::any_of(set.sites.begin(), set.sites.end(), [](const Site & site) {
-            return std::any_of(site.words.begin(), site.words.end(), [](const Word & word) { return word.page_reg >= 0; });
-        });
-        if (reads_page && !page_written)
-        {
-            m_problems.push_back(fmt::format("Patch set {} of {} left out: it reads the patch page, which this build does not write", set.name, set.file));
-            set.enabled = false;
-            continue;
-        }
+        bool reads_page = false;
+        uint32_t cave_bytes = 0;
         for (const Site & site : set.sites)
         {
             std::vector<uint32_t> values;
             for (const Word & word : site.words)
             {
                 values.push_back(word.value);
-                m_uses_page |= word.page_reg >= 0;
+                reads_page |= word.page_reg >= 0;
             }
             if (values.size() > 1)
             {
-                m_cave_bytes += CaveBytes(values);
+                cave_bytes += CaveBytes(values);
             }
         }
+        const char * missing = reads_page && !support.page_written      ? "it reads the patch page, which this build does not write"
+                               : cave_bytes != 0 && !support.caves       ? "it needs caves, which native code execution does not run yet"
+                               : m_cave_bytes + uint64_t{cave_bytes} > MaxCaveBytes ? "the module's caves would pass the limit"
+                                                                                    : nullptr;
+        if (missing != nullptr)
+        {
+            m_problems.push_back(fmt::format("Patch set {} of {} left out: {}", set.name, set.file, missing));
+            set.enabled = false;
+            continue;
+        }
+        m_uses_page |= reads_page;
+        m_cave_bytes += cave_bytes;
     }
+}
+
+std::string PatchSets::FileVersion(const VirtualFile & file)
+{
+    if (file == nullptr || file->GetSize() > MaxFileSize)
+    {
+        return {};
+    }
+    const std::vector<uint8_t> bytes = file->ReadAllBytes();
+    std::istringstream text(std::string(bytes.begin(), bytes.end()));
+    for (std::string line; std::getline(text, line);)
+    {
+        std::istringstream tokens(line.substr(0, line.find('#')));
+        std::string directive, version;
+        tokens >> directive >> version;
+        if (directive == "@version")
+        {
+            return version;
+        }
+        if (directive == "set" || directive == "site")
+        {
+            break;
+        }
+    }
+    return {};
 }
 
 void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, const std::string & module_name)
@@ -215,13 +245,19 @@ void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, co
     {
         return;
     }
+    std::string name = file->GetName();
+    if (file->GetSize() > MaxFileSize)
+    {
+        m_problems.push_back(fmt::format("Patch sets {}: larger than {} bytes; file ignored", name, MaxFileSize));
+        return;
+    }
     const std::vector<uint8_t> bytes = file->ReadAllBytes();
     std::istringstream text(std::string(bytes.begin(), bytes.end()));
     const std::string want_id = LowerHex(build_id).append(64, '0').substr(0, 64);
-    const std::string name = file->GetName();
 
     bool matches = false;
     std::unordered_map<std::string, size_t> sets;
+    size_t site_lines = 0;
     int line_number = 0;
     for (std::string line; std::getline(text, line);)
     {
@@ -235,6 +271,12 @@ void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, co
         }
         if (parts.empty())
         {
+            continue;
+        }
+        if (parts[0] == "@version" && parts.size() == 2)
+        {
+            // Names the sets that follow in logs
+            name = fmt::format("{} ({})", file->GetName(), parts[1]);
             continue;
         }
         if (parts[0].starts_with("@nsobid-"))
@@ -268,6 +310,11 @@ void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, co
         }
         else if (parts[0] == "site")
         {
+            if (++site_lines > MaxSitesPerFile)
+            {
+                m_problems.push_back(fmt::format("Patch sets {}:{}: more than {} sites; the rest of the file is ignored", name, line_number, MaxSitesPerFile));
+                return;
+            }
             const auto set = parts.size() >= 6 ? sets.find(parts[1]) : sets.end();
             if (set == sets.end())
             {
@@ -279,7 +326,8 @@ void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, co
                 continue;
             }
             Site site{.set = set->second, .line = line_number};
-            bool valid = ParseHex(parts[3], site.offset) && (site.offset & 3) == 0 && ParseHex(parts[4], site.original);
+            bool valid = ParseHex(parts[3], site.offset) && (site.offset & 3) == 0 && ParseHex(parts[4], site.original) &&
+                         parts.size() - 5 <= MaxWordsPerSite;
             for (size_t i = 5; valid && i < parts.size(); i++)
             {
                 Word word;
@@ -380,7 +428,7 @@ void PatchSets::LogProblems() const
     }
 }
 
-bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset)
+bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset, bool report)
 {
     const uint32_t reserved = ReservedSize();
     if (page_offset + static_cast<uint64_t>(reserved) > image.size())
@@ -401,7 +449,10 @@ bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset)
         }
         if (!set.enabled)
         {
-            LOG_INFO(Loader, "Patch set {} of {} is off", set.name, set.file);
+            if (report)
+            {
+                LOG_INFO(Loader, "Patch set {} of {} is off", set.name, set.file);
+            }
             continue;
         }
 
@@ -410,17 +461,17 @@ bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset)
         std::vector<uint32_t> sites;
         std::string problem;
         uint32_t set_cave = cave;
-        size_t in_caves = 0, shared = 0;
+        size_t in_caves = 0;
         bool set_page = false;
         for (const Site & site : set.sites)
         {
+            const std::string where = fmt::format("module offset {:#x} ({}:{})", site.offset, set.file, site.line);
             if (const auto owner = claimed.find(site.offset); owner != claimed.end())
             {
-                LOG_DEBUG(Loader, "Patch set {}: module offset {:#x} stays with set {}", set.name, site.offset, owner->second->name);
-                ++shared;
-                continue;
+                // Half a fix is worse than none: the earlier set keeps the site and this one stays out
+                problem = fmt::format("{} is patched by set {} of {}", where, owner->second->name, owner->second->file);
+                break;
             }
-            const std::string where = fmt::format("module offset {:#x} ({}:{})", site.offset, set.file, site.line);
             if (site.offset + uint64_t{4} > page_offset || std::find(sites.begin(), sites.end(), site.offset) != sites.end())
             {
                 problem = where + " is outside the module or listed twice";
@@ -469,7 +520,10 @@ bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset)
         }
         if (!problem.empty())
         {
-            LOG_WARNING(Loader, "Patch set {} of {} left out: {}", set.name, set.file, problem);
+            if (report)
+            {
+                LOG_WARNING(Loader, "Patch set {} of {} left out: {}", set.name, set.file, problem);
+            }
             continue;
         }
 
@@ -483,8 +537,10 @@ bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset)
         }
         cave = set_cave;
         page_used |= set_page;
-        LOG_INFO(Loader, "Patch set {} of {}: {} sites patched ({} in caves){}", set.name, set.file, sites.size(), in_caves,
-                 shared != 0 ? fmt::format(", {} left to an earlier set", shared) : std::string{});
+        if (report)
+        {
+            LOG_INFO(Loader, "Patch set {} of {}: {} sites patched ({} in caves)", set.name, set.file, sites.size(), in_caves);
+        }
     }
     return page_used;
 }

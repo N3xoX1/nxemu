@@ -16,6 +16,8 @@ namespace FileSys {
 // format of totk-pc-recomp's recomp/patches-v*.txt plus the build id of the module they patch:
 //
 //   @nsobid-<build id>                                  the module's build id (trailing zeros may be left out)
+//   @version <text>                                     optional: the game version, shown in logs and the
+//                                                       add-ons list; the build id alone decides what applies
 //   set <name> <env> <default>                          a patch set, on when <default> is 1; the environment
 //                                                       variable <env> (0 or 1) overrides it
 //   site <set> <module> <offset> <original> <word>...   at module offset <offset>, whose instruction must be
@@ -30,18 +32,35 @@ namespace FileSys {
 // read. Nothing writes it yet, so the loader leaves out sets that read it (page_written). The cave pages follow it
 // in the same read-write region: Horizon's rtld takes every executable region for a module.
 //
-// A set whose site no longer holds its original instruction (another game version, another mod patched it) is left
-// out whole. A site an earlier set already patched stays with that set; the later set keeps its other sites.
-// "spin" lines (recompiler-only) and comments (#) are ignored.
+// A set is applied whole or not at all: it is left out when a site does not hold its original instruction (another
+// game version, an IPS or IPSwitch patch changed it), when an earlier set already patched one of its sites, or when
+// a word cannot run from a cave. "spin" lines (recompiler-only) and comments (#) are ignored.
+//
+// Limits, each logged when hit: MaxFileSize per file, MaxSitesPerFile, MaxWordsPerSite, MaxCaveBytes per module.
 class PatchSets
 {
 public:
     static constexpr uint32_t PageSize = 0x1000;
+    static constexpr uint64_t MaxFileSize = 1 << 20;
+    static constexpr size_t MaxSitesPerFile = 4096;
+    static constexpr size_t MaxWordsPerSite = 64;
+    static constexpr uint32_t MaxCaveBytes = 1 << 20;
+
+    // What the emulator provides for patch sets
+    struct Support
+    {
+        // Something in this build writes the patch page; without it, sets that read the page are left out
+        bool page_written{};
+        // Multi-word sites may run in caves; without it (native code execution), sets with one are left out
+        bool caves{true};
+    };
 
     // Reads the patch set files of the enabled mods for the module with this build id (hex, trailing zeros
-    // optional). Deterministic: the layout pass and the load pass see the same reservation. Without page_written
-    // (nothing in this build writes the patch page), sets that read it are left out.
-    PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, bool page_written);
+    // optional). Deterministic: the layout pass and the load pass see the same reservation.
+    PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, Support support);
+
+    // The @version of a patch set file, or empty when it has none (the add-ons list)
+    [[nodiscard]] static std::string FileVersion(const VirtualFile & file);
 
     // True when no set that is on has a site for this module
     [[nodiscard]] bool Empty() const;
@@ -57,8 +76,8 @@ public:
     // Patches the module image (module-relative: offset 0 is the start of .text). page_offset is the patch page,
     // followed by the cave pages. Each set is encoded and checked whole before any of it is written, so a set whose
     // site does not hold its original instruction, or whose word cannot run from a cave, changes nothing. Returns
-    // whether an applied set reads the patch page.
-    bool Apply(std::span<uint8_t> image, uint32_t page_offset);
+    // whether an applied set reads the patch page. report: log each set's result (the load pass).
+    bool Apply(std::span<uint8_t> image, uint32_t page_offset, bool report = true);
 
 private:
     struct Word
@@ -77,7 +96,7 @@ private:
     struct Set
     {
         std::string name;
-        std::string file;
+        std::string file; // file name, then " (<version>)" when the file has one
         bool enabled{};
         std::vector<Site> sites;
     };

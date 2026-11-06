@@ -88,11 +88,14 @@ struct Module
     }
 };
 
-PatchSets Make(const std::string & text, bool page_written = true)
+FileSys::VirtualFile File(const std::string & text)
 {
-    std::vector<uint8_t> bytes(text.begin(), text.end());
-    std::vector<FileSys::VirtualFile> files{std::make_shared<FileSys::VectorVfsFile>(std::move(bytes), "test.nxpatch")};
-    return PatchSets(files, "AB12", "main", page_written);
+    return std::make_shared<FileSys::VectorVfsFile>(std::vector<uint8_t>(text.begin(), text.end()), "test.nxpatch");
+}
+
+PatchSets Make(const std::string & text, bool page_written = true, bool caves = true)
+{
+    return PatchSets({File(text)}, "AB12", "main", {.page_written = page_written, .caves = caves});
 }
 
 std::string Hex(uint32_t value)
@@ -214,7 +217,7 @@ void SetsAndSwitches()
     Module module(0x10000, 0);
     sets.Apply(module.image, module.page);
     Check(module.At(0x100) == AddX0, "a site stays with the first set that patched it");
-    Check(module.At(0x104) == MovW1, "the later set keeps its other sites");
+    Check(module.At(0x104) == Nop, "a set sharing a site with an earlier set is left out whole");
     Check(module.At(0x108) == Nop, "a set with an unexpected original instruction changes nothing");
     Check(module.At(0x110) == Nop && module.At(0x114) == MovW1, "the environment overrides a set's default");
     Check(module.At(0x118) == Nop, "sites of other modules are ignored");
@@ -235,6 +238,56 @@ void PatchPage()
 
     Check(Make(text, false).Empty(), "without a page writer, sets that read the page are left out");
     std::puts("PASS: patch page");
+}
+
+void NoCaves()
+{
+    // Native code execution: in-place sets apply, sets that need a cave are left out, nothing is reserved
+    PatchSets sets = Make("@nsobid-ab12\nset inplace ENV_UNUSED 1\nsite inplace main 100 d503201f 91000400\n"
+                          "set cave ENV_UNUSED 1\nsite cave main 200 d503201f 52800041\nsite cave main 300 d503201f 91000400 52800041\n",
+                          true, false);
+    Check(sets.ReservedSize() == 0, "without caves nothing is reserved after the module");
+    Module module(0x10000, 0);
+    sets.Apply(module.image, module.page);
+    Check(module.At(0x100) == AddX0, "an in-place set applies without caves");
+    Check(module.At(0x200) == Nop && module.At(0x300) == Nop, "a set with a cave site is left out whole");
+    std::puts("PASS: in-place sets without caves");
+}
+
+void Limits()
+{
+    std::string words;
+    for (size_t i = 0; i < PatchSets::MaxWordsPerSite; i++)
+    {
+        words += " d503201f";
+    }
+    Check(!Make("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 100 d503201f" + words + "\n").Empty(), "a site may hold MaxWordsPerSite words");
+    Check(Make("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 100 d503201f" + words + " d503201f\n").Empty(),
+          "a site of more words leaves its set out");
+
+    std::string sites = "@nsobid-ab12\nset a ENV_UNUSED 1\n";
+    for (size_t i = 0; i < PatchSets::MaxSitesPerFile; i++)
+    {
+        sites += "site a main 100 d503201f 52800041\n";
+    }
+    PatchSets many = Make(sites + "set b ENV_UNUSED 1\nsite b main 200 d503201f 52800041\n");
+    Module module(0x10000, 0);
+    many.Apply(module.image, module.page);
+    Check(module.At(0x200) == Nop, "sites past MaxSitesPerFile are ignored");
+
+    std::string large = "@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 100 d503201f 52800041\n";
+    large.append(PatchSets::MaxFileSize, '#');
+    Check(Make(large).Empty(), "a file over MaxFileSize is ignored");
+    std::puts("PASS: limits");
+}
+
+void Version()
+{
+    Check(PatchSets::FileVersion(File("# comment\n@nsobid-ab12\n@version 1.4.3\nset s ENV_UNUSED 1\n")) == "1.4.3", "@version is read");
+    Check(PatchSets::FileVersion(File("@nsobid-ab12\nset s ENV_UNUSED 1\n@version 9.9.9\n")).empty(), "@version after the sets is not the file's");
+    Check(!Make("@version 1.4.3\n@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 100 d503201f 52800041\n").Empty(),
+          "@version before @nsobid is accepted");
+    std::puts("PASS: @version");
 }
 
 void Rejected()
@@ -258,6 +311,9 @@ int main()
     LargeModule();
     SetsAndSwitches();
     PatchPage();
+    NoCaves();
+    Limits();
+    Version();
     Rejected();
     return 0;
 }

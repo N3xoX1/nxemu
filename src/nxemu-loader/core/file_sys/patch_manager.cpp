@@ -24,6 +24,7 @@
 #include "core/file_sys/filesystem.h"
 #include "core/file_sys/ips_layer.h"
 #include "core/file_sys/patch_manager.h"
+#include "core/file_sys/patch_sets.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/romfs.h"
 #include "core/file_sys/vfs/vfs_cached.h"
@@ -801,6 +802,7 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
             bool ips = false;
             bool ipswitch = false;
             bool patch_sets = false;
+            std::string patch_set_versions;
             bool layeredfs = false;
 
             for (const auto & file : exefs_dir->GetFiles())
@@ -812,6 +814,10 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
                 else if (file->GetExtension() == "nxpatch")
                 {
                     patch_sets = true;
+                    if (const std::string version = PatchSets::FileVersion(file); !version.empty())
+                    {
+                        AppendCommaIfNotEmpty(patch_set_versions, version);
+                    }
                 }
                 else if (file->GetExtension() == "pchtxt")
                 {
@@ -834,7 +840,8 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
             }
             if (patch_sets)
             {
-                AppendCommaIfNotEmpty(types, "Patch sets");
+                // The game versions its files name, e.g. "Patch sets 1.0.0, 1.4.3"
+                AppendCommaIfNotEmpty(types, patch_set_versions.empty() ? "Patch sets" : "Patch sets " + patch_set_versions);
             }
             if (layeredfs)
             {
