@@ -394,3 +394,8 @@ add_subdirectory(rmlui)
 set(CMAKE_CXX_FLAGS "${_nxemu_saved_cxx_flags}")
 unset(_nxemu_saved_cxx_flags)
 unset(CMAKE_DISABLE_FIND_PACKAGE_Freetype)
+
+# NX archive conversion and editing, used by the desktop interface.
+if(NOT ANDROID)
+    include("${CMAKE_CURRENT_LIST_DIR}/nxformat.cmake")
+endif()

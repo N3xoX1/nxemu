@@ -2697,8 +2697,8 @@ msgid "No games found"
 msgstr "Nenhum jogo encontrado"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "Não foram encontrados ficheiros .nro, .dxci ou .dnsp nas suas pastas."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
+msgstr "Não foram encontrados ficheiros .nx, .nro, .dxci ou .dnsp nas suas pastas."
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3270,8 +3270,8 @@ msgid "No folders yet"
 msgstr "Ainda sem pastas"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
-msgstr "Escolha uma pasta que contenha ficheiros .nro, .dxci ou .dnsp."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
+msgstr "Escolha uma pasta que contenha ficheiros .nx, .nro, .dxci ou .dnsp."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."
@@ -3298,8 +3298,8 @@ msgid "Add another folder"
 msgstr "Adicionar outra pasta"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
-msgstr "Jogos em formato .nro, .dxci ou .dnsp"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
+msgstr "Jogos em formato .nx, .nro, .dxci ou .dnsp"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Skip"

@@ -26,6 +26,7 @@ namespace MacOSFileDialogs
 {
 bool FileSave(const char * initialDir,const char * filter,const char * suggested,Path & selected);
 bool FileSelect(const char * initialDir, const char * fileFilter, Path & selected);
+bool FileSelectMany(const char * initialDir, const char * fileFilter, std::vector<std::string> & selected);
 Path BrowseForDirectory(const char * title);
 } // namespace MacOSFileDialogs
 #endif
@@ -90,6 +91,59 @@ bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilt
 #else
     const auto file=PickProfileFile(false,initialDir,"");
     if(file.empty())return false;selected=Path(file.c_str());return true;
+#endif
+}
+
+bool FileSelectMany(void * hwndOwner, const char * initialDir, const char * fileFilter, std::vector<std::string> & selected)
+{
+    selected.clear();
+#ifdef _WIN32
+    size_t filterLen = 0;
+    while (fileFilter[filterLen] != '\0' || fileFilter[filterLen + 1] != '\0')
+    {
+        filterLen++;
+    }
+    filterLen += 2;
+    std::vector<wchar_t> filterW(filterLen);
+    MultiByteToWideChar(CP_UTF8, 0, fileFilter, (int)filterLen, filterW.data(), static_cast<int>(filterLen));
+    const std::wstring initialDirW = stdstr(initialDir).ToUTF16();
+    // The folder, then each selected name, each ended by a zero, then one more.
+    std::vector<wchar_t> names(1 << 20);
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = static_cast<HWND>(hwndOwner);
+    dialog.lpstrFilter = filterW.data();
+    dialog.lpstrFile = names.data();
+    dialog.nMaxFile = static_cast<DWORD>(names.size());
+    dialog.lpstrInitialDir = initialDirW.c_str();
+    dialog.Flags = OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&dialog))
+    {
+        return false;
+    }
+    const std::wstring first(names.data());
+    const wchar_t * next = names.data() + first.size() + 1;
+    if (*next == L'\0')
+    {
+        selected.push_back(stdstr().FromUTF16(first.c_str()));
+        return true;
+    }
+    for (; *next != L'\0'; next += wcslen(next) + 1)
+    {
+        selected.push_back(stdstr().FromUTF16((first + L"\\" + next).c_str()));
+    }
+    return !selected.empty();
+#elif defined(__APPLE__)
+    (void)hwndOwner;
+    return MacOSFileDialogs::FileSelectMany(initialDir, fileFilter, selected);
+#else
+    Path one;
+    if (!FileSelect(hwndOwner, initialDir, fileFilter, true, one))
+    {
+        return false;
+    }
+    selected.push_back(static_cast<const char *>(one));
+    return true;
 #endif
 }
 

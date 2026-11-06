@@ -1,0 +1,80 @@
+#pragma once
+#include "dialog.h"
+#include <cstdint>
+#include <functional>
+#include <nxemu/ui/library/nx_tool.h>
+#include <string>
+#include <vector>
+
+class UiWindow;
+
+// Shows what an .nx file holds (the game, its updates and DLC) and adds or
+// removes updates and DLC in place. The game itself is never rewritten. The
+// rebuild recipes kept inside the file recreate the original DXCI or DNSP.
+class NxContentsDialog final : public Dialog
+{
+public:
+    struct Host
+    {
+        std::function<bool()> canWork;        // no game running or starting
+        std::function<void()> libraryChanged; // the file changed
+    };
+
+    NxContentsDialog(UiWindow & window, const std::filesystem::path & assetDir, Host host);
+
+    bool Busy() const { return m_tool.Busy(); }
+    void Cancel() { m_tool.Cancel(); }
+    void Open(const std::string & utf8Archive);
+    bool OfferDrop(const std::string & utf8Path);
+
+private:
+    struct Item
+    {
+        std::string identity;
+        std::string kind; // base, update, dlc
+        uint64_t titleId = 0;
+        uint32_t version = 0;
+        std::string displayVersion;
+        std::string name;
+    };
+    struct Original
+    {
+        std::string id; // recipe checksum, as nxconvert rebuild takes it
+        std::string name;
+        uint64_t size = 0;
+    };
+    enum class Task
+    {
+        None,
+        List,
+        Add,
+        Remove,
+        Rebuild,
+    };
+
+    void OnOpen() override;
+    void OnUpdate() override;
+    void OnCommand(const std::string & command) override;
+    void OnCloseRequested() override;
+
+    void Run(Task task, std::vector<std::string> arguments, std::string what);
+    void Finished(const NxTool::State & state);
+    void Add(const std::vector<std::string> & files);
+    void ShowList();
+    void ShowPage(const char * page);
+
+    UiWindow & m_window;
+    const Host m_host;
+    NxTool m_tool;
+    std::string m_archive;
+    std::vector<Item> m_items;
+    std::vector<Original> m_originals;
+    uint64_t m_size = 0;
+    Task m_task = Task::None;
+    std::string m_what;
+    std::string m_message;
+    bool m_messageFailed = false;
+    size_t m_asking = 0;
+    bool m_changed = false;
+    std::string m_shownProgress;
+};

@@ -306,6 +306,9 @@ bool MainWindow::Create()
                                                             [this] { RefreshProfiles(); },
                                                             openPage,
                                                         });
+    const auto canWorkOnFiles = [this] { return !m_session.IsRunning() && m_pendingGame.empty(); };
+    m_nxConvertDialog = std::make_unique<NxConvertDialog>(m_window, m_assetDir, NxConvertDialog::Host{canWorkOnFiles, [this] { RescanGames(); }});
+    m_nxContentsDialog = std::make_unique<NxContentsDialog>(m_window, m_assetDir, NxContentsDialog::Host{canWorkOnFiles, [this] { RescanGames(); }});
     BindEvents();
 
     m_document->SetClass(m_window.DrawsWindowControls() ? "window-controls" : "system-controls", true);
@@ -344,6 +347,8 @@ void MainWindow::RequestQuit()
 {
     m_firmwareDialog->CancelInstall();
     if(m_shaderProfileDialog)m_shaderProfileDialog->Cancel();
+    m_nxConvertDialog->Cancel();
+    m_nxContentsDialog->Cancel();
     if (!m_session.IsRunning() || m_session.IsLaunching() || ConfirmStop(Tr("NXEmu - Exit")))
     {
         m_quit = true;
@@ -378,7 +383,7 @@ void MainWindow::HandleEvent(const SDL_Event & event)
     {
         if (event.drop.data != nullptr)
         {
-            if (!m_firmwareDialog->OfferSource(event.drop.data) && !DialogOpen())
+            if (!m_firmwareDialog->OfferSource(event.drop.data) && !m_nxConvertDialog->OfferDrop(event.drop.data) && !m_nxContentsDialog->OfferDrop(event.drop.data) && !DialogOpen())
             {
                 OpenGame(event.drop.data);
             }
@@ -456,6 +461,8 @@ void MainWindow::Update()
     m_advancedDialog->Update();
     m_directoriesDialog->Update();
     m_profilesDialog->Update();
+    m_nxConvertDialog->Update();
+    m_nxContentsDialog->Update();
     SyncInterfaceLanguage();
     std::vector<FoundGame> found;
     if (m_library.TakeFound(found))
@@ -566,14 +573,14 @@ void MainWindow::Update()
 
 bool MainWindow::Still() const
 {
-    return !m_shaderProfileDialog->Busy() && m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_firmwareDialog->Installing() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
+    return !m_shaderProfileDialog->Busy() && m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_firmwareDialog->Installing() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() && !m_nxConvertDialog->Busy() && !m_nxContentsDialog->Busy() &&
            m_window.Context()->GetNextUpdateDelay() > 0 && (m_window.DialogWindow() == nullptr || m_window.DialogWindow()->Still());
 }
 
 bool MainWindow::DialogOpen() const
 {
     return m_shaderProfileDialog->IsVisible() || m_aboutDialog->IsVisible() || m_firmwareDialog->IsVisible() || m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
-           m_profilesDialog->IsVisible();
+           m_profilesDialog->IsVisible() || m_nxConvertDialog->IsVisible() || m_nxContentsDialog->IsVisible();
 }
 
 void MainWindow::OnModulesReleasing()
@@ -815,6 +822,25 @@ void MainWindow::Run(Action action)
         OpenDirectory(Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.parent_path()));
         break;
     case Action::CopyMenuGamePath: SDL_SetClipboardText(m_menuGame.c_str()); break;
+    case Action::ConvertToNx:
+        if (!m_session.IsRunning() && m_pendingGame.empty())
+        {
+            m_nxConvertDialog->Offer({});
+        }
+        break;
+    case Action::ConvertMenuGame:
+        if (!m_session.IsRunning() && m_pendingGame.empty())
+        {
+            // The whole folder is read; only the files of this game are kept.
+            m_nxConvertDialog->Offer({Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.parent_path())}, m_menuGame);
+        }
+        break;
+    case Action::ManageMenuGameNx:
+        if (!m_session.IsRunning() && m_pendingGame.empty())
+        {
+            m_nxContentsDialog->Open(m_menuGame);
+        }
+        break;
     case Action::OpenMenuGameSaves:
     case Action::OpenMenuGameCache:
     case Action::ClearMenuGameCache:
@@ -1192,6 +1218,7 @@ void MainWindow::RebuildMenu()
     file.push_back(action(Action::ConfigureControllers, Tr("Controllers"), m_session.IsValid()));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::InstallFirmware, Tr("Install &Firmware"), !running));
+    file.push_back(action(Action::ConvertToNx, Tr("Convert games to &NX..."), !running));
     file.push_back(MenuItem::Separator());
     file.push_back(action(Action::Exit, Tr("E&xit")));
 
@@ -1897,7 +1924,7 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
     const uint64_t id = m_games[index].programId;
     std::error_code error;
     const bool cacheExists = id != 0 && std::filesystem::is_directory(GameCache::Directory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir), id), error);
-    const std::vector<MenuItem> items = {
+    std::vector<MenuItem> items = {
         MenuItem::Action(static_cast<int>(Action::StartMenuGame), Tr("Start Game"),{},!m_shaderProfileDialog->Busy()),
         MenuItem::Submenu(Tr("Shader profile"),{
             MenuItem::Action(static_cast<int>(Action::OpenShaderProfileDirectory),Tr("Open NXShader folder")),
@@ -1913,6 +1940,19 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
         MenuItem::Action(static_cast<int>(Action::OpenMenuGameDirectory), Tr("Open Containing Folder")),
         MenuItem::Action(static_cast<int>(Action::CopyMenuGamePath), Tr("Copy File Path")),
     };
+    std::string extension = Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.extension());
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const bool idle = !m_session.IsRunning() && m_pendingGame.empty();
+    if (extension == ".nx")
+    {
+        items.push_back(MenuItem::Separator());
+        items.push_back(MenuItem::Action(static_cast<int>(Action::ManageMenuGameNx), Tr("Updates and DLC in this NX..."), {}, idle));
+    }
+    else if (extension == ".dxci" || extension == ".dnsp")
+    {
+        items.push_back(MenuItem::Separator());
+        items.push_back(MenuItem::Action(static_cast<int>(Action::ConvertMenuGame), Tr("Convert to NX..."), {}, idle));
+    }
     if (m_gameMenuPoint)
     {
         m_gameMenu->ShowAt(items, *m_gameMenuPoint);
@@ -2242,6 +2282,8 @@ void MainWindow::SyncInterfaceLanguage()
     m_advancedDialog->RefreshLanguage();
     m_directoriesDialog->RefreshTranslation();
     m_profilesDialog->RefreshTranslation();
+    m_nxConvertDialog->RefreshTranslation();
+    m_nxContentsDialog->RefreshTranslation();
     m_generalDialog->RefreshLanguage();
 
     m_menuBar->Close();
@@ -2378,7 +2420,7 @@ void MainWindow::RefreshFirmwareVersion()
 
 void MainWindow::LoadFile()
 {
-    const std::string filter = FileFilter({{Tr("Switch games"), "*.dxci;*.dnsp;*.nro"}, {Tr("All files"), "*.*"}});
+    const std::string filter = FileFilter({{Tr("Switch games"), "*.nx;*.dxci;*.dnsp;*.nro"}, {Tr("All files"), "*.*"}});
     Path selected;
     if (FileSelect(m_window.NativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
     {
