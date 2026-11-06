@@ -59,6 +59,7 @@ struct OSSettings
     bool use_multi_core;
     bool cpu_hle_synchronization;
     bool use_speed_limit;
+    bool uncapped_present;
     u16 speed_limit;
 
     // Linux

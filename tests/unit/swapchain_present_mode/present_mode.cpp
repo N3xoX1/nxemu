@@ -12,8 +12,17 @@ int main() {
         const bool mailbox = (support & 2) != 0;
         const bool relaxed = (support & 4) != 0;
         const auto mode = [&](VSyncMode setting) {
-            return Vulkan::SelectPresentMode(setting, immediate, mailbox, relaxed);
+            return Vulkan::SelectPresentMode(setting, false, immediate, mailbox, relaxed);
         };
+        const auto expected_uncapped = immediate ? VK_PRESENT_MODE_IMMEDIATE_KHR
+                                       : mailbox ? VK_PRESENT_MODE_MAILBOX_KHR
+                                                 : VK_PRESENT_MODE_FIFO_KHR;
+        for (const VSyncMode setting : {VSyncMode::Fifo, VSyncMode::FifoRelaxed,
+                                        VSyncMode::Mailbox, VSyncMode::Immediate}) {
+            check(Vulkan::SelectPresentMode(setting, true, immediate, mailbox, relaxed) ==
+                      expected_uncapped,
+                  "uncapped ignores VSync and prefers Immediate, then Mailbox");
+        }
         check(mode(VSyncMode::Fifo) == VK_PRESENT_MODE_FIFO_KHR,
               "On remains FIFO even when Mailbox and Immediate are available");
         check(mode(VSyncMode::Immediate) == (immediate ? VK_PRESENT_MODE_IMMEDIATE_KHR : VK_PRESENT_MODE_FIFO_KHR),

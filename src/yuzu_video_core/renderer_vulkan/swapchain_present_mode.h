@@ -8,8 +8,13 @@ namespace Vulkan {
 
 // The speed limiter controls emulation speed. Presentation follows the selected
 // VSync mode even when that limiter is disabled; unsupported modes fall back to FIFO.
-constexpr VkPresentModeKHR SelectPresentMode(VSyncMode setting, bool immediate,
+// Uncapped presentation (speed unlocked without VSync) never waits for the display.
+constexpr VkPresentModeKHR SelectPresentMode(VSyncMode setting, bool uncapped, bool immediate,
                                              bool mailbox, bool fifo_relaxed) {
+    if (uncapped) {
+        return immediate ? VK_PRESENT_MODE_IMMEDIATE_KHR
+                         : (mailbox ? VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR);
+    }
     switch (setting) {
     case VSyncMode::Immediate:
         return immediate ? VK_PRESENT_MODE_IMMEDIATE_KHR : VK_PRESENT_MODE_FIFO_KHR;

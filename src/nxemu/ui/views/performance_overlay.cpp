@@ -199,7 +199,7 @@ void PerformanceOverlay::Build()
     }
 }
 
-void PerformanceOverlay::Add(const PerfStatsResults & stats, uint32_t shaders, bool unlocked)
+void PerformanceOverlay::Add(const PerfStatsResults & stats, uint32_t shaders, bool unlocked, bool uncapped)
 {
     if (!m_shown)
     {
@@ -218,6 +218,7 @@ void PerformanceOverlay::Add(const PerfStatsResults & stats, uint32_t shaders, b
     m_stats = stats;
     m_shaders = shaders;
     m_unlocked = unlocked;
+    m_uncapped = uncapped;
     if (Has(PerformanceItem::Processor))
     {
         const double seconds = ProcessCpuSeconds();
@@ -254,6 +255,7 @@ void PerformanceOverlay::Render()
     m_root->SetClass("stutter", m_hitches[m_count - 1] == Hitch::Stutter);
     m_root->SetClass("freeze", m_hitches[m_count - 1] == Hitch::Freeze);
     m_root->SetClass("unlocked", m_unlocked);
+    m_root->SetClass("uncapped", m_unlocked && m_uncapped);
     m_root->SetClass("slow", std::isfinite(m_stats.emulation_speed) && m_stats.emulation_speed < kSlowSpeed);
     SetText(m_root, "perf-shaders", m_shaders == 0 ? std::string() : TrCount("Building: %n shader", "Building: %n shaders", m_shaders));
 
