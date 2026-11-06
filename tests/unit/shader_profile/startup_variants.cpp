@@ -47,6 +47,21 @@ int main() try {
       Check(built == 1 && rejected == 1);
     }
   }
+  {
+    Vulkan::StartupPipelineVariants<int, std::string> variants;
+    const auto equal = [](const auto &a, const auto &b) { return a == b; };
+    variants.Observe(1, "fits", equal);
+    variants.Observe(2, "safe", equal);
+    variants.Observe(3, "a", equal);
+    variants.Observe(3, "b", equal);
+    variants.Withhold(1);
+    variants.Withhold(3);
+    variants.Withhold(4);
+    std::vector<int> built;
+    const auto rejected = variants.ConsumeSafe(
+        [&](int key, std::string) { built.push_back(key); });
+    Check(built == std::vector<int>{2} && rejected == 1);
+  }
   // Stable first-use ordering with exact-key deduplication and clean reset.
   {
     Vulkan::StartupPipelineVariants<int, std::string> variants;

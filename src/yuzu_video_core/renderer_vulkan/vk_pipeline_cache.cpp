@@ -1095,6 +1095,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     // Never poison the regular cache when optional foreign-version candidates exceed
     // the startup input budget. Reserve all stages atomically before retaining them.
     size_t skipped_candidate_inputs{};
+    std::vector<ComputePipelineCacheKey> skipped_compute_keys;
+    std::vector<GraphicsPipelineCacheKey> skipped_graphics_keys;
     const auto account_inputs = [&](std::span<const FileEnvironment> envs,bool candidate) {
         std::array<VideoCommon::ShaderProfile::StartupInput,6> inputs{};
         if(envs.size()>inputs.size())throw std::runtime_error("Too many shader stages");
@@ -1102,8 +1104,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             inputs[i]={envs[i].CodeIdentity(),envs[i].CompilationInputBytes(),envs[i].SharedCodeBytes()};
         if(VideoCommon::ShaderProfile::AccountStartupInputs(
                std::span(inputs).first(envs.size()),accounted_code,buffered_input_bytes))return true;
-        if(candidate){++skipped_candidate_inputs;return false;}
-        throw std::runtime_error("Startup shader input memory budget exceeded");
+        if(candidate)++skipped_candidate_inputs;
+        return false;
     };
     const char* cross_audit_path = std::getenv("NXEMU_NXSHADER_AUDIT_CROSS_VERSION");
     const bool comparing_foreign = cross_audit_path && *cross_audit_path;
@@ -1126,7 +1128,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         ComputePipelineCacheKey key{};
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
         if(!candidate)cbuf_size_dependencies.Observe(key.unique_hash, env.CbufSizeMask());
-        if (!account_inputs(std::span<const FileEnvironment>{&env, 1}, candidate)) return true;
+        if (!account_inputs(std::span<const FileEnvironment>{&env, 1}, candidate)) {
+            if(!candidate)skipped_compute_keys.push_back(key);
+            return true;
+        }
         compute_inputs.push_back({key, std::move(env), candidate, std::move(record_id)});
         return true;
     }};
@@ -1286,7 +1291,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                  !dynamic_features.has_dynamic_vertex_input)) {
             return true;
         }
-        if (!account_inputs(envs, candidate)) return true;
+        if (!account_inputs(envs, candidate)) {
+            if(!candidate)skipped_graphics_keys.push_back(key);
+            return true;
+        }
         graphics_inputs.push_back({key, std::move(envs), candidate, std::move(record_id)});
         return true;
     }};
@@ -1832,6 +1840,17 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         });
     }
     graphics_inputs.clear();
+    for (auto& key : skipped_compute_keys) {
+        CbufSizeDependencies::Normalize(key.cbuf_sizes, cbuf_size_dependencies.Mask(key.unique_hash));
+        compute_variants.Withhold(key);
+    }
+    for (auto& key : skipped_graphics_keys) {
+        NormalizeCbufSizes(key);
+        graphics_variants.Withhold(key);
+    }
+    if (!skipped_compute_keys.empty() || !skipped_graphics_keys.empty())
+        LOG_WARNING(Render_Vulkan, "Startup shader input budget exceeded: {} graphics and {} compute cached pipelines are built when first drawn",
+                    skipped_graphics_keys.size(), skipped_compute_keys.size());
     if(variant_audit_path && *variant_audit_path) {
         JsonValue report(JsonValueType::Object);report["schema"]=2U;report["truncated"]=audit_truncated;
         report["shader_instructions_included"]=false;report["pairs"]=JsonValue(JsonValueType::Array);
