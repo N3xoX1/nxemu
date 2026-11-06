@@ -269,10 +269,16 @@ void TranslatorVisitor::SUST(u64 insn) {
         color = MakeColor(ir, sust.data_reg, SizeInRegs(sust.size));
     } else {
         const unsigned mask{SwizzleMask(sust.swizzle)};
-        if (mask != 0xf) {
-            throw NotImplementedException("Non-full mask");
+        // Formatted scalar, vec2 and vec4 stores use consecutive source registers.
+        // Missing surface components are unspecified by PTX. Do not introduce an
+        // image read/modify/write, which would also create GPU race conditions.
+        if (mask == (R | G | B | A)) {
+            color = MakeColor(ir, sust.data_reg, 4);
+        } else if (mask == R || mask == (R | G)) {
+            color = MakeColor(ir, sust.data_reg, std::popcount(mask));
+        } else {
+            throw NotImplementedException("Unsupported formatted store mask {:#x}", mask);
         }
-        color = MakeColor(ir, sust.data_reg, 4);
     }
     ir.ImageWrite(handle, coords, color, info);
 }

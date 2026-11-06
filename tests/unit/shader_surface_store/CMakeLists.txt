@@ -1,0 +1,6 @@
+# Exercise Maxwell surface-store lowering and generic attribute bounds.
+add_executable(test_shader_surface_store surface_store.cpp)
+target_include_directories(test_shader_surface_store PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_shader_surface_store PRIVATE cxx_std_20)
+target_link_libraries(test_shader_surface_store PRIVATE shader_recompiler nxemu_test_support)
+nxemu_unit_test(test_shader_surface_store LINUX)
