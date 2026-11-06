@@ -294,20 +294,23 @@
     <CustomBuild Include="..\yuzu_video_core\host_shaders\smaa_blending_weight_calculation.frag">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
-      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
-      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"
+call "$(SolutionDir)src\script\generate_smaa_high_spc_header.cmd" "$(IntDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h;$(SolutionDir)src\yuzu_video_core\host_shaders\smaa_high_blending_weight_calculation_frag_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\smaa_edge_detection.frag">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
-      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
-      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"
+call "$(SolutionDir)src\script\generate_smaa_high_spc_header.cmd" "$(IntDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h;$(SolutionDir)src\yuzu_video_core\host_shaders\smaa_high_edge_detection_frag_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\smaa_neighborhood_blending.frag">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
-      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
-      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"
+call "$(SolutionDir)src\script\generate_smaa_high_spc_header.cmd" "$(IntDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h;$(SolutionDir)src\yuzu_video_core\host_shaders\smaa_high_neighborhood_blending_frag_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_blit_depth_stencil.frag">
       <FileType>Document</FileType>
@@ -376,6 +379,90 @@
       <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_scaleforce_fp32.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\present_area.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\present_catmull_rom.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\opengl_present_cas.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_capture.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_cas.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_cas_quad.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_cas_catmull.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_cas_catmull_quad.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_easu_fp16.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_easu_fp32.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_rcas_fp16.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_rcas_fp32.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_scaleforce_fast_fp16.frag">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_frag_spv.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_present_scaleforce_fast_fp32.frag">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
       <Command>call "$(SolutionDir)src\script\generate_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
@@ -452,20 +539,23 @@
     <CustomBuild Include="..\yuzu_video_core\host_shaders\smaa_blending_weight_calculation.vert">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
-      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
-      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert_spv.h</Outputs>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"
+call "$(SolutionDir)src\script\generate_smaa_high_spc_header.cmd" "$(IntDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert_spv.h;$(SolutionDir)src\yuzu_video_core\host_shaders\smaa_high_blending_weight_calculation_vert_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\smaa_edge_detection.vert">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
-      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
-      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert_spv.h</Outputs>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"
+call "$(SolutionDir)src\script\generate_smaa_high_spc_header.cmd" "$(IntDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert_spv.h;$(SolutionDir)src\yuzu_video_core\host_shaders\smaa_high_edge_detection_vert_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\smaa_neighborhood_blending.vert">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>
-      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
-      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert_spv.h</Outputs>
+      <Command>call "$(SolutionDir)src\script\generate_shader_spc_header.cmd" "$(OutDir)" "%(FullPath)"
+call "$(SolutionDir)src\script\generate_smaa_high_spc_header.cmd" "$(IntDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert.h;$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_vert_spv.h;$(SolutionDir)src\yuzu_video_core\host_shaders\smaa_high_neighborhood_blending_vert_spv.h</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\vulkan_color_clear.vert">
       <FileType>Document</FileType>
@@ -501,6 +591,12 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="..\yuzu_video_core\host_shaders\catmull_rom.glsl">
+      <FileType>Document</FileType>
+      <Message>Compiling %(Filename)%(Extension)</Message>
+      <Command>call "$(SolutionDir)src\script\generate_shader_header.cmd" "$(OutDir)" "%(FullPath)"</Command>
+      <Outputs>$(SolutionDir)src\yuzu_video_core\host_shaders\%(Filename)_glsl.h</Outputs>
+    </CustomBuild>
     <CustomBuild Include="..\yuzu_video_core\host_shaders\opengl_smaa.glsl">
       <FileType>Document</FileType>
       <Message>Compiling %(Filename)%(Extension)</Message>

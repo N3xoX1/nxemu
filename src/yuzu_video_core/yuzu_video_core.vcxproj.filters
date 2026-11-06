@@ -28,6 +28,17 @@
     <ClInclude Include="shader_profile_validation.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="renderer_vulkan\startup_pipeline_variants.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
     <ClInclude Include="shader_profile.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="area_sampling.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="command_header.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="present_sharpening.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_hash.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_layout.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_limits.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_metrics.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_resources.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_search.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="shader_profile_versions.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="snapshot_memory_budget.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="shader_profile_codec.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="renderer_vulkan\guest_pipeline_recipe_probe.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
     <ClCompile Include="pipeline_cache_store.cpp"><Filter>Source Files</Filter></ClCompile>
@@ -197,6 +208,9 @@
       <Filter>Header Files\engines</Filter>
     </ClInclude>
     <ClInclude Include="engines\engine_interface.h">
+      <Filter>Header Files\engines</Filter>
+    </ClInclude>
+    <ClInclude Include="engines\fast_copy.h">
       <Filter>Header Files\engines</Filter>
     </ClInclude>
     <ClInclude Include="engines\engine_upload.h">
@@ -499,6 +513,9 @@
     <ClInclude Include="renderer_vulkan\renderer_vulkan.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="renderer_vulkan\descriptor_copy_cache.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
     <ClInclude Include="renderer_vulkan\vk_blit_screen.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
@@ -590,6 +607,15 @@
       <Filter>Header Files\renderer_vulkan\present</Filter>
     </ClInclude>
     <ClInclude Include="renderer_vulkan\present\fxaa.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\catmull_pass.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\scale_capture.h">
+      <Filter>Header Files\renderer_vulkan\present</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer_vulkan\present\scale_trace.h">
       <Filter>Header Files\renderer_vulkan\present</Filter>
     </ClInclude>
     <ClInclude Include="renderer_vulkan\present\layer.h">
@@ -1048,6 +1074,9 @@
       <Filter>Source Files\renderer_vulkan\present</Filter>
     </ClCompile>
     <ClCompile Include="renderer_vulkan\present\fxaa.cpp">
+      <Filter>Source Files\renderer_vulkan\present</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\present\catmull_pass.cpp">
       <Filter>Source Files\renderer_vulkan\present</Filter>
     </ClCompile>
     <ClCompile Include="renderer_vulkan\present\layer.cpp">

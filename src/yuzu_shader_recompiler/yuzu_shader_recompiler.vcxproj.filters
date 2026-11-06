@@ -95,6 +95,9 @@
     <ClInclude Include="runtime_info.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="scale_trace.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="shader_info.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -235,6 +238,9 @@
     </ClInclude>
     <ClInclude Include="frontend\maxwell\translate\impl\video_helper.h">
       <Filter>Header Files\frontend\maxwell\translate\impl</Filter>
+    </ClInclude>
+    <ClInclude Include="ir_opt\reconstruction_pass.h">
+      <Filter>Header Files\ir_opt</Filter>
     </ClInclude>
     <ClInclude Include="ir_opt\conditional_value.h">
       <Filter>Header Files\ir_opt</Filter>
@@ -781,6 +787,9 @@
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
     <ClCompile Include="ir_opt\position_pass.cpp">
+      <Filter>Source Files\ir_opt</Filter>
+    </ClCompile>
+    <ClCompile Include="ir_opt\reconstruction_pass.cpp">
       <Filter>Source Files\ir_opt</Filter>
     </ClCompile>
     <ClCompile Include="ir_opt\rescaling_pass.cpp">
