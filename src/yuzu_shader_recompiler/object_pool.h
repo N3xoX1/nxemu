@@ -6,6 +6,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace Shader {
 
@@ -20,7 +21,13 @@ public:
     template <typename... Args>
         requires std::is_constructible_v<T, Args...>
     [[nodiscard]] T* Create(Args&&... args) {
-        return std::construct_at(Memory(), std::forward<Args>(args)...);
+        Chunk* const chunk{FreeChunk()};
+        T* const object{std::construct_at(&chunk->storage[chunk->used_objects].object,
+                                        std::forward<Args>(args)...)};
+        // Publish the slot only after construction succeeded. Release() must never
+        // destroy a slot whose constructor threw.
+        ++chunk->used_objects;
+        return object;
     }
 
     void ReleaseContents() {
@@ -31,8 +38,11 @@ public:
         if (root.used_objects == root.num_objects) {
             // Root chunk has been filled, squash allocations into it
             const size_t total_objects{root.num_objects + new_chunk_size * (chunks.size() - 1)};
+            // Allocate before releasing live objects so an allocation failure leaves
+            // the pool usable and node pointing to an existing chunk.
+            Chunk replacement{total_objects};
             chunks.clear();
-            chunks.emplace_back(total_objects);
+            chunks.emplace_back(std::move(replacement));
         } else {
             root.Release();
             chunks.resize(1);
@@ -76,7 +86,11 @@ private:
         }
 
         void Release() {
-            std::destroy_n(storage.get(), used_objects);
+            // Storage is a union with an intentionally empty destructor. Destroy
+            // the constructed T objects to release their owned IR resources.
+            for (size_t index = 0; index < used_objects; ++index) {
+                std::destroy_at(&storage[index].object);
+            }
             used_objects = 0;
         }
 
@@ -84,11 +98,6 @@ private:
         size_t num_objects{};
         std::unique_ptr<Storage[]> storage;
     };
-
-    [[nodiscard]] T* Memory() {
-        Chunk* const chunk{FreeChunk()};
-        return &chunk->storage[chunk->used_objects++].object;
-    }
 
     [[nodiscard]] Chunk* FreeChunk() {
         if (node->used_objects != node->num_objects) {

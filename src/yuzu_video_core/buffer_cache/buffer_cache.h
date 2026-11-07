@@ -331,6 +331,10 @@ std::pair<typename P::Buffer*, u32> BufferCache<P>::ObtainCPUBuffer(
     const BufferId buffer_id = FindBuffer(device_addr, size);
     Buffer& buffer = slot_buffers[buffer_id];
 
+    if (buffer_id == NULL_BUFFER_ID) {
+        return {&buffer, 0};
+    }
+
     // synchronize op
     switch (sync_info) {
     case ObtainBufferSynchronize::FullSynchronize:
@@ -1780,6 +1784,9 @@ void BufferCache<P>::UpdateComputeTextureBuffers() {
 template <class P>
 void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size,
                                        bool tracked) {
+    if (buffer_id == NULL_BUFFER_ID) {
+        return;
+    }
     if (!tracked) {
         untracked_gpu_writes.Add(device_addr, size);
     }
@@ -1815,10 +1822,13 @@ bool BufferCache<P>::SetWriteTrackingSlot(u32 slot, DAddr device_addr, u32 texel
 
 template <class P>
 BufferId BufferCache<P>::FindBuffer(DAddr device_addr, u32 size) {
-    if (device_addr == 0) {
+    const u64 page = device_addr >> CACHING_PAGEBITS;
+    if (device_addr == 0 || size == 0 || page >= page_table.size() ||
+        size > (static_cast<u64>(page_table.size()) << CACHING_PAGEBITS) - device_addr) {
+        // Bad guest buffer addresses must not index past the device page table,
+        // nor create a buffer whose range extends past its last page.
         return NULL_BUFFER_ID;
     }
-    const u64 page = device_addr >> CACHING_PAGEBITS;
     const BufferId buffer_id = page_table[page];
     if (!buffer_id) {
         return CreateBuffer(device_addr, size);
@@ -2002,6 +2012,11 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
 template <class P>
 bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size,
                                        boost::container::small_vector<BufferCopy, 4>& copies) {
+    // Rejected guest ranges bind the null buffer. Never pass their original
+    // addresses to the memory tracker, whose table has the same finite bounds.
+    if (buffer.SizeBytes() == 0) {
+        return true;
+    }
     u64 total_size_bytes = 0;
     u64 largest_copy = 0;
     DAddr buffer_start = buffer.CpuAddr();
