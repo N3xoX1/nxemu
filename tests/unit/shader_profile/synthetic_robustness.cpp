@@ -18,6 +18,7 @@
 #include <set>
 #include <source_location>
 #include <thread>
+#include <zstd.h>
 
 VideoSettings videoSettings{};
 namespace Common::Log {
@@ -39,6 +40,11 @@ void Put(std::string& bytes, size_t offset, u64 value, size_t length) {
 void Write(const std::filesystem::path& path, std::string_view bytes) {
     std::ofstream out(path,std::ios::binary|std::ios::trunc);
     out.write(bytes.data(),bytes.size());Require(bool(out),"Synthetic output failed");
+}
+std::string Hex(std::string_view hex) {
+    std::string bytes;
+    for (size_t i = 0; i + 1 < hex.size(); i += 2) bytes += static_cast<char>(std::stoi(std::string(hex.substr(i, 2)), nullptr, 16));
+    return bytes;
 }
 // A dump holding one NCA with these bytes.
 std::string Game(const std::string& nca) { return ContainerFixture::Nsp({{"game.nca", nca}}); }
@@ -245,6 +251,89 @@ int main() try {
         nca[5016]=0; nca[5017]=0x10; nca[5018]=static_cast<char>(0xff);
         Write(scratch.root/"game.dnsp",Game(nca));
         Reject([&]{Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr);});
+    }
+    {
+        // A zstd file whose frame names a dictionary the game ships inside another
+        // zstd file (TotK's Pack/ZsDic.pack.zs). Both are read and the dictionary is checked.
+        const auto dictionary = Hex(
+            "37a430ec4443584e2310c84b9274ffffffffffffbfe4615be2b701d9e60dcccccc944cf1f8f8f8f8f8f8e80773010088"
+            "e81c7108000000040000000b3568151d08030325c56a00106328670000c61803002300000000000000041b0080036038"
+            "030000030000000000000000010000000400000008000000746578747572652074657874757265207368616465722073"
+            "616d706c65722070");
+        std::string plain(4096, 'z'); plain.replace(1000, code.size(), code);
+        std::string pack_plain(64, 'p'); pack_plain += dictionary; pack_plain += std::string(64, 'q');
+        const auto compress = [](std::string_view bytes, std::string_view dict) {
+            std::string out(ZSTD_compressBound(bytes.size()), '\0');
+            std::unique_ptr<ZSTD_CCtx, decltype(&ZSTD_freeCCtx)> context(ZSTD_createCCtx(), ZSTD_freeCCtx);
+            const auto size = ZSTD_compress_usingDict(context.get(), out.data(), out.size(), bytes.data(), bytes.size(),
+                                                      dict.data(), dict.size(), 3);
+            Require(!ZSTD_isError(size), "Synthetic zstd frame");
+            out.resize(size); return out;
+        };
+        const auto pack = compress(pack_plain, {}), frame = compress(plain, dictionary);
+        Require(Profile::ZstdFrameDictionary(frame) == 0x4e584344 && !Profile::ZstdFrameDictionary(pack), "Synthetic dictionary ID");
+        std::string nca(5000, '\0'); nca += pack; nca += frame;
+        auto zstd = profile;
+        zstd["source_files"][0u]["size"] = static_cast<unsigned>(nca.size());
+        zstd["source_files"][0u]["header"] = Profile::ResourceSha256(nca.substr(0, 4096));
+        auto ref = Profile::ParseMetadata(R"({"encoding":"zstd","file":"game.nca","offset":1000,"size":16})");
+        ref["container_offset"] = static_cast<unsigned>(5000 + pack.size());
+        ref["container_size"] = static_cast<unsigned>(frame.size());
+        ref["decoded_size"] = static_cast<unsigned>(plain.size());
+        auto dict_ref = Profile::ParseMetadata(R"({"encoding":"zstd","file":"game.nca","container_offset":5000,"offset":64})");
+        dict_ref["container_size"] = static_cast<unsigned>(pack.size());
+        dict_ref["decoded_size"] = static_cast<unsigned>(pack_plain.size());
+        dict_ref["size"] = static_cast<unsigned>(dictionary.size());
+        dict_ref["sha256"] = Profile::ResourceSha256(dictionary);
+        ref["dictionary"] = dict_ref;
+        zstd["shaders"][digest]["references"][0u] = ref;
+        const auto zstd_payload = Profile::Unpack(Profile::PackCompact(zstd));
+        Write(scratch.root/"game.dnsp", Game(nca));
+        Require(Profile::ReadCompact(zstd_payload,scratch.root,title,nullptr,nullptr).size()==1 &&
+                Profile::ReadCompact(zstd_payload,scratch.root,title,nullptr,nullptr)[0].environments[0].ProgramBytes()==code,
+                "Zstd shader with a game dictionary was not loaded");
+        // The decoded profile names the dictionary, and repacks to the same locators.
+        const auto decoded = Profile::DecodeCompact(zstd_payload, title);
+        const auto& decoded_ref = decoded["shaders"][decoded["shaders"].GetMemberNames()[0]]["references"][0u];
+        Require(Profile::Canonical(decoded_ref["dictionary"]) == Profile::Canonical(dict_ref), "Dictionary locator lost in decoding");
+        // A changed dictionary or a wrong dictionary digest loads nothing.
+        auto bad = nca; bad[5000 + 10] ^= 1;
+        Write(scratch.root/"game.dnsp", Game(bad));
+        Reject([&]{Profile::ReadCompact(zstd_payload,scratch.root,title,nullptr,nullptr);});
+        Write(scratch.root/"game.dnsp", Game(nca));
+        auto wrong = zstd;
+        wrong["shaders"][digest]["references"][0u]["dictionary"]["sha256"] = Profile::ResourceSha256("other");
+        Reject([&]{Profile::ReadCompact(Profile::Unpack(Profile::PackCompact(wrong)),scratch.root,title,nullptr,nullptr);});
+        // A dictionary cannot need one of its own, and a resource's dictionary must be zstd.
+        auto nested = zstd;
+        nested["shaders"][digest]["references"][0u]["dictionary"]["dictionary"] = dict_ref;
+        Reject([&]{Profile::PackCompact(nested);});
+        auto yaz0_dict = zstd;
+        yaz0_dict["shaders"][digest]["references"][0u]["dictionary"]["encoding"] = "yaz0";
+        Reject([&]{Profile::PackCompact(yaz0_dict);});
+        // The patched form: the frame as physical spans with its digest.
+        auto spanned = zstd;
+        auto span_ref = Profile::ParseMetadata(R"({"encoding":"bktr-zstd","offset":1000,"size":16,"physical_spans":[]})");
+        const auto half = frame.size() / 2;
+        auto first = Profile::ParseMetadata(R"({"file":"game.nca"})"), second = first;
+        first["offset"] = static_cast<unsigned>(5000 + pack.size()); first["size"] = static_cast<unsigned>(half);
+        second["offset"] = static_cast<unsigned>(5000 + pack.size() + half); second["size"] = static_cast<unsigned>(frame.size() - half);
+        span_ref["physical_spans"].Append(first); span_ref["physical_spans"].Append(second);
+        span_ref["resource_size"] = static_cast<unsigned>(frame.size());
+        span_ref["resource_sha256"] = Profile::ResourceSha256(frame);
+        span_ref["decoded_size"] = static_cast<unsigned>(plain.size());
+        span_ref["dictionary"] = dict_ref;
+        spanned["shaders"][digest]["references"][0u] = span_ref;
+        const auto span_payload = Profile::Unpack(Profile::PackCompact(spanned));
+        Require(Profile::ReadCompact(span_payload,scratch.root,title,nullptr,nullptr).size()==1, "Spanned zstd shader was not loaded");
+        bad = nca; bad[5000 + pack.size() + half] ^= 1;
+        Write(scratch.root/"game.dnsp", Game(bad));
+        Reject([&]{Profile::ReadCompact(span_payload,scratch.root,title,nullptr,nullptr);});
+        // A frame that decodes to another size than its locator says is refused.
+        auto resized = zstd;
+        resized["shaders"][digest]["references"][0u]["decoded_size"] = static_cast<unsigned>(plain.size() + 8);
+        Write(scratch.root/"game.dnsp", Game(nca));
+        Reject([&]{Profile::ReadCompact(Profile::Unpack(Profile::PackCompact(resized)),scratch.root,title,nullptr,nullptr);});
     }
     Write(scratch.root/"game.dnsp",Game(code));
     for(size_t cut=0;cut<payload.size();++cut)

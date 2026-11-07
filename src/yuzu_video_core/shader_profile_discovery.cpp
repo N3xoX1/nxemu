@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "yuzu_video_core/shader_profile_validation.h"
 #include "yuzu_video_core/shader_profile_discovery.h"
+#include "yuzu_video_core/shader_profile_codec.h"
 #include "yuzu_video_core/shader_profile_container.h"
 #include "yuzu_video_core/shader_profile_context.h"
 #include <utility>
@@ -11,6 +12,7 @@
 #include "yuzu_video_core/shader_profile_resources.h"
 #include "yuzu_video_core/shader_profile_search.h"
 #include <fstream>
+#include <functional>
 #include <memory>
 #include <set>
 #include <sstream>
@@ -425,6 +427,28 @@ std::vector<File> Romfs(Store storage)
     }
     return result;
 }
+// Member ranges of a SARC held in memory; empty when the bytes are not one.
+std::vector<std::pair<u64, u64>> SarcMembers(std::string_view data)
+{
+    std::vector<std::pair<u64, u64>> members;
+    if (data.size() < 0x20 || !data.starts_with("SARC") || data.substr(0x14, 4) != "SFAT") return members;
+    const bool little = static_cast<unsigned char>(data[6]) == 0xff;
+    const auto number = [&](size_t pos, size_t n) {
+        u64 value = Get(data, pos, n);
+        if (little) return value;
+        u64 swapped{};
+        for (size_t i = 0; i < n; ++i) swapped = (swapped << 8) | ((value >> (8 * i)) & 0xff);
+        return swapped;
+    };
+    const auto start = number(12, 4), count = number(0x1a, 2);
+    if (start > data.size() || 0x20 + count * 16 > data.size()) return members;
+    for (u64 i = 0; i < count; ++i)
+    {
+        const auto begin = number(0x20 + i * 16 + 8, 4), end = number(0x20 + i * 16 + 12, 4);
+        if (begin <= end && end <= data.size() - start) members.emplace_back(start + begin, end - begin);
+    }
+    return members;
+}
 void ReplaceIndex(const std::filesystem::path & path, const JsonValue & value)
 {
     auto temp = path;
@@ -541,7 +565,9 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
     JsonValue targets = Array();
     for (const auto & [digest, code] : codes)
         targets.Append(digest);
-    const auto target_hash = ResourceSha256(Canonical(targets) + ":exact-1");
+    // The suffix is the scan revision: changing it rescans resources an older scan
+    // completed (zstd files were searched compressed before -2), keeping verified locators.
+    const auto target_hash = ResourceSha256(Canonical(targets) + ":exact-2");
     JsonValue index;
     index["version"] = 1U;
     index["identity"] = identity;
@@ -569,11 +595,28 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
     }
     const auto progress = [&](const char * phase, u64 done, u64 total) {if(options.progress && !options.progress(phase,done,total))throw std::runtime_error("Shader profile operation cancelled"); };
     auto save = [&] {if(options.index.empty())return;index["completed"]=Array();for(const auto& id:completed)index["completed"].Append(id);index.removeMember("checksum");index["checksum"]=ResourceSha256(Canonical(index));ReplaceIndex(options.index,index); };
-    const auto read_reference = [&](const JsonValue & ref, size_t prefix) {
+    std::map<std::string, std::shared_ptr<const ZstdDictionary>> index_dictionaries;
+    std::function<std::string(const JsonValue &, size_t)> read_reference;
+    // A dictionary locator names bytes of a decoded zstd resource that has none of its own.
+    const auto index_dictionary = [&](const JsonValue & d) -> const ZstdDictionary * {
+        auto & loaded = index_dictionaries[Canonical(d)];
+        if (!loaded)
+        {
+            Check(d.isObject() && !d.isMember("dictionary") && d["encoding"].asString().ends_with("zstd"), "Index dictionary");
+            const auto source = read_reference(d, 0);
+            const auto offset = Num(d["offset"]), size = Num(d["size"]);
+            Bounds(offset, size, source.size());
+            const auto bytes = std::string_view(source).substr(offset, size);
+            Check(ResourceSha256(bytes) == d["sha256"].asString(), "Index dictionary changed");
+            loaded = std::make_shared<const ZstdDictionary>(bytes);
+        }
+        return loaded.get();
+    };
+    read_reference = [&](const JsonValue & ref, size_t prefix) {
         const auto kind = ref["encoding"].asString();
         std::string raw;
         if (kind == "raw") return physical.at(ref["file"].asString())->Read(Num(ref["offset"]), Num(ref["size"]));
-        if (kind == "bktr-raw" || kind == "bktr-yaz0")
+        if (kind == "bktr-raw" || kind == "bktr-yaz0" || kind == "bktr-zstd")
         {
             const auto expected = Num(ref["resource_size"]);
             Check(expected <= MaxDecodedResource && ref["physical_spans"].size() <= 65536, "Index resource bounds");
@@ -587,6 +630,8 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
         else
             raw = physical.at(ref["file"].asString())->Read(Num(ref["container_offset"]), Num(ref["container_size"]));
         if (kind == "yaz0" || kind == "bktr-yaz0") return DecodeYaz0(raw, prefix);
+        if (kind == "zstd" || kind == "bktr-zstd")
+            return DecodeZstd(raw, Num(ref["decoded_size"]), ref.isMember("dictionary") ? index_dictionary(ref["dictionary"]) : nullptr);
         if (kind == "nso-lz4")
         {
             Check(ResourceSha256(raw) == ref["container_sha256"].asString(), "Index NSO changed");
@@ -603,7 +648,7 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
         if (index["references"].isMember(h.c_str()))
         {
             auto descriptor = index["references"][h];
-            const std::set<std::string> allowed{"encoding", "file", "offset", "size", "container_offset", "container_size", "decoded_size", "container_sha256", "segment_sha256", "physical_spans", "resource_size", "resource_sha256"};
+            const std::set<std::string> allowed{"encoding", "file", "offset", "size", "container_offset", "container_size", "decoded_size", "container_sha256", "segment_sha256", "physical_spans", "resource_size", "resource_sha256", "dictionary"};
             bool valid = descriptor.isObject();
             for (const auto & field : descriptor.GetMemberNames())
                 valid &= allowed.contains(field);
@@ -763,6 +808,66 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
             for (const auto & name : names)
                 for (auto & section : Sections(name, physical.at(name)))
                     sections[container].push_back(std::move(section));
+        // Where a resource's stored bytes are: one range of an NCA, or the
+        // physical spans of a patched (logical) file with their digest.
+        const auto stored = [&](Store storage, u64 offset, u64 size, const std::string & raw, bool logical, const char * encoding) {
+            JsonValue locator;
+            const auto spans = storage->Spans(offset, size);
+            if (!logical)
+            {
+                Check(spans.size() == 1, "Physical resource span count");
+                locator["encoding"] = encoding;
+                locator["file"] = spans[0]["file"];
+                locator["container_offset"] = spans[0]["offset"];
+                locator["container_size"] = Jnum(size);
+            }
+            else
+            {
+                locator["encoding"] = std::string("bktr-") + encoding;
+                locator["physical_spans"] = spans;
+                locator["resource_size"] = Jnum(raw.size());
+                locator["resource_sha256"] = ResourceSha256(raw);
+            }
+            return locator;
+        };
+        // Zstd dictionaries of the RomFS being searched, by ID: the members of its
+        // dictionary packs (TotK's Pack/ZsDic.pack.zs), with locators to them.
+        struct Dictionary
+        {
+            JsonValue locator;
+            std::shared_ptr<const ZstdDictionary> value;
+        };
+        std::map<unsigned, Dictionary> dictionaries;
+        const auto load_dictionaries = [&](Store storage, const std::vector<File> & files, bool logical) {
+            dictionaries.clear();
+            for (const auto & file : files)
+            {
+                if (!file.name.ends_with("ZsDic.pack.zs") || file.size > MaxDecodedResource) continue;
+                try
+                {
+                    const auto raw = storage->Read(file.offset, file.size);
+                    if (!IsZstd(raw) || ZstdFrameDictionary(raw)) continue;
+                    const auto size = ZstdFrameSize(raw, MaxDecodedResource);
+                    const auto pack = DecodeZstd(raw, size);
+                    auto source = stored(storage, file.offset, file.size, raw, logical, "zstd");
+                    source["decoded_size"] = Jnum(size);
+                    for (const auto & [offset, length] : SarcMembers(pack))
+                    {
+                        const auto bytes = std::string_view(pack).substr(offset, length);
+                        std::shared_ptr<const ZstdDictionary> value;
+                        try { value = std::make_shared<const ZstdDictionary>(bytes); }
+                        catch (const std::exception &) { continue; }
+                        auto locator = source;
+                        locator["offset"] = Jnum(offset);
+                        locator["size"] = Jnum(length);
+                        locator["sha256"] = ResourceSha256(bytes);
+                        const auto id = value->Id();
+                        dictionaries.try_emplace(id, Dictionary{std::move(locator), std::move(value)});
+                    }
+                }
+                catch (const std::exception &) { /* Not a dictionary pack. */ }
+            }
+        };
         // One resource: a whole file, or a Yaz0 entry of an uncompressed archive.
         auto resource = [&](Store storage, u64 offset, u64 size, const std::string & id, bool logical) {
             if (completed.contains(id)) return;
@@ -770,26 +875,37 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
             Check(size <= MaxDecodedResource, "Resource decode limit");
             auto raw = storage->Read(offset, size);
             const bool compressed = raw.starts_with("Yaz0");
-            auto decoded = compressed ? DecodeYaz0(raw) : raw;
-            report.decoded_bytes += decoded.size();
-            ++report.searched_resources;
+            std::string decoded;
             JsonValue locator;
-            const auto spans = storage->Spans(offset, size);
-            if (!logical && compressed)
+            if (IsZstd(raw))
             {
-                Check(spans.size() == 1, "Physical Yaz0 span count");
-                locator["encoding"] = "yaz0";
-                locator["file"] = spans[0]["file"];
-                locator["container_offset"] = spans[0]["offset"];
-                locator["container_size"] = Jnum(size);
+                // Not one frame, or a dictionary this RomFS lacks: the file cannot be located.
+                try
+                {
+                    const auto dictionary = ZstdFrameDictionary(raw);
+                    const auto found = dictionaries.find(dictionary);
+                    if (dictionary && found == dictionaries.end()) throw std::runtime_error("Unknown zstd dictionary");
+                    const auto decoded_size = ZstdFrameSize(raw, MaxDecodedResource);
+                    decoded = DecodeZstd(raw, decoded_size, dictionary ? found->second.value.get() : nullptr);
+                    locator = stored(storage, offset, size, raw, logical, "zstd");
+                    locator["decoded_size"] = Jnum(decoded_size);
+                    if (dictionary) locator["dictionary"] = found->second.locator;
+                }
+                catch (const std::runtime_error &)
+                {
+                    completed.insert(id);
+                    return;
+                }
             }
             else
             {
-                locator["encoding"] = compressed ? "bktr-yaz0" : "bktr-raw";
-                locator["physical_spans"] = spans;
-                locator["resource_size"] = Jnum(raw.size());
-                locator["resource_sha256"] = ResourceSha256(raw);
+                // A physical raw file is searched in place, never as a resource.
+                Check(compressed || logical, "Physical raw resource");
+                decoded = compressed ? DecodeYaz0(raw) : raw;
+                locator = stored(storage, offset, size, raw, logical, compressed ? "yaz0" : "raw");
             }
+            report.decoded_bytes += decoded.size();
+            ++report.searched_resources;
             locate(decoded, locator);
             completed.insert(id);
             if (report.searched_resources % 25 == 0) save();
@@ -828,6 +944,12 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
             }
             for (size_t i = 0; i < entries.size() && !done(); ++i)
                 resource(storage, entries[i].first, entries[i].second, id + ":" + std::to_string(i), logical);
+        };
+        // Physical RomFS files searched as one resource: Yaz0 and zstd files.
+        const auto compressed = [](Store layer, const File & file) {
+            if (file.size < 4) return false;
+            const auto magic = layer->Read(file.offset, 4);
+            return magic == "Yaz0" || IsZstd(magic);
         };
         for (const auto & name : {options.base, options.update})
             if (!name.empty())
@@ -877,10 +999,13 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
                             }
                         }
                     else if (options.update.empty() && section.header[2] == 0)
-                        for (const auto & file : Romfs(layer))
+                    {
+                        const auto files = Romfs(layer);
+                        load_dictionaries(layer, files, false);
+                        for (const auto & file : files)
                         {
                             const auto id = "physical:" + name + ":" + section.name + ":" + file.name;
-                            if (file.size >= 4 && layer->Read(file.offset, 4) == "Yaz0") resource(layer, file.offset, file.size, id, false);
+                            if (compressed(layer, file)) resource(layer, file.offset, file.size, id, false);
                             else archive(layer, file, id, false);
                             if (done())
                             {
@@ -888,6 +1013,7 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
                                 return;
                             }
                         }
+                    }
                 }
         if (!options.update.empty())
             for (const auto & patch : sections[options.update])
@@ -902,7 +1028,9 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
                         }
                     Check(base, "BKTR base content missing");
                     auto storage = Patched(*base, patch);
-                    for (const auto & file : Romfs(storage))
+                    const auto files = Romfs(storage);
+                    load_dictionaries(storage, files, true);
+                    for (const auto & file : files)
                     {
                         const auto id = "logical:" + patch.name + ":" + std::to_string(patch.index) + ":" + file.name;
                         resource(storage, file.offset, file.size, id, true);
@@ -920,10 +1048,13 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
                 for (const auto & section : sections[name])
                     if (section.header[2] == 0 && !Get(section.header, 0x108, 8))
                         if (auto layer = DataLayer(section))
-                            for (const auto & file : Romfs(layer))
+                        {
+                            const auto files = Romfs(layer);
+                            load_dictionaries(layer, files, false);
+                            for (const auto & file : files)
                             {
                                 const auto id = "physical:" + name + ":" + section.name + ":" + file.name;
-                                if (file.size >= 4 && layer->Read(file.offset, 4) == "Yaz0") resource(layer, file.offset, file.size, id, false);
+                                if (compressed(layer, file)) resource(layer, file.offset, file.size, id, false);
                                 else archive(layer, file, id, false);
                                 if (done())
                                 {
@@ -931,6 +1062,7 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
                                     return;
                                 }
                             }
+                        }
         save();
     }
     catch (...)
