@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include "yuzu_common/common_types.h"
@@ -32,7 +33,17 @@ public:
         DEBUG_ASSERT(index <= current_limit);
         const GPUVAddr gpu_addr = current_gpu_addr + index * sizeof(Descriptor);
         std::pair<Descriptor, bool> result;
-        gpu_memory.ReadBlockUnsafe(gpu_addr, &result.first, sizeof(Descriptor));
+        // TIC/TSC reads are on the draw hot path. Within the smallest emulated
+        // memory page, one address lookup and memcpy replace the generic page walk.
+        // Cross-page, unmapped and non-backed entries retain the original reader.
+        constexpr u64 min_page_size = 4096;
+        const bool one_page = (gpu_addr & (min_page_size - 1)) + sizeof(Descriptor) <=
+                              min_page_size;
+        if (const u8* const host = one_page ? gpu_memory.GetPointer(gpu_addr) : nullptr) {
+            std::memcpy(&result.first, host, sizeof(Descriptor));
+        } else {
+            gpu_memory.ReadBlockUnsafe(gpu_addr, &result.first, sizeof(Descriptor));
+        }
         if (IsDescriptorRead(index)) {
             result.second = result.first != descriptors[index];
         } else {

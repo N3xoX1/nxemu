@@ -138,7 +138,6 @@ void FixedPipelineState::RefreshFromRegisters(const Maxwell& regs,
     early_z.Assign(regs.mandated_early_z != 0 ? 1 : 0);
     depth_enabled.Assign(regs.zeta_enable != 0 ? 1 : 0);
     depth_format.Assign(static_cast<u32>(regs.zeta.format));
-    NormalizeInactiveFields();
     y_negate.Assign(regs.window_origin.mode != Maxwell::WindowOrigin::Mode::UpperLeft ? 1 : 0);
     provoking_vertex_last.Assign(regs.provoking_vertex == Maxwell::ProvokingVertex::Last ? 1 : 0);
     conservative_raster_enable.Assign(regs.conservative_raster_enable != 0 ? 1 : 0);
@@ -165,6 +164,7 @@ void FixedPipelineState::RefreshFromRegisters(const Maxwell& regs,
     }
     alpha_test_ref = Common::BitCast<u32>(regs.alpha_test_ref);
     point_size = Common::BitCast<u32>(regs.point_size);
+    NormalizeInactiveFields();
 
     if (dirty.vertex_input) {
         if (features.has_dynamic_vertex_input) {
@@ -474,6 +474,9 @@ std::optional<GuestPipelineState> GuestPipelineState::FromWords(std::span<const 
     std::array<u32, WordCount> canonical;
     result.WriteWords(canonical);
     if (!std::equal(words.begin(), words.end(), canonical.begin())) return std::nullopt;
+    // Accept older recipes with ignored alpha-test references, but project and
+    // re-export only their canonical representation going forward.
+    result.complete.NormalizeInactiveFields();
     return result;
 }
 

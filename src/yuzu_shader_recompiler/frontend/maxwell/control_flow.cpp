@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <utility>
@@ -253,19 +254,24 @@ void CFG::AnalyzeLabel(FunctionId function_id, Label& label) {
 bool CFG::InspectVisitedBlocks(FunctionId function_id, const Label& label) {
     const Location pc{label.address};
     Function& function{functions[function_id]};
-    const auto it{
-        std::ranges::find_if(function.blocks, [pc](auto& block) { return block.Contains(pc); })};
-    if (it == function.blocks.end()) {
+    // Blocks are ordered by their start address and cannot overlap. Only the
+    // predecessor of upper_bound(pc) can contain this instruction.
+    const auto next{function.blocks.upper_bound(pc, Compare{})};
+    if (next == function.blocks.begin()) {
+        return false;
+    }
+    Block* const visited_block{&*std::prev(next)};
+    if (!visited_block->Contains(pc)) {
         // Address has not been visited
         return false;
     }
-    Block* const visited_block{&*it};
     if (visited_block->begin == pc) {
         throw LogicError("Dangling block");
     }
     Block* const new_block{label.block};
     Split(visited_block, new_block, pc);
-    function.blocks.insert(it, *new_block);
+    // The split starts after the visited block and before this successor.
+    function.blocks.insert(next, *new_block);
     return true;
 }
 

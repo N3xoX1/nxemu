@@ -271,6 +271,13 @@ struct FixedPipelineState {
         if (depth_enabled == 0) {
             depth_format.Assign(0);
         }
+        const u32 func = alpha_test_func.Value();
+        if (func == PackComparisonOp(Maxwell::ComparisonOp::Never_GL) ||
+            func == PackComparisonOp(Maxwell::ComparisonOp::Always_GL)) {
+            // Never/Always do not consume the reference. Ignore animated values
+            // so they cannot split Vulkan pipelines or NXShader recipes.
+            alpha_test_ref = 0;
+        }
     }
 
     size_t Hash() const noexcept;

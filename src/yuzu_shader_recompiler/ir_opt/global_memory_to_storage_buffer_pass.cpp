@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <memory>
 #include <optional>
 #include <queue>
 #include <unordered_map>
@@ -50,10 +51,19 @@ using StorageInstVector = small_vector<StorageInst, 24>;
 using StorageWritesSet =
     flat_set<StorageBufferAddr, std::less<StorageBufferAddr>, small_vector<StorageBufferAddr, 16>>;
 
+struct TrackingResult {
+    std::optional<StorageBufferAddr> buffer;
+    bool indirect_pointer{};
+};
+
 struct StorageInfo {
     StorageBufferSet set;
     StorageInstVector to_replace;
     StorageWritesSet writes;
+    // Collection does not mutate the IR. Cache complete tracking results per
+    // root and bias, including why a search must keep the global-memory path.
+    std::unordered_map<const IR::Inst*, TrackingResult> biased_tracks;
+    std::unordered_map<const IR::Inst*, TrackingResult> unbiased_tracks;
 };
 
 /// Returns true when the instruction is a global memory instruction
@@ -412,12 +422,27 @@ std::optional<StorageBufferAddr> TrackImpl(const IR::Value& value, const Bias* b
         return std::nullopt;
     }
     small_vector<const IR::Inst*, 16> visited;
+    std::unique_ptr<std::unordered_set<const IR::Inst*>> large_visited;
+    const auto mark_visited = [&](const IR::Inst* inst) {
+        if (large_visited) {
+            return large_visited->insert(inst).second;
+        }
+        if (std::ranges::find(visited, inst) != visited.end()) {
+            return false;
+        }
+        visited.push_back(inst);
+        if (visited.size() > 64) {
+            large_visited = std::make_unique<std::unordered_set<const IR::Inst*>>();
+            large_visited->reserve(visited.size() * 2);
+            large_visited->insert(visited.begin(), visited.end());
+        }
+        return true;
+    };
     std::queue<const IR::Inst*> pending;
     const auto enqueue = [&](const IR::Value& arg) {
         if (arg.IsImmediate()) return;
         const auto* inst = arg.InstRecursive();
-        if (std::ranges::find(visited, inst) == visited.end()) {
-            visited.push_back(inst);
+        if (mark_visited(inst)) {
             pending.push(inst);
         }
     };
@@ -502,11 +527,30 @@ void CollectStorageBuffers(IR::Block& block, IR::Inst& inst, StorageInfo& info) 
     }
     // First try to find storage buffers in the NVN address
     const IR::U32 low_addr{low_addr_info->value};
-    std::optional<StorageBufferAddr> storage_buffer{Track(low_addr, &nvn_bias)};
+    const auto cached_track = [&](const Bias* bias, auto& cache) {
+        const auto track = [&] {
+            TrackingResult result;
+            result.buffer = Track(low_addr, bias, &result.indirect_pointer);
+            return result;
+        };
+        if (low_addr.IsImmediate()) {
+            return track();
+        }
+        const IR::Inst* const root{low_addr.InstRecursive()};
+        if (const auto found = cache.find(root); found != cache.end()) {
+            return found->second;
+        }
+        const auto result = track();
+        cache.emplace(root, result);
+        return result;
+    };
+    std::optional<StorageBufferAddr> storage_buffer{
+        cached_track(&nvn_bias, info.biased_tracks).buffer};
     if (!storage_buffer) {
         // If it fails, track without a bias
-        bool indirect_pointer{};
-        storage_buffer = Track(low_addr, nullptr, &indirect_pointer);
+        const auto unbiased = cached_track(nullptr, info.unbiased_tracks);
+        const bool indirect_pointer = unbiased.indirect_pointer;
+        storage_buffer = unbiased.buffer;
         if (!storage_buffer) {
             // If that also fails, use NVN fallbacks
             if (indirect_pointer) {

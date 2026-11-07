@@ -505,7 +505,7 @@ typename P::Sampler* TextureCache<P>::GetComputeSampler(u32 index) {
 template <class P>
 SamplerId TextureCache<P>::GetGraphicsSamplerId(u32 index) {
     if (index > channel_state->graphics_sampler_table.Limit()) {
-        LOG_DEBUG(HW_GPU, "Invalid sampler index={}", index);
+        LOG_TRACE(HW_GPU, "Invalid sampler index={}", index);
         return NULL_SAMPLER_ID;
     }
     const auto [descriptor, is_new] = channel_state->graphics_sampler_table.Read(index);
@@ -519,7 +519,7 @@ SamplerId TextureCache<P>::GetGraphicsSamplerId(u32 index) {
 template <class P>
 SamplerId TextureCache<P>::GetComputeSamplerId(u32 index) {
     if (index > channel_state->compute_sampler_table.Limit()) {
-        LOG_DEBUG(HW_GPU, "Invalid sampler index={}", index);
+        LOG_TRACE(HW_GPU, "Invalid sampler index={}", index);
         return NULL_SAMPLER_ID;
     }
     const auto [descriptor, is_new] = channel_state->compute_sampler_table.Read(index);
@@ -846,7 +846,7 @@ ImageViewId TextureCache<P>::VisitImageView(DescriptorTable<TICEntry>& table,
                                             std::span<ImageViewId> cached_image_view_ids,
                                             u32 index) {
     if (index > table.Limit()) {
-        LOG_DEBUG(HW_GPU, "Invalid image view index={}", index);
+        LOG_TRACE(HW_GPU, "Invalid image view index={}", index);
         return NULL_IMAGE_VIEW_ID;
     }
     const auto [descriptor, is_new] = table.Read(index);
