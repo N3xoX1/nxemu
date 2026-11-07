@@ -24,6 +24,7 @@
 #include "core/file_sys/filesystem.h"
 #include "core/file_sys/ips_layer.h"
 #include "core/file_sys/patch_manager.h"
+#include "core/file_sys/patch_sets.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/romfs.h"
 #include "core/file_sys/vfs/vfs_cached.h"
@@ -494,6 +495,34 @@ bool PatchManager::HasNSOPatch(const BuildID & build_id_, std::string_view name)
     return !CollectPatches(patch_dirs, build_id).empty();
 }
 
+std::vector<VirtualFile> PatchManager::CollectPatchSetFiles() const
+{
+    const auto & disabled = loaderSettings.disabled_addons[title_id];
+    std::vector<VirtualFile> out;
+    for (const VirtualDir & subdir : CollectModPatchDirs(title_id, fs_controller, false))
+    {
+        if (std::find(disabled.cbegin(), disabled.cend(), subdir->GetName()) != disabled.cend())
+        {
+            continue;
+        }
+        const VirtualDir exefs_dir = FindSubdirectoryCaseless(subdir, "exefs");
+        if (exefs_dir == nullptr)
+        {
+            continue;
+        }
+        std::vector<VirtualFile> files = exefs_dir->GetFiles();
+        std::sort(files.begin(), files.end(), [](const VirtualFile & l, const VirtualFile & r) { return l->GetName() < r->GetName(); });
+        for (const VirtualFile & file : files)
+        {
+            if (file->GetExtension() == "nxpatch")
+            {
+                out.push_back(file);
+            }
+        }
+    }
+    return out;
+}
+
 static void ApplyLayeredFS(VirtualFile & romfs, uint64_t title_id, LoaderContentRecordType type, const FileSystemController & fs_controller)
 {
     if (type != LoaderContentRecordType::Program && type != LoaderContentRecordType::Data &&
@@ -772,6 +801,8 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
         {
             bool ips = false;
             bool ipswitch = false;
+            bool patch_sets = false;
+            std::string patch_set_versions;
             bool layeredfs = false;
 
             for (const auto & file : exefs_dir->GetFiles())
@@ -779,6 +810,14 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
                 if (file->GetExtension() == "ips")
                 {
                     ips = true;
+                }
+                else if (file->GetExtension() == "nxpatch")
+                {
+                    patch_sets = true;
+                    if (const std::string version = PatchSets::FileVersion(file); !version.empty())
+                    {
+                        AppendCommaIfNotEmpty(patch_set_versions, version);
+                    }
                 }
                 else if (file->GetExtension() == "pchtxt")
                 {
@@ -798,6 +837,11 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
             if (ipswitch)
             {
                 AppendCommaIfNotEmpty(types, "IPSwitch");
+            }
+            if (patch_sets)
+            {
+                // The game versions its files name, e.g. "Patch sets 1.0.0, 1.4.3"
+                AppendCommaIfNotEmpty(types, patch_set_versions.empty() ? "Patch sets" : "Patch sets " + patch_set_versions);
             }
             if (layeredfs)
             {

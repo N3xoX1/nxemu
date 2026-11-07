@@ -13,6 +13,7 @@
 
 #include "core/core.h"
 #include "core/file_sys/patch_manager.h"
+#include "core/file_sys/patch_sets.h"
 #include "core/hle/kernel/code_set.h"
 #include "core/hle/kernel/k_thread.h"
 #include "core/loader/nso.h"
@@ -186,6 +187,36 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
 
     codeset.DataSegment().size += nso_header.segments[2].bss_size;
     u32 image_size{PageAlignSize(static_cast<u32>(program_image.size()) + nso_header.segments[2].bss_size)};
+
+    // Patch sets (core/file_sys/patch_sets.h) take the page after .bss and the cave pages after it, as more of the
+    // data segment: rtld takes every executable region for a module, and fails to start the game on caves mapped
+    // read-execute. The JIT runs code from any mapped page. Both passes read the sets, so the process code region
+    // the layout pass sizes holds them. With native code execution the host would not execute the caves, so only
+    // in-place sets apply there.
+    const bool native_code = g_settings->GetBool(NXCpuSetting::NceEnabled);
+    std::optional<FileSys::PatchSets> patch_sets;
+    const u32 patch_page = image_size;
+    if (pm)
+    {
+        const std::string build_id_raw = Common::HexToString(nso_header.build_id);
+        // Nothing writes the patch page yet, so sets that read it are left out
+        const FileSys::PatchSets::Support support{.page_written = false, .caves = !native_code};
+        patch_sets.emplace(pm->CollectPatchSetFiles(), build_id_raw.substr(0, build_id_raw.find_last_not_of('0') + 1), nso_file.GetName(), support);
+        if (load_into_process)
+        {
+            patch_sets->LogProblems();
+        }
+        if (patch_sets->Empty())
+        {
+            patch_sets.reset();
+        }
+        else
+        {
+            const u32 reserved = patch_sets->ReservedSize();
+            codeset.DataSegment().size += reserved;
+            image_size += reserved;
+        }
+    }
 #if defined(__APPLE__)
     // Native code execution maps 16 KiB host pages: start every module, and the patch section
     // after the last one, on a host page, so the end of .bss never shares one with code.
@@ -210,9 +241,12 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         codeset.segments[i].size = PageAlignSize(codeset.segments[i].size);
     }
 
-    // Apply patches if necessary
+    // Apply patches if necessary. With native code execution the layout pass patches too: the patcher plans its
+    // trampolines from that pass's code and writes them over the load pass's, which would undo a patch at any
+    // instruction they share.
     const auto name = nso_file.GetName();
-    if (pm && (pm->HasNSOPatch(nso_header.build_id, name) || Settings::values.dump_nso))
+    const bool patch_code = load_into_process || (native_code && patch_collection && patch_index >= 0);
+    if (pm && patch_code && (pm->HasNSOPatch(nso_header.build_id, name) || Settings::values.dump_nso))
     {
         std::span<u8> patchable_section(program_image.data() + module_start, program_image.size() - module_start);
         std::vector<u8> pi_header(sizeof(NSOHeader) + patchable_section.size());
@@ -227,6 +261,14 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
             program_image.resize(module_start + patched_size);
         }
         std::copy_n(pi_header.begin() + sizeof(NSOHeader), patched_size, program_image.begin() + module_start);
+    }
+
+    // After the IPS and IPSwitch patches, so a patch set sees what they changed and leaves out a set they touched
+    if (patch_sets && patch_code)
+    {
+        program_image.resize((std::max)(program_image.size(), static_cast<size_t>(image_size)));
+        const std::span<u8> module_image(program_image.data() + module_start, image_size - module_start);
+        patch_sets->Apply(module_image, static_cast<u32>(patch_page - module_start), load_into_process);
     }
 
     if (patch_collection && patch_index >= 0)

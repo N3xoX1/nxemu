@@ -205,6 +205,18 @@ target_include_directories(test_loader_metadata PRIVATE "${CMAKE_SOURCE_DIR}/src
 target_link_libraries(test_loader_metadata PRIVATE nxemu_test_support yuzu_common common fmt::fmt)
 nxemu_unit_test(test_loader_metadata)
 
+# Patch sets (.nxpatch): in-place and cave sites, relocation of PC-relative cave words, whole-set rejection.
+add_executable(test_patch_sets patch_sets/patch_sets.cpp
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/patch_sets.cpp"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/vfs/vfs.cpp"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/vfs/vfs_vector.cpp")
+target_include_directories(test_patch_sets PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader" "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_options(test_patch_sets PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+target_link_libraries(test_patch_sets PRIVATE nxemu_test_support yuzu_common common fmt::fmt)
+nxemu_unit_test(test_patch_sets)
+
 # Loose ExeFS discovery and safe pruning of large extracted RomFS directories.
 add_executable(test_loose_romfs_paths loose_romfs_paths/paths.cpp)
 target_include_directories(test_loose_romfs_paths PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-loader")

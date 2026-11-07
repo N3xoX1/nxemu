@@ -81,6 +81,7 @@
     <ClInclude Include="core\file_sys\nca_metadata.h" />
     <ClInclude Include="core\file_sys\partition_filesystem.h" />
     <ClInclude Include="core\file_sys\patch_manager.h" />
+    <ClInclude Include="core\file_sys\patch_sets.h" />
     <ClInclude Include="core\file_sys\program_metadata.h" />
     <ClInclude Include="core\file_sys\registered_cache.h" />
     <ClInclude Include="core\file_sys\romfs.h" />
@@ -164,6 +165,7 @@
     <ClCompile Include="core\file_sys\nca_metadata.cpp" />
     <ClCompile Include="core\file_sys\partition_filesystem.cpp" />
     <ClCompile Include="core\file_sys\patch_manager.cpp" />
+    <ClCompile Include="core\file_sys\patch_sets.cpp" />
     <ClCompile Include="core\file_sys\program_metadata.cpp" />
     <ClCompile Include="core\file_sys\registered_cache.cpp" />
     <ClCompile Include="core\file_sys\romfs.cpp" />

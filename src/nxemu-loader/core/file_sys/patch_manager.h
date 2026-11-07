@@ -60,6 +60,10 @@ public:
     // Used to prevent expensive copies in NSO loader.
     [[nodiscard]] bool HasNSOPatch(const BuildID& build_id, std::string_view name) const;
 
+    // The patch set files (exefs/*.nxpatch, core/file_sys/patch_sets.h) of the enabled mods, in mod order.
+    // Each names the build id it is for; PatchSets keeps those of the module it patches.
+    [[nodiscard]] std::vector<VirtualFile> CollectPatchSetFiles() const;
+
     // Currently tracked RomFS patches:
     // - Game Updates
     // - LayeredFS

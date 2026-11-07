@@ -308,6 +308,8 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     IPatchCollectionPtr patch_ctx(systemModules.Cpu().CreatePatchCollection(is_application));
     const std::array static_modules = {"rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};
     std::size_t code_size{};
+    // Both passes take the patch manager: patch sets add pages after a module, which the layout must hold
+    const FileSys::PatchManager pm{metadata.GetTitleID(), loader.GetFileSystemController(), loader.GetContentProvider()};
 
     // Use the NSO module loader to figure out the code layout
     for (size_t i = 0; i < static_modules.size(); i++)
@@ -325,7 +327,7 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
 
         const bool should_pass_arguments = std::strcmp(module, "rtld") == 0;
         const int32_t patch_index = patch_ctx ? patch_ctx->GetLastIndex() : -1;
-        const std::optional<VAddr> tentative_next_load_addr = AppLoader_NSO::LoadModule(loader, systemModules, *module_file, code_size, should_pass_arguments, false, {}, patch_ctx.Get(), patch_index);
+        const std::optional<VAddr> tentative_next_load_addr = AppLoader_NSO::LoadModule(loader, systemModules, *module_file, code_size, should_pass_arguments, false, pm, patch_ctx.Get(), patch_index);
         if (!tentative_next_load_addr)
         {
             return {LoaderResultStatus::ErrorLoadingNSO, {}};
@@ -354,7 +356,6 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     // Load NSO modules
     modules.clear();
     VAddr next_load_addr{base_address};
-    const FileSys::PatchManager pm{metadata.GetTitleID(), loader.GetFileSystemController(), loader.GetContentProvider()};
     for (size_t i = 0; i < static_modules.size(); i++)
     {
         if (loader.PrepareRomCancelled())
