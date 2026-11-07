@@ -9,6 +9,7 @@
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/filesystem/fsp/fs_i_file.h"
+#include "core/frame_step.h"
 #include "core/perf_stats.h"
 #include "os_settings.h"
 #include "os_settings_identifiers.h"
@@ -322,6 +323,7 @@ void OSManager::ShutdownMainProcess()
 
 bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
+    m_coreSystem.FrameStep().Reset();
     if (m_applicationProcess == nullptr)
     {
         return CreateApplicationProcess(codeSize, metaData, aslr_space_start, baseAddress, processID, is_hbl);
@@ -873,4 +875,9 @@ void OSManager::PushUserChannelEntry(const uint8_t * data, uint32_t size)
         return;
     }
     m_coreSystem.GetUserChannel().emplace_back(data, data + size);
+}
+
+void OSManager::SetFrameStepAddress(uint64_t address)
+{
+    m_coreSystem.FrameStep().AddAddress(m_coreSystem.ApplicationMemory(), address);
 }

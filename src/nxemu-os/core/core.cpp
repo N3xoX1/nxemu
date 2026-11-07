@@ -28,6 +28,7 @@
 #include "core/hle/service/kernel_helpers.h"
 #include "core/hle/service/os/event.h"
 #include "core/hle/service/services.h"
+#include "core/frame_step.h"
 #include "core/internal_network/network.h"
 #include "core/perf_stats.h"
 #include "core/reporter.h"
@@ -328,6 +329,7 @@ struct System::Impl {
 
     std::unique_ptr<Core::PerfStats> perf_stats;
     Core::SpeedLimiter speed_limiter;
+    Core::FrameStep frame_step;
 
     bool is_multicore{};
     bool cpu_hle_requested{};
@@ -613,6 +615,11 @@ Core::SpeedLimiter & System::SpeedLimiter()
 const Core::SpeedLimiter & System::SpeedLimiter() const
 {
     return impl->speed_limiter;
+}
+
+Core::FrameStep & System::FrameStep()
+{
+    return impl->frame_step;
 }
 
 std::shared_ptr<InputCommon::InputSubsystem> & System::InputSubsystem() const

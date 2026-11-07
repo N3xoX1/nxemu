@@ -1662,6 +1662,9 @@
     <ClInclude Include="core\hle\service\filesystem\fsp\save_data_transfer_prohibiter.h">
       <Filter>Header Files\core\hle\service\filesystem\fsp</Filter>
     </ClInclude>
+    <ClInclude Include="core\frame_step.h">
+      <Filter>Header Files\core</Filter>
+    </ClInclude>
     <ClInclude Include="core\perf_stats.h">
       <Filter>Header Files\core</Filter>
     </ClInclude>
@@ -3261,6 +3264,9 @@
     </ClCompile>
     <ClCompile Include="core\hle\service\filesystem\fsp\fsp_srv.cpp">
       <Filter>Source Files\core\hle\service\filesystem\fsp</Filter>
+    </ClCompile>
+    <ClCompile Include="core\frame_step.cpp">
+      <Filter>Source Files\core</Filter>
     </ClCompile>
     <ClCompile Include="core\perf_stats.cpp">
       <Filter>Source Files\core</Filter>

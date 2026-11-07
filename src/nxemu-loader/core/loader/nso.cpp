@@ -199,8 +199,8 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     if (pm)
     {
         const std::string build_id_raw = Common::HexToString(nso_header.build_id);
-        // Nothing writes the patch page yet, so sets that read it are left out
-        const FileSys::PatchSets::Support support{.page_written = false, .caves = !native_code};
+        // The frame step (nxemu-os core/frame_step.h) writes the patch page
+        const FileSys::PatchSets::Support support{.page_written = true, .caves = !native_code};
         patch_sets.emplace(pm->CollectPatchSetFiles(), build_id_raw.substr(0, build_id_raw.find_last_not_of('0') + 1), nso_file.GetName(), support);
         if (load_into_process)
         {
@@ -264,11 +264,12 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     }
 
     // After the IPS and IPSwitch patches, so a patch set sees what they changed and leaves out a set they touched
+    bool reads_patch_page = false;
     if (patch_sets && patch_code)
     {
         program_image.resize((std::max)(program_image.size(), static_cast<size_t>(image_size)));
         const std::span<u8> module_image(program_image.data() + module_start, image_size - module_start);
-        patch_sets->Apply(module_image, static_cast<u32>(patch_page - module_start), load_into_process);
+        reads_patch_page = patch_sets->Apply(module_image, static_cast<u32>(patch_page - module_start), load_into_process);
     }
 
     if (patch_collection && patch_index >= 0)
@@ -311,6 +312,10 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     if (!operatingSystem.LoadModule(codeset, load_base))
     {
         return std::nullopt;
+    }
+    if (reads_patch_page)
+    {
+        operatingSystem.SetFrameStepAddress(load_base + patch_page);
     }
     return load_base + image_size;
 }

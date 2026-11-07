@@ -73,6 +73,7 @@ public:
     void RegisterExitCallback(ExitCallback callback, void * userData) override;
     void ExportUserChannel(UserChannelEntryCallback callback, void * userData) override;
     void PushUserChannelEntry(const uint8_t * data, uint32_t size) override;
+    void SetFrameStepAddress(uint64_t address) override;
 
 private:
     OSManager() = delete;

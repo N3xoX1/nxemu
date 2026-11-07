@@ -29,8 +29,10 @@ namespace FileSys {
 // after the site, so patches never name cave addresses and never share one.
 //
 // The patch page is the page after the module's .bss, read-write, for values the emulator writes for patches to
-// read. Nothing writes it yet, so the loader leaves out sets that read it (page_written). The cave pages follow it
-// in the same read-write region: Horizon's rtld takes every executable region for a module.
+// read. At every present the frame step (nxemu-os core/frame_step.h) writes three floats at its start: +0 the step
+// in 30 Hz frames, +4 the step in seconds, +8 the step in 60 Hz frames. Without a writer (page_written) the loader
+// leaves out sets that read it. The cave pages follow it in the same read-write region: Horizon's rtld takes every
+// executable region for a module.
 //
 // A set is applied whole or not at all: it is left out when a site does not hold its original instruction (another
 // game version, an IPS or IPSwitch patch changed it), when an earlier set already patched one of its sites, or when
