@@ -282,7 +282,6 @@ void OSManager::NotifyApplicationBackgroundedBeforeShutdown()
 
 bool OSManager::Initialize(void)
 {
-    SetupOsSetting();
     g_settings->RegisterCallback(NXOsSetting::GameDockedMode, DockedModeChanged, this);
     m_coreSystem.Initialize();
     return true;
