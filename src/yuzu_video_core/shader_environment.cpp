@@ -973,6 +973,40 @@ size_t FileEnvironment::CompilationInputBytes() const noexcept {
          cbuf_replacements.size()) * 64;
 }
 
+StoredEnvironment StoredEnvironment::Decode(SharedShaderBytes bytes, std::string_view program_digest) {
+    FileEnvironment env;
+    std::istringstream stream(bytes.String(), std::ios::binary);
+    env.Deserialize(stream, {}, program_digest);
+    auto parts = std::make_shared<Parts>();
+    parts->bytes = std::move(bytes);
+    // Expanding reuses the digest instead of hashing the program again.
+    parts->program_digest = env.ProgramDigest();
+    parts->compilation_identity = env.CompilationIdentity();
+    parts->sph = env.SPH();
+    parts->stage = env.ShaderStage();
+    parts->cbuf_size_mask = env.CbufSizeMask();
+    parts->decoded_bytes = env.CompilationInputBytes();
+    parts->sealed_bytes = parts->decoded_bytes - env.SharedCodeBytes();
+    parts->hle = env.HasHLEMacroState();
+    StoredEnvironment result;
+    result.parts = std::move(parts);
+    return result;
+}
+
+FileEnvironment StoredEnvironment::Expand() const {
+    FileEnvironment env;
+    std::istringstream stream(parts->bytes.String(), std::ios::binary);
+    env.Deserialize(stream, {}, parts->program_digest);
+    return env;
+}
+
+size_t StoredEnvironment::RetainedBytes() const noexcept {
+    // A program held apart from the metadata is accounted by its own identity.
+    const size_t stored = parts->bytes.size() - ProgramBytes();
+    return sizeof(Parts) + stored + parts->program_digest.capacity() +
+        parts->compilation_identity.capacity();
+}
+
 u64 FileEnvironment::ReadInstruction(u32 address) {
     if (!code || address < read_lowest || address > read_highest) {
         throw Shader::LogicError("Out of bounds address {}", address);

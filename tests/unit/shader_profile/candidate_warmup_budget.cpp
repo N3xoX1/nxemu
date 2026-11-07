@@ -47,6 +47,26 @@ int main() try {
     Check(!AccountStartupInputs(bad_size,owners,retained));
     retained=max+1;
     Check(!AccountStartupInputs(first,owners,retained));
+    // Six stages may each charge an environment and its separately shared program.
+    int parts[MaxStartupInputs+1]{};
+    std::vector<StartupInput> stages;
+    for(auto& part:parts)stages.push_back({&part,10,0});
+    retained=0;owners.clear();
+    Check(!AccountStartupInputs(stages,owners,retained) && owners.empty() && retained==0);
+    stages.pop_back();
+    Check(AccountStartupInputs(stages,owners,retained) && owners.size()==MaxStartupInputs && retained==10*MaxStartupInputs);
+    // Candidates sharing a stored input each keep a decoded copy: charged on every admission.
+    owners.clear();retained=0;
+    const StartupInput stored[]{{&a,100,80}};
+    Check(AccountStartupInputs(stored,owners,retained,30) && retained==130);
+    Check(AccountStartupInputs(stored,owners,retained,30) && retained==130+50);
+    retained=max-49;
+    Check(!AccountStartupInputs(stored,owners,retained,30) && retained==max-49);
+    Check(AccountStartupInputs(stored,owners,retained,29) && retained==max);
+    Check(!AccountStartupInputs(stored,owners,retained,max+1) && retained==max);
+    const StartupInput fresh[]{{&b,100,80}};
+    retained=max-129;
+    Check(!AccountStartupInputs(fresh,owners,retained,30) && !owners.contains(&b) && retained==max-129);
     // Concurrent workers finish reservations under the renderer's startup mutex.
     CandidateWarmupBudget concurrent(8192);
     retained=0;std::mutex mutex;
