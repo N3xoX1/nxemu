@@ -58,9 +58,7 @@ struct System::Impl {
         modules(modules_),
         input_subsystem{std::make_shared<InputCommon::InputSubsystem>()},
         reporter{system_}
-    {
-        device_memory = std::make_unique<Core::DeviceMemory>();
-    }
+    {}
 
     ~Impl()
     {
@@ -73,6 +71,10 @@ struct System::Impl {
 
     void Initialize(System& system)
     {
+        // OSManager loads the memory layout setting before calling this method.
+        // Allocate backing memory only after that setting is known.
+        device_memory = std::make_unique<Core::DeviceMemory>();
+
         ConfigureRuntime(system);
 
         // These objects outlive individual games and runtime setting changes.
