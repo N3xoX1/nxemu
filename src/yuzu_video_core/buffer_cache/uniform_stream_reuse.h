@@ -76,8 +76,10 @@ public:
                 slot.misses = 0;
             }
             const std::span<u8> mapped = runtime.BindMappedUniformBuffer(stage, binding_index, size);
-            memory.ReadBlockUnsafe(device_addr, mapped.data(), size);
-            std::memcpy(slot.bytes.data(), mapped.data(), size);
+            // Upload memory may be uncached/write-combined: never read it back on the CPU.
+            // Keep the snapshot in ordinary CPU memory and only write to the mapped buffer.
+            memory.ReadBlockUnsafe(device_addr, slot.bytes.data(), size);
+            std::memcpy(mapped.data(), slot.bytes.data(), size);
         }
         slot.ref = runtime.LastStreamUniformRef();
         slot.size = size;
