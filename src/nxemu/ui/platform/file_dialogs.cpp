@@ -31,7 +31,9 @@ Path BrowseForDirectory(const char * title);
 #endif
 
 #if defined(__linux__)
-namespace { std::string PickProfileFile(bool save,const char* directory,const char* suggested); }
+namespace {
+bool LinuxFileDialog(bool save, const char * directory, const char * filter, const char * suggested, Path & selected);
+}
 #endif
 
 std::string FileFilter(std::initializer_list<std::pair<std::string, const char *>> kinds)
@@ -88,8 +90,9 @@ bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilt
     (void)fileMustExist;
     return MacOSFileDialogs::FileSelect(initialDir, fileFilter, selected);
 #else
-    const auto file=PickProfileFile(false,initialDir,"");
-    if(file.empty())return false;selected=Path(file.c_str());return true;
+    (void)hwndOwner;
+    (void)fileMustExist;
+    return LinuxFileDialog(false, initialDir, fileFilter, nullptr, selected);
 #endif
 }
 
@@ -107,7 +110,8 @@ bool FileSave(void * owner,const char * initialDir,const char * filter,const cha
 #elif defined(__APPLE__)
     return MacOSFileDialogs::FileSave(initialDir,filter,suggested,selected);
 #else
-    const auto file=PickProfileFile(true,initialDir,suggested);if(file.empty())return false;selected=Path(file.c_str());return true;
+    (void)owner;
+    return LinuxFileDialog(true, initialDir, filter, suggested, selected);
 #endif
 }
 
@@ -131,6 +135,11 @@ std::string FileUriToPath(const char * uri)
         {
             return {};
         }
+        // A remote file://host/path must not silently become a local /path.
+        if (rest.substr(0, slash) != "localhost")
+        {
+            return {};
+        }
         rest.erase(0, slash);
     }
 
@@ -145,6 +154,10 @@ std::string FileUriToPath(const char * uri)
             const long value = strtol(hex, &end, 16);
             if (end == hex + 2)
             {
+                if (value == 0)
+                {
+                    return {};
+                }
                 path.push_back(static_cast<char>(value));
                 i += 2;
                 continue;
@@ -167,35 +180,114 @@ void AppendDictEntry(DBusMessageIter * dict, const char * key, int type, const c
     dbus_message_iter_close_container(dict, &entry);
 }
 
-enum class FolderPick
+void AppendFolderOption(DBusMessageIter * dict, const char * folder)
+{
+    if (folder == nullptr || folder[0] == '\0')
+    {
+        return;
+    }
+    const char * key = "current_folder";
+    DBusMessageIter entry, variant, bytes;
+    dbus_message_iter_open_container(dict, DBUS_TYPE_DICT_ENTRY, nullptr, &entry);
+    dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key);
+    dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, "ay", &variant);
+    dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY, "y", &bytes);
+    const auto * data = reinterpret_cast<const unsigned char *>(folder);
+    dbus_message_iter_append_fixed_array(&bytes, DBUS_TYPE_BYTE, &data, static_cast<int>(strlen(folder) + 1));
+    dbus_message_iter_close_container(&variant, &bytes);
+    dbus_message_iter_close_container(&entry, &variant);
+    dbus_message_iter_close_container(dict, &entry);
+}
+
+void AppendFileFilters(DBusMessageIter * dict, const char * filter)
+{
+    if (filter == nullptr || filter[0] == '\0')
+    {
+        return;
+    }
+    const char * key = "filters";
+    DBusMessageIter entry, variant, filters;
+    dbus_message_iter_open_container(dict, DBUS_TYPE_DICT_ENTRY, nullptr, &entry);
+    dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key);
+    dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, "a(sa(us))", &variant);
+    dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY, "(sa(us))", &filters);
+    for (const char * cursor = filter; *cursor != '\0';)
+    {
+        const char * name = cursor;
+        cursor += strlen(cursor) + 1;
+        if (*cursor == '\0')
+        {
+            break;
+        }
+        const std::string patterns(cursor);
+        cursor += patterns.size() + 1;
+
+        DBusMessageIter item, rules;
+        dbus_message_iter_open_container(&filters, DBUS_TYPE_STRUCT, nullptr, &item);
+        dbus_message_iter_append_basic(&item, DBUS_TYPE_STRING, &name);
+        dbus_message_iter_open_container(&item, DBUS_TYPE_ARRAY, "(us)", &rules);
+        std::string::size_type begin = 0;
+        while (begin < patterns.size())
+        {
+            const auto end = patterns.find(';', begin);
+            std::string glob = patterns.substr(begin, end == std::string::npos ? end : end - begin);
+            if (glob == "*.*")
+            {
+                glob = "*";
+            }
+            if (!glob.empty())
+            {
+                const dbus_uint32_t globType = 0;
+                const char * globValue = glob.c_str();
+                DBusMessageIter rule;
+                dbus_message_iter_open_container(&rules, DBUS_TYPE_STRUCT, nullptr, &rule);
+                dbus_message_iter_append_basic(&rule, DBUS_TYPE_UINT32, &globType);
+                dbus_message_iter_append_basic(&rule, DBUS_TYPE_STRING, &globValue);
+                dbus_message_iter_close_container(&rules, &rule);
+            }
+            if (end == std::string::npos)
+            {
+                break;
+            }
+            begin = end + 1;
+        }
+        dbus_message_iter_close_container(&item, &rules);
+        dbus_message_iter_close_container(&filters, &item);
+    }
+    dbus_message_iter_close_container(&variant, &filters);
+    dbus_message_iter_close_container(&entry, &variant);
+    dbus_message_iter_close_container(dict, &entry);
+}
+
+enum class PortalResponseState
 {
     Pending,
     Cancelled,
     Selected,
 };
 
-FolderPick ReadPortalResponse(DBusMessage * message, const std::string & requestPath, std::string & selected)
+PortalResponseState ReadPortalResponse(DBusMessage * message, const std::string & requestPath, std::string & selected)
 {
     if (!dbus_message_is_signal(message, "org.freedesktop.portal.Request", "Response"))
     {
-        return FolderPick::Pending;
+        return PortalResponseState::Pending;
     }
     const char * path = dbus_message_get_path(message);
     if (path == nullptr || requestPath != path)
     {
-        return FolderPick::Pending;
+        return PortalResponseState::Pending;
     }
 
     DBusMessageIter args;
     if (!dbus_message_iter_init(message, &args) || dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_UINT32)
     {
-        return FolderPick::Cancelled;
+        return PortalResponseState::Cancelled;
     }
     dbus_uint32_t response = 1;
     dbus_message_iter_get_basic(&args, &response);
     if (response != 0 || !dbus_message_iter_next(&args) || dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_ARRAY)
     {
-        return FolderPick::Cancelled;
+        return PortalResponseState::Cancelled;
     }
 
     DBusMessageIter results;
@@ -222,13 +314,13 @@ FolderPick ReadPortalResponse(DBusMessage * message, const std::string & request
                     const char * uri = nullptr;
                     dbus_message_iter_get_basic(&uris, &uri);
                     selected = FileUriToPath(uri);
-                    return selected.empty() ? FolderPick::Cancelled : FolderPick::Selected;
+                    return selected.empty() ? PortalResponseState::Cancelled : PortalResponseState::Selected;
                 }
             }
         }
         dbus_message_iter_next(&results);
     }
-    return FolderPick::Cancelled;
+    return PortalResponseState::Cancelled;
 }
 
 enum class PortalStatus
@@ -238,13 +330,22 @@ enum class PortalStatus
     Selected,
 };
 
-struct PortalDirectory
+struct PortalSelection
 {
     PortalStatus status;
     std::string path;
 };
 
-PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
+enum class PortalMode
+{
+    Directory,
+    OpenFile,
+    SaveFile,
+};
+
+PortalSelection PortalPick(void * parentWindow, const char * title, PortalMode mode,
+                          const char * directory = nullptr, const char * filter = nullptr,
+                          const char * suggested = nullptr)
 {
     if (!dbus_threads_init_default()) return {PortalStatus::Unavailable, {}};
     DBusError error;
@@ -255,6 +356,7 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
         dbus_error_free(&error);
         return {PortalStatus::Unavailable, {}};
     }
+    dbus_connection_set_exit_on_disconnect(connection, false);
 
     const char * match = "type='signal',interface='org.freedesktop.portal.Request',member='Response'";
     dbus_bus_add_match(connection, match, &error);
@@ -271,7 +373,7 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
         "org.freedesktop.portal.Desktop",
         "/org/freedesktop/portal/desktop",
         "org.freedesktop.portal.FileChooser",
-        "OpenFile");
+        mode == PortalMode::SaveFile ? "SaveFile" : "OpenFile");
     if (message == nullptr)
     {
         dbus_connection_close(connection);
@@ -289,7 +391,8 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
     (void)parentWindow;
     std::string parent;
     const char * parentValue = parent.c_str();
-    const char * titleValue = (title != nullptr && title[0] != '\0') ? title : "Select Directory";
+    const char * titleValue = (title != nullptr && title[0] != '\0') ? title :
+        mode == PortalMode::Directory ? "Select Directory" : mode == PortalMode::SaveFile ? "Save File" : "Open File";
     dbus_bool_t yes = TRUE;
 
     DBusMessageIter args;
@@ -299,10 +402,25 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
     dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &titleValue);
     dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &options);
     AppendDictEntry(&options, "handle_token", DBUS_TYPE_STRING, "s", &tokenValue);
-    AppendDictEntry(&options, "directory", DBUS_TYPE_BOOLEAN, "b", &yes);
+    if (mode == PortalMode::Directory)
+    {
+        AppendDictEntry(&options, "directory", DBUS_TYPE_BOOLEAN, "b", &yes);
+    }
     AppendDictEntry(&options, "modal", DBUS_TYPE_BOOLEAN, "b", &yes);
     dbus_bool_t no = FALSE;
-    AppendDictEntry(&options, "multiple", DBUS_TYPE_BOOLEAN, "b", &no);
+    if (mode != PortalMode::SaveFile)
+    {
+        AppendDictEntry(&options, "multiple", DBUS_TYPE_BOOLEAN, "b", &no);
+    }
+    AppendFolderOption(&options, directory);
+    if (mode != PortalMode::Directory)
+    {
+        AppendFileFilters(&options, filter);
+    }
+    if (mode == PortalMode::SaveFile && suggested != nullptr && suggested[0] != '\0')
+    {
+        AppendDictEntry(&options, "current_name", DBUS_TYPE_STRING, "s", &suggested);
+    }
     dbus_message_iter_close_container(&args, &options);
 
     DBusMessage * reply = dbus_connection_send_with_reply_and_block(connection, message, 5000, &error);
@@ -328,10 +446,10 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
     dbus_message_unref(reply);
 
     std::string selected;
-    FolderPick pick = FolderPick::Pending;
-    while (pick == FolderPick::Pending && dbus_connection_read_write(connection, 200))
+    PortalResponseState pick = PortalResponseState::Pending;
+    while (pick == PortalResponseState::Pending && dbus_connection_read_write(connection, 200))
     {
-        while (pick == FolderPick::Pending)
+        while (pick == PortalResponseState::Pending)
         {
             DBusMessage * incoming = dbus_connection_pop_message(connection);
             if (incoming == nullptr)
@@ -345,11 +463,11 @@ PortalDirectory PortalPickDirectory(void * parentWindow, const char * title)
 
     dbus_connection_close(connection);
     dbus_connection_unref(connection);
-    if (pick == FolderPick::Selected)
+    if (pick == PortalResponseState::Selected)
     {
         return {PortalStatus::Selected, selected};
     }
-    if (pick == FolderPick::Cancelled)
+    if (pick == PortalResponseState::Cancelled)
     {
         return {PortalStatus::Cancelled, {}};
     }
@@ -409,30 +527,87 @@ std::string CaptureCommand(const std::vector<std::string> & args)
     return output;
 }
 
-std::string PickProfileFile(bool save,const char* directory,const char* suggested)
+std::string FindExecutable(const char * name)
 {
-    const std::string initial=std::string(directory?directory:"")+"/"+(suggested?suggested:"");
-    if(access("/usr/bin/zenity",X_OK)==0){
-        std::vector<std::string> args{"/usr/bin/zenity","--file-selection","--filename="+initial};
-        if(save)args.push_back("--save");return CaptureCommand(args);
-    }
-    if(access("/usr/bin/kdialog",X_OK)==0)return CaptureCommand({"/usr/bin/kdialog",save?"--getsavefilename":"--getopenfilename",initial,"*"});
-    return {};
-}
-
-std::string KDialogPickDirectory(const char * title)
-{
-    if (access("/usr/bin/kdialog", X_OK) != 0)
+    const char * environment = getenv("PATH");
+    if (environment == nullptr)
     {
         return {};
     }
+    const std::string searchPath(environment);
+    for (size_t begin = 0; begin <= searchPath.size();)
+    {
+        const auto end = searchPath.find(':', begin);
+        const std::string directory = searchPath.substr(begin, end == std::string::npos ? end : end - begin);
+        const std::string candidate = (directory.empty() ? "." : directory) + std::string("/") + name;
+        if (access(candidate.c_str(), X_OK) == 0)
+        {
+            return candidate;
+        }
+        if (end == std::string::npos)
+        {
+            break;
+        }
+        begin = end + 1;
+    }
+    return {};
+}
+
+std::string FallbackFileDialog(bool save, const char * directory, const char * suggested)
+{
+    const std::string initial = std::string(directory ? directory : "") + "/" + (suggested ? suggested : "");
+    if (const std::string zenity = FindExecutable("zenity"); !zenity.empty())
+    {
+        std::vector<std::string> args{zenity, "--file-selection", "--filename=" + initial};
+        if (save)
+        {
+            args.push_back("--save");
+        }
+        return CaptureCommand(args);
+    }
+    if (const std::string kdialog = FindExecutable("kdialog"); !kdialog.empty())
+    {
+        return CaptureCommand({kdialog, save ? "--getsavefilename" : "--getopenfilename", initial, "*"});
+    }
+    return {};
+}
+
+bool LinuxFileDialog(bool save, const char * directory, const char * filter, const char * suggested, Path & selected)
+{
+    const PortalSelection portal = PortalPick(nullptr, nullptr, save ? PortalMode::SaveFile : PortalMode::OpenFile,
+                                              directory, filter, suggested);
+    if (portal.status == PortalStatus::Cancelled)
+    {
+        return false;
+    }
+    const std::string file = portal.status == PortalStatus::Selected ?
+                                 portal.path : FallbackFileDialog(save, directory, suggested);
+    if (file.empty())
+    {
+        return false;
+    }
+    selected = Path(file.c_str());
+    return true;
+}
+
+std::string FallbackPickDirectory(const char * title)
+{
     const char * home = getenv("HOME");
     if (home == nullptr || home[0] == '\0')
     {
         home = "/";
     }
+    if (const std::string zenity = FindExecutable("zenity"); !zenity.empty())
+    {
+        return CaptureCommand({zenity, "--file-selection", "--directory", std::string("--filename=") + home + "/"});
+    }
+    const std::string kdialog = FindExecutable("kdialog");
+    if (kdialog.empty())
+    {
+        return {};
+    }
     return CaptureCommand({
-        "/usr/bin/kdialog",
+        kdialog,
         "--getexistingdirectory",
         home,
         "--title",
@@ -442,7 +617,7 @@ std::string KDialogPickDirectory(const char * title)
 
 std::string PickDirectory(void * parentWindow, const char * title)
 {
-    const PortalDirectory portal = PortalPickDirectory(parentWindow, title);
+    const PortalSelection portal = PortalPick(parentWindow, title, PortalMode::Directory);
     if (portal.status == PortalStatus::Selected)
     {
         return portal.path;
@@ -451,7 +626,7 @@ std::string PickDirectory(void * parentWindow, const char * title)
     {
         return {};
     }
-    return KDialogPickDirectory(title);
+    return FallbackPickDirectory(title);
 }
 
 } // namespace

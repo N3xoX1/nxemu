@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -26,16 +27,18 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 
-void CheckVulkan() {
+bool CheckVulkan() {
     // Just start the Vulkan loader, this will crash if something is wrong
     try {
         Vulkan::vk::InstanceDispatch dld;
         const auto library = Vulkan::OpenLibrary();
         const Vulkan::vk::Instance instance =
             Vulkan::CreateInstance(*library, dld, VK_API_VERSION_1_1);
+        return true;
 
     } catch (const Vulkan::vk::Exception& exception) {
         fmt::print(stderr, "Failed to initialize Vulkan: {}\n", exception.what());
+        return false;
     }
 }
 
@@ -46,7 +49,9 @@ bool CheckEnvVars(bool* is_child) {
     const DWORD startup_check_var =
         GetEnvironmentVariableA(STARTUP_CHECK_ENV_VAR, variable_contents, 8);
     if (startup_check_var > 0 && std::strncmp(variable_contents, ENV_VAR_ENABLED_TEXT, 8) == 0) {
-        CheckVulkan();
+        if (!CheckVulkan()) {
+            std::_Exit(EXIT_FAILURE);
+        }
         return true;
     }
 
@@ -65,7 +70,9 @@ bool CheckEnvVars(bool* is_child) {
     const char* startup_check_var = getenv(STARTUP_CHECK_ENV_VAR);
     if (startup_check_var != nullptr &&
         std::strncmp(startup_check_var, ENV_VAR_ENABLED_TEXT, 8) == 0) {
-        CheckVulkan();
+        if (!CheckVulkan()) {
+            std::_Exit(EXIT_FAILURE);
+        }
         return true;
     }
 #endif
@@ -135,14 +142,20 @@ bool StartupChecks(const char * arg0, bool * has_broken_vulkan, bool perform_vul
         const pid_t pid = SpawnChild(arg0);
         if (pid == -1)
         {
+            *has_broken_vulkan = true;
             return false;
         }
 
         // Get exit code from child process
-        int status;
-        const int r_val = waitpid(pid, &status, 0);
+        int status = 0;
+        pid_t r_val;
+        do
+        {
+            r_val = waitpid(pid, &status, 0);
+        } while (r_val == -1 && errno == EINTR);
         if (r_val == -1)
         {
+            *has_broken_vulkan = true;
             const int err = errno;
             fmt::print(stderr, "wait failed with error {}\n", err);
             return false;
@@ -203,9 +216,13 @@ pid_t SpawnChild(const char* arg0) {
     } else if (pid == 0) {
         // child
         execlp(arg0, arg0, nullptr);
+#ifdef __linux__
+        // argv[0] may not be directly executable (e.g. when launched by a wrapper).
+        execl("/proc/self/exe", arg0, nullptr);
+#endif
         const int err = errno;
         fmt::print(stderr, "execl failed with error {}\n", err);
-        _exit(0);
+        _exit(127);
     }
 
     return pid;

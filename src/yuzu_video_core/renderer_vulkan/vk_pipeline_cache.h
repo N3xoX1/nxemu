@@ -214,7 +214,7 @@ private:
     StagingBufferPool& staging_pool;
     VtgScratchAllocator vtg_scratch;
     DescriptorPool& descriptor_pool;
-    VtgIndirectPass vtg_indirect_pass;
+    std::unique_ptr<VtgIndirectPass> vtg_indirect_pass;
     GuestDescriptorQueue& guest_descriptor_queue;
     RenderPassCache& render_pass_cache;
     BufferCache& buffer_cache;
