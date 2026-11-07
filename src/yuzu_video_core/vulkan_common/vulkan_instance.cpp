@@ -175,8 +175,6 @@ vk::Instance CreateInstance(const Common::DynamicLibrary& library, vk::InstanceD
     }
     std::vector<const char*> layers = Layers(enable_validation);
     RemoveUnavailableLayers(dld, layers);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Instance: validation_requested={}, validation_active={}",
-             enable_validation, !layers.empty());
 
     const u32 available_version = vk::AvailableVersion(dld);
     if (available_version < required_version) {

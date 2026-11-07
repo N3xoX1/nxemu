@@ -73,12 +73,6 @@ DisplayPtr CreateDisplay(Core::Frontend::EmuWindow & emu_window)
         const auto context = emu_window.CreateSharedContext();
         const auto & layout = emu_window.GetFramebufferLayout();
         return DisplayPtr{new Vulkan::Display(emu_window.GetWindowInfo(), context.get(), layout.width, layout.height)};
-    } catch (const Vulkan::vk::Exception & exception) {
-        const auto & location = exception.GetSourceLocation();
-        LOG_ERROR(Render_Vulkan, "[VK-STARTUP] Display creation: {} ({}) at {}:{} ({})",
-                  exception.what(), static_cast<int>(exception.GetResult()),
-                  location.file_name(), location.line(), location.function_name());
-        return nullptr;
     } catch (const std::exception & exception) {
         LOG_ERROR(Render_Vulkan, "Vulkan initialization failed with error: {}", exception.what());
         return nullptr;

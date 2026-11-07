@@ -24,13 +24,9 @@ PresentManager::PresentManager(Core::Frontend::EmuWindow& render_window_, const 
     : render_window{render_window_}, device{device_}, memory_allocator{memory_allocator_},
       scheduler{scheduler_}, display{display_}, swapchain{display_.GetSwapchain()},
       use_present_thread{videoSettings.async_presentation} {
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: begin, async={}", use_present_thread);
     SetImageCount();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: image_count={}, graphics_family={}",
-             image_count, device.GetGraphicsFamily());
 
     auto& dld = device.GetLogical();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: creating command pool");
     cmdpool = dld.CreateCommandPool({
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
@@ -38,12 +34,10 @@ PresentManager::PresentManager(Core::Frontend::EmuWindow& render_window_, const 
             VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = device.GetGraphicsFamily(),
     });
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: allocating command buffers");
     auto cmdbuffers = cmdpool.Allocate(image_count);
 
     frames.resize(image_count);
     for (u32 i = 0; i < frames.size(); i++) {
-        LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: creating semaphore/fence for frame {}", i);
         Frame& frame = frames[i];
         frame.cmdbuf = vk::CommandBuffer{cmdbuffers[i], device.GetDispatchLoader()};
         frame.render_ready = dld.CreateSemaphore({
@@ -60,10 +54,8 @@ PresentManager::PresentManager(Core::Frontend::EmuWindow& render_window_, const 
     }
 
     if (use_present_thread) {
-        LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: starting presentation thread");
         present_thread = std::jthread([this](std::stop_token token) { PresentThread(token); });
     }
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] PresentManager: ready");
 }
 
 PresentManager::~PresentManager() {

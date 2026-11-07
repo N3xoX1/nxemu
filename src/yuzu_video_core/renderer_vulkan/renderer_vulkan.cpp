@@ -131,26 +131,17 @@ try :
     applet_frame(),
     wm{}
 {
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Renderer: scheduler, presentation, blit and rasterizer constructed");
     if (videoSettings.renderer_force_max_clock && device.ShouldBoostClocks())
     {
-        LOG_INFO(Render_Vulkan, "[VK-STARTUP] Renderer: enabling turbo mode");
         turbo_mode.emplace(display.GetInstance(), display.GetDispatch());
         scheduler.RegisterOnSubmit([this] { turbo_mode->QueueSubmitted(); });
     }
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Renderer: starting watermark");
     InitializeWatermark();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Renderer: watermark initialization returned (valid={})", wm.valid);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Renderer: reporting GPU capabilities");
     Report();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Renderer: ready");
 }
 catch (const vk::Exception & exception)
 {
-    const auto & location = exception.GetSourceLocation();
-    LOG_ERROR(Render_Vulkan, "[VK-STARTUP] Renderer failed: {} ({}) at {}:{} ({})",
-              exception.what(), static_cast<int>(exception.GetResult()),
-              location.file_name(), location.line(), location.function_name());
+    LOG_ERROR(Render_Vulkan, "Vulkan initialization failed with error: {}", exception.what());
     throw std::runtime_error{fmt::format("Vulkan initialization error {}", exception.what())};
 }
 
@@ -248,7 +239,6 @@ bool RendererVulkan::HoldIncompleteFrame()
 
 void RendererVulkan::InitializeWatermark()
 {
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: enter, valid={}", wm.valid);
     if (wm.valid)
     {
         return;
@@ -256,7 +246,6 @@ void RendererVulkan::InitializeWatermark()
     wm.timer_started = false;
 
     int ch = 0;
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: decoding PNG");
     unsigned char * pixels = stbi_load_from_memory(watermark_png, watermark_png_len, &wm.width, &wm.height, &ch, 4);
     if (!pixels)
     {
@@ -268,22 +257,15 @@ void RendererVulkan::InitializeWatermark()
     const VkFormat swapFmt = swapchain.GetImageViewFormat();
     const VkFormat texFmt = (swapFmt == VK_FORMAT_B8G8R8A8_SRGB || swapFmt == VK_FORMAT_R8G8B8A8_SRGB) ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
 
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: image {}x{}, format={}, channels={}",
-             wm.width, wm.height, static_cast<int>(texFmt), ch);
     wm.image = Vulkan::CreateWrappedImage(memory_allocator, dims, texFmt);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: uploading image");
     Vulkan::UploadImage(device, memory_allocator, scheduler, wm.image, dims, texFmt, std::span<const u8>(pixels, wm.width * wm.height * 4));
     stbi_image_free(pixels);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: creating image view");
     wm.image_view = Vulkan::CreateWrappedImageView(device, wm.image, texFmt);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: creating sampler");
     wm.sampler = Vulkan::CreateWrappedSampler(device, VK_FILTER_LINEAR);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: creating descriptor layout/pool");
     wm.dsl = Vulkan::CreateWrappedDescriptorSetLayout(device, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER});
     wm.dpool = Vulkan::CreateWrappedDescriptorPool(device, 1, 1, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER});
     std::array<VkDescriptorSetLayout, 1> layouts{*wm.dsl};
     vk::DescriptorSets sets = Vulkan::CreateWrappedDescriptorSets(wm.dpool, vk::Span<VkDescriptorSetLayout>(layouts.data(), layouts.size()));
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: descriptor set allocated");
     wm.set = sets[0];
 
     std::vector<VkDescriptorImageInfo> img_infos;
@@ -291,16 +273,12 @@ void RendererVulkan::InitializeWatermark()
     const VkWriteDescriptorSet write = Vulkan::CreateWriteDescriptorSet(img_infos, *wm.sampler, *wm.image_view, wm.set, 0);
     device.GetLogical().UpdateDescriptorSets({write}, {});
 
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: creating render pass");
     CreateWatermarkRenderPass();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: creating graphics pipeline");
     CreateWatermarkPipeline();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: creating vertex buffer");
     CreateWatermarkVertexBuffer();
 
     wm.show = true;
     wm.valid = true;
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark: ready");
 }
 
 void RendererVulkan::CleanupWatermark()
@@ -481,9 +459,7 @@ void RendererVulkan::CreateWatermarkRenderPass()
 
 void RendererVulkan::CreateWatermarkPipeline()
 {
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark pipeline: building vertex SPIR-V module");
     Vulkan::vk::ShaderModule vertex_shader = BuildShader(device, std::span<const u32>{WATERMARK_VERT_SPV, sizeof(WATERMARK_VERT_SPV) / sizeof(u32)});
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark pipeline: building fragment SPIR-V module");
     Vulkan::vk::ShaderModule fragment_shader = BuildShader(device, std::span<const u32>{WATERMARK_FRAG_SPV, sizeof(WATERMARK_FRAG_SPV) / sizeof(u32)});
 
     VkPushConstantRange push_constant_range{
@@ -502,7 +478,6 @@ void RendererVulkan::CreateWatermarkPipeline()
         .pPushConstantRanges = &push_constant_range,
     };
 
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark pipeline: creating layout");
     wm.pipeline_layout = device.GetLogical().CreatePipelineLayout(layout_info);
 
     VkVertexInputBindingDescription binding_desc{
@@ -648,9 +623,7 @@ void RendererVulkan::CreateWatermarkPipeline()
         .subpass = 0,
     };
 
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark pipeline: vkCreateGraphicsPipelines");
     wm.pipeline = device.GetLogical().CreateGraphicsPipeline(pipeline_info);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Watermark pipeline: ready");
 }
 
 void RendererVulkan::CreateWatermarkVertexBuffer()

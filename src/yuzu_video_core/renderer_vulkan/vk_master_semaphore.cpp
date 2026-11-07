@@ -5,7 +5,6 @@
 #include <thread>
 
 #include "yuzu_common/polyfill_ranges.h"
-#include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
@@ -18,7 +17,6 @@ namespace Vulkan {
 constexpr u64 FENCE_RESERVE_SIZE = 8;
 
 MasterSemaphore::MasterSemaphore(const Device& device_) : device(device_) {
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] MasterSemaphore: timeline_supported={}", device.HasTimelineSemaphore());
     if (!device.HasTimelineSemaphore()) {
         static constexpr VkFenceCreateInfo fence_ci{
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .pNext = nullptr, .flags = 0};
@@ -26,7 +24,6 @@ MasterSemaphore::MasterSemaphore(const Device& device_) : device(device_) {
         std::ranges::generate(free_queue,
                               [&] { return device.GetLogical().CreateFence(fence_ci); });
         wait_thread = std::jthread([this](std::stop_token token) { WaitThread(token); });
-        LOG_INFO(Render_Vulkan, "[VK-STARTUP] MasterSemaphore: fence fallback ready");
         return;
     }
 
@@ -42,7 +39,6 @@ MasterSemaphore::MasterSemaphore(const Device& device_) : device(device_) {
         .flags = 0,
     };
     semaphore = device.GetLogical().CreateSemaphore(semaphore_ci);
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] MasterSemaphore: timeline semaphore created");
 
     if (!videoSettings.renderer_debug) {
         return;

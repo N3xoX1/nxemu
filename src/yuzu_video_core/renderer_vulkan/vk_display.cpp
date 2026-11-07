@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 
 #include "video_settings.h"
 #include "yuzu_common/logging/log.h"
@@ -21,12 +20,6 @@
 namespace Vulkan {
 
 namespace {
-
-bool StartupValidationEnabled() {
-    // Temporary diagnostic switch; keep the normal production path unchanged.
-    const char* option = std::getenv("NXEMU_VULKAN_VALIDATE");
-    return videoSettings.renderer_debug || (option && option[0] == '1' && option[1] == '\0');
-}
 
 constexpr VkFormat InterfaceFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
@@ -98,20 +91,14 @@ Display::Display(const WindowSystemInfo& window, Core::Frontend::GraphicsContext
                  u32 width, u32 height)
     : library(OpenLibrary(context)),
       instance(CreateInstance(*library, dld, VK_API_VERSION_1_1, window.type,
-                              StartupValidationEnabled())),
-      debug_messenger(StartupValidationEnabled() ? CreateDebugUtilsCallback(instance)
+                              videoSettings.renderer_debug)),
+      debug_messenger(videoSettings.renderer_debug ? CreateDebugUtilsCallback(instance)
                                                    : vk::DebugUtilsMessenger{}),
       surface(CreateSurface(instance, window)), device(CreateDevice(instance, dld, *surface)),
       memory_allocator(device), swapchain(*surface, device, width, height), window_info(window),
       presented_window(window.render_surface),
       blit_supported(CanBlitToSwapchain(device.GetPhysical(), swapchain.GetImageViewFormat())) {
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Display: device='{}', driver='{}', version=0x{:08x}, "
-             "swapchain_images={}, image_format={}, view_format={}, validation_requested={}",
-             device.GetModelName(), device.GetDriverName(), device.GetDriverVersion(),
-             swapchain.GetImageCount(), static_cast<int>(swapchain.GetImageFormat()),
-             static_cast<int>(swapchain.GetImageViewFormat()), StartupValidationEnabled());
     const auto& logical = device.GetLogical();
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Display: creating command pool");
     cmdpool = logical.CreateCommandPool({
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
@@ -120,9 +107,7 @@ Display::Display(const WindowSystemInfo& window, Core::Frontend::GraphicsContext
         .queueFamilyIndex = device.GetGraphicsFamily(),
     });
     const auto cmdbufs = cmdpool.Allocate(slots.size());
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Display: allocated {} command buffers", slots.size());
     for (std::size_t i = 0; i < slots.size(); ++i) {
-        LOG_INFO(Render_Vulkan, "[VK-STARTUP] Display: initializing frame slot {}", i);
         slots[i].cmdbuf = vk::CommandBuffer{cmdbufs[i], device.GetDispatchLoader()};
         slots[i].done = logical.CreateFence({
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -130,7 +115,6 @@ Display::Display(const WindowSystemInfo& window, Core::Frontend::GraphicsContext
             .flags = VK_FENCE_CREATE_SIGNALED_BIT,
         });
     }
-    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Display: ready");
 }
 
 Display::~Display() {
