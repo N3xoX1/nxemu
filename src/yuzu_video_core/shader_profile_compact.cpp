@@ -159,7 +159,32 @@ const std::array<const char *, 7> Fields{"local_memory_size", "texture_bound", "
 // Not stored: both follow from the start address and the program size.
 constexpr size_t StartAddress = 2, ReadLowest = 3, ReadHighest = 4;
 const std::array<const char *, 4> Maps{"texture_types", "texture_pixel_formats", "cbuf_values", "cbuf_replacements"};
-const std::array<const char *, 5> Encodings{"raw", "yaz0", "nso-lz4", "bktr-raw", "bktr-yaz0"};
+const std::array<const char *, 7> Encodings{"raw", "yaz0", "nso-lz4", "bktr-raw", "bktr-yaz0", "zstd", "bktr-zstd"};
+// Resources stored as BKTR spans of their bytes, rather than one range of one NCA.
+bool Spanned(u64 kind)
+{
+    return kind == 3 || kind == 4 || kind == 6;
+}
+bool Zstd(u64 kind)
+{
+    return kind == 5 || kind == 6;
+}
+// The zstd dictionaries games ship are small: TotK's three are 128 KiB each.
+constexpr u64 MaxZstdDictionary = 16 * 1024 * 1024;
+// The resource a dictionary locator reads from: a zstd resource with no dictionary of its own.
+JsonValue DictionaryResource(const JsonValue & dictionary)
+{
+    Allowed(dictionary, {"encoding", "file", "container_offset", "container_size", "decoded_size", "physical_spans", "resource_size", "resource_sha256", "offset", "size", "sha256"});
+    const auto encoding = dictionary["encoding"].asString();
+    Check(encoding == "zstd" || encoding == "bktr-zstd", "Compact dictionary encoding");
+    const auto size = Number(dictionary["size"]);
+    Check(size && size <= MaxZstdDictionary && dictionary["sha256"].isString(), "Compact dictionary bounds");
+    auto resource = dictionary;
+    resource.removeMember("offset");
+    resource.removeMember("size");
+    resource.removeMember("sha256");
+    return resource;
+}
 struct Span
 {
     std::string file;
@@ -171,6 +196,10 @@ struct Resource
     std::string file, hash, segment_hash;
     u64 offset{}, size{}, decoded_size{};
     std::vector<Span> spans;
+    // A zstd frame's dictionary: bytes [offset, offset + size) of another zstd
+    // resource, decoded, with their SHA-256. dictionary is that resource's index + 1.
+    u64 dictionary{}, dictionary_offset{}, dictionary_size{};
+    std::string dictionary_hash;
 };
 struct Locator
 {
@@ -306,7 +335,7 @@ std::string Yaz0Programs(const ContentMap& contents, const Resource& resource, s
         Check(offset <= content.size && size <= content.size - offset, "Compact resource range");
         spans.push_back({&content, content.offset + offset, size, logical});
     };
-    if (resource.kind >= 3) {
+    if (Spanned(resource.kind)) {
         u64 logical{};
         for (const auto& span : resource.spans) {
             add(span.file, span.offset, span.size, logical); logical += span.size;
@@ -328,7 +357,7 @@ std::string Yaz0Programs(const ContentMap& contents, const Resource& resource, s
             ReadInto(it->second, span.offset + begin - span.logical,
                      std::span(raw).subspan(begin, end - begin), timings);
         }
-        if (count == resource.size && resource.kind >= 3)
+        if (count == resource.size && Spanned(resource.kind))
             Check(Hash(raw, timings) == resource.hash, "Compact resource fingerprint mismatch");
         try {
             return Timing::Measure(timings, Timing::Phase::ResourceDecompression, [&] {
@@ -342,6 +371,17 @@ std::string Yaz0Programs(const ContentMap& contents, const Resource& resource, s
             count = std::min(resource.size, count * 2);
         }
     }
+}
+// A zstd resource decoded whole: the frame names its dictionary and size.
+std::string ZstdBytes(const ContentMap& contents, const Resource& resource, const ZstdDictionary* dictionary,
+                      Timing::Metrics* timings)
+{
+    auto raw = Spanned(resource.kind) ? SpanBytes(contents, resource, timings) :
+        Bytes(contents, resource.file, resource.offset, resource.size, timings);
+    if (Spanned(resource.kind)) Check(Hash(raw, timings) == resource.hash, "Compact resource fingerprint mismatch");
+    return Timing::Measure(timings, Timing::Phase::ResourceDecompression, [&] {
+        return DecodeZstd(raw, static_cast<size_t>(resource.decoded_size), dictionary);
+    });
 }
 SharedShaderBytes Environment(const Env & env, std::shared_ptr<const std::string> program, Timing::Metrics * timings)
 {
@@ -522,11 +562,18 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
         for (unsigned i = 0; i < shader["references"].size(); ++i)
         {
             auto descriptor = shader["references"][i];
-            Allowed(descriptor, {"encoding", "file", "offset", "size", "container_offset", "container_size", "decoded_size", "container_sha256", "segment_sha256", "physical_spans", "resource_size", "resource_sha256"});
+            Allowed(descriptor, {"encoding", "file", "offset", "size", "container_offset", "container_size", "decoded_size", "container_sha256", "segment_sha256", "physical_spans", "resource_size", "resource_sha256", "dictionary"});
             const auto offset = Number(descriptor["offset"]);
             Check(Number(descriptor["size"]) == ref.size, "Compact locator size");
             descriptor.removeMember("offset");
             descriptor.removeMember("size");
+            // A dictionary's resource is listed before the resources that use it.
+            if (descriptor.isMember("dictionary"))
+            {
+                auto dictionary = DictionaryResource(descriptor["dictionary"]);
+                auto key = Canonical(dictionary);
+                if (resource_ids.emplace(std::move(key), resources.size()).second) resources.push_back(std::move(dictionary));
+            }
             const auto key = Canonical(descriptor);
             auto [it, inserted] = resource_ids.emplace(key, resources.size());
             if (inserted) resources.push_back(std::move(descriptor));
@@ -545,11 +592,11 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
         Check(it != Encodings.end(), "Unknown compact resource encoding");
         const auto kind = it - Encodings.begin();
         out.Var(kind);
-        Check(kind >= 3 || source_names.contains(resource["file"].asString()), "Resource outside the game contents");
+        Check(Spanned(kind) || source_names.contains(resource["file"].asString()), "Resource outside the game contents");
         for (const auto & span : resource["physical_spans"])
             Check(source_names.contains(span["file"].asString()), "Resource outside the game contents");
-        if (kind < 3) out.Text(resource["file"].asString());
-        if (kind == 1 || kind == 2)
+        if (!Spanned(kind)) out.Text(resource["file"].asString());
+        if (kind == 1 || kind == 2 || kind == 5)
         {
             out.Var(Number(resource["container_offset"]));
             out.Var(Number(resource["container_size"]));
@@ -560,7 +607,7 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
             out.Hash(resource["container_sha256"].asString());
             out.Hash(resource["segment_sha256"].asString());
         }
-        if (kind >= 3)
+        if (Spanned(kind))
         {
             out.Var(Number(resource["resource_size"]));
             out.Hash(resource["resource_sha256"].asString());
@@ -571,6 +618,20 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
                 out.Var(Number(span["offset"]));
                 out.Var(Number(span["size"]));
             }
+        }
+        if (Zstd(kind))
+        {
+            out.Var(Number(resource["decoded_size"]));
+            if (!resource.isMember("dictionary"))
+            {
+                out.Var(0);
+                continue;
+            }
+            const auto & dictionary = resource["dictionary"];
+            out.Var(resource_ids.at(Canonical(DictionaryResource(dictionary))) + 1);
+            out.Var(Number(dictionary["offset"]));
+            out.Var(Number(dictionary["size"]));
+            out.Hash(dictionary["sha256"].asString());
         }
     }
     out.Var(programs.size());
@@ -940,9 +1001,9 @@ Parsed Parse(std::string_view payload, u64 title_id)
     {
         Resource r;
         r.kind = in.Word();
-        Check(r.kind < 5, "Compact resource kind");
-        if (r.kind < 3) { r.file = in.Text(); Check(source_names.contains(r.file), "Compact resource outside the game contents"); }
-        if (r.kind == 1 || r.kind == 2)
+        Check(r.kind < Encodings.size(), "Compact resource kind");
+        if (!Spanned(r.kind)) { r.file = in.Text(); Check(source_names.contains(r.file), "Compact resource outside the game contents"); }
+        if (r.kind == 1 || r.kind == 2 || r.kind == 5)
         {
             r.offset = in.Var();
             r.size = in.Var();
@@ -953,7 +1014,7 @@ Parsed Parse(std::string_view payload, u64 title_id)
             r.hash = in.Hash();
             r.segment_hash = in.Hash();
         }
-        if (r.kind >= 3)
+        if (Spanned(r.kind))
         {
             r.size = in.Var();
             r.hash = in.Hash();
@@ -969,6 +1030,24 @@ Parsed Parse(std::string_view payload, u64 title_id)
                 span_bytes += span.size;
             }
             Check(span_bytes == r.size, "Incomplete compact spans");
+        }
+        if (Zstd(r.kind))
+        {
+            r.decoded_size = in.Var();
+            r.dictionary = in.Var();
+            if (r.dictionary)
+            {
+                // Dictionaries come first and have none of their own.
+                Check(r.dictionary <= i, "Compact dictionary resource");
+                const auto& source = resources[r.dictionary - 1];
+                Check(Zstd(source.kind) && !source.dictionary, "Compact dictionary resource");
+                r.dictionary_offset = in.Var();
+                r.dictionary_size = in.Var();
+                r.dictionary_hash = in.Hash();
+                Check(r.dictionary_size && r.dictionary_size <= MaxZstdDictionary &&
+                      r.dictionary_offset <= source.decoded_size &&
+                      r.dictionary_size <= source.decoded_size - r.dictionary_offset, "Compact dictionary bounds");
+            }
         }
         Check(r.size <= MaxDecodedResource && r.decoded_size <= MaxDecodedResource, "Compact decoded limit");
         Check(r.offset <= UINT64_MAX - r.size, "Compact resource offset overflow");
@@ -998,8 +1077,8 @@ Parsed Parse(std::string_view payload, u64 title_id)
             const auto& resource = resources[l.resource];
             Check(l.offset <= UINT64_MAX - p.size, "Compact program offset overflow");
             if (resource.kind != 0) Check(l.offset <= MaxDecodedResource && p.size <= MaxDecodedResource - l.offset, "Compact program resource bounds");
-            if (resource.kind == 2 || resource.kind == 3) {
-                const auto limit = resource.kind == 2 ? resource.decoded_size : resource.size;
+            if (resource.kind == 2 || resource.kind == 3 || Zstd(resource.kind)) {
+                const auto limit = resource.kind == 3 ? resource.size : resource.decoded_size;
                 Check(l.offset <= limit && p.size <= limit - l.offset, "Compact program resource range");
             }
             p.locators.push_back(l);
@@ -1322,16 +1401,62 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
     ContentMap contents;
     {
         std::set<std::string> needed;
-        for (const auto rid : candidate_resources) {
-            const auto& resource=resources[rid];
-            if (resource.kind<3) needed.insert(resource.file);
+        const auto need = [&](const Resource& resource) {
+            if (!Spanned(resource.kind)) needed.insert(resource.file);
             for (const auto& span : resource.spans) needed.insert(span.file);
+        };
+        for (const auto rid : candidate_resources) {
+            need(resources[rid]);
+            if (resources[rid].dictionary) need(resources[resources[rid].dictionary - 1]);
         }
         contents = LocateContents(root, title_id, source_files, needed, timings, progress ? ResourceProgress([&](size_t, size_t) {
             return progress(0, candidate_resources.size());
         }) : ResourceProgress{});
     }
     Timing::Timer resources_timer(timings, Timing::Phase::ResourceTotal);
+    // Zstd dictionaries load once, before the resources that use them. One that
+    // cannot load makes only those resources unavailable.
+    using DictionaryKey = std::tuple<u64, u64, u64, std::string>; // resource + 1, offset, size, SHA-256
+    const auto dictionary_key = [](const Resource& r) {
+        return DictionaryKey{r.dictionary, r.dictionary_offset, r.dictionary_size, r.dictionary_hash};
+    };
+    struct LoadedDictionary
+    {
+        std::shared_ptr<const ZstdDictionary> value;
+        bool missing{};
+    };
+    std::map<DictionaryKey, LoadedDictionary> dictionaries;
+    for (const auto rid : candidate_resources)
+        if (resources[rid].dictionary) dictionaries.try_emplace(dictionary_key(resources[rid]));
+    {
+        u64 source{};
+        std::string decoded;
+        bool source_missing{};
+        for (auto& [key, dictionary] : dictionaries) {
+            const auto& [resource, offset, size, hash] = key;
+            try {
+                if (resource != source) {
+                    source = resource; decoded.clear(); source_missing = false;
+                    decoded = ZstdBytes(contents, resources[resource - 1], nullptr, timings);
+                }
+                Check(decoded.size() == resources[resource - 1].decoded_size, "Compact dictionary resource unavailable");
+                const auto bytes = std::string_view(decoded).substr(offset, size);
+                Check(Hash(bytes, timings) == hash, "Compact dictionary fingerprint mismatch");
+                dictionary.value = std::make_shared<const ZstdDictionary>(bytes);
+            } catch (const std::filesystem::filesystem_error& error) {
+                source_missing = error.code() == std::errc::no_such_file_or_directory;
+                dictionary.missing = source_missing;
+            } catch (const std::runtime_error&) { dictionary.missing = source_missing; }
+        }
+    }
+    const auto resource_dictionary = [&](const Resource& r) -> const ZstdDictionary* {
+        if (!r.dictionary) return nullptr;
+        const auto& loaded = dictionaries.at(dictionary_key(r));
+        if (loaded.missing)
+            throw std::filesystem::filesystem_error("Game content not found", std::make_error_code(std::errc::no_such_file_or_directory));
+        Check(loaded.value != nullptr, "Compact dictionary unavailable");
+        return loaded.value.get();
+    };
     using Request = std::pair<size_t, u64>; // program, offset
     struct Job
     {
@@ -1357,7 +1482,7 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
             // Raw bytes plus the decoded copy; Yaz0 decodes up to the last requested program.
             u64 prefix{};
             for (const auto& [id, offset] : requests) prefix = std::max(prefix, offset + programs[id].size);
-            footprints.push_back(resource.kind == 0 ? 0 : resource.size + (resource.kind == 2 ? resource.decoded_size : resource.kind == 3 ? 0 : prefix));
+            footprints.push_back(resource.kind == 0 ? 0 : resource.size + (resource.kind == 2 || Zstd(resource.kind) ? resource.decoded_size : resource.kind == 3 ? 0 : prefix));
             jobs.push_back({rid, std::move(requests), {}, {}});
         }
         {
@@ -1448,6 +1573,8 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
                     std::string decoded;
                     if (resource.kind == 1 || resource.kind == 4) {
                         decoded = Yaz0Programs(contents, resource, prefix, timings);
+                    } else if (Zstd(resource.kind)) {
+                        decoded = ZstdBytes(contents, resource, resource_dictionary(resource), timings);
                     } else {
                         auto raw = resource.kind >= 3 ? SpanBytes(contents, resource, timings) :
                             Bytes(contents, resource.file, resource.offset, resource.size, timings);
@@ -1589,6 +1716,31 @@ JsonValue DecodeCompact(std::string_view payload,u64 title_id) {
         entry["name"]=file.name;entry["size"]=num(file.size);entry["header"]=file.header;
         profile["source_files"].Append(std::move(entry));
     }
+    const auto describe=[&](const Resource& resource) {
+        JsonValue locator(JsonValueType::Object);
+        locator["encoding"]=Encodings[resource.kind];
+        if(!Spanned(resource.kind))locator["file"]=resource.file;
+        if(resource.kind==1 || resource.kind==2 || resource.kind==5) {
+            locator["container_offset"]=num(resource.offset);
+            locator["container_size"]=num(resource.size);
+        }
+        if(resource.kind==2 || Zstd(resource.kind))locator["decoded_size"]=num(resource.decoded_size);
+        if(resource.kind==2) {
+            locator["container_sha256"]=resource.hash;
+            locator["segment_sha256"]=resource.segment_hash;
+        }
+        if(Spanned(resource.kind)) {
+            locator["resource_size"]=num(resource.size);
+            locator["resource_sha256"]=resource.hash;
+            locator["physical_spans"]=JsonValue(JsonValueType::Array);
+            for(const auto& span:resource.spans) {
+                JsonValue entry(JsonValueType::Object);
+                entry["file"]=span.file;entry["offset"]=num(span.offset);entry["size"]=num(span.size);
+                locator["physical_spans"].Append(std::move(entry));
+            }
+        }
+        return locator;
+    };
     // Programs have no local bytes here: a key derived from their hash and size
     // stands in for the source digest the exporter uses.
     std::vector<std::string> digests;
@@ -1600,27 +1752,13 @@ JsonValue DecodeCompact(std::string_view payload,u64 title_id) {
         shader["references"]=JsonValue(JsonValueType::Array);
         for(const auto& l:p.locators) {
             const auto& resource=parsed.resources[l.resource];
-            JsonValue locator(JsonValueType::Object);
-            locator["encoding"]=Encodings[resource.kind];
-            if(resource.kind<3)locator["file"]=resource.file;
-            if(resource.kind==1 || resource.kind==2) {
-                locator["container_offset"]=num(resource.offset);
-                locator["container_size"]=num(resource.size);
-            }
-            if(resource.kind==2) {
-                locator["decoded_size"]=num(resource.decoded_size);
-                locator["container_sha256"]=resource.hash;
-                locator["segment_sha256"]=resource.segment_hash;
-            }
-            if(resource.kind>=3) {
-                locator["resource_size"]=num(resource.size);
-                locator["resource_sha256"]=resource.hash;
-                locator["physical_spans"]=JsonValue(JsonValueType::Array);
-                for(const auto& span:resource.spans) {
-                    JsonValue entry(JsonValueType::Object);
-                    entry["file"]=span.file;entry["offset"]=num(span.offset);entry["size"]=num(span.size);
-                    locator["physical_spans"].Append(std::move(entry));
-                }
+            auto locator=describe(resource);
+            if(resource.dictionary) {
+                auto dictionary=describe(parsed.resources[resource.dictionary-1]);
+                dictionary["offset"]=num(resource.dictionary_offset);
+                dictionary["size"]=num(resource.dictionary_size);
+                dictionary["sha256"]=resource.dictionary_hash;
+                locator["dictionary"]=std::move(dictionary);
             }
             locator["offset"]=num(l.offset);
             locator["size"]=num(p.size);

@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <zstd.h>
 #include "yuzu_video_core/shader_profile_limits.h"
+#include "yuzu_video_core/shader_profile_resources.h"
 
 namespace VideoCommon::ShaderProfile {
 namespace {
@@ -68,5 +69,43 @@ bool UnpackFrame(std::string_view bytes, size_t max_size, std::string& out) {
     out.resize(static_cast<size_t>(size));
     const auto decoded=ZSTD_decompressDCtx(context.get(),out.data(),out.size(),bytes.data(),bytes.size());
     return !ZSTD_isError(decoded) && decoded==size;
+}
+bool IsZstd(std::string_view bytes) {
+    return bytes.size()>=4 && Get(bytes,0,4)==0xfd2fb528U;
+}
+struct ZstdDictionary::State {
+    std::unique_ptr<ZSTD_DDict,decltype(&ZSTD_freeDDict)> dictionary{nullptr,ZSTD_freeDDict};
+};
+ZstdDictionary::ZstdDictionary(std::string_view bytes) : state(std::make_unique<State>()) {
+    id=ZSTD_getDictID_fromDict(bytes.data(),bytes.size());
+    if(!id) throw std::runtime_error("Not a zstd dictionary");
+    state->dictionary.reset(ZSTD_createDDict(bytes.data(),bytes.size()));
+    if(!state->dictionary) throw std::runtime_error("Invalid zstd dictionary");
+}
+ZstdDictionary::~ZstdDictionary() = default;
+unsigned ZstdFrameDictionary(std::string_view frame) {
+    ZstdFrameSize(frame,MaxDecodedResource);
+    return ZSTD_getDictID_fromFrame(frame.data(),frame.size());
+}
+size_t ZstdFrameSize(std::string_view frame, size_t max_size) {
+    if(!IsZstd(frame) || ZSTD_findFrameCompressedSize(frame.data(),frame.size())!=frame.size())
+        throw std::runtime_error("Not a single zstd frame");
+    const auto size=ZSTD_getFrameContentSize(frame.data(),frame.size());
+    if(size==ZSTD_CONTENTSIZE_UNKNOWN || size==ZSTD_CONTENTSIZE_ERROR || size>max_size)
+        throw std::runtime_error("Unsupported zstd frame size");
+    return static_cast<size_t>(size);
+}
+std::string DecodeZstd(std::string_view frame, size_t size, const ZstdDictionary* dictionary) {
+    if(ZstdFrameSize(frame,MaxDecodedResource)!=size) throw std::runtime_error("zstd frame size changed");
+    const auto id=ZSTD_getDictID_fromFrame(frame.data(),frame.size());
+    if(id!=(dictionary?dictionary->Id():0U)) throw std::runtime_error("zstd frame dictionary mismatch");
+    thread_local std::unique_ptr<ZSTD_DCtx,decltype(&ZSTD_freeDCtx)> context(ZSTD_createDCtx(),ZSTD_freeDCtx);
+    if(!context) throw std::runtime_error("Cannot create zstd context");
+    std::string out(size,'\0');
+    const auto decoded=dictionary ?
+        ZSTD_decompress_usingDDict(context.get(),out.data(),out.size(),frame.data(),frame.size(),dictionary->state->dictionary.get()) :
+        ZSTD_decompressDCtx(context.get(),out.data(),out.size(),frame.data(),frame.size());
+    if(ZSTD_isError(decoded) || decoded!=size) throw std::runtime_error("zstd frame failed to decode");
+    return out;
 }
 } // namespace VideoCommon::ShaderProfile

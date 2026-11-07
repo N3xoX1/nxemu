@@ -635,7 +635,7 @@ u64 MergeProfiles(JsonValue previous, JsonValue & current)
             current["source_files"].Append(std::move(entry));
         }
     }
-    const auto rename = [&](JsonValue & locator) {
+    const auto rename_files = [&](JsonValue & locator) {
         if (locator.isMember("file") && renamed.contains(locator["file"].asString()))
             locator["file"] = renamed.at(locator["file"].asString());
         if (!locator.isMember("physical_spans")) return;
@@ -644,6 +644,11 @@ u64 MergeProfiles(JsonValue previous, JsonValue & current)
             auto & span = locator["physical_spans"][n];
             if (renamed.contains(span["file"].asString())) span["file"] = renamed.at(span["file"].asString());
         }
+    };
+    // A zstd locator's dictionary is read from the same contents.
+    const auto rename = [&](JsonValue & locator) {
+        rename_files(locator);
+        if (locator.isMember("dictionary")) rename_files(locator["dictionary"]);
     };
     for (const auto & digest : previous["shaders"].GetMemberNames())
     {
