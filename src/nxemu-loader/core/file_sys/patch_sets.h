@@ -32,7 +32,11 @@ namespace FileSys {
 // read. At every present the frame step (nxemu-os core/frame_step.h) writes three floats at its start: +0 the step
 // in 30 Hz frames, +4 the step in seconds, +8 the step in 60 Hz frames. Without a writer (page_written) the loader
 // leaves out sets that read it. The cave pages follow it in the same read-write region: Horizon's rtld takes every
-// executable region for a module.
+// executable region for a module. With native code execution the host runs the caves, so they start on a host page
+// (cave_alignment) after that region, unmapped for the guest and executable for the host, as the native code
+// patcher's section is. Nothing rewrites a cave as the patcher rewrites .text, so a set is left out when a cave word
+// is an exception, a system instruction or register other than a hint, a barrier, NZCV, FPCR or FPSR, or an
+// exclusive: wider than what the patcher rewrites, to stay on the safe side.
 //
 // A set is applied whole or not at all: it is left out when a site does not hold its original instruction (another
 // game version, an IPS or IPSwitch patch changed it), when an earlier set already patched one of its sites, or when
@@ -53,8 +57,10 @@ public:
     {
         // Something in this build writes the patch page; without it, sets that read the page are left out
         bool page_written{};
-        // Multi-word sites may run in caves; without it (native code execution), sets with one are left out
-        bool caves{true};
+        // The host runs the caves (native code execution): leave out sets with a cave word it cannot run there
+        bool native_code{};
+        // The caves start, and end, on this boundary after the patch page: the host page with native code execution
+        uint32_t cave_alignment{PageSize};
     };
 
     // Reads the patch set files of the enabled mods for the module with this build id (hex, trailing zeros
@@ -68,8 +74,22 @@ public:
     [[nodiscard]] bool Empty() const;
 
     // Bytes to reserve after the module's image: the patch page then the cave pages; 0 when the sets that are on
-    // patch in place only and do not read the patch page.
+    // patch in place only and do not read the patch page. The patch page must then start on cave_alignment.
     [[nodiscard]] uint32_t ReservedSize() const;
+
+    // Where the reservation goes after a module image that ends at image_end (module-relative, on a guest page):
+    // the patch page, and how much the data segment and the image grow. Without a reservation nothing moves or grows.
+    struct Layout
+    {
+        uint32_t page_offset{};
+        uint32_t data_growth{};
+        uint32_t image_growth{};
+    };
+    [[nodiscard]] Layout Reserve(uint32_t image_end) const;
+
+    // The cave pages, from the patch page: where they start and their size (0 without caves)
+    [[nodiscard]] uint32_t CaveOffset() const;
+    [[nodiscard]] uint32_t CaveSize() const;
 
     // Logs what reading the files left out (malformed lines, sets that read an unwritten patch page). Kept apart
     // from the constructor, which both loader passes run, so the load pass reports them once.
@@ -110,6 +130,8 @@ private:
 
     std::vector<Set> m_sets;
     std::vector<std::string> m_problems;
+    uint32_t m_cave_alignment{PageSize};
+    bool m_native_code{};
     uint32_t m_cave_bytes{};
     bool m_uses_page{};
 };

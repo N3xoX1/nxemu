@@ -29,6 +29,11 @@ void Check(bool value, const char * message)
     }
 }
 
+void Check(bool value, const std::string & message)
+{
+    Check(value, message.c_str());
+}
+
 void SetEnv(const char * name, const char * value)
 {
 #ifdef _WIN32
@@ -93,9 +98,10 @@ FileSys::VirtualFile File(const std::string & text)
     return std::make_shared<FileSys::VectorVfsFile>(std::vector<uint8_t>(text.begin(), text.end()), "test.nxpatch");
 }
 
-PatchSets Make(const std::string & text, bool page_written = true, bool caves = true)
+PatchSets Make(const std::string & text, bool page_written = true, bool native_code = false)
 {
-    return PatchSets({File(text)}, "AB12", "main", {.page_written = page_written, .caves = caves});
+    return PatchSets({File(text)}, "AB12", "main",
+                     {.page_written = page_written, .native_code = native_code, .cave_alignment = native_code ? 0x4000U : PatchSets::PageSize});
 }
 
 std::string Hex(uint32_t value)
@@ -240,18 +246,56 @@ void PatchPage()
     std::puts("PASS: patch page");
 }
 
-void NoCaves()
+void NativeCode()
 {
-    // Native code execution: in-place sets apply, sets that need a cave are left out, nothing is reserved
-    PatchSets sets = Make("@nsobid-ab12\nset inplace ENV_UNUSED 1\nsite inplace main 100 d503201f 91000400\n"
-                          "set cave ENV_UNUSED 1\nsite cave main 200 d503201f 52800041\nsite cave main 300 d503201f 91000400 52800041\n",
-                          true, false);
-    Check(sets.ReservedSize() == 0, "without caves nothing is reserved after the module");
-    Module module(0x10000, 0);
+    // Native code execution: the caves start and end on the host page (16 KiB here) after the patch page
+    const std::string text = "@nsobid-ab12\nset cave ENV_UNUSED 1\nsite cave main 200 d503201f 91000400 52800041\n";
+    PatchSets sets = Make(text, true, true);
+    Check(sets.CaveOffset() == 0x4000 && sets.CaveSize() == 0x4000, "the caves take whole host pages after the patch page");
+    Check(sets.ReservedSize() == 0x8000, "the reservation covers the patch page's host page and the caves");
+    Module module(0x10000, sets.ReservedSize());
     sets.Apply(module.image, module.page);
-    Check(module.At(0x100) == AddX0, "an in-place set applies without caves");
-    Check(module.At(0x200) == Nop && module.At(0x300) == Nop, "a set with a cave site is left out whole");
-    std::puts("PASS: in-place sets without caves");
+    Check(CaveOf(module, 0x200) == module.page + 0x4000, "the first cave starts on the host page after the patch page");
+    Module unaligned(0x11000, sets.ReservedSize());
+    Check(!sets.Apply(unaligned.image, unaligned.page) && unaligned.At(0x200) == Nop, "a patch page off the host page patches nothing");
+
+    // The loader's layout after an image ending off the host page (0x11000): the patch page moves to the host page,
+    // the data segment takes the patch page's host page and the image the caves too
+    const PatchSets::Layout caves = sets.Reserve(0x11000);
+    Check(caves.page_offset == 0x14000 && caves.data_growth == 0x7000 && caves.image_growth == 0xB000,
+          "with native code execution the caves stay out of the data segment");
+    const PatchSets::Layout jit = Make(text).Reserve(0x11000);
+    Check(jit.page_offset == 0x11000 && jit.data_growth == 0x2000 && jit.image_growth == 0x2000, "in the JIT the caves are data");
+    const PatchSets::Layout page = Make("@nsobid-ab12\nset p ENV_UNUSED 1\nsite p main 100 d503201f @page:x9\n", true, true).Reserve(0x11000);
+    Check(page.page_offset == 0x14000 && page.data_growth == 0x3000 + 0x4000 && page.image_growth == page.data_growth,
+          "a patch page without caves is all data");
+    // In place only: no reservation, so nothing moves or grows and the sets apply wherever the image ends
+    const std::string in_place = "@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 52800041\n";
+    PatchSets in_place_sets = Make(in_place, true, true);
+    const PatchSets::Layout none = in_place_sets.Reserve(0x11000);
+    Check(none.page_offset == 0x11000 && none.data_growth == 0 && none.image_growth == 0, "in-place sets reserve nothing");
+    Module in_place_module(0x11000, 0);
+    in_place_sets.Apply(in_place_module.image, in_place_module.page);
+    Check(in_place_module.At(0x200) == 0x52800041, "in-place sets apply after an image ending off the host page");
+
+    // Words the native code patcher rewrites in .text cannot run from a cave; in place the patcher still sees them
+    const char * refused[] = {"d4000001", "d53bd040", "d53be020", "c85f7c20", "c8007c20", "d50b7520", "d4200000"};
+    for (const char * word : refused)
+    {
+        const std::string cave = std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 91000400 ") + word + "\n";
+        Check(Make(cave, true, true).Empty(), std::string("cave word ") + word + " leaves its set out with native code execution");
+        Check(!Make(cave).Empty(), std::string("cave word ") + word + " runs from a cave in the JIT");
+        Check(!Make(std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f ") + word + "\n", true, true).Empty(),
+              std::string("word ") + word + " in place applies with native code execution");
+    }
+    // Hints, barriers and the NZCV, FPCR and FPSR registers run anywhere
+    const char * allowed[] = {"d503201f", "d5033bbf", "d5033fdf", "d53b4200", "d51b4200", "d53b4400", "d53b4420", "d51b4400", "c8dffc20"};
+    for (const char * word : allowed)
+    {
+        Check(!Make(std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 91000400 ") + word + "\n", true, true).Empty(),
+              std::string("cave word ") + word + " runs from a cave with native code execution");
+    }
+    std::puts("PASS: native code execution");
 }
 
 void Limits()
@@ -311,7 +355,7 @@ int main()
     LargeModule();
     SetsAndSwitches();
     PatchPage();
-    NoCaves();
+    NativeCode();
     Limits();
     Version();
     Rejected();

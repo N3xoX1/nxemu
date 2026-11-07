@@ -191,16 +191,23 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     // Patch sets (core/file_sys/patch_sets.h) take the page after .bss and the cave pages after it, as more of the
     // data segment: rtld takes every executable region for a module, and fails to start the game on caves mapped
     // read-execute. The JIT runs code from any mapped page. Both passes read the sets, so the process code region
-    // the layout pass sizes holds them. With native code execution the host would not execute the caves, so only
-    // in-place sets apply there.
+    // the layout pass sizes holds them. With native code execution the caves start on a host page after the data
+    // segment, unmapped for the guest, and the process makes them executable for the host (the cave segment).
     const bool native_code = g_settings->GetBool(NXCpuSetting::NceEnabled);
+#if defined(__APPLE__)
+    constexpr u32 NativeCodePageSize = 0x4000;
+#else
+    constexpr u32 NativeCodePageSize = 0x1000;
+#endif
     std::optional<FileSys::PatchSets> patch_sets;
-    const u32 patch_page = image_size;
+    u32 patch_page = image_size;
     if (pm)
     {
         const std::string build_id_raw = Common::HexToString(nso_header.build_id);
         // The frame step (nxemu-os core/frame_step.h) writes the patch page
-        const FileSys::PatchSets::Support support{.page_written = true, .caves = !native_code};
+        const FileSys::PatchSets::Support support{.page_written = true,
+                                                  .native_code = native_code,
+                                                  .cave_alignment = native_code ? NativeCodePageSize : FileSys::PatchSets::PageSize};
         patch_sets.emplace(pm->CollectPatchSetFiles(), build_id_raw.substr(0, build_id_raw.find_last_not_of('0') + 1), nso_file.GetName(), support);
         if (load_into_process)
         {
@@ -212,9 +219,10 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         }
         else
         {
-            const u32 reserved = patch_sets->ReservedSize();
-            codeset.DataSegment().size += reserved;
-            image_size += reserved;
+            const FileSys::PatchSets::Layout layout = patch_sets->Reserve(static_cast<u32>(patch_page - module_start));
+            patch_page = static_cast<u32>(module_start) + layout.page_offset;
+            codeset.DataSegment().size += layout.data_growth;
+            image_size += layout.image_growth;
         }
     }
 #if defined(__APPLE__)
@@ -270,6 +278,12 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         program_image.resize((std::max)(program_image.size(), static_cast<size_t>(image_size)));
         const std::span<u8> module_image(program_image.data() + module_start, image_size - module_start);
         reads_patch_page = patch_sets->Apply(module_image, static_cast<u32>(patch_page - module_start), load_into_process);
+        if (native_code && patch_sets->CaveSize() != 0)
+        {
+            Kernel::CodeSet::Segment & cave_segment = codeset.CaveSegment();
+            cave_segment.addr = patch_page + patch_sets->CaveOffset();
+            cave_segment.size = patch_sets->CaveSize();
+        }
     }
 
     if (patch_collection && patch_index >= 0)

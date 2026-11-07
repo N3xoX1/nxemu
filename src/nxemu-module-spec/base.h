@@ -317,6 +317,9 @@ nxinterface IModuleInfo
     virtual uint64_t DataSegmentSize(void) const = 0;
     virtual uint64_t PatchSegmentAddr(void) const = 0;
     virtual uint64_t PatchSegmentSize(void) const = 0;
+    // Patch set caves after the data segment that the host runs with native code execution
+    virtual uint64_t CaveSegmentAddr(void) const = 0;
+    virtual uint64_t CaveSegmentSize(void) const = 0;
 };
 
 nxinterface IProcess
