@@ -264,6 +264,7 @@
     <ClCompile Include="core\internal_network\socket_proxy.cpp" />
     <ClCompile Include="core\memory\cheat_engine.cpp" />
     <ClCompile Include="core\memory\dmnt_cheat_vm.cpp" />
+    <ClCompile Include="core\frame_step.cpp" />
     <ClCompile Include="core\perf_stats.cpp" />
     <ClCompile Include="core\reporter.cpp" />
     <ClCompile Include="default_profile_image.cpp" />
@@ -1049,6 +1050,7 @@
     <ClInclude Include="core\memory.h" />
     <ClInclude Include="core\memory\cheat_engine.h" />
     <ClInclude Include="core\memory\dmnt_cheat_types.h" />
+    <ClInclude Include="core\frame_step.h" />
     <ClInclude Include="core\perf_stats.h" />
     <ClInclude Include="core\reporter.h" />
     <ClInclude Include="default_profile_image.h" />

@@ -120,6 +120,7 @@ namespace Core {
 class CpuManager;
 class Debugger;
 class DeviceMemory;
+class FrameStep;
 class GPUDirtyMemoryManager;
 class PerfStats;
 class Reporter;
@@ -311,6 +312,9 @@ public:
 
     /// Provides a constant reference to the speed limiter
     [[nodiscard]] const Core::SpeedLimiter & SpeedLimiter() const;
+
+    /// The frame step patch sets read (core/frame_step.h)
+    [[nodiscard]] Core::FrameStep & FrameStep();
 
     std::shared_ptr<InputCommon::InputSubsystem> & InputSubsystem() const;
 

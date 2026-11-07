@@ -8,6 +8,7 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "core/core.h"
 #include "core/core_timing.h"
+#include "core/frame_step.h"
 #include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/core/nvmap.h"
 #include "core/hle/service/nvdrv/devices/nvdisp_disp0.h"
@@ -119,6 +120,7 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
     }
 
     system.GetVideo().RequestComposite(output_layers.data(), (uint32_t)output_layers.size(), output_fences.data(), (uint32_t)output_fences.size());
+    system.FrameStep().OnPresent(system.ApplicationMemory());
     system.GetPerfStats().EndSystemFrame();
     system.GetPerfStats().BeginSystemFrame();
 }
