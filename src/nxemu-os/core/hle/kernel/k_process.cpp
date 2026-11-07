@@ -1402,6 +1402,14 @@ void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
     m_page_table.SetProcessMemoryPermission((KProcessAddress)(module.DataSegmentAddr()) + base_addr, module.DataSegmentSize(), Svc::MemoryPermission::ReadWrite);
 
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
+    const uint64_t cave_size = module.CaveSegmentSize();
+    if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled) && cave_size != 0)
+    {
+        // Patch set caves: the host runs them, as it does the patch section. They are outside the module's segments,
+        // so the guest keeps them unmapped, as rtld would take an executable region for a module.
+        auto & buffer = m_kernel.System().DeviceMemory().buffer;
+        buffer.Protect(base_addr.GetValue() + module.CaveSegmentAddr(), cave_size, Common::MemoryPermission::Read | Common::MemoryPermission::Execute);
+    }
     const uint64_t patch_size = module.PatchSegmentSize();
     if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled) && patch_size != 0)
     {

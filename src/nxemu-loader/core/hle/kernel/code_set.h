@@ -106,6 +106,14 @@ struct CodeSet :
     {
         return patch_segment.size;
     }
+    uint64_t CaveSegmentAddr(void) const
+    {
+        return cave_segment.addr.GetValue();
+    }
+    uint64_t CaveSegmentSize(void) const
+    {
+        return cave_segment.size;
+    }
 
     Segment& CodeSegment() {
         return segments[0];
@@ -139,6 +147,10 @@ struct CodeSet :
         return patch_segment;
     }
 
+    Segment& CaveSegment() {
+        return cave_segment;
+    }
+
     /// The overall data that backs this code set.
     Kernel::PhysicalMemory memory;
 
@@ -146,6 +158,9 @@ struct CodeSet :
     std::array<Segment, 3> segments;
 
     Segment patch_segment;
+
+    /// Patch set caves the host runs with native code execution (core/file_sys/patch_sets.h), after the data segment
+    Segment cave_segment;
 
     /// The entry point address for this code set.
     KProcessAddress entrypoint = 0;

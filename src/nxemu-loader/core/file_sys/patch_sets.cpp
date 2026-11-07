@@ -129,6 +129,38 @@ uint32_t InvertToSkipNext(uint32_t w)
     return ((w & 0xFF00001F) ^ 0x01000000) | 2 << 5;
 }
 
+// Why the host cannot run this word from a cave with native code execution, or nullptr. The native code patcher
+// rewrites these in .text (nxemu-cpu nce/patcher.cpp); a cave is not in .text.
+const char * NativeCodeProblem(uint32_t w)
+{
+    if ((w & 0xFF000000) == 0xD4000000)
+    {
+        return "an exception (svc, brk)";
+    }
+    if ((w & 0xFFC00000) == 0xD5000000)
+    {
+        // System instructions: hints and barriers run, and the NZCV, FPCR and FPSR registers (mrs and msr)
+        const uint32_t reg = (w >> 5) & 0xFFFF;
+        const bool move = (w & 0xFFD00000) == 0xD5100000; // mrs, msr (register)
+        if ((w & 0xFFFFF01F) == 0xD503201F || (w & 0xFFFFF01F) == 0xD503301F ||
+            (move && (reg == 0xDA10 || reg == 0xDA20 || reg == 0xDA21)))
+        {
+            return nullptr;
+        }
+        return "a system instruction or register";
+    }
+    if ((w & 0x3F800000) == 0x08000000)
+    {
+        return "an exclusive load or store";
+    }
+    return nullptr;
+}
+
+uint32_t AlignUp(uint32_t value, uint32_t alignment)
+{
+    return (value + alignment - 1) / alignment * alignment;
+}
+
 // The cave bytes a site of these words takes: the words, the branch back and, for a conditional last word, the
 // long branch it becomes
 uint32_t CaveBytes(const std::vector<uint32_t> & words)
@@ -172,7 +204,9 @@ void WriteWord(std::span<uint8_t> image, uint32_t offset, uint32_t word)
 
 } // namespace
 
-PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, Support support)
+PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, Support support) :
+    m_cave_alignment(std::max(support.cave_alignment, PageSize)),
+    m_native_code(support.native_code)
 {
     for (const VirtualFile & file : files)
     {
@@ -186,6 +220,7 @@ PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string &
         }
         bool reads_page = false;
         uint32_t cave_bytes = 0;
+        std::string native;
         for (const Site & site : set.sites)
         {
             std::vector<uint32_t> values;
@@ -193,17 +228,24 @@ PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string &
             {
                 values.push_back(word.value);
                 reads_page |= word.page_reg >= 0;
+                const char * problem = word.page_reg < 0 && site.words.size() > 1 ? NativeCodeProblem(word.value) : nullptr;
+                if (support.native_code && problem != nullptr && native.empty())
+                {
+                    native = fmt::format("the cave word {:08x} at module offset {:#x} ({}:{}) is {}, which native code execution cannot run "
+                                         "from a cave",
+                                         word.value, site.offset, set.file, site.line, problem);
+                }
             }
             if (values.size() > 1)
             {
                 cave_bytes += CaveBytes(values);
             }
         }
-        const char * missing = reads_page && !support.page_written      ? "it reads the patch page, which this build does not write"
-                               : cave_bytes != 0 && !support.caves       ? "it needs caves, which native code execution does not run yet"
-                               : m_cave_bytes + uint64_t{cave_bytes} > MaxCaveBytes ? "the module's caves would pass the limit"
-                                                                                    : nullptr;
-        if (missing != nullptr)
+        const std::string missing = reads_page && !support.page_written ? "it reads the patch page, which this build does not write"
+                                    : !native.empty()                   ? native
+                                    : m_cave_bytes + uint64_t{cave_bytes} > MaxCaveBytes ? "the module's caves would pass the limit"
+                                                                                         : "";
+        if (!missing.empty())
         {
             m_problems.push_back(fmt::format("Patch set {} of {} left out: {}", set.name, set.file, missing));
             set.enabled = false;
@@ -371,7 +413,32 @@ uint32_t PatchSets::ReservedSize() const
     {
         return 0;
     }
-    return PageSize + (m_cave_bytes + PageSize - 1) / PageSize * PageSize;
+    return CaveOffset() + CaveSize();
+}
+
+PatchSets::Layout PatchSets::Reserve(uint32_t image_end) const
+{
+    const uint32_t reserved = ReservedSize();
+    if (reserved == 0)
+    {
+        return {image_end, 0, 0};
+    }
+    // The patch page starts on the cave alignment, so the caves after it do. With native code execution the caves
+    // stay out of the data segment, so the guest never maps them, as with the padding after the image: once they
+    // are read-write data, the kernel refuses to hide them.
+    const uint32_t page_offset = AlignUp(image_end, m_cave_alignment);
+    const uint32_t padding = page_offset - image_end;
+    return {page_offset, padding + (m_native_code ? CaveOffset() : reserved), padding + reserved};
+}
+
+uint32_t PatchSets::CaveOffset() const
+{
+    return AlignUp(PageSize, m_cave_alignment);
+}
+
+uint32_t PatchSets::CaveSize() const
+{
+    return AlignUp(m_cave_bytes, m_cave_alignment);
 }
 
 std::optional<std::vector<uint32_t>> PatchSets::CaveWords(const Site & site, uint32_t cave, uint32_t page_offset)
@@ -431,12 +498,12 @@ void PatchSets::LogProblems() const
 bool PatchSets::Apply(std::span<uint8_t> image, uint32_t page_offset, bool report)
 {
     const uint32_t reserved = ReservedSize();
-    if (page_offset + static_cast<uint64_t>(reserved) > image.size())
+    if (page_offset + static_cast<uint64_t>(reserved) > image.size() || (reserved != 0 && page_offset % m_cave_alignment != 0))
     {
         return false;
     }
     const uint32_t cave_end = page_offset + reserved;
-    uint32_t cave = page_offset + PageSize;
+    uint32_t cave = page_offset + CaveOffset();
     std::unordered_map<uint32_t, const Set *> claimed;
     bool page_used = false;
 
