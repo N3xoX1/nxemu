@@ -32,6 +32,8 @@ public:
 
     JsonValue GetSettings(const char * section) const;
     void SetSettings(const char * section, JsonValue & json);
+    JsonValue GetGameSettings(const char * section) const;
+    void SetGameSettings(const char * section, JsonValue & json);
 
     const char * GetDefaultString(const char * setting) const;
     bool GetDefaultBool(const char * setting) const;
@@ -71,6 +73,8 @@ public:
 
 private:
     void NotifyChange(const char * setting);
+    void LoadGameSettings(void);
+    static void GameTitleIdChanged(const char * setting, void * userData);
     bool IsDebugSettingLocked(const char * setting) const;
     const char * LookupDefaultString(const char * setting) const;
     bool LookupDefaultBool(const char * setting) const;
@@ -94,4 +98,7 @@ private:
     static std::unique_ptr<SettingsStore> s_instance;
     std::string m_configPath;
     JsonValue m_details;
+    std::string m_gameFile;
+    JsonValue m_gameDetails;
+    bool m_gameReadable = true;
 };

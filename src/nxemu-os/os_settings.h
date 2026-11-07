@@ -39,6 +39,7 @@ struct OSSettings
     std::string audio_output_device_id;
     std::string audio_input_device_id;
     AudioMode sound_index;
+    AudioMode global_sound_index;
     u8 volume;
     bool audio_muted;
     bool dump_audio_commands;
@@ -46,8 +47,10 @@ struct OSSettings
     // System
     Language language_index;
     s32 region_setting;
+    s32 global_region_setting;
     TimeZone time_zone_index;
     MemoryLayout memory_layout_mode;
+    MemoryLayout global_memory_layout_mode;
     bool custom_rtc_enabled;
     s64 custom_rtc;
     s64 custom_rtc_offset;
@@ -56,11 +59,15 @@ struct OSSettings
     std::string device_name;
     s32 current_user;
     DockedMode use_docked_mode;
+    DockedMode global_docked_mode;
     bool use_multi_core;
+    bool global_use_multi_core;
     bool cpu_hle_synchronization;
+    bool global_cpu_hle_synchronization;
     bool use_speed_limit;
     bool uncapped_present;
     u16 speed_limit;
+    u16 global_speed_limit;
 
     // Video
     bool use_reactive_flushing;
@@ -77,6 +84,8 @@ struct OSSettings
     bool enable_procon_driver;
     bool vibration_enabled;
     bool enable_accurate_vibrations;
+    bool global_vibration_enabled;
+    bool global_enable_accurate_vibrations;
     bool motion_enabled;
     std::string udp_input_servers;
     bool enable_udp_controller;

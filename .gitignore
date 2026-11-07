@@ -36,6 +36,7 @@ __pycache__/
 /src/nxemu-os/version.h
 /src/nxemu-loader/version.h
 /config/NxEmu.config
+/config/GameSettings/
 
 # Android (src/android Gradle project)
 src/android/.gradle/

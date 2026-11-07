@@ -101,7 +101,7 @@ struct System::Impl {
         core_timing.Initialize([&system]() { system.RegisterHostThread(); },
                                cpu_hle_initialized_supported, cpu_hle_initialized_native_clock);
 
-        is_async_gpu = g_settings->GetBool(NXVideoSetting::UseAsynchronousGPUEmulation);
+        is_async_gpu = g_settings->GetBool(NXVideoSetting::GameUseAsynchronousGPUEmulation);
 
         kernel.SetMulticore(is_multicore);
         cpu_manager.SetMulticore(is_multicore);

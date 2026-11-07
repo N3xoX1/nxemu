@@ -40,7 +40,7 @@ namespace
             return;
         }
         SettingsStore & settings = SettingsStore::GetInstance();
-        if (settings.GetInt(NXCoreSetting::LanguageIndex) == settings.GetDefaultInt(NXCoreSetting::LanguageIndex))
+        if (settings.GetInt(NXCoreSetting::SystemLanguageIndex) == settings.GetDefaultInt(NXCoreSetting::SystemLanguageIndex))
         {
             for (size_t start = 0; start < locales.size();)
             {
@@ -51,7 +51,7 @@ namespace
                 int32_t language = 0;
                 if (Translation::ConsoleLanguageOfLocale(locale.substr(0, separator), separator == std::string::npos ? "" : locale.substr(separator + 1), language))
                 {
-                    settings.SetInt(NXCoreSetting::LanguageIndex, language);
+                    settings.SetInt(NXCoreSetting::SystemLanguageIndex, language);
                     SaveCoreSetting();
                     break;
                 }
@@ -111,7 +111,7 @@ void SetChoice(const std::string & code)
 
 std::string Code()
 {
-    return Translation::ResolveLanguage(UiUtil::ReadInt(NXCoreSetting::LanguageIndex), Choice());
+    return Translation::ResolveLanguage(UiUtil::ReadInt(NXCoreSetting::SystemLanguageIndex), Choice());
 }
 
 int Generation()

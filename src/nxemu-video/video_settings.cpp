@@ -7,6 +7,8 @@
 #include <common/json.h>
 #include <cstring>
 #include <cstdlib>
+#include <nxemu-core/settings/identifiers.h>
+#include <nxemu-core/settings/module_setting_table.h>
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/fsr_sharpness.h>
 #include <yuzu_common/yuzu_assert.h>
@@ -194,12 +196,27 @@ public:
     VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, AnisotropyMode defaultValue, bool debugSetting = false);
     VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, AstcRecompression defaultValue, bool debugSetting = false);
     VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, VramUsageMode defaultValue, bool debugSetting = false);
+    VideoSetting(const char * id, const char * section, const char * key, bool * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, int32_t * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, AstcDecodeMode * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, VSyncMode * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, NvdecEmulation * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, AspectRatio * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, ResolutionSetup * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, ScalingFilter * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, AntiAliasing * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, GpuAccuracy * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, const char * fallbackId);
+    VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, const char * fallbackId);
 
     const char * identifier;
     const char * json_section;
     const char * json_key;
     SettingType settingType;
     bool debugSetting;
+    const char * fallback{nullptr};
+    bool gameValue{false};
     int32_t minValue{};
     int32_t maxValue{};
     union
@@ -246,57 +263,110 @@ static VideoSetting settings[] = {
     {NXVideoSetting::GraphicsAPI, "video", "renderer_backend", &videoSettings.renderer_backend, RendererBackend::Vulkan},
     {NXVideoSetting::ShaderBackend, "video", "shader_backend", &videoSettings.shader_backend, ShaderBackend::Glsl},
     {NXVideoSetting::VulkanDevice, "video", "vulkan_device", &videoSettings.vulkan_device, 0},
-    {NXVideoSetting::UseDiskPipelineCache, "video", "use_disk_shader_cache", &videoSettings.use_disk_shader_cache, true},
+    {NXVideoSetting::SystemUseDiskPipelineCache, "video", "use_disk_shader_cache", &videoSettings.global_use_disk_shader_cache, true},
     {NXVideoSetting::RecordShaderRecipes, "video", "record_shader_recipes", &videoSettings.record_shader_recipes, true},
-    {NXVideoSetting::UseAsynchronousGPUEmulation, "video", "use_asynchronous_gpu_emulation", &videoSettings.use_asynchronous_gpu_emulation, true, true},
+    {NXVideoSetting::SystemUseAsynchronousGPUEmulation, "video", "use_asynchronous_gpu_emulation", &videoSettings.global_use_asynchronous_gpu_emulation, true, true},
 #ifdef ANDROID
-    {NXVideoSetting::AstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, AstcDecodeMode::Cpu},
-    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true, true},
-    {NXVideoSetting::EnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, false},
-    {NXVideoSetting::AccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, GpuAccuracy::Normal},
-    {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Default},
+    {NXVideoSetting::SystemAstcDecodeMode, "video", "astc_decode_mode", &videoSettings.global_accelerate_astc, AstcDecodeMode::Cpu},
+    {NXVideoSetting::SystemEnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.global_async_presentation, true, true},
+    {NXVideoSetting::SystemEnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.global_use_reactive_flushing, false},
+    {NXVideoSetting::SystemAccuracyLevel, "video", "accuracy_level", &videoSettings.global_gpu_accuracy, GpuAccuracy::Normal},
+    {NXVideoSetting::SystemAnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.global_max_anisotropy, AnisotropyMode::Default},
 #else
-    {NXVideoSetting::AstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, AstcDecodeMode::Gpu},
-    {NXVideoSetting::EnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, true, true},
-    {NXVideoSetting::EnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, true, true},
-    {NXVideoSetting::AccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, GpuAccuracy::High},
-    {NXVideoSetting::AnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, AnisotropyMode::Automatic},
+    {NXVideoSetting::SystemAstcDecodeMode, "video", "astc_decode_mode", &videoSettings.global_accelerate_astc, AstcDecodeMode::Gpu},
+    {NXVideoSetting::SystemEnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.global_async_presentation, true, true},
+    {NXVideoSetting::SystemEnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.global_use_reactive_flushing, true, true},
+    {NXVideoSetting::SystemAccuracyLevel, "video", "accuracy_level", &videoSettings.global_gpu_accuracy, GpuAccuracy::High},
+    {NXVideoSetting::SystemAnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.global_max_anisotropy, AnisotropyMode::Automatic},
 #endif
-    {NXVideoSetting::DMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, 0, 0, 2, true},
-    {NXVideoSetting::GpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, false, true},
+    {NXVideoSetting::SystemDMAAccuracy, "video", "dma_accuracy", &videoSettings.global_dma_accuracy, 0, 0, 2, true},
+    {NXVideoSetting::SystemGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.global_gpu_command_synchronization, false, true},
     {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, true, true},
-    {NXVideoSetting::VSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, VSyncMode::Fifo},
-    {NXVideoSetting::NvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NvdecEmulation::Gpu, true},
+    {NXVideoSetting::SystemVSyncMode, "video", "vsync_mode", &videoSettings.global_vsync_mode, VSyncMode::Fifo},
+    {NXVideoSetting::SystemNvdecEmulation, "video", "nvdec_emulation", &videoSettings.global_nvdec_emulation, NvdecEmulation::Gpu, true},
 #ifdef _WIN32
     {NXVideoSetting::FullscreenMode, "video", "fullscreen_mode", &videoSettings.fullscreen_mode, FullscreenMode::Borderless},
 #else
     {NXVideoSetting::FullscreenMode, "video", "fullscreen_mode", &videoSettings.fullscreen_mode, FullscreenMode::Exclusive},
 #endif
-    {NXVideoSetting::AspectRatio, "video", "aspect_ratio", &videoSettings.aspect_ratio, AspectRatio::R16_9},
-    {NXVideoSetting::ResolutionSetup, "video", "resolution_setup", &videoSettings.resolution_setup, ResolutionSetup::Res1X},
-    {NXVideoSetting::ScalingFilter, "video", "scaling_filter", &videoSettings.scaling_filter, ScalingFilter::Bilinear},
+    {NXVideoSetting::SystemAspectRatio, "video", "aspect_ratio", &videoSettings.global_aspect_ratio, AspectRatio::R16_9},
+    {NXVideoSetting::SystemResolutionSetup, "video", "resolution_setup", &videoSettings.global_resolution_setup, ResolutionSetup::Res1X},
+    {NXVideoSetting::SystemScalingFilter, "video", "scaling_filter", &videoSettings.global_scaling_filter, ScalingFilter::Bilinear},
     {NXVideoSetting::CustomScalingFilter, "video", "custom_scaling_filter", &videoSettings.custom_scaling_filter, static_cast<int32_t>(ScalingFilter::Bilinear), 0, static_cast<int32_t>(ScalingFilter::ScaleForceFast)},
-    {NXVideoSetting::AntiAliasing, "video", "anti_aliasing", &videoSettings.anti_aliasing, AntiAliasing::None},
-    {NXVideoSetting::FSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, FsrSharpness::ToStored(80), 0, FsrSharpness::StoredMaximum},
+    {NXVideoSetting::SystemAntiAliasing, "video", "anti_aliasing", &videoSettings.global_anti_aliasing, AntiAliasing::None},
+    {NXVideoSetting::SystemFSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.global_fsr_sharpening_slider, FsrSharpness::ToStored(80), 0, FsrSharpness::StoredMaximum},
     {NXVideoSetting::DownscalingFilter, "video", "downscaling_filter", &videoSettings.downscaling_filter, 0, 0, 1},
     {NXVideoSetting::CASSharpness, "video", "cas_sharpening_slider", &videoSettings.cas_sharpening_slider, 80, 0, 100},
     {NXVideoSetting::FsrLegacyBenchmark, "video", "fsr_legacy_benchmark", &videoSettings.fsr_legacy_benchmark, false},
-    {NXVideoSetting::ForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, false},
-    {NXVideoSetting::UseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, true},
+    {NXVideoSetting::SystemForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.global_renderer_force_max_clock, false},
+    {NXVideoSetting::SystemUseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.global_use_asynchronous_shaders, true},
     {NXVideoSetting::NXShaderWarmupMode, "video", "nxshader_warmup_mode", &videoSettings.nxshader_warmup_mode, 0, 0, 1},
     {NXVideoSetting::NXShaderInitialMinimum, "video", "nxshader_initial_minimum", &videoSettings.nxshader_initial_minimum, 512, 0, 8192, true},
     {NXVideoSetting::NXShaderInitialSeconds, "video", "nxshader_initial_seconds", &videoSettings.nxshader_initial_seconds, 60, 0, 600, true},
-    {NXVideoSetting::FastGPUTime, "video", "use_fast_gpu_time", &videoSettings.use_fast_gpu_time, true},
-    {NXVideoSetting::UseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, true, true},
-    {NXVideoSetting::SyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, false},
-    {NXVideoSetting::BarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, true, true},
-    {NXVideoSetting::ASTCRecompressionMethod, "video", "astc_recompression_method", &videoSettings.astc_recompression, AstcRecompression::Uncompressed},
-    {NXVideoSetting::VRAMUsageMode, "video", "vram_usage_mode", &videoSettings.vram_usage_mode, VramUsageMode::Conservative},
+    {NXVideoSetting::SystemFastGPUTime, "video", "use_fast_gpu_time", &videoSettings.global_use_fast_gpu_time, true},
+    {NXVideoSetting::SystemUseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.global_use_vulkan_driver_pipeline_cache, true, true},
+    {NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.global_use_video_framerate, false},
+    {NXVideoSetting::SystemBarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.global_barrier_feedback_loops, true, true},
+    {NXVideoSetting::SystemASTCRecompressionMethod, "video", "astc_recompression_method", &videoSettings.global_astc_recompression, AstcRecompression::Uncompressed},
+    {NXVideoSetting::SystemVRAMUsageMode, "video", "vram_usage_mode", &videoSettings.global_vram_usage_mode, VramUsageMode::Conservative},
+    {NXVideoSetting::GameUseDiskPipelineCache, "video", "use_disk_shader_cache", &videoSettings.use_disk_shader_cache, NXVideoSetting::SystemUseDiskPipelineCache},
+    {NXVideoSetting::GameUseAsynchronousGPUEmulation, "video", "use_asynchronous_gpu_emulation", &videoSettings.use_asynchronous_gpu_emulation, NXVideoSetting::SystemUseAsynchronousGPUEmulation},
+    {NXVideoSetting::GameAstcDecodeMode, "video", "astc_decode_mode", &videoSettings.accelerate_astc, NXVideoSetting::SystemAstcDecodeMode},
+    {NXVideoSetting::GameEnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.async_presentation, NXVideoSetting::SystemEnableAsynchronousPresentation},
+    {NXVideoSetting::GameEnableReactiveFlushing, "video", "use_reactive_flushing", &videoSettings.use_reactive_flushing, NXVideoSetting::SystemEnableReactiveFlushing},
+    {NXVideoSetting::GameAccuracyLevel, "video", "accuracy_level", &videoSettings.gpu_accuracy, NXVideoSetting::SystemAccuracyLevel},
+    {NXVideoSetting::GameAnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, NXVideoSetting::SystemAnisotropicFiltering},
+    {NXVideoSetting::GameDMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, NXVideoSetting::SystemDMAAccuracy},
+    {NXVideoSetting::GameGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, NXVideoSetting::SystemGpuCommandSynchronization},
+    {NXVideoSetting::GameVSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, NXVideoSetting::SystemVSyncMode},
+    {NXVideoSetting::GameNvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NXVideoSetting::SystemNvdecEmulation},
+    {NXVideoSetting::GameAspectRatio, "video", "aspect_ratio", &videoSettings.aspect_ratio, NXVideoSetting::SystemAspectRatio},
+    {NXVideoSetting::GameResolutionSetup, "video", "resolution_setup", &videoSettings.resolution_setup, NXVideoSetting::SystemResolutionSetup},
+    {NXVideoSetting::GameScalingFilter, "video", "scaling_filter", &videoSettings.scaling_filter, NXVideoSetting::SystemScalingFilter},
+    {NXVideoSetting::GameAntiAliasing, "video", "anti_aliasing", &videoSettings.anti_aliasing, NXVideoSetting::SystemAntiAliasing},
+    {NXVideoSetting::GameFSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.fsr_sharpening_slider, NXVideoSetting::SystemFSPSharpness},
+    {NXVideoSetting::GameForceMaximumClocks, "video", "renderer_force_max_clock", &videoSettings.renderer_force_max_clock, NXVideoSetting::SystemForceMaximumClocks},
+    {NXVideoSetting::GameUseAsynchronousShaderBuilding, "video", "use_asynchronous_shaders", &videoSettings.use_asynchronous_shaders, NXVideoSetting::SystemUseAsynchronousShaderBuilding},
+    {NXVideoSetting::GameFastGPUTime, "video", "use_fast_gpu_time", &videoSettings.use_fast_gpu_time, NXVideoSetting::SystemFastGPUTime},
+    {NXVideoSetting::GameUseVulkanPipelineCache, "video", "use_vulkan_driver_pipeline_cache", &videoSettings.use_vulkan_driver_pipeline_cache, NXVideoSetting::SystemUseVulkanPipelineCache},
+    {NXVideoSetting::GameSyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, NXVideoSetting::SystemSyncToFramerateOfVideoPlayback},
+    {NXVideoSetting::GameBarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, NXVideoSetting::SystemBarrierFeedbackLoops},
+    {NXVideoSetting::GameASTCRecompressionMethod, "video", "astc_recompression_method", &videoSettings.astc_recompression, NXVideoSetting::SystemASTCRecompressionMethod},
+    {NXVideoSetting::GameVRAMUsageMode, "video", "vram_usage_mode", &videoSettings.vram_usage_mode, NXVideoSetting::SystemVRAMUsageMode},
 };
 } // namespace
 
 namespace
 {
+StoreKind StoreKindOf(const VideoSetting & videoSetting)
+{
+    return videoSetting.settingType == SettingType::Boolean ? StoreKind::Bool : StoreKind::Int;
+}
+
+bool IsPersisted(const VideoSetting & /*videoSetting*/)
+{
+    return true;
+}
+
+JsonValue JsonSettingValue(const VideoSetting & videoSetting, const JsonValue & root)
+{
+    const JsonValue & section = root[videoSetting.json_section];
+    return section.isObject() ? section[videoSetting.json_key] : JsonValue();
+}
+
+void SetJsonSettingValue(const VideoSetting & videoSetting, JsonValue & root, const JsonValue & value)
+{
+    root[videoSetting.json_section][videoSetting.json_key] = value;
+}
+
+void InheritFallback(VideoSetting & videoSetting, const VideoSetting & fallbackSetting)
+{
+    videoSetting.defaults = fallbackSetting.defaults;
+    videoSetting.debugSetting = fallbackSetting.debugSetting;
+    videoSetting.minValue = fallbackSetting.minValue;
+    videoSetting.maxValue = fallbackSetting.maxValue;
+}
+
 void ApplyRangedInt(VideoSetting & videoSetting, int32_t value)
 {
     if (value == static_cast<int32_t>(RetiredMetalFxFilter) &&
@@ -307,92 +377,90 @@ void ApplyRangedInt(VideoSetting & videoSetting, int32_t value)
     *videoSetting.value.intValue = std::clamp(value, videoSetting.minValue, videoSetting.maxValue);
 }
 
+void LoadStoreSetting(const VideoSetting & videoSetting, const char * setting)
+{
+    switch (videoSetting.settingType)
+    {
+    case SettingType::Boolean:
+        *videoSetting.value.boolValue = g_settings->GetBool(setting);
+        break;
+    case SettingType::IntValue:
+        *videoSetting.value.intValue = g_settings->GetInt(setting);
+        break;
+    case SettingType::IntValueRanged:
+        ApplyRangedInt(const_cast<VideoSetting &>(videoSetting), g_settings->GetInt(setting));
+        break;
+    case SettingType::RendererBackend:
+        *videoSetting.value.rendererBackend = (RendererBackend)g_settings->GetInt(setting);
+        break;
+    case SettingType::ShaderBackend:
+        *videoSetting.value.shaderBackend = (ShaderBackend)g_settings->GetInt(setting);
+        break;
+    case SettingType::AstcDecodeMode:
+        *videoSetting.value.astcDecodeMode = (AstcDecodeMode)g_settings->GetInt(setting);
+        break;
+    case SettingType::VSyncMode:
+        *videoSetting.value.vSyncMode = (VSyncMode)g_settings->GetInt(setting);
+        break;
+    case SettingType::NvdecEmulation:
+        *videoSetting.value.nvdecEmulation = (NvdecEmulation)g_settings->GetInt(setting);
+        break;
+    case SettingType::FullscreenMode:
+        *videoSetting.value.fullscreenMode = (FullscreenMode)g_settings->GetInt(setting);
+        break;
+    case SettingType::AspectRatio:
+        *videoSetting.value.aspectRatio = (AspectRatio)g_settings->GetInt(setting);
+        break;
+    case SettingType::ResolutionSetup:
+        *videoSetting.value.resolutionSetup = (ResolutionSetup)g_settings->GetInt(setting);
+        break;
+    case SettingType::ScalingFilter:
+        *videoSetting.value.scalingFilter = (ScalingFilter)g_settings->GetInt(setting);
+        break;
+    case SettingType::AntiAliasing:
+        *videoSetting.value.antiAliasing = (AntiAliasing)g_settings->GetInt(setting);
+        break;
+    case SettingType::GpuAccuracy:
+        *videoSetting.value.gpuAccuracy = (GpuAccuracy)g_settings->GetInt(setting);
+        break;
+    case SettingType::AnisotropyMode:
+        *videoSetting.value.anisotropyMode = (AnisotropyMode)g_settings->GetInt(setting);
+        break;
+    case SettingType::AstcRecompression:
+        *videoSetting.value.astcRecompression = (AstcRecompression)g_settings->GetInt(setting);
+        break;
+    case SettingType::VramUsageMode:
+        *videoSetting.value.vramUsageMode = (VramUsageMode)g_settings->GetInt(setting);
+        break;
+    default:
+        UNIMPLEMENTED();
+    }
+}
+
 } // namespace
 
 void VideoSettingChanged(const char * setting, void * /*userData*/)
 {
-    for (const VideoSetting & videoSetting : settings)
+    ModuleSettingTable::SettingChanged(settings, setting);
+    if (strcmp(setting, NXVideoSetting::GameDMAAccuracy) == 0)
     {
-        if (strcmp(videoSetting.identifier, setting) != 0)
-        {
-            continue;
-        }
-        switch (videoSetting.settingType)
-        {
-        case SettingType::Boolean:
-            *videoSetting.value.boolValue = g_settings->GetBool(setting);
-            break;
-        case SettingType::IntValue:
-            *videoSetting.value.intValue = g_settings->GetInt(setting);
-            break;
-        case SettingType::IntValueRanged:
-            ApplyRangedInt(const_cast<VideoSetting &>(videoSetting), g_settings->GetInt(setting));
-            break;
-        case SettingType::RendererBackend:
-            *videoSetting.value.rendererBackend = (RendererBackend)g_settings->GetInt(setting);
-            break;
-        case SettingType::ShaderBackend:
-            *videoSetting.value.shaderBackend = (ShaderBackend)g_settings->GetInt(setting);
-            break;
-        case SettingType::AstcDecodeMode:
-            *videoSetting.value.astcDecodeMode = (AstcDecodeMode)g_settings->GetInt(setting);
-            break;
-        case SettingType::VSyncMode:
-            *videoSetting.value.vSyncMode = (VSyncMode)g_settings->GetInt(setting);
-            break;
-        case SettingType::NvdecEmulation:
-            *videoSetting.value.nvdecEmulation = (NvdecEmulation)g_settings->GetInt(setting);
-            break;
-        case SettingType::FullscreenMode:
-            *videoSetting.value.fullscreenMode = (FullscreenMode)g_settings->GetInt(setting);
-            break;
-        case SettingType::AspectRatio:
-            *videoSetting.value.aspectRatio = (AspectRatio)g_settings->GetInt(setting);
-            break;
-        case SettingType::ResolutionSetup:
-            *videoSetting.value.resolutionSetup = (ResolutionSetup)g_settings->GetInt(setting);
-            break;
-        case SettingType::ScalingFilter:
-            *videoSetting.value.scalingFilter = (ScalingFilter)g_settings->GetInt(setting);
-            break;
-        case SettingType::AntiAliasing:
-            *videoSetting.value.antiAliasing = (AntiAliasing)g_settings->GetInt(setting);
-            break;
-        case SettingType::GpuAccuracy:
-            *videoSetting.value.gpuAccuracy = (GpuAccuracy)g_settings->GetInt(setting);
-            break;
-        case SettingType::AnisotropyMode:
-            *videoSetting.value.anisotropyMode = (AnisotropyMode)g_settings->GetInt(setting);
-            break;
-        case SettingType::AstcRecompression:
-            *videoSetting.value.astcRecompression = (AstcRecompression)g_settings->GetInt(setting);
-            break;
-        case SettingType::VramUsageMode:
-            *videoSetting.value.vramUsageMode = (VramUsageMode)g_settings->GetInt(setting);
-            break;
-        default:
-            UNIMPLEMENTED();
-        }
-        if (strcmp(setting, NXVideoSetting::DMAAccuracy) == 0)
-        {
-            runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
-            return;
-        }
-        if (strcmp(setting, NXVideoSetting::FsrLegacyBenchmark) == 0)
-        {
-            runtime_fsr_legacy.store(videoSettings.fsr_legacy_benchmark, std::memory_order_relaxed);
-            return;
-        }
-        if (strcmp(setting, NXVideoSetting::GpuCommandSynchronization) == 0)
-        {
-            runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
-            return;
-        }
-        if (strcmp(setting, NXVideoSetting::FastGpuReadback) == 0)
-        {
-            runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
-            return;
-        }
+        runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::FsrLegacyBenchmark) == 0)
+    {
+        runtime_fsr_legacy.store(videoSettings.fsr_legacy_benchmark, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GameGpuCommandSynchronization) == 0)
+    {
+        runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::FastGpuReadback) == 0)
+    {
+        runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
+        return;
     }
     Settings::UpdateRescalingInfo();
     Settings::UpdateGPUAccuracy();
@@ -457,225 +525,313 @@ void ApplyDefault(const VideoSetting & videoSetting)
         UNIMPLEMENTED();
     }
 }
+
+void ReadJsonSetting(const VideoSetting & videoSetting, const JsonValue & root)
+{
+    const JsonValue value = JsonSettingValue(videoSetting, root);
+    switch (videoSetting.settingType)
+    {
+    case SettingType::Boolean:
+        if (value.isBool())
+        {
+            *videoSetting.value.boolValue = value.asBool();
+        }
+        break;
+    case SettingType::IntValue:
+        if (value.isInt())
+        {
+            *videoSetting.value.intValue = (int32_t)value.asInt64();
+        }
+        break;
+    case SettingType::IntValueRanged:
+        if (value.isInt())
+        {
+            ApplyRangedInt(const_cast<VideoSetting &>(videoSetting), (int32_t)value.asInt64());
+        }
+        break;
+    case SettingType::RendererBackend:
+        if (value.isString())
+        {
+            *videoSetting.value.rendererBackend = RendererBackendFromString(value.asString());
+        }
+        break;
+    case SettingType::ShaderBackend:
+        if (value.isString())
+        {
+            *videoSetting.value.shaderBackend = ShaderBackendFromString(value.asString());
+        }
+        break;
+    case SettingType::AstcDecodeMode:
+        if (value.isString())
+        {
+            *videoSetting.value.astcDecodeMode = AstcDecodeModeFromString(value.asString());
+        }
+        break;
+    case SettingType::VSyncMode:
+        if (value.isString())
+        {
+            *videoSetting.value.vSyncMode = VSyncModeFromString(value.asString());
+        }
+        break;
+    case SettingType::NvdecEmulation:
+        if (value.isString())
+        {
+            *videoSetting.value.nvdecEmulation = NvdecEmulationFromString(value.asString());
+        }
+        break;
+    case SettingType::FullscreenMode:
+        if (value.isString())
+        {
+            *videoSetting.value.fullscreenMode = FullscreenModeFromString(value.asString());
+        }
+        break;
+    case SettingType::AspectRatio:
+        if (value.isString())
+        {
+            *videoSetting.value.aspectRatio = AspectRatioFromString(value.asString());
+        }
+        break;
+    case SettingType::ResolutionSetup:
+        if (value.isString())
+        {
+            *videoSetting.value.resolutionSetup = ResolutionSetupFromString(value.asString());
+        }
+        break;
+    case SettingType::ScalingFilter:
+        if (value.isString())
+        {
+            *videoSetting.value.scalingFilter = ScalingFilterFromString(value.asString());
+        }
+        break;
+    case SettingType::AntiAliasing:
+        if (value.isString())
+        {
+            *videoSetting.value.antiAliasing = AntiAliasingFromString(value.asString());
+        }
+        break;
+    case SettingType::GpuAccuracy:
+        if (value.isString())
+        {
+            *videoSetting.value.gpuAccuracy = GpuAccuracyFromString(value.asString());
+        }
+        break;
+    case SettingType::AnisotropyMode:
+        if (value.isString())
+        {
+            *videoSetting.value.anisotropyMode = AnisotropyModeFromString(value.asString());
+        }
+        break;
+    case SettingType::AstcRecompression:
+        if (value.isString())
+        {
+            *videoSetting.value.astcRecompression = AstcRecompressionFromString(value.asString());
+        }
+        break;
+    case SettingType::VramUsageMode:
+        if (value.isString())
+        {
+            *videoSetting.value.vramUsageMode = VramUsageModeFromString(value.asString());
+        }
+        break;
+    default:
+        UNIMPLEMENTED();
+    }
+}
+
+void StoreSetting(const VideoSetting & videoSetting)
+{
+    switch (videoSetting.settingType)
+    {
+    case SettingType::Boolean:
+        g_settings->SetDefaultBool(videoSetting.identifier, videoSetting.defaults.boolValue);
+        g_settings->SetBool(videoSetting.identifier, *videoSetting.value.boolValue);
+        break;
+    case SettingType::IntValue:
+        g_settings->SetDefaultInt(videoSetting.identifier, videoSetting.defaults.intValue);
+        g_settings->SetInt(videoSetting.identifier, *videoSetting.value.intValue);
+        break;
+    case SettingType::IntValueRanged:
+        g_settings->SetDefaultInt(videoSetting.identifier, videoSetting.defaults.intValue);
+        ApplyRangedInt(const_cast<VideoSetting &>(videoSetting), *videoSetting.value.intValue);
+        g_settings->SetInt(videoSetting.identifier, *videoSetting.value.intValue);
+        break;
+    case SettingType::RendererBackend:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.rendererBackend);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.rendererBackend);
+        break;
+    case SettingType::ShaderBackend:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.shaderBackend);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.shaderBackend);
+        break;
+    case SettingType::AstcDecodeMode:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.astcDecodeMode);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.astcDecodeMode);
+        break;
+    case SettingType::VSyncMode:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.vSyncMode);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.vSyncMode);
+        break;
+    case SettingType::NvdecEmulation:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.nvdecEmulation);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.nvdecEmulation);
+        break;
+    case SettingType::FullscreenMode:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.fullscreenMode);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.fullscreenMode);
+        break;
+    case SettingType::AspectRatio:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.aspectRatio);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.aspectRatio);
+        break;
+    case SettingType::ResolutionSetup:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.resolutionSetup);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.resolutionSetup);
+        break;
+    case SettingType::ScalingFilter:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.scalingFilter);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.scalingFilter);
+        break;
+    case SettingType::AntiAliasing:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.antiAliasing);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.antiAliasing);
+        break;
+    case SettingType::GpuAccuracy:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.gpuAccuracy);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.gpuAccuracy);
+        break;
+    case SettingType::AnisotropyMode:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.anisotropyMode);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.anisotropyMode);
+        break;
+    case SettingType::AstcRecompression:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.astcRecompression);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.astcRecompression);
+        break;
+    case SettingType::VramUsageMode:
+        g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.vramUsageMode);
+        g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.vramUsageMode);
+        break;
+    default:
+        UNIMPLEMENTED();
+    }
+}
+
+void WriteJsonSetting(const VideoSetting & videoSetting, JsonValue & root, bool always)
+{
+    switch (videoSetting.settingType)
+    {
+    case SettingType::Boolean:
+        if (always || *videoSetting.value.boolValue != videoSetting.defaults.boolValue)
+        {
+            SetJsonSettingValue(videoSetting, root, *videoSetting.value.boolValue);
+        }
+        break;
+    case SettingType::IntValue:
+    case SettingType::IntValueRanged:
+        if (always || *videoSetting.value.intValue != videoSetting.defaults.intValue)
+        {
+            SetJsonSettingValue(videoSetting, root, *videoSetting.value.intValue);
+        }
+        break;
+    case SettingType::RendererBackend:
+        if (always || *videoSetting.value.rendererBackend != videoSetting.defaults.rendererBackend)
+        {
+            SetJsonSettingValue(videoSetting, root, RendererBackendToString(*videoSetting.value.rendererBackend));
+        }
+        break;
+    case SettingType::ShaderBackend:
+        if (always || *videoSetting.value.shaderBackend != videoSetting.defaults.shaderBackend)
+        {
+            SetJsonSettingValue(videoSetting, root, ShaderBackendToString(*videoSetting.value.shaderBackend));
+        }
+        break;
+    case SettingType::AstcDecodeMode:
+        if (always || *videoSetting.value.astcDecodeMode != videoSetting.defaults.astcDecodeMode)
+        {
+            SetJsonSettingValue(videoSetting, root, AstcDecodeModeToString(*videoSetting.value.astcDecodeMode));
+        }
+        break;
+    case SettingType::VSyncMode:
+        if (always || *videoSetting.value.vSyncMode != videoSetting.defaults.vSyncMode)
+        {
+            SetJsonSettingValue(videoSetting, root, VSyncModeToString(*videoSetting.value.vSyncMode));
+        }
+        break;
+    case SettingType::NvdecEmulation:
+        if (always || *videoSetting.value.nvdecEmulation != videoSetting.defaults.nvdecEmulation)
+        {
+            SetJsonSettingValue(videoSetting, root, NvdecEmulationToString(*videoSetting.value.nvdecEmulation));
+        }
+        break;
+    case SettingType::FullscreenMode:
+        if (always || *videoSetting.value.fullscreenMode != videoSetting.defaults.fullscreenMode)
+        {
+            SetJsonSettingValue(videoSetting, root, FullscreenModeToString(*videoSetting.value.fullscreenMode));
+        }
+        break;
+    case SettingType::AspectRatio:
+        if (always || *videoSetting.value.aspectRatio != videoSetting.defaults.aspectRatio)
+        {
+            SetJsonSettingValue(videoSetting, root, AspectRatioToString(*videoSetting.value.aspectRatio));
+        }
+        break;
+    case SettingType::ResolutionSetup:
+        if (always || *videoSetting.value.resolutionSetup != videoSetting.defaults.resolutionSetup)
+        {
+            SetJsonSettingValue(videoSetting, root, ResolutionSetupToString(*videoSetting.value.resolutionSetup));
+        }
+        break;
+    case SettingType::ScalingFilter:
+        if (always || *videoSetting.value.scalingFilter != videoSetting.defaults.scalingFilter)
+        {
+            SetJsonSettingValue(videoSetting, root, ScalingFilterToString(*videoSetting.value.scalingFilter));
+        }
+        break;
+    case SettingType::AntiAliasing:
+        if (always || *videoSetting.value.antiAliasing != videoSetting.defaults.antiAliasing)
+        {
+            SetJsonSettingValue(videoSetting, root, AntiAliasingToString(*videoSetting.value.antiAliasing));
+        }
+        break;
+    case SettingType::GpuAccuracy:
+        if (always || *videoSetting.value.gpuAccuracy != videoSetting.defaults.gpuAccuracy)
+        {
+            SetJsonSettingValue(videoSetting, root, GpuAccuracyToString(*videoSetting.value.gpuAccuracy));
+        }
+        break;
+    case SettingType::AnisotropyMode:
+        if (always || *videoSetting.value.anisotropyMode != videoSetting.defaults.anisotropyMode)
+        {
+            SetJsonSettingValue(videoSetting, root, AnisotropyModeToString(*videoSetting.value.anisotropyMode));
+        }
+        break;
+    case SettingType::AstcRecompression:
+        if (always || *videoSetting.value.astcRecompression != videoSetting.defaults.astcRecompression)
+        {
+            SetJsonSettingValue(videoSetting, root, AstcRecompressionToString(*videoSetting.value.astcRecompression));
+        }
+        break;
+    case SettingType::VramUsageMode:
+        if (always || *videoSetting.value.vramUsageMode != videoSetting.defaults.vramUsageMode)
+        {
+            SetJsonSettingValue(videoSetting, root, VramUsageModeToString(*videoSetting.value.vramUsageMode));
+        }
+        break;
+    default:
+        UNIMPLEMENTED();
+    }
+}
+
+void GameSettingsChanged(const char * /*setting*/, void * /*userData*/)
+{
+    ModuleSettingTable::LoadGameSettings(settings, "nxemu-video");
+}
+
 } // namespace
 
 void SetupVideoSetting(void)
 {
-    for (const VideoSetting & videoSetting : settings)
-    {
-        ApplyDefault(videoSetting);
-    }
-
-    JsonValue root;
-    JsonReader reader;
-    std::string json = g_settings->GetSectionSettings("nxemu-video");
-
-    if (!json.empty() && reader.Parse(json.data(), json.data() + json.size(), root))
-    {
-        for (const VideoSetting & videoSetting : settings)
-        {
-            JsonValue section = root[videoSetting.json_section];
-            if (!section.isObject())
-            {
-                continue;
-            }
-            JsonValue value = section[videoSetting.json_key];
-            switch (videoSetting.settingType)
-            {
-            case SettingType::Boolean:
-                if (value.isBool())
-                {
-                    *videoSetting.value.boolValue = value.asBool();
-                }
-                break;
-            case SettingType::IntValue:
-                if (value.isInt())
-                {
-                    *videoSetting.value.intValue = (int32_t)value.asInt64();
-                }
-                break;
-            case SettingType::IntValueRanged:
-                if (value.isInt())
-                {
-                    ApplyRangedInt(const_cast<VideoSetting &>(videoSetting), (int32_t)value.asInt64());
-                }
-                break;
-            case SettingType::RendererBackend:
-                if (value.isString())
-                {
-                    *videoSetting.value.rendererBackend = RendererBackendFromString(value.asString());
-                }
-                break;
-            case SettingType::ShaderBackend:
-                if (value.isString())
-                {
-                    *videoSetting.value.shaderBackend = ShaderBackendFromString(value.asString());
-                }
-                break;
-            case SettingType::AstcDecodeMode:
-                if (value.isString())
-                {
-                    *videoSetting.value.astcDecodeMode = AstcDecodeModeFromString(value.asString());
-                }
-                break;
-            case SettingType::VSyncMode:
-                if (value.isString())
-                {
-                    *videoSetting.value.vSyncMode = VSyncModeFromString(value.asString());
-                }
-                break;
-            case SettingType::NvdecEmulation:
-                if (value.isString())
-                {
-                    *videoSetting.value.nvdecEmulation = NvdecEmulationFromString(value.asString());
-                }
-                break;
-            case SettingType::FullscreenMode:
-                if (value.isString())
-                {
-                    *videoSetting.value.fullscreenMode = FullscreenModeFromString(value.asString());
-                }
-                break;
-            case SettingType::AspectRatio:
-                if (value.isString())
-                {
-                    *videoSetting.value.aspectRatio = AspectRatioFromString(value.asString());
-                }
-                break;
-            case SettingType::ResolutionSetup:
-                if (value.isString())
-                {
-                    *videoSetting.value.resolutionSetup = ResolutionSetupFromString(value.asString());
-                }
-                break;
-            case SettingType::ScalingFilter:
-                if (value.isString())
-                {
-                    *videoSetting.value.scalingFilter = ScalingFilterFromString(value.asString());
-                }
-                break;
-            case SettingType::AntiAliasing:
-                if (value.isString())
-                {
-                    *videoSetting.value.antiAliasing = AntiAliasingFromString(value.asString());
-                }
-                break;
-            case SettingType::GpuAccuracy:
-                if (value.isString())
-                {
-                    *videoSetting.value.gpuAccuracy = GpuAccuracyFromString(value.asString());
-                }
-                break;
-            case SettingType::AnisotropyMode:
-                if (value.isString())
-                {
-                    *videoSetting.value.anisotropyMode = AnisotropyModeFromString(value.asString());
-                }
-                break;
-            case SettingType::AstcRecompression:
-                if (value.isString())
-                {
-                    *videoSetting.value.astcRecompression = AstcRecompressionFromString(value.asString());
-                }
-                break;
-            case SettingType::VramUsageMode:
-                if (value.isString())
-                {
-                    *videoSetting.value.vramUsageMode = VramUsageModeFromString(value.asString());
-                }
-                break;
-            default:
-                UNIMPLEMENTED();
-            }
-        }
-    }
-
-    for (const VideoSetting & videoSetting : settings)
-    {
-        switch (videoSetting.settingType)
-        {
-        case SettingType::Boolean:
-            g_settings->SetDefaultBool(videoSetting.identifier, videoSetting.defaults.boolValue);
-            g_settings->SetBool(videoSetting.identifier, *videoSetting.value.boolValue);
-            break;
-        case SettingType::IntValue:
-            g_settings->SetDefaultInt(videoSetting.identifier, videoSetting.defaults.intValue);
-            g_settings->SetInt(videoSetting.identifier, *videoSetting.value.intValue);
-            break;
-        case SettingType::IntValueRanged:
-            g_settings->SetDefaultInt(videoSetting.identifier, videoSetting.defaults.intValue);
-            ApplyRangedInt(const_cast<VideoSetting &>(videoSetting), *videoSetting.value.intValue);
-            g_settings->SetInt(videoSetting.identifier, *videoSetting.value.intValue);
-            break;
-        case SettingType::RendererBackend:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.rendererBackend);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.rendererBackend);
-            break;
-        case SettingType::ShaderBackend:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.shaderBackend);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.shaderBackend);
-            break;
-        case SettingType::AstcDecodeMode:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.astcDecodeMode);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.astcDecodeMode);
-            break;
-        case SettingType::VSyncMode:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.vSyncMode);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.vSyncMode);
-            break;
-        case SettingType::NvdecEmulation:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.nvdecEmulation);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.nvdecEmulation);
-            break;
-        case SettingType::FullscreenMode:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.fullscreenMode);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.fullscreenMode);
-            break;
-        case SettingType::AspectRatio:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.aspectRatio);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.aspectRatio);
-            break;
-        case SettingType::ResolutionSetup:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.resolutionSetup);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.resolutionSetup);
-            break;
-        case SettingType::ScalingFilter:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.scalingFilter);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.scalingFilter);
-            break;
-        case SettingType::AntiAliasing:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.antiAliasing);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.antiAliasing);
-            break;
-        case SettingType::GpuAccuracy:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.gpuAccuracy);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.gpuAccuracy);
-            break;
-        case SettingType::AnisotropyMode:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.anisotropyMode);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.anisotropyMode);
-            break;
-        case SettingType::AstcRecompression:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.astcRecompression);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.astcRecompression);
-            break;
-        case SettingType::VramUsageMode:
-            g_settings->SetDefaultInt(videoSetting.identifier, (int32_t)videoSetting.defaults.vramUsageMode);
-            g_settings->SetInt(videoSetting.identifier, (int32_t)*videoSetting.value.vramUsageMode);
-            break;
-        default:
-            UNIMPLEMENTED();
-        }
-        g_settings->SetDebugSetting(videoSetting.identifier, videoSetting.debugSetting);
-        g_settings->RegisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
-    }
-    for (const VideoSetting & videoSetting : settings)
-    {
-        if (videoSetting.debugSetting && !g_settings->DebugSettingsEnabled())
-        {
-            ApplyDefault(videoSetting);
-        }
-    }
+    ModuleSettingTable::SetupSettings(settings, "nxemu-video", VideoSettingChanged, GameSettingsChanged);
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
     runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
@@ -685,149 +841,12 @@ void SetupVideoSetting(void)
 
 void CleanupVideoSetting(void)
 {
-    for (const VideoSetting & videoSetting : settings)
-    {
-        g_settings->UnregisterCallback(videoSetting.identifier, VideoSettingChanged, nullptr);
-    }
+    ModuleSettingTable::CleanupSettings(settings, VideoSettingChanged, GameSettingsChanged);
 }
 
 void SaveVideoSettings(void)
 {
-    typedef std::map<std::string, JsonValue> SectionMap;
-    SectionMap sections;
-
-    JsonValue saved;
-    const std::string savedJson = g_settings->GetSectionSettings("nxemu-video");
-    JsonReader reader;
-    if (savedJson.empty() || !reader.Parse(savedJson.data(), savedJson.data() + savedJson.size(), saved) || !saved.isObject())
-    {
-        saved = JsonValue();
-    }
-
-    for (const VideoSetting & videoSetting : settings)
-    {
-        if (videoSetting.debugSetting && !g_settings->DebugSettingsEnabled())
-        {
-            const JsonValue & section = saved[videoSetting.json_section];
-            if (section.isObject() && section.isMember(videoSetting.json_key))
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = section[videoSetting.json_key];
-            }
-            continue;
-        }
-        switch (videoSetting.settingType)
-        {
-        case SettingType::Boolean:
-            if (*videoSetting.value.boolValue != videoSetting.defaults.boolValue)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = *videoSetting.value.boolValue;
-            }
-            break;
-        case SettingType::IntValue:
-        case SettingType::IntValueRanged:
-            if (*videoSetting.value.intValue != videoSetting.defaults.intValue)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = *videoSetting.value.intValue;
-            }
-            break;
-        case SettingType::RendererBackend:
-            if (*videoSetting.value.rendererBackend != videoSetting.defaults.rendererBackend)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = RendererBackendToString(*videoSetting.value.rendererBackend);
-            }
-            break;
-        case SettingType::ShaderBackend:
-            if (*videoSetting.value.shaderBackend != videoSetting.defaults.shaderBackend)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = ShaderBackendToString(*videoSetting.value.shaderBackend);
-            }
-            break;
-        case SettingType::AstcDecodeMode:
-            if (*videoSetting.value.astcDecodeMode != videoSetting.defaults.astcDecodeMode)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = AstcDecodeModeToString(*videoSetting.value.astcDecodeMode);
-            }
-            break;
-        case SettingType::VSyncMode:
-            if (*videoSetting.value.vSyncMode != videoSetting.defaults.vSyncMode)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = VSyncModeToString(*videoSetting.value.vSyncMode);
-            }
-            break;
-        case SettingType::NvdecEmulation:
-            if (*videoSetting.value.nvdecEmulation != videoSetting.defaults.nvdecEmulation)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = NvdecEmulationToString(*videoSetting.value.nvdecEmulation);
-            }
-            break;
-        case SettingType::FullscreenMode:
-            if (*videoSetting.value.fullscreenMode != videoSetting.defaults.fullscreenMode)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = FullscreenModeToString(*videoSetting.value.fullscreenMode);
-            }
-            break;
-        case SettingType::AspectRatio:
-            if (*videoSetting.value.aspectRatio != videoSetting.defaults.aspectRatio)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = AspectRatioToString(*videoSetting.value.aspectRatio);
-            }
-            break;
-        case SettingType::ResolutionSetup:
-            if (*videoSetting.value.resolutionSetup != videoSetting.defaults.resolutionSetup)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = ResolutionSetupToString(*videoSetting.value.resolutionSetup);
-            }
-            break;
-        case SettingType::ScalingFilter:
-            if (*videoSetting.value.scalingFilter != videoSetting.defaults.scalingFilter)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = ScalingFilterToString(*videoSetting.value.scalingFilter);
-            }
-            break;
-        case SettingType::AntiAliasing:
-            if (*videoSetting.value.antiAliasing != videoSetting.defaults.antiAliasing)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = AntiAliasingToString(*videoSetting.value.antiAliasing);
-            }
-            break;
-        case SettingType::GpuAccuracy:
-            if (*videoSetting.value.gpuAccuracy != videoSetting.defaults.gpuAccuracy)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = GpuAccuracyToString(*videoSetting.value.gpuAccuracy);
-            }
-            break;
-        case SettingType::AnisotropyMode:
-            if (*videoSetting.value.anisotropyMode != videoSetting.defaults.anisotropyMode)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = AnisotropyModeToString(*videoSetting.value.anisotropyMode);
-            }
-            break;
-        case SettingType::AstcRecompression:
-            if (*videoSetting.value.astcRecompression != videoSetting.defaults.astcRecompression)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = AstcRecompressionToString(*videoSetting.value.astcRecompression);
-            }
-            break;
-        case SettingType::VramUsageMode:
-            if (*videoSetting.value.vramUsageMode != videoSetting.defaults.vramUsageMode)
-            {
-                sections[videoSetting.json_section][videoSetting.json_key] = VramUsageModeToString(*videoSetting.value.vramUsageMode);
-            }
-            break;
-        default:
-            UNIMPLEMENTED();
-        }
-    }
-
-    JsonValue json;
-    for (SectionMap::const_iterator it = sections.begin(); it != sections.end(); ++it)
-    {
-        if (it->second.size() > 0)
-        {
-            json[it->first] = it->second;
-        }
-    }
-    g_settings->SetSectionSettings("nxemu-video", json.isNull() ? "" : JsonStyledWriter().write(json).c_str());
+    ModuleSettingTable::SaveSettings(settings, "nxemu-video");
 }
 
 namespace
@@ -1019,5 +1038,82 @@ VideoSetting::VideoSetting(const char * id, const char * section, const char * k
 {
     defaults.vramUsageMode = defaultValue;
     value.vramUsageMode = val;
+}
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, bool * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, false)
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, int32_t * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, 0, 0, 0)
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AstcDecodeMode * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, AstcDecodeMode{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, VSyncMode * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, VSyncMode{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, NvdecEmulation * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, NvdecEmulation{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AspectRatio * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, AspectRatio{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ResolutionSetup * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, ResolutionSetup{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, ScalingFilter * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, ScalingFilter{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AntiAliasing * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, AntiAliasing{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, GpuAccuracy * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, GpuAccuracy{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AnisotropyMode * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, AnisotropyMode{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, AstcRecompression * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, AstcRecompression{})
+{
+    fallback = fallbackId;
+}
+
+VideoSetting::VideoSetting(const char * id, const char * section, const char * key, VramUsageMode * val, const char * fallbackId) :
+    VideoSetting(id, section, key, val, VramUsageMode{})
+{
+    fallback = fallbackId;
 }
 } // namespace

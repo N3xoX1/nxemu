@@ -57,24 +57,24 @@ struct Toggle
 };
 
 constexpr Toggle kToggles[] = {
-    {"gpu-sync", NXVideoSetting::GpuCommandSynchronization, Store::Module, true},
+    {"gpu-sync", NXVideoSetting::SystemGpuCommandSynchronization, Store::Module, true},
     {"fast-readback", NXVideoSetting::FastGpuReadback, Store::Module, true},
-    {"reactive-flushing", NXVideoSetting::EnableReactiveFlushing, Store::Module, false},
-    {"feedback-loops", NXVideoSetting::BarrierFeedbackLoops, Store::Module, false},
-    {"fast-gpu-time", NXVideoSetting::FastGPUTime, Store::Module, true},
-    {"video-framerate", NXVideoSetting::SyncToFramerateOfVideoPlayback, Store::Module, false},
-    {"disk-cache", NXVideoSetting::UseDiskPipelineCache, Store::Module, false},
+    {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
+    {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false},
+    {"fast-gpu-time", NXVideoSetting::SystemFastGPUTime, Store::Module, true},
+    {"video-framerate", NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, Store::Module, false},
+    {"disk-cache", NXVideoSetting::SystemUseDiskPipelineCache, Store::Module, false},
     {"record-recipes", NXVideoSetting::RecordShaderRecipes, Store::Module, false},
-    {"driver-cache", NXVideoSetting::UseVulkanPipelineCache, Store::Module, false},
-    {"async-shaders", NXVideoSetting::UseAsynchronousShaderBuilding, Store::Module, false},
-    {"async-gpu", NXVideoSetting::UseAsynchronousGPUEmulation, Store::Module, false},
-    {"async-present", NXVideoSetting::EnableAsynchronousPresentation, Store::Module, false},
-    {"max-clocks", NXVideoSetting::ForceMaximumClocks, Store::Module, false},
+    {"driver-cache", NXVideoSetting::SystemUseVulkanPipelineCache, Store::Module, false},
+    {"async-shaders", NXVideoSetting::SystemUseAsynchronousShaderBuilding, Store::Module, false},
+    {"async-gpu", NXVideoSetting::SystemUseAsynchronousGPUEmulation, Store::Module, false},
+    {"async-present", NXVideoSetting::SystemEnableAsynchronousPresentation, Store::Module, false},
+    {"max-clocks", NXVideoSetting::SystemForceMaximumClocks, Store::Module, false},
     {"limit", NXOsSetting::UseSpeedLimit, Store::Module, true},
-    {"multicore", NXOsSetting::UseMultiCore, Store::Module, false},
-    {"cpu-hle", NXOsSetting::CpuHleSynchronization, Store::Module, false},
-    {"vibration", NXOsSetting::VibrationEnabled, Store::Module, true},
-    {"accurate-vibration", NXOsSetting::EnableAccurateVibrations, Store::Module, true},
+    {"multicore", NXOsSetting::SystemUseMultiCore, Store::Module, false},
+    {"cpu-hle", NXOsSetting::SystemCpuHleSynchronization, Store::Module, false},
+    {"vibration", NXOsSetting::SystemVibrationEnabled, Store::Module, true},
+    {"accurate-vibration", NXOsSetting::SystemEnableAccurateVibrations, Store::Module, true},
     {"start-fullscreen", NXUISetting::StartGamesInFullscreen, Store::Interface, true},
     {"start-ui-hidden", NXUISetting::StartGamesWithUiHidden, Store::Interface, true},
     {"confirm-stop", NXUISetting::ConfirmBeforeStopping, Store::Interface, true},
@@ -177,7 +177,7 @@ Choices ProcessorEngines()
     Choices choices = {
         Numbered(Tr("Translated (Dynarmic)"), static_cast<int>(CpuBackend::Dynarmic), Tr("The code is translated for this computer's processor. Runs every game.")),
     };
-    if (SettingsStore::GetInstance().GetDefaultInt(NXCpuSetting::CpuBackend) == static_cast<int>(CpuBackend::Nce))
+    if (SettingsStore::GetInstance().GetDefaultInt(NXCpuSetting::SystemCpuBackend) == static_cast<int>(CpuBackend::Nce))
     {
         choices.insert(choices.begin(), Numbered(Tr("Native (NCE)"), static_cast<int>(CpuBackend::Nce), Tr("The code runs as it is on this computer's processor. The fastest; the games it cannot run are translated.")));
     }
@@ -237,17 +237,17 @@ constexpr List kLists[] = {
     {"nxshader-mode", NXVideoSetting::NXShaderWarmupMode, false, NXShaderModes},
     {"nxshader-minimum", NXVideoSetting::NXShaderInitialMinimum, false, NXShaderMinimums},
     {"nxshader-seconds", NXVideoSetting::NXShaderInitialSeconds, false, NXShaderDurations},
-    {"antialiasing", NXVideoSetting::AntiAliasing, true, AntiAliasings},
-    {"anisotropy", NXVideoSetting::AnisotropicFiltering, false, Anisotropies},
-    {"accuracy", NXVideoSetting::AccuracyLevel, true, Accuracies},
-    {"dma", NXVideoSetting::DMAAccuracy, true, MemoryReads},
-    {"astc", NXVideoSetting::AstcDecodeMode, false, AstcDecodings},
-    {"astc-recompression", NXVideoSetting::ASTCRecompressionMethod, false, AstcRecompressions},
-    {"vram", NXVideoSetting::VRAMUsageMode, false, VramUsages},
-    {"nvdec", NXVideoSetting::NvdecEmulation, false, VideoDecodings},
-    {"cpu-backend", NXCpuSetting::CpuBackend, false, ProcessorEngines},
-    {"cpu-accuracy", NXCpuSetting::CpuAccuracy, false, ProcessorAccuracies},
-    {"memory", NXOsSetting::MemoryLayout, false, Memories},
+    {"antialiasing", NXVideoSetting::SystemAntiAliasing, true, AntiAliasings},
+    {"anisotropy", NXVideoSetting::SystemAnisotropicFiltering, false, Anisotropies},
+    {"accuracy", NXVideoSetting::SystemAccuracyLevel, true, Accuracies},
+    {"dma", NXVideoSetting::SystemDMAAccuracy, true, MemoryReads},
+    {"astc", NXVideoSetting::SystemAstcDecodeMode, false, AstcDecodings},
+    {"astc-recompression", NXVideoSetting::SystemASTCRecompressionMethod, false, AstcRecompressions},
+    {"vram", NXVideoSetting::SystemVRAMUsageMode, false, VramUsages},
+    {"nvdec", NXVideoSetting::SystemNvdecEmulation, false, VideoDecodings},
+    {"cpu-backend", NXCpuSetting::SystemCpuBackend, false, ProcessorEngines},
+    {"cpu-accuracy", NXCpuSetting::SystemCpuAccuracy, false, ProcessorAccuracies},
+    {"memory", NXOsSetting::SystemMemoryLayout, false, Memories},
     {"applet-cabinet", NXOsSetting::CabinetAppletMode, false, AppletModes},
     {"applet-controller", NXOsSetting::ControllerAppletMode, false, AppletModes},
     {"applet-data-erase", NXOsSetting::DataEraseAppletMode, false, AppletModes},
@@ -285,12 +285,12 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     const std::string_view id = toggle.id;
     if (id == "cpu-hle")
     {
-        return !settings.GetBool(NXOsSetting::UseMultiCore);
+        return !settings.GetBool(NXOsSetting::SystemUseMultiCore);
     }
     if (id == "fast-readback")
     {
         // Normal accuracy already lets games read the results without waiting for the GPU.
-        return settings.GetInt(NXVideoSetting::AccuracyLevel) == static_cast<int>(GpuAccuracy::Normal);
+        return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) == static_cast<int>(GpuAccuracy::Normal);
     }
     return false;
 }
@@ -349,6 +349,7 @@ void AdvancedDialog::RefreshLanguage()
         return;
     }
     RefreshTranslation();
+    SetTitle(m_settings.Title());
     FillLists();
     ShowValues();
     m_changes.clear();
@@ -356,7 +357,8 @@ void AdvancedDialog::RefreshLanguage()
 
 void AdvancedDialog::OnOpen()
 {
-    m_running = m_session.IsRunning() && !m_settings.IsGame();
+    SetTitle(m_settings.Title());
+    m_running = m_session.IsRunning();
     m_logFilterLeft = false;
     if (m_settings.IsGame() && (m_tab == "application" || m_tab == "shortcuts")) m_tab = "graphics";
     if (m_settings.IsGame() && m_debugTab == "debug-log") m_debugTab = "debug-graphics";
@@ -406,7 +408,7 @@ void AdvancedDialog::OnUpdate()
         m_logFilterLeft = false;
         ApplyLogFilter();
     }
-    if (m_running != (m_session.IsRunning() && !m_settings.IsGame()))
+    if (m_running != m_session.IsRunning())
     {
         m_running = !m_running;
         ShowValues();
@@ -415,8 +417,9 @@ void AdvancedDialog::OnUpdate()
 
 void AdvancedDialog::OnCommand(const std::string & command)
 {
-    if (m_settings.InheritCommand(command))
+    if (m_settings.InheritCommand(command, [this](const char * setting) { return CanChange(setting); }))
     {
+        m_unsaved = true;
         FillLists();
         m_changes.clear();
         ShowValues();
@@ -517,7 +520,7 @@ void AdvancedDialog::OnCloseRequested()
     if (m_unsaved)
     {
         m_unsaved = false;
-        if (!m_settings.IsGame()) m_session.FlushSettings();
+        m_session.FlushSettings();
     }
     Close();
 }
@@ -603,7 +606,7 @@ void AdvancedDialog::FillLists()
     }
     Fill(Select(Document(), "audio-device"), choices, output.empty() ? kDefaultAudioDevice : output);
 
-    const int audioMode = settings.GetInt(NXOsSetting::AudioMode);
+    const int audioMode = settings.GetInt(NXOsSetting::SystemAudioMode);
     choices.clear();
     choices.push_back(Numbered(Tr("Stereo"), static_cast<int>(AudioMode::Stereo), Tr("Two channels: headphones and most speakers.")));
     choices.push_back(Numbered(Tr("Surround"), static_cast<int>(AudioMode::Surround), Tr("Six channels, for speakers set around the room.")));
@@ -774,16 +777,16 @@ void AdvancedDialog::ShowValues()
     }
     for (const List & list : kLists)
     {
-        const int selected = std::string_view{list.setting} == NXVideoSetting::AntiAliasing
+        const int selected = std::string_view{list.setting} == NXVideoSetting::SystemAntiAliasing
             ? static_cast<int>(EffectiveProfileAntiAliasing(
-                static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter)),
+                static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::SystemScalingFilter)),
                 static_cast<RendererBackend>(settings.GetInt(NXVideoSetting::GraphicsAPI)),
                 static_cast<AntiAliasing>(settings.GetInt(list.setting))))
             : settings.GetInt(list.setting);
         Choose(Select(Document(), list.id), std::to_string(selected));
         SetDisabled(Document(), list.id, m_running && !list.live);
     }
-    const int speed = std::clamp(settings.GetInt(NXOsSetting::SpeedLimit), kSpeedMin, kSpeedMax);
+    const int speed = std::clamp(settings.GetInt(NXOsSetting::SystemSpeedLimit), kSpeedMin, kSpeedMax);
     SetClass(Document(), "speed", "off", !settings.GetBool(NXOsSetting::UseSpeedLimit));
     SetRange(Document(), "speed-range", speed);
     SetText("speed-text", std::to_string(speed) + "%");
@@ -792,7 +795,7 @@ void AdvancedDialog::ShowValues()
     SetDisabled(Document(), "audio-input", m_running);
 
     ShowHotkeys();
-    m_settings.Decorate(Document());
+    m_settings.Decorate(Document(), [this](const char * setting) { return CanChange(setting); });
     auto * filter = rmlui_dynamic_cast<Rml::ElementFormControlInput *>(Document()->GetElementById("log-filter"));
     if (filter != nullptr && filter->GetValue() != settings.GetString(NXCoreSetting::LogFilter))
     {
@@ -823,9 +826,9 @@ void AdvancedDialog::ApplyChange(const std::string & id)
     const char * setting = nullptr;
     if (id == "audio-mode")
     {
-        if (value != settings.GetInt(NXOsSetting::AudioMode))
+        if (value != settings.GetInt(NXOsSetting::SystemAudioMode))
         {
-            settings.SetInt(NXOsSetting::AudioMode, value);
+            settings.SetInt(NXOsSetting::SystemAudioMode, value);
             m_unsaved = true;
         }
         return;
@@ -864,11 +867,11 @@ void AdvancedDialog::ApplyChange(const std::string & id)
     {
         // The slider shows a limit out of its reach at its end: that is not
         // the user choosing the end.
-        if (value == std::clamp(settings.GetInt(NXOsSetting::SpeedLimit), kSpeedMin, kSpeedMax))
+        if (value == std::clamp(settings.GetInt(NXOsSetting::SystemSpeedLimit), kSpeedMin, kSpeedMax))
         {
             return;
         }
-        setting = NXOsSetting::SpeedLimit;
+        setting = NXOsSetting::SystemSpeedLimit;
     }
     else
     {
@@ -879,8 +882,8 @@ void AdvancedDialog::ApplyChange(const std::string & id)
         }
         setting = list->setting;
     }
-    if (std::string_view{setting} == NXVideoSetting::AntiAliasing) {
-        const auto profile = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::ScalingFilter));
+    if (std::string_view{setting} == NXVideoSetting::SystemAntiAliasing) {
+        const auto profile = static_cast<ScalingFilter>(settings.GetInt(NXVideoSetting::SystemScalingFilter));
         if (IsAutomaticScalingFilter(profile)) {
             const auto effective = EffectiveProfileAntiAliasing(profile,
                 static_cast<RendererBackend>(settings.GetInt(NXVideoSetting::GraphicsAPI)),
@@ -900,6 +903,34 @@ void AdvancedDialog::ApplyChange(const std::string & id)
         m_unsaved = true;
         ShowValues();
     }
+}
+
+bool AdvancedDialog::CanChange(const char * setting) const
+{
+    if (IsDisabledDebugSetting(setting))
+    {
+        return false;
+    }
+    if (!m_running)
+    {
+        return true;
+    }
+    const std::string_view key(setting);
+    for (const Toggle & toggle : kToggles)
+    {
+        if (key == toggle.setting)
+        {
+            return toggle.live;
+        }
+    }
+    for (const List & list : kLists)
+    {
+        if (key == list.setting)
+        {
+            return list.live;
+        }
+    }
+    return key == NXOsSetting::SystemSpeedLimit || key == NXOsSetting::SystemAudioMode;
 }
 
 void AdvancedDialog::ApplyLogFilter()
@@ -925,7 +956,8 @@ void AdvancedDialog::RestoreDefaults()
 {
     if (m_settings.IsGame())
     {
-        m_settings.InheritAll();
+        m_settings.InheritAll([this](const char * setting) { return CanChange(setting); });
+        m_unsaved = true;
         FillLists();
         m_changes.clear();
         ShowValues();
@@ -948,8 +980,8 @@ void AdvancedDialog::RestoreDefaults()
             settings.SetInt(list.setting, settings.GetDefaultInt(list.setting));
         }
     }
-    settings.SetInt(NXOsSetting::SpeedLimit, settings.GetDefaultInt(NXOsSetting::SpeedLimit));
-    settings.SetInt(NXOsSetting::AudioMode, settings.GetDefaultInt(NXOsSetting::AudioMode));
+    settings.SetInt(NXOsSetting::SystemSpeedLimit, settings.GetDefaultInt(NXOsSetting::SystemSpeedLimit));
+    settings.SetInt(NXOsSetting::SystemAudioMode, settings.GetDefaultInt(NXOsSetting::SystemAudioMode));
     if (!IsDisabledDebugSetting(NXCoreSetting::LogFilter))
     {
         settings.SetString(NXCoreSetting::LogFilter, settings.GetDefaultString(NXCoreSetting::LogFilter));

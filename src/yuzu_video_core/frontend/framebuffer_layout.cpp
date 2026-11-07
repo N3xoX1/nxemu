@@ -56,7 +56,7 @@ FramebufferLayout DefaultFrameLayout(u32 width, u32 height)
 
 FramebufferLayout FrameLayoutFromResolutionScale(f32 res_scale)
 {
-    const bool is_docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    const bool is_docked = g_settings->GetInt(NXOsSetting::GameDockedMode) == static_cast<int32_t>(DockedMode::Docked);
     const u32 screen_width = is_docked ? ScreenDocked::Width : ScreenUndocked::Width;
     const u32 screen_height = is_docked ? ScreenDocked::Height : ScreenUndocked::Height;
 

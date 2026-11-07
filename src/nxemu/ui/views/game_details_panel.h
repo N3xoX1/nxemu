@@ -19,7 +19,7 @@ public:
 
     void Clear();
     void ShowGame(const std::string & title, const std::string & iconSource, const std::vector<Fact> & facts);
-    void ShowDetails(const GameDetails * details, bool locked);
+    void ShowDetails(const GameDetails * details, bool locked, bool canConfigure);
 
 private:
     GameDetailsPanel(const GameDetailsPanel &) = delete;

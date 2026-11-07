@@ -123,7 +123,7 @@ namespace
         { NXCoreSetting::GpuCustomDriverDir, "", nullptr, &coreSettings.gpuCustomDriverDir, "" },
         { NXCoreSetting::GpuCustomDriverName, "", nullptr, &coreSettings.gpuCustomDriverName, "" },
         { NXCoreSetting::GpuFileRedirectDir, "", nullptr, &coreSettings.gpuFileRedirectDir, "" },
-        { NXCoreSetting::LanguageIndex, "", "ConsoleLanguage", &coreSettings.languageIndex, LanguageEnglishAmerican, LanguageNames, static_cast<int32_t>(std::size(LanguageNames)) },
+        { NXCoreSetting::SystemLanguageIndex, "", "ConsoleLanguage", &coreSettings.languageIndex, LanguageEnglishAmerican, LanguageNames, static_cast<int32_t>(std::size(LanguageNames)) },
     };
 
     void ApplyDefault(const CoreSetting & setting)

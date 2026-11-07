@@ -33,6 +33,7 @@ private:
     void ApplyLogFilter();
     void ShowHotkeys();
     void RestoreDefaults();
+    bool CanChange(const char * setting) const;
 
     EmulatorSession & m_session;
     SettingsContext & m_settings;

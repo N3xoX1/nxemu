@@ -687,7 +687,7 @@
         <button class="defaults-ask game-defaults" data-command="defaults">Inherit all settings</button>
         <div class="defaults-confirm">
           <div class="global-defaults">Restore the defaults of all the tabs?</div>
-          <div class="game-defaults">Remove your overrides and re-enable NXEmu settings for this game?</div>
+          <div class="game-defaults">Remove the settings of this game and use the global ones?</div>
           <button data-command="defaults-keep">Keep</button>
           <button class="danger" data-command="defaults-confirmed">Restore</button>
         </div>

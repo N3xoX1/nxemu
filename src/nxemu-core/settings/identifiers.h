@@ -26,6 +26,7 @@ constexpr const char * AppDirectory = "nxcore:AppDirectory";
 constexpr const char * ConfigFile = "nxcore:ConfigFile";
 constexpr const char * GameFile = "nxcore:GameFile";
 constexpr const char * GameName = "nxcore:GameName";
+constexpr const char * GameTitleId = "nxcore:GameTitleId";
 constexpr const char * ModuleDirectory = "nxcore:ModuleDirectory";
 constexpr const char * ModuleLoader = "nxcore:ModuleLoader";
 constexpr const char * ModuleCpu = "nxcore:ModuleCpu";
@@ -52,6 +53,6 @@ constexpr const char * GpuHookLibDir = "nxcore:GpuHookLibDir";
 constexpr const char * GpuCustomDriverDir = "nxcore:GpuCustomDriverDir";
 constexpr const char * GpuCustomDriverName = "nxcore:GpuCustomDriverName";
 constexpr const char * GpuFileRedirectDir = "nxcore:GpuFileRedirectDir";
-constexpr const char * LanguageIndex = "nxcore:LanguageIndex";
+constexpr const char * SystemLanguageIndex = "nxcore:SystemLanguageIndex";
 
 } // namespace NXCoreSetting

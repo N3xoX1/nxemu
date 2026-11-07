@@ -34,6 +34,7 @@ protected:
     void Close();
     float WindowWidth() const;
     void SetText(const char * id, const std::string & text);
+    void SetTitle(const std::string & title);
 
     virtual void OnOpen() {}
     virtual void OnUpdate() {}
