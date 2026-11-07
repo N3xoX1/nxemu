@@ -17,6 +17,7 @@
 #include "video_settings.h"
 
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
+#include "yuzu_video_core/renderer_vulkan/null_image.h"
 #include "yuzu_video_core/renderer_vulkan/present/scale_trace.h"
 
 #include "yuzu_video_core/engines/fermi_2d.h"
@@ -2332,18 +2333,38 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::NullImageV
         return;
     }
 
-    // Handle fallback for devices without nullDescriptor
-    ImageInfo info{};
-    info.format = PixelFormat::A8B8G8R8_UNORM;
-
-    null_image = MakeImage(*device, runtime.memory_allocator, info, {});
-    image_handle = *null_image;
-    for (u32 i = 0; i < Shader::NUM_TEXTURE_TYPES; i++) {
-        image_views[i] = MakeView(VK_FORMAT_A8B8G8R8_UNORM_PACK32, VK_IMAGE_ASPECT_COLOR_BIT);
+    null_runtime = &runtime;
+    // These dedicated tiny images must retain cube compatibility even when the
+    // generic guest-image allocator disables that flag as a driver workaround.
+    for (size_t i = 0; i < NullImage::Count; ++i)
+        null_images[i] = runtime.memory_allocator.CreateImage(NullImage::ImageInfo(i));
+    for (size_t i = 0; i < Shader::NUM_TEXTURE_TYPES; ++i) {
+        const auto type = static_cast<Shader::TextureType>(i);
+        if (type == Shader::TextureType::Buffer) continue;
+        image_views[i] = device->GetLogical().CreateImageView(
+            NullImage::ViewInfo(type, *null_images[NullImage::Index(type)]));
     }
+    // No single backing image represents every dimension. The generic lazy
+    // view factory must not try to reinterpret these sampled-only placeholders.
+    image_handle = VK_NULL_HANDLE;
+    const std::array<VkImage, NullImage::Count> images{
+        *null_images[0], *null_images[1], *null_images[2]};
+    runtime.scheduler.RequestOutsideRenderPassOperationContext();
+    runtime.scheduler.Record([images](vk::CommandBuffer cmdbuf) {
+        NullImage::Initialize(cmdbuf, images);
+    });
 }
 
 ImageView::~ImageView() = default;
+
+ImageView& ImageView::operator=(ImageView&& other) noexcept {
+    if (this != &other) {
+        // Release all old views before replacing their backing images.
+        std::destroy_at(this);
+        std::construct_at(this, std::move(other));
+    }
+    return *this;
+}
 
 VkImageView ImageView::DepthView() {
     if (!image_handle) {
@@ -2382,6 +2403,30 @@ VkImageView ImageView::ColorView() {
 
 VkImageView ImageView::StorageView(Shader::TextureType texture_type,
                                    Shader::ImageFormat image_format) {
+    if (null_runtime) {
+        const VkFormat vk_format = image_format == Shader::ImageFormat::Typeless
+                                       ? NullImage::Format : Format(image_format);
+        const u64 key = (static_cast<u64>(vk_format) << 32) | static_cast<u32>(texture_type);
+        auto& resource = null_storage_images[key];
+        if (!resource.view) {
+            const size_t index = NullImage::Index(texture_type);
+            auto ci = NullImage::ImageInfo(index);
+            ci.format = vk_format;
+            ci.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+            NullStorageImage candidate;
+            candidate.image = null_runtime->memory_allocator.CreateImage(ci);
+            auto view_ci = NullImage::ViewInfo(texture_type, *candidate.image);
+            view_ci.format = vk_format;
+            candidate.view = device->GetLogical().CreateImageView(view_ci);
+            const VkImage image = *candidate.image;
+            null_runtime->scheduler.RequestOutsideRenderPassOperationContext();
+            null_runtime->scheduler.Record([image, index](vk::CommandBuffer cmdbuf) {
+                NullImage::Initialize(cmdbuf, std::array{image}, std::array{index});
+            });
+            resource = std::move(candidate);
+        }
+        return *resource.view;
+    }
     if (!image_handle) {
         return VK_NULL_HANDLE;
     }
