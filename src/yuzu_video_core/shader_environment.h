@@ -10,6 +10,8 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +24,7 @@
 #include "yuzu_video_core/snapshot_memory_budget.h"
 #include "yuzu_video_core/shader_profile_reuse.h"
 #include "yuzu_video_core/shader_profile_candidate_budget.h"
+#include "yuzu_video_core/shared_shader_bytes.h"
 
 namespace Tegra {
 class Memorymanager;
@@ -247,9 +250,7 @@ public:
 
     FileEnvironment& operator=(const FileEnvironment&) = delete;
     [[nodiscard]] FileEnvironment CloneForDiagnostic() const { return FileEnvironment(*this); }
-    [[nodiscard]] FileEnvironment ShareCompilationInputs() const { return FileEnvironment(*this); }
     [[nodiscard]] const std::string& CompilationIdentity() const noexcept { return compilation_identity; }
-    [[nodiscard]] const void* CodeIdentity() const noexcept { return code.get(); }
     [[nodiscard]] size_t SharedCodeBytes() const noexcept { return code ? code->size() * sizeof(u64) : 0; }
 
     void Deserialize(std::istream& file, std::shared_ptr<const std::vector<u64>> shared_program = {},
@@ -353,6 +354,49 @@ private:
     u32 read_highest{};
     u32 initial_offset{};
     u32 viewport_transform_state = 1;
+};
+
+// A cached environment kept in its stored form until its pipeline is built. Startup
+// holds every record at once; decoded environments would copy their query maps per
+// pipeline. Copies share the stored bytes and the facts the loader needs.
+class StoredEnvironment {
+public:
+    StoredEnvironment() = default;
+    // Validates the bytes with a full decode. A known program_digest skips hashing the program.
+    static StoredEnvironment Decode(SharedShaderBytes bytes, std::string_view program_digest = {});
+    [[nodiscard]] FileEnvironment Expand() const;
+
+    [[nodiscard]] Shader::Stage ShaderStage() const noexcept { return parts->stage; }
+    [[nodiscard]] const Shader::ProgramHeader& SPH() const noexcept { return parts->sph; }
+    [[nodiscard]] u32 CbufSizeMask() const noexcept { return parts->cbuf_size_mask; }
+    [[nodiscard]] bool HasHLEMacroState() const noexcept { return parts->hle; }
+    [[nodiscard]] const std::string& CompilationIdentity() const noexcept { return parts->compilation_identity; }
+    [[nodiscard]] bool HasSameCompilationInputs(const StoredEnvironment& other) const noexcept {
+        return parts == other.parts || parts->compilation_identity == other.parts->compilation_identity;
+    }
+    // What the decoded environment would hold, for diagnostic size limits.
+    [[nodiscard]] size_t CompilationInputBytes() const noexcept { return parts->decoded_bytes; }
+    // What a decoded copy still holds once its reuse proof is sealed and its program released.
+    [[nodiscard]] size_t SealedBytes() const noexcept { return parts->sealed_bytes; }
+    // Bytes retained by this environment and by its program, which other environments can share.
+    [[nodiscard]] const void* Identity() const noexcept { return parts.get(); }
+    [[nodiscard]] size_t RetainedBytes() const noexcept;
+    [[nodiscard]] const void* ProgramIdentity() const noexcept { return parts->bytes.ProgramIdentity(); }
+    [[nodiscard]] size_t ProgramBytes() const noexcept {
+        return ProgramIdentity() ? parts->bytes.ProgramBytes().size() : 0;
+    }
+
+private:
+    struct Parts {
+        SharedShaderBytes bytes;
+        std::string program_digest, compilation_identity;
+        Shader::ProgramHeader sph{};
+        Shader::Stage stage{};
+        u32 cbuf_size_mask{};
+        size_t decoded_bytes{}, sealed_bytes{};
+        bool hle{};
+    };
+    std::shared_ptr<const Parts> parts;
 };
 
 void SerializePipeline(std::span<const char> key, std::span<const GenericEnvironment* const> envs,

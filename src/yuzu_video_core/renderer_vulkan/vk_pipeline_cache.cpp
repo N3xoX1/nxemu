@@ -81,6 +81,7 @@ using Shader::Maxwell::MergeDualVertexPrograms;
 using Shader::Maxwell::TranslateProgram;
 using VideoCommon::ComputeEnvironment;
 using VideoCommon::FileEnvironment;
+using VideoCommon::StoredEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
@@ -554,11 +555,11 @@ bool ComputePipelineCacheKey::operator==(const ComputePipelineCacheKey& rhs) con
 struct PipelineCache::ProgressiveWarmup {
     struct Graphics {
         GraphicsPipelineCacheKey key;
-        std::vector<FileEnvironment> environments;
+        std::vector<StoredEnvironment> environments;
     };
     struct Compute {
         ComputePipelineCacheKey key;
-        FileEnvironment environment;
+        StoredEnvironment environment;
     };
     struct Job {
         std::variant<Graphics, Compute> input;
@@ -642,9 +643,9 @@ struct PipelineCache::ProgressiveWarmup {
 private:
     void ReleaseInputs(size_t index) {
         if (auto* g = std::get_if<Graphics>(&jobs[index].input))
-            std::vector<FileEnvironment>{}.swap(g->environments);
+            std::vector<StoredEnvironment>{}.swap(g->environments);
         else
-            std::get<Compute>(jobs[index].input).environment = FileEnvironment{};
+            std::get<Compute>(jobs[index].input).environment = StoredEnvironment{};
     }
     bool DemandIndex(size_t index, bool allow_skip) {
         const auto result = scheduler->Demand(index, allow_skip);
@@ -659,13 +660,16 @@ private:
         try {
             ShaderPools pools;
             if (auto* g = std::get_if<Graphics>(&job.input)) {
+                std::vector<FileEnvironment> envs;
+                for (const auto& env : g->environments) envs.push_back(env.Expand());
                 boost::container::static_vector<Shader::Environment*, Maxwell::MaxShaderProgram> ptrs;
-                for (auto& env : g->environments) ptrs.push_back(&env);
+                for (auto& env : envs) ptrs.push_back(&env);
                 auto result = cache.CreateGraphicsPipeline(pools, g->key, MakeSpan(ptrs), nullptr, false);
                 if (result && result->IsBuilt()) job.graphics = std::move(result);
             } else {
                 auto& c = std::get<Compute>(job.input);
-                auto result = cache.CreateComputePipeline(pools, c.key, c.environment, nullptr, false);
+                auto env = c.environment.Expand();
+                auto result = cache.CreateComputePipeline(pools, c.key, env, nullptr, false);
                 if (result && !result->HasBuildFailed()) job.compute = std::move(result);
             }
         } catch (const std::exception& error) {
@@ -1086,8 +1090,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
 
     // Earlier records included sizes for every bound bank, even when the shader never
     // queried them. Normalize and deduplicate them without discarding the existing shader cache.
-    struct GraphicsInput { GraphicsPipelineCacheKey key; std::vector<FileEnvironment> envs; bool candidate{}; std::string record_id; };
-    struct ComputeInput { ComputePipelineCacheKey key; FileEnvironment env; bool candidate{}; std::string record_id; };
+    struct GraphicsInput { GraphicsPipelineCacheKey key; std::vector<StoredEnvironment> envs; bool candidate{}; std::string record_id; };
+    struct ComputeInput { ComputePipelineCacheKey key; StoredEnvironment env; bool candidate{}; std::string record_id; };
     std::vector<GraphicsInput> graphics_inputs;
     std::vector<ComputeInput> compute_inputs;
     size_t buffered_input_bytes{};
@@ -1097,13 +1101,20 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     size_t skipped_candidate_inputs{};
     std::vector<ComputePipelineCacheKey> skipped_compute_keys;
     std::vector<GraphicsPipelineCacheKey> skipped_graphics_keys;
-    const auto account_inputs = [&](std::span<const FileEnvironment> envs,bool candidate) {
-        std::array<VideoCommon::ShaderProfile::StartupInput,6> inputs{};
-        if(envs.size()>inputs.size())throw std::runtime_error("Too many shader stages");
-        for(size_t i=0;i<envs.size();++i)
-            inputs[i]={envs[i].CodeIdentity(),envs[i].CompilationInputBytes(),envs[i].SharedCodeBytes()};
+    // Inputs stay in their stored form, shared between pipelines: charge each
+    // environment and each program once, plus a handle per pipeline stage. A
+    // built candidate keeps its own sealed decoded environments, charged per pipeline.
+    const auto account_inputs = [&](std::span<const StoredEnvironment> envs,bool candidate) {
+        std::array<VideoCommon::ShaderProfile::StartupInput,VideoCommon::ShaderProfile::MaxStartupInputs> inputs{};
+        if(envs.size()*2>inputs.size())throw std::runtime_error("Too many shader stages");
+        size_t count{},sealed{};
+        for(const auto& env:envs) {
+            inputs[count++]={env.Identity(),sizeof(StoredEnvironment)+env.RetainedBytes(),env.RetainedBytes()};
+            if(env.ProgramIdentity())inputs[count++]={env.ProgramIdentity(),env.ProgramBytes(),env.ProgramBytes()};
+            if(candidate)sealed+=env.SealedBytes();
+        }
         if(VideoCommon::ShaderProfile::AccountStartupInputs(
-               std::span(inputs).first(envs.size()),accounted_code,buffered_input_bytes))return true;
+               std::span(inputs).first(count),accounted_code,buffered_input_bytes,sealed))return true;
         if(candidate)++skipped_candidate_inputs;
         return false;
     };
@@ -1124,11 +1135,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     };
     // Drain workers before their captured progress helper and input budget leave scope.
     SCOPE_EXIT { workers.WaitForRequests(); };
-    const auto load_compute{[&](std::istream& file, FileEnvironment env, bool candidate=false, std::string record_id={}) {
+    const auto load_compute{[&](std::istream& file, StoredEnvironment env, bool candidate=false, std::string record_id={}) {
         ComputePipelineCacheKey key{};
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
         if(!candidate)cbuf_size_dependencies.Observe(key.unique_hash, env.CbufSizeMask());
-        if (!account_inputs(std::span<const FileEnvironment>{&env, 1}, candidate)) {
+        if (!account_inputs(std::span<const StoredEnvironment>{&env, 1}, candidate)) {
             if(!candidate)skipped_compute_keys.push_back(key);
             return true;
         }
@@ -1149,11 +1160,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         }
         return false;
     };
-    const auto queue_compute = [&](const ComputePipelineCacheKey& key, FileEnvironment env, bool candidate=false, std::string record_id={}) {
+    const auto queue_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env, bool candidate=false, std::string record_id={}) {
         const auto id=warmup_id('C',key,env.CompilationIdentity());
         if (defer_warmup(id)) return;
         { std::scoped_lock lock{state.mutex}; ++state.total; }
-        workers.QueueWork([this, key, id, candidate, stop_loading, record_id=std::move(record_id), env_ = std::move(env), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
+        workers.QueueWork([this, key, id, candidate, stop_loading, record_id=std::move(record_id), stored = std::move(env), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
             if(stop_loading.stop_requested()) {
                 std::scoped_lock lock{state.mutex};
                 ++state.deferred;++state.built;report_build();return;
@@ -1168,6 +1179,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             // jobs hold no proof maps yet and need no worst-case reservation.
             SCOPE_EXIT { if(reservation){std::scoped_lock lock{state.mutex};foreign_budget.Release(reservation);} };
             Timing::Context timing_context(state.timings.get());
+            auto env_=stored.Expand();
             ShaderPools pools;
             if(candidate)env_.BeginReuseProof(false);
             auto pipeline{CreateComputePipeline(pools, key, env_, state.statistics.get(), false)};
@@ -1195,13 +1207,13 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         });
     };
     const auto queue_graphics{[&](const GraphicsPipelineCacheKey& key,
-                                  std::vector<FileEnvironment> envs, bool candidate=false, std::string record_id={}) {
+                                  std::vector<StoredEnvironment> envs, bool candidate=false, std::string record_id={}) {
         std::string inputs;
         for (const auto& env : envs) inputs += env.CompilationIdentity();
         const auto id=warmup_id('G',key,inputs);
         if (defer_warmup(id)) return;
         { std::scoped_lock lock{state.mutex}; ++state.total; }
-        workers.QueueWork([this, key, id, candidate, stop_loading, record_id=std::move(record_id), envs_ = std::move(envs), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
+        workers.QueueWork([this, key, id, candidate, stop_loading, record_id=std::move(record_id), stored = std::move(envs), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
             if(stop_loading.stop_requested()) {
                 std::scoped_lock lock{state.mutex};
                 ++state.deferred;++state.built;report_build();return;
@@ -1209,13 +1221,16 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             size_t reservation{};
             if(candidate) {
                 std::scoped_lock lock{state.mutex};
-                reservation=foreign_budget.Reserve(envs_.size(),
+                reservation=foreign_budget.Reserve(stored.size(),
                     key.state.app_stage==Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro,
                     buffered_input_bytes);
                 if(!reservation){++state.deferred;++state.built;report_build();return;}
             }
             SCOPE_EXIT { if(reservation){std::scoped_lock lock{state.mutex};foreign_budget.Release(reservation);} };
             Timing::Context timing_context(state.timings.get());
+            std::vector<FileEnvironment> envs_;
+            envs_.reserve(stored.size());
+            for(const auto& env:stored)envs_.push_back(env.Expand());
             ShaderPools pools;
             if(candidate)for(auto& env:envs_)env.BeginReuseProof(key.state.app_stage==Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro);
             boost::container::static_vector<Shader::Environment*, Maxwell::MaxShaderProgram> env_ptrs;
@@ -1247,11 +1262,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     // non-HLE twin share its pipeline instead of building an identical one.
     struct DeferredPipeline {
         GraphicsPipelineCacheKey key;
-        std::vector<FileEnvironment> envs;
+        std::vector<StoredEnvironment> envs;
     };
     std::vector<DeferredPipeline> hle_unreplaced;
     std::unordered_set<GraphicsPipelineCacheKey> plain_keys;
-    const auto load_graphics{[&](std::istream& file, std::vector<FileEnvironment> envs, bool candidate=false, std::string record_id={}) {
+    const auto load_graphics{[&](std::istream& file, std::vector<StoredEnvironment> envs, bool candidate=false, std::string record_id={}) {
         GraphicsPipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
 
@@ -1419,28 +1434,22 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         }
         }
     } catch(const std::exception& error){LOG_WARNING(Render_Vulkan,"Community profile selection rejected: {}",error.what());import_path.clear();}
-    // Cache records and imported recipes share immutable byte strings. Deserialize
-    // each distinct environment once, sharing its immutable program across keys.
-    std::unordered_map<const void*, FileEnvironment> decoded_environments;
-    std::unordered_map<const void*,std::string> program_identities;
-    std::map<std::string,std::shared_ptr<const std::vector<u64>>> shared_programs;
+    // Cache records and imported recipes share immutable byte strings. Validate
+    // each distinct environment once; pipelines keep the bytes until they are built.
+    std::unordered_map<const void*, StoredEnvironment> decoded_environments;
+    std::unordered_map<const void*,std::string> program_digests;
     const auto deserialize_environment = [&](const VideoCommon::SharedShaderBytes& bytes) {
         const auto found = decoded_environments.find(bytes.Identity());
-        if (found != decoded_environments.end()) return found->second.ShareCompilationInputs();
-        std::istringstream stream(bytes.String(), std::ios::binary);
-        std::string program_identity;
+        if (found != decoded_environments.end()) return found->second;
+        std::string program_digest;
         if (bytes.ProgramIdentity()) {
-            auto [it,inserted]=program_identities.try_emplace(bytes.ProgramIdentity());
+            auto [it,inserted]=program_digests.try_emplace(bytes.ProgramIdentity());
             if(inserted)it->second=VideoCommon::ShaderProfile::ResourceSha256(bytes.ProgramBytes());
-            program_identity=it->second;
+            program_digest=it->second;
         }
-        const auto known=shared_programs.find(program_identity);
-        FileEnvironment env;
-        env.Deserialize(stream,known==shared_programs.end()?nullptr:known->second,program_identity);
-        if(!program_identity.empty())shared_programs.try_emplace(program_identity,env.ProgramStorage());
-        auto result = env.ShareCompilationInputs();
-        decoded_environments.emplace(bytes.Identity(), std::move(env));
-        return result;
+        auto env = StoredEnvironment::Decode(bytes, program_digest);
+        decoded_environments.emplace(bytes.Identity(), env);
+        return env;
     };
     std::vector<VideoCommon::CacheStore::Record> candidate_records;
     std::set<std::string> staged_candidate_ids;
@@ -1526,7 +1535,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             for (bool foreign_pass : {false, true}) for (const auto& recipe : recipes) {
                 if (recipe.requires_validation != foreign_pass) continue;
                 if (stop_loading.stop_requested()) break;
-                std::vector<FileEnvironment> envs;
+                std::vector<StoredEnvironment> envs;
                 Timing::Timer environment_timer(state.timings.get(), Timing::Phase::EnvironmentDeserialization);
                 if(!recipe.requires_validation)for (const auto& bytes : recipe.environments)
                     envs.push_back(deserialize_environment(bytes));
@@ -1645,7 +1654,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     newly_loaded_ids.contains(record.id)))continue;
                 if(stop_loading.stop_requested())break;
                 if(candidate){stage_candidate(record);continue;}
-                std::vector<FileEnvironment> envs;
+                std::vector<StoredEnvironment> envs;
                 for(const auto& bytes:record.environments) {
                     envs.push_back(deserialize_environment(bytes));
                 }
@@ -1696,7 +1705,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             } else throw std::runtime_error("Invalid candidate key size");
             if(admitted_candidate_inputs>=candidate_limit){++skipped_candidate_limit;continue;}
             const auto previous=compute_inputs.size()+graphics_inputs.size();
-            std::vector<FileEnvironment> envs;
+            std::vector<StoredEnvironment> envs;
             for(const auto& bytes:record.environments)envs.push_back(deserialize_environment(bytes));
             std::istringstream key(record.key,std::ios::binary);
             key.exceptions(std::ios::failbit|std::ios::badbit);
@@ -1712,8 +1721,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     candidate_records.clear();
     decoded_environments.clear();
-    shared_programs.clear();
-    program_identities.clear();
+    program_digests.clear();
     existing_cache_timer.Stop();
 
     // The hardware/build scope is stable across unrelated cache growth. Each
@@ -1745,9 +1753,14 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     struct AuditPair { GraphicsPipelineCacheKey key; std::vector<FileEnvironment> first, second; GraphicsPipelineCacheKey second_key; };
     std::vector<AuditPair> audit_pairs;
     size_t audit_bytes{}; bool audit_truncated{};
-    const auto clone=[](const auto& envs) {
+    const auto clone=[](const std::vector<FileEnvironment>& envs) {
         std::vector<FileEnvironment> result;result.reserve(envs.size());
         for(const auto& env:envs)result.push_back(env.CloneForDiagnostic());
+        return result;
+    };
+    const auto expand=[](const std::vector<StoredEnvironment>& envs) {
+        std::vector<FileEnvironment> result;result.reserve(envs.size());
+        for(const auto& env:envs)result.push_back(env.Expand());
         return result;
     };
     // Explicit offline diagnostic: compare both HLE hints using their own key and
@@ -1774,7 +1787,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             for (const auto& env : other) bytes += env.CompilationInputBytes();
             if (audit_pairs.size() < 256 && bytes <= 32*1024*1024ULL-audit_bytes) {
                 audit_bytes += bytes;
-                audit_pairs.push_back({key, clone(input.envs), clone(other), twin});
+                audit_pairs.push_back({key, expand(input.envs), expand(other), twin});
             } else audit_truncated = true;
         }
     }
@@ -1796,13 +1809,13 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 for (const auto& env : input.envs) bytes += env.CompilationInputBytes();
                 if (audit_pairs.size() < 256 && bytes <= 32*1024*1024ULL-audit_bytes) {
                     audit_bytes += bytes;
-                    audit_pairs.push_back({previous.key,clone(previous.envs),clone(input.envs),input.key});
+                    audit_pairs.push_back({previous.key,expand(previous.envs),expand(input.envs),input.key});
                 } else audit_truncated = true;
             }
         }
     }
-    StartupPipelineVariants<GraphicsPipelineCacheKey, std::vector<FileEnvironment>> graphics_variants;
-    StartupPipelineVariants<ComputePipelineCacheKey, FileEnvironment> compute_variants;
+    StartupPipelineVariants<GraphicsPipelineCacheKey, std::vector<StoredEnvironment>> graphics_variants;
+    StartupPipelineVariants<ComputePipelineCacheKey, StoredEnvironment> compute_variants;
     // Normal game pipelines must be scheduled ahead of optional update candidates.
     std::vector<ComputeInput> foreign_compute_inputs;
     std::vector<GraphicsInput> foreign_graphics_inputs;
@@ -1833,7 +1846,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             if(!equal && variant_audit_path && *variant_audit_path) {
                 size_t bytes{};for(const auto& env:a)bytes+=env.CompilationInputBytes();for(const auto& env:b)bytes+=env.CompilationInputBytes();
                 if(audit_pairs.size()<256 && bytes<=32*1024*1024ULL-audit_bytes) {
-                    audit_bytes+=bytes;audit_pairs.push_back({input.key,clone(a),clone(b),input.key});
+                    audit_bytes+=bytes;audit_pairs.push_back({input.key,expand(a),expand(b),input.key});
                 } else audit_truncated=true;
             }
             return equal;
@@ -1928,12 +1941,12 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         }
         return (progressive_mode && stop_loading.stop_requested()) || initial_budget.DeferNext();
     };
-    const auto schedule_compute = [&](const ComputePipelineCacheKey& key, FileEnvironment env) {
+    const auto schedule_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env) {
         if (defer_initial())
             progressive_jobs.emplace_back(ProgressiveWarmup::Compute{key, std::move(env)});
         else { queue_compute(key, std::move(env)); }
     };
-    const auto schedule_graphics = [&](const GraphicsPipelineCacheKey& key, std::vector<FileEnvironment> envs) {
+    const auto schedule_graphics = [&](const GraphicsPipelineCacheKey& key, std::vector<StoredEnvironment> envs) {
         if (defer_initial())
             progressive_jobs.emplace_back(ProgressiveWarmup::Graphics{key, std::move(envs)});
         else { queue_graphics(key, std::move(envs)); }

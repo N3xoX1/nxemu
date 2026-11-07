@@ -62,14 +62,18 @@ struct StartupInput {
     const void* identity;
     size_t total,code;
 };
+// Each stage can be charged as its environment and its separately shared program.
+constexpr size_t MaxStartupInputs=12;
 // One atomic admission per pipeline. A rejected multi-stage pipeline must not
 // consume bytes or mark a program as already accounted for a later admission.
+// Unshared bytes are charged on every admission, for what the pipeline keeps alone.
 inline bool AccountStartupInputs(std::span<const StartupInput> inputs,
-                                std::unordered_set<const void*>& owners,size_t& retained) {
+                                std::unordered_set<const void*>& owners,size_t& retained,
+                                size_t unshared=0) {
     constexpr auto limit=CandidateWarmupBudget::MaxBytes;
-    if(inputs.empty() || inputs.size()>6 || retained>limit)return false;
-    std::array<const void*,6> added{};
-    size_t count{},bytes{};
+    if(inputs.empty() || inputs.size()>MaxStartupInputs || retained>limit || unshared>limit)return false;
+    std::array<const void*,MaxStartupInputs> added{};
+    size_t count{},bytes{unshared};
     for(const auto& input:inputs) {
         if(!input.identity || input.code>input.total)return false;
         const bool shared=owners.contains(input.identity) ||
