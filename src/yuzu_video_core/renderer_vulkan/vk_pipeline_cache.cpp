@@ -36,6 +36,7 @@
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/shader_profile_limits.h"
 #include "yuzu_video_core/renderer_vulkan/fixed_pipeline_state.h"
+#include "yuzu_video_core/renderer_vulkan/driver_pipeline_cache_io.h"
 #include "yuzu_video_core/renderer_vulkan/driver_pipeline_cache_probe.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
@@ -3060,26 +3061,16 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
         if (probe) LOG_INFO(Render_Vulkan, "MSL-cache probe: save skipped (no VkPipelineCache)");
         return;
     }
-    // Read before truncating the last disk cache. ReadData tolerates concurrent
-    // growth and only returns the bytes the driver actually wrote.
+    // Snapshot the driver first. A read failure or empty blob must leave the
+    // previous disk cache intact; ReadData tolerates concurrent driver growth.
     const auto cache_data = pipeline_cache.ReadData();
     if (cache_data.empty()) {
         if (probe) LOG_INFO(Render_Vulkan, "MSL-cache probe: save skipped (empty driver blob)");
         return;
     }
     const double read_ms = probe ? ProbeMilliseconds(started) : 0.0;
-    std::ofstream file(filename, std::ios::binary);
-    file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
-    if (!file.is_open()) {
-        LOG_ERROR(Common_Filesystem, "Failed to open Vulkan driver pipeline cache file {}",
-                  Common::FS::PathToUTF8String(filename));
-        return;
-    }
-    file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
-        .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
-
-    file.write(cache_data.data(), static_cast<std::streamsize>(cache_data.size()));
-    file.close();
+    DriverPipelineCacheIO::SaveAtomically(filename, VULKAN_CACHE_MAGIC_NUMBER, cache_version,
+                                          cache_data);
 
     if (probe) {
         LOG_INFO(Render_Vulkan,
@@ -3089,16 +3080,13 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
-} catch (const std::ios_base::failure& e) {
-    if (MslCacheProbeEnabled()) LOG_WARNING(Render_Vulkan, "MSL-cache probe: save=io-failure");
-    LOG_ERROR(Common_Filesystem, "{}", e.what());
-    if (!Common::FS::RemoveFile(filename)) {
-        LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
-                  Common::FS::PathToUTF8String(filename));
-    }
 } catch (const vk::Exception& e) {
     if (MslCacheProbeEnabled()) LOG_WARNING(Render_Vulkan, "MSL-cache probe: save=driver-failure");
     LOG_ERROR(Render_Vulkan, "Failed to read Vulkan driver pipeline cache: {}", e.what());
+} catch (const std::exception& e) {
+    if (MslCacheProbeEnabled()) LOG_WARNING(Render_Vulkan, "MSL-cache probe: save=io-failure");
+    LOG_ERROR(Common_Filesystem, "Failed to save Vulkan driver pipeline cache {}: {}",
+              Common::FS::PathToUTF8String(filename), e.what());
 }
 
 vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::path& filename,
@@ -3119,73 +3107,39 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
             data_size, ProbeMilliseconds(create_started), ProbeMilliseconds(started));
         return result;
     };
+    DriverPipelineCacheIO::LoadResult loaded;
     try {
-        std::ifstream file(filename, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) {
-            if (probe) {
-                std::error_code error;
-                const bool exists = std::filesystem::exists(filename, error);
-                LOG_INFO(Render_Vulkan, "MSL-cache probe: load={}, creating empty cache",
-                         error ? "stat-failure" : exists ? "open-failure" : "missing");
-            }
-            return create_pipeline_cache(0, nullptr);
-        }
-        file.exceptions(std::ifstream::failbit);
-        const auto end{file.tellg()};
-        file.seekg(0, std::ios::beg);
-
-        std::array<char, 8> magic_number;
-        u32 cache_version;
-        file.read(magic_number.data(), magic_number.size())
-            .read(reinterpret_cast<char*>(&cache_version), sizeof(cache_version));
-        if (magic_number != VULKAN_CACHE_MAGIC_NUMBER || cache_version != expected_cache_version) {
-            if (probe) {
-                LOG_INFO(Render_Vulkan, "MSL-cache probe: load=invalid-wrapper "
-                                        "version={} expected={}",
-                         cache_version, expected_cache_version);
-            }
-            file.close();
-            if (Common::FS::RemoveFile(filename)) {
-                if (magic_number != VULKAN_CACHE_MAGIC_NUMBER) {
-                    LOG_ERROR(Common_Filesystem, "Invalid Vulkan driver pipeline cache file");
-                }
-                if (cache_version != expected_cache_version) {
-                    LOG_INFO(Common_Filesystem, "Deleting old Vulkan driver pipeline cache");
-                }
-            } else {
-                LOG_ERROR(Common_Filesystem,
-                          "Invalid Vulkan pipeline cache file and failed to delete it in \"{}\"",
-                          Common::FS::PathToUTF8String(filename));
-            }
-            return create_pipeline_cache(0, nullptr);
-        }
-
-        static constexpr size_t header_size = magic_number.size() + sizeof(cache_version);
-        const size_t cache_size = static_cast<size_t>(end) - header_size;
-        std::vector<char> cache_data(cache_size);
-        file.read(cache_data.data(), cache_size);
-
-        if (probe) {
-            LOG_INFO(Render_Vulkan,
-                     "MSL-cache probe: load=wrapper-valid driver_header={} "
-                     "driver_blob_bytes={} read_ms={:.3f}",
-                     DriverCacheProbe::Header(cache_data, device.GetPhysical().GetProperties()),
-                     cache_data.size(), ProbeMilliseconds(started));
-        }
-
-        LOG_INFO(Render_Vulkan,
-                 "Loaded Vulkan driver pipeline cache: {}", Common::FS::PathToUTF8String(filename));
-
-        return create_pipeline_cache(cache_size, cache_data.data());
-    } catch (const std::ios_base::failure& e) {
+        loaded = DriverPipelineCacheIO::Load(filename, VULKAN_CACHE_MAGIC_NUMBER,
+                                             expected_cache_version);
+    } catch (const std::exception& e) {
         if (probe) LOG_WARNING(Render_Vulkan, "MSL-cache probe: load=io-failure");
-        LOG_ERROR(Common_Filesystem, "{}", e.what());
-        if (!Common::FS::RemoveFile(filename)) {
-            LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
-                      Common::FS::PathToUTF8String(filename));
-        }
-
+        LOG_ERROR(Common_Filesystem, "Failed to read Vulkan driver pipeline cache {}: {}",
+                  Common::FS::PathToUTF8String(filename), e.what());
         return create_pipeline_cache(0, nullptr);
     }
+    if (loaded.status != DriverPipelineCacheIO::LoadStatus::Loaded) {
+        if (probe) LOG_INFO(Render_Vulkan, "MSL-cache probe: load={}, creating empty cache",
+                            DriverPipelineCacheIO::StatusName(loaded.status));
+        if (loaded.status != DriverPipelineCacheIO::LoadStatus::Unavailable) {
+            LOG_WARNING(Common_Filesystem, "Ignoring Vulkan driver pipeline cache {}: {}",
+                        Common::FS::PathToUTF8String(filename),
+                        DriverPipelineCacheIO::StatusName(loaded.status));
+        }
+        // Leave invalid/unreadable files in place: deleting by path here could
+        // remove a complete replacement published by another emulator instance.
+        return create_pipeline_cache(0, nullptr);
+    }
+    const auto& cache_data = loaded.payload;
+    if (cache_data.empty()) return create_pipeline_cache(0, nullptr);
+    if (probe) {
+        LOG_INFO(Render_Vulkan,
+                 "MSL-cache probe: load=wrapper-valid driver_header={} "
+                 "driver_blob_bytes={} read_ms={:.3f}",
+                 DriverCacheProbe::Header(cache_data, device.GetPhysical().GetProperties()),
+                 cache_data.size(), ProbeMilliseconds(started));
+    }
+    LOG_INFO(Render_Vulkan, "Loaded Vulkan driver pipeline cache: {}",
+             Common::FS::PathToUTF8String(filename));
+    return create_pipeline_cache(cache_data.size(), cache_data.data());
 }
 } // namespace Vulkan
