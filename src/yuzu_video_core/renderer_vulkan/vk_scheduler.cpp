@@ -10,6 +10,7 @@
 #include "yuzu_video_core/renderer_vulkan/vk_query_cache.h"
 
 #include "yuzu_common/thread.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_video_core/renderer_vulkan/vk_command_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
@@ -44,9 +45,13 @@ Scheduler::Scheduler(const Device& device_, StateTracker& state_tracker_)
     : device{device_}, state_tracker{state_tracker_},
       master_semaphore{std::make_unique<MasterSemaphore>(device)},
       command_pool{std::make_unique<CommandPool>(*master_semaphore, device)} {
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Scheduler: master semaphore and command pool ready");
     AcquireNewChunk();
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Scheduler: acquiring worker command buffers");
     AllocateWorkerCommandBuffer();
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Scheduler: starting worker thread");
     worker_thread = std::jthread([this](std::stop_token token) { WorkerThread(token); });
+    LOG_INFO(Render_Vulkan, "[VK-STARTUP] Scheduler: ready");
 }
 
 Scheduler::~Scheduler() = default;
