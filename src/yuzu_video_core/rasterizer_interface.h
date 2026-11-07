@@ -136,6 +136,10 @@ public:
     /// flight before its publication, so a GPU signal may be published ahead of the GPU.
     virtual bool CommitReadbacksForEarlySignal() { return true; }
 
+    /// True while queued GPU work reads guest RAM in place. Until it is done, a GPU signal
+    /// must not reach the guest, or the guest may rewrite that memory first.
+    virtual bool InPlaceReadsPending() const { return false; }
+
     /// True when a query result in the region is not written to guest memory yet.
     virtual bool HasPendingResult(DAddr addr, u64 size) { return false; }
 

@@ -904,6 +904,10 @@ void RasterizerVulkan::GpuWrittenResults(DAddr addr, u64 size,
     query_cache.HostSyncedResults(addr, size, ranges);
 }
 
+bool RasterizerVulkan::InPlaceReadsPending() const {
+    return buffer_cache_runtime.InPlaceReadsPending();
+}
+
 bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
     // Without CPU faults on pending readbacks, fast readback accepts stale reads.
     if (!device_memory.ProtectsReadCachedPages()) {

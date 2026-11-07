@@ -119,6 +119,7 @@ public:
     VideoCore::SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) override;
     bool AwaitsProtectedDownload(DAddr addr, u64 size) override;
     bool CommitReadbacksForEarlySignal() override;
+    bool InPlaceReadsPending() const override;
     bool HasPendingResult(DAddr addr, u64 size) override;
     void GpuWrittenResults(DAddr addr, u64 size,
                            std::vector<std::pair<DAddr, u64>>& ranges) override;

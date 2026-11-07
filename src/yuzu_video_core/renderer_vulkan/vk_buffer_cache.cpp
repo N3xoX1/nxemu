@@ -515,6 +515,14 @@ BufferCacheRuntime::~BufferCacheRuntime() {
     }
 }
 
+void BufferCacheRuntime::MarkInPlaceBind() noexcept {
+    in_place_tick = scheduler.CurrentTick();
+}
+
+bool BufferCacheRuntime::InPlaceReadsPending() const noexcept {
+    return in_place_tick != 0 && !scheduler.IsFree(in_place_tick);
+}
+
 bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, size_t size) {
     if (host_mapped_size != 0) {
         return true;

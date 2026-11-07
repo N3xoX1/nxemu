@@ -182,6 +182,9 @@ private:
         // GPU fence is needed only after that work has been materialized.
         query_cache.PrepareAsyncFlushes();
         const bool should_flush = ShouldFlush();
+        // Draws since the last fence read guest RAM in place: signal only after the host GPU
+        // ran them, as on the console, so the guest can't rewrite that data first.
+        const bool reads_guest_memory = buffer_cache.TakeInPlaceBinds();
         CommitAsyncFlushes();
 
         if constexpr (can_async_check) {
@@ -194,10 +197,12 @@ private:
         // readbacks fault on CPU access, a readback alone does not either.
         const bool unprotected_flush = should_flush && !buffer_cache.PendingDownloadsProtected();
         const bool delay_fence = force_delay || Settings::IsGpuReadbackExact() ||
-                                 unprotected_flush || pending_delayed_fences != 0;
+                                 unprotected_flush || reads_guest_memory ||
+                                 pending_delayed_fences != 0;
+        const bool needs_host_fence = should_flush || reads_guest_memory;
 
         const bool can_complete_stub_inline =
-            allow_stub_fast_path && delay_fence && !should_flush && fences.empty() &&
+            allow_stub_fast_path && delay_fence && !needs_host_fence && fences.empty() &&
             pending_operations.empty() && !fence_in_flight;
 
         if (can_complete_stub_inline) {
@@ -233,7 +238,7 @@ private:
             return true;
         }
 
-        TFence new_fence = CreateFence(!should_flush);
+        TFence new_fence = CreateFence(!needs_host_fence);
         if (delay_fence && func) {
             uncommitted_operations.emplace_back(std::move(func));
         }

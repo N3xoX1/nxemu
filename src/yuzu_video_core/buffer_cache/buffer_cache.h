@@ -1204,6 +1204,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
                 !memory_tracker.IsRegionGpuModified(device_addr, size)) {
                 if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
                     pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
+                    in_place_binds = true;
                     return;
                 }
             }

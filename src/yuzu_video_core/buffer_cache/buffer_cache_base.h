@@ -12,6 +12,7 @@
 #include <numeric>
 #include <span>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "yuzu_common/common_types.h"
@@ -365,6 +366,13 @@ public:
         return pending_downloads_protected;
     }
 
+    /// True when a uniform buffer was bound in place from guest RAM since the last call.
+    /// The GPU reads that memory when it runs the draw, so the next fence must wait for the
+    /// host GPU before the guest sees it, or the guest can rewrite the data too early.
+    [[nodiscard]] bool TakeInPlaceBinds() noexcept {
+        return std::exchange(in_place_binds, false);
+    }
+
     /// Return true when a committed download the CPU can read before its publication is
     /// still in flight.
     [[nodiscard]] bool HasUnprotectedDownloads() const noexcept {
@@ -700,6 +708,8 @@ private:
     /// Guest RAM imported as device memory (Vulkan): uniform buffers that only the CPU wrote bind in place
     bool host_mapped_tried = false;
     bool host_mapped_ready = false;
+    /// See TakeInPlaceBinds
+    bool in_place_binds = false;
     u64 total_used_memory = 0;
     u64 minimum_memory = 0;
     u64 critical_memory = 0;

@@ -132,8 +132,13 @@ public:
         const size_t window = offset >> HostMappedWindowBits;
         BindBuffer(host_mapped_windows[window],
                    static_cast<u32>(offset - (window << HostMappedWindowBits)), size);
+        MarkInPlaceBind();
         return true;
     }
+
+    /// True while submitted or recorded work still reads guest RAM in place. Until then the
+    /// guest must not learn that this work is done, or it may rewrite the data first.
+    bool InPlaceReadsPending() const noexcept;
 
     bool HasHostMappedGuestMemory() const noexcept {
         return host_mapped_size != 0;
@@ -312,6 +317,9 @@ private:
     const u8* host_mapped_base{};
     size_t host_mapped_size{};
     size_t host_mapped_ubo_alignment{256};
+    /// Scheduler tick of the last in-place bind
+    u64 in_place_tick{};
+    void MarkInPlaceBind() noexcept;
 
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;
     bool compact_vertex_bindings{};

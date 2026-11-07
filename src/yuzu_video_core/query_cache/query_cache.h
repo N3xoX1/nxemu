@@ -252,7 +252,11 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     // the CPU could read before its publication keeps them behind it. Commit before this
     // report exists: the fence also prepares the pending queries.
     const bool fast_payload = !Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload;
-    const bool behind_readback = fast_payload && !impl->rasterizer.CommitReadbacksForEarlySignal();
+    // Queued draws that read guest RAM in place keep the payload behind their fence too: the
+    // guest must not see it before the host GPU ran them, or it may rewrite that memory first.
+    // The result stays fault protected: publishing it late without protection flickers.
+    const bool behind_readback = fast_payload && (!impl->rasterizer.CommitReadbacksForEarlySignal() ||
+                                                  impl->rasterizer.InPlaceReadsPending());
     impl->device_memory.InvalidateNativeReadRegion(cpu_addr, has_timestamp ? 16 : 4);
     impl->device_memory.RegisterFlushCacheRegion(cpu_addr, has_timestamp ? 16 : 4,
                                                 CacheType::QueryCache);
