@@ -46,12 +46,11 @@ copy "%base_dir%\modules\%VSPlatform%\operating_system\nxemu-os.dll" "%base_dir%
 copy "%base_dir%\modules\%VSPlatform%\video\nxemu-video.dll" "%base_dir%\bin\package\modules\video"
 
 echo packaging mods
-rem The mods that ship with NXEmu: the game folders of external/nxemu-switch-mods ("<Game name> [<title id>]"), with their licenses, and its README
+rem The mods that ship with NXEmu: the game folders of external/nxemu-switch-mods ("<Game name> [<title id>]"), with their licenses
 md "%base_dir%\bin\package\mods\"
 for /d %%d in ("%base_dir%\external\nxemu-switch-mods\*") do (
 	echo %%~nxd| findstr /R /C:"\]$" >nul && xcopy /E /I /Q /Y "%%d" "%base_dir%\bin\package\mods\%%~nxd" >nul
 )
-if exist "%base_dir%\external\nxemu-switch-mods\README.md" copy "%base_dir%\external\nxemu-switch-mods\README.md" "%base_dir%\bin\package\mods" >nul
 
 echo packaging interface
 "%base_dir%\bin\%VSPlatform%\Release\ui_packer.exe" "%base_dir%\src\nxemu\ui\assets" "%base_dir%\lang" "%base_dir%\bin\package\nxemu.lang"
