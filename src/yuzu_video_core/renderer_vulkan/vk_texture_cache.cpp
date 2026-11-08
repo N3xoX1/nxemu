@@ -1512,7 +1512,8 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
     const VkImage dst_image = dst.Handle();
     const VkImage src_image = src.Handle();
     scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([dst_image, src_image, aspect_mask, vk_copies](vk::CommandBuffer cmdbuf) {
+    scheduler.Record([dst_image, src_image, aspect_mask,
+                      vk_copies = std::move(vk_copies)](vk::CommandBuffer cmdbuf) {
         RangedBarrierRange dst_range;
         RangedBarrierRange src_range;
         for (const VkImageCopy& copy : vk_copies) {
@@ -1875,7 +1876,7 @@ void Image::UploadMemory(VkBuffer buffer, VkDeviceSize offset,
         scheduler->RequestOutsideRenderPassOperationContext();
         auto vk_copies = TransformBufferImageCopies(copies, offset, scratch_aspect);
         scheduler->Record([src_buffer = buffer, scratch_image, scratch_aspect,
-                           vk_copies](vk::CommandBuffer cmdbuf) {
+                           vk_copies = std::move(vk_copies)](vk::CommandBuffer cmdbuf) {
             CopyBufferToImage(cmdbuf, src_buffer, scratch_image, scratch_aspect, false, vk_copies);
         });
 
@@ -1932,7 +1933,7 @@ void Image::UploadMemory(VkBuffer buffer, VkDeviceSize offset,
     const VkImageAspectFlags vk_aspect_mask = aspect_mask;
     const bool is_initialized = std::exchange(initialized, true);
     scheduler->Record([src_buffer, vk_image, vk_aspect_mask, is_initialized,
-                       vk_copies](vk::CommandBuffer cmdbuf) {
+                       vk_copies = std::move(vk_copies)](vk::CommandBuffer cmdbuf) {
         CopyBufferToImage(cmdbuf, src_buffer, vk_image, vk_aspect_mask, is_initialized, vk_copies);
     });
     if (is_rescaled) {
@@ -1991,7 +1992,8 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
     }
     scheduler->RequestOutsideRenderPassOperationContext();
     scheduler->Record([buffers = std::move(buffers_vector), image = *original_image,
-                       aspect_mask_ = aspect_mask, vk_copies](vk::CommandBuffer cmdbuf) {
+                       aspect_mask_ = aspect_mask,
+                       vk_copies = std::move(vk_copies)](vk::CommandBuffer cmdbuf) {
         const VkImageMemoryBarrier read_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .pNext = nullptr,
