@@ -17,7 +17,7 @@ constexpr char IS_CHILD_ENV_VAR[] = "NXEMU_IS_CHILD";
 constexpr char STARTUP_CHECK_ENV_VAR[] = "NXEMU_DO_STARTUP_CHECKS";
 constexpr char ENV_VAR_ENABLED_TEXT[] = "ON";
 
-void CheckVulkan();
+bool CheckVulkan();
 bool CheckEnvVars(bool* is_child);
 bool StartupChecks(const char* arg0, bool* has_broken_vulkan, bool perform_vulkan_check);
 

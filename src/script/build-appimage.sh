@@ -48,7 +48,6 @@ need() {
 }
 
 need curl
-need python3
 
 if ! $skip_build; then
     need cmake
@@ -102,7 +101,8 @@ fetch_tool() {
     fi
     mkdir -p "$(dirname "$dest")"
     echo "Downloading $(basename "$dest")"
-    curl -fL --retry 3 -o "${dest}.partial" "$url"
+    # GitHub's release asset endpoint can temporarily return 5xx responses.
+    curl -fL --retry 6 --retry-max-time 120 -o "${dest}.partial" "$url"
     mv "${dest}.partial" "$dest"
     chmod +x "$dest"
 }
@@ -115,37 +115,8 @@ fetch_tool \
     "$tools/appimagetool.AppImage"
 
 mkdir -p "$meta"
-cat >"$meta/nxemu.desktop" <<'EOF'
-[Desktop Entry]
-Type=Application
-Name=NxEmu
-Comment=NxEmu
-Exec=nxemu
-Icon=nxemu
-Categories=Game;
-Terminal=false
-EOF
-
-python3 - "$meta/nxemu.png" <<'PY'
-import struct
-import sys
-import zlib
-
-def chunk(tag, data):
-    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-width = height = 48
-rgb = bytes((0x1B, 0x3A, 0x4B))
-raw = b"".join(b"\x00" + rgb * width for _ in range(height))
-png = (
-    b"\x89PNG\r\n\x1a\n"
-    + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    + chunk(b"IDAT", zlib.compress(raw, 9))
-    + chunk(b"IEND", b"")
-)
-with open(sys.argv[1], "wb") as out:
-    out.write(png)
-PY
+cp "$root/src/nxemu/linux/io.github.N3xoX1.nxemu.desktop" "$meta/"
+cp "$root/src/nxemu/ui/assets/images/window-icon.png" "$meta/io.github.N3xoX1.nxemu.png"
 
 rm -rf "$appdir"
 mkdir -p "$appdir"
@@ -157,8 +128,8 @@ echo "Collecting libraries"
 # OpenGL, EGL, and GLES stay on the system so the AppImage uses the host GPU driver.
 "$tools/linuxdeploy.AppImage" --appdir "$appdir" \
     --executable "$exe" \
-    --desktop-file "$meta/nxemu.desktop" \
-    --icon-file "$meta/nxemu.png" \
+    --desktop-file "$meta/io.github.N3xoX1.nxemu.desktop" \
+    --icon-file "$meta/io.github.N3xoX1.nxemu.png" \
     --exclude-library 'libGL.so*' \
     --exclude-library 'libGLESv2.so*' \
     --exclude-library 'libEGL.so*' \
@@ -175,6 +146,13 @@ install_module operating_system libnxemu-os.so
 rm -rf "$appdir/usr/bin/ui" "$appdir/usr/bin/user"
 cp "$runtime_dir/nxemu.lang" "$appdir/usr/bin/nxemu.lang"
 cp -a "$runtime_dir/ui" "$appdir/usr/bin/ui"
+# The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods, with their licenses, and its README.
+rm -rf "$appdir/usr/bin/mods"
+mkdir -p "$appdir/usr/bin/mods"
+for game in "$root/external/nxemu-switch-mods"/*\]; do
+    [[ -d "$game" ]] && cp -a "$game" "$appdir/usr/bin/mods/"
+done
+[[ -f "$root/external/nxemu-switch-mods/README.md" ]] && cp "$root/external/nxemu-switch-mods/README.md" "$appdir/usr/bin/mods/"
 
 # Deploy dependencies of the files that stay beside the executable, and point
 # their runpath at usr/lib. linuxdeploy does not copy those files again.

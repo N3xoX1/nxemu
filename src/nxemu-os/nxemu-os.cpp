@@ -134,6 +134,9 @@ IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules)
         g_notify->BreakPoint(__FILE__, __LINE__);
         return nullptr;
     }
+    // Core::System allocates device memory during construction. Load its size first,
+    // so the memory is ready when the video module creates Host1x.
+    SetupOsSetting();
     g_osManager = std::make_unique<OSManager>(modules);
     return g_osManager.get();
 }

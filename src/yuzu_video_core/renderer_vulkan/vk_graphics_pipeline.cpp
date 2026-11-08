@@ -608,6 +608,13 @@ GraphicsPipeline::GraphicsPipeline(
             }
         }
     }
+    // Select the configuration before queuing the native build. The worker can release the
+    // SPIR-V modules as soon as pipeline creation completes, including on the failure path.
+    if (vtg) {
+        configure_func = [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureVtg(is_indexed); };
+    } else {
+        configure_func = ConfigureFunc(spv_modules, stage_infos);
+    }
     auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
         VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         bool success{};
@@ -707,6 +714,19 @@ GraphicsPipeline::GraphicsPipeline(
             LOG_ERROR(Render_Vulkan, "Graphics pipeline {:016x} build failed: {}", key.Hash(),
                       exception.what());
         }
+        // Vulkan pipelines own their compiled shaders. These modules are no longer needed
+        // once the synchronous vkCreate*Pipelines calls have returned, even with async builds.
+        for (auto& module : spv_modules) {
+            module.reset();
+        }
+        if (xfb) {
+            xfb->stage.module.reset();
+        }
+        if (vtg) {
+            for (auto& stage : vtg->stages) {
+                stage.module.reset();
+            }
+        }
         VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,success);
         {
             std::scoped_lock lock{build_mutex};
@@ -723,11 +743,6 @@ GraphicsPipeline::GraphicsPipeline(
         queued_build = worker_thread->QueueWork(std::move(func), urgent_build);
     } else {
         func();
-    }
-    if (vtg) {
-        configure_func = [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureVtg(is_indexed); };
-    } else {
-        configure_func = ConfigureFunc(spv_modules, stage_infos);
     }
 }
 

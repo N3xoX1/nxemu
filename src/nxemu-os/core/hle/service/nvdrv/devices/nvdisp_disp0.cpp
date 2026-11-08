@@ -120,7 +120,7 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
     }
 
     system.GetVideo().RequestComposite(output_layers.data(), (uint32_t)output_layers.size(), output_fences.data(), (uint32_t)output_fences.size());
-    system.FrameStep().OnPresent(system.ApplicationMemory());
+    system.FrameStep().OnPresent(system.ApplicationMemory(), system.GetNVDECActive());
     system.GetPerfStats().EndSystemFrame();
     system.GetPerfStats().BeginSystemFrame();
 }
