@@ -97,6 +97,7 @@ void TestDescriptorTable() {
         assert(changed && first.data == index + 10);
         assert(!table.Read(index).second);
     }
+    assert(memory.FallbackReads() == 0);
     // Both repeated invalidations and the first subsequent read must be correct.
     table.Invalidate();
     table.Invalidate();
@@ -122,6 +123,23 @@ void TestDescriptorTable() {
     assert(!table.Read(0).second);
     assert(table.Synchronize(0, 128));
     assert(table.Read(128).second);
+
+    // Unmapped and non-backed entries still take the original safe fallback.
+    memory.SetDirectAccess(false);
+    memory.Write(64 * sizeof(TestDescriptor), TestDescriptor{1001});
+    const auto fallback_before = memory.FallbackReads();
+    const auto [fallback, changed] = table.Read(64);
+    assert(fallback.data == 1001 && changed);
+    assert(memory.FallbackReads() == fallback_before + 1);
+    memory.SetDirectAccess(true);
+
+    // A descriptor crossing a 4 KiB mapping boundary must not use GetPointer.
+    Tegra::MemoryManager boundary_memory{8192};
+    VideoCommon::DescriptorTable<TestDescriptor> boundary_table{boundary_memory};
+    assert(boundary_table.Synchronize(4092, 0));
+    boundary_memory.Write(4092, TestDescriptor{0x123456789ABCDEF0ULL});
+    assert(boundary_table.Read(0).first.data == 0x123456789ABCDEF0ULL);
+    assert(boundary_memory.FallbackReads() == 1);
 }
 
 int main() {

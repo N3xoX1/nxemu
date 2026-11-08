@@ -104,6 +104,63 @@ int main() try {
                   !FindUnreplacedPipelineAlias(41, cache, unreplaced),
               "missing or failed HLE pipeline reused");
     }
+    // A test which never compares alpha must not multiply shader recipes or
+    // pipeline keys when the guest animates its unused alpha reference.
+    {
+        auto regs = std::make_unique<Maxwell>();
+        Initialise(*regs);
+        const auto capture = [&] {
+            return GuestPipelineState::Capture(*regs, Maxwell::PrimitiveTopology::Triangles,
+                                               Tegra::Engines::Maxwell3D::EngineHint::None);
+        };
+        regs->alpha_test_enabled = 0;
+        regs->alpha_test_ref = 0.25f;
+        const auto disabled = capture();
+        regs->alpha_test_ref = 0.75f;
+        Check(disabled.Words() == capture().Words(), "disabled alpha reference split recipe");
+
+        regs->alpha_test_enabled = 1;
+        for (const auto op : {Maxwell::ComparisonOp::Always_GL,
+                              Maxwell::ComparisonOp::Never_GL,
+                              Maxwell::ComparisonOp::Always_D3D,
+                              Maxwell::ComparisonOp::Never_D3D}) {
+            regs->alpha_test_func = op;
+            regs->alpha_test_ref = 0.75f;
+            const auto first = capture();
+            regs->alpha_test_ref = 0.125f;
+            const auto second = capture();
+            Check(first.Words() == second.Words(), "inactive alpha test split recipe");
+            for (unsigned bits = 0; bits < 128; ++bits) {
+                const auto a = first.Project(Features(bits)), b = second.Project(Features(bits));
+                Check(a == b && a.Hash() == b.Hash(), "inactive alpha test split host key");
+                FixedPipelineState live{};
+                FixedPipelineState::RefreshFlags dirty{true, true, true, true};
+                live.RefreshFromRegisters(*regs, Maxwell::PrimitiveTopology::Triangles,
+                    Tegra::Engines::Maxwell3D::EngineHint::None, Features(bits), dirty);
+                Check(live == b, "live alpha key differs from recipe projection");
+            }
+        }
+        for (const auto op : {Maxwell::ComparisonOp::Less_GL, Maxwell::ComparisonOp::Equal_GL,
+                              Maxwell::ComparisonOp::LessEqual_GL, Maxwell::ComparisonOp::Greater_GL,
+                              Maxwell::ComparisonOp::NotEqual_GL, Maxwell::ComparisonOp::GreaterEqual_GL,
+                              Maxwell::ComparisonOp::Less_D3D, Maxwell::ComparisonOp::Equal_D3D,
+                              Maxwell::ComparisonOp::LessEqual_D3D, Maxwell::ComparisonOp::Greater_D3D,
+                              Maxwell::ComparisonOp::NotEqual_D3D, Maxwell::ComparisonOp::GreaterEqual_D3D}) {
+            regs->alpha_test_func = op;
+            regs->alpha_test_ref = 0.125f;
+            const auto active = capture();
+            regs->alpha_test_ref = 0.375f;
+            Check(active.Words() != capture().Words(), "active alpha reference was discarded");
+        }
+
+        // Old serialized profiles remain readable; their inactive reference
+        // is canonicalized only after the original word-field validation.
+        auto old_words = disabled.Words();
+        old_words[12] = 0x3f000000U;
+        const auto imported = GuestPipelineState::FromWords(old_words);
+        Check(imported.has_value() && imported->Words() == disabled.Words(),
+              "old inactive-alpha recipe failed to normalize");
+    }
     auto tracking = std::make_unique<Tegra::Engines::Maxwell3D::DirtyState>();
     GuestPipelineState::Track(*tracking);
     const auto tracked = [&](size_t byte) { return tracking->shader_profile_registers[byte / 4] != 0; };

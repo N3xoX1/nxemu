@@ -60,3 +60,10 @@ nxemu_shader_profile_test(startup_variants)
 nxemu_shader_profile_test(synthetic_robustness)
 # Builds zstd frames and dictionaries of its own.
 target_link_libraries(test_shader_profile_synthetic_robustness PRIVATE zstd::zstd)
+
+nxemu_shader_profile_test(alpha_legacy_export "${CMAKE_CURRENT_BINARY_DIR}/alpha-legacy.json")
+
+foreach(target test_shader_profile_guest_pipeline_state test_shader_profile_alpha_legacy_export)
+    add_dependencies(nxemu_linux_unit_tests ${target})
+    set_property(TEST ${target} APPEND PROPERTY LABELS linux_ci)
+endforeach()

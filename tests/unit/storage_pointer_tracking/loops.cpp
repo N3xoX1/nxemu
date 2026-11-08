@@ -29,9 +29,10 @@ struct Fixture {
     void Incoming(IR::Inst& phi, const IR::U32& value) {
         phi.AddPhiOperand(&block, value);
     }
-    bool Run(const IR::U32& low) {
+    bool Run(const IR::U32& low, unsigned accesses = 1, u32 expected_offset = 0x650) {
         const auto address = ir.PackUint2x32(ir.CompositeConstruct(low, Base(0x654)));
-        (void)ir.GlobalAtomicIAdd(address, ir.Imm32(1));
+        for (unsigned i = 0; i < accesses; ++i)
+            (void)ir.GlobalAtomicIAdd(address, ir.Imm32(1));
         Shader::HostTranslateInfo host{};
         host.min_ssbo_alignment = 16;
         Shader::Optimization::GlobalMemoryToStorageBufferPass(program, host);
@@ -40,10 +41,10 @@ struct Fixture {
             storage += inst.GetOpcode() == IR::Opcode::StorageAtomicIAdd32;
             global += inst.GetOpcode() == IR::Opcode::GlobalAtomicIAdd32;
         }
-        if (storage == 1 && global == 0) {
+        if (storage == accesses && global == 0) {
             const auto& descriptors = program.info.storage_buffers_descriptors;
             return descriptors.size() == 1 && descriptors[0].cbuf_index == 0 &&
-                   descriptors[0].cbuf_offset == 0x650 && descriptors[0].is_written;
+                   descriptors[0].cbuf_offset == expected_offset && descriptors[0].is_written;
         }
         return false;
     }
@@ -104,6 +105,16 @@ int main() {
         auto& phi = f.Phi();
         f.Incoming(phi, base); f.Incoming(phi, loaded); f.Incoming(phi, f.Value(phi));
         check(!f.Run(f.Value(phi)), "pointer loaded from memory is not its source descriptor");
+    }
+    for (u32 offset : {0x310U, 0x650U}) {
+        Fixture f;
+        auto low = f.Base(offset);
+        for (unsigned i = 0; i < 512; ++i) low = f.ir.IAdd(low, f.ir.Imm32(4));
+        check(f.Run(low, 256, offset), "repeated biased/unbiased address preserves descriptor");
+    }
+    {
+        Fixture f;
+        check(!f.Run(f.ir.Imm32(7), 256), "repeated untracked address remains global");
     }
     return failures ? 1 : 0;
 }

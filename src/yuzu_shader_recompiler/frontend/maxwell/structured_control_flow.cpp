@@ -295,13 +295,26 @@ Node SiblingFromNephew(Node uncle, Node nephew) noexcept {
 }
 
 bool AreOrdered(Node left_sibling, Node right_sibling) noexcept {
+    if (left_sibling == right_sibling) {
+        return false;
+    }
     const Node end{right_sibling->up->children.end()};
-    for (auto it = right_sibling; it != end; ++it) {
-        if (it == left_sibling) {
+    // Advance from both siblings. The shorter side establishes the ordering,
+    // without walking the full tail after right_sibling on every query.
+    for (Node left = left_sibling, right = right_sibling;;) {
+        if (++right == left_sibling) {
+            return false;
+        }
+        if (right == end) {
+            return true;
+        }
+        if (++left == right_sibling) {
+            return true;
+        }
+        if (left == end) {
             return false;
         }
     }
-    return true;
 }
 
 bool NeedsLift(Node goto_stmt, Node label_stmt) noexcept {

@@ -220,14 +220,17 @@ std::string Normalize(std::string key, const Masks & dependencies, const VertexI
     if (!pool) Put(key, 408, 0, 8);
     Vulkan::FixedPipelineState state;
     std::memcpy(&state, key.data() + 416, sizeof(state));
+    // Match old cache records and journals using the same inactive-field rules
+    // as live keys, before looking up their shader environments.
+    state.NormalizeInactiveFields();
     // Runtime keys drop the types of undeclared vertex attributes; journal projections and
     // records stored before that keep them. A vertex A program also reads attributes.
     if (At(key, 0, 8) == 0)
         if (const auto inputs = vertex_inputs.find(At(key, 8, 8)); inputs != vertex_inputs.end())
         {
             state.MaskVertexInputs(inputs->second);
-            std::memcpy(key.data() + 416, &state, sizeof(state));
         }
+    std::memcpy(key.data() + 416, &state, sizeof(state));
     return key.substr(0, 416 + state.Size());
 }
 // Compute keys keep only the constant buffer sizes their program reads.
@@ -395,8 +398,8 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
         JsonValue r(JsonValueType::Object);
         r["kind"] = "graphics";
         r["guest_words"] = Array();
-        for (size_t i = 0; i < 278; ++i)
-            r["guest_words"].Append(words[i]);
+        for (const auto word : guest->Words())
+            r["guest_words"].Append(word);
         r["shader_hashes"] = Array();
         for (size_t i = 0; i < 6; ++i)
             r["shader_hashes"].Append(Num(u64{words[278 + 2 * i]} | (u64{words[279 + 2 * i]} << 32)));

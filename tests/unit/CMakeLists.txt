@@ -280,6 +280,12 @@ nxemu_unit_test(test_nce_store_thunk)
 add_executable(test_storage_pointer_tracking
     storage_pointer_tracking/loops.cpp
     "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/global_memory_to_storage_buffer_pass.cpp")
+# Exercise multi-chunk pools with consistent ASan container annotations in the
+# fixture and the IR code that allocates their instructions.
+foreach(source basic_block ir_emitter microinstruction)
+    target_sources(test_storage_pointer_tracking PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/frontend/ir/${source}.cpp")
+endforeach()
 target_include_directories(test_storage_pointer_tracking PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(test_storage_pointer_tracking PRIVATE shader_recompiler yuzu_common)
 if(NOT MSVC)
