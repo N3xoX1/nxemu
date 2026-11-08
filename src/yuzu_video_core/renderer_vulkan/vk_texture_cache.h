@@ -273,8 +273,8 @@ public:
     ImageView(const ImageView&) = delete;
     ImageView& operator=(const ImageView&) = delete;
 
-    ImageView(ImageView&&) = default;
-    ImageView& operator=(ImageView&&) = default;
+    ImageView(ImageView&&) noexcept = default;
+    ImageView& operator=(ImageView&&) noexcept;
 
     [[nodiscard]] VkImageView DepthView();
 
@@ -330,12 +330,17 @@ private:
     const SlotVector<Image>* slot_images = nullptr;
     bool identity_swizzle = false;
 
+    // Declared before the views so Vulkan destroys views before their backing images.
+    // One allocation per image dimension: 1D, 2D (including cube/array) and 3D.
+    std::array<vk::Image, 3> null_images;
+    struct NullStorageImage { vk::Image image; vk::ImageView view; };
+    std::unordered_map<u64, NullStorageImage> null_storage_images;
+    TextureCacheRuntime* null_runtime = nullptr;
     std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> image_views;
     std::unique_ptr<StorageViews> storage_views;
     vk::ImageView depth_view;
     vk::ImageView stencil_view;
     vk::ImageView color_view;
-    vk::Image null_image;
     VkImage image_handle = VK_NULL_HANDLE;
     VkImageView render_target = VK_NULL_HANDLE;
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
