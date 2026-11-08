@@ -1,0 +1,3 @@
+add_executable(test_loading_time_estimate loading_time_estimate.cpp)
+target_include_directories(test_loading_time_estimate PRIVATE "${NXEMU_FAST_TEST_SOURCE_DIR}")
+nxemu_fast_test(test_loading_time_estimate)

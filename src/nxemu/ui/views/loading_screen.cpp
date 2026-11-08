@@ -53,6 +53,9 @@ void LoadingScreen::Reset()
     m_images.clear();
     m_title.clear();
     m_hasGame = false;
+    m_timeEstimate.Reset();
+    SetText("loading-hint", "");
+    SetText("loading-eta", "");
 }
 
 void LoadingScreen::Announce(const std::string & title, const std::string & iconSource)
@@ -94,6 +97,28 @@ void LoadingScreen::Update()
     const LoadStage stage = reported ? static_cast<LoadStage>(settings.GetInt(NXCoreSetting::DiskCacheLoadStage)) : LoadStage::Game;
     const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);
     const int total = settings.GetInt(NXCoreSetting::DiskCacheLoadTotal);
+    const bool compiling = stage == LoadStage::Shaders || stage == LoadStage::BuildProfile;
+    SetText("loading-hint", compiling ?
+        Tr("This may take a few minutes. Compiled shaders are cached to speed up future launches.") : "");
+    std::string remaining;
+    if (compiling)
+    {
+        const auto estimate = m_timeEstimate.Update(static_cast<int>(stage), current, total);
+        if (estimate)
+        {
+            const auto seconds = estimate->count();
+            if (seconds < 60)
+                remaining = Tr("About %1 s remaining", {std::to_string(5 * ((seconds + 4) / 5))});
+            else
+                remaining = Tr("About %1 min remaining", {std::to_string((seconds + 59) / 60)});
+        }
+        else if (total > 0 && current < total)
+            remaining = Tr("Estimating time remaining...");
+        else if (total > 0 && current >= total)
+            remaining = Tr("Finishing shader preparation...");
+    }
+    else m_timeEstimate.Reset();
+    SetText("loading-eta", remaining);
     if (stage == LoadStage::Shaders || stage == LoadStage::ReadProfile ||
         stage == LoadStage::ImportProfile || stage == LoadStage::BuildProfile)
     {
