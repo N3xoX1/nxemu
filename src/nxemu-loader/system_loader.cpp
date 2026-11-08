@@ -214,6 +214,13 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::LoadingRom);
     impl->m_file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
+    // A mod may have been added to a game directory since the scan, or the game started before one
+    if (!impl->m_gameListCache.RefreshModFolders([this]() { return PrepareRomCancelled(); }))
+    {
+        g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::ErrorCancelled);
+        g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
+        return false;
+    }
     impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, program_id, program_index);
     if (!impl->m_appLoader)
     {
@@ -428,9 +435,9 @@ bool Systemloader::ScanGameFiles(const GameFileEntry * files, uint32_t fileCount
     return impl->m_gameListCache.ScanFiles(list, callback);
 }
 
-std::vector<GameDirectory> Systemloader::GameDirectories()
+std::vector<std::string> Systemloader::ModFolders(uint64_t titleId)
 {
-    return impl->m_gameListCache.Directories();
+    return impl->m_gameListCache.ModFolders(titleId);
 }
 
 std::vector<std::string> Systemloader::GameDirectoryAddOnFiles(uint64_t baseProgramId)

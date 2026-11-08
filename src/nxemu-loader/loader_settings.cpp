@@ -55,7 +55,6 @@ namespace
         {NXLoaderSetting::CheckForUpdatedFirmware, "CheckForUpdatedFirmware", &loaderSettings.checkForUpdatedFirmware, true},
         {NXLoaderSetting::FirmwareInstallCurrent, nullptr, nullptr, 0},
         {NXLoaderSetting::FirmwareInstallTotal, nullptr, nullptr, 0},
-        {NXLoaderSetting::AddOnDirectories, "AddOnDirectories", &loaderSettings.addOnDirectories},
         {NXLoaderSetting::BundledModsDirectory, "BundledModsDirectory", &loaderSettings.bundledModsDirectory, ""},
         {"DisabledAddOns", &loaderSettings.disabled_addons},
         {"EnabledAddOns", &loaderSettings.enabled_addons},

@@ -14,7 +14,6 @@ struct LoaderSettings
     int32_t languageIndex;
 
     // Add-Ons
-    StringList addOnDirectories;
     TitleIdStringListMap disabled_addons;
     // The bundled mods that are off by default (mod.json "enabled_by_default": false) the user turned on
     TitleIdStringListMap enabled_addons;
@@ -27,6 +26,5 @@ extern LoaderSettings loaderSettings;
 void SetupLoaderSetting(void);
 void CleanupLoaderSetting(void);
 void SaveLoaderSettings(void);
-void RefreshConfiguredAddOnDirectories(void);
 
 void SetLoaderAddOns(uint64_t program_id, std::vector<std::string> disabled, std::vector<std::string> enabled);

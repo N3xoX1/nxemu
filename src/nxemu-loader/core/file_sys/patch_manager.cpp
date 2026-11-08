@@ -218,23 +218,23 @@ void AddLoadRootChildren(std::vector<VirtualDir> & patch_dirs, std::unordered_se
     }
 }
 
-// The user's own mods: the load folder, then the add-on directories
+// The user's own mods: the load folder, then the game directories
 void AddUserModPatchDirs(uint64_t title_id, const FileSystemController & fs_controller, std::vector<VirtualDir> & patch_dirs, std::unordered_set<std::string> & seen_names)
 {
     AddLoadRootChildren(patch_dirs, seen_names, fs_controller.GetModificationLoadRoot(title_id));
 
-    const std::vector<VirtualDir> addon_roots = fs_controller.GetAddOnModificationLoadRoots(title_id);
-    for (const VirtualDir & addon_root : addon_roots)
+    const std::vector<VirtualDir> mod_roots = fs_controller.GetGameDirectoryModificationLoadRoots(title_id);
+    for (const VirtualDir & mod_root : mod_roots)
     {
-        if (addon_root != nullptr &&
-            (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(addon_root, "romfs")) ||
-             IsDirValidAndNonEmpty(FindSubdirectoryCaseless(addon_root, "exefs")) ||
-             IsDirValidAndNonEmpty(FindSubdirectoryCaseless(addon_root, "cheats")) ||
-             IsDirValidAndNonEmpty(FindSubdirectoryCaseless(addon_root, "romfs_ext"))))
+        if (mod_root != nullptr &&
+            (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod_root, "romfs")) ||
+             IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod_root, "exefs")) ||
+             IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod_root, "cheats")) ||
+             IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod_root, "romfs_ext"))))
         {
-            AddUniqueModPatchDir(patch_dirs, seen_names, addon_root);
+            AddUniqueModPatchDir(patch_dirs, seen_names, mod_root);
         }
-        AddLoadRootChildren(patch_dirs, seen_names, addon_root);
+        AddLoadRootChildren(patch_dirs, seen_names, mod_root);
     }
 }
 
