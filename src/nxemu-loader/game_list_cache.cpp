@@ -14,10 +14,12 @@
 #include "nxemu-os/os_settings_identifiers.h"
 #include <nxemu-core/settings/identifiers.h>
 #include <algorithm>
+#include <cctype>
 #include <common/path.h>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/fs/path_util.h>
@@ -28,7 +30,7 @@ extern IModuleSettings * g_settings;
 namespace
 {
 constexpr uint32_t CacheMagic = 0x4C47584E; // "NXGL"
-constexpr uint32_t CacheVersion = 5; // Reparse metadata cached before the developer was kept.
+constexpr uint32_t CacheVersion = 6; // Add-on directories are no longer cached.
 constexpr const char * CacheFileName = "game_list.bin";
 
 std::string GetLowerExtension(const std::string & path)
@@ -625,13 +627,96 @@ Listing ListDirectory(const std::filesystem::path & root, IGameListScanCallback 
     return listing;
 }
 
+bool IsTitleIdFolder(const std::filesystem::path & path)
+{
+    const std::string name = Common::FS::PathToUTF8String(path.filename());
+    return name.size() == 16 && std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isxdigit(c) != 0; });
+}
+
+// A folder named for a title id holds the mods of that title; whether path is one
+bool RecordModFolder(const std::filesystem::path & path, GameListCache::TitleIdFolders & modFolders)
+{
+    if (!IsTitleIdFolder(path))
+    {
+        return false;
+    }
+    modFolders[std::stoull(Common::FS::PathToUTF8String(path.filename()), nullptr, 16)].push_back(Common::FS::PathToUTF8String(path));
+    return true;
+}
+
+// Whether path is inside a title id folder under root (root included): part of that title's mods
+bool InModFolder(const std::filesystem::path & path, const std::filesystem::path & root)
+{
+    for (std::filesystem::path parent = path.parent_path(); !parent.empty(); parent = parent.parent_path())
+    {
+        if (IsTitleIdFolder(parent))
+        {
+            return true;
+        }
+        if (parent == root || parent == parent.parent_path())
+        {
+            break;
+        }
+    }
+    return false;
+}
+
+class ModFolderSearch :
+    public IGameListScanCallback
+{
+public:
+    explicit ModFolderSearch(const std::function<bool()> & stopRequested) :
+        m_stopRequested(stopRequested)
+    {
+    }
+
+    bool ScanStopRequested() override
+    {
+        return m_stopRequested && m_stopRequested();
+    }
+    void GameFound(const char *, IRomInfo *, bool) override
+    {
+    }
+    void ScanProgress(uint32_t, uint32_t) override
+    {
+    }
+
+private:
+    const std::function<bool()> & m_stopRequested;
+};
+
+// The mod folders in the game directories, without the scan's look into them: a title id folder holds only its mods,
+// which can be large. False when stopped
+bool FindModFolders(const std::vector<GameDirectory> & gameDirs, const std::function<bool()> & stopRequested, GameListCache::TitleIdFolders & modFolders)
+{
+    ModFolderSearch search(stopRequested);
+    for (const GameDirectory & gameDir : gameDirs)
+    {
+        const std::filesystem::path root{Common::FS::ToU8String(gameDir.path)};
+        if (RecordModFolder(root, modFolders))
+        {
+            continue;
+        }
+        const Listing listing = ListDirectory(root, search, [](const std::filesystem::directory_entry &) {}, [&](const std::filesystem::directory_entry & entry) {
+            return !RecordModFolder(entry.path(), modFolders) && gameDir.scanSubfolders && !Loader::LooseFS::CanSkipRomFS(entry.path());
+        });
+        if (listing == Listing::Stopped)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 GameListCache::GameListCache(Systemloader & systemloader) :
     m_systemloader(systemloader),
     m_loaded(false),
     m_dirty(false),
-    m_listingComplete(true)
+    m_listingComplete(true),
+    m_modFoldersFound(false),
+    m_modFolderDirectoriesKnown(false)
 {
 }
 
@@ -648,10 +733,20 @@ bool GameListCache::Scan(const std::vector<GameDirectory> & gameDirs, IGameListS
         m_gameDirectories = gameDirs;
         m_dirty = true;
     }
-    bool complete = ScanAddOnDirectories(callback);
+    SetModFolderDirectories(gameDirs);
+
+    // Every directory is listed before any game is read, so reading a game knows its mod folders wherever they are
+    std::vector<DirFile> files;
+    TitleIdFolders modFolders;
+    bool complete = true;
     for (size_t i = 0; complete && i < gameDirs.size(); i++)
     {
-        complete = ScanGameDirectory(gameDirs[i], callback);
+        complete = ListGameDirectory(gameDirs[i], callback, files, modFolders);
+    }
+    if (complete)
+    {
+        SetModFolders(std::move(modFolders));
+        complete = ScanGameFiles(files, callback);
     }
     return FinishScan(complete, callback);
 }
@@ -677,9 +772,20 @@ bool GameListCache::ScanFiles(const std::vector<ScanFile> & files, IGameListScan
             gameFiles.push_back({file.path, stamp});
         }
     }
-    bool complete = ScanAddOnDirectories(callback);
+    SetModFolderDirectories(m_gameDirectories);
+    bool found;
+    {
+        std::lock_guard<std::mutex> modFoldersLock(m_modFoldersMutex);
+        found = m_modFoldersFound;
+    }
+    TitleIdFolders modFolders;
+    bool complete = found || FindModFolders(m_gameDirectories, [&callback]() { return callback.ScanStopRequested(); }, modFolders);
     if (complete)
     {
+        if (!found)
+        {
+            SetModFolders(std::move(modFolders));
+        }
         complete = ScanGameFiles(gameFiles, callback);
     }
     return FinishScan(complete, callback);
@@ -704,22 +810,6 @@ bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
 {
     if (complete)
     {
-        UpdateIndex addOnIndex;
-        for (const AddOnFiles::value_type & addOnFile : m_addOnFiles)
-        {
-            if (!addOnFile.second.seen)
-            {
-                continue;
-            }
-            for (const AddOnEntry & entry : addOnFile.second.entries)
-            {
-                if (entry.titleType == LoaderTitleType::Update && entry.contentType == LoaderContentRecordType::Control)
-                {
-                    addOnIndex.emplace(entry.titleId, UpdateCandidate{&addOnFile.first, addOnFile.second.stamp, entry.version});
-                }
-            }
-        }
-
         if (m_listingComplete)
         {
             for (GameFiles::iterator itr = m_gameFiles.begin(); itr != m_gameFiles.end();)
@@ -757,7 +847,7 @@ bool GameListCache::FinishScan(bool complete, IGameListScanCallback & callback)
             }
             for (ProgramRecord & program : game.second.programs)
             {
-                if (RefreshUpdate(program, addOnIndex, gameDirIndex))
+                if (RefreshUpdate(program, gameDirIndex))
                 {
                     m_dirty = true;
                     ReportProgram(game.first, program, true, callback);
@@ -805,74 +895,62 @@ std::vector<std::string> GameListCache::GameDirectoryAddOnFiles(uint64_t basePro
     return files;
 }
 
-bool GameListCache::ScanAddOnDirectories(IGameListScanCallback & callback)
+std::vector<std::string> GameListCache::ModFolders(uint64_t titleId)
 {
-    for (AddOnFiles::value_type & addOnFile : m_addOnFiles)
+    bool found;
     {
-        addOnFile.second.seen = false;
+        std::lock_guard<std::mutex> lock(m_modFoldersMutex);
+        found = m_modFoldersFound;
     }
-
-    bool listingComplete = true;
-    for (const std::string & dir : loaderSettings.addOnDirectories)
+    if (!found)
     {
-        if (dir.empty())
-        {
-            continue;
-        }
-        const auto addOnFile = [&](const std::filesystem::directory_entry & entry) {
-            const std::string path = Common::FS::PathToUTF8String(entry.path());
-            if (!IsAddOnExtension(GetLowerExtension(path)))
-            {
-                return;
-            }
-            std::error_code ec;
-            FileStamp stamp;
-            stamp.size = entry.file_size(ec);
-            stamp.modifiedTime = (int64_t)entry.last_write_time(ec).time_since_epoch().count();
-
-            const std::pair<AddOnFiles::iterator, bool> added = m_addOnFiles.try_emplace(path);
-            AddOnFileRecord & record = added.first->second;
-            if (added.second || !(record.stamp == stamp))
-            {
-                record.entries = ReadAddOnEntries(path);
-                record.stamp = stamp;
-                m_dirty = true;
-            }
-            record.seen = true;
-        };
-        const Listing listing = ListDirectory(std::filesystem::path{Common::FS::ToU8String(dir)}, callback, addOnFile,
-                                              [](const std::filesystem::directory_entry &) { return true; });
-        if (listing == Listing::Stopped)
-        {
-            return false;
-        }
-        if (listing == Listing::Incomplete)
-        {
-            LOG_WARNING(Loader, "Add-on directory {} could not be fully read, keeping its cached add-ons", dir);
-            listingComplete = false;
-        }
+        RefreshModFolders({});
     }
+    std::lock_guard<std::mutex> lock(m_modFoldersMutex);
+    const TitleIdFolders::const_iterator itr = m_modFolders.find(titleId);
+    return itr != m_modFolders.end() ? itr->second : std::vector<std::string>();
+}
 
-    if (listingComplete)
+bool GameListCache::RefreshModFolders(const std::function<bool()> & stopRequested)
+{
+    std::vector<GameDirectory> gameDirs;
+    bool known;
     {
-        for (AddOnFiles::iterator itr = m_addOnFiles.begin(); itr != m_addOnFiles.end();)
-        {
-            if (itr->second.seen)
-            {
-                ++itr;
-                continue;
-            }
-            itr = m_addOnFiles.erase(itr);
-            m_dirty = true;
-        }
+        std::lock_guard<std::mutex> lock(m_modFoldersMutex);
+        known = m_modFolderDirectoriesKnown;
+        gameDirs = m_modFolderDirectories;
     }
+    if (!known)
+    {
+        // No scan has started, which would hold m_scanMutex, so the cache gives the directories of the last run
+        gameDirs = Directories();
+    }
+    TitleIdFolders modFolders;
+    if (!FindModFolders(gameDirs, stopRequested, modFolders))
+    {
+        return false;
+    }
+    SetModFolders(std::move(modFolders));
     return true;
 }
 
-bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGameListScanCallback & callback)
+void GameListCache::SetModFolderDirectories(const std::vector<GameDirectory> & gameDirs)
+{
+    std::lock_guard<std::mutex> lock(m_modFoldersMutex);
+    m_modFolderDirectories = gameDirs;
+    m_modFolderDirectoriesKnown = true;
+}
+
+void GameListCache::SetModFolders(TitleIdFolders modFolders)
+{
+    std::lock_guard<std::mutex> lock(m_modFoldersMutex);
+    m_modFolders = std::move(modFolders);
+    m_modFoldersFound = true;
+}
+
+bool GameListCache::ListGameDirectory(const GameDirectory & gameDirectory, IGameListScanCallback & callback, std::vector<DirFile> & files, TitleIdFolders & modFolders)
 {
     const std::string & gameDir = gameDirectory.path;
-    std::vector<DirFile> files;
 
     const auto collectFile = [&](const std::filesystem::directory_entry & entry) {
         const std::filesystem::path & path = entry.path();
@@ -898,7 +976,13 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
     // The generic recursive scanner used to visit every asset in loose romfs/ trees,
     // even though only ExeFS/main is an executable. Walk directories explicitly so
     // entire RomFS payloads can be skipped without sacrificing nested game discovery.
+    const std::filesystem::path root{Common::FS::ToU8String(gameDir)};
     const auto enterDirectory = [&](const std::filesystem::directory_entry & entry) {
+        // Games are looked for inside a title id folder too, but its folders are its mods, not those of other titles
+        if (!InModFolder(entry.path(), root))
+        {
+            RecordModFolder(entry.path(), modFolders);
+        }
         if (!gameDirectory.scanSubfolders)
         {
             // A selected game folder can contain an exefs/ child even when recursive
@@ -912,7 +996,8 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
         }
         return !Loader::LooseFS::CanSkipRomFS(entry.path());
     };
-    const Listing listing = ListDirectory(std::filesystem::path{Common::FS::ToU8String(gameDir)}, callback, collectFile, enterDirectory);
+    RecordModFolder(root, modFolders);
+    const Listing listing = ListDirectory(root, callback, collectFile, enterDirectory);
     if (listing == Listing::Stopped)
     {
         return false;
@@ -922,7 +1007,7 @@ bool GameListCache::ScanGameDirectory(const GameDirectory & gameDirectory, IGame
         LOG_WARNING(Loader, "Game directory {} could not be fully read, keeping its cached games", gameDir);
         m_listingComplete = false;
     }
-    return ScanGameFiles(files, callback);
+    return true;
 }
 
 bool GameListCache::ScanGameFiles(const std::vector<DirFile> & files, IGameListScanCallback & callback)
@@ -1098,7 +1183,7 @@ GameListCache::AddOnEntries GameListCache::ReadAddOnEntries(const std::string & 
     return entries;
 }
 
-bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & addOnIndex, const UpdateIndex & gameDirIndex) const
+bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & updateIndex) const
 {
     const uint64_t programId = program.base.programIdStatus == LoaderResultStatus::Success ? program.base.programId : 0;
     const uint64_t updateTitleId = FileSys::GetUpdateTitleID(programId);
@@ -1109,19 +1194,16 @@ bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & a
     const UpdateCandidate * best = nullptr;
     if (programId != 0)
     {
-        for (const UpdateIndex * index : {&addOnIndex, &gameDirIndex})
+        const auto range = updateIndex.equal_range(updateTitleId);
+        for (UpdateIndex::const_iterator itr = range.first; itr != range.second; ++itr)
         {
-            const auto range = index->equal_range(updateTitleId);
-            for (UpdateIndex::const_iterator itr = range.first; itr != range.second; ++itr)
+            if (IsUpdateDisabled(disabled, itr->second.version))
             {
-                if (IsUpdateDisabled(disabled, itr->second.version))
-                {
-                    continue;
-                }
-                if (best == nullptr || itr->second.version > best->version)
-                {
-                    best = &itr->second;
-                }
+                continue;
+            }
+            if (best == nullptr || itr->second.version > best->version)
+            {
+                best = &itr->second;
             }
         }
     }
@@ -1248,7 +1330,6 @@ void GameListCache::Load()
         return;
     }
 
-    AddOnFiles addOnFiles;
     GameFiles gameFiles;
 
     const auto readAddOns = [&reader](AddOnEntries & entries) {
@@ -1263,16 +1344,6 @@ void GameListCache::Load()
             entries.push_back(entry);
         }
     };
-
-    const uint32_t addOnCount = reader.U32();
-    for (uint32_t i = 0; i < addOnCount && reader.Ok(); i++)
-    {
-        std::string path = reader.String();
-        AddOnFileRecord & record = addOnFiles[path];
-        record.stamp.size = reader.U64();
-        record.stamp.modifiedTime = (int64_t)reader.U64();
-        readAddOns(record.entries);
-    }
 
     const uint32_t gameCount = reader.U32();
     for (uint32_t i = 0; i < gameCount && reader.Ok(); i++)
@@ -1310,7 +1381,6 @@ void GameListCache::Load()
     {
         return;
     }
-    m_addOnFiles = std::move(addOnFiles);
     m_gameFiles = std::move(gameFiles);
     m_gameDirectories = std::move(gameDirectories);
 }
@@ -1332,15 +1402,6 @@ bool GameListCache::Save() const
             writer.U32(entry.version);
         }
     };
-
-    writer.U32((uint32_t)m_addOnFiles.size());
-    for (const AddOnFiles::value_type & addOnFile : m_addOnFiles)
-    {
-        writer.String(addOnFile.first);
-        writer.U64(addOnFile.second.stamp.size);
-        writer.U64((uint64_t)addOnFile.second.stamp.modifiedTime);
-        writeAddOns(addOnFile.second.entries);
-    }
 
     writer.U32((uint32_t)m_gameFiles.size());
     for (const GameFiles::value_type & game : m_gameFiles)

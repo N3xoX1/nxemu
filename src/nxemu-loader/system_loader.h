@@ -24,7 +24,8 @@ public:
     FileSys::ContentProvider & GetContentProvider();
     FileSys::VirtualFilesystem GetFilesystem();
     ::FileSystemController & GetFileSystemController();
-    std::vector<GameDirectory> GameDirectories();
+    // The folders in the game directories named for the title id, which hold its mods
+    std::vector<std::string> ModFolders(uint64_t titleId);
     std::vector<std::string> GameDirectoryAddOnFiles(uint64_t baseProgramId);
     void RegisterContentProvider(FileSys::ContentProviderUnionSlot slot, FileSys::ContentProvider* provider);
 
