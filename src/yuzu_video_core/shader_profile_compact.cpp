@@ -853,12 +853,75 @@ struct SourceFile
     u64 size{};
     std::string header; // SHA-256 of its first 4 KiB.
 };
+// A header is only a lookup hint. Decryption tools can rewrite it while keeping
+// shader resources at the same offsets. Probe small, fingerprinted resources in
+// same-sized NCAs, then retain the normal verification of every loaded shader.
+struct ContentProbe
+{
+    std::vector<Span> spans;
+    std::string hash;
+    u64 program_hash{};
+    u64 size{};
+};
+using ContentProbes = std::map<std::string, std::vector<ContentProbe>>;
+
+ContentProbes MakeContentProbes(const std::vector<Resource>& resources,
+                               const std::vector<Program>& programs,
+                               const std::vector<size_t>& needed_programs)
+{
+    constexpr u64 MaxProbeBytes = 4 * 1024 * 1024;
+    ContentProbes probes;
+    std::set<size_t> seen;
+    for (const auto id : needed_programs) {
+        const auto& program = programs[id];
+        for (const auto& locator : program.locators) {
+            const auto& resource = resources[locator.resource];
+            if (resource.kind == 0) {
+                if (program.size <= MaxProbeBytes)
+                    probes[resource.file].push_back({{{resource.file, locator.offset, program.size}},
+                                                     {}, program.hash, program.size});
+            } else if (!resource.hash.empty() && resource.size <= MaxProbeBytes &&
+                       seen.insert(locator.resource).second) {
+                auto spans = Spanned(resource.kind) ? resource.spans :
+                    std::vector<Span>{{resource.file, resource.offset, resource.size}};
+                if (spans.empty()) continue;
+                const auto file = spans.front().file;
+                if (std::all_of(spans.begin(), spans.end(), [&](const auto& span) { return span.file == file; }))
+                    probes[file].push_back({std::move(spans), resource.hash, 0, resource.size});
+            }
+        }
+    }
+    for (auto& [file, choices] : probes) {
+        std::stable_sort(choices.begin(), choices.end(), [](const auto& a, const auto& b) { return a.size < b.size; });
+        if (choices.size() > 4) choices.resize(4);
+    }
+    return probes;
+}
+
+bool MatchesContentProbe(const ContentLocation& content, const ContentProbe& probe,
+                         Timing::Metrics* timings)
+{
+    std::ifstream input(content.path, std::ios::binary);
+    if (!input) return false;
+    std::string bytes(static_cast<size_t>(probe.size), '\0');
+    size_t destination{};
+    for (const auto& span : probe.spans) {
+        if (span.offset > content.size || span.size > content.size - span.offset) return false;
+        ReadInto(input, content.offset + span.offset,
+                 std::span(bytes).subspan(destination, span.size), timings);
+        destination += span.size;
+    }
+    return probe.hash.empty() ? Verify(bytes, probe.program_hash, timings) : Hash(bytes, timings) == probe.hash;
+}
+
 // Finds the needed NCAs in any NSP or XCI directly inside root. Size and the hash
 // of the first 4 KiB identify an NCA; every program read from it is still verified.
 ContentMap LocateContents(const std::filesystem::path & root, u64 title_id, const std::vector<SourceFile> & sources,
-                          const std::set<std::string> & needed, Timing::Metrics * timings, const ResourceProgress & progress)
+                          const std::set<std::string> & needed, Timing::Metrics * timings, const ResourceProgress & progress,
+                          const ContentProbes& probes)
 {
     ContentMap found;
+    std::map<std::string, std::vector<ContentLocation>> alternatives;
     std::vector<const SourceFile *> pending;
     for (const auto & source : sources)
         if (needed.contains(source.name)) pending.push_back(&source);
@@ -911,13 +974,34 @@ ContentMap LocateContents(const std::filesystem::path & root, u64 title_id, cons
                 {
                     if ((*it)->size != entry.size) { ++it; continue; }
                     if (header.empty()) header = Hash(read(entry.offset, std::min<u64>(entry.size, 4096)), timings);
-                    if (header != (*it)->header) { ++it; continue; }
+                    if (header != (*it)->header) {
+                        alternatives[(*it)->name].push_back({path, entry.offset, entry.size});
+                        ++it;
+                        continue;
+                    }
                     found[(*it)->name] = {path, entry.offset, entry.size};
                     it = pending.erase(it);
                 }
             }
         }
         catch (const std::exception &) { /* Not a readable plaintext container. */ }
+    }
+    for (const auto* source : pending) {
+        const auto choices = probes.find(source->name);
+        if (choices == probes.end()) continue;
+        for (const auto& candidate : alternatives[source->name]) {
+            Check(!progress || progress(0, 1), "Shader profile operation cancelled");
+            bool matched{};
+            for (const auto& probe : choices->second) {
+                try { matched = MatchesContentProbe(candidate, probe, timings); }
+                catch (const std::runtime_error&) { matched = false; }
+                if (matched) break;
+            }
+            if (matched) {
+                found[source->name] = candidate;
+                break;
+            }
+        }
     }
     return found;
 }
@@ -1411,7 +1495,7 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
         }
         contents = LocateContents(root, title_id, source_files, needed, timings, progress ? ResourceProgress([&](size_t, size_t) {
             return progress(0, candidate_resources.size());
-        }) : ResourceProgress{});
+        }) : ResourceProgress{}, MakeContentProbes(resources, programs, unresolved_programs));
     }
     Timing::Timer resources_timer(timings, Timing::Phase::ResourceTotal);
     // Zstd dictionaries load once, before the resources that use them. One that
