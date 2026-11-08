@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "yuzu_video_core/shader_profile_metrics.h"
 #include <cstring>
+#include <exception>
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
@@ -95,10 +96,13 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
             if (pipeline_statistics) {
                 pipeline_statistics->Collect(*pipeline);
             }
-        } catch (const vk::Exception& exception) {
+        } catch (const std::exception& exception) {
             LOG_ERROR(Render_Vulkan, "Compute pipeline build failed: {}", exception.what());
             build_failed = true;
         }
+        // The module is not required after vkCreateComputePipelines returns. Release it
+        // on both success and failure instead of retaining it for the pipeline's lifetime.
+        spv_module.reset();
         VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,!build_failed);
         std::scoped_lock lock{build_mutex};
         is_built = true;

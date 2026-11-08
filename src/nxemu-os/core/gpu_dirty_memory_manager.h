@@ -42,6 +42,10 @@ public:
 
     void Gather(ICacheInvalidator * invalidator)
     {
+        // Video decode and GPU cache flushes can gather from different threads.
+        // Protect the entire traversal, not only the buffer swap, because the
+        // front buffers are reused by the next Gather call.
+        std::scoped_lock gather_lock(gather_guard);
         {
             std::scoped_lock lk(guard);
             TransformAddress t = current.exchange(default_transform, std::memory_order_relaxed);
@@ -89,7 +93,9 @@ private:
     constexpr static TransformAddress default_transform = {.address = ~0U, .mask = 0U};
 
     bool IsValid(PAddr address) {
-        return address < (1ULL << 39);
+        // TransformAddress stores a 2-KiB window index, not a byte address.
+        // In particular, the all-ones empty sentinel must not be considered valid.
+        return address < (1ULL << (39 - page_bits));
     }
 
     template <typename T>
@@ -112,15 +118,22 @@ private:
     void CollectSingleWindow(PAddr address, size_t size) {
         TransformAddress t = BuildTransform(address, size);
         TransformAddress tmp, original;
-        do {
+        for (;;) {
             tmp = current.load(std::memory_order_acquire);
             original = tmp;
             if (tmp.address != t.address) {
                 if (IsValid(tmp.address)) {
                     std::scoped_lock lk(guard);
+                    // The value can change while waiting for the buffer lock.
+                    // Exchange would overwrite another collector's range; only
+                    // retire the value we actually observed.
                     back_buffer.emplace_back(tmp);
-                    current.exchange(t, std::memory_order_relaxed);
-                    return;
+                    if (current.compare_exchange_strong(original, t, std::memory_order_release,
+                                                        std::memory_order_relaxed)) {
+                        return;
+                    }
+                    back_buffer.pop_back();
+                    continue;
                 }
                 tmp.address = t.address;
                 tmp.mask = 0;
@@ -129,12 +142,16 @@ private:
                 return;
             }
             tmp.mask |= t.mask;
-        } while (!current.compare_exchange_weak(original, tmp, std::memory_order_release,
-                                                std::memory_order_relaxed));
+            if (current.compare_exchange_weak(original, tmp, std::memory_order_release,
+                                              std::memory_order_relaxed)) {
+                return;
+            }
+        }
     }
 
     std::atomic<TransformAddress> current{};
     std::mutex guard;
+    std::mutex gather_guard;
     std::vector<TransformAddress> back_buffer;
     std::vector<TransformAddress> front_buffer;
     std::vector<std::pair<PAddr, size_t>> exact_back_buffer;

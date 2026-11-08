@@ -98,4 +98,12 @@ private:
 
 [[nodiscard]] PatchManager::Metadata ParseControlRomFS(VirtualFile romfs);
 
+// The names of the title's add-ons that are off: those the user turned off, and the bundled mods that are off by
+// default (mod.json "enabled_by_default": false) the user has not turned on
+[[nodiscard]] std::vector<std::string> GetDisabledAddOns(uint64_t title_id, const FileSystemController& fs_controller);
+// Whether one add-on is off, as GetDisabledAddOns gives it
+[[nodiscard]] bool IsAddOnDisabled(uint64_t title_id, const FileSystemController& fs_controller, const std::string& name);
+// Stores the add-ons that are off, as GetDisabledAddOns gives them
+void SetDisabledAddOns(uint64_t title_id, const FileSystemController& fs_controller, std::vector<std::string> names);
+
 } // namespace FileSys

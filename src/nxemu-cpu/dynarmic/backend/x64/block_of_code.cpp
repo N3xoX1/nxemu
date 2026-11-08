@@ -56,6 +56,10 @@ namespace {
 
 constexpr size_t CONSTANT_POOL_SIZE = 2 * 1024 * 1024;
 constexpr size_t PRELUDE_COMMIT_SIZE = 16 * 1024 * 1024;
+#ifdef _WIN32
+// Keep the reserved x64 code cache sparsely committed, in page-aligned batches.
+constexpr size_t COMMIT_STEP = 4 * 1024 * 1024;
+#endif
 
 class CustomXbyakAllocator : public Xbyak::Allocator {
 public:
@@ -272,13 +276,28 @@ size_t BlockOfCode::SpaceRemaining() const {
 
 void BlockOfCode::EnsureMemoryCommitted([[maybe_unused]] size_t codesize) {
 #ifdef _WIN32
-    if (committed_size < size_ + codesize) {
-        committed_size = std::min<size_t>(maxSize_, committed_size + codesize);
+    // Subtract before adding: both the requested end and its rounded-up value
+    // must stay inside Xbyak's reservation, even for an oversized request.
+    if (size_ > maxSize_ || codesize > maxSize_ - size_) {
+        throw Xbyak::Error(Xbyak::ERR_CODE_IS_TOO_BIG);
+    }
+    const size_t required_size = size_ + codesize;
+    if (committed_size < required_size) {
+        // Xbyak reserves the whole code cache, but only emitted code needs physical memory.
+        // Round up to a commit step: a large emission must be fully covered, and normal
+        // emissions should not trigger a kernel call for every new basic block.
+        const size_t padding = (COMMIT_STEP - required_size % COMMIT_STEP) % COMMIT_STEP;
+        const size_t new_size = required_size + std::min(padding, maxSize_ - required_size);
 #    ifdef DYNARMIC_ENABLE_NO_EXECUTE_SUPPORT
-        VirtualAlloc(top_, committed_size, MEM_COMMIT, PAGE_READWRITE);
+        constexpr DWORD protection = PAGE_READWRITE;
 #    else
-        VirtualAlloc(top_, committed_size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+        constexpr DWORD protection = PAGE_EXECUTE_READWRITE;
 #    endif
+        if (!VirtualAlloc(top_ + committed_size, new_size - committed_size, MEM_COMMIT,
+                          protection)) {
+            throw Xbyak::Error(Xbyak::ERR_CANT_ALLOC);
+        }
+        committed_size = new_size;
     }
 #endif
 }
