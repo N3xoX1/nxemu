@@ -894,16 +894,17 @@ private:
             if (node.type != Type::Block) {
                 continue;
             }
-            if (branch_depth > 1) {
-                // Skip reordering nested demote branches.
-                continue;
-            }
+            bool collected_demote = false;
             for (const IR::Inst& inst : node.data.block->Instructions()) {
                 const IR::Opcode op{inst.GetOpcode()};
-                if (op == IR::Opcode::DemoteToHelperInvocation) {
+                if (op == IR::Opcode::DemoteToHelperInvocation && branch_depth <= 1 &&
+                    !collected_demote) {
+                    // Only move demotes at the supported branch depth.
                     demote_blocks.push_back(node.data.block);
-                    break;
+                    collected_demote = true;
                 }
+                // Count all returns, including nested early exits. Moving a
+                // demote past one would let discarded fragments write color.
                 if (op == IR::Opcode::Epilogue) {
                     ++num_epilogues;
                 }
@@ -912,8 +913,9 @@ private:
         if (demote_blocks.size() == 0) {
             return;
         }
-        if (num_epilogues > 1) {
-            LOG_DEBUG(Shader, "Combining demotes with more than one return is not implemented.");
+        if (num_epilogues != 1) {
+            // Reordering needs a unique return block, including in shaders with no exit.
+            LOG_DEBUG(Shader, "Combining demotes requires exactly one return.");
             return;
         }
         s64 last_iterator_offset{};

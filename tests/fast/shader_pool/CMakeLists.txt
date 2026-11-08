@@ -1,0 +1,12 @@
+add_executable(test_shader_object_pool object_pool.cpp)
+target_include_directories(test_shader_object_pool PRIVATE "${NXEMU_FAST_TEST_SOURCE_DIR}")
+if(NOT MSVC)
+    target_compile_options(test_shader_object_pool PRIVATE
+        -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(test_shader_object_pool PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_fast_test(test_shader_object_pool)
+if(TARGET nxemu_linux_unit_tests)
+    add_dependencies(nxemu_linux_unit_tests test_shader_object_pool)
+    set_property(TEST test_shader_object_pool APPEND PROPERTY LABELS linux_ci)
+endif()

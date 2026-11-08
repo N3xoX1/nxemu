@@ -218,14 +218,77 @@ void EmitInst(EmitContext& ctx, IR::Inst* inst) try {
 }
 
 Id TypeId(const EmitContext& ctx, IR::Type type) {
+    Id id{};
     switch (type) {
     case IR::Type::U1:
-        return ctx.U1;
+        id = ctx.U1;
+        break;
+    case IR::Type::U8:
+        id = ctx.U8;
+        break;
+    case IR::Type::U16:
+        id = ctx.U16;
+        break;
     case IR::Type::U32:
-        return ctx.U32[1];
+        id = ctx.U32[1];
+        break;
+    case IR::Type::U64:
+        id = ctx.U64;
+        break;
+    case IR::Type::F16:
+        id = ctx.F16[1];
+        break;
+    case IR::Type::F32:
+        id = ctx.F32[1];
+        break;
+    case IR::Type::F64:
+        id = ctx.F64[1];
+        break;
+    case IR::Type::U32x2:
+        id = ctx.U32[2];
+        break;
+    case IR::Type::U32x3:
+        id = ctx.U32[3];
+        break;
+    case IR::Type::U32x4:
+        id = ctx.U32[4];
+        break;
+    case IR::Type::F16x2:
+        id = ctx.F16[2];
+        break;
+    case IR::Type::F16x3:
+        id = ctx.F16[3];
+        break;
+    case IR::Type::F16x4:
+        id = ctx.F16[4];
+        break;
+    case IR::Type::F32x2:
+        id = ctx.F32[2];
+        break;
+    case IR::Type::F32x3:
+        id = ctx.F32[3];
+        break;
+    case IR::Type::F32x4:
+        id = ctx.F32[4];
+        break;
+    case IR::Type::F64x2:
+        id = ctx.F64[2];
+        break;
+    case IR::Type::F64x3:
+        id = ctx.F64[3];
+        break;
+    case IR::Type::F64x4:
+        id = ctx.F64[4];
+        break;
     default:
         throw NotImplementedException("Phi node type {}", type);
     }
+    // Int8/16/64 and floating-point capabilities are conditional. An absent
+    // SPIR-V type id must not silently emit a malformed OpPhi instruction.
+    if (!Sirit::ValidId(id)) {
+        throw NotImplementedException("Phi node type {} is unavailable on this device", type);
+    }
+    return id;
 }
 
 void Traverse(EmitContext& ctx, IR::Program& program) {
