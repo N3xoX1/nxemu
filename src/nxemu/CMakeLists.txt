@@ -122,6 +122,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DASSETS=${_nxemu_ui_assets}"
         "-DLANG_DIR=${_nxemu_lang_dir}"
         "-DUI_PACK=${_nxemu_ui_pack}"
+        "-DMODS=${CMAKE_SOURCE_DIR}/external/nxemu-switch-mods"
         "-DCODESIGN=${NXEMU_CODESIGN}"
         "-DINSTALL_NAME_TOOL=${NXEMU_INSTALL_NAME_TOOL}"
         "-DOTOOL=${NXEMU_OTOOL}"

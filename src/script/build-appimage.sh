@@ -175,6 +175,13 @@ install_module operating_system libnxemu-os.so
 rm -rf "$appdir/usr/bin/ui" "$appdir/usr/bin/user"
 cp "$runtime_dir/nxemu.lang" "$appdir/usr/bin/nxemu.lang"
 cp -a "$runtime_dir/ui" "$appdir/usr/bin/ui"
+# The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods, with their licenses, and its README.
+rm -rf "$appdir/usr/bin/mods"
+mkdir -p "$appdir/usr/bin/mods"
+for game in "$root/external/nxemu-switch-mods"/*\]; do
+    [[ -d "$game" ]] && cp -a "$game" "$appdir/usr/bin/mods/"
+done
+[[ -f "$root/external/nxemu-switch-mods/README.md" ]] && cp "$root/external/nxemu-switch-mods/README.md" "$appdir/usr/bin/mods/"
 
 # Deploy dependencies of the files that stay beside the executable, and point
 # their runpath at usr/lib. linuxdeploy does not copy those files again.

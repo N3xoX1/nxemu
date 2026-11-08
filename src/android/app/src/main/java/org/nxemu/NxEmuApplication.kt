@@ -1,6 +1,7 @@
 package org.nxemu
 
 import android.app.Application
+import org.nxemu.utils.BundledMods
 import org.nxemu.utils.GpuDriverHelper
 import org.nxemu.utils.Translation
 
@@ -14,6 +15,7 @@ class NxEmuApplication : Application() {
         super.onCreate()
         appContext = this
 
+        BundledMods.install(this, AndroidDevice.PACKAGE_DIRECTORY)
         NativeLibrary.appInit(
             AndroidDevice.PACKAGE_DIRECTORY,
             AndroidDevice.nativeModuleLibsDirectory(this),
