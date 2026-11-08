@@ -1918,7 +1918,8 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
     const bool cacheExists = id != 0 && std::filesystem::is_directory(GameCache::Directory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir), id), error);
     const std::vector<MenuItem> items = {
         MenuItem::Action(static_cast<int>(Action::StartMenuGame), Tr("Start Game"),{},!m_shaderProfileDialog->Busy()),
-        MenuItem::Action(static_cast<int>(Action::ConfigureMenuGame), Tr("Game settings"), {}, m_settingsContext.CanConfigure(id)),
+        MenuItem::Action(static_cast<int>(Action::ConfigureMenuGame), Tr("Configure"), {}, m_settingsContext.CanConfigure(id)),
+        MenuItem::Action(static_cast<int>(Action::ToggleGameDetails), uiSettings.showGameDetails ? Tr("Hide details") : Tr("Show details")),
         MenuItem::Submenu(Tr("Shader profile"),{
             MenuItem::Action(static_cast<int>(Action::OpenShaderProfileDirectory),Tr("Open NXShader folder")),
             MenuItem::Action(static_cast<int>(Action::ExportMenuGameShaders),Tr("Export shader profile"),{},cacheExists && !m_session.IsRunning() && !m_shaderProfileDialog->Busy()),
