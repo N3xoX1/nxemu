@@ -10,12 +10,10 @@
 #include <fstream>
 #include <iterator>
 #include "nxemu-module-spec/base.h"
-#include "loader_settings.h"
 
 // Keep the standalone test independent of the loader module.
 LoaderSettings loaderSettings{};
 IModuleSettings* g_settings = nullptr;
-LoaderSettings loaderSettings{};
 
 void Check(bool value, const char* message) {
     if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::abort(); }
