@@ -31,7 +31,7 @@ val copyCatalogues = tasks.register<CopyCatalogues>("copyCatalogues") {
 }
 
 // The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods ("<Game name> [<title id>]"), with
-// their licenses, and its README. The app copies them out of its assets (org.nxemu.utils.BundledMods), as the loader reads files.
+// their licenses. The app copies them out of its assets (org.nxemu.utils.BundledMods), as the loader reads files.
 abstract class CopyBundledMods : DefaultTask() {
     @get:InputFiles
     abstract val mods: ConfigurableFileCollection
@@ -55,7 +55,7 @@ abstract class CopyBundledMods : DefaultTask() {
 val copyBundledMods = tasks.register<CopyBundledMods>("copyBundledMods") {
     val root = file("../../../external/nxemu-switch-mods")
     modsRoot.set(root)
-    mods.from(fileTree(root) { include("*]/**", "README.md") })
+    mods.from(fileTree(root) { include("*]/**") })
 }
 
 android {

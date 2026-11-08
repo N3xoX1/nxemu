@@ -24,14 +24,14 @@ file(GLOB catalogues "${LANG_DIR}/*.po")
 file(COPY ${catalogues} DESTINATION "${resources}/ui/lang")
 
 # The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods ("<Game name> [<title id>]"), with
-# their licenses, and its README. Data, so in Resources.
+# their licenses. Data, so in Resources.
 file(REMOVE_RECURSE "${resources}/mods")
 file(MAKE_DIRECTORY "${resources}/mods")
 if(DEFINED MODS AND IS_DIRECTORY "${MODS}")
     file(GLOB mod_entries LIST_DIRECTORIES true "${MODS}/*")
     foreach(entry IN LISTS mod_entries)
         get_filename_component(entry_name "${entry}" NAME)
-        if((IS_DIRECTORY "${entry}" AND entry_name MATCHES "\\]$") OR entry_name STREQUAL "README.md")
+        if(IS_DIRECTORY "${entry}" AND entry_name MATCHES "\\]$")
             file(COPY "${entry}" DESTINATION "${resources}/mods")
         endif()
     endforeach()
