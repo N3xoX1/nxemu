@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <algorithm>
 #include <boost/container/small_vector.hpp>
 
 #include "yuzu_common/nvdata.h"
@@ -78,7 +77,6 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
         osSettings.use_video_framerate) {
         speed_scale = 1.f;
     }
-    swap_interval = std::max<u32>(swap_interval, system.FrameStep().MinSwapInterval(system.GetNVDECActive()));
     frame_interval_ns = Common::Android::FrameIntervalNs(swap_interval, speed_scale);
 #endif
     std::vector<VideoFramebufferConfig> output_layers;
@@ -122,7 +120,7 @@ void nvdisp_disp0::Composite(std::span<const Nvnflinger::HwcLayer> sorted_layers
     }
 
     system.GetVideo().RequestComposite(output_layers.data(), (uint32_t)output_layers.size(), output_fences.data(), (uint32_t)output_fences.size());
-    system.FrameStep().OnPresent(system.ApplicationMemory());
+    system.FrameStep().OnPresent(system.ApplicationMemory(), system.GetNVDECActive());
     system.GetPerfStats().EndSystemFrame();
     system.GetPerfStats().BeginSystemFrame();
 }

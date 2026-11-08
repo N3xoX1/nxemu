@@ -29,14 +29,14 @@ namespace FileSys {
 // after the site, so patches never name cave addresses and never share one.
 //
 // The patch page is the page after the module's .bss, read-write, for values the emulator writes for patches to
-// read. At every present the frame step (nxemu-os core/frame_step.h) writes three floats at its start: +0 the step
-// in 30 Hz frames, +4 the step in seconds, +8 the step in 60 Hz frames. Without a writer (page_written) the loader
-// leaves out sets that read it. The cave pages follow it in the same read-write region: Horizon's rtld takes every
-// executable region for a module. With native code execution the host runs the caves, so they start on a host page
-// (cave_alignment) after that region, unmapped for the guest and executable for the host, as the native code
-// patcher's section is. Nothing rewrites a cave as the patcher rewrites .text, so a set is left out when a cave word
-// is an exception, a system instruction or register other than a hint, a barrier, NZCV, FPCR or FPSR, or an
-// exclusive: wider than what the patcher rewrites, to stay on the safe side.
+// read. At every present the frame step (nxemu-os core/frame_step.h) writes at its start: +0 the step in 30 Hz
+// frames, +4 the step in seconds, +8 the step in 60 Hz frames (floats), +12 1 while a video plays, else 0 (a 32-bit
+// integer). Without a writer (page_written) the loader leaves out sets that read it. The cave pages follow it in the
+// same read-write region: Horizon's rtld takes every executable region for a module. With native code execution the
+// host runs the caves, so they start on a host page (cave_alignment) after that region, unmapped for the guest and
+// executable for the host, as the native code patcher's section is. Nothing rewrites a cave as the patcher rewrites
+// .text, so a set is left out when a cave word is an exception, a system instruction or register other than a hint,
+// a barrier, NZCV, FPCR or FPSR, or an exclusive: wider than what the patcher rewrites, to stay on the safe side.
 //
 // A set is applied whole or not at all: it is left out when a site does not hold its original instruction (another
 // game version, an IPS or IPSwitch patch changed it), when an earlier set already patched one of its sites, or when

@@ -4,7 +4,6 @@
 #include "core/hle/service/vi/conductor.h"
 #include "core/core.h"
 #include "core/core_timing.h"
-#include "core/frame_step.h"
 #include "core/perf_stats.h"
 #include "core/hle/service/vi/container.h"
 #include "core/hle/service/vi/display_list.h"
@@ -139,9 +138,8 @@ s64 Conductor::GetNextTicks() const
         speed_scale = 1.f;
     }
 
-    const s32 swap_interval = std::max(m_swap_interval.load(std::memory_order_relaxed),
-                                       m_system.FrameStep().MinSwapInterval(m_system.GetNVDECActive()));
-    const f32 effective_fps = 60.f / static_cast<f32>(swap_interval);
+    const f32 effective_fps =
+        60.f / static_cast<f32>(m_swap_interval.load(std::memory_order_relaxed));
     return static_cast<s64>(speed_scale * (1000000000.f / effective_fps));
 }
 
