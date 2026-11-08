@@ -379,7 +379,6 @@ scrollbarvertical
 .game-card.is-selected .game-art
 {
     border-color: var(--select);
-    box-shadow: var(--select) 0 0 10dp 0;
 }
 
 .game-icon,
@@ -442,6 +441,23 @@ scrollbarvertical
     color: #ffffff;
     font-size: 11dp;
     font-weight: bold;
+}
+
+.game-art-name
+{
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    max-height: 49dp;
+    padding: 4dp 7dp;
+    overflow: hidden;
+    background-color: #000000b0;
+    color: #ffffff;
+    font-size: 12dp;
+    font-weight: bold;
+    line-height: 15dp;
+    word-break: break-word;
 }
 
 .game-played img
