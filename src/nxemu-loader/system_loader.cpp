@@ -660,7 +660,7 @@ void Systemloader::SetDisabledAddons(uint64_t program_id, const char * const * n
             }
         }
     }
-    SetLoaderDisabledAddons(program_id, std::move(disabled));
+    FileSys::SetDisabledAddOns(program_id, impl->m_fsController, std::move(disabled));
 }
 
 bool Systemloader::IsAddonDisabled(uint64_t program_id, const char * name) const
@@ -670,12 +670,7 @@ bool Systemloader::IsAddonDisabled(uint64_t program_id, const char * name) const
         return false;
     }
 
-    const TitleIdStringListMap::const_iterator itr = loaderSettings.disabled_addons.find(program_id);
-    if (itr == loaderSettings.disabled_addons.end())
-    {
-        return false;
-    }
-    return std::find(itr->second.begin(), itr->second.end(), name) != itr->second.end();
+    return FileSys::IsAddOnDisabled(program_id, impl->m_fsController, name);
 }
 
 uint32_t Systemloader::GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const

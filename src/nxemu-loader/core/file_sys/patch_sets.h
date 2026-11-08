@@ -12,8 +12,8 @@
 
 namespace FileSys {
 
-// Patch sets (.nxpatch in a mod's exefs folder): code patches that may replace one instruction with several, in the
-// format of totk-pc-recomp's recomp/patches-v*.txt plus the build id of the module they patch:
+// Patch sets (.nxpatch in a mod's exefs folder): code patches for the module with the given build id, each of which may
+// replace one instruction with several:
 //
 //   @nsobid-<build id>                                  the module's build id (trailing zeros may be left out)
 //   @version <text>                                     optional: the game version, shown in logs and the
@@ -40,7 +40,7 @@ namespace FileSys {
 //
 // A set is applied whole or not at all: it is left out when a site does not hold its original instruction (another
 // game version, an IPS or IPSwitch patch changed it), when an earlier set already patched one of its sites, or when
-// a word cannot run from a cave. "spin" lines (recompiler-only) and comments (#) are ignored.
+// a word cannot run from a cave. "spin" lines and comments (#) are ignored.
 //
 // Limits, each logged when hit: MaxFileSize per file, MaxSitesPerFile, MaxWordsPerSite, MaxCaveBytes per module.
 class PatchSets

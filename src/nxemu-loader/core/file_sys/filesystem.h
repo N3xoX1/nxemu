@@ -44,6 +44,8 @@ public:
     FileSys::VirtualDir GetModificationLoadRoot(uint64_t title_id) const;
     FileSys::VirtualDir GetModificationDumpRoot(uint64_t title_id) const;
     std::vector<FileSys::VirtualDir> GetAddOnModificationLoadRoots(uint64_t title_id) const;
+    // The title's folder of the mods that ship with NXEmu, or nullptr
+    FileSys::VirtualDir GetBundledModificationLoadRoot(uint64_t title_id) const;
 
     FileSys::VirtualDir GetSystemNANDContentDirectory() const;
 

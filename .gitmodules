@@ -64,7 +64,6 @@
 [submodule "external/libadrenotools"]
 	path = external/libadrenotools
 	url = https://github.com/bylaws/libadrenotools.git
-
 [submodule "external/zbic"]
 	path = external/zbic
 	url = https://github.com/kinnay/zbic.git
@@ -74,3 +73,6 @@
 [submodule "external/freetype"]
 	path = external/freetype
 	url = https://github.com/freetype/freetype.git
+[submodule "external/nxemu-switch-mods"]
+	path = external/nxemu-switch-mods
+	url = https://github.com/N3xoX1/nxemu-switch-mods.git
