@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -109,5 +110,7 @@ private:
 [[nodiscard]] bool IsAddOnDisabled(uint64_t title_id, const FileSystemController& fs_controller, const std::string& name);
 // Stores the add-ons that are off, as GetDisabledAddOns gives them
 void SetDisabledAddOns(uint64_t title_id, const FileSystemController& fs_controller, std::vector<std::string> names);
+/// Native NACP language names, ordered by the configured system language.
+[[nodiscard]] std::array<const char*, 16> GetApplicationLanguagePriorityNames();
 
 } // namespace FileSys

@@ -1147,32 +1147,8 @@ PatchManager::Metadata PatchManager::ParseControlNCA(const NCA & nca) const
     return metadata;
 }
 
-PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
+std::array<const char *, 16> GetApplicationLanguagePriorityNames()
 {
-    if (romfs == nullptr)
-    {
-        return {};
-    }
-
-    const auto extracted = ExtractRomFS(romfs);
-    if (extracted == nullptr)
-    {
-        return {};
-    }
-
-    auto nacp_file = extracted->GetFile("control.nacp");
-    if (nacp_file == nullptr)
-    {
-        nacp_file = extracted->GetFile("Control.nacp");
-    }
-
-    auto nacp = nacp_file == nullptr ? nullptr : std::make_unique<NACP>(nacp_file);
-    if (nacp && !nacp->IsValid())
-    {
-        LOG_ERROR(Loader, "Invalid control.nacp: truncated file, unterminated string or invalid UTF-8");
-        return {};
-    }
-
     // Get language code from settings
     const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)loaderSettings.languageIndex);
 
@@ -1201,6 +1177,36 @@ PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
             }
         }
     }
+    return priority_language_names;
+}
+
+PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
+{
+    if (romfs == nullptr)
+    {
+        return {};
+    }
+
+    const auto extracted = ExtractRomFS(romfs);
+    if (extracted == nullptr)
+    {
+        return {};
+    }
+
+    auto nacp_file = extracted->GetFile("control.nacp");
+    if (nacp_file == nullptr)
+    {
+        nacp_file = extracted->GetFile("Control.nacp");
+    }
+
+    auto nacp = nacp_file == nullptr ? nullptr : std::make_unique<NACP>(nacp_file);
+    if (nacp && !nacp->IsValid())
+    {
+        LOG_ERROR(Loader, "Invalid control.nacp: truncated file, unterminated string or invalid UTF-8");
+        return {};
+    }
+
+    const auto priority_language_names = GetApplicationLanguagePriorityNames();
 
     // Get first matching icon
     VirtualFile icon_file;

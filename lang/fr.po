@@ -2939,8 +2939,8 @@ msgid "No games found"
 msgstr "Aucun jeu trouvé"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "Aucun fichier .nro, .dxci ou .dnsp n'a été trouvé dans vos dossiers."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
+msgstr "Aucun fichier .nx, .nro, .dxci ou .dnsp n'a été trouvé dans vos dossiers."
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3554,8 +3554,8 @@ msgid "No folders yet"
 msgstr "Aucun dossier"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
-msgstr "Choisissez un dossier contenant des fichiers .nro, .dxci ou .dnsp."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
+msgstr "Choisissez un dossier contenant des fichiers .nx, .nro, .dxci ou .dnsp."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."
@@ -3582,8 +3582,8 @@ msgid "Add another folder"
 msgstr "Ajouter un autre dossier"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
-msgstr "Jeux au format .nro, .dxci ou .dnsp"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
+msgstr "Jeux au format .nx, .nro, .dxci ou .dnsp"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Skip"
@@ -4505,3 +4505,261 @@ msgstr "Contraste (CAS)"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Contrast (RCAS)"
 msgstr "Contraste (RCAS)"
+
+msgid "NX contents"
+msgstr "Contenu du NX"
+
+msgid "The game, its updates and DLC in this file. The most recent update is used unless it is turned off in the game properties. Adding or removing never rewrites the game itself."
+msgstr "Le jeu, ses mises à jour et ses DLC dans ce fichier. La mise à jour la plus récente est utilisée, sauf si elle est désactivée dans les propriétés du jeu. Ajouter ou retirer ne réécrit jamais le jeu lui-même."
+
+msgid "The file stays as it was until the change is complete. Cancelling leaves it as it was."
+msgstr "Le fichier reste tel quel jusqu'à la fin de la modification. Annuler le laisse tel qu'il était."
+
+msgid "Add an update or DLC"
+msgstr "Ajouter une mise à jour ou un DLC"
+
+msgid "Keep it"
+msgstr "Le garder"
+
+msgid "Convert to NX"
+msgstr "Convertir en NX"
+
+msgid "Each game, with its updates and DLC, becomes one .nx file that NXEmu reads directly. Drop files or folders on this window, or add them below."
+msgstr "Chaque jeu, avec ses mises à jour et ses DLC, devient un seul fichier .nx que NXEmu lit directement. Déposez des fichiers ou des dossiers sur cette fenêtre, ou ajoutez-les ci-dessous."
+
+msgid "Add files"
+msgstr "Ajouter des fichiers"
+
+msgid "Add a folder"
+msgstr "Ajouter un dossier"
+
+msgid "Clear the list"
+msgstr "Vider la liste"
+
+msgid "Compression"
+msgstr "Compression"
+
+msgid "Quickest to convert"
+msgstr "Conversion la plus rapide"
+
+msgid "Fast"
+msgstr "Rapide"
+
+msgid "A little smaller, slower to convert"
+msgstr "Un peu plus petit, conversion plus lente"
+
+msgid "Smaller"
+msgstr "Plus petit"
+
+msgid "Smallest file, slowest to convert"
+msgstr "Fichier le plus petit, conversion la plus lente"
+
+msgid "Smallest"
+msgstr "Le plus petit"
+
+msgid "Save to"
+msgstr "Enregistrer dans"
+
+msgid "Beside the games"
+msgstr "À côté des jeux"
+
+msgid "Change"
+msgstr "Changer"
+
+msgid "Keep the rebuild data"
+msgstr "Garder les données de reconstruction"
+
+msgid "A few KB, kept inside the NX. It recreates the original DXCI or DNSP byte for byte."
+msgstr "Quelques Ko, gardés dans le NX. Elles recréent le DXCI ou le DNSP d'origine à l'octet près."
+
+msgid "The original files are only read. Cancelling leaves no partial file."
+msgstr "Les fichiers d'origine sont seulement lus. Annuler ne laisse aucun fichier partiel."
+
+msgid "Convert"
+msgstr "Convertir"
+
+msgid "Convert other games"
+msgstr "Convertir d'autres jeux"
+
+msgid "Convert games to &NX..."
+msgstr "Convertir des jeux en &NX..."
+
+msgid "Updates and DLC in this NX..."
+msgstr "Mises à jour et DLC de ce NX..."
+
+msgid "Convert to NX..."
+msgstr "Convertir en NX..."
+
+msgid "Update"
+msgstr "Mise à jour"
+
+msgid "Reading the file..."
+msgstr "Lecture du fichier..."
+
+msgid "%1 written"
+msgstr "%1 écrits"
+
+msgid "Added."
+msgstr "Ajouté."
+
+msgid "Added; the rest was already in the file."
+msgstr "Ajouté ; le reste était déjà dans le fichier."
+
+msgid "Already in the file: nothing changed."
+msgstr "Déjà dans le fichier : rien n'a changé."
+
+msgid "Removed. The space it used is reclaimed by a later change or when it grows large."
+msgstr "Retiré. La place qu'il occupait est récupérée lors d'une prochaine modification, ou quand elle devient importante."
+
+msgid "Cancelled: the file was left as it was."
+msgstr "Annulé : le fichier est resté tel qu'il était."
+
+msgid "Nothing changed: %1"
+msgstr "Rien n'a changé : %1"
+
+msgid "Adding to %1..."
+msgstr "Ajout dans %1..."
+
+msgid "Updates and DLC"
+msgstr "Mises à jour et DLC"
+
+msgid "Remove %1 %2?"
+msgstr "Retirer %1 %2 ?"
+
+msgid "The game then starts with the next most recent update in the file, or without one. Its saves are not touched."
+msgstr "Le jeu démarre alors avec la mise à jour suivante la plus récente du fichier, ou sans mise à jour. Ses sauvegardes ne sont pas touchées."
+
+msgid "The game no longer sees this DLC. Its saves are not touched."
+msgstr "Le jeu ne voit plus ce DLC. Ses sauvegardes ne sont pas touchées."
+
+msgid "Removing %1 %2..."
+msgstr "Retrait de %1 %2..."
+
+msgid "Used"
+msgstr "Utilisée"
+
+msgid "Nothing could be read from this file."
+msgstr "Rien n'a pu être lu dans ce fichier."
+
+msgid "Saved as %1 (%2, the files were %3)"
+msgstr "Enregistré sous %1 (%2, les fichiers faisaient %3)"
+
+msgid "Cancelled: nothing was written"
+msgstr "Annulé : rien n'a été écrit"
+
+msgid "Add the game itself (its base file): an NX holds the game with its updates and DLC."
+msgstr "Ajoutez le jeu lui-même (son fichier de base) : un NX contient le jeu avec ses mises à jour et ses DLC."
+
+msgid "Two files hold the game itself: keep only one of them."
+msgstr "Deux fichiers contiennent le jeu lui-même : n'en gardez qu'un."
+
+msgid "%1 already exists. Open it from the game list to add updates or DLC."
+msgstr "%1 existe déjà. Ouvrez-le depuis la liste des jeux pour ajouter des mises à jour ou des DLC."
+
+msgid "Choose a folder of games"
+msgstr "Choisissez un dossier de jeux"
+
+msgid "Choose where the NX files go"
+msgstr "Choisissez où enregistrer les fichiers NX"
+
+msgid "Beside each game's files"
+msgstr "À côté des fichiers de chaque jeu"
+
+msgid "Saved as %1"
+msgstr "Enregistré sous %1"
+
+msgid "Files"
+msgstr "Fichiers"
+
+msgid "Not a decrypted DXCI or DNSP file: it cannot be converted."
+msgstr "Ce n'est pas un fichier DXCI ou DNSP déchiffré : il ne peut pas être converti."
+
+msgid "Reading the files..."
+msgstr "Lecture des fichiers..."
+
+msgid "Add the game's files: the game itself, its updates and its DLC. They can be in several files; each game becomes one .nx file."
+msgstr "Ajoutez les fichiers du jeu : le jeu lui-même, ses mises à jour et ses DLC. Ils peuvent être répartis dans plusieurs fichiers ; chaque jeu devient un seul fichier .nx."
+
+msgid "Convert %1 games"
+msgstr "Convertir %1 jeux"
+
+msgid "Converting %1 (%2 of %3)..."
+msgstr "Conversion de %1 (%2 sur %3)..."
+
+msgid "Converting %1..."
+msgstr "Conversion de %1..."
+
+msgid "%1 games converted"
+msgstr "%1 jeux convertis"
+
+msgid "Game converted"
+msgstr "Jeu converti"
+
+msgid "%1 of %2 games converted"
+msgstr "%1 jeux convertis sur %2"
+
+msgid "The NX files appear in the game list once their folder is one of the game directories. The original files were left as they were."
+msgstr "Les fichiers NX apparaissent dans la liste des jeux dès que leur dossier fait partie des dossiers de jeux. Les fichiers d'origine sont restés tels quels."
+
+msgid "The original files were left as they were."
+msgstr "Les fichiers d'origine sont restés tels quels."
+
+msgid "Rebuilt, identical to the original file."
+msgstr "Reconstruit, identique au fichier d'origine."
+
+msgid "Cancelled: nothing was kept."
+msgstr "Annulé : rien n'a été gardé."
+
+msgid "Not rebuilt: %1"
+msgstr "Non reconstruit : %1"
+
+msgid "Choose where the original file goes"
+msgstr "Choisir où placer le fichier d'origine"
+
+msgid "Rebuilding %1..."
+msgstr "Reconstruction de %1..."
+
+msgid "Original files that can be rebuilt"
+msgstr "Fichiers d'origine reconstructibles"
+
+msgid "Original"
+msgstr "Original"
+
+msgid "Rebuild"
+msgstr "Reconstruire"
+
+msgid "Newest"
+msgstr "La plus récente"
+
+msgid "Title and picture"
+msgstr "Titre et image"
+
+msgid "Title and picture of this NX..."
+msgstr "Titre et image de ce NX..."
+
+msgid "The title and picture the game list shows, for a game whose own could not be read. The game itself is not changed."
+msgstr "Le titre et l'image affichés dans la liste des jeux, pour un jeu dont les siens n'ont pas pu être lus. Le jeu lui-même n'est pas modifié."
+
+msgid "Without a new picture, the file keeps its own. An empty publisher keeps the one it has."
+msgstr "Sans nouvelle image, le fichier garde la sienne. Un éditeur vide garde celui qu'il a."
+
+msgid "The new picture replaces the one the file has."
+msgstr "La nouvelle image remplace celle du fichier."
+
+msgid "Saving the title and picture..."
+msgstr "Enregistrement du titre et de l'image..."
+
+msgid "The title and picture were saved."
+msgstr "Le titre et l'image ont été enregistrés."
+
+msgid "The picture could not be saved."
+msgstr "L'image n'a pas pu être enregistrée."
+
+msgid "Preparing... (%1)"
+msgstr "Préparation... (%1)"
+
+msgid "Finishing... (%1)"
+msgstr "Finalisation... (%1)"
+
+msgid "%1 % done (%2)"
+msgstr "%1 % fait (%2)"

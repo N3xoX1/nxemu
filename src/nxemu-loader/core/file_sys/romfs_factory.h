@@ -26,7 +26,8 @@ class NCA;
 /// File system interface to the RomFS archive
 class RomFSFactory {
 public:
-    explicit RomFSFactory(FileSys::VirtualFile file_, bool updatable_, ContentProvider& provider, FileSystemController& controller);
+    explicit RomFSFactory(FileSys::VirtualFile file_, bool updatable_, ContentProvider& provider, FileSystemController& controller,
+                          std::shared_ptr<ContentProvider> provider_owner = {});
     ~RomFSFactory();
 
     void SetPackedUpdate(VirtualFile packed_update_raw);
@@ -45,6 +46,7 @@ private:
     bool updatable;
 
     ContentProvider& content_provider;
+    std::shared_ptr<ContentProvider> provider_owner;
     FileSystemController & filesystem_controller;
 };
 

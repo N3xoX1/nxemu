@@ -254,6 +254,6 @@ protected:
  *
  * @return the best loader for this file.
  */
-std::shared_ptr<AppLoader> GetLoader(Systemloader & loader, FileSys::VirtualFile file, uint64_t program_id = 0, std::size_t program_index = 0);
+std::shared_ptr<AppLoader> GetLoader(Systemloader & loader, FileSys::VirtualFile file, uint64_t program_id = 0, std::size_t program_index = 0, std::string_view host_path = {});
 
 } // namespace Loader

@@ -3016,8 +3016,8 @@ msgid "No games found"
 msgstr "게임을 찾을 수 없습니다"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "폴더에서 .nro, .dxci, .dnsp 파일을 찾지 못했습니다."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
+msgstr "폴더에서 .nx, .nro, .dxci, .dnsp 파일을 찾지 못했습니다."
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3626,8 +3626,8 @@ msgid "No folders yet"
 msgstr "폴더가 없습니다"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
-msgstr ".nro, .dxci, .dnsp 파일이 있는 폴더를 선택하세요."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
+msgstr ".nx, .nro, .dxci, .dnsp 파일이 있는 폴더를 선택하세요."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."
@@ -3654,8 +3654,8 @@ msgid "Add another folder"
 msgstr "다른 폴더 추가"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
-msgstr ".nro, .dxci 또는 .dnsp 형식의 게임"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
+msgstr ".nx, .nro, .dxci 또는 .dnsp 형식의 게임"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Skip"

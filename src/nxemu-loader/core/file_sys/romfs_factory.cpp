@@ -18,8 +18,10 @@
 
 namespace FileSys {
 
-RomFSFactory::RomFSFactory(FileSys::VirtualFile file_, bool updatable_, ContentProvider & provider, FileSystemController& controller) :
+RomFSFactory::RomFSFactory(FileSys::VirtualFile file_, bool updatable_, ContentProvider & provider, FileSystemController& controller,
+    std::shared_ptr<ContentProvider> owner) :
     content_provider{provider}, 
+    provider_owner{std::move(owner)},
     filesystem_controller{controller},
     file(file_),
     updatable(updatable_) 
@@ -67,6 +69,8 @@ VirtualFile RomFSFactory::Open(uint64_t title_id, StorageId storage, LoaderConte
 
 std::shared_ptr<NCA> RomFSFactory::GetEntry(uint64_t title_id, StorageId storage, LoaderContentRecordType type) const 
 {
+    if (provider_owner && provider_owner->OwnsTitle(title_id))
+        return provider_owner->GetEntryNCA(title_id,type);
     switch (storage) {
     case StorageId::None:
         return content_provider.GetEntryNCA(title_id, type);
@@ -106,6 +110,11 @@ IVirtualFile * RomFsControllerImpl::OpenRomFSCurrentProcess()
 IVirtualFile * RomFsControllerImpl::PatchBaseNca(uint64_t title_id, StorageId storage_id, LoaderContentRecordType type, IVirtualFile & base_romfs)
 {
     std::shared_ptr<FileSys::NCA> base = m_factory->GetEntry(title_id, storage_id, type);
+    if (m_loader.GetContentProvider().OwnsTitle(title_id)) {
+        if (!base || !base->RomFS()) return nullptr;
+        auto resolved=base->RomFS();
+        return std::make_unique<VirtualFileImpl>(resolved).release();
+    }
     const FileSys::PatchManager pm(title_id, m_loader.GetFileSystemController(), m_loader.GetContentProvider());
     FileSys::VirtualFile vf_romfs = std::make_shared<VfsVirtualFile>(base_romfs.Duplicate());
     FileSys::VirtualFile patched_romfs = pm.PatchRomFS(base.get(), vf_romfs, type);

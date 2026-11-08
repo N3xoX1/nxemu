@@ -81,8 +81,8 @@ jobs:
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
           mkdir -p package
-          # The executable loads SDL by its soname, beside it.
-          tar -C bin/x64/Release --dereference -czf package/NxEmu-linux-x64.tar.gz nxemu libSDL3.so.0 nxemu.lang modules ui
+          # The executable loads SDL and nxformat by their sonames, beside it.
+          tar -C bin/x64/Release --dereference -czf package/NxEmu-linux-x64.tar.gz nxemu libSDL3.so.0 libnxformat.so nxemu.lang modules ui
       - name: Package AppImage from the existing Release build
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
@@ -101,6 +101,7 @@ jobs:
           test -s "$app/nxemu.lang"
           test -s "$app/ui/main_window.rml"
           test -s "$check_dir/squashfs-root/usr/lib/libSDL3.so.0"
+          test -s "$check_dir/squashfs-root/usr/lib/libnxformat.so"
           export LD_LIBRARY_PATH="$check_dir/squashfs-root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           binaries=("$app/nxemu" "$app/modules/loader/libnxemu-loader.so"
             "$app/modules/cpu/libnxemu-cpu.so" "$app/modules/video/libnxemu-video.so"

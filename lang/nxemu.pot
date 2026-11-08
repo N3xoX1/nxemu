@@ -697,6 +697,8 @@ msgstr ""
 #: src/nxemu/ui/assets/firmware_dialog.rml
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
@@ -769,6 +771,8 @@ msgstr ""
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
@@ -777,6 +781,7 @@ msgid "Cancel"
 msgstr ""
 
 #: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
 msgid "Save"
 msgstr ""
 
@@ -1053,6 +1058,7 @@ msgid "Icon size"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Title"
 msgstr ""
@@ -1086,10 +1092,13 @@ msgid "Cover"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Game"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
 #: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Publisher"
@@ -1193,6 +1202,126 @@ msgstr ""
 msgid "No"
 msgstr ""
 
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "NX contents"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The game, its updates and DLC in this file. The most recent update is used unless it is turned off in the game properties. Adding or removing never rewrites the game itself."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The file stays as it was until the change is complete. Cancelling leaves it as it was."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The title and picture the game list shows, for a game whose own could not be read. The game itself is not changed."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+msgid "Picture from a file"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Title and picture"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Add an update or DLC"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Keep it"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/views/directories_dialog.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Remove"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Convert to NX"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Each game, with its updates and DLC, becomes one .nx file that NXEmu reads directly. Drop files or folders on this window, or add them below."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Add files"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Add a folder"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Clear the list"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Compression"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Quickest to convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Fast"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "A little smaller, slower to convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Smaller"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Smallest file, slowest to convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Smallest"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Save to"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Beside the games"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Change"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Keep the rebuild data"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "A few KB, kept inside the NX. It recreates the original DXCI or DNSP byte for byte."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "The original files are only read. Cancelling leaves no partial file."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Convert other games"
+msgstr ""
+
 #: src/nxemu/ui/assets/profiles_dialog.rml
 msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
 msgstr ""
@@ -1239,10 +1368,7 @@ msgid "A picture of yours: it is resized to what the console uses"
 msgstr ""
 
 #: src/nxemu/ui/assets/profiles_dialog.rml
-msgid "Picture from a file"
-msgstr ""
-
-#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
 msgid "This file is not a picture NXEmu can read."
 msgstr ""
 
@@ -1513,6 +1639,18 @@ msgstr ""
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/ControllerSettings.kt
 msgid "Unknown"
+msgstr ""
+
+#: src/nxemu/ui/library/nx_tool.cpp
+msgid "Preparing... (%1)"
+msgstr ""
+
+#: src/nxemu/ui/library/nx_tool.cpp
+msgid "Finishing... (%1)"
+msgstr ""
+
+#: src/nxemu/ui/library/nx_tool.cpp
+msgid "%1 % done (%2)"
 msgstr ""
 
 #: src/nxemu/ui/library/play_time.cpp
@@ -2061,10 +2199,6 @@ msgid "Scan subfolders"
 msgstr ""
 
 #: src/nxemu/ui/views/directories_dialog.cpp
-msgid "Remove"
-msgstr ""
-
-#: src/nxemu/ui/views/directories_dialog.cpp
 msgid "No game directory yet. Add the folders your games are in."
 msgstr ""
 
@@ -2074,6 +2208,8 @@ msgstr ""
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -2177,6 +2313,8 @@ msgstr ""
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "All files"
 msgstr ""
 
@@ -2230,6 +2368,8 @@ msgid "Updates"
 msgstr ""
 
 #: src/nxemu/ui/views/game_details_panel.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "DLC"
 msgstr ""
@@ -2267,6 +2407,7 @@ msgid "Add-ons cannot change while a game is running"
 msgstr ""
 
 #: src/nxemu/ui/views/game_details_panel.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-on content"
 msgstr ""
@@ -2537,6 +2678,8 @@ msgid "Recent"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%1 GB"
@@ -2587,6 +2730,10 @@ msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Install &Firmware"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Convert games to &NX..."
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2753,6 +2900,12 @@ msgid "Start Game"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open NXShader folder"
 msgstr ""
 
@@ -2778,6 +2931,18 @@ msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Copy File Path"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Updates and DLC in this NX..."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Title and picture of this NX..."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Convert to NX..."
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2814,6 +2979,7 @@ msgid "Resume emulation (F2)"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Switch games"
 msgstr ""
 
@@ -2862,6 +3028,217 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Update"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Version %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Reading the file..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The title and picture were saved."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: the file was left as it was."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Nothing changed: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Rebuilt, identical to the original file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: nothing was kept."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Not rebuilt: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Added."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Added; the rest was already in the file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Already in the file: nothing changed."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Removed. The space it used is reclaimed by a later change or when it grows large."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Adding to %1..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Updates and DLC"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Remove %1 %2?"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The game then starts with the next most recent update in the file, or without one. Its saves are not touched."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The game no longer sees this DLC. Its saves are not touched."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Choose where the original file goes"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Rebuilding %1..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Removing %1 %2..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Newest"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Nothing could be read from this file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Original files that can be rebuilt"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Original"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Rebuild"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Without a new picture, the file keeps its own. An empty publisher keeps the one it has."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/profiles_dialog.cpp
+msgid "Pictures"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The picture could not be saved."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The new picture replaces the one the file has."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Saving the title and picture..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1 (%2, the files were %3)"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Cancelled: nothing was written"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add the game itself (its base file): an NX holds the game with its updates and DLC."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Two files hold the game itself: keep only one of them."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 already exists. Open it from the game list to add updates or DLC."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose a folder of games"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose where the NX files go"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Beside each game's files"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Files"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Not a decrypted DXCI or DNSP file: it cannot be converted."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Reading the files..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add the game's files: the game itself, its updates and its DLC. They can be in several files; each game becomes one .nx file."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert %1 games"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Converting %1 (%2 of %3)..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Converting %1..."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 games converted"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Game converted"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 of %2 games converted"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "The NX files appear in the game list once their folder is one of the game directories. The original files were left as they were."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "The original files were left as they were."
+msgstr ""
+
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
 msgstr ""
@@ -2904,10 +3281,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/profiles_dialog.cpp
 msgid "Delete %1? Its saves stay on the disk."
-msgstr ""
-
-#: src/nxemu/ui/views/profiles_dialog.cpp
-msgid "Pictures"
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
@@ -3255,11 +3628,6 @@ msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr ""
-
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr ""
 
@@ -3382,7 +3750,7 @@ msgid "No games found"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
@@ -3774,10 +4142,6 @@ msgid "%1 h %2 min"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Version %1"
-msgstr ""
-
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Title ID %1"
 msgstr ""
 
@@ -3997,7 +4361,7 @@ msgid "No folders yet"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4025,7 +4389,7 @@ msgid "Add another folder"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp

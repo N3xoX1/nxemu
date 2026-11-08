@@ -146,6 +146,7 @@ enum class LoaderFileType {
     NAX,
     KIP,
     DeconstructedRomDirectory,
+    NX, // Appended: existing module ABI numeric values remain unchanged.
 };
 
 struct ContentProviderEntry
