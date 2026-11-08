@@ -1107,7 +1107,12 @@ std::string UiActivity::CardInner(const Card & card) const
         details += (details.empty() ? "" : " \xC2\xB7 ") + card.publisher;
     }
     std::string info;
-    if (list || UiUtil::ReadBool(NXUISetting::ShowCardTitle))
+    const bool showTitle = list || UiUtil::ReadBool(NXUISetting::ShowCardTitle);
+    if (!showTitle && !card.loading && !card.icon.starts_with("nxmem:"))
+    {
+        art += "<div class=\"game-art-name\">" + UiUtil::Escape(card.title) + "</div>";
+    }
+    if (showTitle)
     {
         info += "<div class=\"game-title\">" + UiUtil::Escape(card.title) + "</div>";
     }

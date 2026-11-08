@@ -63,7 +63,7 @@ namespace
         {NXUISetting::GameListSort, "GameListSort", &uiSettings.gameListSort, 0},
         {NXUISetting::GameListView, "GameListView", &uiSettings.gameListView, 0},
         {NXUISetting::GameCardSize, "GameCardSize", &uiSettings.gameCardSize, 1},
-        {NXUISetting::ShowCardTitle, "ShowCardTitle", &uiSettings.showCardTitle, true},
+        {NXUISetting::ShowCardTitle, "ShowCardTitle", &uiSettings.showCardTitle, false},
         {NXUISetting::ShowCardDetails, "ShowCardDetails", &uiSettings.showCardDetails, false},
         {NXUISetting::ShowCardPlayTime, "ShowCardPlayTime", &uiSettings.showCardPlayTime, true},
         {NXUISetting::InterfaceLanguage, "InterfaceLanguage", &uiSettings.interfaceLanguage, ""},

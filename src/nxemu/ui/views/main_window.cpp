@@ -1643,6 +1643,10 @@ std::string MainWindow::CardRml(size_t index)
                       "\"><div class=\"rom-art\" data-title-delay=\"" + std::to_string(kCoverTitleDelayMs) + "\" title=\"" +
                       Rml::StringUtilities::EncodeRml(game.title) + "\">";
     rml += IconRml(game.icon);
+    if (game.icon.empty())
+    {
+        rml += "<div class=\"rom-art-name\"><div>" + Rml::StringUtilities::EncodeRml(game.title) + "</div></div>";
+    }
     const std::string played = PlayTime::Duration(m_playTime.Of(game.programId).seconds);
     if (!played.empty())
     {

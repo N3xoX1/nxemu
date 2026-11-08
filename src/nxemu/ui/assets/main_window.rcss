@@ -1294,6 +1294,35 @@ body.compact .games-toolbar .select-icon
     border-top-width: 0;
 }
 
+/* Without titles, a game without a cover is named on its blank one: in the
+   cover, so the card keeps the height of the others. */
+.rom-art-name
+{
+    display: none;
+}
+
+#games-grid.no-title .rom-art-name
+{
+    display: flex;
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 10dp;
+    overflow: hidden;
+}
+
+.rom-art-name div
+{
+    text-align: center;
+    line-height: 1.25em;
+    font-weight: bold;
+    color: var(--text-muted);
+}
+
 /* Shown while a scan opens game files. It veils the games under the
    toolbar: they are not all there yet, and would show through the text. */
 #games-scan-indicator
