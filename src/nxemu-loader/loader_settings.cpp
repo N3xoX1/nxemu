@@ -18,6 +18,7 @@ namespace
     {
         BooleanValue,
         IntegerValue,
+        StringValue,
         StringListValue,
         TitleIdStringListMapValue,
     };
@@ -27,6 +28,7 @@ namespace
     public:
         LoaderSetting(const char * id, const char * path, bool * val, bool defaultValue);
         LoaderSetting(const char * id, const char * path, int * val, int defaultValue);
+        LoaderSetting(const char * id, const char * path, std::string * val, const char * defaultValue);
         LoaderSetting(const char * id, const char * path, StringList * val);
         LoaderSetting(const char * path, TitleIdStringListMap * val);
 
@@ -37,6 +39,7 @@ namespace
         {
             bool * boolValue;
             int * intValue;
+            std::string * stringValue;
             StringList * stringList;
             TitleIdStringListMap * titleIdStringListMap;
         } setting;
@@ -44,6 +47,7 @@ namespace
         {
             bool boolValue;
             int intValue;
+            const char * stringValue;
         } defaultValue;
     };
 
@@ -52,7 +56,9 @@ namespace
         {NXLoaderSetting::FirmwareInstallCurrent, nullptr, nullptr, 0},
         {NXLoaderSetting::FirmwareInstallTotal, nullptr, nullptr, 0},
         {NXLoaderSetting::AddOnDirectories, "AddOnDirectories", &loaderSettings.addOnDirectories},
+        {NXLoaderSetting::BundledModsDirectory, "BundledModsDirectory", &loaderSettings.bundledModsDirectory, ""},
         {"DisabledAddOns", &loaderSettings.disabled_addons},
+        {"EnabledAddOns", &loaderSettings.enabled_addons},
     };
 
     std::string FormatTitleId(uint64_t program_id)
@@ -200,6 +206,9 @@ void LoaderSettingChanged(const char * setting, void * /*userData*/)
                 *loaderSetting.setting.intValue = g_settings->GetInt(setting);
             }
             break;
+        case SettingType::StringValue:
+            *loaderSetting.setting.stringValue = g_settings->GetString(setting);
+            break;
         case SettingType::StringListValue:
             if (loaderSetting.setting.stringList != nullptr)
             {
@@ -231,6 +240,9 @@ void SetupLoaderSetting(void)
             {
                 *loaderSetting.setting.intValue = loaderSetting.defaultValue.intValue;
             }
+            break;
+        case SettingType::StringValue:
+            *loaderSetting.setting.stringValue = loaderSetting.defaultValue.stringValue;
             break;
         case SettingType::StringListValue:
             loaderSetting.setting.stringList->clear();
@@ -271,6 +283,12 @@ void SetupLoaderSetting(void)
                     *loaderSetting.setting.intValue = static_cast<int>(value.asInt64());
                 }
                 break;
+            case SettingType::StringValue:
+                if (value.isString())
+                {
+                    *loaderSetting.setting.stringValue = value.asString();
+                }
+                break;
             case SettingType::StringListValue:
                 LoadStringList(*loaderSetting.setting.stringList, value);
                 break;
@@ -299,6 +317,10 @@ void SetupLoaderSetting(void)
         case SettingType::IntegerValue:
             g_settings->SetDefaultInt(loaderSetting.identifier, loaderSetting.defaultValue.intValue);
             g_settings->SetInt(loaderSetting.identifier, loaderSetting.setting.intValue != nullptr ? *loaderSetting.setting.intValue : loaderSetting.defaultValue.intValue);
+            break;
+        case SettingType::StringValue:
+            g_settings->SetDefaultString(loaderSetting.identifier, loaderSetting.defaultValue.stringValue);
+            g_settings->SetString(loaderSetting.identifier, loaderSetting.setting.stringValue->c_str());
             break;
         case SettingType::StringListValue:
             g_settings->SetDefaultString(loaderSetting.identifier, "[]");
@@ -357,6 +379,12 @@ void SaveLoaderSettings(void)
                 JsonSetNestedValue(root, loaderSetting.json_path, *loaderSetting.setting.intValue);
             }
             break;
+        case SettingType::StringValue:
+            if (loaderSetting.json_path != nullptr && *loaderSetting.setting.stringValue != loaderSetting.defaultValue.stringValue)
+            {
+                JsonSetNestedValue(root, loaderSetting.json_path, *loaderSetting.setting.stringValue);
+            }
+            break;
         case SettingType::StringListValue:
             if (loaderSetting.json_path != nullptr && !loaderSetting.setting.stringList->empty())
             {
@@ -384,15 +412,18 @@ void SaveLoaderSettings(void)
     g_settings->SetSectionSettings("nxemu-loader", root.isNull() ? "" : JsonStyledWriter().write(root).c_str());
 }
 
-void SetLoaderDisabledAddons(uint64_t program_id, std::vector<std::string> names)
+void SetLoaderAddOns(uint64_t program_id, std::vector<std::string> disabled, std::vector<std::string> enabled)
 {
-    if (names.empty())
+    for (auto [addons, names] : {std::pair{&loaderSettings.disabled_addons, &disabled}, std::pair{&loaderSettings.enabled_addons, &enabled}})
     {
-        loaderSettings.disabled_addons.erase(program_id);
-    }
-    else
-    {
-        loaderSettings.disabled_addons[program_id] = std::move(names);
+        if (names->empty())
+        {
+            addons->erase(program_id);
+        }
+        else
+        {
+            (*addons)[program_id] = std::move(*names);
+        }
     }
     SaveLoaderSettings();
 }
@@ -413,6 +444,15 @@ LoaderSetting::LoaderSetting(const char * id, const char * path, int * val, int 
 {
     setting.intValue = val;
     defaultValue.intValue = defaultValue_;
+}
+
+LoaderSetting::LoaderSetting(const char * id, const char * path, std::string * val, const char * defaultValue_) :
+    identifier(id),
+    json_path(path),
+    settingType(SettingType::StringValue)
+{
+    setting.stringValue = val;
+    defaultValue.stringValue = defaultValue_;
 }
 
 LoaderSetting::LoaderSetting(const char * id, const char * path, StringList * val) :

@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include <algorithm>
 #include <array>
+#include <atomic>
+#include <barrier>
+#include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "yuzu_common/common_types.h"
@@ -48,6 +55,22 @@ struct Recorder final : ICacheInvalidator {
     explicit Recorder(u64 base_) : base{base_} {}
     void OnCacheInvalidation(uint64_t address, uint32_t size) override {
         ranges.emplace_back(address - base, size);
+    }
+};
+
+struct BlockingRecorder final : ICacheInvalidator {
+    std::mutex mutex;
+    std::condition_variable wake;
+    bool entered{};
+    bool release{};
+    Ranges ranges;
+
+    void OnCacheInvalidation(uint64_t address, uint32_t size) override {
+        std::unique_lock lock(mutex);
+        ranges.emplace_back(address, size);
+        entered = true;
+        wake.notify_all();
+        wake.wait(lock, [&] { return release; });
     }
 };
 
@@ -167,6 +190,144 @@ int main() {
               "the GPU counter between CPU stores is kept");
         check(Load(host, offsets[0]) == 1 && Load(host, offsets[2]) == 2,
               "both CPU stores reach the host buffer");
+    }
+
+    // Two collectors retiring different 2-KiB windows concurrently must not
+    // replace each other's current window or discard a pending invalidation.
+    {
+        constexpr u64 base = 0x1a000000;
+        auto split = Gathered(base, {{0x7fc, 8}},
+                              [](auto& m, u64 address, u64 size) { m.Collect(address, size); });
+        std::sort(split.begin(), split.end());
+        check(split == Ranges{{0x7c0, 64}, {0x800, 64}},
+              "collection crossing a 2-KiB window preserves both halves");
+    }
+
+    // Concurrent collectors must retire the exact observed window atomically.
+    {
+        constexpr u64 base = 0x1a000000;
+        constexpr u64 window_size = 0x800;
+        constexpr size_t rounds = 512;
+        {
+            Core::GPUDirtyMemoryManager serial;
+            for (size_t i = 0; i < rounds * 2; ++i) {
+                serial.Collect(base + i * window_size, 4);
+            }
+            Recorder s{base};
+            serial.Gather(&s);
+            check(s.ranges.size() == rounds * 2, "serial collectors retain all windows");
+        }
+        Core::GPUDirtyMemoryManager manager;
+        std::barrier ready{2};
+        const auto collect = [&](u64 parity) {
+            for (size_t i = 0; i < rounds; ++i) {
+                ready.arrive_and_wait();
+                manager.Collect(base + (2 * i + parity) * window_size, 4);
+            }
+        };
+        std::thread one{collect, 0};
+        std::thread two{collect, 1};
+        one.join();
+        two.join();
+
+        Recorder recorder{base};
+        manager.Gather(&recorder);
+        std::sort(recorder.ranges.begin(), recorder.ranges.end());
+        bool all_ranges = recorder.ranges.size() == rounds * 2;
+        if (all_ranges) {
+            for (size_t i = 0; i < recorder.ranges.size(); ++i) {
+                all_ranges &= recorder.ranges[i] ==
+                              std::pair<u64, u64>{i * window_size, 64};
+            }
+        }
+        check(all_ranges, "concurrent collectors preserve every changed window");
+    }
+
+    // A readback gather can run while the GPU's invalidation callback is still
+    // processing the preceding batch. The second gather must not reuse either
+    // front buffer until the first has finished invoking its callbacks.
+    {
+        Core::GPUDirtyMemoryManager manager;
+        BlockingRecorder first;
+        Recorder second{0};
+        std::atomic<bool> second_finished{false};
+        std::atomic<bool> second_started{false};
+        manager.CollectExact(0x1000, 4);
+        manager.Collect(0x3000, 4);
+
+        std::thread first_thread([&] { manager.Gather(&first); });
+        {
+            std::unique_lock lock(first.mutex);
+            first.wake.wait(lock, [&] { return first.entered; });
+        }
+
+        manager.CollectExact(0x2000, 8);
+        manager.Collect(0x4000, 4);
+        std::thread second_thread([&] {
+            second_started.store(true, std::memory_order_release);
+            second_started.notify_one();
+            manager.Gather(&second);
+            second_finished.store(true, std::memory_order_release);
+        });
+        second_started.wait(false, std::memory_order_acquire);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        check(!second_finished.load(std::memory_order_acquire),
+              "concurrent gathers do not reuse a front buffer during its callback");
+
+        {
+            std::scoped_lock lock(first.mutex);
+            first.release = true;
+        }
+        first.wake.notify_all();
+        first_thread.join();
+        second_thread.join();
+        check(first.ranges == Ranges{{0x1000, 4}, {0x3000, 64}}, "first gather retains its exact range");
+        check(second.ranges == Ranges{{0x2000, 8}, {0x4000, 64}}, "second gather retains its exact range");
+    }
+
+    {
+        Core::GPUDirtyMemoryManager manager;
+        Recorder recorder{0};
+        manager.Collect((1ULL << 39) - 64, 4);
+        manager.Gather(&recorder);
+        check(recorder.ranges == Ranges{{(1ULL << 39) - 64, 64}}, "last valid window is retained");
+        recorder.ranges.clear();
+        manager.Collect(1ULL << 39, 4);
+        manager.Gather(&recorder);
+        check(recorder.ranges.empty(), "out-of-range window is not interpreted as valid");
+        manager.Collect(static_cast<u64>(~0U) << 11, 4);
+        manager.Gather(&recorder);
+        check(recorder.ranges.empty(), "all-ones window sentinel is invalid");
+    }
+
+    // Gather and both collection paths run together; each unique range must
+    // survive in either a completed batch or the final drain.
+    {
+        Core::GPUDirtyMemoryManager manager;
+        constexpr size_t count = 4000;
+        std::atomic<bool> done{false};
+        Recorder a{0}, b{0};
+        std::thread first([&] { while (!done.load()) manager.Gather(&a); });
+        std::thread second([&] { while (!done.load()) manager.Gather(&b); });
+        std::thread coarse([&] {
+            for (size_t i = 0; i < count; ++i) manager.Collect(0x20000000 + i * 0x800, 4);
+        });
+        std::thread exact([&] {
+            for (size_t i = 0; i < count; ++i) manager.CollectExact(0x30000000 + i * 0x800, 4);
+        });
+        coarse.join(); exact.join(); done.store(true);
+        first.join(); second.join();
+        manager.Gather(&a);
+        a.ranges.insert(a.ranges.end(), b.ranges.begin(), b.ranges.end());
+        std::sort(a.ranges.begin(), a.ranges.end());
+        bool complete = a.ranges.size() == count * 2;
+        if (complete) for (size_t i = 0; i < count; ++i) {
+            complete &= a.ranges[i] == std::pair<u64,u64>{0x20000000 + i * 0x800, 64};
+            complete &= a.ranges[count+i] == std::pair<u64,u64>{0x30000000 + i * 0x800, 4};
+        }
+        check(complete, "collectors and gatherers preserve all coarse and exact writes");
+        Recorder empty{0}; manager.Gather(&empty); manager.Gather(&empty);
+        check(empty.ranges.empty(), "empty gathers do not replay completed writes");
     }
 
     std::printf("NCE written ranges: %u failures\n", failures);

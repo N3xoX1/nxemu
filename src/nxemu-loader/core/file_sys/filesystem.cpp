@@ -27,6 +27,30 @@ bool IsTitleIdFolderName(const std::string & name)
     return name.size() == 16 && std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isxdigit(c) != 0; });
 }
 
+// The mods that ship with NXEmu (the external/nxemu-switch-mods submodule): next to the executable, in the
+// bundle's resources on macOS, and on Android in the app's storage, where the app copies them from its assets.
+// BundledModsDirectory replaces that, as the development config does with the submodule.
+std::filesystem::path BundledModsPath()
+{
+    if (!loaderSettings.bundledModsDirectory.empty())
+    {
+        const std::filesystem::path path(Common::FS::ToU8String(loaderSettings.bundledModsDirectory));
+        return path.is_absolute() ? path : (Common::FS::GetExeDirectory() / path).lexically_normal();
+    }
+#if defined(ANDROID)
+    return Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir) / "bundled_mods";
+#else
+    const std::filesystem::path exe_dir = Common::FS::GetExeDirectory();
+#if defined(__APPLE__)
+    if (exe_dir.filename() == "MacOS" && exe_dir.parent_path().filename() == "Contents")
+    {
+        return exe_dir.parent_path() / "Resources" / "mods";
+    }
+#endif
+    return exe_dir / "mods";
+#endif
+}
+
 void CollectTitleIdModRoots(const std::filesystem::path & path, const std::string & title_id_hex, FileSys::VfsFilesystem & vfs, std::vector<FileSys::VirtualDir> & out, std::unordered_set<std::string> & seen_paths, int depth)
 {
     if (!Common::FS::IsDir(path))
@@ -326,6 +350,38 @@ std::vector<FileSys::VirtualDir> FileSystemController::GetAddOnModificationLoadR
         CollectTitleIdModRoots(std::filesystem::path(Common::FS::ToU8String(gameDir.path)), title_id_hex, *vfs, roots, seen_paths, gameDir.scanSubfolders ? -1 : 1);
     }
     return roots;
+}
+
+FileSys::VirtualDir FileSystemController::GetBundledModificationLoadRoot(uint64_t title_id) const
+{
+    if (title_id == 0 || (title_id & 0xFFF) == 0x800)
+    {
+        return nullptr;
+    }
+    const std::filesystem::path path = BundledModsPath();
+    FileSys::VirtualFilesystem vfs = loader.GetFilesystem();
+    if (!vfs || !Common::FS::IsDir(path))
+    {
+        return nullptr;
+    }
+    const FileSys::VirtualDir root = vfs->OpenDirectory(Common::FS::PathToUTF8String(path), VirtualFileOpenMode::Read);
+    if (root == nullptr)
+    {
+        return nullptr;
+    }
+
+    // A game's folder is "<Game name> [<title id>]", as in the mods repository, or the title id, as in the load folder
+    const std::string title_id_hex = fmt::format("{:016X}", title_id);
+    const std::string suffix = " [" + title_id_hex + "]";
+    for (const FileSys::VirtualDir & game : root->GetSubdirectories())
+    {
+        const std::string name = game->GetName();
+        if (name == title_id_hex || (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0))
+        {
+            return game;
+        }
+    }
+    return nullptr;
 }
 
 FileSys::VirtualDir FileSystemController::GetModificationDumpRoot(uint64_t title_id) const

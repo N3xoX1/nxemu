@@ -31,6 +31,7 @@ void FrameStep::Reset()
     m_addresses.clear();
     m_active.store(false, std::memory_order_relaxed);
     m_step = static_cast<f32>(StepFirstS);
+    m_video_playing = false;
     m_has_last = false;
     m_count = m_next = 0;
     m_report_frames = 0;
@@ -43,7 +44,7 @@ void FrameStep::AddAddress(Memory::Memory & memory, u64 address)
     {
         return;
     }
-    if (!Write(memory, address, m_step))
+    if (!Write(memory, address, m_step, m_video_playing))
     {
         LOG_ERROR(Core, "Frame step: {:#x} is not mapped; nothing is written there", address);
         return;
@@ -58,13 +59,19 @@ bool FrameStep::Active() const
     return m_active.load(std::memory_order_relaxed);
 }
 
-void FrameStep::OnPresent(Memory::Memory & memory)
+void FrameStep::OnPresent(Memory::Memory & memory, bool video_playing)
 {
     if (!Active())
     {
         return;
     }
     std::scoped_lock lock{m_mutex};
+    if (video_playing != m_video_playing)
+    {
+        m_video_playing = video_playing;
+        LOG_INFO(Core, video_playing ? "Frame step: a video plays" : "Frame step: the video ended");
+        Store(memory, m_step);
+    }
     const auto now = std::chrono::steady_clock::now();
     if (m_has_last)
     {
@@ -104,17 +111,17 @@ void FrameStep::OnPresent(Memory::Memory & memory)
     }
 }
 
-// One 64-bit and one 32-bit store: the game reads the floats on its own threads, and each stays finite and in range
-// whichever store it sees.
-bool FrameStep::Write(Memory::Memory & memory, u64 address, f32 seconds)
+// Two 64-bit stores: the game reads the values on its own threads, and each stays finite and in range whichever store
+// it sees.
+bool FrameStep::Write(Memory::Memory & memory, u64 address, f32 seconds, bool video_playing)
 {
-    if (!memory.IsValidVirtualAddressRange(address, 12))
+    if (!memory.IsValidVirtualAddressRange(address, 16))
     {
         return false;
     }
     const f32 ratio = seconds * 30.0f, interval = seconds * 60.0f;
     memory.Write64(address, static_cast<u64>(std::bit_cast<u32>(ratio)) | static_cast<u64>(std::bit_cast<u32>(seconds)) << 32);
-    memory.Write32(address + 8, std::bit_cast<u32>(interval));
+    memory.Write64(address + 8, static_cast<u64>(std::bit_cast<u32>(interval)) | static_cast<u64>(video_playing ? 1 : 0) << 32);
     return true;
 }
 
@@ -122,7 +129,7 @@ void FrameStep::Store(Memory::Memory & memory, f32 seconds)
 {
     for (const u64 address : m_addresses)
     {
-        Write(memory, address, seconds);
+        Write(memory, address, seconds, m_video_playing);
     }
     m_step = seconds;
 }

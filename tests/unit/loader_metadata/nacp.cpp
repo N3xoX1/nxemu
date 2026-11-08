@@ -7,9 +7,11 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include "nxemu-module-spec/base.h"
 #include "loader_settings.h"
 
-// The parsing tests use the default loader language.
+// The parsing tests never query the language setting.
+IModuleSettings* g_settings = nullptr;
 LoaderSettings loaderSettings{};
 
 void Check(bool value, const char* message) {
