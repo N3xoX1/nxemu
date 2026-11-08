@@ -30,6 +30,7 @@ void FrameStep::Reset()
     std::scoped_lock lock{m_mutex};
     m_addresses.clear();
     m_active.store(false, std::memory_order_relaxed);
+    m_video_hold.store(false, std::memory_order_relaxed);
     m_step = static_cast<f32>(StepFirstS);
     m_has_last = false;
     m_count = m_next = 0;
@@ -102,6 +103,16 @@ void FrameStep::OnPresent(Memory::Memory & memory)
                  m_report_frames - 1, wall, (m_report_frames - 1) / wall, m_report_stepped, m_report_stepped / wall, m_step * 1000.0f);
         m_report_frames = 0;
     }
+}
+
+s32 FrameStep::MinSwapInterval(bool video_playing)
+{
+    const bool hold = video_playing && Active();
+    if (m_video_hold.exchange(hold, std::memory_order_relaxed) != hold)
+    {
+        LOG_INFO(Core, hold ? "Frame step: a video plays, held at 30 fps" : "Frame step: the video ended, no longer held at 30 fps");
+    }
+    return hold ? 2 : 1;
 }
 
 // One 64-bit and one 32-bit store: the game reads the floats on its own threads, and each stays finite and in range

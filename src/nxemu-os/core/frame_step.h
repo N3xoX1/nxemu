@@ -31,12 +31,18 @@ public:
     void AddAddress(Memory::Memory & memory, u64 address);
     [[nodiscard]] bool Active() const;
     void OnPresent(Memory::Memory & memory);
+    // The fewest vsyncs a frame takes: 2 while a video plays and a patch set reads the step, else 1. A game may show
+    // one frame of a 30 fps movie per game frame, as Tears of the Kingdom does with its pre-rendered cutscenes, so above
+    // 30 fps the movie plays too fast. Held at 30 fps it plays at its own speed, and the measured step keeps the rest
+    // of the game at its speed.
+    [[nodiscard]] s32 MinSwapInterval(bool video_playing);
 
 private:
     static bool Write(Memory::Memory & memory, u64 address, f32 seconds);
     void Store(Memory::Memory & memory, f32 seconds);
 
     std::atomic<bool> m_active{false};
+    std::atomic<bool> m_video_hold{false};
     std::mutex m_mutex;
     std::vector<u64> m_addresses;
     bool m_has_last{};
