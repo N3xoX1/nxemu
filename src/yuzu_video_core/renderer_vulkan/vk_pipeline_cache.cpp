@@ -566,6 +566,8 @@ struct PipelineCache::ProgressiveWarmup {
         std::variant<Graphics, Compute> input;
         std::shared_ptr<GraphicsPipeline> graphics;
         std::unique_ptr<ComputePipeline> compute;
+        std::string record_id;
+        std::vector<FileEnvironment> foreign_environments;
         explicit Job(Graphics value) : input(std::move(value)) {}
         explicit Job(Compute value) : input(std::move(value)) {}
         Job(Job&&) = default;
@@ -583,6 +585,8 @@ struct PipelineCache::ProgressiveWarmup {
             aliases[plain].push_back(alias);
         }
         for (size_t index = 0; index < jobs.size(); ++index) {
+            // Foreign keys are usable only after live dependency validation.
+            if (!jobs[index].record_id.empty()) continue;
             if (auto* g = std::get_if<Graphics>(&jobs[index].input))
                 graphics_index[g->key.Hash()].push_back(index);
             else
@@ -598,6 +602,30 @@ struct PipelineCache::ProgressiveWarmup {
     void PublishReady() {
         scheduler->PublishReady([&](size_t index) {
             auto& job = jobs[index];
+            if (!job.record_id.empty()) {
+                for (auto& env : job.foreign_environments)
+                    env.SealReuseProof(cache.program_equivalence.CanRebase(
+                        env.ProgramStorage(), env.ShaderStage(), env.StartAddress(), env.StartAddress()));
+                if (auto* g = std::get_if<Graphics>(&job.input)) {
+                    if (job.graphics) {
+                        auto value = std::make_shared<ForeignGraphics>();
+                        value->key = g->key;
+                        value->record_id = std::move(job.record_id);
+                        value->environments = std::move(job.foreign_environments);
+                        value->pipeline = std::move(job.graphics);
+                        cache.foreign_graphics[WithoutSizes(g->key)].push_back(std::move(value));
+                    }
+                } else if (job.compute) {
+                    const auto& c = std::get<Compute>(job.input);
+                    auto value = std::make_shared<ForeignCompute>();
+                    value->key = c.key;
+                    value->record_id = std::move(job.record_id);
+                    value->environment = std::move(job.foreign_environments.front());
+                    value->pipeline = std::move(job.compute);
+                    cache.foreign_compute[WithoutSizes(c.key)].push_back(std::move(value));
+                }
+                return;
+            }
             if (auto* g = std::get_if<Graphics>(&job.input)) {
                 if (job.graphics) {
                     auto it = cache.graphics_cache.try_emplace(g->key, std::move(job.graphics)).first;
@@ -663,15 +691,25 @@ private:
             if (auto* g = std::get_if<Graphics>(&job.input)) {
                 std::vector<FileEnvironment> envs;
                 for (const auto& env : g->environments) envs.push_back(env.Expand());
+                if (!job.record_id.empty())
+                    for (auto& env : envs)
+                        env.BeginReuseProof(g->key.state.app_stage == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro);
                 boost::container::static_vector<Shader::Environment*, Maxwell::MaxShaderProgram> ptrs;
                 for (auto& env : envs) ptrs.push_back(&env);
                 auto result = cache.CreateGraphicsPipeline(pools, g->key, MakeSpan(ptrs), nullptr, false);
-                if (result && result->IsBuilt()) job.graphics = std::move(result);
+                if (result && result->IsBuilt()) {
+                    job.graphics = std::move(result);
+                    if (!job.record_id.empty()) job.foreign_environments = std::move(envs);
+                }
             } else {
                 auto& c = std::get<Compute>(job.input);
                 auto env = c.environment.Expand();
+                if (!job.record_id.empty()) env.BeginReuseProof(false);
                 auto result = cache.CreateComputePipeline(pools, c.key, env, nullptr, false);
-                if (result && !result->HasBuildFailed()) job.compute = std::move(result);
+                if (result && !result->HasBuildFailed()) {
+                    job.compute = std::move(result);
+                    if (!job.record_id.empty()) job.foreign_environments.push_back(std::move(env));
+                }
             }
         } catch (const std::exception& error) {
             LOG_WARNING(Render_Vulkan, "Progressive NXShader prewarm failed: {}", error.what());
@@ -1132,7 +1170,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             if(candidate)sealed+=env.SealedBytes();
         }
         if(VideoCommon::ShaderProfile::AccountStartupInputs(
-               std::span(inputs).first(count),accounted_code,buffered_input_bytes,sealed))return true;
+               std::span(inputs).first(count),accounted_code,buffered_input_bytes,sealed,
+               candidate ? std::numeric_limits<size_t>::max() :
+                   VideoCommon::ShaderProfile::CandidateWarmupBudget::MaxBytes))return true;
         if(candidate)++skipped_candidate_inputs;
         return false;
     };
@@ -1997,21 +2037,25 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     // Only after scheduling all current-context work, prepare eligible foreign
     // pipelines. A rejected/limited candidate still uses normal runtime compilation.
-    // Cross-version candidates use the existing full-mode proof/budget path.
-    // In progressive mode they remain available for ordinary runtime compilation;
-    // do not carry stack-owned proof budgets into gameplay.
+    // Deferred jobs own their proof environments, never the loader's stack budget.
     for (auto& input : foreign_compute_inputs) {
-        if (progressive_mode) continue;
         if (!ready_compute.contains(WithoutSizes(input.key)) &&
-            prepared_candidates.insert(input.record_id).second)
-            queue_compute(input.key, std::move(input.env), true, std::move(input.record_id));
+            prepared_candidates.insert(input.record_id).second) {
+            if (defer_initial()) {
+                progressive_jobs.emplace_back(ProgressiveWarmup::Compute{input.key, std::move(input.env)});
+                progressive_jobs.back().record_id = std::move(input.record_id);
+            } else queue_compute(input.key, std::move(input.env), true, std::move(input.record_id));
+        }
     }
     foreign_compute_inputs.clear();
     for (auto& input : foreign_graphics_inputs) {
-        if (progressive_mode) continue;
         if (!ready_graphics.contains(WithoutSizes(input.key)) &&
-            prepared_candidates.insert(input.record_id).second)
-            queue_graphics(input.key, std::move(input.envs), true, std::move(input.record_id));
+            prepared_candidates.insert(input.record_id).second) {
+            if (defer_initial()) {
+                progressive_jobs.emplace_back(ProgressiveWarmup::Graphics{input.key, std::move(input.envs)});
+                progressive_jobs.back().record_id = std::move(input.record_id);
+            } else queue_graphics(input.key, std::move(input.envs), true, std::move(input.record_id));
+        }
     }
     foreign_graphics_inputs.clear();
     LOG_INFO(Render_Vulkan, "Total Pipeline Count: {}", state.total);
