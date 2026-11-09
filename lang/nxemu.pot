@@ -3067,7 +3067,6 @@ msgid "Version %1"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Reading the file..."
 msgstr ""
 
@@ -3108,12 +3107,10 @@ msgid "Already in the file: nothing changed."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Cancelled: some content was already added."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Some content was added before the error: %1"
 msgstr ""
 
@@ -3122,7 +3119,6 @@ msgid "Removed. The space it used is reclaimed by a later change or when it grow
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Adding to %1..."
 msgstr ""
 
@@ -3218,11 +3214,7 @@ msgid "Saving the title and picture..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "The NX already contains the selected updates and DLC."
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Updated %1."
+msgid "Saved as %1 (%2, the files were %3)"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3230,15 +3222,7 @@ msgid "Cancelled: nothing was written"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "The existing NX does not contain this base game."
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Saved as %1 (%2, the files were %3)"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Select updates or DLC to add to %1."
+msgid "%1 already exists. Choose a different destination folder."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3258,15 +3242,15 @@ msgid "Choose a folder of games"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "NX archive"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Choose where the NX files go"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Beside each game's files"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Identical to %1"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3278,27 +3262,11 @@ msgid "Omitting firmware disables rebuild data for this game."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Identical to %1"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Several update versions are available. Keep the versions you want."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Add missing updates and DLC to %1."
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Saved as %1"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Choose an existing NX"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Use default destination"
+msgid "Save as %1"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3315,14 +3283,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Add the game's files: the game itself, its updates and its DLC. They can be in several files; each game becomes one .nx file."
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Add missing content"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Convert and add content"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3365,10 +3325,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Move converted originals to trash…"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "%1 of %2 jobs completed"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp

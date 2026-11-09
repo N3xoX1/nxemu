@@ -286,6 +286,22 @@ body.narrow .nx-body
     margin-bottom: 8dp;
 }
 
+.nx-output-files
+{
+    max-height: 56dp;
+    overflow-y: auto;
+    color: var(--text-secondary);
+    font-size: 13dp;
+    margin: 0 0 8dp 0;
+}
+
+.nx-output-files > div
+{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .nx-option-label
 {
     width: 110dp;
@@ -306,7 +322,8 @@ body.narrow .nx-body
     margin: 0 12dp;
 }
 
-.nx-option .hidden
+.nx-option .hidden,
+.nx-output-files.hidden
 {
     display: none;
 }

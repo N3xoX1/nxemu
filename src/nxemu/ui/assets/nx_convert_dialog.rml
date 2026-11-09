@@ -36,6 +36,7 @@
               <div id="output-beside" class="link" data-command="output-beside">Beside the games</div>
               <button data-command="pick-output">Change</button>
             </div>
+            <div id="output-files" class="nx-output-files hidden" />
             <div class="nx-option">
               <div id="recipe-switch" class="switch on" data-command="toggle-recipe"><div class="switch-knob" /></div>
               <div class="nx-option-texts">

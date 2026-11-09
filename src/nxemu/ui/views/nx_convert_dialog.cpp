@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <map>
 #include <set>
+#include <tuple>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/platform/file_dialogs.h>
@@ -17,8 +18,6 @@ namespace
 constexpr const char * kTogglePrefix = "toggle-source:";
 constexpr const char * kLevelPrefix = "level:";
 constexpr std::string_view kFirmwarePrefix = "toggle-firmware:";
-constexpr const char * kArchivePrefix = "pick-archive:";
-constexpr const char * kClearArchivePrefix = "clear-archive:";
 constexpr std::string_view kEditResultPrefix = "edit-result:";
 constexpr std::string_view kManageResultPrefix = "manage-result:";
 
@@ -136,7 +135,6 @@ void NxConvertDialog::Offer(std::string game)
     if (!IsVisible())
     {
         m_sources.clear();
-        m_existingArchives.clear();
         m_omitFirmware.clear();
         m_pendingScan.clear();
         m_pendingGame.clear();
@@ -196,79 +194,19 @@ void NxConvertDialog::OnUpdate()
         if (state.phase == NxTool::Phase::Done)
         {
             Job & job = m_jobs[m_job];
-            if (job.inspecting)
+            job.succeeded = state.succeeded;
+            job.retryable = !state.succeeded && !state.cancelled;
+            job.canRetry = job.recipe && !job.omitFirmware && CanRetryWithoutRecipe(state);
+            if (state.succeeded)
             {
-                job.inspecting = false;
-                job.inspected = true;
-                job.missingSources.clear();
-                bool matches = false;
-                std::set<Job::Identity> present;
-                for (const auto & row : state.records)
-                {
-                    if (row.size() < 6 || row[0] != "SNAPSHOT" ||
-                        std::strtoull(row[3].c_str(), nullptr, 16) != job.applicationId) continue;
-                    matches |= row[2] == "base";
-                    present.emplace(row[2], std::strtoull(row[4].c_str(), nullptr, 16), std::strtoul(row[5].c_str(), nullptr, 10));
-                }
-                if (state.succeeded && matches)
-                {
-                    for (const auto & path : job.sources)
-                    {
-                        const auto & contents = job.sourceContents.at(path);
-                        if (std::any_of(contents.begin(), contents.end(), [&](const auto & entry) { return !present.contains(entry); }))
-                            job.missingSources.push_back(path);
-                    }
-                    if (!job.missingSources.empty())
-                    {
-                        m_tool.Reset();
-                        NextJob();
-                        return;
-                    }
-                    job.succeeded = true;
-                    job.outputStamp = Stamp(job.output);
-                    job.message = job.added.empty() ? Tr("The NX already contains the selected updates and DLC.")
-                                                    : Tr("Updated %1.", {FileName(job.output)});
-                }
-                else
-                {
-                    job.retryable = !state.cancelled;
-                    job.message = state.cancelled ? Tr("Cancelled: nothing was written") :
-                        state.succeeded ? Tr("The existing NX does not contain this base game.") : state.error;
-                }
+                job.outputStamp = Stamp(job.output);
+                const uint64_t size = job.outputStamp ? job.outputStamp->size : 0;
+                job.message = Tr("Saved as %1 (%2, the files were %3)", {FileName(job.output), Bytes(size), Bytes(job.sourceBytes)});
+                m_changed = true;
             }
             else
             {
-                for (const auto & row : state.records)
-                {
-                    if (row.size() >= 4 && row[0] == "ADDED")
-                    {
-                        job.added.emplace(row[1], std::strtoull(row[2].c_str(), nullptr, 16), std::strtoul(row[3].c_str(), nullptr, 10));
-                        m_changed = true;
-                    }
-                }
-                job.succeeded = state.succeeded;
-                job.retryable = !state.succeeded && !state.cancelled;
-                job.canRetry = job.recipe && CanRetryWithoutRecipe(state);
-                if (state.succeeded)
-                {
-                    job.outputStamp = Stamp(job.output);
-                    const uint64_t size = job.outputStamp ? job.outputStamp->size : 0;
-                    if (job.add)
-                        job.message = job.added.empty() ? Tr("The NX already contains the selected updates and DLC.")
-                                                        : Tr("Updated %1.", {FileName(job.output)});
-                    else
-                        job.message = Tr("Saved as %1 (%2, the files were %3)", {FileName(job.output), Bytes(size), Bytes(job.sourceBytes)});
-                    m_changed = true;
-                }
-                else if (job.add && !job.added.empty())
-                {
-                    job.message = state.cancelled ? Tr("Cancelled: some content was already added.")
-                                                  : Tr("Some content was added before the error: %1", {state.error});
-                }
-                else
-                {
-                    job.message = state.cancelled ? Tr("Cancelled: nothing was written") : state.error;
-                }
+                job.message = state.cancelled ? Tr("Cancelled: nothing was written") : state.error;
             }
             job.done = true;
             m_tool.Reset();
@@ -418,7 +356,6 @@ std::vector<NxConvertDialog::Game> NxConvertDialog::Games() const
     {
         size_t bases = 0;
         std::string baseFolder = Utf8(FsPath(m_sources[game.sources.front()].path).parent_path());
-        std::vector<size_t> addOns;
         for (const size_t index : game.sources)
         {
             const Source & source = m_sources[index];
@@ -438,24 +375,15 @@ std::vector<NxConvertDialog::Game> NxConvertDialog::Games() const
             if (primarySelected) continue;
             game.selected.push_back(index);
             if (hasBase) ++bases;
-            else addOns.push_back(index);
         }
         const std::string id = stdstr_f("%016llX", static_cast<unsigned long long>(game.applicationId));
         if (game.name.empty()) game.name = id;
         const std::string folder = m_outputDir.empty() ? baseFolder : m_outputDir;
         game.output = Utf8(FsPath(folder) / FsPath(SafeName(game.name) + " [" + id + "].nx"));
-        game.canChooseArchive = !addOns.empty();
-        const auto explicitArchive = m_existingArchives.find(game.applicationId);
-        if (explicitArchive != m_existingArchives.end()) game.output = explicitArchive->second;
-        if (explicitArchive != m_existingArchives.end() || Exists(game.output))
+        if (Exists(game.output))
         {
-            game.add = true;
-            game.selected = std::move(addOns);
-            if (game.selected.empty())
-            {
-                game.problem = Tr("Select updates or DLC to add to %1.", {FileName(game.output)});
-                game.output.clear();
-            }
+            game.problem = Tr("%1 already exists. Choose a different destination folder.", {FileName(game.output)});
+            game.output.clear();
         }
         else if (bases != 1)
         {
@@ -467,7 +395,7 @@ std::vector<NxConvertDialog::Game> NxConvertDialog::Games() const
             game.firmwareBytes += m_sources[index].firmwareBytes;
         if (!game.output.empty())
         {
-            std::set<Job::Identity> identities;
+            std::set<std::tuple<std::string, uint64_t, uint32_t>> identities;
             for (const size_t index : game.selected)
             {
                 for (const Content & content : m_sources[index].contents)
@@ -509,7 +437,6 @@ void NxConvertDialog::OnCommand(const std::string & command)
         else if (command == "clear" && !m_tool.Busy())
         {
             m_sources.clear();
-            m_existingArchives.clear();
             m_omitFirmware.clear();
             ShowSources();
         }
@@ -547,23 +474,6 @@ void NxConvertDialog::OnCommand(const std::string & command)
         {
             m_recipe = !m_recipe;
             ShowOptions();
-            ShowSources();
-        }
-        else if (command.rfind(kArchivePrefix, 0) == 0)
-        {
-            const uint64_t id = std::strtoull(command.c_str() + std::char_traits<char>::length(kArchivePrefix), nullptr, 10);
-            Path selected;
-            const std::string filter = FileFilter({{Tr("NX archive"), "*.nx"}});
-            if (FileSelect(m_window.NativeHandle(), m_outputDir.c_str(), filter.c_str(), true, selected))
-            {
-                m_existingArchives[id] = static_cast<const char *>(selected);
-                ShowSources();
-            }
-        }
-        else if (command.rfind(kClearArchivePrefix, 0) == 0)
-        {
-            const uint64_t id = std::strtoull(command.c_str() + std::char_traits<char>::length(kClearArchivePrefix), nullptr, 10);
-            m_existingArchives.erase(id);
             ShowSources();
         }
         else if (command == "pick-output")
@@ -622,7 +532,6 @@ void NxConvertDialog::OnCommand(const std::string & command)
     else if (m_step == Step::Done && command == "again")
     {
         m_sources.clear();
-        m_existingArchives.clear();
         m_omitFirmware.clear();
         m_jobs.clear();
         ShowStep(Step::Pick);
@@ -690,7 +599,8 @@ void NxConvertDialog::ShowSources()
     }
     const bool scanning = m_tool.Busy() || !m_pendingGame.empty() || !m_pendingScan.empty();
     std::string rml;
-    size_t ready = 0, existing = 0;
+    size_t ready = 0;
+    std::string outputFiles;
     for (const Game & game : Games())
     {
         rml += std::string("<div class=\"nx-game") + (game.output.empty() ? " blocked" : "") + "\"><div class=\"nx-game-head\"><div class=\"nx-game-name\">" + Escaped(game.name) +
@@ -736,18 +646,17 @@ void NxConvertDialog::ShowSources()
         }
         if (game.updateVersions.size() > 1)
             rml += "<div class=\"nx-game-note\">" + Escaped(Tr("Several update versions are available. Keep the versions you want.")) + "</div>";
-        const std::string action = game.output.empty() ? game.problem :
-            game.add ? Tr("Add missing updates and DLC to %1.", {FileName(game.output)}) : Tr("Saved as %1", {FileName(game.output)});
-        rml += "<div class=\"nx-game-note\">" + Escaped(action) + "</div>";
-        if (game.canChooseArchive)
-            rml += "<button data-command=\"" + std::string(kArchivePrefix) + std::to_string(game.applicationId) + "\">" +
-                Escaped(Tr("Choose an existing NX")) + "</button> ";
-        if (m_existingArchives.contains(game.applicationId))
-            rml += "<button data-command=\"" + std::string(kClearArchivePrefix) + std::to_string(game.applicationId) + "\">" +
-                Escaped(Tr("Use default destination")) + "</button>";
+        if (game.output.empty())
+        {
+            rml += "<div class=\"nx-game-note\">" + Escaped(game.problem) + "</div>";
+        }
+        else
+        {
+            ++ready;
+            const std::string label = Escaped(Tr("Save as %1", {FileName(game.output)}));
+            outputFiles += "<div title=\"" + label + "\">" + label + "</div>";
+        }
         rml += "</div>";
-        ready += !game.output.empty();
-        existing += game.add && !game.output.empty();
     }
     for (const Source & source : m_sources)
     {
@@ -781,9 +690,10 @@ void NxConvertDialog::ShowSources()
             convert->RemoveAttribute("data-command");
         }
     }
-    SetText("convert-button", Escaped(existing != 0
-        ? (existing == ready ? Tr("Add missing content") : Tr("Convert and add content"))
-        : (ready > 1 ? Tr("Convert %1 games", {std::to_string(ready)}) : Tr("Convert"))));
+    SetText("convert-button", Escaped(ready > 1 ? Tr("Convert %1 games", {std::to_string(ready)}) : Tr("Convert")));
+    SetText("output-files", outputFiles);
+    if (auto * output = Document()->GetElementById("output-files"))
+        output->SetClass("hidden", outputFiles.empty());
 }
 
 void NxConvertDialog::StartConversion()
@@ -804,19 +714,14 @@ void NxConvertDialog::StartConversion()
         Job job;
         job.name = game.name;
         job.recipe = m_recipe;
-        job.omitFirmware = m_omitFirmware.contains(game.applicationId);
+        job.omitFirmware = game.firmwareBytes != 0 && m_omitFirmware.contains(game.applicationId);
         job.output = game.output;
-        job.add = game.add;
-        job.applicationId = game.applicationId;
         for (const size_t index : game.selected)
         {
             const auto & source = m_sources[index];
             job.sources.push_back(source.path);
-            if (source.firmwareBytes != 0) job.firmwareSources.insert(source.path);
             if (const auto stamp = Stamp(source.path)) job.sourceStamps.emplace(source.path, *stamp);
             job.sourceBytes += source.size;
-            for (const auto & content : source.contents)
-                job.sourceContents[source.path].emplace_back(content.kind, content.titleId, content.version);
         }
         m_jobs.push_back(std::move(job));
     }
@@ -838,7 +743,7 @@ void NxConvertDialog::RetryJobs(bool withoutRecipe)
     {
         if (!(withoutRecipe ? job.canRetry : job.retryable)) continue;
         job.canRetry = job.retryable = false;
-        job.done = job.inspected = false;
+        job.done = false;
         if (withoutRecipe) job.recipe = false;
         found = true;
     }
@@ -860,41 +765,19 @@ void NxConvertDialog::NextJob()
             ++m_job;
             continue;
         }
-        std::vector<std::string> arguments;
-        if (job.add && !job.inspected)
-        {
-            job.inspecting = true;
-            arguments = {"contents", job.output};
-        }
-        else
-        {
-            if (job.add)
-            {
-                arguments = {"add", job.output};
-                arguments.insert(arguments.end(), job.missingSources.begin(), job.missingSources.end());
-            }
-            else
-            {
-                arguments = {"pack"};
-                arguments.insert(arguments.end(), job.sources.begin(), job.sources.end());
-                arguments.push_back(job.output);
-            }
-            arguments.push_back("--level");
-            arguments.push_back(std::to_string(m_level));
-            const auto & inputs = job.add ? job.missingSources : job.sources;
-            const bool omit = job.omitFirmware && std::any_of(inputs.begin(), inputs.end(), [&](const auto & path) {
-                return job.firmwareSources.contains(path);
-            });
-            if (omit) arguments.push_back("--omit-firmware");
-            arguments.push_back(job.recipe && !omit ? "--recipe" : "--no-recipe");
-        }
+        std::vector<std::string> arguments{"pack"};
+        arguments.insert(arguments.end(), job.sources.begin(), job.sources.end());
+        arguments.push_back(job.output);
+        arguments.push_back("--level");
+        arguments.push_back(std::to_string(m_level));
+        if (job.omitFirmware) arguments.push_back("--omit-firmware");
+        arguments.push_back(job.recipe && !job.omitFirmware ? "--recipe" : "--no-recipe");
         m_lastProgress.clear();
         if (m_tool.Start(arguments))
         {
             ShowWork(m_tool.Current());
             return;
         }
-        job.inspecting = false;
         job.done = job.retryable = true;
         job.message = m_tool.Current().error;
         m_tool.Reset();
@@ -920,8 +803,8 @@ void NxConvertDialog::ShowWork(const NxTool::State & state)
         return;
     }
     const Job & job = m_jobs[m_job];
-    const std::string heading = job.add ? Tr("Adding to %1...", {job.name}) : Tr("Converting %1...", {job.name});
-    std::string detail = job.inspecting ? Tr("Reading the file...") : ProgressText(state);
+    const std::string heading = Tr("Converting %1...", {job.name});
+    std::string detail = ProgressText(state);
     double totalWeight = 0, finishedWeight = 0, remainingWeight = 0;
     for (const Job & item : m_jobs)
     {
@@ -934,20 +817,17 @@ void NxConvertDialog::ShowWork(const NxTool::State & state)
     const double weight = std::max<uint64_t>(1, job.sourceBytes);
     const int percent = std::min(99, static_cast<int>(100 * (finishedWeight + weight * fraction) / totalWeight));
     detail += " · " + Tr("Batch %1 of %2 (%3 %)", {std::to_string(m_job + 1), std::to_string(m_jobs.size()), std::to_string(percent)});
-    if (!job.inspecting)
+    const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.started).count();
+    if (fraction >= 0.02 && elapsed >= 3)
     {
-        const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.started).count();
-        if (fraction >= 0.02 && elapsed >= 3)
-        {
-            const double seconds = elapsed * (remainingWeight / weight + 1 - fraction) / fraction;
-            if (seconds < 60)
-                detail += " · " + Tr("About %1 s remaining", {std::to_string(static_cast<int>(seconds + 0.5))});
-            else
-                detail += " · " + Tr("About %1 min remaining", {std::to_string(static_cast<uint64_t>(seconds / 60 + 0.5))});
-        }
+        const double seconds = elapsed * (remainingWeight / weight + 1 - fraction) / fraction;
+        if (seconds < 60)
+            detail += " · " + Tr("About %1 s remaining", {std::to_string(static_cast<int>(seconds + 0.5))});
         else
-            detail += " · " + Tr("Estimating time remaining...");
+            detail += " · " + Tr("About %1 min remaining", {std::to_string(static_cast<uint64_t>(seconds / 60 + 0.5))});
     }
+    else
+        detail += " · " + Tr("Estimating time remaining...");
     if (heading + detail == m_lastProgress)
     {
         return;
@@ -983,8 +863,6 @@ std::vector<std::string> NxConvertDialog::TrashCandidates() const
         if (!job.succeeded || !job.outputStamp || Stamp(job.output) != job.outputStamp) continue;
         for (const auto & [path, stamp] : job.sourceStamps)
         {
-            if (job.add && !std::all_of(job.sourceContents.at(path).begin(), job.sourceContents.at(path).end(),
-                    [&](const auto & entry) { return job.added.contains(entry); })) continue;
             if (Stamp(path) == stamp && seen.insert(Key(path)).second) candidates.push_back(path);
         }
     }
@@ -1057,9 +935,7 @@ void NxConvertDialog::ShowResults()
         rml += "<button data-command=\"ask-trash\">" + Escaped(Tr("Move converted originals to trash…")) + "</button>";
     }
     SetText("results", rml);
-    const bool anyAdd = std::any_of(m_jobs.begin(), m_jobs.end(), [](const Job & job) { return job.add; });
-    SetText("result-heading", Escaped(anyAdd ? Tr("%1 of %2 jobs completed", {std::to_string(succeeded), std::to_string(m_jobs.size())})
-        : succeeded == m_jobs.size() ? (succeeded > 1 ? Tr("%1 games converted", {std::to_string(succeeded)}) : Tr("Game converted"))
+    SetText("result-heading", Escaped(succeeded == m_jobs.size() ? (succeeded > 1 ? Tr("%1 games converted", {std::to_string(succeeded)}) : Tr("Game converted"))
                                                                 : Tr("%1 of %2 games converted", {std::to_string(succeeded), std::to_string(m_jobs.size())})));
     SetText("result-text", Escaped(!m_trashResult.empty() ? m_trashResult : succeeded != 0
         ? Tr("The NX files appear in the game list once their folder is one of the game directories.")

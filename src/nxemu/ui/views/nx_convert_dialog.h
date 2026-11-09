@@ -5,7 +5,6 @@
 #include <map>
 #include <optional>
 #include <set>
-#include <tuple>
 #include <nxemu/ui/library/nx_tool.h>
 #include <string>
 #include <vector>
@@ -60,8 +59,6 @@ private:
         std::vector<size_t> sources;
         std::string output; // empty when it cannot be converted
         std::string problem;
-        bool add = false;
-        bool canChooseArchive = false;
         uint64_t firmwareBytes = 0;
         std::vector<size_t> selected;
         std::set<uint32_t> updateVersions;
@@ -77,24 +74,15 @@ private:
         std::string name;
         std::string output;
         std::vector<std::string> sources;
-        using Identity = std::tuple<std::string, uint64_t, uint32_t>;
         std::map<std::string, FileStamp> sourceStamps;
-        std::map<std::string, std::vector<Identity>> sourceContents;
-        std::set<Identity> added;
         std::optional<FileStamp> outputStamp;
         uint64_t sourceBytes = 0;
         bool done = false;
         bool succeeded = false;
         bool recipe = true;
         bool omitFirmware = false;
-        std::set<std::string> firmwareSources;
         bool canRetry = false;
-        bool add = false;
         bool retryable = false;
-        uint64_t applicationId = 0;
-        bool inspecting = false;
-        bool inspected = false;
-        std::vector<std::string> missingSources;
         std::string message;
     };
     enum class Step
@@ -133,7 +121,6 @@ private:
     std::vector<std::string> m_pendingScan; // waiting for the tool
     std::vector<Source> m_sources;
     std::vector<Job> m_jobs;
-    std::map<uint64_t, std::string> m_existingArchives;
     std::set<uint64_t> m_omitFirmware;
     std::vector<std::string> m_confirmTrash;
     std::string m_trashResult;

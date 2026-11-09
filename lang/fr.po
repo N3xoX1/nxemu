@@ -4656,9 +4656,6 @@ msgstr "Choisissez où enregistrer les fichiers NX"
 msgid "Beside each game's files"
 msgstr "À côté des fichiers de chaque jeu"
 
-msgid "Saved as %1"
-msgstr "Enregistré sous %1"
-
 msgid "Files"
 msgstr "Fichiers"
 
@@ -4775,18 +4772,6 @@ msgstr "Impossible de mettre à la corbeille : %1"
 msgid "The NX files appear in the game list once their folder is one of the game directories."
 msgstr "Les fichiers NX apparaissent dans la liste des jeux lorsque leur dossier figure parmi les dossiers de jeux."
 
-msgid "The NX already contains the selected updates and DLC."
-msgstr "Le NX contient déjà les mises à jour et DLC sélectionnés."
-
-msgid "Updated %1."
-msgstr "%1 a été mis à jour."
-
-msgid "The existing NX does not contain this base game."
-msgstr "Le NX existant ne contient pas ce jeu de base."
-
-msgid "Select updates or DLC to add to %1."
-msgstr "Sélectionnez les mises à jour ou DLC à ajouter à %1."
-
 msgid "Identical to %1"
 msgstr "Identique à %1"
 
@@ -4796,32 +4781,11 @@ msgstr "Plusieurs versions de la mise à jour sont disponibles. Gardez celles qu
 msgid "Several files have the same content version. Select one copy of each version."
 msgstr "Plusieurs fichiers contiennent la même version. Sélectionnez une seule copie par version."
 
-msgid "Add missing updates and DLC to %1."
-msgstr "Ajouter les mises à jour et DLC manquants à %1."
-
-msgid "Add missing content"
-msgstr "Ajouter le contenu manquant"
-
-msgid "Convert and add content"
-msgstr "Convertir et ajouter le contenu"
-
 msgid "Batch %1 of %2 (%3 %)"
 msgstr "Lot : %1 sur %2 (%3 %)"
 
 msgid "Retry failed jobs"
 msgstr "Réessayer les échecs"
-
-msgid "%1 of %2 jobs completed"
-msgstr "%1 opération(s) sur %2 terminée(s)"
-
-msgid "Choose an existing NX"
-msgstr "Choisir un NX existant"
-
-msgid "Use default destination"
-msgstr "Utiliser la destination par défaut"
-
-msgid "NX archive"
-msgstr "Archive NX"
 
 msgid "About %1 s remaining"
 msgstr "Encore environ %1 s"
@@ -4861,3 +4825,9 @@ msgstr "Firmware embarqué"
 
 msgid "Omitting firmware disables rebuild data for this game."
 msgstr "Exclure le firmware désactive les données de reconstruction pour ce jeu."
+
+msgid "Save as %1"
+msgstr "Enregistrer sous %1"
+
+msgid "%1 already exists. Choose a different destination folder."
+msgstr "%1 existe déjà. Choisissez un autre dossier de destination."
