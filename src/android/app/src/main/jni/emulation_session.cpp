@@ -12,6 +12,7 @@
 #include <map>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/path_util.h>
+#include <nxemu-core/settings/core_settings.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-module-spec/base.h>
@@ -186,7 +187,7 @@ void EmulationSession::InitializeSystem()
     {
         __android_log_print(ANDROID_LOG_WARN, kLogTag,
                             "SystemModules: setup incomplete — ROM metadata will be unavailable");
-        m_system_modules.reset();
+        UnloadModules();
     }
 }
 
@@ -204,7 +205,7 @@ void EmulationSession::ShutdownSystem()
     }
     std::lock_guard lock(m_mutex);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
-    m_system_modules.reset();
+    UnloadModules();
     m_render_window.ClearSurface();
     m_native_window = nullptr;
     m_pixel_ratio = 1.0f;
@@ -214,7 +215,7 @@ void EmulationSession::RestoreStubModulesLocked()
 {
     m_playing_program = 0;
     CountPlayTime(0);
-    m_system_modules.reset();
+    UnloadModules();
     {
         std::lock_guard events_lock(m_program_events_mutex);
         m_program_events.clear();
@@ -223,8 +224,33 @@ void EmulationSession::RestoreStubModulesLocked()
     m_render_window.ClearSurface();
     m_native_window = nullptr;
     m_pixel_ratio = 1.0f;
+    LoadModules();
+}
+
+void EmulationSession::LoadModules()
+{
+    std::lock_guard lock(m_modules_mutex);
     m_system_modules = std::make_unique<SystemModules>();
     m_system_modules->Setup(m_render_window);
+}
+
+void EmulationSession::UnloadModules()
+{
+    std::lock_guard lock(m_modules_mutex);
+    m_system_modules.reset();
+}
+
+void EmulationSession::FlushSettings()
+{
+    std::lock_guard lock(m_modules_mutex);
+    if (m_system_modules)
+    {
+        m_system_modules->FlushSettings();
+    }
+    else
+    {
+        SaveCoreSetting();
+    }
 }
 
 bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, const std::string & rom_path, uint64_t program_id)
@@ -232,7 +258,7 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
     std::lock_guard lock(m_mutex);
     m_render_window.SetPaused(false);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
-    m_system_modules.reset();
+    UnloadModules();
 
     if (native_window == nullptr)
     {
@@ -243,8 +269,7 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
     m_native_window = native_window;
     m_pixel_ratio = pixel_ratio > 0.f ? pixel_ratio : 1.0f;
     m_render_window.AttachSurface(native_window, m_pixel_ratio);
-    m_system_modules = std::make_unique<SystemModules>();
-    m_system_modules->Setup(m_render_window);
+    LoadModules();
 
     if (!m_system_modules->IsValid())
     {
@@ -286,8 +311,7 @@ bool EmulationSession::StartProgramLocked(uint64_t program_id, int32_t program_i
     if (!m_system_modules)
     {
         SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
-        m_system_modules = std::make_unique<SystemModules>();
-        m_system_modules->Setup(m_render_window);
+        LoadModules();
         if (!m_system_modules->IsValid())
         {
             return false;
@@ -349,7 +373,7 @@ EmulationSession::ProgramEventResult EmulationSession::ProcessProgramEvents()
             return ProgramEventResult::Exited;
         }
 
-        m_system_modules.reset();
+        UnloadModules();
         if (!StartProgramLocked(m_program_id, index, previous, ApplicationLaunchType::ApplicationInitiated,
                                 event.type == ProgramEvent::Type::Execute ? event.userChannel : UserChannel{}))
         {

@@ -1,4 +1,5 @@
 #include "ui_util.h"
+#include "emulation_session.h"
 #include "settings/ui_identifiers.h"
 #include "settings/ui_settings.h"
 
@@ -135,7 +136,7 @@ void SetString(const char * key, const std::string & value)
 void SaveSettings()
 {
     SaveUISetting();
-    SettingsStore::GetInstance().Save();
+    EmulationSession::GetInstance().FlushSettings();
 }
 
 std::vector<std::string> ConfiguredFolders()
