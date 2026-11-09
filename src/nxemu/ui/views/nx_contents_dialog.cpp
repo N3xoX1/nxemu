@@ -255,7 +255,8 @@ void NxContentsDialog::Finished(const NxTool::State & state)
         ClearEditPictures();
         if (state.succeeded)
         {
-            m_changed = true;
+            m_changed = false;
+            m_host.libraryChanged();
             m_message = Tr("The title and picture were saved.");
             m_messageFailed = false;
         }

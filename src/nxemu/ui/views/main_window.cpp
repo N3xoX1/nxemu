@@ -495,19 +495,21 @@ void MainWindow::Update()
     m_nxConvertDialog->Update();
     m_nxContentsDialog->Update();
     SyncInterfaceLanguage();
+    // Once the worker reports completion, all its results can be drained.
+    const bool scanning = m_library.Scanning();
     std::vector<FoundGame> found;
     if (m_library.TakeFound(found))
     {
         AddGames(std::move(found));
     }
-    if (m_library.Scanning() != m_gamesScanning)
+    if (scanning != m_gamesScanning)
     {
-        m_gamesScanning = !m_gamesScanning;
+        m_gamesScanning = scanning;
         m_gamesDirty = true;
-        if (!m_gamesScanning && m_rescanning)
-        {
-            FinishRescan();
-        }
+    }
+    if (!scanning && m_rescanning)
+    {
+        FinishRescan();
     }
     UpdateScanIndicator();
     if (m_gamesDirty)
@@ -1395,9 +1397,9 @@ void MainWindow::FinishRescan()
     std::stable_sort(m_nextGames.begin(), m_nextGames.end(), [](const GameEntry & left, const GameEntry & right) {
         return std::forward_as_tuple(Folded(left.title), left.path) < std::forward_as_tuple(Folded(right.title), right.path);
     });
-    const auto same = [](const GameEntry & left, const GameEntry & right) {
+    const auto same = [this](const GameEntry & left, const GameEntry & right) {
         return left.path == right.path && left.programId == right.programId && left.title == right.title && left.version == right.version &&
-               left.publisher == right.publisher && left.size == right.size && left.icon.empty() == right.icon.empty();
+               left.publisher == right.publisher && left.size == right.size && m_window.Renderer().SameMemoryImage(left.icon, right.icon);
     };
     if (std::equal(m_games.begin(), m_games.end(), m_nextGames.begin(), m_nextGames.end(), same))
     {
@@ -1409,6 +1411,7 @@ void MainWindow::FinishRescan()
         m_games.swap(m_nextGames);
         m_selectedGame = nullptr;
         m_gamesDirty = true;
+        m_detailsDirty = true;
     }
     m_nextGames.clear();
 }

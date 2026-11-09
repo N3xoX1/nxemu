@@ -1220,7 +1220,8 @@ bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & u
     const std::vector<std::string> & disabled = disabledItr != m_disabledAddOns.end() ? disabledItr->second : noneDisabled;
 
     const UpdateCandidate * best = nullptr;
-    if (programId != 0)
+    // An NX already carries its own display metadata and update selection.
+    if (program.base.fileType != LoaderFileType::NX && programId != 0)
     {
         const auto range = updateIndex.equal_range(updateTitleId);
         for (UpdateIndex::const_iterator itr = range.first; itr != range.second; ++itr)
