@@ -53,11 +53,10 @@
         </div>
       </div>
       <div class="dialog-footer">
-        <button class="for-list" data-command="edit-metadata">Title and picture</button>
         <button class="for-list" data-command="add-content">Add an update or DLC</button>
         <button class="for-list primary" data-command="close">Close</button>
         <button class="for-work" data-command="cancel">Cancel</button>
-        <button class="for-edit" data-command="keep">Cancel</button>
+        <button class="for-edit" data-command="close">Cancel</button>
         <button class="for-edit primary" data-command="save-metadata">Save</button>
         <button class="for-ask" data-command="keep">Keep it</button>
         <button class="for-ask danger" data-command="confirm-remove">Remove</button>

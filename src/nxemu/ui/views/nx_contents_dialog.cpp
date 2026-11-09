@@ -401,10 +401,6 @@ void NxContentsDialog::OnCommand(const std::string & command)
             Run(Task::Remove, {"remove", m_archive, item.identity}, Tr("Removing %1 %2...", {KindName(item.kind), Version(item.displayVersion, item.version)}));
         }
     }
-    else if (command == "edit-metadata")
-    {
-        ShowEdit();
-    }
     else if (command == "edit-choose-picture")
     {
         ChoosePicture();
