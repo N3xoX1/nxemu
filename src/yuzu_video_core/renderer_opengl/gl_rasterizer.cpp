@@ -147,7 +147,7 @@ void RasterizerOpenGL::SyncVertexInstances() {
 }
 
 void RasterizerOpenGL::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                                         const VideoCore::DiskResourceLoadCallback& callback, [[maybe_unused]] std::string_view content_identity, [[maybe_unused]] std::string_view game_path) {
+                                         const VideoCore::DiskResourceLoadCallback& callback, [[maybe_unused]] std::string_view content_identity, [[maybe_unused]] std::string_view game_path, [[maybe_unused]] std::string_view game_context) {
     shader_cache.LoadDiskResources(title_id, stop_loading, callback);
 }
 

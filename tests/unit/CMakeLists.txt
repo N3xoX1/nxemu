@@ -217,6 +217,18 @@ target_compile_options(test_patch_sets PRIVATE
 target_link_libraries(test_patch_sets PRIVATE nxemu_test_support yuzu_common common fmt::fmt)
 nxemu_unit_test(test_patch_sets)
 
+# Hash of the enabled mods' ExeFS patches and cheats, which sets a modded run apart from the game.
+add_executable(test_code_mods code_mods/code_mods.cpp
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/patch_sets.cpp"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/vfs/vfs.cpp"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader/core/file_sys/vfs/vfs_vector.cpp")
+target_include_directories(test_code_mods PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/nxemu-loader" "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_options(test_code_mods PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+target_link_libraries(test_code_mods PRIVATE nxemu_test_support yuzu_common common fmt::fmt)
+nxemu_unit_test(test_code_mods)
+
 # Loose ExeFS discovery and safe pruning of large extracted RomFS directories.
 add_executable(test_loose_romfs_paths loose_romfs_paths/paths.cpp)
 target_include_directories(test_loose_romfs_paths PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-loader")

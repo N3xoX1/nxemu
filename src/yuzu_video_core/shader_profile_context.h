@@ -20,6 +20,14 @@ inline std::string ContentContext(u64 title, std::string_view base, std::string_
     if (base.empty()) return {};
     return ResourceSha256("nxshader-content-2:" + std::to_string(title) + ":" + std::string(base) + ":" + std::string(update));
 }
+// The local cache association of a game running with ExeFS patches or cheats. They can
+// change what a shader compiles to without changing the shader, through the textures and
+// constants it reads, so pipelines reach or leave this context only by passing validation.
+// It is never a profile, recording or export context. Without mods it is the game's own.
+inline std::string ModdedContext(std::string_view game, std::string_view code_mods) {
+    if (code_mods.empty()) return std::string(game);
+    return ResourceSha256("nxshader-modded-1:" + std::string(game) + ":" + std::string(code_mods));
+}
 // Local cache association for content without a verified identity. It is never a
 // profile, recording or export context.
 inline std::string UnidentifiedContext(u64 title) {
@@ -86,7 +94,7 @@ inline std::filesystem::path FindVersionDirectory(const std::filesystem::path& c
     return result;
 }
 // Finds or creates the folder of one version. Versions known only by context
-// (unidentified content, versions of an imported profile) are "Other version".
+// (unidentified or modded content, versions of an imported profile) are "Other version".
 // A label given later renames the folder; failures keep the old name.
 inline std::filesystem::path VersionDirectory(const std::filesystem::path& cache, std::string_view context,
                                               std::string_view label = {}) {

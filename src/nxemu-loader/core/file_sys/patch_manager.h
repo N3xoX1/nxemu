@@ -33,6 +33,7 @@ struct Patch {
     uint64_t program_id;
     uint64_t title_id;
     uint32_t numeric_version = 0;
+    bool replaces_romfs = false; // a mod that layers files over the game's RomFS
 };
 
 // A centralized class to manage patches to games.
@@ -63,6 +64,9 @@ public:
     // The patch set files (exefs/*.nxpatch, core/file_sys/patch_sets.h) of the enabled mods, in mod order.
     // Each names the build id it is for; PatchSets keeps those of the module it patches.
     [[nodiscard]] std::vector<VirtualFile> CollectPatchSetFiles() const;
+
+    // Hash of the ExeFS patches and cheats of the enabled mods, empty without any (core/file_sys/code_mods.h).
+    [[nodiscard]] std::string HashEnabledCodeMods() const;
 
     // Currently tracked RomFS patches:
     // - Game Updates

@@ -202,6 +202,16 @@ void WriteWord(std::span<uint8_t> image, uint32_t offset, uint32_t word)
     std::memcpy(image.data() + offset, &word, sizeof(word));
 }
 
+// On when the default is 1, unless the environment variable says otherwise
+bool SetSwitch(const std::string & env, const std::string & default_value)
+{
+    if (const char * value = std::getenv(env.c_str()); value != nullptr && *value != '\0')
+    {
+        return std::strcmp(value, "0") != 0;
+    }
+    return default_value == "1";
+}
+
 } // namespace
 
 PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string & build_id, const std::string & module_name, Support support) :
@@ -281,6 +291,28 @@ std::string PatchSets::FileVersion(const VirtualFile & file)
     return {};
 }
 
+std::string PatchSets::FileSetSwitches(const VirtualFile & file)
+{
+    if (file == nullptr || file->GetSize() > MaxFileSize)
+    {
+        return {};
+    }
+    const std::vector<uint8_t> bytes = file->ReadAllBytes();
+    std::istringstream text(std::string(bytes.begin(), bytes.end()));
+    std::string switches;
+    for (std::string line; std::getline(text, line);)
+    {
+        std::istringstream tokens(line.substr(0, line.find('#')));
+        std::string directive, name, env, default_value;
+        tokens >> directive >> name >> env >> default_value;
+        if (directive == "set" && !default_value.empty())
+        {
+            switches += name + (SetSwitch(env, default_value) ? "=1\n" : "=0\n");
+        }
+    }
+    return switches;
+}
+
 void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, const std::string & module_name)
 {
     if (file == nullptr)
@@ -342,13 +374,8 @@ void PatchSets::Parse(const VirtualFile & file, const std::string & build_id, co
                 m_problems.push_back(fmt::format("Patch sets {}:{}: expected \"set <name> <env> <default>\" with a new name", name, line_number));
                 continue;
             }
-            bool enabled = parts[3] == "1";
-            if (const char * value = std::getenv(parts[2].c_str()); value != nullptr && *value != '\0')
-            {
-                enabled = std::strcmp(value, "0") != 0;
-            }
             sets.emplace(parts[1], m_sets.size());
-            m_sets.push_back({.name = parts[1], .file = name, .enabled = enabled});
+            m_sets.push_back({.name = parts[1], .file = name, .enabled = SetSwitch(parts[2], parts[3])});
         }
         else if (parts[0] == "site")
         {

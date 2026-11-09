@@ -138,7 +138,7 @@ public:
     [[nodiscard]] ComputePipeline* CurrentComputePipeline();
 
     void LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                           const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {});
+                           const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {}, std::string_view game_context = {});
 
 private:
     struct PendingGraphicsPipeline {

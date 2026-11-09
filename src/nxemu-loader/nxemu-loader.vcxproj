@@ -47,6 +47,7 @@
     <ClInclude Include="core\core.h" />
     <ClInclude Include="core\file_sys\bis_factory.h" />
     <ClInclude Include="core\file_sys\card_image.h" />
+    <ClInclude Include="core\file_sys\code_mods.h" />
     <ClInclude Include="core\file_sys\common_funcs.h" />
     <ClInclude Include="core\file_sys\content_archive.h" />
     <ClInclude Include="core\file_sys\control_metadata.h" />

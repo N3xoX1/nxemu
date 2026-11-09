@@ -564,7 +564,9 @@ bool Systemloader::GetActiveProgramContent(uint64_t program_id, ActiveProgramCon
     const FileSys::Patch * active_update = nullptr;
     for (const auto & patch : patches)
     {
-        if (patch.type == FileSys::PatchType::Mod && patch.enabled) return false;
+        // A mod layering files over the RomFS leaves the content unidentified. ExeFS patches and cheats
+        // (60 FPS and the like) keep it identified, and are reported in code_mods.
+        if (patch.type == FileSys::PatchType::Mod && patch.enabled && patch.replaces_romfs) return false;
         if (patch.type != FileSys::PatchType::Update) continue;
         out.update_available = true;
         if (!patch.enabled) continue;
@@ -597,6 +599,7 @@ bool Systemloader::GetActiveProgramContent(uint64_t program_id, ActiveProgramCon
         out.update_enabled = true;
         std::snprintf(out.update_version, sizeof(out.update_version), "%s", active_update->version.c_str());
     }
+    std::snprintf(out.code_mods, sizeof(out.code_mods), "%s", pm.HashEnabledCodeMods().c_str());
     out.base_program = base.release();
     out.update_program = update.release();
     return true;
