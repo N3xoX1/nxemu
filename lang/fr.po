@@ -4799,6 +4799,10 @@ msgstr "%1 existe déjà. Choisissez un autre dossier de destination."
 msgid "Saved as %1"
 msgstr "Enregistré sous %1"
 
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Size: %1 · original: %2"
+msgstr "Taille : %1 · original : %2"
+
 msgid "Delete originals"
 msgstr "Supprimer les originaux"
 

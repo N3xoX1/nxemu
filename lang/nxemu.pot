@@ -3307,6 +3307,10 @@ msgid "Saved as %1"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Size: %1 · original: %2"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Retry failed jobs"
 msgstr ""
 

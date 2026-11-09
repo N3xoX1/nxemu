@@ -26,6 +26,11 @@ public:
         Phase phase = Phase::Idle;
         uint64_t total = 0;
         uint64_t progress = 0;
+        // The command announces each step's bytes only when the step starts, so
+        // the total grows. Each new step shares what was left of the bar.
+        uint64_t stepStart = 0; // progress when the last step was announced
+        double stepBase = 0;    // fraction shown at that moment
+        double Fraction() const;
         std::chrono::steady_clock::time_point started;
         bool succeeded = false;
         bool cancelled = false;

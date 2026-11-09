@@ -1,6 +1,7 @@
 #include "nx_convert_dialog.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <map>
 #include <set>
@@ -779,7 +780,7 @@ void NxConvertDialog::ShowWork(const NxTool::State & state)
         if (item.done) finishedWeight += weight;
         else if (&item != &job) remainingWeight += weight;
     }
-    const double fraction = state.total == 0 ? 0.0 : std::min(0.99, static_cast<double>(state.progress) / state.total);
+    const double fraction = state.total == 0 ? 0.0 : std::min(0.99, state.Fraction());
     const double weight = std::max<uint64_t>(1, job.sourceBytes);
     const int percent = std::min(99, static_cast<int>(100 * (finishedWeight + weight * fraction) / totalWeight));
     detail += " · " + Tr("Batch %1 of %2 (%3 %)", {std::to_string(m_job + 1), std::to_string(m_jobs.size()), std::to_string(percent)});
@@ -877,8 +878,18 @@ void NxConvertDialog::ShowResults()
             rml += "<div class=\"nx-result-item\"><div class=\"nx-result-text\">" +
                 Escaped(Tr("Saved as %1", {FileName(job.output)})) + "</div>";
             if (job.outputStamp)
-                rml += "<div class=\"nx-result-size\">" +
-                    Escaped(Tr("%1 of %2", {Bytes(job.outputStamp->size), Bytes(job.sourceBytes)})) + "</div>";
+            {
+                std::string size = Tr("Size: %1 · original: %2", {Bytes(job.outputStamp->size), Bytes(job.sourceBytes)});
+                // The change in whole percent, left out when it rounds to zero.
+                if (job.sourceBytes != 0)
+                {
+                    const double change = 100.0 * (static_cast<double>(job.outputStamp->size) - static_cast<double>(job.sourceBytes)) / static_cast<double>(job.sourceBytes);
+                    const long long rounded = std::llround(change);
+                    if (rounded != 0)
+                        size += stdstr_f(" (%s%lld %%)", rounded > 0 ? "+" : "\xE2\x88\x92", rounded > 0 ? rounded : -rounded);
+                }
+                rml += "<div class=\"nx-result-size\">" + Escaped(size) + "</div>";
+            }
             rml += "</div>";
         }
         else

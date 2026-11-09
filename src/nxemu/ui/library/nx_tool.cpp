@@ -114,6 +114,16 @@ bool CanRetryWithoutRecipe(const NxTool::State & state)
     return error.find("recipe") != std::string::npos || error.find("rebuild") != std::string::npos;
 }
 
+double NxTool::State::Fraction() const
+{
+    if (total <= stepStart)
+    {
+        return stepBase;
+    }
+    const double step = static_cast<double>(std::min(progress, total) - std::min(progress, stepStart)) / static_cast<double>(total - stepStart);
+    return std::clamp(stepBase + (1.0 - stepBase) * step, 0.0, 1.0);
+}
+
 std::string ProgressText(const NxTool::State & state)
 {
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - state.started).count();
@@ -135,7 +145,7 @@ std::string ProgressText(const NxTool::State & state)
         return Tr("Finishing... (%1)", {elapsed});
     }
     // It stays below 100 % until the command has returned.
-    const uint64_t percent = std::min<uint64_t>(99, state.progress * 100 / state.total);
+    const uint64_t percent = std::min<uint64_t>(99, static_cast<uint64_t>(state.Fraction() * 100));
     return Tr("%1 % done (%2)", {std::to_string(percent), elapsed});
 }
 
@@ -226,7 +236,9 @@ void NxTool::Line(const char * text)
     }
     else if (fields[0] == "TOTAL" && fields.size() > 1)
     {
-        // Each line adds the bytes of one more step.
+        // Each line adds the bytes of one more step: the bar never goes back.
+        m_state.stepBase = m_state.total != 0 ? m_state.Fraction() : 0.0;
+        m_state.stepStart = m_state.progress;
         m_state.total += std::strtoull(fields[1].c_str(), nullptr, 10);
     }
     else
