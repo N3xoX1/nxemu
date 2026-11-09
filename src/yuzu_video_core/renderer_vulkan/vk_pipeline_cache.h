@@ -228,8 +228,8 @@ private:
     bool use_vulkan_pipeline_cache{};
 
     GraphicsPipelineCacheKey graphics_key{};
-    /// graphics_key.state.attribute_types before MaskVertexInputs
-    u64 unmasked_attribute_types{};
+    /// graphics_key.state before MaskUnusedState
+    FixedPipelineState::MaskedFields unmasked_fields{};
     GraphicsPipeline* current_pipeline{};
     CbufSizeDependencies cbuf_size_dependencies;
     GraphicsCbufSizeState<5, 18> graphics_cbuf_size_state;

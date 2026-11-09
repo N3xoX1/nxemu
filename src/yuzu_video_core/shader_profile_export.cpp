@@ -223,13 +223,15 @@ std::string Normalize(std::string key, const Masks & dependencies, const VertexI
     // Match old cache records and journals using the same inactive-field rules
     // as live keys, before looking up their shader environments.
     state.NormalizeInactiveFields();
-    // Runtime keys drop the types of undeclared vertex attributes; journal projections and
-    // records stored before that keep them. A vertex A program also reads attributes.
+    // Runtime keys drop what cannot change the draw; journal projections and records stored
+    // before that keep it. A vertex A program also reads attributes.
+    u64 declared_inputs = ~0ULL;
     if (At(key, 0, 8) == 0)
         if (const auto inputs = vertex_inputs.find(At(key, 8, 8)); inputs != vertex_inputs.end())
         {
-            state.MaskVertexInputs(inputs->second);
+            declared_inputs = inputs->second;
         }
+    state.MaskUnusedState(declared_inputs);
     std::memcpy(key.data() + 416, &state, sizeof(state));
     return key.substr(0, 416 + state.Size());
 }

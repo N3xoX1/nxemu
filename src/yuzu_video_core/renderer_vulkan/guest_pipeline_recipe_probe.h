@@ -38,7 +38,7 @@ public:
                 (features.has_vertex_stride_workaround ? 64U : 0U);
             const auto guest = GuestPipelineState::Capture(regs, topology, hint);
             auto projected = guest.Project(features);
-            projected.MaskVertexInputs(vertex_inputs);
+            projected.MaskUnusedState(vertex_inputs);
             ++observations;
             if (projected != key.state) {
                 ++mismatches;

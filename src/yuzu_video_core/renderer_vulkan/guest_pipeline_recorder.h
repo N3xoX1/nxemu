@@ -78,7 +78,7 @@ public:
     // prefix_memo: storage that the caller keeps for these exact key prefix words,
     // zero until the recorder fills it; or null when there is none.
     // vertex_inputs: the mask the key's vertex attribute types went through
-    // (FixedPipelineState::MaskVertexInputs), all bits when it was not masked.
+    // (FixedPipelineState::MaskUnusedState), all bits when no attribute was masked.
     void Observe(Engine & engine, const GraphicsPipelineCacheKey & key, const DynamicFeatures & features,
                  u64* prefix_memo = nullptr, u64 vertex_inputs = ~0ULL) noexcept
     {
@@ -211,9 +211,9 @@ private:
                 last_hint = hint;
             }
             if (prefix_changed || full_capture) std::memcpy(last_prefix.data(), &key, sizeof(last_prefix));
-            if (vertex_inputs == ~0ULL ? current_state->projected != key.state : [&] {
+            if ([&] {
                     FixedPipelineState expected{current_state->projected};
-                    expected.MaskVertexInputs(vertex_inputs);
+                    expected.MaskUnusedState(vertex_inputs);
                     return expected != key.state;
                 }())
                 throw std::runtime_error("Automatic guest recipe projection mismatch");

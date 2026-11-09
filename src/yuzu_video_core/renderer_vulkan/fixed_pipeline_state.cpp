@@ -263,6 +263,59 @@ void FixedPipelineState::RefreshFromRegisters(const Maxwell& regs,
     }
 }
 
+void FixedPipelineState::MaskUnusedState(u64 type_mask) noexcept {
+    if (extended_dynamic_state_3_blend == 0) {
+        for (size_t index = 0; index < attachments.size(); ++index) {
+            if (color_formats[index] == static_cast<u8>(Tegra::RenderTargetFormat::NONE)) {
+                attachments[index].raw = 0;
+            }
+        }
+    }
+    if (dynamic_vertex_input != 0) {
+        attribute_types &= type_mask;
+        return;
+    }
+    u32 read_streams = 0;
+    for (size_t index = 0; index < attributes.size(); ++index) {
+        auto& attribute = attributes[index];
+        if (((type_mask >> (index * 2)) & 3) == 0) {
+            attribute.raw = 0;
+        }
+        if (attribute.enabled != 0) {
+            read_streams |= 1U << attribute.buffer;
+        }
+    }
+    for (size_t index = 0; index < vertex_strides.size(); ++index) {
+        if (((read_streams >> index) & 1) == 0) {
+            vertex_strides[index] = 0;
+            binding_divisors[index] = 0;
+            enabled_divisors &= ~(u64{1} << index);
+        }
+    }
+}
+
+void FixedPipelineState::RestoreMaskedFields(const MaskedFields& fields) noexcept {
+    attribute_types = fields.attribute_types;
+    if (extended_dynamic_state_3_blend == 0) {
+        attachments = fields.attachments;
+    }
+    if (dynamic_vertex_input == 0) {
+        attributes = fields.attributes;
+        binding_divisors = fields.binding_divisors;
+    }
+}
+
+void FixedPipelineState::SaveMaskedFields(MaskedFields& fields) const noexcept {
+    fields.attribute_types = attribute_types;
+    if (extended_dynamic_state_3_blend == 0) {
+        fields.attachments = attachments;
+    }
+    if (dynamic_vertex_input == 0) {
+        fields.attributes = attributes;
+        fields.binding_divisors = binding_divisors;
+    }
+}
+
 void GuestPipelineState::Track(Tegra::Engines::Maxwell3D::DirtyState & dirty)
 {
     using Regs = Tegra::Engines::Maxwell3D::Regs;
