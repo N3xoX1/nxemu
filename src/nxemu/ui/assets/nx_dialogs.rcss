@@ -290,8 +290,8 @@ body.narrow .nx-body
 {
     max-height: 56dp;
     overflow-y: auto;
-    color: var(--text-secondary);
-    font-size: 13dp;
+    color: var(--accent-text);
+    font-size: 11dp;
     margin: 0 0 8dp 0;
 }
 
