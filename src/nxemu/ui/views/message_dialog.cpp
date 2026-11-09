@@ -17,7 +17,7 @@ void MessageDialog::OnOpen()
     for (size_t pos = 0; (pos = text.find('\n', pos)) != std::string::npos; pos += 5)
         text.replace(pos, 1, "<br/>");
     SetText("message-text", text);
-    SetText("message-accept", Rml::StringUtilities::EncodeRml(Tr(m_question ? "Yes" : "OK")));
+    SetText("message-accept", Rml::StringUtilities::EncodeRml(Tr(m_question ? TrMark("Yes") : TrMark("OK"))));
     auto * cancel = Document()->GetElementById("message-cancel");
     cancel->SetProperty("display", m_question ? "inline-block" : "none");
     (m_question ? cancel : Document()->GetElementById("message-accept"))->Focus();

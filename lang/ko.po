@@ -48,6 +48,10 @@ msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated w
 msgstr "“Nintendo Switch”는 Nintendo의 상표입니다. NXEmu는 Nintendo와 아무런 관련이 없습니다."
 
 #: src/nxemu/ui/assets/about_dialog.rml
+#: src/nxemu/ui/views/message_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 msgid "OK"
 msgstr "확인"
 
@@ -57,8 +61,10 @@ msgstr "확인"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/settings_context.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
 msgid "Settings"
 msgstr "설정"
 
@@ -121,10 +127,15 @@ msgid "A game is running: what is greyed out cannot change until it stops."
 msgstr "게임 실행 중에는 회색으로 표시된 옵션을 변경할 수 없습니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Applets"
+msgstr "애플릿"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Picture"
 msgstr "이미지"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Anti-aliasing"
 msgstr "앤티앨리어싱"
@@ -188,6 +199,14 @@ msgid "Shaders"
 msgstr "셰이더"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "셰이더 예열 모드"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "시작하기 전에 처음 셰이더를 준비하고 나머지는 백그라운드에서 준비합니다. 다음 게임 시작 시 적용됩니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "셰이더를 디스크에 저장"
 
@@ -200,6 +219,15 @@ msgid "Off only to look for a fault."
 msgstr "문제 해결을 위해서만 비활성화합니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Record shader recipes"
+msgstr "셰이더 레시피 기록"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needed to export a shader profile of what you played. Off saves a little work."
+msgstr "플레이한 내용의 셰이더 프로필을 내보내는 데 필요합니다. 끄면 작업이 약간 줄어듭니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Build shaders in the background"
 msgstr "백그라운드에서 셰이더 컴파일"
 
@@ -208,6 +236,8 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "흔들림이 줄어듭니다. 일부 항목은 늦게 나타날 수 있습니다. 근사치."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Performance"
 msgstr "성능"
 
@@ -236,7 +266,6 @@ msgid "Emulation"
 msgstr "에뮬레이션"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-#: src/nxemu/ui/views/hotkeys.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Limit speed"
 msgstr "제한 속도"
@@ -336,8 +365,33 @@ msgid "Shows what you play in Discord when it runs."
 msgstr "Discord가 실행 중일 때 플레이 중인 게임을 표시합니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Emulation diagnostics"
-msgstr "에뮬레이션 진단"
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings"
+msgstr "디버그 설정"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
+msgstr "꺼져 있으면 기본값으로 동작하며, 설정한 내용은 다시 켤 때를 위해 유지됩니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "시작 시 최소 파이프라인 수"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "기본값: 512. 모든 파이프라인이 준비되지 않았다면 두 최솟값을 모두 충족해야 합니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "시작 시 최소 시간(초)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "기본값: 60. 이 시간 동안 셰이더를 계속 준비한 다음 나머지는 백그라운드에서 컴파일합니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -362,6 +416,10 @@ msgstr "드라이버 파이프라인 캐시"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders load faster with some drivers."
 msgstr "일부 드라이버에서 셰이더 로딩이 빨라집니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Rendering"
+msgstr "렌더링"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Memory reads"
@@ -489,6 +547,70 @@ msgid "Needs multicore."
 msgstr "멀티 코어 모드가 필요합니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Amiibo editor"
+msgstr "amiibo 편집기"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Controller configuration"
+msgstr "컨트롤러 설정"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Data erase"
+msgstr "데이터 삭제"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Error"
+msgstr "오류"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Net connect"
+msgstr "네트워크 연결"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Player select"
+msgstr "플레이어 선택"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Software keyboard"
+msgstr "소프트웨어 키보드"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Mii Edit"
+msgstr "Mii 편집"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What a game opens of the console's own: NXEmu's version of it, or the real one from the installed firmware. Applies on the next game start."
+msgstr "게임이 여는 콘솔 자체 기능입니다. NXEmu의 버전이나 설치된 펌웨어의 실제 버전을 사용합니다. 다음 게임 시작 시 적용됩니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Online web"
+msgstr "온라인 웹"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shop"
+msgstr "상점"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Photo viewer"
+msgstr "사진 뷰어"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Offline web"
+msgstr "오프라인 웹"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Login share"
+msgstr "로그인 공유"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Wifi web auth"
+msgstr "Wi-Fi 웹 인증"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "My page"
+msgstr "내 페이지"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Accurate vibration"
 msgstr "정확한 진동"
 
@@ -546,11 +668,12 @@ msgid "Restore the defaults of all the tabs?"
 msgstr "모든 탭을 기본값으로 복원할까요?"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Remove your overrides and re-enable NXEmu settings for this game?"
-msgstr "이 게임에 대한 사용자 정의를 제거하고 NXEmu 설정을 다시 활성화하시겠습니까?"
+msgid "Remove the settings of this game and use the global ones?"
+msgstr "이 게임의 설정을 제거하고 전역 설정을 사용하시겠습니까?"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Keep"
 msgstr "유지"
 
@@ -565,6 +688,7 @@ msgstr "다시 실행"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Close"
 msgstr "닫기"
 
@@ -634,6 +758,10 @@ msgstr "입력 장치의 권장 설정에 따라 이 플레이어의 조작을 �
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
 msgid "Cancel"
 msgstr "취소"
 
@@ -662,6 +790,7 @@ msgid "Source"
 msgstr "소스"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Install"
 msgstr "설치"
 
@@ -706,6 +835,7 @@ msgid "The installed firmware stays in place until the new one is complete."
 msgstr "설치된 펌웨어는 새 펌웨어가 준비될 때까지 그대로 유지됩니다."
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Replace the installed firmware?"
 msgstr "설치된 펌웨어를 교체하시겠습니까?"
 
@@ -718,6 +848,7 @@ msgid "Keep the installed one"
 msgstr "설치된 버전 유지"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Replace"
 msgstr "바꾸기"
 
@@ -782,8 +913,13 @@ msgstr "이미지가 창에 어떻게 맞는지."
 
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness of the FSR filter"
-msgstr "FSR 필터의 선명도"
+msgid "Makes the picture sharper when using FSR. Set to 0% to turn it off."
+msgstr "FSR 사용 시 화면을 더 선명하게 합니다. 0%로 설정하면 꺼집니다."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (RCAS)"
+msgstr "대비(RCAS)"
 
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -966,6 +1102,15 @@ msgstr "작업"
 msgid "Select a game to see its details."
 msgstr "게임을 선택하면 해당 게임의 세부정보를 볼 수 있습니다."
 
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr "게임 정보를 읽는 중"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Configure"
+msgstr "설정"
+
 #. shown beside the controller's buttons, as in "(A) Play (X) Options".
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/views/main_window.cpp
@@ -993,6 +1138,7 @@ msgid "Scanning games..."
 msgstr "게임 검색 중..."
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/startup.rml
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Loading"
 msgstr "로드 중"
@@ -1007,12 +1153,8 @@ msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr "콘솔 모드: TV(1080p) 또는 휴대 모드(720p)"
 
 #: src/nxemu/ui/assets/main_window.rml
-msgid "The resolution games are drawn at"
-msgstr "게임이 표시되는 해상도"
-
-#: src/nxemu/ui/assets/main_window.rml
-msgid "Window filter: only applies when the game's resolution is lower than the window size"
-msgstr "창 필터: 게임 해상도가 창 크기보다 작을 때만 적용됩니다"
+msgid "Game image resolution before display scaling"
+msgstr "디스플레이 배율 조정 전 게임 이미지 해상도"
 
 #: src/nxemu/ui/assets/main_window.rml
 msgid "Version copied to clipboard"
@@ -1101,6 +1243,41 @@ msgstr "프로필 삭제"
 msgid "Delete"
 msgstr "삭제"
 
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Shader profile"
+msgstr "셰이더 프로필"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game versions"
+msgstr "게임 버전"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "About this profile"
+msgstr "이 프로필 정보"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed"
+msgstr "게임 완료"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile version"
+msgstr "프로필 버전"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Description"
+msgstr "설명"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+msgid "Choose file"
+msgstr "파일 선택"
+
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr "다른 게임을 열기 전에 현재 게임을 중지하세요."
@@ -1144,24 +1321,28 @@ msgstr ""
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Left"
 msgstr "왼쪽"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Right"
 msgstr "오른쪽"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Down"
 msgstr "아래"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Up"
 msgstr "위"
 
@@ -1264,14 +1445,17 @@ msgid "Not"
 msgstr "아니요"
 
 #: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Invalid"
 msgstr "무효"
 
 #: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Hat %1"
 msgstr "방향 패드 %1"
 
 #: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Axis %1"
 msgstr "축 %1"
 
@@ -1285,12 +1469,15 @@ msgstr "이동 %1"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/hotkeys.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Button %1"
 msgstr "%1 버튼"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+#: src/android/app/src/main/java/org/nxemu/ui/settings/ControllerSettings.kt
 msgid "Unknown"
 msgstr "알 수 없음"
 
@@ -1348,7 +1535,28 @@ msgid "%n year ago"
 msgid_plural "%n years ago"
 msgstr[0] "%n년 전"
 
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are already enabled."
+msgstr "디버그 설정이 이미 켜져 있습니다."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to enable debug settings."
+msgstr "디버그 설정을 켜려면 게임을 중지하세요."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n more click to enable debug settings."
+msgid_plural "%n more clicks to enable debug settings."
+msgstr[0] "%n번 더 클릭하면 디버그 설정이 켜집니다."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+msgid "Debug settings are enabled, under Debug in the settings."
+msgstr "디버그 설정이 켜졌습니다. 설정의 디버그에서 확인할 수 있습니다."
+
 #: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None"
 msgstr "없음"
@@ -1437,6 +1645,7 @@ msgstr "그렇죠"
 msgid "Steadier: it fixes some games."
 msgstr "더 안정적임: 일부 게임을 수정합니다."
 
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Processor"
 msgstr "프로세서"
@@ -1564,6 +1773,30 @@ msgstr "8GB"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "For mods that need more than the console has. Nothing gained otherwise."
 msgstr "콘솔보다 더 많은 메모리가 필요한 모드용입니다. 그 외에는 이점이 없습니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Custom frontend"
+msgstr "사용자 지정 프런트엔드"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "NXEmu's own version of the applet."
+msgstr "NXEmu 자체 버전의 애플릿입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Real applet"
+msgstr "실제 애플릿"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The console's applet, from the installed firmware."
+msgstr "설치된 펌웨어에 포함된 콘솔의 애플릿입니다."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "전체 예열(기본값)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "점진적(실험적)"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
@@ -1742,6 +1975,7 @@ msgid "Press..."
 msgstr "누르세요..."
 
 #: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Not set"
 msgstr "정의되지 않음"
 
@@ -1798,26 +2032,32 @@ msgstr "게임 폴더 선택"
 #: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 MB"
 msgstr "%1MB"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Firmware installed"
 msgstr "펌웨어가 설치됨"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Games can use it from now on."
 msgstr "이제 게임에서 이를 사용할 수 있습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Installation cancelled"
 msgstr "설치가 취소되었습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The installed firmware was left as it was."
 msgstr "설치된 펌웨어가 유지되었습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The source could not be read"
 msgstr "소스를 읽을 수 없습니다."
 
@@ -1826,6 +2066,7 @@ msgid "Check that the file or the folder is still there and that NXEmu may read 
 msgstr "파일이나 폴더가 아직 존재하는지, NXEmu가 이를 읽을 수 있는지 확인하세요."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "No firmware found there"
 msgstr "이 위치에는 펌웨어가 없습니다."
 
@@ -1834,6 +2075,7 @@ msgid "Choose a firmware .zip archive, a .dxci game card image that carries an u
 msgstr ".zip 펌웨어 아카이브, 업데이트가 포함된 .dxci 게임 카드 이미지 또는 .nca 펌웨어 파일이 포함된 폴더를 선택합니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The console's storage cannot be written"
 msgstr "콘솔 스토리지에 쓸 수 없습니다."
 
@@ -1842,14 +2084,17 @@ msgid "Check that NXEmu may write to its data folder, then try again."
 msgstr "NXEmu가 데이터 폴더에 쓸 수 있는지 확인한 후 다시 시도하십시오."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The firmware could not be replaced"
 msgstr "펌웨어를 교체할 수 없습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The installed firmware was put back. The log tells what went wrong."
 msgstr "설치된 펌웨어가 복원되었습니다. 로그는 문제의 원인을 나타냅니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Copying the firmware failed"
 msgstr "펌웨어를 복사하지 못했습니다."
 
@@ -1862,18 +2107,22 @@ msgid "Start the game"
 msgstr "게임을 시작하세요"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "This game carries firmware %1"
 msgstr "이 게임에는 펌웨어 %1가 포함되어 있습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "No firmware is installed yet. NXEmu can install the game's before starting it."
 msgstr "아직 펌웨어가 설치되어 있지 않습니다. NXEmu는 게임을 시작하기 전에 게임에 포함된 펌웨어를 설치할 수 있습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
 msgstr "%1 펌웨어가 설치되어 있지만 이 게임은 최신 버전에 맞게 설계되었습니다. NXEmu는 게임을 시작하기 전에 게임을 설치할 수 있습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
 msgstr "파일에는 펌웨어 %1가 포함되어 있으며 펌웨어 %2가 설치되어 있습니다. 설치가 이를 대체합니다."
 
@@ -1900,27 +2149,34 @@ msgid "Firmware %1 is installed."
 msgstr "펌웨어 %1가 설치되었습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Copying the firmware..."
 msgstr "펌웨어 복사..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
 msgstr "%2의 %1"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Checking the firmware..."
 msgstr "펌웨어 확인 중..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "File %1 of %2"
 msgstr "%2의 파일 %1"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Putting the firmware in place..."
 msgstr "펌웨어 설치 중..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Firmware %1 installed"
 msgstr "펌웨어 %1 설치됨"
 
@@ -1933,6 +2189,14 @@ msgstr "업데이트"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "DLC"
 msgstr "DLC"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Only the running game can be configured"
+msgstr "실행 중인 게임만 설정할 수 있습니다"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr "이 게임에만 적용되는 설정"
 
 #: src/nxemu/ui/views/game_details_panel.cpp
 msgid "This game has not saved anything yet"
@@ -2168,6 +2432,10 @@ msgstr "게임 중지"
 msgid "Docked or handheld"
 msgstr "Docked 또는 휴대 모드"
 
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Change speed"
+msgstr "속도 변경"
+
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Opening the game..."
 msgstr "게임을 여는 중..."
@@ -2265,8 +2533,32 @@ msgid "Show emulation controls"
 msgstr "에뮬레이션 컨트롤 표시"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Limit &Speed"
-msgstr "속도 제한(&S)"
+msgid "&Speed"
+msgstr "속도(&S)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Limited"
+msgstr "제한"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs at the speed of the console."
+msgstr "콘솔과 같은 속도로 실행합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked"
+msgstr "제한 없음"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs as fast as it can, shown at the VSync setting."
+msgstr "가능한 한 빠르게 실행하고 VSync 설정에 따라 표시합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, no VSync"
+msgstr "제한 없음, VSync 없음"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs and shows as fast as it can, to compare speeds. The picture can tear."
+msgstr "속도를 비교할 수 있도록 가능한 한 빠르게 실행하고 표시합니다. 화면이 찢어질 수 있습니다."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "&Fullscreen"
@@ -2346,6 +2638,11 @@ msgid "More actions"
 msgstr "기타 작업"
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Balanced"
+msgstr "균형"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
 msgstr "해상도 배율: 값을 높이면 화면이 더 선명해지지만 더 높은 그래픽 성능이 필요합니다."
 
@@ -2364,6 +2661,10 @@ msgstr "게임 시작에 사용할 프로필과 저장 데이터"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "게임 시작"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Game settings"
+msgstr "게임 설정"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2386,8 +2687,16 @@ msgid "Manage profiles"
 msgstr "프로필 관리"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness: once FSR is the filter"
-msgstr "선명도: FSR 필터를 선택한 경우"
+msgid "Makes details stand out. Set to 0% to turn it off."
+msgstr "세부 묘사를 돋보이게 합니다. 0%로 설정하면 꺼집니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes a large picture smaller with very little graphics work."
+msgstr "아주 적은 그래픽 부하로 큰 화면을 축소합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Smooths jagged edges when making a large picture smaller."
+msgstr "큰 화면을 축소할 때 들쭉날쭉한 윤곽을 부드럽게 합니다."
 
 #: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -2421,6 +2730,10 @@ msgid "Firmware: %1"
 msgstr "펌웨어: %1"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, shown at the VSync setting"
+msgstr "제한 없음, VSync 설정에 따라 표시"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "NXEmu - Stop Emulation"
 msgstr "NXEmu - 에뮬레이션 중지"
 
@@ -2443,6 +2756,10 @@ msgstr ""
 "에뮬레이션을 중지하시겠습니까?\n"
 "\n"
 "저장하지 않은 진행 상황은 손실됩니다."
+
+#: src/nxemu/ui/views/message_dialog.cpp
+msgid "Yes"
+msgstr "예"
 
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
@@ -2493,21 +2810,35 @@ msgid "Pictures"
 msgstr "이미지"
 
 #: src/nxemu/ui/views/scaling_filters.h
+msgid "Favors smoother gameplay. Edges may look more jagged."
+msgstr "더 부드러운 게임 플레이를 우선합니다. 윤곽이 더 들쭉날쭉해 보일 수 있습니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps the picture sharp and smooths jagged edges, with some extra graphics work."
+msgstr "화면을 선명하게 유지하고 들쭉날쭉한 윤곽을 부드럽게 하며, 그래픽 부하가 약간 늘어납니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Nearest neighbour"
 msgstr "가장 가까운 이웃"
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp squares, for pixel art. The lightest."
-msgstr "선명한 사각형. 픽셀 아트용. 가장 가볍습니다."
+msgid "Keeps pixels square and crisp. Best for pixel art."
+msgstr "픽셀을 네모나고 선명하게 유지합니다. 픽셀 아트에 가장 적합합니다."
 
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Smooths the picture quickly, but fine details can look softer."
+msgstr "화면을 빠르게 부드럽게 하지만 세부 묘사가 흐려 보일 수 있습니다."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps fine details sharp. Strong edges may show a faint outline."
+msgstr "세부 묘사를 선명하게 유지합니다. 뚜렷한 윤곽에 희미한 테두리가 보일 수 있습니다."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/scaling_filters.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Bilinear"
 msgstr "쌍선형"
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Smooth. The usual choice, and light."
-msgstr "부드럽습니다. 일반적인 선택이며 가볍습니다."
 
 #: src/nxemu/ui/views/scaling_filters.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -2515,16 +2846,12 @@ msgid "Bicubic"
 msgstr "쌍입방"
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "A little sharper than bilinear, for slightly more work."
-msgstr "쌍선형보다 조금 더 선명하며 부하가 약간 더 큽니다."
+msgid "Keeps more detail than Bilinear and uses a little more graphics power."
+msgstr "쌍선형보다 세부 묘사를 더 유지하며 그래픽 성능을 조금 더 사용합니다."
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp edges, best for 2D games and drawings. Heavier."
-msgstr "선명한 윤곽. 2D 게임과 그림에 가장 적합합니다. 더 무겁습니다."
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
-msgstr "AMD FidelityFX Super Resolution: 창보다 작게 그려진 화면을 선명하게 합니다. 3D 게임에 가장 적합합니다. 부하는 보통입니다."
+msgid "Keeps outlines sharp in 2D games and drawings. Uses more graphics power."
+msgstr "2D 게임과 그림의 윤곽을 선명하게 유지합니다. 그래픽 성능을 더 사용합니다."
 
 #: src/nxemu/ui/views/volume_control.cpp
 msgid "Muted: click to hear the games again"
@@ -2998,6 +3325,14 @@ msgid "Not installed"
 msgstr "설치되지 않음"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to disable debug settings."
+msgstr "디버그 설정을 끄려면 게임을 중지하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are enabled."
+msgstr "디버그 설정이 켜졌습니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Small cards"
 msgstr "작은 카드"
 
@@ -3253,6 +3588,10 @@ msgid "Games load faster after the first run"
 msgstr "처음 실행한 후에는 게임이 더 빨리 불러와집니다"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Needed to export a shader profile of what you played"
+msgstr "플레이한 내용의 셰이더 프로필을 내보내는 데 필요합니다"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "No folders yet"
 msgstr "폴더가 없습니다"
 
@@ -3293,6 +3632,7 @@ msgid "Skip"
 msgstr "건너뛰기"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/settings/OverlayLayoutActivity.kt
 msgid "Done"
 msgstr "완료"
 
@@ -3762,101 +4102,338 @@ msgstr "GitHub 응답: %1"
 msgid "Couldn't reach GitHub"
 msgstr "GitHub에 연결할 수 없습니다"
 
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Reading and verifying NXShader"
 msgstr "NXShader 읽기 및 확인"
 
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Importing NXShader"
 msgstr "NXShader 가져오기"
 
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Compiling NXShader"
 msgstr "NXShader 컴파일"
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open NXShader folder"
 msgstr "NXShader 폴더 열기"
 
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export shader profile"
+msgstr "셰이더 프로필 내보내기"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import shader profile"
+msgstr "셰이더 프로필 가져오기"
+
+#: src/nxemu/ui/assets/general_dialog.rml
 msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
 msgstr "1:1 및 축소 시 선택적 선명도 향상. 최근접 이웃, 이중선형 또는 Catmull-Rom 확대에도 적용됩니다. 0%에서 꺼집니다."
 
-msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
-msgstr "AMD FidelityFX Super Resolution: 윤곽을 고려한 확대와 조절 가능한 선명도. 0%에서는 선명도 향상이 꺼집니다."
-
-msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
-msgstr "5개 샘플을 사용하는 근사 방식. 더 빠르지만 대각선 경계에 작은 차이가 생깁니다."
-
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "ScaleForce fast"
 msgstr "ScaleForce 고속"
 
-msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
-msgstr "확대 및 축소 필터: 이미지와 표시 영역의 크기에 따라 자동 선택"
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of ScaleForce. Diagonal lines may look slightly different."
+msgstr "ScaleForce의 더 빠른 버전입니다. 대각선이 약간 다르게 보일 수 있습니다."
 
-msgid "CAS sharpness"
-msgstr "CAS 선명도"
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps edges clear when making the picture larger. You can adjust how sharp it looks."
+msgstr "화면을 확대할 때 윤곽을 또렷하게 유지합니다. 선명도를 조절할 수 있습니다."
 
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Settings for %1"
+msgstr "%1 설정"
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Game overrides the system setting"
+msgstr "게임이 시스템 설정을 재정의합니다"
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Inherit"
+msgstr "상속"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded with %1 game versions."
+msgstr "게임 버전 %1개로 기록되었습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Made for: %1."
+msgstr "대상: %1."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 — %2 recipes."
+msgstr "%1 — 레시피 %2개."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Share my recordings"
+msgstr "내 기록 공유"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "You played the game yourself. Export what you recorded."
+msgstr "게임을 직접 플레이했습니다. 기록한 내용을 내보냅니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Complete the installed profile"
+msgstr "설치된 프로필 보완"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Add what you recorded to the profile you imported, then share the result."
+msgstr "기록한 내용을 가져온 프로필에 추가한 다음 결과를 공유합니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Turn on if you played the whole game while recording, not just a part of it."
+msgstr "기록 중에 게임의 일부가 아니라 전체를 플레이했다면 켜세요."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your own number, to tell updates of this profile apart. It is not the game version."
+msgstr "이 프로필의 업데이트를 구분하기 위한 번호입니다. 게임 버전이 아닙니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "(optional)"
+msgstr "(선택 사항)"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Players see it when they import the profile."
+msgstr "플레이어가 프로필을 가져올 때 표시됩니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: 1.0"
+msgstr "예: 1.0"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: all tracks, 200cc included"
+msgstr "예: 모든 트랙, 200cc 포함"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "All recorded versions"
+msgstr "기록된 모든 버전"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "What do you want to share?"
+msgstr "무엇을 공유하시겠습니까?"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
+msgstr "프로필을 선택하세요. NXEmu가 게임 시작 시 예열하기 전에 로컬 게임과 대조하여 확인합니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose profile"
+msgstr "프로필 선택"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
+msgstr "기록은 공유할 수 있는 작은 파일이 됩니다. 이 파일에는 준비할 셰이더 목록이 들어 있으며, 코드는 각 플레이어의 게임 사본에서 읽습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
+msgstr "확인된 기록이 없습니다. 수집을 켠 상태로 플레이하고 게임을 중지한 다음 내보내세요."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded version: %1"
+msgstr "기록된 버전: %1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
+msgstr "기록 %1개는 버전 메타데이터가 없거나 잘못되어 내보낼 수 없습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Export"
+msgstr "내보내기"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile selected. Local shaders will be verified when the game starts."
+msgstr "프로필을 선택했습니다. 로컬 셰이더는 게임 시작 시 확인됩니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed: recorded over the whole game."
+msgstr "게임 완료: 게임 전체에 걸쳐 기록되었습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics recipes, %2 compute recipes."
+msgstr "그래픽 레시피 %1개, 컴퓨트 레시피 %2개."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Start game"
+msgstr "게임 시작"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "One shader profile is ready."
+msgstr "셰이더 프로필 1개가 준비되었습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 shader profiles are ready."
+msgstr "셰이더 프로필 %1개가 준비되었습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "installed profile"
+msgstr "설치된 프로필"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics, %2 compute recipes, %3"
+msgstr "그래픽 %1개, 컴퓨트 %2개 레시피, %3"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saved in %1"
+msgstr "%1에 저장했습니다"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 and %2 share %3 % of their shaders."
+msgstr "%1와(과) %2은(는) 셰이더의 %3 %를 공유합니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "They are saved in one file. A version only gets its own file if the file would become too large."
+msgstr "하나의 파일에 저장됩니다. 파일이 너무 커지는 경우에만 버전별로 별도 파일이 만들어집니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Only this version is exported."
+msgstr "이 버전만 내보냅니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings are added to the installed profile."
+msgstr "기록이 설치된 프로필에 추가됩니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
+msgstr "프로필 버전(32자) 또는 설명(1024자)이 너무 길거나 줄바꿈이 포함되어 있습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying recorded game version"
+msgstr "기록된 게임 버전 확인 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile cannot be read and was not included."
+msgstr "설치된 프로필을 읽을 수 없어 포함하지 않았습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
+msgstr "설치된 프로필이 너무 커서 보완할 수 없습니다. 기록을 새 파일로 내보냈습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
+msgstr "%1은(는) 새 파일로 시작합니다. 이전 버전과 합치면 프로필이 제한을 초과하기 때문입니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose the folder for the %1 shader profiles"
+msgstr "셰이더 프로필 %1개를 저장할 폴더를 선택하세요"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace these existing shader profiles?"
+msgstr "기존 셰이더 프로필을 바꾸시겠습니까?"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace shader profiles"
+msgstr "셰이더 프로필 바꾸기"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be imported"
+msgstr "프로필을 가져올 수 없습니다"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be exported"
+msgstr "프로필을 내보낼 수 없습니다"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying the game version"
+msgstr "게임 버전 확인 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Reading your shader cache"
+msgstr "셰이더 캐시를 읽는 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Preparing the recipes"
+msgstr "레시피 준비 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Compressing the profile"
+msgstr "프로필 압축 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saving the profile"
+msgstr "프로필 저장 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking earlier results"
+msgstr "이전 결과 확인 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game files"
+msgstr "게임 파일 검색 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking the shaders"
+msgstr "셰이더 확인 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game resources"
+msgstr "게임 리소스 검색 중"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 MiB read"
+msgstr "%2MiB 중 %1MiB 읽음"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 resources examined"
+msgstr "리소스 %1개 확인함"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "This can take a few minutes."
+msgstr "몇 분 정도 걸릴 수 있습니다."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 shaders found (%3 %)"
+msgstr "셰이더 %2개 중 %1개 찾음(%3 %)"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Cancelling"
+msgstr "취소 중"
+
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Catmull-Rom fast"
 msgstr "Catmull-Rom 고속"
 
-msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
-msgstr "미세한 디테일을 더 선명하게 복원합니다. 뚜렷한 경계 주변에 테두리 번짐이 생길 수 있습니다."
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of Catmull-Rom. Diagonal lines may look slightly different."
+msgstr "Catmull-Rom의 더 빠른 버전입니다. 대각선이 약간 다르게 보일 수 있습니다."
 
-msgid "Used automatically when the source image is larger than its display area. Lowest cost."
-msgstr "원본 이미지가 표시 영역보다 크면 자동으로 사용합니다. 비용이 가장 낮습니다."
-
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Downscaling filter"
 msgstr "축소 필터"
 
-msgid "Downscale: Area"
-msgstr "축소: Area"
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (CAS)"
+msgstr "대비(CAS)"
 
-msgid "Downscale: Bilinear"
-msgstr "축소: 이중선형"
-
-msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
-msgstr "면적 가중 축소. 원본에서 해당하는 영역 전체를 필터링하여 계단 현상을 줄입니다."
-
-msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
-msgstr "네 이웃으로 경계를 추정합니다. 더 빠르지만 대각선 윤곽이 달라질 수 있습니다."
-
-msgid "Anti-aliasing: change while a game is running"
-msgstr "안티앨리어싱: 게임 실행 중 변경 가능"
-
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
 msgstr "GPU 연산을 사용하는 Intel CMAA2 안티앨리어싱. Vulkan 전용."
 
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "세 번의 그래픽 패스를 사용하는 형태학적 안티앨리어싱."
 
-msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
-msgstr "Intel의 보수적 형태학적 안티앨리어싱. 실험적 기능이며 Vulkan 전용입니다."
 
 
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Quality"
-msgstr "품질"
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr "바이큐빅 업스케일링, Area 다운스케일링 및 CMAA2 안티앨리어싱. CMAA2를 사용할 수 없으면 FXAA를 사용합니다."
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
-msgstr "FSR 업스케일링, Area 다운스케일링 및 SMAA High 안티앨리어싱."
-
+#: src/nxemu/ui/views/main_window.cpp
 
 msgid "Custom"
 msgstr "사용자 지정"
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Upscaling filter"
 msgstr "업스케일링 필터"
 
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes details stand out with supported filters. Set to 0% to turn it off."
+msgstr "지원되는 필터에서 세부 묘사를 돋보이게 합니다. 0%로 설정하면 꺼집니다."
+
+#: src/nxemu/ui/assets/main_window.rml
 msgid "Graphics profile"
 msgstr "그래픽 프로필"
-
-msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
-msgstr "바이큐빅 업스케일링, Area 다운스케일링, 안티앨리어싱 없음."
-
-msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr "FSR 업스케일링, Area 다운스케일링 및 CMAA2 안티앨리어싱. CMAA2를 사용할 수 없으면 FXAA를 사용합니다."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Upscaling"
@@ -3865,6 +4442,18 @@ msgstr "업스케일링"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Downscaling"
 msgstr "다운스케일링"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Nearest"
+msgstr "최근접"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Catmull fast"
+msgstr "Catmull 빠름"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Area"
+msgstr "영역"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"

@@ -48,6 +48,10 @@ msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated w
 msgstr "«Nintendo Switch» es una marca comercial de Nintendo. NXEmu no está afiliado a Nintendo de ninguna manera."
 
 #: src/nxemu/ui/assets/about_dialog.rml
+#: src/nxemu/ui/views/message_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 msgid "OK"
 msgstr "Aceptar"
 
@@ -57,8 +61,10 @@ msgstr "Aceptar"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/settings_context.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
 msgid "Settings"
 msgstr "Ajustes"
 
@@ -121,10 +127,15 @@ msgid "A game is running: what is greyed out cannot change until it stops."
 msgstr "Hay un juego en ejecución: las opciones atenuadas no se pueden cambiar hasta que se detenga."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Applets"
+msgstr "Applets"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Picture"
 msgstr "Imagen"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Anti-aliasing"
 msgstr "Suavizado de bordes"
@@ -188,6 +199,14 @@ msgid "Shaders"
 msgstr "Sombreadores"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "Modo de precalentamiento de shaders"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "Prepara los primeros shaders antes de empezar y el resto en segundo plano. Se aplica la próxima vez que se inicie el juego."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "Guardar los sombreadores en disco"
 
@@ -200,6 +219,15 @@ msgid "Off only to look for a fault."
 msgstr "Desactívalo solo para investigar un fallo."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Record shader recipes"
+msgstr "Registrar recetas de shaders"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needed to export a shader profile of what you played. Off saves a little work."
+msgstr "Necesario para exportar un perfil de shaders de lo que has jugado. Desactivado ahorra algo de trabajo."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Build shaders in the background"
 msgstr "Compilar sombreadores en segundo plano"
 
@@ -208,6 +236,8 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Menos tirones; algunos elementos pueden aparecer tarde. Es un truco de optimización."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Performance"
 msgstr "Rendimiento"
 
@@ -236,7 +266,6 @@ msgid "Emulation"
 msgstr "Emulación"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-#: src/nxemu/ui/views/hotkeys.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Limit speed"
 msgstr "Limitar velocidad"
@@ -336,8 +365,33 @@ msgid "Shows what you play in Discord when it runs."
 msgstr "Muestra a qué juegas en Discord cuando está abierto."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Emulation diagnostics"
-msgstr "Diagnóstico de emulación"
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings"
+msgstr "Ajustes de depuración"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
+msgstr "Si están desactivados, usan sus valores predeterminados; lo que hayas configurado se conserva para cuando se vuelvan a activar."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "Mínimo de pipelines iniciales"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "Predeterminado: 512. Deben alcanzarse ambos mínimos, salvo que todos los pipelines estén listos."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "Tiempo inicial mínimo (segundos)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "Predeterminado: 60. Sigue preparando shaders durante este tiempo y luego compila el resto en segundo plano."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -362,6 +416,10 @@ msgstr "Caché de pipelines del controlador"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders load faster with some drivers."
 msgstr "Los sombreadores se cargan más rápido con algunos controladores."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Rendering"
+msgstr "Renderizado"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Memory reads"
@@ -489,6 +547,70 @@ msgid "Needs multicore."
 msgstr "Requiere el modo multinúcleo."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Amiibo editor"
+msgstr "Editor de amiibo"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Controller configuration"
+msgstr "Configuración de mandos"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Data erase"
+msgstr "Borrado de datos"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Error"
+msgstr "Error"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Net connect"
+msgstr "Conexión de red"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Player select"
+msgstr "Selección de jugador"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Software keyboard"
+msgstr "Teclado en pantalla"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Mii Edit"
+msgstr "Editor de Mii"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What a game opens of the console's own: NXEmu's version of it, or the real one from the installed firmware. Applies on the next game start."
+msgstr "Lo que un juego abre de la propia consola: la versión de NXEmu o la real del firmware instalado. Se aplica la próxima vez que se inicie el juego."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Online web"
+msgstr "Web en línea"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shop"
+msgstr "Tienda"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Photo viewer"
+msgstr "Visor de fotos"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Offline web"
+msgstr "Web sin conexión"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Login share"
+msgstr "Inicio de sesión compartido"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Wifi web auth"
+msgstr "Autenticación web de Wi-Fi"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "My page"
+msgstr "Mi página"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Accurate vibration"
 msgstr "Vibración precisa"
 
@@ -546,11 +668,12 @@ msgid "Restore the defaults of all the tabs?"
 msgstr "¿Restablecer los valores predeterminados de todas las pestañas?"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Remove your overrides and re-enable NXEmu settings for this game?"
-msgstr "¿Eliminar tus ajustes personalizados y reactivar los ajustes de NXEmu para este juego?"
+msgid "Remove the settings of this game and use the global ones?"
+msgstr "¿Eliminar los ajustes de este juego y usar los globales?"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Keep"
 msgstr "Conservar"
 
@@ -565,6 +688,7 @@ msgstr "Restablecer"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Close"
 msgstr "Cerrar"
 
@@ -634,6 +758,10 @@ msgstr "Asigna los controles de este jugador según las sugerencias del disposit
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
+#: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
+#: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -662,6 +790,7 @@ msgid "Source"
 msgstr "Origen"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Install"
 msgstr "Instalar"
 
@@ -706,6 +835,7 @@ msgid "The installed firmware stays in place until the new one is complete."
 msgstr "El firmware instalado se conserva hasta que el nuevo esté listo."
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Replace the installed firmware?"
 msgstr "¿Reemplazar el firmware instalado?"
 
@@ -718,6 +848,7 @@ msgid "Keep the installed one"
 msgstr "Conservar el instalado"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Replace"
 msgstr "Reemplazar"
 
@@ -782,8 +913,13 @@ msgstr "Cómo se adapta la imagen a la ventana."
 
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness of the FSR filter"
-msgstr "Nitidez del filtro FSR"
+msgid "Makes the picture sharper when using FSR. Set to 0% to turn it off."
+msgstr "Hace la imagen más nítida con FSR. Ponlo al 0% para desactivarlo."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (RCAS)"
+msgstr "Contraste (RCAS)"
 
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -966,6 +1102,15 @@ msgstr "Acciones"
 msgid "Select a game to see its details."
 msgstr "Selecciona un juego para ver sus detalles."
 
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr "Leyendo la información del juego"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Configure"
+msgstr "Configurar"
+
 #. shown beside the controller's buttons, as in "(A) Play (X) Options".
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/views/main_window.cpp
@@ -993,6 +1138,7 @@ msgid "Scanning games..."
 msgstr "Buscando juegos..."
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/startup.rml
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Loading"
 msgstr "Cargando"
@@ -1007,12 +1153,8 @@ msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr "Modo de consola: en el televisor (1080p) o en modo portátil (720p)"
 
 #: src/nxemu/ui/assets/main_window.rml
-msgid "The resolution games are drawn at"
-msgstr "La resolución a la que se dibujan los juegos"
-
-#: src/nxemu/ui/assets/main_window.rml
-msgid "Window filter: only applies when the game's resolution is lower than the window size"
-msgstr "Filtro de ventana: solo se aplica si la resolución del juego es menor que el tamaño de la ventana"
+msgid "Game image resolution before display scaling"
+msgstr "Resolución de la imagen del juego antes del escalado de pantalla"
 
 #: src/nxemu/ui/assets/main_window.rml
 msgid "Version copied to clipboard"
@@ -1101,6 +1243,41 @@ msgstr "Eliminar perfil"
 msgid "Delete"
 msgstr "Eliminar"
 
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Shader profile"
+msgstr "Perfil de shaders"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game versions"
+msgstr "Versiones del juego"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "About this profile"
+msgstr "Acerca de este perfil"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed"
+msgstr "Juego completado"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile version"
+msgstr "Versión del perfil"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Description"
+msgstr "Descripción"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+msgid "Choose file"
+msgstr "Elegir archivo"
+
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr "Detén el juego actual antes de abrir otro."
@@ -1144,24 +1321,28 @@ msgstr ""
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Left"
 msgstr "Izquierda"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Right"
 msgstr "Derecha"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Down"
 msgstr "Abajo"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Up"
 msgstr "Arriba"
 
@@ -1264,14 +1445,17 @@ msgid "Not"
 msgstr "No"
 
 #: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Invalid"
 msgstr "No válido"
 
 #: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Hat %1"
 msgstr "Cruceta %1"
 
 #: src/nxemu/ui/input/input_text.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Axis %1"
 msgstr "Eje %1"
 
@@ -1285,12 +1469,15 @@ msgstr "Movimiento %1"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/hotkeys.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Button %1"
 msgstr "Botón %1"
 
 #: src/nxemu/ui/input/input_text.cpp
 #: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
+#: src/android/app/src/main/java/org/nxemu/ui/settings/ControllerSettings.kt
 msgid "Unknown"
 msgstr "Desconocido"
 
@@ -1354,7 +1541,29 @@ msgid_plural "%n years ago"
 msgstr[0] "Hace %n año"
 msgstr[1] "Hace %n años"
 
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are already enabled."
+msgstr "Los ajustes de depuración ya están activados."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to enable debug settings."
+msgstr "Detén el juego para activar los ajustes de depuración."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n more click to enable debug settings."
+msgid_plural "%n more clicks to enable debug settings."
+msgstr[0] "%n clic más para activar los ajustes de depuración."
+msgstr[1] "%n clics más para activar los ajustes de depuración."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+msgid "Debug settings are enabled, under Debug in the settings."
+msgstr "Los ajustes de depuración están activados, en Depuración dentro de los ajustes."
+
 #: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None"
 msgstr "Ninguno"
@@ -1443,6 +1652,7 @@ msgstr "Seguro"
 msgid "Steadier: it fixes some games."
 msgstr "Más estable: corrige algunos juegos."
 
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Processor"
 msgstr "Procesador"
@@ -1570,6 +1780,30 @@ msgstr "8 GB"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "For mods that need more than the console has. Nothing gained otherwise."
 msgstr "Para mods que necesitan más memoria de la que tiene la consola. Sin beneficio en otros casos."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Custom frontend"
+msgstr "Interfaz propia"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "NXEmu's own version of the applet."
+msgstr "La versión propia del applet de NXEmu."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Real applet"
+msgstr "Applet real"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The console's applet, from the installed firmware."
+msgstr "El applet de la consola, del firmware instalado."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "Precalentamiento completo (predeterminado)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "Progresivo (experimental)"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
@@ -1748,6 +1982,7 @@ msgid "Press..."
 msgstr "Pulsa..."
 
 #: src/nxemu/ui/views/controller_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Not set"
 msgstr "Sin asignar"
 
@@ -1804,26 +2039,32 @@ msgstr "Elegir una carpeta de juegos"
 #: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 MB"
 msgstr "%1 MB"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Firmware installed"
 msgstr "Firmware instalado"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Games can use it from now on."
 msgstr "Los juegos ya pueden usarlo."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Installation cancelled"
 msgstr "Instalación cancelada"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The installed firmware was left as it was."
 msgstr "Se ha conservado el firmware instalado."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The source could not be read"
 msgstr "No se pudo leer el origen"
 
@@ -1832,6 +2073,7 @@ msgid "Check that the file or the folder is still there and that NXEmu may read 
 msgstr "Comprueba que el archivo o la carpeta siga existiendo y que NXEmu pueda leerlo."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "No firmware found there"
 msgstr "No se encontró firmware en ese lugar"
 
@@ -1840,6 +2082,7 @@ msgid "Choose a firmware .zip archive, a .dxci game card image that carries an u
 msgstr "Elige un archivo .zip de firmware, una imagen de tarjeta de juego .dxci que incluya una actualización o una carpeta con los archivos .nca del firmware."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The console's storage cannot be written"
 msgstr "No se puede escribir en el almacenamiento de la consola"
 
@@ -1848,14 +2091,17 @@ msgid "Check that NXEmu may write to its data folder, then try again."
 msgstr "Comprueba que NXEmu pueda escribir en su carpeta de datos e inténtalo de nuevo."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The firmware could not be replaced"
 msgstr "No se pudo reemplazar el firmware"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The installed firmware was put back. The log tells what went wrong."
 msgstr "Se ha restaurado el firmware instalado. El registro indica qué ha fallado."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Copying the firmware failed"
 msgstr "Error al copiar el firmware"
 
@@ -1868,18 +2114,22 @@ msgid "Start the game"
 msgstr "Iniciar el juego"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "This game carries firmware %1"
 msgstr "Este juego incluye el firmware %1"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "No firmware is installed yet. NXEmu can install the game's before starting it."
 msgstr "Aún no hay firmware instalado. NXEmu puede instalar el del juego antes de iniciarlo."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Firmware %1 is installed, and the game was made for a more recent one. NXEmu can install the game's before starting it."
 msgstr "El firmware %1 está instalado, pero el juego se creó para uno más reciente. NXEmu puede instalar el del juego antes de iniciarlo."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "The package holds firmware %1, and firmware %2 is installed. Installing the package replaces it."
 msgstr "El paquete contiene el firmware %1 y está instalado el firmware %2. La instalación lo reemplazará."
 
@@ -1906,27 +2156,34 @@ msgid "Firmware %1 is installed."
 msgstr "El firmware %1 está instalado."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Copying the firmware..."
 msgstr "Copiando firmware..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
 msgstr "%1 de %2"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Checking the firmware..."
 msgstr "Comprobando firmware..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "File %1 of %2"
 msgstr "Archivo %1 de %2"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Putting the firmware in place..."
 msgstr "Preparando firmware..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Firmware %1 installed"
 msgstr "Firmware %1 instalado"
 
@@ -1939,6 +2196,14 @@ msgstr "Actualizaciones"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "DLC"
 msgstr "DLC"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Only the running game can be configured"
+msgstr "Solo se puede configurar el juego en ejecución"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr "Ajustes solo para este juego"
 
 #: src/nxemu/ui/views/game_details_panel.cpp
 msgid "This game has not saved anything yet"
@@ -2175,6 +2440,10 @@ msgstr "Detener el juego"
 msgid "Docked or handheld"
 msgstr "Docked o portátil"
 
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Change speed"
+msgstr "Cambiar la velocidad"
+
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Opening the game..."
 msgstr "Abriendo el juego..."
@@ -2272,8 +2541,32 @@ msgid "Show emulation controls"
 msgstr "Mostrar controles de emulación"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Limit &Speed"
-msgstr "Limitar &velocidad"
+msgid "&Speed"
+msgstr "&Velocidad"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Limited"
+msgstr "Limitada"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs at the speed of the console."
+msgstr "Funciona a la velocidad de la consola."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked"
+msgstr "Sin límite"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs as fast as it can, shown at the VSync setting."
+msgstr "Funciona lo más rápido posible y se muestra según el ajuste de VSync."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, no VSync"
+msgstr "Sin límite, sin VSync"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs and shows as fast as it can, to compare speeds. The picture can tear."
+msgstr "Funciona y se muestra lo más rápido posible, para comparar velocidades. La imagen puede cortarse."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "&Fullscreen"
@@ -2354,6 +2647,11 @@ msgid "More actions"
 msgstr "Más acciones"
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Balanced"
+msgstr "Equilibrado"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
 msgstr "Escala de resolución: los valores más altos dan una imagen más nítida, pero requieren más potencia gráfica."
 
@@ -2372,6 +2670,10 @@ msgstr "El perfil con el que se inician los juegos y cuyas partidas guardadas se
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "Iniciar juego"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Game settings"
+msgstr "Ajustes del juego"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2394,8 +2696,16 @@ msgid "Manage profiles"
 msgstr "Gestionar perfiles"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness: once FSR is the filter"
-msgstr "Nitidez: cuando el filtro sea FSR"
+msgid "Makes details stand out. Set to 0% to turn it off."
+msgstr "Hace que los detalles destaquen. Ponlo al 0% para desactivarlo."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes a large picture smaller with very little graphics work."
+msgstr "Reduce una imagen grande con muy poco trabajo gráfico."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Smooths jagged edges when making a large picture smaller."
+msgstr "Suaviza los bordes dentados al reducir una imagen grande."
 
 #: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -2430,6 +2740,10 @@ msgid "Firmware: %1"
 msgstr "Firmware: %1"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, shown at the VSync setting"
+msgstr "Sin límite, se muestra según el ajuste de VSync"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "NXEmu - Stop Emulation"
 msgstr "NXEmu - Detener emulación"
 
@@ -2452,6 +2766,10 @@ msgstr ""
 "¿Seguro que quieres detener la emulación?\n"
 "\n"
 "Se perderá todo el progreso sin guardar."
+
+#: src/nxemu/ui/views/message_dialog.cpp
+msgid "Yes"
+msgstr "Sí"
 
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
@@ -2502,21 +2820,35 @@ msgid "Pictures"
 msgstr "Imágenes"
 
 #: src/nxemu/ui/views/scaling_filters.h
+msgid "Favors smoother gameplay. Edges may look more jagged."
+msgstr "Prioriza una jugabilidad más fluida. Los bordes pueden verse más dentados."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps the picture sharp and smooths jagged edges, with some extra graphics work."
+msgstr "Mantiene la imagen nítida y suaviza los bordes dentados, con algo más de trabajo gráfico."
+
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Nearest neighbour"
 msgstr "Vecino más cercano"
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp squares, for pixel art. The lightest."
-msgstr "Cuadrados nítidos, para pixel art. El más ligero."
+msgid "Keeps pixels square and crisp. Best for pixel art."
+msgstr "Mantiene los píxeles cuadrados y nítidos. Ideal para pixel art."
 
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Smooths the picture quickly, but fine details can look softer."
+msgstr "Suaviza la imagen rápidamente, pero los detalles finos pueden verse más suaves."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps fine details sharp. Strong edges may show a faint outline."
+msgstr "Mantiene nítidos los detalles finos. Los bordes marcados pueden mostrar un ligero contorno."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/scaling_filters.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Bilinear"
 msgstr "Bilineal"
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Smooth. The usual choice, and light."
-msgstr "Suave. La opción habitual, y ligera."
 
 #: src/nxemu/ui/views/scaling_filters.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -2524,16 +2856,12 @@ msgid "Bicubic"
 msgstr "Bicúbico"
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "A little sharper than bilinear, for slightly more work."
-msgstr "Algo más nítido que el bilineal, con un poco más de trabajo."
+msgid "Keeps more detail than Bilinear and uses a little more graphics power."
+msgstr "Conserva más detalle que Bilineal y usa algo más de potencia gráfica."
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp edges, best for 2D games and drawings. Heavier."
-msgstr "Bordes nítidos, ideal para juegos 2D y dibujos. Más pesado."
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
-msgstr "AMD FidelityFX Super Resolution: da nitidez a una imagen dibujada más pequeña que la ventana, ideal para juegos 3D. Coste moderado."
+msgid "Keeps outlines sharp in 2D games and drawings. Uses more graphics power."
+msgstr "Mantiene nítidos los contornos en juegos 2D y dibujos. Usa más potencia gráfica."
 
 #: src/nxemu/ui/views/volume_control.cpp
 msgid "Muted: click to hear the games again"
@@ -3009,6 +3337,14 @@ msgid "Not installed"
 msgstr "No instalado"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to disable debug settings."
+msgstr "Detén el juego para desactivar los ajustes de depuración."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are enabled."
+msgstr "Los ajustes de depuración están activados."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Small cards"
 msgstr "Tarjetas pequeñas"
 
@@ -3266,6 +3602,10 @@ msgid "Games load faster after the first run"
 msgstr "Los juegos cargan más rápido tras la primera vez"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Needed to export a shader profile of what you played"
+msgstr "Necesario para exportar un perfil de shaders de lo que has jugado"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "No folders yet"
 msgstr "Aún no hay carpetas"
 
@@ -3306,6 +3646,7 @@ msgid "Skip"
 msgstr "Omitir"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+#: src/android/app/src/main/java/org/nxemu/ui/settings/OverlayLayoutActivity.kt
 msgid "Done"
 msgstr "Listo"
 
@@ -3777,101 +4118,338 @@ msgstr "GitHub devolvió %1"
 msgid "Couldn't reach GitHub"
 msgstr "No se pudo conectar con GitHub"
 
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Reading and verifying NXShader"
 msgstr "Leyendo y verificando NXShader"
 
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Importing NXShader"
 msgstr "Importando NXShader"
 
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Compiling NXShader"
 msgstr "Compilando NXShader"
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open NXShader folder"
 msgstr "Abrir carpeta NXShader"
 
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export shader profile"
+msgstr "Exportar perfil de shaders"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import shader profile"
+msgstr "Importar perfil de shaders"
+
+#: src/nxemu/ui/assets/general_dialog.rml
 msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
 msgstr "Enfoque opcional a escala 1:1 y al reducir; también al ampliar con Vecino más cercano, Bilineal o Catmull-Rom. Desactivado al 0 %."
 
-msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
-msgstr "AMD FidelityFX Super Resolution: ampliación adaptada a los bordes con nitidez ajustable. Al 0 %, se desactiva el enfoque."
-
-msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
-msgstr "Aproximación de cinco muestras. Más rápida, con pequeñas diferencias en los bordes diagonales."
-
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "ScaleForce fast"
 msgstr "ScaleForce rápido"
 
-msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
-msgstr "Filtros de ampliación y reducción: selección automática según el tamaño de la imagen y del área de visualización"
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of ScaleForce. Diagonal lines may look slightly different."
+msgstr "Una versión más rápida de ScaleForce. Las líneas diagonales pueden verse ligeramente distintas."
 
-msgid "CAS sharpness"
-msgstr "Nitidez CAS"
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps edges clear when making the picture larger. You can adjust how sharp it looks."
+msgstr "Mantiene los bordes definidos al ampliar la imagen. Puedes ajustar la nitidez."
 
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Settings for %1"
+msgstr "Ajustes de %1"
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Game overrides the system setting"
+msgstr "El juego anula el ajuste del sistema"
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Inherit"
+msgstr "Heredar"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded with %1 game versions."
+msgstr "Registrado con %1 versiones del juego."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Made for: %1."
+msgstr "Creado para: %1."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 — %2 recipes."
+msgstr "%1 — %2 recetas."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Share my recordings"
+msgstr "Compartir mis registros"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "You played the game yourself. Export what you recorded."
+msgstr "Has jugado tú mismo. Exporta lo que has registrado."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Complete the installed profile"
+msgstr "Completar el perfil instalado"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Add what you recorded to the profile you imported, then share the result."
+msgstr "Añade lo que has registrado al perfil que importaste y comparte el resultado."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Turn on if you played the whole game while recording, not just a part of it."
+msgstr "Actívalo si jugaste todo el juego mientras se registraba, no solo una parte."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your own number, to tell updates of this profile apart. It is not the game version."
+msgstr "Tu propio número, para distinguir las actualizaciones de este perfil. No es la versión del juego."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "(optional)"
+msgstr "(opcional)"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Players see it when they import the profile."
+msgstr "Los jugadores lo ven al importar el perfil."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: 1.0"
+msgstr "Por ejemplo: 1.0"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: all tracks, 200cc included"
+msgstr "Por ejemplo: todos los circuitos, 200cc incluidos"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "All recorded versions"
+msgstr "Todas las versiones registradas"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "What do you want to share?"
+msgstr "¿Qué quieres compartir?"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
+msgstr "Selecciona un perfil. NXEmu lo verifica con tu juego local antes de precalentar al iniciar el juego."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose profile"
+msgstr "Elegir perfil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
+msgstr "Tus registros se convierten en un archivo pequeño que puedes compartir. Enumera los shaders que hay que preparar; su código se lee de la copia del juego de cada jugador."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
+msgstr "No hay ningún registro identificado. Juega con la recopilación activada, detén el juego y exporta."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded version: %1"
+msgstr "Versión registrada: %1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
+msgstr "%1 registros tienen metadatos de versión ausentes o no válidos y no se pueden exportar."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Export"
+msgstr "Exportar"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile selected. Local shaders will be verified when the game starts."
+msgstr "Perfil seleccionado. Los shaders locales se verificarán al iniciar el juego."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed: recorded over the whole game."
+msgstr "Juego completado: registrado durante todo el juego."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics recipes, %2 compute recipes."
+msgstr "%1 recetas gráficas, %2 recetas de cómputo."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Start game"
+msgstr "Iniciar juego"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "One shader profile is ready."
+msgstr "Hay un perfil de shaders listo."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 shader profiles are ready."
+msgstr "Hay %1 perfiles de shaders listos."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "installed profile"
+msgstr "perfil instalado"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics, %2 compute recipes, %3"
+msgstr "%1 recetas gráficas, %2 de cómputo, %3"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saved in %1"
+msgstr "Guardado en %1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 and %2 share %3 % of their shaders."
+msgstr "%1 y %2 comparten el %3 % de sus shaders."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "They are saved in one file. A version only gets its own file if the file would become too large."
+msgstr "Se guardan en un solo archivo. Una versión solo tiene su propio archivo si el archivo fuera a ser demasiado grande."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Only this version is exported."
+msgstr "Solo se exporta esta versión."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings are added to the installed profile."
+msgstr "Tus registros se añaden al perfil instalado."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
+msgstr "La versión del perfil (32 caracteres) o la descripción (1024 caracteres) es demasiado larga o tiene un salto de línea."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying recorded game version"
+msgstr "Identificando la versión registrada del juego"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile cannot be read and was not included."
+msgstr "No se puede leer el perfil instalado y no se ha incluido."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
+msgstr "El perfil instalado es demasiado grande para completarlo; tus registros se han exportado en un archivo nuevo."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
+msgstr "%1 inicia un archivo nuevo: junto con las versiones anteriores, el perfil superaría sus límites."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose the folder for the %1 shader profiles"
+msgstr "Elige la carpeta para los %1 perfiles de shaders"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace these existing shader profiles?"
+msgstr "¿Reemplazar estos perfiles de shaders existentes?"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace shader profiles"
+msgstr "Reemplazar perfiles de shaders"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be imported"
+msgstr "No se pudo importar el perfil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be exported"
+msgstr "No se pudo exportar el perfil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying the game version"
+msgstr "Identificando la versión del juego"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Reading your shader cache"
+msgstr "Leyendo tu caché de shaders"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Preparing the recipes"
+msgstr "Preparando las recetas"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Compressing the profile"
+msgstr "Comprimiendo el perfil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saving the profile"
+msgstr "Guardando el perfil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking earlier results"
+msgstr "Comprobando resultados anteriores"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game files"
+msgstr "Buscando en los archivos del juego"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking the shaders"
+msgstr "Comprobando los shaders"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game resources"
+msgstr "Buscando en los recursos del juego"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 MiB read"
+msgstr "%1 de %2 MiB leídos"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 resources examined"
+msgstr "%1 recursos examinados"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "This can take a few minutes."
+msgstr "Esto puede tardar unos minutos."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 shaders found (%3 %)"
+msgstr "%1 de %2 shaders encontrados (%3 %)"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Cancelling"
+msgstr "Cancelando"
+
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Catmull-Rom fast"
 msgstr "Catmull-Rom rápido"
 
-msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
-msgstr "Reconstrucción más nítida de los detalles finos. Puede añadir halos en los bordes marcados."
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of Catmull-Rom. Diagonal lines may look slightly different."
+msgstr "Una versión más rápida de Catmull-Rom. Las líneas diagonales pueden verse ligeramente distintas."
 
-msgid "Used automatically when the source image is larger than its display area. Lowest cost."
-msgstr "Se utiliza automáticamente cuando la imagen original supera su área de visualización. Coste mínimo."
-
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Downscaling filter"
 msgstr "Filtro de reducción"
 
-msgid "Downscale: Area"
-msgstr "Reducción: Area"
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (CAS)"
+msgstr "Contraste (CAS)"
 
-msgid "Downscale: Bilinear"
-msgstr "Reducción: Bilineal"
-
-msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
-msgstr "Reducción ponderada por área. Filtra toda el área cubierta de la imagen original para reducir los bordes dentados."
-
-msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
-msgstr "Estimación de bordes con cuatro vecinos. Más rápida, pero los contornos diagonales pueden variar."
-
-msgid "Anti-aliasing: change while a game is running"
-msgstr "Antialiasing: se puede cambiar durante el juego"
-
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
 msgstr "Antialiasing Intel CMAA2 por cómputo GPU. Solo Vulkan."
 
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Antialiasing morfológico con tres pasadas gráficas."
 
-msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
-msgstr "Antialiasing morfológico conservador de Intel. Experimental; solo Vulkan."
 
 
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Quality"
-msgstr "Calidad"
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr "Ampliación bicúbica, reducción Area y antialiasing CMAA2 con FXAA como alternativa."
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
-msgstr "Ampliación FSR, reducción Area y antialiasing SMAA High."
-
+#: src/nxemu/ui/views/main_window.cpp
 
 msgid "Custom"
 msgstr "Personalizado"
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Upscaling filter"
 msgstr "Filtro de ampliación"
 
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes details stand out with supported filters. Set to 0% to turn it off."
+msgstr "Hace que los detalles destaquen con los filtros compatibles. Ponlo al 0% para desactivarlo."
+
+#: src/nxemu/ui/assets/main_window.rml
 msgid "Graphics profile"
 msgstr "Perfil gráfico"
-
-msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
-msgstr "Ampliación bicúbica, reducción Area y sin antialiasing."
-
-msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr "Ampliación FSR, reducción Area y antialiasing CMAA2 con FXAA como alternativa."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Upscaling"
@@ -3880,6 +4458,18 @@ msgstr "Ampliación"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Downscaling"
 msgstr "Reducción"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Nearest"
+msgstr "Vecino más próximo"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Catmull fast"
+msgstr "Catmull rápido"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Area"
+msgstr "Área"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"

@@ -58,6 +58,7 @@ msgstr ""
 "anknytning till Nintendo."
 
 #: src/nxemu/ui/assets/about_dialog.rml
+#: src/nxemu/ui/views/message_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
@@ -66,8 +67,11 @@ msgstr "OK"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/directories_dialog.rml
-#: src/nxemu/ui/assets/general_dialog.rml src/nxemu/ui/assets/main_window.rml
-#: src/nxemu/ui/assets/profiles_dialog.rml src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/settings_context.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
@@ -135,10 +139,15 @@ msgstr ""
 "har avslutats."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Applets"
+msgstr "Appletar"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Picture"
 msgstr "Bild"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Anti-aliasing"
 msgstr "Kantutjämning"
@@ -202,6 +211,14 @@ msgid "Shaders"
 msgstr "Shaderprogram"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "Uppvärmningsläge för shaderprogram"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "Förbereder de första shaderprogrammen före start och resten i bakgrunden. Gäller nästa gång spelet startas."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "Behåll shaderprogram på disken"
 
@@ -214,6 +231,15 @@ msgid "Off only to look for a fault."
 msgstr "Stäng endast av för felsökning."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Record shader recipes"
+msgstr "Spela in shaderrecept"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needed to export a shader profile of what you played. Off saves a little work."
+msgstr "Behövs för att exportera en shaderprofil av det du har spelat. Av sparar lite arbete."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Build shaders in the background"
 msgstr "Bygg shaderprogram i bakgrunden"
 
@@ -222,6 +248,8 @@ msgid "Less stutter; things can show late. A hack."
 msgstr "Mindre hackande, men saker kan visas för sent. En tillfällig lösning."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Performance"
 msgstr "Prestanda"
 
@@ -249,7 +277,7 @@ msgstr "Mer än konsolen har, för resurskrävande moddar."
 msgid "Emulation"
 msgstr "Emulering"
 
-#: src/nxemu/ui/assets/advanced_dialog.rml src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Limit speed"
 msgstr "Begränsa hastigheten"
@@ -347,8 +375,33 @@ msgid "Shows what you play in Discord when it runs."
 msgstr "Visar vad du spelar i Discord när Discord körs."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Emulation diagnostics"
-msgstr "Emuleringsdiagnostik"
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings"
+msgstr "Felsökningsinställningar"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
+msgstr "När de är av används standardvärdena. Det du har ställt in sparas tills de aktiveras igen."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "Minsta antal pipelines vid start"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "Standard: 512. Båda minimivärdena måste nås om inte alla pipelines är klara."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "Minsta tid vid start (sekunder)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "Standard: 60. Fortsätter att förbereda shaderprogram så här länge och kompilerar sedan resten i bakgrunden."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -373,6 +426,10 @@ msgstr "Drivrutinens pipelinecache"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders load faster with some drivers."
 msgstr "Shaderprogram läses in snabbare med vissa drivrutiner."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Rendering"
+msgstr "Rendering"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Memory reads"
@@ -512,6 +569,78 @@ msgid "Needs multicore."
 msgstr "Kräver flera kärnor."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Amiibo editor"
+msgstr "Amiibo-redigerare"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Controller configuration"
+msgstr "Konfiguration av kontroller"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Data erase"
+msgstr "Radering av data"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Error"
+msgstr "Fel"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Net connect"
+msgstr "Nätverksanslutning"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Player select"
+msgstr "Spelarval"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Software keyboard"
+msgstr "Programvarutangentbord"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Mii Edit"
+msgstr "Mii-redigerare"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What a game opens of the console's own: NXEmu's version of it, or the real one from the installed firmware. Applies on the next game start."
+msgstr "Det som ett spel öppnar från själva konsolen: NXEmus version eller den riktiga från den installerade fasta programvaran. Gäller nästa gång spelet startas."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Online web"
+msgstr "Webb online"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shop"
+msgstr "Butik"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Photo viewer"
+msgstr "Fotovisare"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Offline web"
+msgstr "Webb offline"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Login share"
+msgstr "Inloggningsdelning"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Wifi web auth"
+msgstr "Webbautentisering för wifi"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "My page"
+msgstr "Min sida"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Show CPU backend in the title bar"
+msgstr "Visa CPU-backend i namnlisten"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "The active backend, instruction set and address-space width."
+msgstr "Aktiv backend, instruktionsuppsättning och adressrymdens bredd."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Accurate vibration"
 msgstr "Noggrann vibration"
 
@@ -566,10 +695,8 @@ msgid "Restore the defaults of all the tabs?"
 msgstr "Återställ standardvärdena på alla flikar?"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Remove your overrides and re-enable NXEmu settings for this game?"
-msgstr ""
-"Ta bort dina åsidosättningar och aktivera NXEmus inställningar för det här "
-"spelet igen?"
+msgid "Remove the settings of this game and use the global ones?"
+msgstr "Ta bort inställningarna för det här spelet och använda de globala?"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
@@ -584,9 +711,11 @@ msgstr "Återställ"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/directories_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
-#: src/nxemu/ui/assets/general_dialog.rml src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Close"
 msgstr "Stäng"
 
@@ -656,6 +785,7 @@ msgstr "Tilldelar spelarens styrfunktioner enligt inmatningsenhetens förslag"
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
@@ -825,9 +955,15 @@ msgstr "Fönsterfilter"
 msgid "How the picture is fitted to the window."
 msgstr "Hur bilden anpassas till fönstret."
 
-#: src/nxemu/ui/assets/general_dialog.rml src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness of the FSR filter"
-msgstr "Skärpa för FSR-filtret"
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes the picture sharper when using FSR. Set to 0% to turn it off."
+msgstr "Gör bilden skarpare med FSR. Ställ in på 0 % för att stänga av."
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (RCAS)"
+msgstr "Kontrast (RCAS)"
 
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -1009,6 +1145,15 @@ msgstr "Åtgärder"
 msgid "Select a game to see its details."
 msgstr "Välj ett spel för att se mer information."
 
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr "Läser spelinformation"
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Configure"
+msgstr "Konfigurera"
+
 #. shown beside the controller's buttons, as in "(A) Play (X) Options".
 #: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
@@ -1033,7 +1178,9 @@ msgstr "Moddar"
 msgid "Scanning games..."
 msgstr "Söker efter spel…"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/startup.rml
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Loading"
 msgstr "Läser in"
 
@@ -1046,16 +1193,8 @@ msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr "Konsolläge: på tv:n (1080p) eller handhållet (720p)"
 
 #: src/nxemu/ui/assets/main_window.rml
-msgid "The resolution games are drawn at"
-msgstr "Upplösningen som spel ritas i"
-
-#: src/nxemu/ui/assets/main_window.rml
-msgid ""
-"Window filter: only applies when the game's resolution is lower than the "
-"window size"
-msgstr ""
-"Fönsterfilter: används bara när spelets upplösning är lägre än fönstrets "
-"storlek"
+msgid "Game image resolution before display scaling"
+msgstr "Spelbildens upplösning före skalning till skärmen"
 
 #: src/nxemu/ui/assets/main_window.rml
 msgid "Version copied to clipboard"
@@ -1151,9 +1290,48 @@ msgstr "Ta bort profil"
 msgid "Delete"
 msgstr "Ta bort"
 
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Shader profile"
+msgstr "Shaderprofil"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game versions"
+msgstr "Spelversioner"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "About this profile"
+msgstr "Om den här profilen"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed"
+msgstr "Spelet avklarat"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile version"
+msgstr "Profilversion"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Description"
+msgstr "Beskrivning"
+
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+msgid "Choose file"
+msgstr "Välj fil"
+
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr "Stoppa det aktuella spelet innan du öppnar ett annat."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr "Grafikrenderaren kunde inte initieras. Kontrollera att dina GPU-drivrutiner är uppdaterade."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to reload after stopping the game."
@@ -1425,7 +1603,29 @@ msgid_plural "%n years ago"
 msgstr[0] "för %n år sedan"
 msgstr[1] "för %n år sedan"
 
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are already enabled."
+msgstr "Felsökningsinställningarna är redan aktiverade."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to enable debug settings."
+msgstr "Stoppa spelet för att aktivera felsökningsinställningarna."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n more click to enable debug settings."
+msgid_plural "%n more clicks to enable debug settings."
+msgstr[0] "%n klick till för att aktivera felsökningsinställningarna."
+msgstr[1] "%n klick till för att aktivera felsökningsinställningarna."
+
+#: src/nxemu/ui/views/about_dialog.cpp
+msgid "Debug settings are enabled, under Debug in the settings."
+msgstr "Felsökningsinställningarna är aktiverade och finns under Felsök i inställningarna."
+
 #: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None"
 msgstr "Ingen"
@@ -1519,6 +1719,7 @@ msgstr "Säker"
 msgid "Steadier: it fixes some games."
 msgstr "Stabilare: det rättar till vissa spel."
 
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Processor"
 msgstr "Processor"
@@ -1654,6 +1855,30 @@ msgstr "8 GB"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "For mods that need more than the console has. Nothing gained otherwise."
 msgstr "För moddar som behöver mer än konsolen har. Ger ingen fördel annars."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Custom frontend"
+msgstr "Eget gränssnitt"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "NXEmu's own version of the applet."
+msgstr "NXEmus egen version av appleten."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Real applet"
+msgstr "Riktig applet"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The console's applet, from the installed firmware."
+msgstr "Konsolens applet från den installerade fasta programvaran."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "Fullständig uppvärmning (standard)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "Progressiv (experimentell)"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
@@ -2043,7 +2268,9 @@ msgstr "Fast programvara %1 är installerad."
 msgid "Copying the firmware..."
 msgstr "Kopierar den fasta programvaran…"
 
-#: src/nxemu/ui/views/firmware_dialog.cpp src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
 msgstr "%1 av %2"
@@ -2077,6 +2304,14 @@ msgstr "Uppdateringar"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "DLC"
 msgstr "DLC"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Only the running game can be configured"
+msgstr "Endast spelet som körs kan konfigureras"
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr "Inställningar endast för det här spelet"
 
 #: src/nxemu/ui/views/game_details_panel.cpp
 msgid "This game has not saved anything yet"
@@ -2333,9 +2568,25 @@ msgstr "Stoppa spelet"
 msgid "Docked or handheld"
 msgstr "Dockad eller handhållen"
 
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Change speed"
+msgstr "Ändra hastighet"
+
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Opening the game..."
 msgstr "Öppnar spelet…"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Reading and verifying NXShader"
+msgstr "Läser och verifierar NXShader"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Importing NXShader"
+msgstr "Importerar NXShader"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Compiling NXShader"
+msgstr "Kompilerar NXShader"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
@@ -2430,8 +2681,32 @@ msgid "Show emulation controls"
 msgstr "Visa emuleringskontroller"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Limit &Speed"
-msgstr "Begränsa &hastigheten"
+msgid "&Speed"
+msgstr "&Hastighet"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Limited"
+msgstr "Begränsad"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs at the speed of the console."
+msgstr "Körs i konsolens hastighet."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked"
+msgstr "Obegränsad"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs as fast as it can, shown at the VSync setting."
+msgstr "Körs så snabbt som möjligt och visas enligt VSync-inställningen."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, no VSync"
+msgstr "Obegränsad, utan VSync"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs and shows as fast as it can, to compare speeds. The picture can tear."
+msgstr "Körs och visas så snabbt som möjligt för att jämföra hastigheter. Bilden kan rivas."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "&Fullscreen"
@@ -2512,6 +2787,11 @@ msgid "More actions"
 msgstr "Fler åtgärder"
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Balanced"
+msgstr "Balanserat"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid ""
 "Resolution scale: higher values give a sharper picture but need more "
 "graphics power."
@@ -2536,6 +2816,22 @@ msgid "Start Game"
 msgstr "Starta spel"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Game settings"
+msgstr "Spelinställningar"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open NXShader folder"
+msgstr "Öppna NXShader-mappen"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export shader profile"
+msgstr "Exportera shaderprofil"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import shader profile"
+msgstr "Importera shaderprofil"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "Öppna sparfiler"
 
@@ -2556,8 +2852,16 @@ msgid "Manage profiles"
 msgstr "Hantera profiler"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness: once FSR is the filter"
-msgstr "Skärpa: när FSR har valts som filter"
+msgid "Makes details stand out. Set to 0% to turn it off."
+msgstr "Får detaljer att framträda. Ställ in på 0 % för att stänga av."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes a large picture smaller with very little graphics work."
+msgstr "Förminskar en stor bild med mycket lite grafikarbete."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Smooths jagged edges when making a large picture smaller."
+msgstr "Jämnar ut hackiga kanter när en stor bild förminskas."
 
 #: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -2592,6 +2896,10 @@ msgid "Firmware: %1"
 msgstr "Fast programvara: %1"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, shown at the VSync setting"
+msgstr "Obegränsad, visas enligt VSync-inställningen"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "NXEmu - Stop Emulation"
 msgstr "NXEmu - Stoppa emulering"
 
@@ -2614,6 +2922,10 @@ msgstr ""
 "Vill du verkligen stoppa emuleringen?\n"
 "\n"
 "Alla osparade framsteg går förlorade."
+
+#: src/nxemu/ui/views/message_dialog.cpp
+msgid "Yes"
+msgstr "Ja"
 
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
@@ -2664,21 +2976,35 @@ msgid "Pictures"
 msgstr "Bilder"
 
 #: src/nxemu/ui/views/scaling_filters.h
+msgid "Favors smoother gameplay. Edges may look more jagged."
+msgstr "Prioriterar jämnare spelande. Kanter kan se hackigare ut."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps the picture sharp and smooths jagged edges, with some extra graphics work."
+msgstr "Håller bilden skarp och jämnar ut hackiga kanter, med lite extra grafikarbete."
+
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Nearest neighbour"
 msgstr "Närmaste granne"
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp squares, for pixel art. The lightest."
-msgstr "Skarpa rutor för pixelgrafik. Det minst krävande alternativet."
+msgid "Keeps pixels square and crisp. Best for pixel art."
+msgstr "Håller pixlarna fyrkantiga och skarpa. Bäst för pixelgrafik."
 
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Smooths the picture quickly, but fine details can look softer."
+msgstr "Jämnar ut bilden snabbt, men fina detaljer kan se mjukare ut."
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps fine details sharp. Strong edges may show a faint outline."
+msgstr "Håller fina detaljer skarpa. Tydliga kanter kan få en svag kontur."
+
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/scaling_filters.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Bilinear"
 msgstr "Bilinjär"
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Smooth. The usual choice, and light."
-msgstr "Mjuk bild. Det vanliga valet med låg belastning."
 
 #: src/nxemu/ui/views/scaling_filters.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -2686,20 +3012,12 @@ msgid "Bicubic"
 msgstr "Bikubisk"
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "A little sharper than bilinear, for slightly more work."
-msgstr "Något skarpare än bilinjär filtrering, med något högre belastning."
+msgid "Keeps more detail than Bilinear and uses a little more graphics power."
+msgstr "Bevarar fler detaljer än Bilinjär och kräver lite mer grafikkraft."
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp edges, best for 2D games and drawings. Heavier."
-msgstr "Skarpa kanter, bäst för 2D-spel och teckningar. Mer krävande."
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid ""
-"AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the "
-"window, best for 3D games. Moderate work."
-msgstr ""
-"AMD FidelityFX Super Resolution: skärper en bild som ritas mindre än "
-"fönstret. Bäst för 3D-spel och måttligt krävande."
+msgid "Keeps outlines sharp in 2D games and drawings. Uses more graphics power."
+msgstr "Håller konturer skarpa i 2D-spel och teckningar. Kräver mer grafikkraft."
 
 #: src/nxemu/ui/views/volume_control.cpp
 msgid "Muted: click to hear the games again"
@@ -3185,6 +3503,14 @@ msgid "Not installed"
 msgstr "Inte installerad"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to disable debug settings."
+msgstr "Stoppa spelet för att inaktivera felsökningsinställningarna."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are enabled."
+msgstr "Felsökningsinställningarna är aktiverade."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Small cards"
 msgstr "Små kort"
 
@@ -3452,6 +3778,10 @@ msgstr "Shadercache på disken"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Games load faster after the first run"
 msgstr "Spel läses in snabbare efter första körningen"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Needed to export a shader profile of what you played"
+msgstr "Behövs för att exportera en shaderprofil av det du har spelat"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "No folders yet"
@@ -4152,89 +4482,313 @@ msgstr "Kunde inte nå GitHub"
 #~ "Ingen fast programvara är installerad ännu och de flesta spel behöver "
 #~ "den. NXEmu kan installera spelets fasta programvara innan spelet startas."
 
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 
 msgid "Downscaling filter"
 msgstr "Nedskalningsfilter"
 
-msgid "CAS sharpness"
-msgstr "CAS-skärpa"
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (CAS)"
+msgstr "Kontrast (CAS)"
 
+#: src/nxemu/ui/assets/general_dialog.rml
 msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
 msgstr "Valfri skärpning vid 1:1 och nedskalning, samt vid uppskalning med Nearest, Bilinear eller Catmull-Rom. Av vid 0 %."
 
-msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
-msgstr "Uppskalnings- och nedskalningsfilter: väljs automatiskt utifrån bildens och visningsytans mått"
-
-msgid "Anti-aliasing: change while a game is running"
-msgstr "Kantutjämning: ändra medan ett spel körs"
-
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Morfologisk kantutjämning med tre grafikpass."
 
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
 msgstr "Intel CMAA2-kantutjämning med beräkningsshader. Endast Vulkan."
 
-msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
-msgstr "Intels konservativa morfologiska kantutjämning. Experimentell, endast Vulkan."
-
-msgid "Downscale: Bilinear"
-msgstr "Nedskalning: Bilinjär"
-
-msgid "Used automatically when the source image is larger than its display area. Lowest cost."
-msgstr "Används automatiskt när källbilden är större än visningsytan. Lägst kostnad."
-
-msgid "Downscale: Area"
-msgstr "Nedskalning: Area"
-
-msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
-msgstr "Areaviktad förminskning. Filtrerar hela källområdet för att minska kantartefakter."
-
-msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
-msgstr "Skarpare rekonstruktion med fina detaljer. Kan ge ljusa konturer runt skarpa kanter."
-
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Catmull-Rom fast"
 msgstr "Catmull-Rom snabb"
 
-msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
-msgstr "Approximation med fem samplingar. Snabbare, med små skillnader runt diagonala kanter."
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of Catmull-Rom. Diagonal lines may look slightly different."
+msgstr "En snabbare version av Catmull-Rom. Diagonala linjer kan se något annorlunda ut."
 
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "ScaleForce fast"
 msgstr "ScaleForce snabb"
 
-msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
-msgstr "Kantuppskattning med fyra grannar. Snabbare, men diagonala konturer kan skilja sig."
-
-msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
-msgstr "AMD FidelityFX Super Resolution: kantanpassad uppskalning med justerbar skärpa. Vid 0 % är skärpningen av."
-
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of ScaleForce. Diagonal lines may look slightly different."
+msgstr "En snabbare version av ScaleForce. Diagonala linjer kan se något annorlunda ut."
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Quality"
-msgstr "Kvalitet"
+msgid "Keeps edges clear when making the picture larger. You can adjust how sharp it looks."
+msgstr "Håller kanter tydliga när bilden förstoras. Du kan justera skärpan."
 
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr "Bikubisk uppskalning, Area-nedskalning och CMAA2-kantutjämning med FXAA som reserv."
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Settings for %1"
+msgstr "Inställningar för %1"
 
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
-msgstr "FSR-uppskalning, Area-nedskalning och SMAA High-kantutjämning."
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Game overrides the system setting"
+msgstr "Spelet åsidosätter systeminställningen"
 
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Inherit"
+msgstr "Ärv"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded with %1 game versions."
+msgstr "Inspelat med %1 spelversioner."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Made for: %1."
+msgstr "Skapat för: %1."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 — %2 recipes."
+msgstr "%1 — %2 recept."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Share my recordings"
+msgstr "Dela mina inspelningar"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "You played the game yourself. Export what you recorded."
+msgstr "Du har spelat spelet själv. Exportera det du har spelat in."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Complete the installed profile"
+msgstr "Komplettera den installerade profilen"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Add what you recorded to the profile you imported, then share the result."
+msgstr "Lägg till det du har spelat in i profilen du importerade och dela sedan resultatet."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Turn on if you played the whole game while recording, not just a part of it."
+msgstr "Slå på om du spelade hela spelet under inspelningen, inte bara en del av det."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your own number, to tell updates of this profile apart. It is not the game version."
+msgstr "Ditt eget nummer för att skilja uppdateringar av den här profilen åt. Det är inte spelversionen."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "(optional)"
+msgstr "(valfritt)"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Players see it when they import the profile."
+msgstr "Spelare ser den när de importerar profilen."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: 1.0"
+msgstr "Till exempel: 1.0"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "For example: all tracks, 200cc included"
+msgstr "Till exempel: alla banor, inklusive 200cc"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "All recorded versions"
+msgstr "Alla inspelade versioner"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "What do you want to share?"
+msgstr "Vad vill du dela?"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
+msgstr "Välj en profil. NXEmu verifierar den mot ditt lokala spel före uppvärmningen när spelet startas."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose profile"
+msgstr "Välj profil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
+msgstr "Dina inspelningar blir en liten fil som du kan dela. Den listar de shaderprogram som ska förberedas. Deras kod läses från varje spelares egen kopia av spelet."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
+msgstr "Det finns ingen identifierad inspelning. Spela med insamling aktiverad, stoppa spelet och exportera sedan."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Recorded version: %1"
+msgstr "Inspelad version: %1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
+msgstr "%1 inspelningar saknar versionsmetadata eller har ogiltiga sådana och kan inte exporteras."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Export"
+msgstr "Exportera"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Profile selected. Local shaders will be verified when the game starts."
+msgstr "Profil vald. Lokala shaderprogram verifieras när spelet startas."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Game completed: recorded over the whole game."
+msgstr "Spelet avklarat: inspelat under hela spelet."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics recipes, %2 compute recipes."
+msgstr "%1 grafikrecept, %2 beräkningsrecept."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Start game"
+msgstr "Starta spel"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "One shader profile is ready."
+msgstr "En shaderprofil är klar."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 shader profiles are ready."
+msgstr "%1 shaderprofiler är klara."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "installed profile"
+msgstr "installerad profil"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 graphics, %2 compute recipes, %3"
+msgstr "%1 grafik-, %2 beräkningsrecept, %3"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saved in %1"
+msgstr "Sparat i %1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 and %2 share %3 % of their shaders."
+msgstr "%1 och %2 delar %3 % av sina shaderprogram."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "They are saved in one file. A version only gets its own file if the file would become too large."
+msgstr "De sparas i en fil. En version får bara en egen fil om filen annars skulle bli för stor."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Only this version is exported."
+msgstr "Endast den här versionen exporteras."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Your recordings are added to the installed profile."
+msgstr "Dina inspelningar läggs till i den installerade profilen."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
+msgstr "Profilversionen (32 tecken) eller beskrivningen (1024 tecken) är för lång eller innehåller en radbrytning."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying recorded game version"
+msgstr "Identifierar inspelad spelversion"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile cannot be read and was not included."
+msgstr "Den installerade profilen kan inte läsas och togs inte med."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
+msgstr "Den installerade profilen är för stor för att kompletteras. Dina inspelningar exporterades till en ny fil."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
+msgstr "%1 startar en ny fil: tillsammans med de tidigare versionerna skulle profilen överskrida sina gränser."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Choose the folder for the %1 shader profiles"
+msgstr "Välj mappen för de %1 shaderprofilerna"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace these existing shader profiles?"
+msgstr "Ersätta dessa befintliga shaderprofiler?"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Replace shader profiles"
+msgstr "Ersätt shaderprofiler"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be imported"
+msgstr "Profilen kunde inte importeras"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be exported"
+msgstr "Profilen kunde inte exporteras"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying the game version"
+msgstr "Identifierar spelversionen"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Reading your shader cache"
+msgstr "Läser din shadercache"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Preparing the recipes"
+msgstr "Förbereder recepten"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Compressing the profile"
+msgstr "Komprimerar profilen"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saving the profile"
+msgstr "Sparar profilen"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking earlier results"
+msgstr "Kontrollerar tidigare resultat"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game files"
+msgstr "Söker i spelfilerna"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking the shaders"
+msgstr "Kontrollerar shaderprogrammen"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game resources"
+msgstr "Söker i spelets resurser"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 MiB read"
+msgstr "%1 av %2 MiB lästa"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 resources examined"
+msgstr "%1 resurser undersökta"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "This can take a few minutes."
+msgstr "Det kan ta några minuter."
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "%1 of %2 shaders found (%3 %)"
+msgstr "%1 av %2 shaderprogram hittade (%3 %)"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Cancelling"
+msgstr "Avbryter"
+
+#: src/nxemu/ui/views/main_window.cpp
 
 msgid "Custom"
 msgstr "Anpassat"
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Upscaling filter"
 msgstr "Uppskalningsfilter"
 
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes details stand out with supported filters. Set to 0% to turn it off."
+msgstr "Får detaljer att framträda med filter som stöds. Ställ in på 0 % för att stänga av."
+
+#: src/nxemu/ui/assets/main_window.rml
 msgid "Graphics profile"
 msgstr "Grafikprofil"
-
-msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
-msgstr "Bikubisk uppskalning, Area-nedskalning och ingen kantutjämning."
-
-msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr "FSR-uppskalning, Area-nedskalning och CMAA2-kantutjämning med FXAA som reserv."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Upscaling"
@@ -4243,6 +4797,18 @@ msgstr "Uppskalning"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Downscaling"
 msgstr "Nedskalning"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Nearest"
+msgstr "Närmaste"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Catmull fast"
+msgstr "Catmull snabb"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Area"
+msgstr "Area"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"

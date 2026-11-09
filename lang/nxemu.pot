@@ -54,6 +54,7 @@ msgid "\"Nintendo Switch\" is a trademark of Nintendo. NXEmu is not affiliated w
 msgstr ""
 
 #: src/nxemu/ui/assets/about_dialog.rml
+#: src/nxemu/ui/views/message_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/GameDataActions.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
@@ -66,6 +67,7 @@ msgstr ""
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/settings_context.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/emulation/EmulationActivity.kt
@@ -131,10 +133,19 @@ msgid "A game is running: what is greyed out cannot change until it stops."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Applets"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Log"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Picture"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Anti-aliasing"
 msgstr ""
@@ -178,6 +189,14 @@ msgid "Textures and video"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "ASTC decoding"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What decodes the textures of this kind."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "ASTC recompression"
 msgstr ""
 
@@ -195,6 +214,14 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -227,6 +254,8 @@ msgid "Less stutter; things can show late. A hack."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Performance"
 msgstr ""
 
@@ -236,6 +265,18 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "So that it does not slow its clock. Uses more power."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast GPU time"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Most games then draw their highest resolution."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Games that lower their resolution when the chip is slow are told it is fast."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -255,7 +296,6 @@ msgid "Emulation"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-#: src/nxemu/ui/views/hotkeys.h
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Limit speed"
 msgstr ""
@@ -325,6 +365,14 @@ msgid "For every player. Each has a switch of their own."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Accurate vibration"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Every change is sent: some controllers lag."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Behaviour"
 msgstr ""
 
@@ -355,15 +403,16 @@ msgid "Shows what you play in Discord when it runs."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "NXShader"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Shader warmup mode"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -383,23 +432,11 @@ msgid "Default: 60. Continue preparing shaders for this long, then compile the r
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Emulation diagnostics"
+msgid "Video decoding"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Processor engine"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "How the game's code is run."
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Processor accuracy"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "For the engine that translates the code."
+msgid "What decodes the videos of games."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -408,6 +445,10 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shaders load faster with some drivers."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Rendering"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -464,31 +505,24 @@ msgid "Draws transparent things right in some games."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Fast GPU time"
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Processor"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Most games then draw their highest resolution."
+msgid "Processor engine"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Games that lower their resolution when the chip is slow are told it is fast."
+msgid "How the game's code is run."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "ASTC decoding"
+msgid "Processor accuracy"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "What decodes the textures of this kind."
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Video decoding"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "What decodes the videos of games."
+msgid "For the engine that translates the code."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -536,15 +570,67 @@ msgid "Needs multicore."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Accurate vibration"
+msgid "Amiibo editor"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Every change is sent: some controllers lag."
+msgid "Controller configuration"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Log"
+msgid "Data erase"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Error"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Net connect"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Player select"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Software keyboard"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Mii Edit"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "What a game opens of the console's own: NXEmu's version of it, or the real one from the installed firmware. Applies on the next game start."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Online web"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shop"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Photo viewer"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Offline web"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Login share"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Wifi web auth"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "My page"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -593,7 +679,7 @@ msgid "Restore the defaults of all the tabs?"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Remove your overrides and re-enable NXEmu settings for this game?"
+msgid "Remove the settings of this game and use the global ones?"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -838,7 +924,26 @@ msgstr ""
 
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness of the FSR filter"
+msgid "Makes the picture sharper when using FSR. Set to 0% to turn it off."
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (RCAS)"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling filter"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Contrast (CAS)"
+msgstr ""
+
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
 msgstr ""
 
 #: src/nxemu/ui/assets/general_dialog.rml
@@ -1022,6 +1127,15 @@ msgstr ""
 msgid "Select a game to see its details."
 msgstr ""
 
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Reading game information"
+msgstr ""
+
+#: src/nxemu/ui/assets/main_window.rml
+msgid "Configure"
+msgstr ""
+
 #. shown beside the controller's buttons, as in "(A) Play (X) Options".
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/views/main_window.cpp
@@ -1049,6 +1163,7 @@ msgid "Scanning games..."
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/assets/startup.rml
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Loading"
 msgstr ""
@@ -1063,11 +1178,11 @@ msgid "Console mode: on the television (1080p), or handheld (720p)"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
-msgid "The resolution games are drawn at"
+msgid "Game image resolution before display scaling"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
-msgid "Window filter: only applies when the game's resolution is lower than the window size"
+msgid "Graphics profile"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
@@ -1197,6 +1312,10 @@ msgid "Stop the current game before opening another one."
 msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
+msgstr ""
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to reload after stopping the game."
 msgstr ""
 
@@ -1208,10 +1327,6 @@ msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to load."
-msgstr ""
-
-#: src/nxemu/ui/emulation/emulator_session.cpp
-msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
 msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
@@ -1460,7 +1575,29 @@ msgid_plural "%n years ago"
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are already enabled."
+msgstr ""
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to enable debug settings."
+msgstr ""
+
+#: src/nxemu/ui/views/about_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n more click to enable debug settings."
+msgid_plural "%n more clicks to enable debug settings."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/about_dialog.cpp
+msgid "Debug settings are enabled, under Debug in the settings."
+msgstr ""
+
 #: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None"
 msgstr ""
@@ -1471,6 +1608,14 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Light work, a little blur. The steadier picture at low resolutions."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Morphological anti-aliasing with three graphics passes."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -1547,10 +1692,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Steadier: it fixes some games."
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Processor"
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -1675,6 +1816,22 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "For mods that need more than the console has. Nothing gained otherwise."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Custom frontend"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "NXEmu's own version of the applet."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Real applet"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "The console's applet, from the installed firmware."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -2078,6 +2235,14 @@ msgid "DLC"
 msgstr ""
 
 #: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Only the running game can be configured"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
+msgid "Settings for this game only"
+msgstr ""
+
+#: src/nxemu/ui/views/game_details_panel.cpp
 msgid "This game has not saved anything yet"
 msgstr ""
 
@@ -2239,6 +2404,13 @@ msgid "Gaussian"
 msgstr ""
 
 #: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Bilinear"
+msgstr ""
+
+#: src/nxemu/ui/views/general_dialog.cpp
 msgid "Docked: games run at 1080p and expect a TV."
 msgstr ""
 
@@ -2312,6 +2484,10 @@ msgstr ""
 msgid "Docked or handheld"
 msgstr ""
 
+#: src/nxemu/ui/views/hotkeys.h
+msgid "Change speed"
+msgstr ""
+
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Opening the game..."
 msgstr ""
@@ -2334,6 +2510,26 @@ msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Starting..."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Downscaling"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Nearest"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Catmull fast"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Area"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2418,7 +2614,31 @@ msgid "Show emulation controls"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Limit &Speed"
+msgid "&Speed"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Limited"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs at the speed of the console."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs as fast as it can, shown at the VSync setting."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, no VSync"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Runs and shows as fast as it can, to compare speeds. The picture can tear."
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2500,6 +2720,19 @@ msgid "More actions"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Balanced"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Custom"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "First layer"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Resolution scale: higher values give a sharper picture but need more graphics power."
 msgstr ""
 
@@ -2517,6 +2750,10 @@ msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Game settings"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2552,7 +2789,23 @@ msgid "Manage profiles"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Sharpness: once FSR is the filter"
+msgid "Makes details stand out. Set to 0% to turn it off."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes a large picture smaller with very little graphics work."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Smooths jagged edges when making a large picture smaller."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Upscaling filter"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Makes details stand out with supported filters. Set to 0% to turn it off."
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -2588,6 +2841,10 @@ msgid "Firmware: %1"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Unlocked, shown at the VSync setting"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "NXEmu - Stop Emulation"
 msgstr ""
 
@@ -2603,6 +2860,10 @@ msgid ""
 "Are you sure you want to stop the emulation?\n"
 "\n"
 "Any unsaved progress will be lost."
+msgstr ""
+
+#: src/nxemu/ui/views/message_dialog.cpp
+msgid "Yes"
 msgstr ""
 
 #: src/nxemu/ui/views/performance_overlay.h
@@ -2654,20 +2915,35 @@ msgid "Pictures"
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
+msgid "Favors smoother gameplay. Edges may look more jagged."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps the picture sharp and smooths jagged edges, with some extra graphics work."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
 msgid "Nearest neighbour"
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp squares, for pixel art. The lightest."
+msgid "Keeps pixels square and crisp. Best for pixel art."
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Bilinear"
+msgid "Smooths the picture quickly, but fine details can look softer."
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Smooth. The usual choice, and light."
+msgid "Keeps fine details sharp. Strong edges may show a faint outline."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Catmull-Rom fast"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of Catmull-Rom. Diagonal lines may look slightly different."
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
@@ -2676,15 +2952,35 @@ msgid "Bicubic"
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "A little sharper than bilinear, for slightly more work."
+msgid "Keeps more detail than Bilinear and uses a little more graphics power."
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "Sharp edges, best for 2D games and drawings. Heavier."
+msgid "Keeps outlines sharp in 2D games and drawings. Uses more graphics power."
 msgstr ""
 
 #: src/nxemu/ui/views/scaling_filters.h
-msgid "AMD FidelityFX Super Resolution: sharpens a picture drawn smaller than the window, best for 3D games. Moderate work."
+msgid "ScaleForce fast"
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "A faster version of ScaleForce. Diagonal lines may look slightly different."
+msgstr ""
+
+#: src/nxemu/ui/views/scaling_filters.h
+msgid "Keeps edges clear when making the picture larger. You can adjust how sharp it looks."
+msgstr ""
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Settings for %1"
+msgstr ""
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Game overrides the system setting"
+msgstr ""
+
+#: src/nxemu/ui/views/settings_context.cpp
+msgid "Inherit"
 msgstr ""
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
@@ -2857,6 +3153,50 @@ msgstr ""
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Replace shader profiles"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be imported"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "The profile could not be exported"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Identifying the game version"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Reading your shader cache"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Preparing the recipes"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Compressing the profile"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Saving the profile"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking earlier results"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game files"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Checking the shaders"
+msgstr ""
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Searching the game resources"
 msgstr ""
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
@@ -3350,6 +3690,14 @@ msgstr[1] ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Not installed"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Stop the game to disable debug settings."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Debug settings are enabled."
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4124,119 +4472,4 @@ msgstr ""
 
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
-msgstr ""
-
-#: assets/general_dialog.rml
-msgid "Downscaling filter"
-msgstr ""
-
-#: assets/general_dialog.rml
-msgid "CAS sharpness"
-msgstr ""
-
-#: assets/general_dialog.rml
-#: views/main_window.cpp
-msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
-msgstr ""
-
-#: assets/main_window.rml
-msgid "Upscaling and downscaling filters: selected automatically from the image and display dimensions"
-msgstr ""
-
-#: assets/main_window.rml
-msgid "Anti-aliasing: change while a game is running"
-msgstr ""
-
-#: views/advanced_dialog.cpp
-#: views/main_window.cpp
-msgid "Morphological anti-aliasing with three graphics passes."
-msgstr ""
-
-#: views/advanced_dialog.cpp
-msgid "Intel CMAA2 compute anti-aliasing. Vulkan only."
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Intel conservative morphological anti-aliasing. Experimental; Vulkan only."
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Downscale: Bilinear"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Used automatically when the source image is larger than its display area. Lowest cost."
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Downscale: Area"
-msgstr ""
-
-#: views/main_window.cpp
-msgid "Area-weighted reduction. Filters the full source footprint to reduce aliasing."
-msgstr ""
-
-#: views/scaling_filters.h
-msgid "Sharper reconstruction with fine detail. May add halos around strong edges."
-msgstr ""
-
-#: views/scaling_filters.h
-msgid "Catmull-Rom fast"
-msgstr ""
-
-#: views/scaling_filters.h
-msgid "Five-sample approximation. Faster, with small changes around diagonal edges."
-msgstr ""
-
-#: views/scaling_filters.h
-msgid "ScaleForce fast"
-msgstr ""
-
-#: views/scaling_filters.h
-msgid "Four-neighbor edge estimate. Faster, but diagonal contours may differ."
-msgstr ""
-
-#: views/scaling_filters.h
-msgid "AMD FidelityFX Super Resolution: edge-aware upscaling with adjustable sharpness. At 0%, sharpening is off."
-msgstr ""
-
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Quality"
-msgstr ""
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "Bicubic upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr ""
-
-#: src/nxemu/ui/views/scaling_filters.h
-msgid "FSR upscaling, Area downscaling and SMAA High anti-aliasing."
-msgstr ""
-
-
-msgid "Custom"
-msgstr ""
-
-msgid "Upscaling filter"
-msgstr ""
-
-msgid "Graphics profile"
-msgstr ""
-
-msgid "Bicubic upscaling, Area downscaling and no anti-aliasing."
-msgstr ""
-
-msgid "FSR upscaling, Area downscaling and CMAA2 anti-aliasing with an FXAA fallback."
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Upscaling"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Downscaling"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "First layer"
 msgstr ""
