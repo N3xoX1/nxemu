@@ -23,6 +23,7 @@
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/filesystem.h"
 #include "core/file_sys/ips_layer.h"
+#include "core/file_sys/code_mods.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/patch_sets.h"
 #include "core/file_sys/registered_cache.h"
@@ -36,6 +37,7 @@
 #include "core/loader/nso.h"
 #include "loader_settings.h"
 #include <common/json.h>
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 
 extern IModuleSettings * g_settings;
 
@@ -650,6 +652,35 @@ std::vector<VirtualFile> PatchManager::CollectPatchSetFiles() const
     return out;
 }
 
+std::string PatchManager::HashEnabledCodeMods() const
+{
+    const std::vector<std::string> disabled = GetDisabledAddOns(title_id, fs_controller);
+    std::vector<VirtualDir> code_dirs;
+    const auto add_mod = [&](const VirtualDir & mod) {
+        for (const char * name : {"exefs", "cheats"})
+        {
+            const VirtualDir dir = FindSubdirectoryCaseless(mod, name);
+            if (IsDirValidAndNonEmpty(dir))
+            {
+                code_dirs.push_back(dir);
+            }
+        }
+    };
+    for (const VirtualDir & mod : CollectModPatchDirs(title_id, fs_controller, false))
+    {
+        if (std::find(disabled.cbegin(), disabled.cend(), mod->GetName()) == disabled.cend())
+        {
+            add_mod(mod);
+        }
+    }
+    const VirtualDir sdmc_mod_dir = fs_controller.GetSDMCModificationLoadRoot(title_id);
+    if (sdmc_mod_dir != nullptr && std::find(disabled.cbegin(), disabled.cend(), "SDMC") == disabled.cend())
+    {
+        add_mod(sdmc_mod_dir);
+    }
+    return HashCodeMods(code_dirs, g_settings->GetBool(NXCpuSetting::NceEnabled));
+}
+
 static void ApplyLayeredFS(VirtualFile & romfs, uint64_t title_id, LoaderContentRecordType type, const FileSystemController & fs_controller)
 {
     if (type != LoaderContentRecordType::Program && type != LoaderContentRecordType::Data &&
@@ -922,6 +953,7 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
     for (const VirtualDir & mod : CollectModPatchDirs(title_id, fs_controller, false))
     {
         std::string types;
+        bool replaces_romfs = false;
 
         const auto exefs_dir = FindSubdirectoryCaseless(mod, "exefs");
         if (IsDirValidAndNonEmpty(exefs_dir))
@@ -975,9 +1007,11 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
                 AppendCommaIfNotEmpty(types, "LayeredExeFS");
             }
         }
-        if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod, "romfs")))
+        if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod, "romfs")) ||
+            IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod, "romfs_ext")))
         {
             AppendCommaIfNotEmpty(types, "LayeredFS");
+            replaces_romfs = true;
         }
         if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(mod, "cheats")))
         {
@@ -996,7 +1030,8 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
                        .version = std::move(types),
                        .type = PatchType::Mod,
                        .program_id = title_id,
-                       .title_id = title_id});
+                       .title_id = title_id,
+                       .replaces_romfs = replaces_romfs});
     }
 
     // SDMC mod directory (RomFS LayeredFS)
@@ -1004,13 +1039,16 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
     if (sdmc_mod_dir != nullptr)
     {
         std::string types;
+        bool replaces_romfs = false;
         if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(sdmc_mod_dir, "exefs")))
         {
             AppendCommaIfNotEmpty(types, "LayeredExeFS");
         }
-        if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(sdmc_mod_dir, "romfs")))
+        if (IsDirValidAndNonEmpty(FindSubdirectoryCaseless(sdmc_mod_dir, "romfs")) ||
+            IsDirValidAndNonEmpty(FindSubdirectoryCaseless(sdmc_mod_dir, "romfs_ext")))
         {
             AppendCommaIfNotEmpty(types, "LayeredFS");
+            replaces_romfs = true;
         }
 
         if (!types.empty())
@@ -1022,7 +1060,8 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const
                            .version = std::move(types),
                            .type = PatchType::Mod,
                            .program_id = title_id,
-                           .title_id = title_id});
+                           .title_id = title_id,
+                           .replaces_romfs = replaces_romfs});
         }
     }
 

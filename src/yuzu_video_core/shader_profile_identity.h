@@ -23,11 +23,12 @@ template <class T>
 using InterfacePtr = std::unique_ptr<T, ReleaseInterface<T>>;
 
 struct LoadedContentDescription {
-    std::string context;
+    std::string context; // of this run, with its ExeFS patches and cheats
+    std::string game_context; // of the game's own files; what provenance and profiles describe
     JsonValue provenance;
 };
 // Startup only. The loader supplies the selected version, including an older
-// installed update. Enabled layered mods remain deliberately unidentified.
+// installed update. Enabled RomFS (LayeredFS) mods remain deliberately unidentified.
 inline LoadedContentDescription DescribeLoadedContent(ISystemloader & loader, u64 title)
 {
     try
@@ -52,7 +53,8 @@ inline LoadedContentDescription DescribeLoadedContent(ISystemloader & loader, u6
             std::string(content.base_version, std::find(content.base_version, content.base_version + sizeof(content.base_version), '\0')),
             std::string(content.update_version, std::find(content.update_version, content.update_version + sizeof(content.update_version), '\0')),
             content.update_available, content.update_enabled);
-        return {ContentContext(title, base_part, update_part), provenance};
+        const auto game_context = ContentContext(title, base_part, update_part);
+        return {ModdedContext(game_context, content.code_mods), game_context, provenance};
     }
     catch (...)
     {

@@ -1050,7 +1050,7 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
 }
 
 void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                                      const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity, [[maybe_unused]] std::string_view game_path) {
+                                      const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity, [[maybe_unused]] std::string_view game_path, std::string_view game_context) {
     namespace Timing = VideoCommon::ShaderProfile::Timing;
     // The default retains the existing complete, blocking prewarm on every OS.
     const char* progressive_opt = std::getenv("NXEMU_NXSHADER_PROGRESSIVE");
@@ -1075,13 +1075,15 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         runtime_report=std::make_unique<VideoCommon::ShaderProfile::Runtime::Report>(std::filesystem::u8path(output));
     pipeline_cache_filename = base_dir / "vulkan.nxc";
     capture_context = VideoCommon::ShaderProfile::ValidContext(content_identity) ? std::string(content_identity) : std::string{};
-    // Unidentified content (mods, unrecognized dumps) still reloads its own local
+    // Unidentified content (RomFS mods, unrecognized dumps) still reloads its own local
     // pipelines. That context never enables recording, export or update candidates.
     cache_context = capture_context.empty() ? VideoCommon::ShaderProfile::UnidentifiedContext(title_id) : capture_context;
+    // ExeFS patches or cheats: the game's own pipelines and profiles stay candidates to validate.
+    const bool modded = content_identity != game_context;
     try {
         // Explicit diagnostic A/B switch; normal runs record automatically.
         const char* disable_recording = std::getenv("NXEMU_RECIPE_RECORD_DISABLE");
-        if (!capture_context.empty() && videoSettings.record_shader_recipes &&
+        if (!capture_context.empty() && !modded && videoSettings.record_shader_recipes &&
             (!disable_recording || std::string_view(disable_recording) != "1"))
             guest_recipe_recorder = std::make_unique<GuestPipelineRecorder>(VideoCommon::ShaderProfile::RecordingPath(base_dir,capture_context), serialization_thread);
     } catch (const std::exception& e) {
@@ -1179,8 +1181,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     const char* cross_audit_path = std::getenv("NXEMU_NXSHADER_AUDIT_CROSS_VERSION");
     const bool comparing_foreign = cross_audit_path && *cross_audit_path;
     const char* candidate_option=std::getenv("NXEMU_NXSHADER_CANDIDATE_LIMIT");
-    const auto candidate_limit=candidate_option ?
+    // A modded run's candidates are mostly the same game's, so most of them can be used.
+    const size_t candidate_limit=candidate_option ?
         VideoCommon::ShaderProfile::CandidateWarmupBudget::ParseLimit(candidate_option) :
+        modded ? VideoCommon::ShaderProfile::CandidateWarmupBudget::MaxCandidates :
         VideoCommon::ShaderProfile::CandidateWarmupBudget::DefaultCandidates;
     VideoCommon::ShaderProfile::CandidateWarmupBudget foreign_budget(candidate_limit);
     const auto report_build=[&] {
@@ -1429,7 +1433,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         if(import_path.empty() && !game_path.empty() && !capture_context.empty()) {
             // A dropped title-named profile takes precedence over an older GUI selection.
             const auto dropped=VideoCommon::ShaderProfile::FindProfileForContext(
-                {profile_directory,base_dir,base_dir.parent_path()},title_id,capture_context);
+                {profile_directory,base_dir,base_dir.parent_path()},title_id,game_context);
             if(!dropped.empty()) {
                 import_path=Common::FS::PathToUTF8String(dropped);
                 selection_request=dropped.filename().string();
@@ -1446,7 +1450,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         }
         if(import_path.empty() && !game_path.empty() && !capture_context.empty()) {
             const auto profile=VideoCommon::ShaderProfile::FindProfileForContext(
-                {std::filesystem::u8path(game_path).parent_path()},title_id,capture_context);
+                {std::filesystem::u8path(game_path).parent_path()},title_id,game_context);
             if(!profile.empty())import_path=Common::FS::PathToUTF8String(profile);
         }
         // Always resolve automatic profiles against the currently launched local game.

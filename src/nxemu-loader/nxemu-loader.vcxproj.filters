@@ -323,6 +323,9 @@
     <ClInclude Include="core\file_sys\card_image.h">
       <Filter>Header Files\core\file_sys</Filter>
     </ClInclude>
+    <ClInclude Include="core\file_sys\code_mods.h">
+      <Filter>Header Files\core\file_sys</Filter>
+    </ClInclude>
     <ClInclude Include="core\file_sys\common_funcs.h">
       <Filter>Header Files\core\file_sys</Filter>
     </ClInclude>

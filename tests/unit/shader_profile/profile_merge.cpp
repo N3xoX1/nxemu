@@ -3,6 +3,7 @@
 #include "yuzu_video_core/shader_profile.h"
 #include "yuzu_video_core/shader_profile_codec.h"
 #include "yuzu_video_core/shader_profile_compact.h"
+#include "yuzu_video_core/shader_profile_context.h"
 #include "yuzu_video_core/shader_profile_export.h"
 #include "yuzu_video_core/shader_profile_hash.h"
 #include "yuzu_video_core/shader_profile_validation.h"
@@ -195,6 +196,18 @@ int main() try {
         Write(root/"game.dnsp", ContainerFixture::Nsp({{"cnmt.nca", "metadata"}, {"main", player->file}}));
         Profile::ImportReport report;
         const auto recipes=Import(payload, root, player->context, report);
+        {
+            // With ExeFS patches or cheats, even the player's own version needs validation.
+            Require(Profile::ModdedContext(player->context,"")==player->context, "Modded context without mods");
+            const auto context=Profile::ModdedContext(player->context,"mods");
+            Require(Profile::ValidContext(context) && context!=player->context &&
+                    context!=Profile::ModdedContext(player->context,"other mods"), "Modded context identity");
+            Profile::ImportReport from_modded;
+            const auto modded=Import(payload, root, context, from_modded);
+            Require(modded.size()==recipes.size() && from_modded.candidates==modded.size(), "Modded import counts");
+            for (const auto& r : modded)
+                Require(r.requires_validation && r.source_context!=context, "Modded recipe skipped validation");
+        }
         {
             // The same content dumped as an XCI loads the same programs.
             const auto card=scratch.root/(player->context.substr(0,1)+"-xci");

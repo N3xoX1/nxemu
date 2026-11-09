@@ -401,6 +401,7 @@ struct ActiveProgramContent
     bool update_available{}, update_enabled{};
     char base_version[128]{};
     char update_version[128]{};
+    char code_mods[65]{}; // hash of the enabled ExeFS patches and cheats, empty without any
 };
 
 nxinterface ISystemloader

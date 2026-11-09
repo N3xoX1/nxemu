@@ -247,18 +247,21 @@ struct VideoManager::Impl
                         const auto content = VideoCommon::ShaderProfile::DescribeLoadedContent(m_modules.Systemloader(), program_id);
                         if (!content.context.empty()) {
                             const auto cache = Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir) / fmt::format("{:016x}", program_id);
-                            try {
+                            const bool modded = content.context != content.game_context;
+                            if (!modded) try {
                                 VideoCommon::ShaderProfile::SaveProvenance(cache, content.provenance);
                             } catch (const std::exception & error) {
                                 LOG_WARNING(Render, "Cannot save captured game version: {}", error.what());
                             }
-                            LOG_INFO(Render, "Shader capture version: {} (context {})",
-                                VideoCommon::ShaderProfile::RecordedVersionLabel(content.provenance), content.context);
+                            LOG_INFO(Render, "Shader capture version: {}{} (context {})",
+                                VideoCommon::ShaderProfile::RecordedVersionLabel(content.provenance),
+                                modded ? " with ExeFS patches or cheats, not recorded" : "", content.context);
                         }
                         m_gpuCore->Renderer().ReadRasterizer()->LoadDiskResources(
                             program_id, stop_token, notify_disk_cache_progress,
                             content.context,
-                            g_settings->GetString(NXCoreSetting::GameFile));
+                            g_settings->GetString(NXCoreSetting::GameFile),
+                            content.game_context);
                     } catch (const std::exception& exception) {
                         // std::async stores exceptions in its future. If one escapes here,
                         // Start is never called and guest GPU requests wait indefinitely.

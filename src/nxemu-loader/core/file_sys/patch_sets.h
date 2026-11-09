@@ -70,6 +70,10 @@ public:
     // The @version of a patch set file, or empty when it has none (the add-ons list)
     [[nodiscard]] static std::string FileVersion(const VirtualFile & file);
 
+    // Each set a patch set file names and whether its default and environment variable leave it on, a line of
+    // "<name>=<0|1>" each, for any build id. Empty when the file has none.
+    [[nodiscard]] static std::string FileSetSwitches(const VirtualFile & file);
+
     // True when no set that is on has a site for this module
     [[nodiscard]] bool Empty() const;
 
