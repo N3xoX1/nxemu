@@ -371,6 +371,91 @@ int main() try {
     Check(!GuestPipelineState::FromWords(invalid), "truncated recipe accepted");
     invalid=blend.Words(); invalid[4]=256;
     Check(!GuestPipelineState::FromWords(invalid), "out-of-range narrow field accepted");
+    // What earlier draws left behind stays out of a static key, and comes back when a draw needs it.
+    {
+        const auto hint = Tegra::Engines::Maxwell3D::EngineHint::None;
+        const auto topology = Maxwell::PrimitiveTopology::Triangles;
+        const auto features = Features(1 | 2 | 64);
+        const u64 first_two = 0xF;
+        auto leftovers = std::make_unique<Maxwell>();
+        Initialise(*leftovers);
+        for (size_t i = 0; i < 4; ++i) {
+            leftovers->vertex_streams[i].enable.Assign(1);
+            leftovers->vertex_streams[i].stride.Assign(16 + static_cast<u32>(i) * 8);
+        }
+        leftovers->vertex_stream_instances.is_instanced[3] = 1;
+        leftovers->vertex_streams[3].frequency = 7;
+        leftovers->rt[0].format = Tegra::RenderTargetFormat::A8B8G8R8_UNORM;
+        leftovers->color_mask[0].R.Assign(1);
+        leftovers->color_mask[1].G.Assign(1);
+        leftovers->blend.enable[1] = 1;
+        const auto key_of = [&](u64 declared) {
+            auto state = GuestPipelineState::Capture(*leftovers, topology, hint).Project(features);
+            state.MaskUnusedState(declared);
+            return state;
+        };
+        const auto base = key_of(first_two);
+        Check(base.attachments[0].raw != 0, "bound target lost its write mask");
+        Check(base.attachments[1].raw == 0, "target without a format stayed in the key");
+        Check(base.attributes[1].enabled != 0, "declared attribute was cleared");
+        Check(base.attributes[2].raw == 0 && base.attributes[3].raw == 0, "undeclared attributes stayed in the key");
+        Check(base.vertex_strides[1] != 0, "stride of a read stream was cleared");
+        Check(base.vertex_strides[2] == 0 && base.vertex_strides[3] == 0, "stride of an unread stream stayed in the key");
+        Check(base.binding_divisors[3] == 0 && (base.enabled_divisors >> 3) == 0, "divisor of an unread stream stayed in the key");
+
+        leftovers->color_mask[1].B.Assign(1);
+        leftovers->vertex_attrib_format[2].offset.Assign(32);
+        leftovers->vertex_streams[3].stride.Assign(64);
+        leftovers->vertex_streams[3].frequency = 9;
+        Check(key_of(first_two) == base, "leftovers split a key");
+
+        leftovers->color_mask[0].G.Assign(1);
+        Check(key_of(first_two) != base, "write mask of a bound target was ignored");
+        leftovers->color_mask[0].G.Assign(0);
+        leftovers->vertex_attrib_format[0].offset.Assign(16);
+        Check(key_of(first_two) != base, "layout of a declared attribute was ignored");
+        leftovers->vertex_attrib_format[0].offset.Assign(0);
+        leftovers->vertex_streams[1].stride.Assign(80);
+        Check(key_of(first_two) != base, "stride of a read stream was ignored");
+        leftovers->vertex_streams[1].stride.Assign(24);
+        Check(key_of(first_two) == base, "test did not restore its state");
+
+        // A stream stays in the key while any declared attribute reads it.
+        leftovers->vertex_attrib_format[0].buffer.Assign(3);
+        Check(key_of(first_two).vertex_strides[3] != 0, "stride of a stream read by another attribute was cleared");
+        Check(key_of(first_two).binding_divisors[3] != 0, "divisor of a stream read by another attribute was cleared");
+        leftovers->vertex_attrib_format[0].buffer.Assign(0);
+
+        // Draws only refresh what changed: the next shader's inputs and the next pass's targets
+        // must find what this draw's mask cleared.
+        FixedPipelineState::MaskedFields saved{};
+        FixedPipelineState state{};
+        const auto draw = [&](u64 declared, bool dirty) {
+            FixedPipelineState::RefreshFlags flags{dirty, dirty, dirty, dirty};
+            state.RestoreMaskedFields(saved);
+            state.RefreshFromRegisters(*leftovers, topology, hint, features, flags);
+            state.SaveMaskedFields(saved);
+            state.MaskUnusedState(declared);
+        };
+        draw(first_two, true);
+        Check(state == key_of(first_two), "draw key differs from the projected key");
+        draw(0xFF, false);
+        Check(state == key_of(0xFF), "a cleared attribute did not come back for the next shader");
+        Check(state.attributes[2].enabled != 0 && state.attributes[3].enabled != 0, "attributes were lost across draws");
+        Check(state.binding_divisors[3] != 0, "divisor was lost across draws");
+        draw(first_two, false);
+        Check(state == key_of(first_two), "the narrower shader's key changed after a wider one");
+        leftovers->rt[1].format = Tegra::RenderTargetFormat::A8B8G8R8_UNORM;
+        draw(first_two, false);
+        Check(state == key_of(first_two), "draw key differs from the projected key after a target was bound");
+        Check(state.attachments[1].raw != 0, "the write mask of a newly bound target was lost");
+        leftovers->rt[1].format = Tegra::RenderTargetFormat::NONE;
+
+        // Dynamic features keep their own rules.
+        auto dynamic = GuestPipelineState::Capture(*leftovers, topology, hint).Project(Features(63));
+        dynamic.MaskUnusedState(first_two);
+        Check(dynamic.DynamicAttributeType(0) != 0 && dynamic.DynamicAttributeType(2) == 0, "dynamic attribute types were not masked");
+    }
     std::cout << "PASS: " << checks << " projections, full legacy-state equality, dirty-bit equality, hidden vertex/blend combinations preserved\n";
     return 0;
 } catch(const std::exception& e) {
