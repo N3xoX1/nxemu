@@ -1164,6 +1164,26 @@ msgstr "バージョンをクリップボードにコピーしました"
 msgid "No"
 msgstr "いいえ"
 
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "NX contents"
+msgstr "NX の内容"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The game, its updates and DLC in this file. The most recent update is used unless it is turned off in the game properties. Adding or removing never rewrites the game itself."
+msgstr "このファイル内のゲーム本体、アップデート、DLC です。ゲームのプロパティで無効にしていない限り、最新のアップデートが使われます。追加や削除でゲーム本体が書き換えられることはありません。"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "The file stays as it was until the change is complete. Cancelling leaves it as it was."
+msgstr "変更が完了するまで、ファイルは元のままです。キャンセルすると元のまま残ります。"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Title and picture"
+msgstr "タイトルと画像"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Customize how this game appears in the library."
+msgstr "ライブラリでのこのゲームの表示をカスタマイズします。"
+
 #: src/nxemu/ui/assets/profiles_dialog.rml
 msgid "The players of the console. Each has saves of their own, and games show their name and picture. Games start as the active one."
 msgstr "本体のプレイヤーです。各プレイヤーに専用のセーブデータがあり、ゲーム内に名前と画像が表示されます。有効なプロフィールでゲームが起動します。"
@@ -1212,6 +1232,18 @@ msgstr "コンソール形式にサイズ変更された個人的な画像"
 #: src/nxemu/ui/assets/profiles_dialog.rml
 msgid "Picture from a file"
 msgstr "ファイルからの画像"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Restore ROM picture"
+msgstr "ROM の画像に戻す"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Add an update or DLC"
+msgstr "アップデートまたは DLC を追加"
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Keep it"
+msgstr "残す"
 
 #: src/nxemu/ui/assets/profiles_dialog.rml
 msgid "This file is not a picture NXEmu can read."
@@ -1481,6 +1513,18 @@ msgstr "ボタン %1"
 msgid "Unknown"
 msgstr "不明"
 
+#: src/nxemu/ui/library/nx_tool.cpp
+msgid "Preparing... (%1)"
+msgstr "準備中... (%1)"
+
+#: src/nxemu/ui/library/nx_tool.cpp
+msgid "Finishing... (%1)"
+msgstr "仕上げ中... (%1)"
+
+#: src/nxemu/ui/library/nx_tool.cpp
+msgid "%1 % done (%2)"
+msgstr "%1 % 完了 (%2)"
+
 #: src/nxemu/ui/library/play_time.cpp
 msgid "< 1m"
 msgstr "< 1 分"
@@ -1598,6 +1642,51 @@ msgstr "最も鮮明です。多くのグラフィックスデバイスで負荷
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Normal"
 msgstr "通常"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Compresses the most and takes the longest"
+msgstr "最も高い圧縮率で、最も時間がかかります"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Maximum"
+msgstr "最大"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Save to"
+msgstr "保存先"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Beside the games"
+msgstr "ゲームと同じ場所"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Change"
+msgstr "変更"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Keep the rebuild data"
+msgstr "復元データを残す"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "A few KB, kept inside the NX. It recreates the original DXCI or DNSP byte for byte."
+msgstr "NX 内に保存される数 KB のデータです。元の DXCI または DNSP を 1 バイト単位で正確に再作成します。"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "The original files are only read. Cancelling leaves no partial file."
+msgstr "元のファイルは読み取るだけです。キャンセルしても不完全なファイルは残りません。"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Delete originals"
+msgstr "元のファイルを削除"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Move to trash when you click Finish."
+msgstr "「完了」をクリックするとゴミ箱に移動します。"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert"
+msgstr "変換"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "The fastest. Most games look right; particles often do not."
@@ -2020,6 +2109,38 @@ msgstr "サブフォルダーも検索"
 msgid "Remove"
 msgstr "削除"
 
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Convert to NX"
+msgstr "NX に変換"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Each game, with its updates and DLC, becomes one .nx file that NXEmu reads directly. Drop files or folders on this window, or add them below."
+msgstr "各ゲームはアップデートや DLC とまとめて、NXEmu が直接読み込める 1 つの .nx ファイルになります。このウィンドウにファイルやフォルダーをドロップするか、下から追加してください。"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Add files"
+msgstr "ファイルを追加"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Add a folder"
+msgstr "フォルダーを追加"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Compression"
+msgstr "圧縮"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Quickest to convert"
+msgstr "最も速く変換"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Fast"
+msgstr "高速"
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+msgid "Balances compression and conversion time"
+msgstr "圧縮率と変換時間のバランスを取ります"
+
 #: src/nxemu/ui/views/directories_dialog.cpp
 msgid "No game directory yet. Add the folders your games are in."
 msgstr "ゲームフォルダーがありません。ゲームを含むフォルダーを追加します。"
@@ -2441,6 +2562,29 @@ msgid "Opening the game..."
 msgstr "ゲームを開いています..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "数分かかることがあります。コンパイル済みのシェーダーはキャッシュされ、次回以降の起動が速くなります。"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "About %1 s remaining"
+msgstr "残り約 %1 秒"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "About %1 min remaining"
+msgstr "残り約 %1 分"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Estimating time remaining..."
+msgstr "残り時間を計算中..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Finishing shader preparation..."
+msgstr "シェーダーの準備を仕上げています..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "シェーダの準備"
 
@@ -2507,6 +2651,10 @@ msgstr "パラメータ(&P)"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Install &Firmware"
 msgstr "ファームウェアをインストール(&F)"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Convert games to &NX..."
+msgstr "ゲームを &NX に変換..."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "E&xit"
@@ -2663,6 +2811,20 @@ msgid "Start Game"
 msgstr "ゲームを開始"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Hide details"
+msgstr "詳細を隠す"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show details"
+msgstr "詳細を表示"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "ゲーム設定"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "セーブデータを開く"
 
@@ -2677,6 +2839,18 @@ msgstr "ゲームフォルダーを開く"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Copy File Path"
 msgstr "ファイルパスをコピー"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Updates and DLC in this NX..."
+msgstr "この NX のアップデートと DLC..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Title and picture of this NX..."
+msgstr "この NX のタイトルと画像..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Convert to NX..."
+msgstr "NX に変換..."
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Manage profiles"
@@ -2757,6 +2931,11 @@ msgstr ""
 msgid "Yes"
 msgstr "はい"
 
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Update"
+msgstr "アップデート"
+
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
 msgstr "履歴"
@@ -2804,6 +2983,127 @@ msgstr "%1 を削除しますか？セーブデータはディスクに残りま
 #: src/nxemu/ui/views/profiles_dialog.cpp
 msgid "Pictures"
 msgstr "画像"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The new picture will be applied when you save."
+msgstr "新しい画像は保存時に適用されます。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The picture could not be saved."
+msgstr "画像を保存できませんでした。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Saving the title and picture..."
+msgstr "タイトルと画像を保存中..."
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Cancelled: nothing was written"
+msgstr "キャンセルしました: 何も書き込んでいません"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 already exists. Choose a different destination folder."
+msgstr "%1 はすでに存在します。別の保存先フォルダーを選択してください。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add the game itself (its base file): an NX holds the game with its updates and DLC."
+msgstr "ゲーム本体 (ベースファイル) を追加してください。NX にはゲーム本体とそのアップデートや DLC が入ります。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Two files hold the game itself: keep only one of them."
+msgstr "ゲーム本体を含むファイルが 2 つあります。どちらか 1 つだけを残してください。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Several files have the same content version. Select one copy of each version."
+msgstr "同じバージョンのコンテンツを含むファイルが複数あります。バージョンごとに 1 つだけ選択してください。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose a folder of games"
+msgstr "ゲームのフォルダーを選択"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose where the NX files go"
+msgstr "NX ファイルの保存先を選択"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Beside each game's files"
+msgstr "各ゲームのファイルと同じ場所"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Identical to %1"
+msgstr "%1 と同一"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Bundled firmware"
+msgstr "同梱のファームウェア"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Omitting firmware disables rebuild data for this game."
+msgstr "ファームウェアを除外すると、このゲームの復元データは無効になります。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Several update versions are available. Keep the versions you want."
+msgstr "複数のアップデートバージョンがあります。残したいバージョンを選んでください。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Save as %1"
+msgstr "%1 として保存"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Files"
+msgstr "ファイル"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Not a decrypted DXCI or DNSP file: it cannot be converted."
+msgstr "復号済みの DXCI または DNSP ファイルではないため、変換できません。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Reading the files..."
+msgstr "ファイルを読み込み中..."
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add the game's files: the game itself, its updates and its DLC. They can be in several files; each game becomes one .nx file."
+msgstr "ゲームのファイル (ゲーム本体、アップデート、DLC) を追加してください。複数のファイルに分かれていてもかまいません。各ゲームは 1 つの .nx ファイルになります。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert %1 games"
+msgstr "%1 本のゲームを変換"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Converting %1..."
+msgstr "%1 を変換中..."
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Batch %1 of %2 (%3 %)"
+msgstr "バッチ %1 / %2 (%3 %)"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%n original file moved to the trash."
+msgid_plural "%n original files moved to the trash."
+msgstr[0] "%n 個の元のファイルをゴミ箱に移動しました。"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Could not move to the trash: %1"
+msgstr "ゴミ箱に移動できませんでした: %1"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1"
+msgstr "%1 として保存しました"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Size: %1 · original: %2"
+msgstr "サイズ: %1 · 元: %2"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Retry failed jobs"
+msgstr "失敗したものを再試行"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Conversion completed successfully"
+msgstr "変換が完了しました"
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 of %2 games converted"
+msgstr "%2 本中 %1 本のゲームを変換しました"
 
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "Favors smoother gameplay. Edges may look more jagged."
@@ -2886,11 +3186,6 @@ msgstr "ゲーム一覧"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
 msgstr "情報"
-
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "ゲーム設定"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -3408,6 +3703,135 @@ msgstr "%1 時間 %2 分"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Version %1"
 msgstr "バージョン %1"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Reading the file..."
+msgstr "ファイルを読み込み中..."
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The title and picture were saved."
+msgstr "タイトルと画像を保存しました。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: the file was left as it was."
+msgstr "キャンセルしました: ファイルは元のままです。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Nothing changed: %1"
+msgstr "変更はありません: %1"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Rebuilt, identical to the original file."
+msgstr "復元しました。元のファイルと同一です。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: nothing was kept."
+msgstr "キャンセルしました: 何も残していません。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Not rebuilt: %1"
+msgstr "復元できませんでした: %1"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Added."
+msgstr "追加しました。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Added; the rest was already in the file."
+msgstr "追加しました。残りはすでにファイル内にありました。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Already in the file: nothing changed."
+msgstr "すでにファイル内にあります: 変更はありません。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: some content was already added."
+msgstr "キャンセルしました: 一部のコンテンツはすでに追加されています。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Some content was added before the error: %1"
+msgstr "エラーの前に一部のコンテンツが追加されました: %1"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Removed. The space it used is reclaimed by a later change or when it grows large."
+msgstr "削除しました。使っていた領域は、後の変更時や大きくなったときに回収されます。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Adding to %1..."
+msgstr "%1 に追加中..."
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Updates and DLC"
+msgstr "アップデートと DLC"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Remove %1 %2?"
+msgstr "%1 %2 を削除しますか？"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The game then starts with the next most recent update in the file, or without one. Its saves are not touched."
+msgstr "ゲームはファイル内の次に新しいアップデートで起動します。なければアップデートなしで起動します。セーブデータには影響しません。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The game no longer sees this DLC. Its saves are not touched."
+msgstr "ゲームはこの DLC を認識しなくなります。セーブデータには影響しません。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Original files that depend on this content may no longer be rebuildable."
+msgstr "このコンテンツに依存する元のファイルは、復元できなくなる可能性があります。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Choose where the original file goes"
+msgstr "元のファイルの保存先を選択"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Rebuilding %1..."
+msgstr "%1 を復元中..."
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Removing %1 %2..."
+msgstr "%1 %2 を削除中..."
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The ROM picture will be restored when you save."
+msgstr "保存時に ROM の画像に戻ります。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Newest"
+msgstr "最新"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Nothing could be read from this file."
+msgstr "このファイルからは何も読み込めませんでした。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Original files that can be rebuilt"
+msgstr "復元できる元のファイル"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Original"
+msgstr "元のファイル"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Rebuild"
+msgstr "復元"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Retry without rebuild data"
+msgstr "復元データなしで再試行"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "No picture"
+msgstr "画像なし"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "This archive has no recoverable ROM picture."
+msgstr "このアーカイブには復元できる ROM の画像がありません。"
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Current picture"
+msgstr "現在の画像"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Title ID %1"
@@ -4445,8 +4869,6 @@ msgstr "GPU演算によるIntel CMAA2アンチエイリアス。Vulkan専用。"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "3回の描画パスによる形態学的アンチエイリアス。"
-
-
 
 #: src/nxemu/ui/views/main_window.cpp
 

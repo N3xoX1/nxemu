@@ -2407,6 +2407,10 @@ msgid "Opening the game..."
 msgstr "Ouverture du jeu..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "Cela peut prendre quelques minutes. Les shaders compilés sont mis en cache pour accélérer les prochains lancements."
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "Préparation des shaders"
 
@@ -2625,6 +2629,20 @@ msgid "Start Game"
 msgstr "Démarrer le jeu"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "Hide details"
+msgstr "Masquer les détails"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show details"
+msgstr "Afficher les détails"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Paramètres du jeu"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "Ouvrir les sauvegardes"
 
@@ -2809,11 +2827,6 @@ msgstr "Liste des jeux"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
 msgstr "Infos"
-
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "Paramètres du jeu"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4143,8 +4156,6 @@ msgstr "Anticrénelage Intel CMAA2 par calcul GPU. Vulkan uniquement."
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Anticrénelage morphologique en trois passes graphiques."
 
-
-
 #: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "Balanced"
@@ -4620,9 +4631,6 @@ msgstr "Le jeu ne voit plus ce DLC. Ses sauvegardes ne sont pas touchées."
 msgid "Removing %1 %2..."
 msgstr "Retrait de %1 %2..."
 
-msgid "Used"
-msgstr "Utilisée"
-
 msgid "Nothing could be read from this file."
 msgstr "Rien n'a pu être lu dans ce fichier."
 
@@ -4759,6 +4767,10 @@ msgstr "Encore environ %1 min"
 
 msgid "Estimating time remaining..."
 msgstr "Estimation du temps restant…"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Finishing shader preparation..."
+msgstr "Finalisation de la préparation des shaders..."
 
 msgid "Original files that depend on this content may no longer be rebuildable."
 msgstr "Les fichiers d’origine qui dépendent de ce contenu pourraient ne plus être reconstructibles."
