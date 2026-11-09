@@ -434,12 +434,6 @@ void NxConvertDialog::OnCommand(const std::string & command)
                 Queue({folder});
             }
         }
-        else if (command == "clear" && !m_tool.Busy())
-        {
-            m_sources.clear();
-            m_omitFirmware.clear();
-            ShowSources();
-        }
         else if (command.rfind(kTogglePrefix, 0) == 0)
         {
             const size_t index = static_cast<size_t>(std::atoi(command.c_str() + std::string(kTogglePrefix).size()));

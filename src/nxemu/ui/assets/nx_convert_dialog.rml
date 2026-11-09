@@ -17,8 +17,6 @@
           <div class="nx-add-row">
             <button data-command="add-files">Add files</button>
             <button data-command="add-folder">Add a folder</button>
-            <div class="nx-spacer" />
-            <button data-command="clear">Clear the list</button>
           </div>
           <div id="nx-sources" class="nx-list" />
           <div class="nx-options">
@@ -30,7 +28,7 @@
                 <div id="level-13" class="nx-chip" data-command="level:13" title="Compresses the most and takes the longest">Maximum</div>
               </div>
             </div>
-            <div class="nx-option">
+            <div class="nx-option nx-output-folder">
               <div class="nx-option-label">Save to</div>
               <div id="output-folder" class="nx-option-value" />
               <div id="output-beside" class="link" data-command="output-beside">Beside the games</div>

@@ -4533,9 +4533,6 @@ msgstr "Ajouter des fichiers"
 msgid "Add a folder"
 msgstr "Ajouter un dossier"
 
-msgid "Clear the list"
-msgstr "Vider la liste"
-
 msgid "Compression"
 msgstr "Compression"
 

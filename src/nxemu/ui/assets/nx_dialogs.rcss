@@ -286,6 +286,11 @@ body.narrow .nx-body
     margin-bottom: 8dp;
 }
 
+.nx-output-folder
+{
+    margin-bottom: 1dp;
+}
+
 .nx-output-files
 {
     max-height: 56dp;

@@ -1263,10 +1263,6 @@ msgid "Add a folder"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-msgid "Clear the list"
-msgstr ""
-
-#: src/nxemu/ui/assets/nx_convert_dialog.rml
 msgid "Compression"
 msgstr ""
 
