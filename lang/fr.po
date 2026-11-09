@@ -4855,3 +4855,9 @@ msgstr "Image actuelle"
 
 msgid "This archive has no recoverable ROM picture."
 msgstr "Cette archive ne contient pas d’image de ROM récupérable."
+
+msgid "Bundled firmware"
+msgstr "Firmware embarqué"
+
+msgid "Omitting firmware disables rebuild data for this game."
+msgstr "Exclure le firmware désactive les données de reconstruction pour ce jeu."

@@ -16,6 +16,7 @@ namespace
 {
 constexpr const char * kTogglePrefix = "toggle-source:";
 constexpr const char * kLevelPrefix = "level:";
+constexpr std::string_view kFirmwarePrefix = "toggle-firmware:";
 constexpr const char * kArchivePrefix = "pick-archive:";
 constexpr const char * kClearArchivePrefix = "clear-archive:";
 constexpr std::string_view kEditResultPrefix = "edit-result:";
@@ -136,6 +137,7 @@ void NxConvertDialog::Offer(std::string game)
     {
         m_sources.clear();
         m_existingArchives.clear();
+        m_omitFirmware.clear();
         m_pendingScan.clear();
         m_pendingGame.clear();
         Show();
@@ -365,6 +367,12 @@ void NxConvertDialog::AppendScanResults(const NxTool::State & state)
             content.name = record[7];
             m_sources[found->second].contents.push_back(std::move(content));
         }
+        else if (record[0] == "FIRMWARE" && record.size() >= 3)
+        {
+            const auto found = added.find(Key(record[1]));
+            if (found != added.end())
+                m_sources[found->second].firmwareBytes = std::strtoull(record[2].c_str(), nullptr, 10);
+        }
         else if (record[0] == "ISSUE" && record.size() >= 3)
         {
             const auto found = added.find(Key(record[1]));
@@ -455,6 +463,8 @@ std::vector<NxConvertDialog::Game> NxConvertDialog::Games() const
                                       : Tr("Two files hold the game itself: keep only one of them.");
             game.output.clear();
         }
+        for (const size_t index : game.selected)
+            game.firmwareBytes += m_sources[index].firmwareBytes;
         if (!game.output.empty())
         {
             std::set<Job::Identity> identities;
@@ -500,6 +510,7 @@ void NxConvertDialog::OnCommand(const std::string & command)
         {
             m_sources.clear();
             m_existingArchives.clear();
+            m_omitFirmware.clear();
             ShowSources();
         }
         else if (command.rfind(kTogglePrefix, 0) == 0)
@@ -521,6 +532,12 @@ void NxConvertDialog::OnCommand(const std::string & command)
                 ShowSources();
             }
         }
+        else if (command.starts_with(kFirmwarePrefix))
+        {
+            const auto id = std::strtoull(command.c_str() + kFirmwarePrefix.size(), nullptr, 10);
+            if (m_omitFirmware.erase(id) == 0) m_omitFirmware.insert(id);
+            ShowSources();
+        }
         else if (command.rfind(kLevelPrefix, 0) == 0)
         {
             m_level = std::atoi(command.c_str() + std::string(kLevelPrefix).size());
@@ -530,6 +547,7 @@ void NxConvertDialog::OnCommand(const std::string & command)
         {
             m_recipe = !m_recipe;
             ShowOptions();
+            ShowSources();
         }
         else if (command.rfind(kArchivePrefix, 0) == 0)
         {
@@ -605,6 +623,7 @@ void NxConvertDialog::OnCommand(const std::string & command)
     {
         m_sources.clear();
         m_existingArchives.clear();
+        m_omitFirmware.clear();
         m_jobs.clear();
         ShowStep(Step::Pick);
         ShowSources();
@@ -676,6 +695,17 @@ void NxConvertDialog::ShowSources()
     {
         rml += std::string("<div class=\"nx-game") + (game.output.empty() ? " blocked" : "") + "\"><div class=\"nx-game-head\"><div class=\"nx-game-name\">" + Escaped(game.name) +
                "</div><div class=\"nx-game-id\">" + stdstr_f("%016llX", static_cast<unsigned long long>(game.applicationId)) + "</div></div>";
+        if (game.firmwareBytes != 0)
+        {
+            const bool include = !m_omitFirmware.contains(game.applicationId);
+            rml += std::string("<div class=\"nx-source") + (include ? "" : " off") + "\"><div class=\"switch" + (include ? " on" : "") +
+                "\" data-command=\"" + std::string(kFirmwarePrefix) + std::to_string(game.applicationId) +
+                "\"><div class=\"switch-knob\"/></div><div class=\"nx-source-texts\"><div class=\"nx-source-what\">" +
+                Escaped(Tr("Bundled firmware") + " · " + Bytes(game.firmwareBytes)) + "</div>";
+            if (!include && m_recipe)
+                rml += "<div class=\"nx-source-file\">" + Escaped(Tr("Omitting firmware disables rebuild data for this game.")) + "</div>";
+            rml += "</div></div>";
+        }
         for (const size_t index : game.sources)
         {
             const Source & source = m_sources[index];
@@ -696,6 +726,7 @@ void NxConvertDialog::ShowSources()
                 else if (content.kind == "update")
                     what += " " + Tr("Version %1", {std::to_string(content.version)});
             }
+            if (source.firmwareBytes != 0) what += " · " + Tr("Bundled firmware");
             if (!source.duplicateOf.empty()) what += " · " + Tr("Identical to %1", {FileName(source.duplicateOf)});
             rml += std::string("<div class=\"nx-source") + (source.selected ? "" : " off") + "\"><div class=\"switch" + (source.selected ? " on" : "") + "\" data-command=\"" +
                    kTogglePrefix + std::to_string(index) + "\"><div class=\"switch-knob\"/></div><div class=\"nx-source-texts\"><div class=\"nx-source-what\">" + Escaped(what) +
@@ -771,6 +802,7 @@ void NxConvertDialog::StartConversion()
         Job job;
         job.name = game.name;
         job.recipe = m_recipe;
+        job.omitFirmware = m_omitFirmware.contains(game.applicationId);
         job.output = game.output;
         job.add = game.add;
         job.applicationId = game.applicationId;
@@ -778,6 +810,7 @@ void NxConvertDialog::StartConversion()
         {
             const auto & source = m_sources[index];
             job.sources.push_back(source.path);
+            if (source.firmwareBytes != 0) job.firmwareSources.insert(source.path);
             if (const auto stamp = Stamp(source.path)) job.sourceStamps.emplace(source.path, *stamp);
             job.sourceBytes += source.size;
             for (const auto & content : source.contents)
@@ -846,7 +879,12 @@ void NxConvertDialog::NextJob()
             }
             arguments.push_back("--level");
             arguments.push_back(std::to_string(m_level));
-            arguments.push_back(job.recipe ? "--recipe" : "--no-recipe");
+            const auto & inputs = job.add ? job.missingSources : job.sources;
+            const bool omit = job.omitFirmware && std::any_of(inputs.begin(), inputs.end(), [&](const auto & path) {
+                return job.firmwareSources.contains(path);
+            });
+            if (omit) arguments.push_back("--omit-firmware");
+            arguments.push_back(job.recipe && !omit ? "--recipe" : "--no-recipe");
         }
         m_lastProgress.clear();
         if (m_tool.Start(arguments))

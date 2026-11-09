@@ -1,5 +1,7 @@
 #include "nx_tool.h"
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -11,6 +13,56 @@
 #include <nxemu/ui/i18n/translation.h>
 #include <nx_disk_source.hpp>
 #include <nxformat.h>
+
+namespace
+{
+// Read the same DXCI update partition that nxformat can preserve. Only the
+// card and HFS0 headers are needed, even when the firmware is several hundred MB.
+uint64_t BundledFirmwareSize(const std::filesystem::path & path, uint64_t fileSize)
+{
+    std::ifstream input(path, std::ios::binary);
+    const auto read = [&](uint64_t offset, void * buffer, size_t size) {
+        if (offset > fileSize || size > fileSize - offset) return false;
+        input.seekg(static_cast<std::streamoff>(offset));
+        return static_cast<bool>(input.read(static_cast<char *>(buffer), size));
+    };
+    const auto le = [](const uint8_t * bytes, size_t count) {
+        uint64_t value = 0;
+        for (size_t i = 0; i < count; ++i) value |= uint64_t(bytes[i]) << (8 * i);
+        return value;
+    };
+    std::array<uint8_t, 0x140> card{};
+    if (!read(0, card.data(), card.size()) || std::memcmp(card.data() + 0x100, "DXCI", 4) != 0) return 0;
+    const uint64_t root = le(card.data() + 0x130, 8);
+    std::array<uint8_t, 16> header{};
+    if (!read(root, header.data(), header.size()) || std::memcmp(header.data(), "HFS0", 4) != 0) return 0;
+
+    const uint64_t count = le(header.data() + 4, 4);
+    const uint64_t namesSize = le(header.data() + 8, 4);
+    if (count > 4096 || namesSize > 1024 * 1024) return 0;
+    const uint64_t tableSize = count * 64 + namesSize;
+    if (tableSize > fileSize - root - header.size()) return 0;
+    std::vector<uint8_t> table(tableSize);
+    if (!read(root + header.size(), table.data(), table.size())) return 0;
+    const uint64_t data = root + header.size() + tableSize;
+    for (uint64_t i = 0; i < count; ++i)
+    {
+        const auto * entry = table.data() + i * 64;
+        const auto name = le(entry + 16, 4);
+        if (name > namesSize || sizeof("update") > namesSize - name ||
+            std::memcmp(table.data() + count * 64 + name, "update", sizeof("update")) != 0) continue;
+        const auto offset = le(entry, 8);
+        const auto size = le(entry + 8, 8);
+        if (offset > fileSize - data || size > fileSize - data - offset || size < header.size() ||
+            !read(data + offset, header.data(), header.size()) || std::memcmp(header.data(), "HFS0", 4) != 0)
+            return 0;
+        const auto entries = le(header.data() + 4, 4);
+        const auto strings = le(header.data() + 8, 4);
+        return entries != 0 && entries * 64 + strings <= size - header.size() ? size : 0;
+    }
+    return 0;
+}
+}
 
 std::vector<std::string> SplitFields(const std::string & line)
 {
@@ -218,6 +270,14 @@ void NxTool::Run(std::vector<std::string> arguments, std::vector<ScanSource> kno
             if (result != NXFORMAT_OK && failure[0] != '\0')
             {
                 records.push_back({"ISSUE", name, failure});
+            }
+            const auto dxci = std::find_if(records.begin(), records.end(), [](const auto & row) {
+                return row.size() >= 5 && row[0] == "SOURCE" && row[3] == "Dxci" && row[4] == "Supported";
+            });
+            if (dxci != records.end())
+            {
+                const auto bytes = BundledFirmwareSize(path, std::strtoull((*dxci)[2].c_str(), nullptr, 10));
+                if (bytes != 0) records.push_back({"FIRMWARE", name, std::to_string(bytes)});
             }
             return records;
         };

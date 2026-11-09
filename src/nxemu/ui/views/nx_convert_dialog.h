@@ -46,6 +46,7 @@ private:
     {
         std::string path;
         uint64_t size = 0;
+        uint64_t firmwareBytes = 0;
         bool supported = false;
         bool selected = true;
         std::string issue;
@@ -61,6 +62,7 @@ private:
         std::string problem;
         bool add = false;
         bool canChooseArchive = false;
+        uint64_t firmwareBytes = 0;
         std::vector<size_t> selected;
         std::set<uint32_t> updateVersions;
     };
@@ -84,6 +86,8 @@ private:
         bool done = false;
         bool succeeded = false;
         bool recipe = true;
+        bool omitFirmware = false;
+        std::set<std::string> firmwareSources;
         bool canRetry = false;
         bool add = false;
         bool retryable = false;
@@ -130,6 +134,7 @@ private:
     std::vector<Source> m_sources;
     std::vector<Job> m_jobs;
     std::map<uint64_t, std::string> m_existingArchives;
+    std::set<uint64_t> m_omitFirmware;
     std::vector<std::string> m_confirmTrash;
     std::string m_trashResult;
     size_t m_job = 0;

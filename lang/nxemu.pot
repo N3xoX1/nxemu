@@ -3270,6 +3270,14 @@ msgid "Beside each game's files"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Bundled firmware"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Omitting firmware disables rebuild data for this game."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Identical to %1"
 msgstr ""
 
