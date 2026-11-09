@@ -1548,6 +1548,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 publish_metadata(VideoCommon::ShaderProfile::ImportIntegratedPath(base_dir),receipt);
             };
             size_t imported{};
+            VideoCommon::CacheStore::AppendSession append_session;
+            // Each receipt lists every record so far, so writing one per fixed number of recipes grows with the
+            // square of the import. It only saves an interrupted import from repeating work: a few seconds is fine.
+            auto last_receipt=std::chrono::steady_clock::now();
             // Integrate recipes for the running game first; optional foreign
             // contexts must not exhaust the input budget ahead of local work.
             for (bool foreign_pass : {false, true}) for (const auto& recipe : recipes) {
@@ -1598,7 +1602,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 }
                 ++imported;
                 profile_progress(VideoCore::LoadCallbackStage::ImportProfile,imported,recipes.size());
-                if(imported%128==0)publish_integration(false);
+                if(std::chrono::steady_clock::now()-last_receipt>=std::chrono::seconds(5)) {
+                    publish_integration(false);
+                    last_receipt=std::chrono::steady_clock::now();
+                }
             }
             if (imported==recipes.size() && !stop_loading.stop_requested()) {
                 publish_integration(true);

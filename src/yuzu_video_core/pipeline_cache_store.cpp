@@ -16,6 +16,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#ifdef _MSC_VER
+#include <share.h>
+#endif
 
 namespace VideoCommon::CacheStore
 {
@@ -106,8 +109,41 @@ ContextIndex ParseContext(const std::filesystem::path& path, std::string_view co
     Check(in.eof());
     return index;
 }
+// The files an AppendSession holds open. An index is kept per version: the recipes of a profile can alternate between
+// versions, and parsing an index on each switch grows with the import.
+bool session_open{};
+void OpenHeld(std::ofstream& file, const std::filesystem::path& path) {
+#ifdef _MSC_VER
+    file.open(path.c_str(), std::ios::binary | std::ios::app, _SH_DENYWR);
+#else
+    file.open(path, std::ios::binary | std::ios::app);
+#endif
+    if (!file) throw std::runtime_error("Cannot open the local shader cache for writing; another nxemu may be using it");
+}
+struct HeldContext { std::ofstream file; ContextIndex index; };
+std::map<std::filesystem::path, HeldContext> held_contexts;
+void AppendHeldContext(const std::filesystem::path& path, std::string_view context, const std::string& id) {
+    const auto [held, fresh]=held_contexts.try_emplace(path);
+    try {
+        auto& index=held->second.index;
+        if(fresh) {
+            index=ParseContext(path,context);
+            // Before opening: the open denies writing to this process too.
+            if(std::filesystem::exists(path) && index.valid_bytes!=std::filesystem::file_size(path))
+                std::filesystem::resize_file(path,index.valid_bytes);
+        }
+        if(index.ids.contains(id)) return;
+        Check(index.ids.size()<ShaderProfile::MaxVersionPipelines);
+        if(!held->second.file.is_open()) OpenHeld(held->second.file,path);
+        const auto frame=(index.valid_bytes?std::string{}:"NXCTX002"+std::string(context))+id+Digest(std::string(context)+id);
+        held->second.file.write(frame.data(),frame.size());held->second.file.flush();Check(bool(held->second.file));
+        index.valid_bytes+=frame.size();
+        index.ids.insert(id);
+    } catch(...) { held_contexts.erase(held);throw; }
+}
 void AppendContext(const std::filesystem::path& cache, std::string_view context, const std::string& id) {
     const auto path=ContextPath(cache,context,true);
+    if(session_open) return AppendHeldContext(path,context,id);
     static std::filesystem::path active;
     static ContextIndex index;
     const auto size=std::filesystem::exists(path)?std::filesystem::file_size(path):0;
@@ -328,8 +364,23 @@ struct Writer
 };
 std::filesystem::path writer_path;
 Writer writer;
+std::ofstream held_store;
+std::filesystem::path held_store_path;
+void CloseHeldStore() {
+    if (held_store_path.empty()) return;
+    held_store.close();
+    held_store.clear();
+    // Without the new write time the next append parses the whole store again.
+    std::error_code error;
+    const auto modified = std::filesystem::last_write_time(held_store_path, error);
+    if (!error && writer_path == held_store_path && writer.disk_size) writer.modified = modified;
+    held_store_path.clear();
+}
 
 void SyncWriter(const std::filesystem::path& path,u32 shader_abi) {
+    // Nothing else can have written a store this session holds.
+    if (held_store_path == path && writer_path == path && writer.abi == shader_abi) return;
+    CloseHeldStore();
     if (writer_path != path)
     {
         writer = Writer{};
@@ -422,20 +473,37 @@ void Append(const std::filesystem::path & path, u32 shader_abi, const Record & r
         if (writer.index.code.size()+writer.index.environments.size()+writer.index.pipelines.size()+1>ShaderProfile::MaxLocalCacheObjects ||
             writer.index.valid_bytes + pending.size() > MaxFile)
             throw std::runtime_error("Local shader cache reached its 1 GiB limit; new entries were not written");
-        std::ofstream out(path, std::ios::binary | std::ios::app);
-        out.write(pending.data(), static_cast<std::streamsize>(pending.size()));
-        out.flush();
-        Check(bool(out));
+        if (session_open)
+        {
+            if (held_store_path != path)
+            {
+                OpenHeld(held_store, path);
+                held_store_path = path;
+            }
+            held_store.write(pending.data(), static_cast<std::streamsize>(pending.size()));
+            held_store.flush();
+            Check(bool(held_store));
+        }
+        else
+        {
+            std::ofstream out(path, std::ios::binary | std::ios::app);
+            out.write(pending.data(), static_cast<std::streamsize>(pending.size()));
+            out.flush();
+            Check(bool(out));
+            writer.modified = std::filesystem::last_write_time(path);
+        }
         writer.index.pipelines.insert(pipeline_id);
         writer.index.valid_bytes += pending.size();
         writer.disk_size = writer.index.valid_bytes;
-        writer.modified = std::filesystem::last_write_time(path);
         KeepTail(writer.tail, pending);
         if (!context.empty()) AppendContext(path,context,pipeline_id);
         if(record_id)*record_id=pipeline_id;
     }
     catch (...)
     {
+        held_store.close();
+        held_store.clear();
+        held_store_path.clear();
         writer = Writer{};
         writer_path.clear();
         throw;
@@ -454,6 +522,7 @@ bool AssociateContext(const std::filesystem::path& path,u32 shader_abi,
 
 bool Compact(const std::filesystem::path& path, u32 shader_abi, size_t min_loose_bytes) {
     std::scoped_lock lock(writer_mutex);
+    CloseHeldStore();
     if (!std::filesystem::exists(path)) return false;
     // Most loads have nothing to regroup: frame headers alone tell, without
     // decompressing or digesting anything.
@@ -560,6 +629,20 @@ bool Compact(const std::filesystem::path& path, u32 shader_abi, size_t min_loose
     writer = Writer{};
     writer_path.clear();
     return true;
+}
+
+AppendSession::AppendSession() {
+#ifdef _MSC_VER
+    std::scoped_lock lock(writer_mutex);
+    session_open = true;
+#endif
+}
+
+AppendSession::~AppendSession() {
+    std::scoped_lock lock(writer_mutex);
+    session_open = false;
+    CloseHeldStore();
+    held_contexts.clear();
 }
 
 std::filesystem::path ContextIndexPath(const std::filesystem::path& path, std::string_view context) {
